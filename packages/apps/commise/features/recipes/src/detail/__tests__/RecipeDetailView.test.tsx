@@ -40,22 +40,27 @@ describe('RecipeDetailView (web) — header', () => {
         expect(screen.getByRole('heading', { level: 1, name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
     });
 
-    it('sits the header in a brand gradient title band (U8)', () => {
-        const { container } = render(
+    it('does not wrap the title or the description in a gradient title band', () => {
+        render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail({ title: 'Lamb' })}
+                recipe={makeRecipeDetail({ title: 'Lamb', description: 'Tender and herby.' })}
             />,
         );
-        // The GradientSurface paints an inline linear-gradient background behind the header. Selected by the
-        // band that CONTAINS the h1 — not merely "the first gradient on the screen", so another gradient
-        // surface elsewhere on the detail (e.g. the hero's no-cover placeholder) cannot satisfy this by accident.
-        const band = Array.from(container.querySelectorAll<HTMLElement>('*')).find(
-            (el) => el.style.backgroundImage.startsWith('linear-gradient') && el.querySelector('h1') !== null,
-        );
 
-        expect(band).toBeDefined();
+        // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): a card exists only to group, and the page
+        // canvas already carries the beach-glow wash, so the heading sits on the canvas, not in a second gradient.
+        for (const start of [
+            screen.getByRole('heading', { level: 1, name: 'Lamb' }),
+            screen.getByText('Tender and herby.'),
+        ]) {
+            for (let node: HTMLElement | null = start; node !== null; node = node.parentElement) {
+                expect(node.style.backgroundImage, 'a gradient surface wraps the header').not.toContain(
+                    'linear-gradient',
+                );
+            }
+        }
     });
 
     it('renders the description', () => {

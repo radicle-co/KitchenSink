@@ -130,6 +130,38 @@ describe('HomeChrome', () => {
         expect(main.className).toContain('pb-[calc(5rem+env(safe-area-inset-bottom))]');
         expect(main.className).toContain('lg:pb-6');
     });
+
+    /**
+     * `<main>` is the container every surface queries (`docs/design/uiOverhaul/buildSpec.md` §1.2): content responds
+     * to the width it gets, never to the viewport, and the page gutters are PADDING on `<main>`, so the size query
+     * reads the content box. The gutters step 16 → 24 → 32 at the medium (600) and nav (840) viewport thresholds —
+     * `medium:`, not Tailwind's `md:` (768). jsdom checks the class contract; `tests/e2e/layoutContainers.spec.ts`
+     * measures the content box in a real engine.
+     */
+    it.each([
+        ['a browsing surface', false],
+        ['a focused task', true],
+    ] as const)('makes <main> the named `main` container with the spec gutters on %s', (_name, focusedTask) => {
+        render(
+            <HomeChrome
+                chrome={chrome}
+                pageTitle={chrome.pageTitles.home}
+                locale="en"
+                liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
+                activeId="home"
+                displayName="Jane Doe"
+                focusedTask={focusedTask}
+            >
+                <p>surface-content</p>
+            </HomeChrome>,
+        );
+
+        const tokens = screen.getByRole('main').className.split(/\s+/u);
+
+        expect(tokens).toContain('@container/main');
+        expect(tokens).toEqual(expect.arrayContaining(['px-4', 'medium:px-6', 'nav:px-8']));
+        expect(tokens).not.toContain('md:px-6');
+    });
 });
 
 /**

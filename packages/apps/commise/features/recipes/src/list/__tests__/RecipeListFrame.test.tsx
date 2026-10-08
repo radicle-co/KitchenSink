@@ -59,17 +59,16 @@ describe('RecipeListFrame (web) — chrome', () => {
     });
 });
 
-describe('RecipeListFrame (web) — U8 brand title band', () => {
-    it('sits the heading in a brand gradient title band', () => {
-        const { container } = render(frame());
+describe('RecipeListFrame (web) — the heading sits on the canvas', () => {
+    it('does not wrap the heading in a gradient title band', () => {
+        render(frame());
+        // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): a card exists only to group, and the page
+        // canvas already carries the beach-glow wash, so the heading sits on the canvas, not in a second gradient.
+        let node: HTMLElement | null = screen.getByRole('heading', { name: 'Recipes' });
 
-        // GradientSurface (web) paints an inline linear-gradient background behind the header.
-        const band = Array.from(container.querySelectorAll<HTMLElement>('*')).find((el) =>
-            el.style.backgroundImage.startsWith('linear-gradient'),
-        );
-
-        expect(band).toBeDefined();
-        expect(band?.querySelector('h1')).not.toBeNull();
+        for (; node !== null; node = node.parentElement) {
+            expect(node.style.backgroundImage, 'a gradient surface wraps the heading').not.toContain('linear-gradient');
+        }
     });
 
     it('threads the Playfair display family onto the list heading', () => {

@@ -40,6 +40,7 @@ import '@formatjs/intl-relativetimeformat/locale-data/en';
 import '@formatjs/intl-listformat/polyfill';
 import '@formatjs/intl-listformat/locale-data/en';
 
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, useFonts } from '@expo-google-fonts/playfair-display';
 import { registerRootComponent } from 'expo';
 import * as Sentry from '@sentry/react-native';
@@ -60,10 +61,19 @@ installOnlineManager();
 installFocusManager();
 
 function App(): JSX.Element {
-    // Load the Playfair Display faces used by the Home greeting/display headings. Non-blocking on purpose: we
-    // do NOT gate the first render on it — RN falls back to the system serif until the faces register, then
-    // re-renders — so a slow or failed font load can never hold the whole app on a blank screen.
-    useFonts({ PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold });
+    // Load the Playfair Display faces (display type) and the Inter faces (every body type role, one face per weight —
+    // `nativeTokens.fontFace.body`). Non-blocking on purpose: we do NOT gate the first render on it — RN falls back to
+    // the system face until the faces register, then re-renders — so a slow or failed font load can never hold the
+    // whole app on a blank screen. `tests/theme/fonts.test.ts` reads this call back and fails if a face the design
+    // system names is missing from it.
+    useFonts({
+        PlayfairDisplay_600SemiBold,
+        PlayfairDisplay_700Bold,
+        Inter_400Regular,
+        Inter_500Medium,
+        Inter_600SemiBold,
+        Inter_700Bold,
+    });
 
     return (
         <AppProviders>

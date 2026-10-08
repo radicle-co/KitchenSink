@@ -84,20 +84,6 @@ const renderSurface = (props: Parameters<typeof HomeWidgetSurface>[0]): void => 
 
 const FakeRecipeWidget: FC = () => <div>fake-recipe-widget</div>;
 
-/**
- * Rewrite every `#RRGGBB` to the `rgb(r, g, b)` form `getComputedStyle` reports.
- *
- * ⚠️ jsdom 30 canonicalises CSS colours, so a hex written into `style` reads back as `rgb(...)`. Normalising
- * BOTH sides means the assertion survives a serialiser change and still catches a genuinely different
- * colour written in the same notation.
- */
-const asRgb = (css: string): string =>
-    css.replace(/#([0-9a-f]{6})/giu, (_, hex: string) => {
-        const [r, g, b] = [0, 2, 4].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
-
-        return `rgb(${r}, ${g}, ${b})`;
-    });
-
 describe('HomeWidgetSurface (web) — host composition', () => {
     it('renders the accessible page title, the time-of-day greeting header, and the widget-surface region', () => {
         vi.useFakeTimers();
@@ -117,7 +103,7 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     });
 
-    it('sits the greeting on the brand beach-glow gradient hero (U8), not a plain header', () => {
+    it('sits the greeting on the page canvas, not inside a gradient card', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
@@ -128,27 +114,15 @@ describe('HomeWidgetSurface (web) — host composition', () => {
             />,
         );
 
-        // Walk up from the greeting to the nearest ancestor painting a linear-gradient background: it must be
-        // the hero beach-glow ramp (135deg sand → cool tints), NOT the seafoam→ocean-dark brand/CTA gradient.
-        // A regression that dropped the hero wrapper (or swapped it for `gradient="brand"`) fails here.
-        const greeting = screen.getByRole('heading', { level: 2, name: 'Good afternoon, Chef!' });
+        // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): the greeting card is deleted. The page canvas
+        // already carries the beach-glow wash, so the greeting sits on it rather than in a second gradient card.
+        let node: HTMLElement | null = screen.getByRole('heading', { level: 2, name: 'Good afternoon, Chef!' });
 
-        let hero: HTMLElement | null = greeting.parentElement;
-
-        while (hero !== null && !hero.style.backgroundImage.includes('linear-gradient')) {
-            hero = hero.parentElement;
+        for (; node !== null; node = node.parentElement) {
+            expect(node.style.backgroundImage, 'a gradient surface wraps the greeting').not.toContain(
+                'linear-gradient',
+            );
         }
-
-        expect(hero).not.toBeNull();
-        // ⚠️ Asserted as COLOURS, not as the hex spelling. jsdom 30 canonicalises through its CSSOM, so a
-        // `#FAF6F0` written into `style` reads back as `rgb(250, 246, 240)` — the component paints the right
-        // colour either way, and matching the literal was asserting jsdom's serialiser. Normalising the
-        // expectation rather than pinning the new form keeps this working across the next change too.
-        const painted = asRgb(hero?.style.backgroundImage ?? '');
-
-        expect(painted).toContain('135deg');
-        expect(painted).toContain(asRgb('#FAF6F0'));
-        expect(painted).toContain(asRgb('#E8F4F8'));
     });
 
     it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {

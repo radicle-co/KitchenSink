@@ -76,7 +76,7 @@ describe('RecipeListFrame (native) — chrome', () => {
     });
 });
 
-describe('RecipeListFrame (native) — U8 brand title band', () => {
+describe('RecipeListFrame (native) — the heading sits on the canvas', () => {
     // React Native renders a CSS font stack as the system font, silently. `getComputedStyle` does not resolve
     // react-native-web's class-compiled family, so this reads the injected declaration and rejects any stack.
     it('paints the heading in the registered bold Playfair face, never a CSS font stack', () => {
@@ -88,12 +88,13 @@ describe('RecipeListFrame (native) — U8 brand title band', () => {
         expect(applied).not.toContain(',');
     });
 
-    it('sits the heading in a brand gradient title band', () => {
-        const { container } = render(frame());
-
-        const band = container.querySelector('[data-commise-stub="linear-gradient"]');
-        expect(band).not.toBeNull();
-        expect(band?.querySelector('[role="heading"]')).not.toBeNull();
+    it('does not wrap the heading in a gradient title band', () => {
+        render(frame());
+        // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): a card exists only to group, and the page
+        // canvas already carries the beach-glow wash, so the heading sits on the canvas, not in a second gradient.
+        expect(
+            screen.getByRole('heading', { name: 'Recipes' }).closest('[data-commise-stub="linear-gradient"]'),
+        ).toBeNull();
     });
 });
 

@@ -22,6 +22,7 @@
         "@commise/i18n": "*",
         "@commise/query": "*",
         "@commise/ui": "^0.0.0",
+        "@expo-google-fonts/inter": "^0.4.2",
         "@expo-google-fonts/playfair-display": "^0.4.2",
         "@expo/metro-runtime": "~57.0.7",
         "@expo/vector-icons": "^15.0.2",

@@ -185,6 +185,10 @@ describe('web tokens — the page-canvas gradient is emitted into a real namespa
  *
  * This test used to RE-IMPLEMENT the generator's emission loops, which meant it could not fail when the
  * generator drifted — the duplication is now gone and the assertion is honest.
+ *
+ * Re-baselined for the UI overhaul's slice 1 (`docs/architecture/uiOverhaulBlueprint.md`, Part B): the palette gains
+ * `pewter` and `honey`, and the colour roles, type roles, breakpoints and container widths are appended after the
+ * glass and canvas declarations. No pre-existing declaration changed its value or its relative order.
  */
 describe('web tokens — generated theme.css artifact', () => {
     it('renders byte-identical Tailwind theme.css', () => {
@@ -209,6 +213,8 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-error: #C05238;
               --color-error-dark: #B1442B;
               --color-premium: #D4A574;
+              --color-pewter: #858F93;
+              --color-honey: #A86A12;
               --color-background: #FAF6F0;
               --color-foreground: #2D3436;
               --color-card: #FFFFFF;
@@ -253,6 +259,63 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-glass-card-edge: rgba(255, 255, 255, 0.3);
               --color-glass-subtle-edge: rgba(255, 255, 255, 0.3);
               --background-image-hero: linear-gradient(135deg, #FAF6F0 0%, #F0F7F4 50%, #E8F4F8 100%);
+              --color-canvas: #FAF6F0;
+              --color-paper: #FFFFFF;
+              --color-ink: #2D3436;
+              --color-ink-muted: #636E72;
+              --color-line-control: #858F93;
+              --color-line-divider: #B2BEC3;
+              --color-action: #31807A;
+              --color-action-text: #2A6B65;
+              --color-selected-fill: #E2EDEC;
+              --color-selected-edge: #31807A;
+              --color-here-bar: #31807A;
+              --color-focus-ring: #2A6B65;
+              --color-rating: #A86A12;
+              --color-attention: #966400;
+              --color-attention-tint: rgba(245, 176, 65, 0.2);
+              --color-danger: #C05238;
+              --color-danger-text: #B1442B;
+              --text-large-title: clamp(1.75rem, 1.5rem + 1.6667cqi, 2.5rem);
+              --text-large-title--line-height: 1.15;
+              --text-large-title--font-weight: 700;
+              --text-bar-title: 1.0625rem;
+              --text-bar-title--line-height: 1.2;
+              --text-bar-title--font-weight: 600;
+              --text-section-title: 1.125rem;
+              --text-section-title--line-height: 1.25;
+              --text-section-title--font-weight: 600;
+              --text-card-title: 1rem;
+              --text-card-title--line-height: 1.3;
+              --text-card-title--font-weight: 600;
+              --text-body: 1rem;
+              --text-body--line-height: 1.5;
+              --text-body--font-weight: 400;
+              --text-reading-body: 1.125rem;
+              --text-reading-body--line-height: 1.6;
+              --text-reading-body--font-weight: 400;
+              --text-meta: 0.875rem;
+              --text-meta--line-height: 1.4;
+              --text-meta--font-weight: 400;
+              --text-label: 0.875rem;
+              --text-label--line-height: 1.2;
+              --text-label--font-weight: 600;
+              --text-caption--line-height: 1.4;
+              --text-caption--font-weight: 500;
+              --text-overline--line-height: 1.4;
+              --text-overline--font-weight: 600;
+              --text-overline--letter-spacing: 0.06em;
+              --text-figure-stat: 1.25rem;
+              --text-figure-stat--line-height: 1.2;
+              --text-figure-stat--font-weight: 600;
+              --breakpoint-medium: 37.5rem;
+              --breakpoint-nav: 52.5rem;
+              --container-regular: 37.5rem;
+              --container-wide: 60rem;
+              --container-reading: 40rem;
+              --container-list: 48rem;
+              --container-detail: 72rem;
+              --container-page: 90rem;
           }
           "
         `);

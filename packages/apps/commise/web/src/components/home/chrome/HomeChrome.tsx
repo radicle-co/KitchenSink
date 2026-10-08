@@ -110,14 +110,18 @@ export function HomeChrome({
                 {/* The foot clears the fixed bottom tab bar (`5rem`) PLUS the device safe-area inset, and
                     collapses to `lg:pb-6` once the tab bar becomes a desktop sidebar at the shared
                     desktop-vs-narrow cutover. `env(...)` is 0 in a normal viewport, so the base stays 5rem
-                    (identical to the former `pb-20`) and desktop is unchanged. */}
+                    (identical to the former `pb-20`) and desktop is unchanged.
+                    `<main>` is the `main` CONTAINER every surface queries (`@regular/main:`, `@wide/main:`), and
+                    its gutters are padding so the query reads the content box (`docs/design/uiOverhaul/buildSpec.md`
+                    §1.2): 16 px, 24 px from the 600 px `medium` threshold, 32 px from the 840 px `nav` one — the
+                    numbers in `@commise/ui`'s `tokens/layout.ts`. */}
                 <main
                     className={
                         focusedTask
                             ? // The task's own bar owns the foot, so `main` clears THAT instead — same
                               // reservation, different owner. Without this the last field sits under it.
-                              'flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 md:px-6 lg:pb-6'
-                            : 'flex-1 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-6 md:px-6 lg:pb-6'
+                              '@container/main flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 medium:px-6 nav:px-8 lg:pb-6'
+                            : '@container/main flex-1 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-6 medium:px-6 nav:px-8 lg:pb-6'
                     }
                 >
                     {children}

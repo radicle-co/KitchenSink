@@ -10,6 +10,7 @@ export { COMPACT_HEIGHT_BELOW_DP, isCompactHeight, isFrameCollapsed } from './co
 export { MEDIA_MAX_WINDOW_FRACTION, carouselBox, mediaBoxHeight, type MediaBox } from './mediaBox.js';
 export { isFooterUnpinned, type PinnedFooterMeasure } from './pinnedFooter.js';
 export { useCompactHeight } from './useCompactHeight.native.js';
+export { useContainerClass } from './useContainerClass.native.js';
 export { useFrameCollapsed } from './useFrameCollapsed.native.js';
 export { useKeyboardHidden } from './useKeyboardHidden.native.js';
 export { useKeyboardShown } from './useKeyboardShown.native.js';

@@ -23,7 +23,6 @@ import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
-import { GradientSurface } from '@commise/ui/surface';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { hasCatalogNutrition, hasUserEnteredIngredients, RecipeVisibility } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
@@ -125,11 +124,10 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                 shows once (F2); a recipe with no photo gets its deliberate branded placeholder — see `RecipeHero`. */}
             <RecipeHero title={recipe.title} photos={recipe.photos} />
 
-            {/* U8: the header rides a beach-glow gradient title band (mockup recipe-detail), mirroring the
-                native leaf so both platforms present the same branded hero. */}
-            <header>
-                <GradientSurface gradient="hero" className="flex flex-col gap-4 rounded-2xl p-6">
-                    {/* ⛔ THE TITLE ROW STACKS BELOW `sm`, and that is not a stylistic preference. The owner
+            {/* The header sits on the page canvas, which already carries the beach-glow wash: the gradient title band
+                it used to sit in was a box in a box (`docs/design/uiOverhaul/buildSpec.md` §1.6). */}
+            <header className="flex flex-col gap-4">
+                {/* ⛔ THE TITLE ROW STACKS BELOW `sm`, and that is not a stylistic preference. The owner
                         controls are two pills whose labels are set by the locale, and the title is an
                         unbounded, user-authored string: side by side at 320px the pair either wraps mid-label
                         or squeezes the title to a two-character column. Beside the title from `sm` up (where
@@ -138,8 +136,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                         controls ABOVE the recipe body rather than past every step of it.
                         `items-start` (not `center`) keeps the pills aligned to the title's FIRST line when the
                         title wraps to three; `shrink-0` stops the row stealing width from them. */}
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                        {/* ⛔ `min-w-0 break-words` IS LOAD-BEARING, not defensive decoration — and the two
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    {/* ⛔ `min-w-0 break-words` IS LOAD-BEARING, not defensive decoration — and the two
                             utilities do DIFFERENT jobs at DIFFERENT widths, which is why neither can be
                             deleted as redundant. A recipe title is user-authored and unbounded; `break-words`
                             lets an over-long token break at all, and `min-w-0` lets this flex item shrink
@@ -150,55 +148,54 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             `web/tests/e2e/recipeHomeResponsive.spec.ts`'s long-title tests. It is NOT restated
                             here: a third copy of those numbers is a third thing to go stale, and the copy a
                             future reader would trust is the one next to the assertions that still run. */}
-                        <h1
-                            ref={titleRef}
-                            tabIndex={-1}
-                            className="min-w-0 break-words font-display text-2xl font-bold leading-tight text-charcoal sm:text-4xl"
-                        >
-                            {recipe.title}
-                        </h1>
-                        {headerActions !== undefined && (
-                            <div className="flex shrink-0 items-center gap-2">{headerActions}</div>
-                        )}
-                    </div>
-                    {(staticBadges.length > 0 || recipe.tags.length > 0) && (
-                        <ul aria-label={`${recipe.title} tags`} className="flex flex-wrap gap-2">
-                            {staticBadges.map((badge, index) => (
-                                <li
-                                    key={badge}
-                                    // Contrast (WCAG AA): a tint-on-tint badge labels itself in a DARKENED
-                                    // relative of its own hue, never the hue itself — seafoam-on-seafoam was
-                                    // 3.57:1 and coral-on-coral 2.06:1, both under the 4.5:1 body-text floor.
-                                    // `ocean-dark` (5.51:1) keeps the seafoam badge's identity; the coral
-                                    // badge takes slate (4.67:1), matching the native leaf and the card chip.
-                                    className={`rounded-full px-3 py-1 text-body-sm font-medium ${
-                                        index % 2 === 0 ? 'bg-seafoam/10 text-ocean-dark' : 'bg-coral/15 text-slate'
-                                    }`}
-                                >
-                                    {badge}
-                                </li>
-                            ))}
-                            {recipe.tags.map((tag) => (
-                                <li key={tag}>
-                                    <button
-                                        type="button"
-                                        aria-label={fillTemplate(detail.tagFilterLabel, { tag })}
-                                        onClick={() => onFilterByTag?.(tag)}
-                                        // Touch floor: the chip is an interactive filter, so it clears 44px at
-                                        // base; `md:min-h-0` restores the original desktop chip density.
-                                        // Contrast (WCAG AA): slate at rest (4.67:1); the hover tint deepens
-                                        // to `coral/25`, where slate would fall to 4.26:1 — so hover darkens
-                                        // the LABEL to charcoal (10.31:1) rather than leaving it behind.
-                                        className="inline-flex min-h-11 items-center rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-slate transition hover:bg-coral/25 hover:text-charcoal md:min-h-0"
-                                    >
-                                        {tag}
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
+                    <h1
+                        ref={titleRef}
+                        tabIndex={-1}
+                        className="min-w-0 break-words font-display text-2xl font-bold leading-tight text-charcoal sm:text-4xl"
+                    >
+                        {recipe.title}
+                    </h1>
+                    {headerActions !== undefined && (
+                        <div className="flex shrink-0 items-center gap-2">{headerActions}</div>
                     )}
-                    <p className="text-body-lg leading-relaxed text-slate">{recipe.description}</p>
-                </GradientSurface>
+                </div>
+                {(staticBadges.length > 0 || recipe.tags.length > 0) && (
+                    <ul aria-label={`${recipe.title} tags`} className="flex flex-wrap gap-2">
+                        {staticBadges.map((badge, index) => (
+                            <li
+                                key={badge}
+                                // Contrast (WCAG AA): a tint-on-tint badge labels itself in a DARKENED
+                                // relative of its own hue, never the hue itself — seafoam-on-seafoam was
+                                // 3.57:1 and coral-on-coral 2.06:1, both under the 4.5:1 body-text floor.
+                                // `ocean-dark` (5.51:1) keeps the seafoam badge's identity; the coral
+                                // badge takes slate (4.67:1), matching the native leaf and the card chip.
+                                className={`rounded-full px-3 py-1 text-body-sm font-medium ${
+                                    index % 2 === 0 ? 'bg-seafoam/10 text-ocean-dark' : 'bg-coral/15 text-slate'
+                                }`}
+                            >
+                                {badge}
+                            </li>
+                        ))}
+                        {recipe.tags.map((tag) => (
+                            <li key={tag}>
+                                <button
+                                    type="button"
+                                    aria-label={fillTemplate(detail.tagFilterLabel, { tag })}
+                                    onClick={() => onFilterByTag?.(tag)}
+                                    // Touch floor: the chip is an interactive filter, so it clears 44px at
+                                    // base; `md:min-h-0` restores the original desktop chip density.
+                                    // Contrast (WCAG AA): slate at rest (4.67:1); the hover tint deepens
+                                    // to `coral/25`, where slate would fall to 4.26:1 — so hover darkens
+                                    // the LABEL to charcoal (10.31:1) rather than leaving it behind.
+                                    className="inline-flex min-h-11 items-center rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-slate transition hover:bg-coral/25 hover:text-charcoal md:min-h-0"
+                                >
+                                    {tag}
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                <p className="text-body-lg leading-relaxed text-slate">{recipe.description}</p>
             </header>
 
             {refreshNotice !== undefined && (

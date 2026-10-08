@@ -38,7 +38,8 @@ import {
     type RemotePart,
 } from '../hooks/foodSuggestions.model.js';
 import type { RemoteFoodPick } from '../hooks/lineCommit.js';
-import { fillTemplate, formatDuration } from '../list/model.js';
+import { formatDuration } from '../format/duration.js';
+import { fillTemplate } from '../list/model.js';
 import type {
     IngredientLineNameMessages,
     IngredientRemoteSearchMessages,

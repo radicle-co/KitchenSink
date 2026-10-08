@@ -24,10 +24,9 @@
  *  1. **It costs the first screen.** A ~384dp empty gradient on a ~700dp phone viewport is over half of
  *     everything the reader can see, spent on a panel that says only "no photo yet" — and it pushes the recipe
  *     TITLE, the one thing they opened the screen for, below the fold.
- *  2. **It stacks two identical gradients.** The native detail view already opens with a `GradientSurface`
- *     `hero` title band immediately below this hero. At full height the no-cover placeholder and that band
- *     merge into one continuous beach-glow slab with the label floating in it, which reads as a rendering
- *     fault rather than a design.
+ *  2. **It claims the screen for nothing.** At full height the no-cover placeholder is a beach-glow slab with the
+ *     label floating in it, over a canvas that is already the same wash — which reads as a rendering fault rather
+ *     than a design.
  *
  * The photos-PRESENT leg is the carousel, which sizes itself from the same window cap (`carouselBox`).
  * Only the empty state shrinks — the state where there is, by definition, nothing to show. Deliberately NOT

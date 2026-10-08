@@ -346,10 +346,12 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         // Future-drift guard: the static detail article stays visually stable at desktop width.
         // ⚠️ THIS BASELINE NOW COVERS THE OWNER CONTROLS. They used to be siblings of `RecipeDetailView`,
         // OUTSIDE this `<article>` and therefore invisible to the snapshot; they now render inside the
-        // article's title band, and at this width in the `sm:flex-row sm:justify-between` branch. So any
+        // article's header, and at this width in the `sm:flex-row sm:justify-between` branch. So any
         // change to `RecipeDetailBody`'s article subtree owes a baseline refresh (`--update-snapshots`) —
         // a diff that slips under `maxDiffPixelRatio` without one leaves this guard certifying a picture of
         // a UI that no longer ships, which is strictly worse than it failing.
+        // Re-baselined for the UI overhaul's slice 1: the gradient title band around the header was removed
+        // (`docs/design/uiOverhaul/buildSpec.md` §1.6, "no box in a box"), so the header sits on the canvas.
         await expect(page.getByRole('article', { name: 'Weeknight Pasta with Garlic' })).toHaveScreenshot(
             'recipeDetailDesktop.png',
             { maxDiffPixelRatio: 0.02 },

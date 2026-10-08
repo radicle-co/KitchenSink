@@ -7,7 +7,7 @@
         {
             "id": "palette",
             "source": "packages/apps/commise/ui/src/tokens/colors.ts",
-            "tokenCount": 17,
+            "tokenCount": 19,
             "kinds": [
                 "color"
             ]
@@ -137,7 +137,15 @@
         {
             "id": "native.fontFace",
             "source": "packages/apps/commise/ui/src/tokens/native.ts",
-            "tokenCount": 1,
+            "tokenCount": 2,
+            "kinds": [
+                "object"
+            ]
+        },
+        {
+            "id": "native.type",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 12,
             "kinds": [
                 "object"
             ]

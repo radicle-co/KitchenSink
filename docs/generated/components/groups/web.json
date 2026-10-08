@@ -8,8 +8,8 @@
         "implementations": 90,
         "props": 112,
         "documentedComponents": 81,
-        "implementationsWithModuleDoc": 62,
-        "implementationsWithComponentDoc": 63,
+        "implementationsWithModuleDoc": 63,
+        "implementationsWithComponentDoc": 62,
         "documentedProps": 72,
         "classifiedComponents": 33,
         "componentsWithPatternTag": 19,
@@ -764,43 +764,6 @@
             ]
         },
         {
-            "id": "web/app/[locale]/LocaleLayout",
-            "name": "LocaleLayout",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "LocaleLayout",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/layout.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]",
-                    "moduleDoc": "",
-                    "moduleTags": [],
-                    "description": "Root layout for the localized app. Every route lives under `/[locale]`, so this segment IS the root\nlayout (it owns `<html>`/`<body>`) — the standard Next.js App Router i18n shape. `<html lang>` is the\nrequest locale; the {@link LocaleProvider} hands that locale to client components (`useMessages`), while\nserver components resolve copy via {@link getDictionary}. Clerk URL props are locale-aware.\n\nTwo classes of Clerk URL prop behave differently under a preview basePath (ADR-0001 / U2), and both\nnow also carry the locale segment:\n - LOCATOR / raw-navigation props (sign-in/up page location; the post-sign-OUT target Clerk\n   hard-navigates) are consumed as-is → they carry the basePath via `withBasePath`.\n - post-sign-in/up REDIRECT props go through Next's router (which already prepends basePath) → a BARE\n   path (locale-prefixed, no basePath).\n`withBasePath` is a no-op under subdomain serving (empty basePath) and prepends `/pr-{N}` under the\nlegacy path-routed preview.\n\n{@link RedactedAnalytics} (Vercel Web Analytics via `@vercel/analytics/next` — the App Router entry\npoint) is the one document-level side-effect leaf. It is mounted HERE, and only here, because this layout\nowns `<html>`/`<body>`: one instance per document means one page view per navigation. It is a **Null\nObject** render-wise (returns `null`, adds no DOM, no landmark, no focusable node) and consumes no app\ncontext — only Next's router hooks, already wrapped in the package's own `<Suspense>` — so it hangs off\n`<body>` beside the provider chain rather than inside it. Off Vercel it is inert-by-omission rather than\ninert-by-design: `next build`/SSR never reach it (`inject` bails when there is no `window`), but in the\nbrowser it always appends its script tag, which resolves to nothing outside a Vercel deployment (dev\nmode fetches Vercel's debug script; a self-hosted production build 404s on\n`/_vercel/insights/script.js` and logs one console line).\n\nThe mount is the WRAPPER, not the vendor leaf, because `beforeSend` URL redaction\n(`src/lib/analyticsRedaction.ts`) is mandatory here: an unredacted page view reports the full query\nstring, and `/[locale]/discover` carries the visitor's free-text search term plus their dietary flags.\nDo NOT \"simplify\" it by putting `beforeSend` on an `<Analytics />` in this file — this is a server\ncomponent, so React cannot serialize the function prop and every request 500s (`Functions cannot be\npassed directly to Client Components`). `next build` stays GREEN on that mistake, because these routes\nbail out of prerendering, so nothing but a request reveals it. Consent gating remains unwired — that is a\nseparate owner decision.",
-                    "tags": [],
-                    "detectedBy": "compiler-fallback",
-                    "exportKind": "default",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "web/app/[locale]/LocaleLoading",
             "name": "LocaleLoading",
             "group": "web",
@@ -858,7 +821,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/app/[locale]/not-found.tsx",
                     "dir": "packages/apps/commise/web/src/app/[locale]",
-                    "moduleDoc": "The not-found boundary for `/[locale]`. It renders for every `notFound()` thrown beneath the locale layout: a\npage's own (a missing recipe route), and every unknown URL, which `[...rest]/page.tsx` turns into one. Delegates to\n{@link NotFoundSurface}, which puts the page in the app shell for a signed-in viewer.\n\n⛔ Kept synchronous, with no `auth()`. Next builds this element for EVERY request under `[locale]`, not only on a\nmiss — including `/favicon.ico`, which arrives here as a locale with no `clerkMiddleware()` run, where `auth()`\nthrows (the error `[locale]/page.tsx` records). Who is signed in is read on the client instead.",
+                    "moduleDoc": "The not-found boundary for `/[locale]`. It renders for every `notFound()` thrown beneath the locale layout — a page's\nown, such as a missing recipe. A URL no route matches is answered by `global-not-found.tsx` instead. Both delegate to\n{@link NotFoundSurface}, which puts the page in the app shell for a signed-in viewer.\n\n⛔ Kept synchronous, with no `auth()`. Next builds this element for EVERY request under `[locale]`, not only on a\nmiss — including `/favicon.ico`, which arrives here as a locale with no `clerkMiddleware()` run, where `auth()`\nthrows (the error `[locale]/page.tsx` records). Who is signed in is read on the client instead.",
                     "moduleTags": [],
                     "description": "",
                     "tags": [],
@@ -1717,6 +1680,43 @@
             ]
         },
         {
+            "id": "web/app/GlobalNotFound",
+            "name": "GlobalNotFound",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "GlobalNotFound",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/global-not-found.tsx",
+                    "dir": "packages/apps/commise/web/src/app",
+                    "moduleDoc": "The page for every URL no route matches (E2, `docs/design/uiOverhaul/evaluateShellAndLists.md`): the app's own 404,\nin the app's document, answered with a real `404` and server-rendered. Enabled by `experimental.globalNotFound` in\n`next.config.ts`.\n\n⛔ Why this file, and not a `[locale]/[...rest]` catch-all that calls `notFound()` (which slice 0 shipped). That\ncatch-all could not do both halves of the job:\n - Under `[locale]/loading.tsx` the response streams, and a streamed response has already sent its 200. Next then\n   answers `notFound()` with a `noindex` tag and the loading skeleton (`loading.js` → \"Status Codes\").\n - Without a loading boundary above it the status became 404, but Next 16.3 renders a `notFound()` that reaches the\n   top of the server render as an EMPTY error document (`<html id=\"__next_error__\">`), and the 404 UI appears only\n   after hydration. Measured with `next start`; the code path is `renderToStream`'s error recovery in\n   `next/dist/server/app-render/app-render.js`.\nNext documents this file for exactly this app's shape: \"Your root layout is defined using top-level dynamic segments\n(e.g. `app/[country]/layout.tsx`)\" (`not-found.js` → `global-not-found.js`). Next \"skips rendering and directly\nreturns this global page\", so the status is 404 and the HTML is the page itself.\n\nIt bypasses every layout, so it renders {@link appDocument} itself — the same document and providers as every route.\nIt has no route params, so the locale is the default one ({@link DEFAULT_LOCALE}); only `en` ships today. A\n`notFound()` thrown by a page (a missing recipe) is a different path: it still renders `[locale]/not-found.tsx`.\n\n⛔ No `auth()`, `headers()` or cookies here: the page is rendered once, at build time. {@link NotFoundSurface} reads\nthe session on the client, so a signed-in viewer gets the app shell after hydration.",
+                    "moduleTags": [],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "compiler-fallback",
+                    "exportKind": "default",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "web/components/app/AppShell",
             "name": "AppShell",
             "group": "web",
@@ -2237,7 +2237,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/app/RouteNotFoundState.tsx",
                     "dir": "packages/apps/commise/web/src/components/app",
-                    "moduleDoc": "components/app/RouteNotFoundState — the localized, presentational body of the app's 404 page, framed by\n`NotFoundSurface` (B18, E2). Reads the matched `locale` route param (always\npresent — `not-found.tsx` only renders nested under a matched `[locale]` segment) via `useParams` — Next\ndoes not pass params as props to `not-found.tsx` — to link back to that locale's Home.",
+                    "moduleDoc": "components/app/RouteNotFoundState — the localized, presentational body of the app's 404 page, framed by\n`NotFoundSurface` (B18, E2). Links back to the Home of the document's locale, read from the `LocaleProvider` — not\nfrom the route params, because the global 404 page (`global-not-found.tsx`) renders outside every route and has none.",
                     "moduleTags": [
                         {
                             "name": "module",

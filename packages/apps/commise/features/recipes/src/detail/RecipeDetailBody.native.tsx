@@ -8,9 +8,9 @@
  * title, seafoam/coral tag pills, a stats strip, checklist ingredients, numbered seafoam step markers, and
  * a nutrition grid. Mirrors the web `RecipeDetailView`.
  *
- * U8 brand layer: the header sits in a {@link GradientSurface} title band, the display title threads the
- * Playfair `display` family, and the stat/ingredient/step cards carry tokenized elevation — so the native
- * detail reads as branded as the web leaf.
+ * Brand layer: the display title threads the Playfair `display` family and the stat/ingredient/step cards carry
+ * tokenized elevation. The header sits on the app canvas — the gradient title band it used to sit in was a box in a box
+ * (`docs/design/uiOverhaul/buildSpec.md` §1.6).
  *
  * This is the PURE render half of the recipe detail. Its orchestration shell —
  * `RecipeDetailView.native.tsx`, which binds the session serving scale — is a separate file because a file
@@ -26,7 +26,6 @@ import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
-import { GradientSurface } from '@commise/ui/surface';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { hasCatalogNutrition, hasUserEnteredIngredients, RecipeVisibility } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
@@ -128,8 +127,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                 which paints it COMPACT on a phone (its module doc carries the PLATFORM-FORK rationale). */}
             <RecipeHero title={recipe.title} photos={recipe.photos} />
 
-            {/* U8: the header rides a beach-glow gradient title band (mockup recipe-detail). */}
-            <GradientSurface gradient="hero" style={styles.titleBand}>
+            {/* The header sits on the app canvas, which already carries the beach-glow wash (§1.6: no box in a box). */}
+            <View style={styles.header}>
                 <Text ref={titleRef} accessibilityRole="header" style={styles.title}>
                     {recipe.title}
                 </Text>
@@ -165,7 +164,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                     </View>
                 )}
                 <Text style={styles.description}>{recipe.description}</Text>
-            </GradientSurface>
+            </View>
 
             {refreshNotice !== undefined && (
                 <RefreshNotice
@@ -525,14 +524,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[4],
         paddingVertical: nativeTokens.spacing[4],
     },
-    // U8: the beach-glow gradient title band the header sits in.
-    titleBand: {
+    // The title, the owner's actions, the badges and the description, one group on the canvas.
+    header: {
         gap: nativeTokens.spacing[3],
-        borderRadius: nativeTokens.radius.lg,
-        padding: nativeTokens.spacing[4],
     },
-    // The owner's `[Edit] [More]` pair, under the title inside the band (C4 wireframe parity). `flex-start`
-    // keeps the pills at their intrinsic width rather than stretching them across the band.
+    // The owner's `[Edit] [More]` pair, under the title (C4 wireframe parity). `flex-start` keeps the pills at their
+    // intrinsic width rather than stretching them across the header.
     headerActions: {
         flexDirection: 'row',
         alignItems: 'center',

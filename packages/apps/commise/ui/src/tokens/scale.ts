@@ -82,6 +82,18 @@ export const displayFontFace = {
     bold: 'PlayfairDisplay_700Bold',
 } as const;
 
+/**
+ * The REGISTERED native faces of the body family (Inter), one per {@link fontWeight} step (§1.5). Loaded at start-up
+ * from `@expo-google-fonts/inter` beside the display faces (`mobile/App.tsx`), and guarded by the same face-contract
+ * test as {@link displayFontFace}. A native type role picks the face for its weight and never sets `fontWeight`.
+ */
+export const bodyFontFace = {
+    normal: 'Inter_400Regular',
+    medium: 'Inter_500Medium',
+    semibold: 'Inter_600SemiBold',
+    bold: 'Inter_700Bold',
+} as const;
+
 /** Numeric font weights (web stringifies them; native/Tamagui keep the `'400'`-style string form). */
 export const fontWeight = {
     normal: 400,
@@ -143,6 +155,7 @@ export type Spacing = typeof spacing;
 export type Radius = typeof radius;
 export type FontFamily = typeof fontFamily;
 export type DisplayFontFace = typeof displayFontFace;
+export type BodyFontFace = typeof bodyFontFace;
 export type FontWeight = typeof fontWeight;
 export type LineHeightRatio = typeof lineHeightRatio;
 export type FontSize = typeof fontSize;

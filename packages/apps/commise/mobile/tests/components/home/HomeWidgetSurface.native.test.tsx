@@ -112,7 +112,7 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         expect(screen.queryByLabelText('Main')).toBeNull();
     });
 
-    it('sits the greeting on the brand beach-glow gradient hero (U8), not a plain header', () => {
+    it('sits the greeting on the app canvas, not inside a gradient card', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
@@ -126,13 +126,9 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
             />,
         );
 
-        // The greeting is wrapped by the shared `GradientSurface` — under jsdom that is the `expo-linear-
-        // gradient` stub, marked `data-commise-stub="linear-gradient"`. Its projected `data-colors` must be
-        // the hero beach-glow ramp (terminal cool tint `#E8F4F8`), NOT the seafoam→ocean-dark brand gradient.
-        const hero = screen.getByText('Good afternoon, Chef!').closest('[data-commise-stub="linear-gradient"]');
-
-        expect(hero).not.toBeNull();
-        expect(hero?.getAttribute('data-colors')).toContain('#E8F4F8');
+        // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): the greeting card is deleted. The app canvas
+        // already carries the beach-glow wash, so the greeting sits on it rather than in a second gradient card.
+        expect(screen.getByText('Good afternoon, Chef!').closest('[data-commise-stub="linear-gradient"]')).toBeNull();
     });
 
     it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {

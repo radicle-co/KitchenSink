@@ -3,7 +3,7 @@
 /**
  * @module @commise/features-recipes — web recipe-list FRAME (presentational).
  *
- * The chrome of the recipe list — the gradient title band, the source switcher and the search field — rendered
+ * The chrome of the recipe list — the title, the source switcher and the search field — rendered
  * OUTSIDE the list's suspense boundary, which the composing container passes as `children`. A pending or failed read
  * therefore swaps only what is under the search field, never the field a viewer is typing in. It fetches nothing.
  *
@@ -12,7 +12,6 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
-import { GradientSurface } from '@commise/ui/surface';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
@@ -31,14 +30,13 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
 
     return (
         <section aria-label={list.heading} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
-            {/* U8: the heading rides a beach-glow gradient title band (mockup recipe-list). */}
-            <GradientSurface gradient="hero" className="rounded-2xl">
-                <header className="flex items-center justify-between gap-4 p-6">
-                    <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-charcoal">
-                        {list.heading}
-                    </h1>
-                </header>
-            </GradientSurface>
+            {/* The heading sits on the page canvas, which already carries the beach-glow wash: a second gradient
+                band around it was a box in a box (`docs/design/uiOverhaul/buildSpec.md` §1.6). */}
+            <header className="flex items-center justify-between gap-4">
+                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-charcoal">
+                    {list.heading}
+                </h1>
+            </header>
 
             {/* The source switcher (L5) is the ONE shared `RecipeSourceTabs` — the same strip the community
                 surface mounts, so the pair stays symmetric and a viewer can always get back. */}

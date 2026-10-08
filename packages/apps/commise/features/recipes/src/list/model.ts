@@ -6,11 +6,10 @@
  * view-model projection and the copy-formatting primitives.
  */
 import type { Locale } from '@commise/i18n';
-import { splitDuration } from '@commise/ui/duration';
 import type { ReactNode } from 'react';
 
 import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
-import type { RecipeDurationMessages, RecipeListMessages } from '../messages.js';
+import type { RecipeListMessages } from '../messages.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
 import type { RefreshNoticeControl } from '../refresh/model.js';
 
@@ -75,32 +74,6 @@ export const formatRecipeCount = (count: number, labels: RecipeCountLabels, loca
  * @returns The formatted duration.
  */
 export const formatDurationMinutes = (minutes: number, template: string): string => fillTemplate(template, { minutes });
-
-/**
- * Say a duration stored in seconds in hours and minutes ("4 h 30 min"), never in raw seconds. Pure.
- *
- * One path on every runtime: `Intl.DurationFormat` is not available on Hermes, and using it where it exists would
- * make web, SSR and the device print different words for the same recipe. The rounding rule is `splitDuration`'s.
- *
- * @param seconds - The stored duration, or `undefined`.
- * @param templates - The localized templates.
- * @returns The sentence, or `undefined` when there is no duration to show.
- */
-export const formatDuration = (seconds: number | undefined, templates: RecipeDurationMessages): string | undefined => {
-    const parts = splitDuration(seconds);
-
-    if (parts === undefined) {
-        return undefined;
-    }
-
-    if (parts.hours === 0) {
-        return fillTemplate(templates.minutes, { minutes: parts.minutes });
-    }
-
-    return parts.minutes === 0
-        ? fillTemplate(templates.hours, { hours: parts.hours })
-        : fillTemplate(templates.hoursMinutes, { hours: parts.hours, minutes: parts.minutes });
-};
 
 // ─── Quick-filter chips (L4) ─────────────────────────────────────────────────────────────────────────
 //

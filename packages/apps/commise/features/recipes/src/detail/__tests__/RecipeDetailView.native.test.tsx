@@ -67,19 +67,19 @@ describe('RecipeDetailView (native)', () => {
         expect(applied).not.toContain(',');
     });
 
-    it('sits the header in a brand gradient title band (U8)', () => {
-        const { container } = render(
-            <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({ title: 'Lamb' })} />,
+    it('does not wrap the title or the description in a gradient title band', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb', description: 'Tender and herby.' })}
+            />,
         );
-        // The detail now paints MORE than one brand gradient (the hero's no-cover placeholder leads the
-        // screen on this fixture), so identify the title band by what makes it the title band — it is the
-        // gradient surface CONTAINING the heading — rather than by being the first gradient in the tree.
-        const band = [...container.querySelectorAll('[data-commise-stub="linear-gradient"]')].find(
-            (node) => node.querySelector('[role="heading"]') !== null,
-        );
-
-        expect(band).toBeDefined();
-        expect(band?.querySelector('[role="heading"]')?.textContent).toBe('Lamb');
+        // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): a card exists only to group, and the page
+        // canvas already carries the beach-glow wash, so the heading sits on the canvas, not in a second gradient.
+        expect(
+            screen.getByRole('heading', { name: 'Lamb' }).closest('[data-commise-stub="linear-gradient"]'),
+        ).toBeNull();
+        expect(screen.getByText('Tender and herby.').closest('[data-commise-stub="linear-gradient"]')).toBeNull();
     });
 
     it('renders the description and badges', () => {

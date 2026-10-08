@@ -99,6 +99,13 @@ export const palette = {
     // failing while only the flat backgrounds were being checked.
     'error-dark': '#B1442B',
     premium: '#D4A574',
+    // The control EDGE (§1.4 `lineControl`): input, unselected chip, checkbox and secondary-button outlines. `mist` is
+    // 1.90:1 on white and fails SC 1.4.11, so a component boundary drawn in it is invisible to the readers who need
+    // it most. 3.31:1 on white, 3.07:1 on sand.
+    pewter: '#858F93',
+    // The filled-STAR tone (§1.4 `rating`). 4.43:1 on white: it clears SC 1.4.11 as a graphic and deliberately not
+    // SC 1.4.3, so it is never text — the number beside the stars is `ink`. The amber it replaces was 1.88:1.
+    honey: '#A86A12',
 } as const;
 
 export const semantic = {
@@ -163,6 +170,49 @@ export function tint(color: string, alpha: number): string {
 
     return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
+
+/**
+ * The colour ROLES (`docs/design/uiOverhaul/buildSpec.md` §1.4). A screen names a role — what the colour is FOR —
+ * and never a palette tier, so a re-theme moves one line here instead of every call site.
+ *
+ * Each role points at a palette entry, except two fills that are derived and say so:
+ *  - `selectedFill` is 14% `seafoam` composited over white, written as the opaque result because a chip is filled
+ *    over many surfaces and must read the same on each. `__tests__/colors.test.ts` recomputes it from the token.
+ *  - `attentionTint` is 20% `warning`, kept translucent. ⚠️ It takes an `ink` label. The `attention` text role
+ *    measures 4.50:1 on it over white and 4.24:1 over sand — under the floor on both — so the two are never paired,
+ *    although the spec's §1.4 row lists them together (a measured gap, raised with `staff-ux-engineer`).
+ *
+ * ⚠️ These are ADDITIONS (A19, expand-contract). `semantic.secondary` (coral) and `semantic.ring` (seafoam-light)
+ * keep their meaning until their consumers have moved, and are then deleted with a zero-readers guard. Do not
+ * repurpose an existing key: a key that changes meaning breaks its readers silently.
+ *
+ * The contrast of every pairing the spec states is asserted in `__tests__/colors.test.ts`.
+ *
+ * @pattern Registry — a closed set of role names over the palette; the web emission (`themeCss.ts`) and native read
+ *   the same record
+ */
+export const role = {
+    canvas: palette.sand,
+    paper: palette.white,
+    ink: palette.charcoal,
+    inkMuted: palette.slate,
+    lineControl: palette.pewter,
+    lineDivider: palette.mist,
+    action: palette.seafoam,
+    actionText: palette['ocean-dark'],
+    selectedFill: '#E2EDEC',
+    selectedEdge: palette.seafoam,
+    hereBar: palette.seafoam,
+    focusRing: palette['ocean-dark'],
+    rating: palette.honey,
+    attention: palette['warning-dark'],
+    attentionTint: tint(palette.warning, 0.2),
+    danger: palette.error,
+    dangerText: palette['error-dark'],
+} as const;
+
+/** A colour role's name. */
+export type Role = keyof typeof role;
 
 export type Palette = typeof palette;
 export type Semantic = typeof semantic;

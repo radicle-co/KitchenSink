@@ -34,6 +34,7 @@
         "./button": "./src/button/index.ts",
         "./combobox": "./src/combobox/index.ts",
         "./confirm-dialog": "./src/confirmDialog/index.ts",
+        "./container-class": "./src/layout/containerClass.ts",
         "./dialog-frame": "./src/dialogFrame/index.ts",
         "./dialog-focus": "./src/dialogFocus/index.ts",
         "./duration": "./src/durationField/duration.ts",

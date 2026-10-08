@@ -5174,7 +5174,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — native recipe-detail view (T066 building block).\n\nThe React Native leaf of `RecipeDetailView` — same read-only\ncontract and content sections, styled to the Commise design language (@commise/ui palette): a display\ntitle, seafoam/coral tag pills, a stats strip, checklist ingredients, numbered seafoam step markers, and\na nutrition grid. Mirrors the web `RecipeDetailView`.\n\nU8 brand layer: the header sits in a {@link GradientSurface} title band, the display title threads the\nPlayfair `display` family, and the stat/ingredient/step cards carry tokenized elevation — so the native\ndetail reads as branded as the web leaf.\n\nThis is the PURE render half of the recipe detail. Its orchestration shell —\n`RecipeDetailView.native.tsx`, which binds the session serving scale — is a separate file because a file\ndoes ONE thing (CODING_STANDARDS §1) and a component per file is enforced.",
+                    "moduleDoc": "@commise/features-recipes — native recipe-detail view (T066 building block).\n\nThe React Native leaf of `RecipeDetailView` — same read-only\ncontract and content sections, styled to the Commise design language (@commise/ui palette): a display\ntitle, seafoam/coral tag pills, a stats strip, checklist ingredients, numbered seafoam step markers, and\na nutrition grid. Mirrors the web `RecipeDetailView`.\n\nBrand layer: the display title threads the Playfair `display` family and the stat/ingredient/step cards carry\ntokenized elevation. The header sits on the app canvas — the gradient title band it used to sit in was a box in a box\n(`docs/design/uiOverhaul/buildSpec.md` §1.6).\n\nThis is the PURE render half of the recipe detail. Its orchestration shell —\n`RecipeDetailView.native.tsx`, which binds the session serving scale — is a separate file because a file\ndoes ONE thing (CODING_STANDARDS §1) and a component per file is enforced.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -5712,7 +5712,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeHero.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — native recipe-detail HERO (the RN leaf of RecipeHero).\n\nSame contract and same two designed states as `RecipeHero`: the hero IS the photo carousel (slide 1 the cover, the\nservice's rule), so the cover is shown once (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`); a recipe with no\nphoto gets a DELIBERATE branded placeholder rather than nothing. The placeholder derives from the shared tokens —\nits surface from `gradient.hero`, its geometry from `nativeTokens.mediaHeight` — so the platforms cannot drift.\n\n## The no-cover state is a designed state, not an error path\n\nMost recipes will have no photo for a while (a draft, an import, a quick capture), so the fallback must not\nbe any of the three easy failures — an `<Image>` with an empty `source` (which paints a broken-image glyph\non device exactly as a browser does), a zero-height box that makes the screen look truncated, or an\nunlabelled grey rectangle that a screen-reader user perceives as nothing at all. So it renders NO image\ncomponent, keeps a real height, and carries `accessibilityRole=\"image\"` plus the localized\n`card.noPhotoLabel` — the SAME copy the recipe card's placeholder uses, so \"no photo yet\" is stated once in\nthe dictionary and read identically on both surfaces.\n\n## PLATFORM-FORK: the no-cover placeholder is COMPACT on native, full-height on web\n\nThe web fallback fills the whole hero box (`h-64`, `md:h-96` — up to 384px). That is right on a desktop\nviewport and wrong on a phone, for two compounding reasons:\n\n 1. **It costs the first screen.** A ~384dp empty gradient on a ~700dp phone viewport is over half of\n    everything the reader can see, spent on a panel that says only \"no photo yet\" — and it pushes the recipe\n    TITLE, the one thing they opened the screen for, below the fold.\n 2. **It stacks two identical gradients.** The native detail view already opens with a `GradientSurface`\n    `hero` title band immediately below this hero. At full height the no-cover placeholder and that band\n    merge into one continuous beach-glow slab with the label floating in it, which reads as a rendering\n    fault rather than a design.\n\nThe photos-PRESENT leg is the carousel, which sizes itself from the same window cap (`carouselBox`).\nOnly the empty state shrinks — the state where there is, by definition, nothing to show. Deliberately NOT\nomitting the hero entirely: the labelled placeholder is the only thing that tells a non-sighted reader the\nrecipe has no photo, and dropping the element would remove that signal along with the space.\n\n## The window caps the box (`docs/design/compactHeightLayout.md` §8)\n\nThe placeholder is `mediaBoxHeight(token, window height)`: at most 40% of the window's height, so on a phone held\nsideways the recipe's title stays on the first screen.\n\nThe leaf holds no state, fetches nothing and navigates nowhere; it reads only the window's height. The mockup's overlaid back/share/save controls are\nNOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.",
+                    "moduleDoc": "@commise/features-recipes — native recipe-detail HERO (the RN leaf of RecipeHero).\n\nSame contract and same two designed states as `RecipeHero`: the hero IS the photo carousel (slide 1 the cover, the\nservice's rule), so the cover is shown once (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`); a recipe with no\nphoto gets a DELIBERATE branded placeholder rather than nothing. The placeholder derives from the shared tokens —\nits surface from `gradient.hero`, its geometry from `nativeTokens.mediaHeight` — so the platforms cannot drift.\n\n## The no-cover state is a designed state, not an error path\n\nMost recipes will have no photo for a while (a draft, an import, a quick capture), so the fallback must not\nbe any of the three easy failures — an `<Image>` with an empty `source` (which paints a broken-image glyph\non device exactly as a browser does), a zero-height box that makes the screen look truncated, or an\nunlabelled grey rectangle that a screen-reader user perceives as nothing at all. So it renders NO image\ncomponent, keeps a real height, and carries `accessibilityRole=\"image\"` plus the localized\n`card.noPhotoLabel` — the SAME copy the recipe card's placeholder uses, so \"no photo yet\" is stated once in\nthe dictionary and read identically on both surfaces.\n\n## PLATFORM-FORK: the no-cover placeholder is COMPACT on native, full-height on web\n\nThe web fallback fills the whole hero box (`h-64`, `md:h-96` — up to 384px). That is right on a desktop\nviewport and wrong on a phone, for two compounding reasons:\n\n 1. **It costs the first screen.** A ~384dp empty gradient on a ~700dp phone viewport is over half of\n    everything the reader can see, spent on a panel that says only \"no photo yet\" — and it pushes the recipe\n    TITLE, the one thing they opened the screen for, below the fold.\n 2. **It claims the screen for nothing.** At full height the no-cover placeholder is a beach-glow slab with the\n    label floating in it, over a canvas that is already the same wash — which reads as a rendering fault rather\n    than a design.\n\nThe photos-PRESENT leg is the carousel, which sizes itself from the same window cap (`carouselBox`).\nOnly the empty state shrinks — the state where there is, by definition, nothing to show. Deliberately NOT\nomitting the hero entirely: the labelled placeholder is the only thing that tells a non-sighted reader the\nrecipe has no photo, and dropping the element would remove that signal along with the space.\n\n## The window caps the box (`docs/design/compactHeightLayout.md` §8)\n\nThe placeholder is `mediaBoxHeight(token, window height)`: at most 40% of the window's height, so on a phone held\nsideways the recipe's title stays on the first screen.\n\nThe leaf holds no state, fetches nothing and navigates nowhere; it reads only the window's height. The mockup's overlaid back/share/save controls are\nNOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8086,7 +8086,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Every close route: Cancel, Close, Escape, the overlay or scrim, a swipe, Android back.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         },
                         {
                             "name": "onDismissed",
@@ -8095,7 +8095,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The Sheet is off screen after a close by any route (`@commise/ui/sheet`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         },
                         {
                             "name": "onFieldChange",
@@ -8104,7 +8104,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         },
                         {
                             "name": "onReuse",
@@ -8113,7 +8113,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "From the duplicate state: use the cook's existing food.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         },
                         {
                             "name": "onSubmit",
@@ -8122,7 +8122,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         },
                         {
                             "name": "state",
@@ -8131,7 +8131,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The form's state; the Sheet is open for every state but `closed`.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -8146,7 +8146,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/AuthoredFoodSheet.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — the create-my-own-food form on the design-system `Sheet`, native: a bottom\nsheet (`docs/design/rowEditorOpenDecisions.md` item 1, \"moved\"; `docs/design/rowEditorBlueprint.md` decision 2).\n\nA presentational leaf with the web leaf's contract (`./authoredFoodSheet.ts`): it renders `useAuthoredFoodCreate`'s\nstate and reports every action. Native has no DOM focus: the Sheet puts the reading cursor on its title when it\nshows, and the duplicate notice takes the cursor as it replaces the form, because the control that was pressed is\ngone. One ref, for that move: `sendAccessibilityEvent` has no declarative form.\n\nProgress is said on a polite live region and a failure on an assertive one, both mounted empty so Android's\nregions exist before their text is written.",
+                    "moduleDoc": "@commise/features-recipes/form — the create-my-own-food form on the design-system `Sheet`, native: a bottom\nsheet (`docs/design/rowEditorOpenDecisions.md` item 1, \"moved\"; `docs/design/rowEditorBlueprint.md` decision 2).\n\nA presentational leaf with the web leaf's contract (`./authoredFoodSheet.model.ts`): it renders `useAuthoredFoodCreate`'s\nstate and reports every action. Native has no DOM focus: the Sheet puts the reading cursor on its title when it\nshows, and the duplicate notice takes the cursor as it replaces the form, because the control that was pressed is\ngone. One ref, for that move: `sendAccessibilityEvent` has no declarative form.\n\nProgress is said on a polite live region and a failure on an assertive one, both mounted empty so Android's\nregions exist before their text is written.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8169,7 +8169,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Every close route: Cancel, Close, Escape, the overlay or scrim, a swipe, Android back.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         },
                         {
                             "name": "onDismissed",
@@ -8178,7 +8178,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The Sheet is off screen after a close by any route (`@commise/ui/sheet`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         },
                         {
                             "name": "onFieldChange",
@@ -8187,7 +8187,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         },
                         {
                             "name": "onReuse",
@@ -8196,7 +8196,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "From the duplicate state: use the cook's existing food.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         },
                         {
                             "name": "onSubmit",
@@ -8205,7 +8205,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         },
                         {
                             "name": "state",
@@ -8214,7 +8214,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The form's state; the Sheet is open for every state but `closed`.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/authoredFoodSheet.model.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -9673,7 +9673,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The row's name, which names the list.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "holdLimit",
@@ -9682,7 +9682,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The session's limit holder (`SourceLimit.hold`): a source frame that reports the limit holds it.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "inFlight",
@@ -9691,7 +9691,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The pick in flight on this row (`useIngredientRowEditor`'s `pickInFlight`), if any.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "lastPick",
@@ -9700,7 +9700,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The last pick this row's panel made, once it settled ({@link shortlistSettledAt}).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "limitRefusals",
@@ -9709,7 +9709,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The remote picks the session's limit refused (`IngredientRowEditor.limitRefusals`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "naming",
@@ -9718,7 +9718,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "How the editor names a remote source and says a time and a list (`IngredientRowEditor.naming`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "onNoneOfThese",
@@ -9727,7 +9727,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "None of these: the host closes the panel and starts Change food. It records nothing.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "onPick",
@@ -9736,7 +9736,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Commit a pick on this row (`useIngredientRowEditor`'s `pickFromShortlist`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "onSettled",
@@ -9745,7 +9745,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "A pick here put a food on the line: the host closes the panel.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "phrase",
@@ -9754,7 +9754,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "What the search asks for: the line's own words.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "reason",
@@ -9766,7 +9766,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Row 6 (`unresolved`) or row 7 (`ambiguous`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -9804,7 +9804,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The row's name, which names the list.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "holdLimit",
@@ -9813,7 +9813,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The session's limit holder (`SourceLimit.hold`): a source frame that reports the limit holds it.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "inFlight",
@@ -9822,7 +9822,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The pick in flight on this row (`useIngredientRowEditor`'s `pickInFlight`), if any.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "lastPick",
@@ -9831,7 +9831,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The last pick this row's panel made, once it settled ({@link shortlistSettledAt}).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "limitRefusals",
@@ -9840,7 +9840,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The remote picks the session's limit refused (`IngredientRowEditor.limitRefusals`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "naming",
@@ -9849,7 +9849,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "How the editor names a remote source and says a time and a list (`IngredientRowEditor.naming`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "onNoneOfThese",
@@ -9858,7 +9858,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "None of these: the host closes the panel and starts Change food. It records nothing.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "onPick",
@@ -9867,7 +9867,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Commit a pick on this row (`useIngredientRowEditor`'s `pickFromShortlist`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "onSettled",
@@ -9876,7 +9876,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "A pick here put a food on the line: the host closes the panel.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "phrase",
@@ -9885,7 +9885,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "What the search asks for: the line's own words.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         },
                         {
                             "name": "reason",
@@ -9897,7 +9897,7 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Row 6 (`unresolved`) or row 7 (`ambiguous`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.ts"
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/shortlistPanel.model.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -10211,7 +10211,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListFrame.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — web recipe-list FRAME (presentational).\n\nThe chrome of the recipe list — the gradient title band, the source switcher and the search field — rendered\nOUTSIDE the list's suspense boundary, which the composing container passes as `children`. A pending or failed read\ntherefore swaps only what is under the search field, never the field a viewer is typing in. It fetches nothing.\n\nThe heading takes focus when `headingFocusSignal` advances: a retry from the refresh notice (inside the boundary)\nthat succeeds removes the button the viewer pressed, and the container reports that across the boundary.",
+                    "moduleDoc": "@commise/features-recipes — web recipe-list FRAME (presentational).\n\nThe chrome of the recipe list — the title, the source switcher and the search field — rendered\nOUTSIDE the list's suspense boundary, which the composing container passes as `children`. A pending or failed read\ntherefore swaps only what is under the search field, never the field a viewer is typing in. It fetches nothing.\n\nThe heading takes focus when `headingFocusSignal` advances: a retry from the refresh notice (inside the boundary)\nthat succeeds removes the button the viewer pressed, and the container reports that across the boundary.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -10281,7 +10281,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListFrame.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — native recipe-list FRAME (presentational).\n\nThe React Native leaf of `RecipeListFrame`: the gradient title band, the source switcher and the search field,\npinned above whatever the list's suspense boundary renders as `children`, so a pending or failed read never\nunmounts them. It fetches nothing.\n\nWhen `headingFocusSignal` advances — a retry from the refresh notice inside the boundary succeeded and removed the\nbutton the viewer pressed — the screen-reader cursor moves to the heading.\n\n## Compact height (`docs/design/compactHeightLayout.md` §5)\n\nOn a phone held sideways the stacked header (title band, then the field) took about 205 of 369 dp before one recipe.\nIn compact height (`useCompactHeight`) the band goes, the heading shares one wrapping row with the field, and the\ngaps tighten. ⛔ The field is ALWAYS the last child of one header group, whatever the layout, so it never changes\nparent or index: a remounted field would lose focus and its keyboard, which changes the layout back. While the\nwindow is compact AND a keyboard is open the screen's other chrome steps aside (the tab bar, the quick filters, the\ncreate dial — `RecipesScreen` and `RecipeListResults`); this frame keeps only the heading and the field.",
+                    "moduleDoc": "@commise/features-recipes — native recipe-list FRAME (presentational).\n\nThe React Native leaf of `RecipeListFrame`: the title, the source switcher and the search field,\npinned above whatever the list's suspense boundary renders as `children`, so a pending or failed read never\nunmounts them. It fetches nothing.\n\nWhen `headingFocusSignal` advances — a retry from the refresh notice inside the boundary succeeded and removed the\nbutton the viewer pressed — the screen-reader cursor moves to the heading.\n\n## Compact height (`docs/design/compactHeightLayout.md` §5)\n\nOn a phone held sideways the stacked header (title, then the field) took too much of 369 dp before one recipe. In\ncompact height (`useCompactHeight`) the heading shares one wrapping row with the field, and the gaps tighten. ⛔ The field is ALWAYS the last child of one header group, whatever the layout, so it never changes\nparent or index: a remounted field would lose focus and its keyboard, which changes the layout back. While the\nwindow is compact AND a keyboard is open the screen's other chrome steps aside (the tab bar, the quick filters, the\ncreate dial — `RecipesScreen` and `RecipeListResults`); this frame keeps only the heading and the field.",
                     "moduleTags": [
                         {
                             "name": "module",

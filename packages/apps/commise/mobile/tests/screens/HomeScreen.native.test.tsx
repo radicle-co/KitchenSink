@@ -5,7 +5,7 @@
  * the navigator actually mounts — not only at the surface/leaf unit level.
  *
  * What it pins:
- *  - the greeting sits on the brand beach-glow gradient hero (the shared `GradientSurface`, `hero`), and
+ *  - the greeting sits on the app canvas, not in a gradient card (`docs/design/uiOverhaul/buildSpec.md` §1.6), and
  *  - the roadmap widget cards adopt the shared frosted-glass surface (`GlassCard` → `expo-blur` BlurView).
  *
  * The heavy leaves the screen pulls in are stubbed exactly as every other native screen test does: the
@@ -52,17 +52,14 @@ afterEach(() => {
 const noop = (): void => undefined;
 
 describe('HomeScreen (mobile) — U8 brand adoption', () => {
-    it('renders the greeting on the brand gradient hero and the widget cards on frosted glass', async () => {
+    it('renders the greeting on the canvas and the widget cards on frosted glass', async () => {
         const { container } = renderWithProviders(
             <HomeScreen onOpenRecipes={noop} onOpenRecipe={noop} onOpenProfile={noop} />,
         );
 
-        // The greeting (any time-of-day bucket says "Chef") sits inside the hero gradient surface — the
-        // `expo-linear-gradient` stub, projecting the hero beach-glow ramp (terminal cool tint `#E8F4F8`).
-        const greeting = screen.getByText(/Chef/u);
-        const hero = greeting.closest('[data-commise-stub="linear-gradient"]');
-        expect(hero).not.toBeNull();
-        expect(hero?.getAttribute('data-colors')).toContain('#E8F4F8');
+        // The greeting (any time-of-day bucket says "Chef") is NOT wrapped in a gradient card: §1.6 deleted it, and
+        // the app canvas already carries the wash.
+        expect(screen.getByText(/Chef/u).closest('[data-commise-stub="linear-gradient"]')).toBeNull();
 
         // The roadmap widget cards load lazily; once one is present, its glass surface (the `expo-blur`
         // BlurView stub) must be on the screen — proving the frosted-glass adoption reaches the real screen.

@@ -25,3 +25,12 @@ export function pxToRem(px: number): string | 0 {
 export function pxToRemUnit(px: number): string {
     return `${px / 16}rem`;
 }
+
+/**
+ * A camelCase token key as the kebab-case custom-property suffix it is emitted under. Pure.
+ *
+ * @example kebab('inkMuted') // 'ink-muted'
+ */
+export function kebab(key: string): string {
+    return key.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
+}

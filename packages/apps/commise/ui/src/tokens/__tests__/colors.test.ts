@@ -39,13 +39,16 @@
 import { converter, wcagContrast } from 'culori';
 import { describe, expect, it } from 'vitest';
 
-import { chart, palette, tint } from '../colors.js';
+import { chart, palette, role, semantic, tint } from '../colors.js';
 
 const toOklch = converter('oklch');
 const toRgb = converter('rgb');
 
 /** WCAG 2.1 AA, SC 1.4.3 — normal-size text. Every label measured here is body-size or smaller. */
 const AA_NORMAL_TEXT = 4.5;
+
+/** WCAG 2.2 AA, SC 1.4.11 — a component edge, a state indicator or a meaningful graphic. */
+const AA_NON_TEXT = 3;
 
 describe('chart tokens', () => {
     it('assigns a distinct hue to every nutrition series', () => {
@@ -219,6 +222,136 @@ describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
     });
 });
 
+/**
+ * The overhaul's colour ROLES (`docs/design/uiOverhaul/buildSpec.md` §1.4). A screen names a role, never a palette
+ * tier, so the measured contract lives here once: every pairing the spec's contrast column states is recomputed from
+ * the tokens, on the surfaces the role is actually painted on (`paper` = white, `canvas` = sand).
+ *
+ * Mutation lens: point a role at a neighbouring tier (`inkMuted` → `mist`, `lineControl` → `mist`, `rating` →
+ * `warning`) and its row fails; re-spell `selectedFill` by hand and the recomputation fails; repurpose a legacy
+ * `semantic` key instead of adding a role and the "never changes an existing key" row fails.
+ */
+describe('colour roles (§1.4)', () => {
+    it('adds the two new primitives at their specified values', () => {
+        expect(palette.pewter).toBe('#858F93');
+        expect(palette.honey).toBe('#A86A12');
+    });
+
+    it('draws every role but the two derived fills from a palette entry', () => {
+        const paletteValues = new Set<string>(Object.values(palette));
+        const derived = new Set<keyof typeof role>(['selectedFill', 'attentionTint']);
+
+        for (const [name, value] of Object.entries(role)) {
+            if (!derived.has(name as keyof typeof role)) {
+                expect(paletteValues.has(value), `${name} is not a palette entry`).toBe(true);
+            }
+        }
+    });
+
+    it('names each role after the tier the spec assigns it', () => {
+        expect(role).toMatchObject({
+            canvas: palette.sand,
+            paper: palette.white,
+            ink: palette.charcoal,
+            inkMuted: palette.slate,
+            lineControl: palette.pewter,
+            lineDivider: palette.mist,
+            action: palette.seafoam,
+            actionText: palette['ocean-dark'],
+            selectedEdge: palette.seafoam,
+            hereBar: palette.seafoam,
+            focusRing: palette['ocean-dark'],
+            rating: palette.honey,
+            attention: palette['warning-dark'],
+            danger: palette.error,
+            dangerText: palette['error-dark'],
+        });
+    });
+
+    it('pins selectedFill to 14% seafoam composited over white', () => {
+        expect(over(tint(palette.seafoam, 0.14), palette.white)).toBe(toRgbString(role.selectedFill));
+    });
+
+    it('derives attentionTint from the warning fill at 20%', () => {
+        expect(role.attentionTint).toBe(tint(palette.warning, 0.2));
+    });
+
+    // The never-repurpose rule (A19): the coral `secondary` and the seafoam-light `ring` keep their meaning until
+    // their consumers have moved; the new roles are additions beside them.
+    it('leaves the legacy semantic keys meaning what they meant', () => {
+        expect(semantic.secondary).toBe(palette.coral);
+        expect(semantic.ring).toBe(palette['seafoam-light']);
+    });
+
+    describe('text roles clear 4.5:1 (SC 1.4.3)', () => {
+        it.each([
+            ['ink', 'paper'],
+            ['ink', 'canvas'],
+            ['inkMuted', 'paper'],
+            ['inkMuted', 'canvas'],
+            ['actionText', 'paper'],
+            ['actionText', 'canvas'],
+            ['actionText', 'selectedFill'],
+            ['dangerText', 'paper'],
+            ['dangerText', 'canvas'],
+            ['attention', 'paper'],
+            ['attention', 'canvas'],
+        ] as const)('%s on %s', (text, surface) => {
+            expect(wcagContrast(role[text], role[surface])).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        });
+
+        it.each([
+            ['paper', 'action'],
+            ['paper', 'danger'],
+        ] as const)('a %s label on a filled %s', (label, fill) => {
+            expect(wcagContrast(role[label], role[fill])).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        });
+
+        // ⚠️ MEASURED SPEC GAP, recorded rather than tuned (flagged to `staff-ux-engineer`): §1.4 pairs `attention`
+        // text with a 20% `warning` tint, and that pair is 4.497:1 over paper and 4.24:1 over the canvas — under the
+        // floor on both. So the tint carries `ink`, which is what the shipped caution badge already does.
+        it.each(['paper', 'canvas'] as const)('the attention tint takes an ink label over %s', (surface) => {
+            expect(wcagContrast(role.ink, over(role.attentionTint, role[surface]))).toBeGreaterThanOrEqual(
+                AA_NORMAL_TEXT,
+            );
+        });
+
+        it.each(['paper', 'canvas'] as const)(
+            'attention text does NOT clear the floor on its own tint over %s — never pair the two',
+            (surface) => {
+                expect(wcagContrast(role.attention, over(role.attentionTint, role[surface]))).toBeLessThan(
+                    AA_NORMAL_TEXT,
+                );
+            },
+        );
+    });
+
+    describe('edge, state and graphic roles clear 3:1 (SC 1.4.11)', () => {
+        it.each([
+            ['lineControl', 'paper'],
+            ['lineControl', 'canvas'],
+            ['selectedEdge', 'paper'],
+            ['hereBar', 'paper'],
+            ['hereBar', 'canvas'],
+            ['focusRing', 'paper'],
+            ['focusRing', 'canvas'],
+            ['rating', 'paper'],
+        ] as const)('%s on %s', (graphic, surface) => {
+            expect(wcagContrast(role[graphic], role[surface])).toBeGreaterThanOrEqual(AA_NON_TEXT);
+        });
+    });
+
+    // `rating` is for filled stars only (§1.4: "Never text"). It sits between the two floors on purpose; if it ever
+    // cleared 4.5:1 the "never text" rule would be a matter of taste rather than of measurement.
+    it('rating is a graphic colour, under the text floor on paper', () => {
+        expect(wcagContrast(role.rating, role.paper)).toBeLessThan(AA_NORMAL_TEXT);
+    });
+
+    it('lineDivider stays a hairline — it never clears the 3:1 a component edge needs', () => {
+        expect(wcagContrast(role.lineDivider, role.paper)).toBeLessThan(AA_NON_TEXT);
+    });
+});
+
 describe('tint', () => {
     it('spells a palette colour at an alpha in the notation React Native and jsdom both use', () => {
         expect(tint(palette.coral, 0.1)).toBe('rgba(232, 145, 122, 0.1)');
@@ -242,6 +375,17 @@ describe('tint', () => {
         expect(() => tint(palette.seafoam, 10)).toThrow(/alpha/i);
     });
 });
+
+/** An opaque `#RRGGBB` as the `rgb(r, g, b)` string {@link over} returns, so the two compare directly. Pure. */
+function toRgbString(hex: string): string {
+    const rgb = toRgb(hex);
+
+    if (rgb === undefined) {
+        throw new Error(`Expected a parsable colour, received "${hex}".`);
+    }
+
+    return `rgb(${Math.round(rgb.r * 255)}, ${Math.round(rgb.g * 255)}, ${Math.round(rgb.b * 255)})`;
+}
 
 /** Flatten a translucent `rgba(...)` onto an opaque backdrop, as the `rgb(...)` a reader sees. Pure. */
 function over(color: string, backdrop: string): string {

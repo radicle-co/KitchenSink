@@ -58,6 +58,20 @@ const PROBES = [
     'bg-hero',
     'animate-pending-bar-reveal',
     '-top-3.5',
+    'nav:hidden',
+    'medium:px-6',
+    '@container/main',
+    '@regular/main:grid-cols-2',
+    '@wide/main:grid-cols-3',
+    'max-w-page',
+    'max-w-reading',
+    'text-card-title',
+    'text-large-title',
+    'text-overline',
+    'bg-paper',
+    'text-ink-muted',
+    'border-line-control',
+    'bg-selected-fill',
 ] as const;
 
 /**
@@ -131,7 +145,12 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         expect(css).toMatch(/--text-body-sm:\s*0?\.875rem/);
         expect(ruleFor(css, 'text-display-md')).toBe('font-size:var(--text-display-md)');
         expect(css).toMatch(/--text-display-md:\s*1\.75rem/);
-        expect(ruleFor(css, 'text-caption')).toBe('font-size:var(--text-caption)');
+        // The caption role (§1.5) adds its leading and weight to the ramp's own `--text-caption`, so the utility
+        // carries both as fallbacks behind `--tw-leading` / `--tw-font-weight`: an explicit `leading-*` or `font-*`
+        // class still wins. This used to be `font-size` alone, and every caption inherited the body's 1.5 leading.
+        expect(ruleFor(css, 'text-caption')).toBe(
+            'font-size:var(--text-caption);line-height:var(--tw-leading,var(--text-caption--line-height));font-weight:var(--tw-font-weight,var(--text-caption--font-weight))',
+        );
 
         // The dead namespaces must be GONE, not merely shadowed — leaving them emits bytes that look like a
         // working type ramp to the next reader while generating nothing.
@@ -281,5 +300,104 @@ describe('the beach-glow page canvas (compiled)', () => {
             // Tailwind escapes `[`, `]` and `#` in the generated selector.
             expect(css).not.toContain(`.${prefix}-\\[\\${hex}\\]`);
         }
+    });
+});
+
+/**
+ * The overhaul's slice-1 foundation (`docs/design/uiOverhaul/buildSpec.md` §1.2-§1.5, blueprint A8): the navigation
+ * breakpoint, the `main` container queries, the content widths, the type roles and the colour roles — each read from
+ * the COMPILED stylesheet, because the blueprint's two load-bearing assumptions were Tailwind v4 behaviours:
+ *
+ *  1. that `--container-*` drives BOTH `max-w-*` AND the `@{name}/main:` size variants (so a content width named
+ *     `wide` would hijack the `@wide` query — why the spec's `content-wide` is emitted as `page`); and
+ *  2. that `--text-{role}--line-height` / `--font-weight` sub-properties reach the `text-{role}` utility.
+ *
+ * Mutation lens: rename `--container-page` to `--container-wide` and the `@wide/main:` row reads 90rem; drop a
+ * sub-property and its utility row loses the declaration; emit the breakpoint under another name and `nav:` compiles
+ * to nothing.
+ */
+describe('slice 1 — layout and role tokens (compiled)', () => {
+    const cssPromise = compileAppCss();
+
+    /** The `@media`/`@container` prelude that wraps a variant utility, or `undefined` if none does. */
+    function preludeOf(css: string, escapedSelector: string): string | undefined {
+        const index = css.indexOf(escapedSelector);
+
+        if (index < 0) {
+            return undefined;
+        }
+
+        const preludes = [...css.slice(0, index).matchAll(/@(media|container)[^{]*\{/gu)];
+
+        return preludes.at(-1)?.[0].replace(/\s+/g, ' ').replace(/ ?\{$/u, '');
+    }
+
+    it('switches the shell at 840 px: nav: is a 52.5rem media query', async () => {
+        expect(preludeOf(await cssPromise, '.nav\\:hidden')).toBe('@media (width >= 52.5rem)');
+    });
+
+    it('steps the gutter at 600 px: medium: is a 37.5rem media query', async () => {
+        expect(preludeOf(await cssPromise, '.medium\\:px-6')).toBe('@media (width >= 37.5rem)');
+    });
+
+    it('names <main> as an inline-size container', async () => {
+        expect(ruleFor(await cssPromise, '\\@container\\/main')).toBe('container-type:inline-size;container-name:main');
+    });
+
+    it('queries <main> at 600 px for @regular', async () => {
+        expect(preludeOf(await cssPromise, '.\\@regular\\/main\\:grid-cols-2')).toBe(
+            '@container main (width >= 37.5rem)',
+        );
+    });
+
+    it('queries <main> at 960 px for @wide — not at the 1440 px page width', async () => {
+        expect(preludeOf(await cssPromise, '.\\@wide\\/main\\:grid-cols-3')).toBe('@container main (width >= 60rem)');
+    });
+
+    it('caps a page at 90rem and a reading column at 40rem', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'max-w-page')).toBe('max-width:var(--container-page)');
+        expect(css).toMatch(/--container-page:\s*90rem/u);
+        expect(ruleFor(css, 'max-w-reading')).toBe('max-width:var(--container-reading)');
+        expect(css).toMatch(/--container-reading:\s*40rem/u);
+    });
+
+    it('sets the card title at 1rem / 1.3 / 600 from one utility', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'text-card-title')).toBe(
+            'font-size:var(--text-card-title);line-height:var(--tw-leading,var(--text-card-title--line-height));font-weight:var(--tw-font-weight,var(--text-card-title--font-weight))',
+        );
+        expect(css).toMatch(/--text-card-title:\s*1rem/u);
+        expect(css).toMatch(/--text-card-title--line-height:\s*1\.3/u);
+        expect(css).toMatch(/--text-card-title--font-weight:\s*600/u);
+    });
+
+    it('sizes the large title with a bounded container-unit clamp', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'text-large-title')).toContain('font-size:var(--text-large-title)');
+        expect(css).toMatch(/--text-large-title:\s*clamp\(1\.75rem,[^;]*cqi[^;]*2\.5rem\)/u);
+    });
+
+    it('tracks the overline from its letter-spacing sub-property', async () => {
+        expect(ruleFor(await cssPromise, 'text-overline')).toContain(
+            'letter-spacing:var(--tw-tracking,var(--text-overline--letter-spacing))',
+        );
+    });
+
+    it('resolves the colour roles to real utilities', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'bg-paper')).toBe('background-color:var(--color-paper)');
+        expect(ruleFor(css, 'text-ink-muted')).toBe('color:var(--color-ink-muted)');
+        expect(ruleFor(css, 'border-line-control')).toBe('border-color:var(--color-line-control)');
+        expect(ruleFor(css, 'bg-selected-fill')).toBe('background-color:var(--color-selected-fill)');
+        expect(css).toMatch(/--color-line-control:\s*#858F93/iu);
+    });
+
+    it('declares the caption size once, not twice', async () => {
+        expect((await cssPromise).match(/--text-caption:/gu)).toHaveLength(1);
     });
 });

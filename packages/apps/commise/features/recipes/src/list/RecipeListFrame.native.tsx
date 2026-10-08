@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe-list FRAME (presentational).
  *
- * The React Native leaf of `RecipeListFrame`: the gradient title band, the source switcher and the search field,
+ * The React Native leaf of `RecipeListFrame`: the title, the source switcher and the search field,
  * pinned above whatever the list's suspense boundary renders as `children`, so a pending or failed read never
  * unmounts them. It fetches nothing.
  *
@@ -10,9 +10,8 @@
  *
  * ## Compact height (`docs/design/compactHeightLayout.md` §5)
  *
- * On a phone held sideways the stacked header (title band, then the field) took about 205 of 369 dp before one recipe.
- * In compact height (`useCompactHeight`) the band goes, the heading shares one wrapping row with the field, and the
- * gaps tighten. ⛔ The field is ALWAYS the last child of one header group, whatever the layout, so it never changes
+ * On a phone held sideways the stacked header (title, then the field) took too much of 369 dp before one recipe. In
+ * compact height (`useCompactHeight`) the heading shares one wrapping row with the field, and the gaps tighten. ⛔ The field is ALWAYS the last child of one header group, whatever the layout, so it never changes
  * parent or index: a remounted field would lose focus and its keyboard, which changes the layout back. While the
  * window is compact AND a keyboard is open the screen's other chrome steps aside (the tab bar, the quick filters, the
  * create dial — `RecipesScreen` and `RecipeListResults`); this frame keeps only the heading and the field.
@@ -22,7 +21,6 @@ import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { useCompactHeight } from '@commise/ui/layout';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
-import { GradientSurface } from '@commise/ui/surface';
 import { TextInput } from '@commise/ui/text-input';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -55,14 +53,9 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
         >
             {/* ONE header group in every layout, the field its last child, so the field never remounts. */}
             <View style={compact ? styles.headerGroupCompact : styles.headerGroup}>
-                {compact ? (
-                    heading
-                ) : (
-                    /* U8: the heading rides a beach-glow gradient title band (mockup recipe-list). */
-                    <GradientSurface gradient="hero" style={styles.titleBand}>
-                        <View style={styles.headerRow}>{heading}</View>
-                    </GradientSurface>
-                )}
+                {/* The heading sits on the app canvas, which already carries the beach-glow wash: a second gradient
+                    band around it was a box in a box (`docs/design/uiOverhaul/buildSpec.md` §1.6). */}
+                {heading}
 
                 {/* The source switcher (L5) is the ONE shared `RecipeSourceTabs`, shared with the community surface —
                     the same composition the web frame uses, so the platforms cannot drift on it. */}
@@ -99,8 +92,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: nativeTokens.spacing[3],
     },
-    titleBand: { borderRadius: nativeTokens.radius.lg, padding: nativeTokens.spacing[4] },
-    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     heading: {
         fontFamily: nativeTokens.fontFace.display.bold,
         fontSize: nativeTokens.fontSize.displayMd,

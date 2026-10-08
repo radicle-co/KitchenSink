@@ -63,6 +63,8 @@ Values below are the SHIPPED `@commise/ui` tokens, and the archive is held to th
 | `--color-error`         | `#C05238` | Error FILL         | `white` (4.66:1)                         |
 | `--color-error-dark`    | `#B1442B` | Error TEXT         | `white` (5.63:1)                         |
 | `--color-premium`       | `#D4A574` | Premium/gold       | `charcoal` (5.70:1)                      |
+| `--color-pewter`        | `#858F93` | Control edge       | edge only — 3.31:1 on white, never text  |
+| `--color-honey`         | `#A86A12` | Rating star        | graphic only — 4.43:1, never text        |
 
 ### Semantic Colors
 

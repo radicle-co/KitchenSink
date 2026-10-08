@@ -1,34 +1,50 @@
 # Owner decisions for the UI overhaul (2026-10-08)
 
-This file records what the owner decided, and which recommendations were adopted with the owner's approval. Where
-an earlier file in this folder disagrees, this file wins. The consolidated build spec (`buildSpec.md`) is derived
-from it.
+This file records the owner's rulings and the recommendations the owner approved. Where an earlier file in this
+folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
 
 ## Decided by the owner
 
-| #   | Decision              | Ruling                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | Create and edit       | One scrolling editor page with a section index, autosave, and guided progress for a first recipe. A published recipe saves to the device until "Save changes". The four-step wizard is retired. Evidence: `editorResearch` notes in the conversation of 2026-10-08 (NN/g on wizards, Baymard on one-page checkout, Paprika and Mela).                                                                                                                                                             |
-| D2  | Section index         | Keep the owner's vertical box as `SectionIndex`, as `editorNavA.md` and `editorNavB.md` agree: sticky rail at 960 px and wider, a one-row strip on tablets, a one-line bar that opens a sheet on phones; GOV.UK task-list statuses from the publish validator; a click scrolls to the section and moves focus to its heading; instant under reduced motion.                                                                                                                                       |
-| D3  | Back to top           | Not in the editor. Kept only on long web lists (labelled, after about four screens). On native, re-tapping the active tab and the iOS status-bar tap do the job.                                                                                                                                                                                                                                                                                                                                  |
-| D4  | Create entry          | As `createEntryC.md` and `createEntryD.md` agree: a labelled "New recipe" floating button on phones and tablets, on Home and Recipes only, shrinking to an icon on scroll on phones, and "New collection" on the Collections tab; "New recipe" first in the sidebar on wide web. With two methods, one tap opens the editor and paste lives in the Ingredients section. When link or photo import ships, the button opens a chooser that leads with one paste box, never more than three choices. |
-| D5  | Navigation breakpoint | The sidebar replaces the tab bar at 840 px and wider.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| D6  | iPad                  | Keeps the bottom tab bar (owner directive of 2026-07-18), including landscape.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+- **D1, create and edit.** Create and edit use one scrolling editor page. The page has a section index, autosave, and
+  guided progress for a first recipe. A published recipe saves to the device until the cook presses "Save changes".
+  The four-step wizard is retired.
+- **D2, section index.** The owner's vertical box becomes `SectionIndex`, as `editorNavA.md` and `editorNavB.md`
+  agree. It is a sticky rail at 960 px and wider. It is a one-row strip on tablets. On phones it is a one-line bar
+  that opens a sheet. Section statuses follow the GOV.UK task list and come from the publish validator. A click
+  scrolls to the section and moves focus to its heading. The scroll is instant under reduced motion.
+- **D3, back to top.** The editor has no back-to-top control. Long web lists keep a labelled one after about four
+  screens. On native, a second tap on the active tab and the iOS status-bar tap do this job.
+- **D4, create entry.** The design is what `createEntryC.md` and `createEntryD.md` agree on. Phones and tablets get a
+  labelled "New recipe" floating button on Home and Recipes only. On phones it shrinks to an icon on scroll. On the
+  Collections tab it reads "New collection". Wide web puts "New recipe" first in the sidebar. With two methods, one
+  tap opens the editor, and paste lives in the Ingredients section. After link or photo import ships, the button
+  opens a chooser. The chooser leads with one paste box and never shows more than three choices.
+- **D5, navigation breakpoint.** The sidebar replaces the tab bar at 840 px and wider.
+- **D6, iPad.** The iPad keeps the bottom tab bar in both orientations (owner directive of 2026-07-18).
 
-## Adopted from the joint recommendations (`resolutionA.md` §3, `resolutionB.md` §3)
+## Adopted from the joint recommendations
 
-The owner directed the two designers to resolve their proposals; where they agree, their recommendation is adopted.
+The owner told the two designers to resolve their proposals. Where `resolutionA.md` §3 and `resolutionB.md` §3
+agree, this file adopts their recommendation.
 
-- Tabs: Home, Recipes (My recipes, Collections), Discover. Profile opens from the avatar. Meal Plan and Shopping are reserved for tabs 4 and 5 and appear only when they ship. No "Soon" items in navigation, no dead search or bell buttons.
-- "Community" is renamed "Discover". Profile, Settings and Account merge into one Profile page; `/settings` and `/account` are deleted with no redirects (nothing is live).
-- Home: recent recipes first (a 2 × 2 photo grid on phones), then the required placeholders.
-- Title limit 120 characters, a soft limit, never a silent cut.
-- Step 4 becomes "Photos & publish", with visibility and Preview.
-- "Clone" becomes "Save a copy", for recipes and collections; it stays on Discover cards as an icon.
+- The tabs are Home, Recipes and Discover. Recipes has two tabs, My recipes and Collections. Profile opens from the
+  avatar. After they ship, Meal Plan and Shopping become tabs 4 and 5. Navigation shows no "Soon" items and no dead
+  search or bell buttons.
+- "Community" becomes "Discover". Profile, Settings and Account merge into one Profile page. The app deletes
+  `/settings` and `/account` with no redirects, because nothing is live.
+- Home shows recent recipes first, as a 2 × 2 photo grid on phones. The required placeholders come after them.
+- The title limit is 120 characters. It is a soft limit and never cuts text silently.
+- The last editor section is "Photos & publish". It holds visibility and Preview.
+- "Clone" becomes "Save a copy" for recipes and collections. It stays on Discover cards as an icon.
 - "Steps" replaces "Instructions" in en-US.
-- Ingredient entry: the amount and a known unit are typed in front of the food search, and the food is always picked from a list. Quiet healthy rows; the row editor opens as a sheet on phones.
-- "Screen on", tap-to-check ingredients and the current step ship with the recipe detail slice as the first slice of 008 FR-035. The full cook view follows the overhaul.
-- Sign-in: email and password plus Google; the brand line "Your recipes, in one place."; a food photo panel at 1024 px and wider.
-- Selected chips use a tint with a check; text inputs are rectangles and only pressable controls are pills; numbers use Inter with tabular digits; coral leaves every control.
-- The canvas wash stays (issue #145). Screens never change behaviour for being offline (owner offline directive).
-- One signature motion: the check-toggle overshoot, respecting reduced motion.
+- The cook types the amount and a known unit in front of the food search. The food is always picked from a list.
+  Healthy rows stay quiet. On phones the row editor opens as a sheet.
+- The recipe page ships "Screen on", tap-to-check ingredients and the current step. These are the first slice of
+  008 FR-035. The full cook view follows the overhaul.
+- Sign-in offers email and password, plus Google. The brand line is "Your recipes, in one place.". A food photo
+  panel shows at 1024 px and wider.
+- A selected chip uses a tint with a check. Text inputs are rectangles. Only pressable controls are pills. Numbers
+  use Inter with tabular digits. Coral leaves every control.
+- The canvas wash stays (issue #145). A screen never changes behaviour for being offline, as the owner's offline
+  directive says.
+- The app has one signature motion: the overshoot on the check toggle. It respects reduced motion.

@@ -11,7 +11,17 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createMemoryOutboxStore, saveOutbox, type OutboxStore } from '@kitchensink/sync';
+import {
+    EMPTY_OUTBOX,
+    appendIntent,
+    createMemoryOutboxStore,
+    loadOutbox,
+    saveOutbox,
+    settle,
+    type Intent,
+    type OutboxStore,
+    type SendResult,
+} from '@kitchensink/sync';
 
 import { SyncProvider, useSyncQueue } from '../syncProvider.js';
 
@@ -154,6 +164,7 @@ describe('SyncProvider', () => {
         const send = vi.fn(async () => ({ outcome: 'ok' as const, serverId: 'srv-1' }));
         const store = createMemoryOutboxStore();
         await saveOutbox(store, 'user_a', {
+            ...EMPTY_OUTBOX,
             records: [
                 {
                     entity: 'recipe',
@@ -161,9 +172,11 @@ describe('SyncProvider', () => {
                     localId: 'r1',
                     dependsOn: [],
                     payload: {},
+                    seq: 1,
                     state: 'pending',
                 },
             ],
+            nextSeq: 2,
         });
 
         render(
@@ -203,12 +216,13 @@ describe('SyncProvider', () => {
             return { outcome: 'ok' as const, serverId: `srv-${record.localId}` };
         });
 
-        const record = (localId: string) => ({
+        const record = (localId: string, seq: number) => ({
             entity: 'recipe' as const,
             intentKind: 'update' as const,
             localId,
             dependsOn: [],
             payload: {},
+            seq,
             state: 'pending' as const,
         });
         // ⚠️ Keyed on OBSERVABLE STATE, not a read counter: the provider reads storage once to hydrate and
@@ -218,7 +232,12 @@ describe('SyncProvider', () => {
         // concurrent `submit` would have produced.
         const store = {
             getItem: async () =>
-                JSON.stringify({ schemaVersion: 1, records: [record(sent.length === 0 ? 'R1' : 'R2')] }),
+                JSON.stringify({
+                    schemaVersion: 1,
+                    nextSeq: 3,
+                    resolutions: {},
+                    records: [sent.length === 0 ? record('R1', 1) : record('R2', 2)],
+                }),
             setItem: async () => undefined,
             removeItem: async () => undefined,
         };
@@ -434,5 +453,185 @@ describe('SyncProvider', () => {
         await waitFor(() => expect(outcome).toBeInstanceOf(Error));
         expect((outcome as Error).message).toBe('AsyncStorage unavailable');
         expect(screen.getByText(/pending:/)).toBeTruthy();
+    });
+});
+
+/** A button that submits `intent` through the queue. */
+function SubmitButton({ intent, label }: { readonly intent: Intent; readonly label: string }): ReactElement {
+    const queue = useSyncQueue();
+
+    return (
+        <button
+            type="button"
+            onClick={() => {
+                void queue.submit(intent);
+            }}
+        >
+            {label}
+        </button>
+    );
+}
+
+const updateOf = (localId: string): Intent => ({
+    entity: 'recipe',
+    intentKind: 'update',
+    localId,
+    dependsOn: [],
+    payload: { title: localId },
+});
+
+describe('SyncProvider — the serialized mutator', () => {
+    /**
+     * ⛔ THE CLOBBER, END TO END. A drain is on the wire with R1 when the cook saves R2. The old drain wrote back the
+     * snapshot it loaded once R1 answered, which deleted R2 from storage while `pendingCount` still showed it — and
+     * the re-armed drain then found nothing to send. R2 must reach the server.
+     */
+    it('⛔ sends a write submitted while a drain was on the wire', async () => {
+        let release: (() => void) | undefined;
+        const sent: string[] = [];
+        const send = vi.fn(async (record: { readonly localId: string }): Promise<SendResult> => {
+            sent.push(record.localId);
+
+            if (record.localId === 'R1') {
+                await new Promise<void>((resolve) => {
+                    release = resolve;
+                });
+            }
+
+            return { outcome: 'ok', serverId: `srv-${record.localId}` };
+        });
+        const store = createMemoryOutboxStore();
+
+        render(
+            <SyncProvider subject="user_a" send={send as never} store={store}>
+                <SubmitButton intent={updateOf('R1')} label="save R1" />
+                <SubmitButton intent={updateOf('R2')} label="save R2" />
+                <Probe />
+            </SyncProvider>,
+        );
+
+        await act(async () => {
+            screen.getByRole('button', { name: 'save R1' }).click();
+        });
+        await waitFor(() => expect(sent).toStrictEqual(['R1']));
+
+        await act(async () => {
+            screen.getByRole('button', { name: 'save R2' }).click();
+        });
+        await act(async () => {
+            release?.();
+        });
+
+        await waitFor(() => expect(sent).toStrictEqual(['R1', 'R2']));
+        await waitFor(async () => expect((await loadOutbox(store, 'user_a')).records).toStrictEqual([]));
+        await waitFor(() => expect(screen.getByText('pending:0')).toBeTruthy());
+    });
+
+    /**
+     * ⛔ FAILURES ARE A PROJECTION OF THE STORED LOG, so a parked write is reported after a relaunch too — before any
+     * drain runs, and without being re-sent (a terminal refusal will not change its answer).
+     */
+    it('⛔ reports a parked write restored from storage, without re-sending it', async () => {
+        const store = createMemoryOutboxStore();
+        await saveOutbox(
+            store,
+            'user_a',
+            settle(appendIntent(EMPTY_OUTBOX, updateOf('r1')), { seq: 1, outcome: 'parked', status: 422 }),
+        );
+        const send = vi.fn();
+
+        render(
+            <SyncProvider subject="user_a" send={send} store={store}>
+                <Probe />
+            </SyncProvider>,
+        );
+
+        await waitFor(() => expect(screen.getByText('failed:1')).toBeTruthy());
+        expect(screen.getByText('pending:1')).toBeTruthy();
+        expect(send).not.toHaveBeenCalled();
+    });
+});
+
+describe('SyncProvider — a wait the server asked for', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    /**
+     * ⛔ A LONG `Retry-After` IS HONOURED BY SCHEDULING, NOT BY SLEEPING IN THE DRAIN. The drain hands the wait back;
+     * the provider drains again when it is over, with no connectivity change to prompt it.
+     */
+    it('⛔ drains again once the stated wait is over', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const send = vi
+            .fn<() => Promise<SendResult>>()
+            .mockResolvedValueOnce({ outcome: 'failed', status: 429, retryAfterSeconds: 60 })
+            .mockResolvedValue({ outcome: 'ok', serverId: 'srv-1' });
+
+        render(
+            <SyncProvider subject="user_a" send={send as never}>
+                <SubmitButton intent={updateOf('r1')} label="save" />
+                <Probe />
+            </SyncProvider>,
+        );
+
+        await act(async () => {
+            screen.getByRole('button', { name: 'save' }).click();
+        });
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(59_000);
+        });
+        expect(send).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(2_000);
+        });
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(screen.getByText('pending:0')).toBeTruthy());
+    });
+
+    /**
+     * ⛔ THE WAIT HOLDS AGAINST EVERY TRIGGER. A checkpoint `submit` lands every few seconds while the editor is open;
+     * if each one drained, the 429'd write would be re-sent long before the stated wait was over.
+     */
+    it('⛔ sends nothing before the stated wait is over, even when another write is submitted', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const send = vi
+            .fn<() => Promise<SendResult>>()
+            .mockResolvedValueOnce({ outcome: 'failed', status: 429, retryAfterSeconds: 60 })
+            .mockResolvedValue({ outcome: 'ok', serverId: 'srv' });
+
+        render(
+            <SyncProvider subject="user_a" send={send as never}>
+                <SubmitButton intent={updateOf('r1')} label="save r1" />
+                <SubmitButton intent={updateOf('r2')} label="save r2" />
+                <Probe />
+            </SyncProvider>,
+        );
+
+        await act(async () => {
+            screen.getByRole('button', { name: 'save r1' }).click();
+        });
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(5_000);
+        });
+        await act(async () => {
+            screen.getByRole('button', { name: 'save r2' }).click();
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(50_000);
+        });
+
+        expect(send).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(6_000);
+        });
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(3));
+        await waitFor(() => expect(screen.getByText('pending:0')).toBeTruthy());
     });
 });

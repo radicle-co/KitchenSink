@@ -110,6 +110,15 @@ describe('mapRecipe', () => {
         expect(result.status).toBe('draft');
     });
 
+    /** ADR-0058 — the first-publish instant is a stored fact about the cook's recipe, so the export carries it. */
+    it('exports when the recipe was first published, and null for a draft never published', () => {
+        const published = mapRecipe(makeRecipeRow({ firstPublishedAt: new Date('2026-02-01T08:00:00.000Z') }));
+        const neverPublished = mapRecipe(makeRecipeRow({ status: 'draft', firstPublishedAt: null }));
+
+        expect(published.firstPublishedAt).toBe('2026-02-01T08:00:00.000Z');
+        expect(neverPublished.firstPublishedAt).toBeNull();
+    });
+
     it('leaves an active recipe deletedAt null', () => {
         expect(mapRecipe(makeRecipeRow()).deletedAt).toBeNull();
     });

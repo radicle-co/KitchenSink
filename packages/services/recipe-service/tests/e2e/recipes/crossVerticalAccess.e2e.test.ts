@@ -35,9 +35,11 @@ const CREATE_BODY = {
     visibility: 'public',
     tags: [],
     dietaryFlags: [],
-    ingredients: [],
+    // ⚠️ PUBLISHED AT CREATE, with a line, so the create records version 1: a never-published draft records none
+    // (ADR-0058), and the version reads below would then answer 404 for the wrong reason. The line is the seeded
+    // flour (`src/database/seed.ts`).
+    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', quantity: { kind: 'exact', value: 1 } }],
     steps: [{ instruction: 'Mix.' }],
-    status: 'draft',
 };
 
 describe('photos + versions authorize a stranger by the recipe row (integration)', () => {
@@ -64,7 +66,7 @@ describe('photos + versions authorize a stranger by the recipe row (integration)
         expect(res.status).toBe(201);
         const { id } = (await res.json()) as { id: string };
 
-        await pool.query(`UPDATE recipes SET visibility = $1, status = 'published' WHERE id = $2`, [visibility, id]);
+        await pool.query(`UPDATE recipes SET visibility = $1 WHERE id = $2`, [visibility, id]);
 
         return id;
     }

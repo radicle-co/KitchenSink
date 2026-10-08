@@ -15,10 +15,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { createMemoryOutboxStore, loadOutbox, saveOutbox, storeKeyFor } from '../outboxStore.js';
-import { appendIntent, type OutboxLog } from '../outboxLog.js';
+import { EMPTY_OUTBOX, appendIntent, type OutboxLog } from '../outboxLog.js';
 import { LOCAL_SCHEMA_VERSION, type Intent } from '../record.js';
 
-const EMPTY: OutboxLog = { records: [] };
+const EMPTY: OutboxLog = EMPTY_OUTBOX;
 
 function intent(over: Partial<Intent> & Pick<Intent, 'entity' | 'intentKind' | 'localId'>): Intent {
     return { dependsOn: [], payload: {}, ...over } as Intent;
@@ -57,6 +57,47 @@ describe('a round trip', () => {
         await saveOutbox(store, 'user_a', log);
 
         expect((await loadOutbox(store, 'user_a')).records).toStrictEqual(log.records);
+    });
+
+    /**
+     * ⛔ THE COUNTER AND THE RESOLUTIONS ARE PART OF THE FORMAT. A reloaded counter that restarted at 1 would reuse a
+     * sequence number a parked record still holds; reloaded resolutions that came back empty would send a dependent
+     * update with its `local:` placeholder in it.
+     */
+    it('⛔ round-trips the sequence counter, the resolved ids and the pause with the records', async () => {
+        const store = createMemoryOutboxStore();
+        const log: OutboxLog = {
+            ...appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' })),
+            resolutions: { 'local:recipe:r0': 'srv-0' },
+            pausedUntil: 1_700_000_000_000,
+        };
+
+        await saveOutbox(store, 'user_a', log);
+        const loaded = await loadOutbox(store, 'user_a');
+
+        expect({
+            nextSeq: loaded.nextSeq,
+            resolutions: loaded.resolutions,
+            pausedUntil: loaded.pausedUntil,
+        }).toStrictEqual({
+            nextSeq: log.nextSeq,
+            resolutions: log.resolutions,
+            pausedUntil: log.pausedUntil,
+        });
+    });
+
+    /** A record that does not have the shape this version writes is unreadable, not half-trusted. */
+    it('⛔ quarantines an envelope whose records are not the current shape', async () => {
+        const store = createMemoryOutboxStore();
+        await store.setItem(
+            storeKeyFor('user_a'),
+            JSON.stringify({ schemaVersion: LOCAL_SCHEMA_VERSION, nextSeq: 2, resolutions: {}, records: [{}] }),
+        );
+
+        const loaded = await loadOutbox(store, 'user_a');
+
+        expect(loaded.records).toStrictEqual([]);
+        expect(loaded.quarantined).toBe(1);
     });
 
     it('reads an empty log for a user who has never queued anything', async () => {

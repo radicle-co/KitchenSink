@@ -127,6 +127,13 @@ export const recipes = pgTable(
         // deleted_at. A draft is owner-only regardless of visibility; NOT NULL default 'published' (every
         // existing row genuinely is published). Domain constrained by recipes_status_check below.
         status: text('status').notNull().default('published'),
+        // When the recipe was FIRST published (ADR-0058). NULL exactly while it has never been published, and that
+        // is the fact that decides whether a save records a version: a never-published draft is overwritten in place,
+        // and versions start at the first publish. ⛔ NOT `status`: a published recipe may be set back to draft, and
+        // its saves must keep versioning. ⛔ Never written by application code — the
+        // `recipes_first_published_at_ratchet` trigger (0053 migration) sets it on the first publish and refuses to
+        // change it after, for every writer, so a demotion cannot reopen in-place overwrites.
+        firstPublishedAt: timestamp('first_published_at', { withTimezone: true }),
         sourceType: text('source_type').notNull().default('user_created'),
         sourceUrl: text('source_url'),
         sourceAttribution: text('source_attribution'),
@@ -186,6 +193,12 @@ export const recipes = pgTable(
         ),
         // Publication status (W8-a.3) — NOT NULL, so this enforces the full draft|published domain.
         check('recipes_status_check', sql`${table.status} IN ('draft', 'published')`),
+        // A published recipe has been published (ADR-0058). The trigger maintains the column; this states the
+        // invariant declaratively, so a writer that bypassed the trigger could not leave a published row unversioned.
+        check(
+            'recipes_published_has_first_published_at',
+            sql`${table.status} <> 'published' OR ${table.firstPublishedAt} IS NOT NULL`,
+        ),
         check('recipes_rating_count_nonneg', sql`${table.ratingCount} >= 0`),
         check(
             'recipes_average_rating_range',

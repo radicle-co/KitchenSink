@@ -41,6 +41,7 @@ import { defaultCloneVisibility, evaluateVisibility } from './domain/visibilityP
 import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
 import { assertNotContained, testPrincipalContained } from '../common/containment.error.js';
 import { isRecipeViewableBy } from './domain/recipeVisibility.js';
+import { recordsVersion } from './domain/versionPolicy.js';
 import { toRecipeSummaryResponse } from './mappers/recipeResponse.js';
 import { resolveCdnUrl } from '../photos/photoView.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/createRecipe.dto.js';
@@ -440,8 +441,14 @@ export class RecipesService {
      * makes the reported outcome true, which is why the transaction is a required parameter and comes
      * first: a call site that forgot it does not typecheck.
      *
+     * ⛔ A NEVER-PUBLISHED DRAFT RECORDS NONE (ADR-0058, amending ADR-0034). That is decided HERE, from the row the
+     * write returned, by {@link recordsVersion} — never by a caller. `currentVersion` still moved, because it is the
+     * compare-and-swap token between devices; only the history row is skipped, and with it the retention pass, which
+     * has nothing new to judge.
+     *
      * @param tx - The open transaction carrying the recipe write.
-     * @sideEffect Inserts a `recipe_versions` row and records retention overflow, inside `tx`.
+     * @sideEffect Inserts a `recipe_versions` row and records retention overflow, inside `tx`, unless the recipe has
+     *   never been published.
      */
     private async recordSnapshotIn(
         tx: RecipeTx,
@@ -452,6 +459,10 @@ export class RecipesService {
         editorHandle?: string,
         baseVersion?: number,
     ): Promise<void> {
+        if (!recordsVersion(aggregate.recipe)) {
+            return;
+        }
+
         await this.versions.createSnapshot(
             {
                 recipeId: aggregate.recipe.id,

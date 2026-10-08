@@ -17,6 +17,9 @@
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
+    "dependencies": {
+        "zod": "^4.4.3"
+    },
     "devDependencies": {
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",

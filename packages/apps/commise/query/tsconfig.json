@@ -3,9 +3,10 @@
     "extends": "@kitchensink/typescript/base.json",
     "compilerOptions": {
         "outDir": "dist",
-        "rootDir": "src",
         "jsx": "react-jsx"
     },
-    "include": ["src/**/*.ts", "src/**/*.tsx"],
+    // The CHECK project — everything this package owns, the integration tier included. `rootDir` lives in
+    // `tsconfig.build.json`, because `tests/` cannot sit in a project rooted at `src` (TS6059).
+    "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.integration.config.ts"],
     "exclude": ["node_modules", "dist"]
 }

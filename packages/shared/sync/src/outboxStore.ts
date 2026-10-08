@@ -17,7 +17,9 @@
  * @pattern Port with build-time Adapters — the same shape the shipped `RecentSearchStore` uses (native on
  *     AsyncStorage, web on its own store), so this is the house seam rather than a new idea.
  */
-import type { OutboxLog } from './outboxLog.js';
+import { z } from 'zod';
+
+import { EMPTY_OUTBOX, type OutboxLog } from './outboxLog.js';
 import { LOCAL_SCHEMA_VERSION, type OutboxRecord } from './record.js';
 
 /** The key/value surface both platforms provide. Async because AsyncStorage is. */
@@ -43,11 +45,45 @@ export function storeKeyFor(subject: string): string {
     return `sync.outbox.v${LOCAL_SCHEMA_VERSION}.${subject}`;
 }
 
-/** The on-disk envelope. Versioned so a format change is detectable rather than silently misread. */
-interface Envelope {
-    readonly schemaVersion: number;
-    readonly records: readonly OutboxRecord[];
+/**
+ * Where a user's unreadable outbox bytes are kept: a list of the raw strings, oldest first.
+ *
+ * ⛔ A KEY OF ITS OWN. Bytes "quarantined" in place were destroyed by the next write to the outbox key, which is the
+ * first `submit` after a release that could not read them. Nothing but a session-end clear removes this key.
+ *
+ * @param subject - The IdP subject.
+ * @returns The namespaced quarantine key. Pure.
+ */
+export function quarantineKeyFor(subject: string): string {
+    return `sync.outbox.quarantine.${subject}`;
 }
+
+const recordSchema = z.strictObject({
+    entity: z.enum(['recipe', 'ingredient', 'photo', 'collection']),
+    intentKind: z.enum(['create', 'update', 'delete', 'setVisibility', 'createFreeform', 'upload', 'addMember']),
+    localId: z.string(),
+    dependsOn: z.array(z.string()).readonly(),
+    concerns: z.array(z.string()).readonly().optional(),
+    produces: z.string().optional(),
+    payload: z.unknown(),
+    seq: z.number().int().positive(),
+    state: z.enum(['pending', 'sending', 'blocked', 'parked']),
+    lastStatus: z.number().int().optional(),
+}) satisfies z.ZodType<OutboxRecord>;
+
+/**
+ * The on-disk envelope, ADR-0057's outbox format. Versioned so a format change is detectable rather than silently
+ * misread, and parsed whole: a record that does not have this shape makes the envelope unreadable, never half-trusted.
+ */
+const envelopeSchema = z.strictObject({
+    schemaVersion: z.literal(LOCAL_SCHEMA_VERSION),
+    nextSeq: z.number().int().positive(),
+    resolutions: z.record(z.string(), z.string()),
+    pausedUntil: z.number().int().nonnegative().optional(),
+    records: z.array(recordSchema).readonly(),
+});
+
+type Envelope = z.infer<typeof envelopeSchema>;
 
 /**
  * An in-memory store — the WEB adapter.
@@ -78,16 +114,25 @@ export function createMemoryOutboxStore(): OutboxStore {
  * ⛔ UNREADABLE DATA IS QUARANTINED, NOT DROPPED AND NOT DRAINED. Dropping discards the cook's work
  * silently; draining sends a payload we could not parse. Quarantining is also what makes per-key write
  * atomicity a non-requirement — a torn write is simply unreadable, and unreadable has a defined answer.
+ * This reports the count; the outbox mutator moves the bytes to {@link quarantineKeyFor} before it writes.
  *
  * @param store - The platform adapter.
  * @param subject - The IdP subject.
  * @returns The log, plus a count of what could not be read. @sideEffect Reads storage.
  */
 export async function loadOutbox(store: OutboxStore, subject: string): Promise<LoadedOutbox> {
-    const raw = await store.getItem(storeKeyFor(subject));
+    return parseOutbox(await store.getItem(storeKeyFor(subject)));
+}
 
+/**
+ * Parse an outbox key's raw bytes.
+ *
+ * @param raw - The stored string, or `null` when the key is absent.
+ * @returns The log, or an empty log plus how many records (at least one) could not be read. Pure.
+ */
+export function parseOutbox(raw: string | null): LoadedOutbox {
     if (raw === null) {
-        return { records: [], quarantined: 0 };
+        return { ...EMPTY_OUTBOX, quarantined: 0 };
     }
 
     let parsed: unknown;
@@ -95,17 +140,21 @@ export async function loadOutbox(store: OutboxStore, subject: string): Promise<L
     try {
         parsed = JSON.parse(raw);
     } catch {
-        // Unparseable — count it, keep the bytes on disk, and let the surface report an un-syncable item.
-        return { records: [], quarantined: 1 };
+        // Unparseable — count it, and let the surface report an un-syncable item.
+        return { ...EMPTY_OUTBOX, quarantined: 1 };
     }
 
-    const envelope = parsed as Envelope;
+    const envelope = envelopeSchema.safeParse(parsed);
 
-    if (envelope.schemaVersion !== LOCAL_SCHEMA_VERSION) {
-        return { records: [], quarantined: envelope.records?.length ?? 1 };
+    if (!envelope.success) {
+        const records = (parsed as { readonly records?: unknown }).records;
+
+        return { ...EMPTY_OUTBOX, quarantined: Array.isArray(records) && records.length > 0 ? records.length : 1 };
     }
 
-    return { records: envelope.records, quarantined: 0 };
+    const { records, nextSeq, resolutions, pausedUntil } = envelope.data;
+
+    return { records, nextSeq, resolutions, ...(pausedUntil === undefined ? {} : { pausedUntil }), quarantined: 0 };
 }
 
 /**
@@ -117,7 +166,13 @@ export async function loadOutbox(store: OutboxStore, subject: string): Promise<L
  * @returns Nothing. @sideEffect Writes storage.
  */
 export async function saveOutbox(store: OutboxStore, subject: string, log: OutboxLog): Promise<void> {
-    const envelope: Envelope = { schemaVersion: LOCAL_SCHEMA_VERSION, records: log.records };
+    const envelope: Envelope = {
+        schemaVersion: LOCAL_SCHEMA_VERSION,
+        nextSeq: log.nextSeq,
+        resolutions: log.resolutions,
+        ...(log.pausedUntil === undefined ? {} : { pausedUntil: log.pausedUntil }),
+        records: log.records,
+    };
 
     await store.setItem(storeKeyFor(subject), JSON.stringify(envelope));
 }

@@ -23,7 +23,7 @@ import { recipeSender } from '../recipeSender.js';
 
 /** A record of the given kind, with only the fields the sender reads. */
 function record(intentKind: string, payload: unknown = {}, entity = 'recipe'): OutboxRecord {
-    return { entity, intentKind, localId: 'r1', dependsOn: [], payload, state: 'pending' } as OutboxRecord;
+    return { entity, intentKind, localId: 'r1', dependsOn: [], payload, seq: 1, state: 'pending' } as OutboxRecord;
 }
 
 describe('recipeSender', () => {

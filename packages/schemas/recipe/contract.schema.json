@@ -402,6 +402,17 @@
                                     }
                                 ]
                             },
+                            "firstPublishedAt": {
+                                "anyOf": [
+                                    {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
                             "hasSubstantiveEdit": {
                                 "type": "boolean"
                             },
@@ -503,6 +514,7 @@
                             "ratingCount",
                             "visibility",
                             "status",
+                            "firstPublishedAt",
                             "sourceType",
                             "sourceUrl",
                             "sourceAttribution",
@@ -5783,6 +5795,17 @@
                         }
                     ]
                 },
+                "firstPublishedAt": {
+                    "anyOf": [
+                        {
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "hasSubstantiveEdit": {
                     "type": "boolean"
                 },
@@ -5884,6 +5907,7 @@
                 "ratingCount",
                 "visibility",
                 "status",
+                "firstPublishedAt",
                 "sourceType",
                 "sourceUrl",
                 "sourceAttribution",

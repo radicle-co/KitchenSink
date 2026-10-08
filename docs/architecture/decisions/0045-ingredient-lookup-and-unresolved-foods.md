@@ -1,6 +1,8 @@
 # 0045 — An ingredient line binds to a lookup, and a lookup is exactly one of a food, a variant or an unresolved food
 
 - **Status**: Accepted
+- **Amended by**: [ADR-0058](0058-never-published-drafts-record-no-version.md) — a rebind on a draft that was never
+  published makes no version.
 
 ## Context
 

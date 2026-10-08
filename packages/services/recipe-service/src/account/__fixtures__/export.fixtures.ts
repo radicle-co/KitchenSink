@@ -33,6 +33,7 @@ export function makeRecipeRow(overrides: Partial<RecipeExportRow> = {}): RecipeE
         ratingCount: 2,
         visibility: 'public',
         status: 'published',
+        firstPublishedAt: CREATED,
         sourceType: 'user_created',
         sourceUrl: null,
         sourceAttribution: null,

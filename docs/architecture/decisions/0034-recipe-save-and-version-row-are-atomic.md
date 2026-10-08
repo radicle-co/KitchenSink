@@ -4,6 +4,8 @@
 - **Date:** 2026-09-06
 - **Area:** recipe-service write path · version history (FR-007b / FR-007b-i) · transaction boundaries
 - **Related:** `packages/services/recipe-service/src/recipes/recipes.service.ts` (`recordSnapshotIn`, the three call sites), `src/versions/versions.service.ts` (`createSnapshot`, `enforceRetention`), `src/database/unitOfWork.ts` (the S-R1 seam), [ADR-0026 §7a](0026-two-engine-ingredient-parse-pipeline.md) (the required-parameter precedent), [ADR-0032](0032-deployed-ecosystem-test-tier.md) (why no e2e tier is owed)
+- **Amended by:** [ADR-0058](0058-never-published-drafts-record-no-version.md) — a write of a recipe that was never
+  published records no version. Where a version is recorded, this ADR's atomicity governs it.
 
 ## Context
 

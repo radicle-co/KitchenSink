@@ -49,12 +49,28 @@ export interface Intent {
     readonly payload: unknown;
 }
 
-/** Where an intent is in its life. */
-export type RecordState = 'pending' | 'blocked' | 'parked';
+/**
+ * Where an intent is in its life.
+ *
+ * ⛔ `sending` IS PERSISTED, and that is what makes a crash honest. It is written before the request leaves and
+ * replaced as soon as the answer arrives, so a record found `sending` when the app starts was interrupted with an
+ * UNKNOWN outcome — the server may hold it — and is parked rather than re-sent (`recoverInterrupted`).
+ */
+export type RecordState = 'pending' | 'sending' | 'blocked' | 'parked';
 
 /** An intent plus the bookkeeping the drain needs. */
 export interface OutboxRecord extends Intent {
+    /**
+     * The record's identity in this user's outbox: assigned once from the log's counter, never reused.
+     *
+     * ⛔ EVERY SETTLEMENT IS ADDRESSED BY IT. The drain sends a snapshot while `submit` keeps appending, so "remove
+     * what synced" must name the exact record that was sent. Entity + local id + kind cannot: an edit that coalesced
+     * into that slot during the send has all three, and would be deleted with the answer for the older body.
+     */
+    readonly seq: number;
     readonly state: RecordState;
+    /** The HTTP status a parked record was refused with; absent while not parked, and for an unknown outcome. */
+    readonly lastStatus?: number;
 }
 
 /**
@@ -63,5 +79,8 @@ export interface OutboxRecord extends Intent {
  * ⛔ HAND-BUMPED, and deliberately NOT derived from `CONTRACT_HASH`. That hash is taken over schema SOURCES,
  * so a comment-only edit moves it — which for a read cache is a harmless cold start, but for the outbox would
  * raise a data-loss prompt on every device because someone reworded a docstring. A bump here is a decision.
+ *
+ * ⚠️ Version 1 is the format ADR-0057 records (`seq`, `sending`, the counter and the resolutions included). Nothing
+ * wrote an outbox before that format was fixed — the queue had no `submit` call site — so it was not bumped for it.
  */
 export const LOCAL_SCHEMA_VERSION = 1;

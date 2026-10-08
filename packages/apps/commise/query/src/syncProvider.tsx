@@ -14,11 +14,15 @@
  *     `onlineManager` is the trigger; both are injected, so this file owns wiring and nothing else.
  */
 import {
+    EMPTY_OUTBOX,
     appendIntent,
+    claimForSending,
     createMemoryOutboxStore,
     drain,
-    loadOutbox,
-    saveOutbox,
+    outboxMutatorFor,
+    settle,
+    supersede,
+    type DrainJournal,
     type Intent,
     type OutboxLog,
     type OutboxStore,
@@ -26,7 +30,17 @@ import {
     type SyncFailure,
 } from '@kitchensink/sync';
 import { onlineManager } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type FC, type ReactNode } from 'react';
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type FC,
+    type ReactNode,
+} from 'react';
 
 /** What a surface can see and do with the queue. */
 export interface SyncQueue {
@@ -72,10 +86,30 @@ export interface SyncProviderProps {
     readonly children: ReactNode;
 }
 
+/**
+ * The failures a log holds: one per parked record, carrying the item it belongs to. Pure.
+ *
+ * ⛔ A PROJECTION OF THE STORED LOG, NOT A SECOND STATE. Failures used to be whatever the LAST drain reported, so a
+ * write parked before a relaunch was invisible after it until something re-sent it.
+ */
+export function failuresOf(log: OutboxLog): readonly SyncFailure[] {
+    return log.records
+        .filter((record) => record.state === 'parked')
+        .map((record) => ({
+            entity: record.entity,
+            intentKind: record.intentKind,
+            localId: record.localId,
+            ...(record.lastStatus === undefined ? {} : { status: record.lastStatus }),
+        }));
+}
+
 /** Runs the queue for the signed-in user. */
 export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, children }) => {
-    const [log, setLog] = useState<OutboxLog>({ records: [] });
-    const [failures, setFailures] = useState<readonly SyncFailure[]>([]);
+    // ⛔ A PROJECTION OF WHAT THE MUTATOR WROTE, NEVER WRITTEN BACK. The store is the one authority and the
+    // mutator its one writer (`@kitchensink/sync`'s `outboxMutator.ts`); this state only mirrors it for render.
+    const [log, setLog] = useState<OutboxLog>(EMPTY_OUTBOX);
+    // Set when the server asked for a wait too long to sleep through inside a drain; the effect below re-drains.
+    const [retryInMs, setRetryInMs] = useState<number | undefined>(undefined);
     const storeRef = useRef<OutboxStore>(store ?? createMemoryOutboxStore());
     // ⚠️ A drain in flight must not be re-entered by a second trigger (a reconnect while already draining),
     // or the same record is sent twice — the one duplicate this design cannot blame on the network.
@@ -90,30 +124,30 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
         }
 
         let cancelled = false;
+        const mutator = outboxMutatorFor(storeRef.current, subject);
+        const unsubscribe = mutator.subscribe((next) => {
+            if (!cancelled) {
+                setLog(next);
+            }
+        });
 
-        // ⛔ THE REJECTION HANDLER IS NOT OPTIONAL. This was `void loadOutbox(…).then(…)` with no second
-        // argument, so a store whose read REJECTED produced an UNHANDLED REJECTION — a redbox in React
-        // Native dev and a silently dead effect in production. Web's store is in-memory and cannot fail,
-        // which is exactly why it went unnoticed; mobile's is AsyncStorage, which can.
-        //
-        // ⚠️ THIS FIXES THE CRASH, NOT THE CLOBBER. Starting from an empty log means a later `saveOutbox`
-        // would overwrite whatever is really on disk — the same single-writer defect already recorded below
-        // as OWED before the first `submit` call site, and it must be fixed there, in one place, rather than
-        // patched here. Left deliberately: surviving is strictly better than crashing, and both states are
-        // unreachable today.
-        void loadOutbox(storeRef.current, subject).then(
+        // ⛔ THE REJECTION HANDLER IS NOT OPTIONAL. A store whose read REJECTS (AsyncStorage can) would otherwise be
+        // an UNHANDLED REJECTION — a redbox in React Native dev and a silently dead effect in production. Nothing is
+        // written on a failed read, so the stored outbox is intact for the next attempt.
+        void mutator.read().then(
             (loaded) => {
                 if (!cancelled) {
-                    setLog({ records: loaded.records });
+                    setLog(loaded);
                 }
             },
             () => {
-                // Nothing to show yet; the queue still accepts writes and the next drain re-reads.
+                // Nothing to show yet; `submit` reports its own storage failure, and the next drain re-reads.
             },
         );
 
         return () => {
             cancelled = true;
+            unsubscribe();
         };
     }, [subject]);
 
@@ -135,65 +169,66 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
 
         draining.current = true;
 
+        const mutator = outboxMutatorFor(storeRef.current, subject);
+        // ⛔ EVERY STEP OF THE DRAIN IS ONE SMALL CHANGE THROUGH THE MUTATOR, addressed by sequence number, never a
+        // write-back of the snapshot the drain loaded — so a record a `submit` appended meanwhile is never touched.
+        const journal: DrainJournal = {
+            claim: async (seq) => {
+                let claimed = false;
+
+                await mutator.mutate((current) => {
+                    const next = claimForSending(current, seq);
+
+                    claimed = next !== undefined;
+
+                    return next ?? current;
+                });
+
+                return claimed;
+            },
+            settle: async (settlement) => {
+                await mutator.mutate((current) => settle(current, settlement));
+            },
+        };
+
         // ⛔ A `do/while`, NOT A RE-ENTRANT CALL AFTER THE `try`. The first version consumed `needsDrain`
-        // AFTER the try/finally, so the empty-log `break` below — and any throw from `drain` or
-        // `saveOutbox` — skipped it entirely, leaving the flag latched `true` forever and the re-arm
-        // unconsumed on every path except the happy one. That is the same "a request was dropped" defect the
-        // re-arm exists to fix, surviving inside its own fix. Looping here covers every exit.
+        // AFTER the try/finally, so the empty-log `break` below — and any throw from `drain` or the store —
+        // skipped it entirely, leaving the flag latched `true` forever and the re-arm unconsumed on every
+        // path except the happy one. Looping here covers every exit.
         try {
             do {
                 needsDrain.current = false;
 
-                const current = await loadOutbox(storeRef.current, subject);
+                const current = await mutator.read();
 
                 if (current.records.length === 0) {
                     break;
                 }
 
-                // ⚠️ OWED BEFORE THE FIRST `submit` CALL SITE: this writes back the snapshot loaded above, so a
-                // record appended by a concurrent `submit` is CLOBBERED IN STORAGE while `setLog` keeps it in
-                // `pendingCount` — a queued write silently lost from the durable store while the UI still counts
-                // it. The cure is one serialized mutator with the store as sole writer and React state a pure
-                // projection. Unreachable today (zero `submit` call sites) and deliberately not a 5pm change.
-                const report = await drain({ records: current.records }, send);
+                const report = await drain(current, send, { journal });
 
-                await saveOutbox(storeRef.current, subject, report.log);
-                setLog(report.log);
-                setFailures(report.failed);
+                // ⛔ A STATED WAIT ENDS THIS FLUSH. The pause is stored with the log, so a drain started before it is
+                // over sends nothing; the timer below drains again when it is.
+                if (report.retryAfterMs !== undefined) {
+                    setRetryInMs(report.retryAfterMs);
+
+                    break;
+                }
             } while (needsDrain.current);
         } catch {
             // ⛔ `flush` MUST NOT REJECT, and this is a rejection handler rather than three. Every caller
-            // invokes it as `void flush()` — the mount drain, the `onlineManager` reconnect subscription and
-            // `submit` — so a throw from `loadOutbox`, `saveOutbox` or `drain` became an UNHANDLED REJECTION
-            // at all three, which on React Native is a redbox in dev and a dead effect in production. Fixing
-            // it at the three call sites would be the same handler copied three times, and a fourth caller
-            // would reintroduce the bug.
+            // invokes it as `void flush()` — the mount drain, the `onlineManager` reconnect subscription,
+            // `submit` and the retry timer — so a throw would be an UNHANDLED REJECTION at each.
             //
-            // Swallowing is the CORRECT behaviour for this layer's model, not a shortcut: a drain that
-            // cannot complete is a DELAY, and offline is already defined as a delay. The queue stays intact
-            // on disk and the next trigger re-reads and retries.
+            // Swallowing is safe now in a way it was not before the mutator: the journal writes each step as it
+            // happens, so a failed read leaves the outbox intact, a failed claim happens BEFORE the
+            // request leaves, and a failed `settle` leaves the record `sending`, which no drain re-sends and the
+            // next process start parks as an unknown outcome. Nothing the server accepted is re-sent behind the
+            // cook's back.
             //
-            // ⚠️ AN EARLIER VERSION OF THIS COMMENT CLAIMED "send-level failures do NOT come through here at
-            // all", and review disproved it against code in the same commit: `recipeSender` threw for an
-            // unsupported intent kind, which landed exactly here. That is why a sender must not throw for a
-            // record it cannot send — `drain` does not wrap `send`, and `saveOutbox` runs only after `drain`
-            // RETURNS, so a throw at record N discards the successful sends of 1..N-1 and the next drain
-            // re-sends them. `recipeSender` now parks such a record instead. A refusal REACHED by a send is
-            // reported as `report.failed`; only a sender that cannot run at all reaches this catch.
-            //
-            // ⚠️ OWED, AND THE THIRD CASE IS NOT LIKE THE OTHER TWO — do not read one rationale onto all of
-            // them. A `loadOutbox` throw happens BEFORE anything is sent, so "intact on disk, retry later"
-            // is exactly right. A `saveOutbox` throw happens AFTER a successful drain: the sends ALREADY
-            // HAPPENED, disk still holds the pre-drain records, `setLog`/`setFailures` never run, and the
-            // next trigger RE-SENDS work the server has already accepted. On mobile that is an ordinary
-            // AsyncStorage-full failure, on the one platform that persists. Swallowing keeps the app alive
-            // but does not make that case safe.
-            //
-            // ⚠️ ALSO OWED: a drain that fails REPEATEDLY is invisible to the user, and a `drainOrder` cycle
-            // — a programming error, not a network one — is swallowed with everything else. All of it wants
-            // an error channel on the context, and the post-drain save wants the serialized mutator noted
-            // above: `submit`'s `{queued:true}`, the drain clobber and this re-send are ONE defect with one
-            // cure, not three. They become reachable together the moment a `submit` call site lands.
+            // ⚠️ OWED: a drain that fails REPEATEDLY is invisible to the user, and a `drainOrder` cycle — a
+            // programming error, not a network one — is swallowed with everything else. Both want an error
+            // channel on the context.
         } finally {
             draining.current = false;
         }
@@ -220,6 +255,23 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
     // a sync, which is a ritual the owner's model explicitly does not have.
     useEffect(() => onlineManager.subscribe(() => void flush()), [flush]);
 
+    // ⛔ A WAIT THE SERVER STATED IS KEPT BY A TIMER, NOT BY A DRAIN ASLEEP. `drain` hands back any wait longer than
+    // it will sleep through; this drains again when that wait is over, with no connectivity change to prompt it.
+    useEffect(() => {
+        if (retryInMs === undefined) {
+            return undefined;
+        }
+
+        const timer = setTimeout(() => {
+            setRetryInMs(undefined);
+            void flush();
+        }, retryInMs);
+
+        return () => {
+            clearTimeout(timer);
+        };
+    }, [flush, retryInMs]);
+
     const submit = useCallback(
         async (intent: Intent): Promise<{ readonly queued: true }> => {
             if (subject === undefined) {
@@ -229,13 +281,13 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
                 throw new Error('sync: submit called with no signed-in subject');
             }
 
-            const next = appendIntent(
-                await loadOutbox(storeRef.current, subject).then((l) => ({ records: l.records })),
-                intent,
+            // ⛔ RESOLVES ONLY ONCE THE STORE HOLDS IT. A storage failure rejects: nothing durable happened, so
+            // `{queued: true}` would tell the cook their edit is safe when no disk holds it.
+            // A delete SUPERSEDES what it makes moot rather than queueing beside it (`supersede`). It refuses to drop a
+            // parked record silently, so that case rejects here and the caller confirms with the cook.
+            await outboxMutatorFor(storeRef.current, subject).mutate((current) =>
+                intent.intentKind === 'delete' ? supersede(current, intent) : appendIntent(current, intent),
             );
-
-            await saveOutbox(storeRef.current, subject, next);
-            setLog(next);
             void flush();
 
             return { queued: true };
@@ -243,11 +295,12 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
         [flush, subject],
     );
 
-    return (
-        <SyncQueueContext.Provider value={{ submit, pendingCount: log.records.length, failures }}>
-            {children}
-        </SyncQueueContext.Provider>
+    const value = useMemo<SyncQueue>(
+        () => ({ submit, pendingCount: log.records.length, failures: failuresOf(log) }),
+        [log, submit],
     );
+
+    return <SyncQueueContext.Provider value={value}>{children}</SyncQueueContext.Provider>;
 };
 
 /**

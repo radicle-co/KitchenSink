@@ -7040,6 +7040,10 @@ components:
                 type: string
               status:
                 type: string
+              firstPublishedAt:
+                nullable: true
+                type: string
+                minLength: 1
               sourceType:
                 type: string
               sourceUrl:
@@ -7095,6 +7099,7 @@ components:
               - ratingCount
               - visibility
               - status
+              - firstPublishedAt
               - sourceType
               - sourceUrl
               - sourceAttribution

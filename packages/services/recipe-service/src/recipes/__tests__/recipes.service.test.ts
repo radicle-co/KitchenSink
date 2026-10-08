@@ -1077,7 +1077,10 @@ describe('RecipesService.update', () => {
             FAKE_TX,
         );
     });
-    it('⛔ records a snapshot on EVERY update — the opt-out is gone, not merely unused', async () => {
+    // ⚠️ "EVERY update" now means every update of a recipe that has been published: a never-published draft records
+    // none (ADR-0058), and that rule is a property of the ROW, tested in the ADR-0058 block below. What this pins is
+    // unchanged — no CALLER can ask for a write without a version.
+    it('⛔ records a snapshot on EVERY update of a published recipe — no caller can opt out', async () => {
         // ⚠️ REWRITTEN. This asserted that `{ recordSnapshot: false }` suppressed the version write, for
         // the restore path's benefit. That flag was the single path that could commit a recipe write with
         // no version row — an opt-out of a system invariant, and granted to the one caller whose entire
@@ -1147,6 +1150,104 @@ describe('RecipesService.update', () => {
 
         const input = vi.mocked(versions.createSnapshot).mock.calls[0]?.[0];
         expect(input).not.toHaveProperty('editorHandle');
+    });
+});
+
+/**
+ * ADR-0058 — a save of a never-published draft overwrites it in place and records NO version; versions start at the
+ * first publish. The decision is read from the row the WRITE RETURNED (its `firstPublishedAt`, which the database
+ * sets on publish and never clears), never from the pre-read and never from the caller.
+ */
+describe('RecipesService — a never-published draft records no version (ADR-0058)', () => {
+    const NEVER_PUBLISHED = { status: 'draft', firstPublishedAt: null } as const;
+    const PUBLISHED_AT = new Date('2026-10-01T12:00:00.000Z');
+
+    function serviceWith(dal: RecipesDal): {
+        service: RecipesService;
+        versions: ReturnType<typeof makeFakeVersionsService>;
+    } {
+        const versions = makeFakeVersionsService();
+
+        return {
+            service: makeRecipesService({ dal, versions, foodNutrition: nutritionGatewayDouble }),
+            versions,
+        };
+    }
+
+    it('a draft create writes the recipe and no version row', async () => {
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate(NEVER_PUBLISHED)) });
+        const { service, versions } = serviceWith(dal);
+
+        await service.create(principal(), { ...CREATE_DTO, status: 'draft' }, undefined);
+
+        expect(dal.create).toHaveBeenCalledTimes(1);
+        expect(versions.createSnapshot).not.toHaveBeenCalled();
+    });
+
+    it('a save of a never-published draft writes no version row, and the version number still moves', async () => {
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ ...NEVER_PUBLISHED, currentVersion: 4 })),
+            update: vi.fn().mockResolvedValue(aggregate({ ...NEVER_PUBLISHED, currentVersion: 5 })),
+        });
+        const { service, versions } = serviceWith(dal);
+
+        const response = await service.update(principal(), 'r-1', { expectedVersion: 4, title: 'Soup' }, undefined);
+
+        expect(response.currentVersion).toBe(5);
+        expect(versions.createSnapshot).not.toHaveBeenCalled();
+    });
+
+    it('⛔ the first publish records the first version, at the number the write returned', async () => {
+        const dal = fakeRecipesDal({
+            // The pre-read is still a never-published draft: the decision must come from the RETURNED row. It holds
+            // a line and a step, so the publish floor passes.
+            findById: vi.fn().mockResolvedValue({
+                ...aggregate({ ...NEVER_PUBLISHED, currentVersion: 6 }),
+                ingredients: [makeIngredientLineRow({ recipeId: 'r-1', foodLookupId: LINE_LOOKUP_ID })],
+            }),
+            update: vi
+                .fn()
+                .mockResolvedValue(
+                    aggregate({ status: 'published', firstPublishedAt: PUBLISHED_AT, currentVersion: 7 }),
+                ),
+        });
+        const { service, versions } = serviceWith(dal);
+
+        await service.update(principal(), 'r-1', { expectedVersion: 6, status: 'published' }, undefined);
+
+        expect(versions.createSnapshot).toHaveBeenCalledTimes(1);
+        expect(versions.createSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ recipeId: 'r-1', versionNumber: 7 }),
+            FAKE_TX,
+        );
+    });
+
+    it('⛔ a published recipe set back to draft still records a version on every save', async () => {
+        const redrafted = { status: 'draft', firstPublishedAt: PUBLISHED_AT } as const;
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(aggregate({ ...redrafted, currentVersion: 3 })),
+            update: vi.fn().mockResolvedValue(aggregate({ ...redrafted, currentVersion: 4 })),
+        });
+        const { service, versions } = serviceWith(dal);
+
+        await service.update(principal(), 'r-1', { expectedVersion: 3, title: 'Soup' }, undefined);
+
+        expect(versions.createSnapshot).toHaveBeenCalledTimes(1);
+    });
+
+    it('a published create records its first version', async () => {
+        const dal = fakeRecipesDal({
+            create: vi
+                .fn()
+                .mockResolvedValue(
+                    aggregate({ status: 'published', firstPublishedAt: PUBLISHED_AT, currentVersion: 1 }),
+                ),
+        });
+        const { service, versions } = serviceWith(dal);
+
+        await service.create(principal(), CREATE_DTO, undefined);
+
+        expect(versions.createSnapshot).toHaveBeenCalledTimes(1);
     });
 });
 

@@ -19,11 +19,21 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { appendIntent, drainOrder, supersede, type OutboxLog } from '../outboxLog.js';
-import { type Intent } from '../record.js';
+import {
+    EMPTY_OUTBOX,
+    appendIntent,
+    claimForSending,
+    drainOrder,
+    markSending,
+    recoverInterrupted,
+    settle,
+    supersede,
+    type OutboxLog,
+} from '../outboxLog.js';
+import { type Intent, type OutboxRecord } from '../record.js';
 
 /** An empty log — the starting state of a device that has never queued a write. */
-const EMPTY: OutboxLog = { records: [] };
+const EMPTY: OutboxLog = EMPTY_OUTBOX;
 
 /** Build an intent with the fields a test cares about; everything else takes a neutral default. */
 function intent(overrides: Partial<Intent> & Pick<Intent, 'entity' | 'intentKind' | 'localId'>): Intent {
@@ -212,16 +222,209 @@ describe('supersede', () => {
      */
     it('⛔ refuses to silently supersede a PARKED record', () => {
         const parked: OutboxLog = {
+            ...EMPTY,
             records: [
                 {
                     ...intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' }),
+                    seq: 1,
                     state: 'parked',
-                } as OutboxLog['records'][number],
+                } as OutboxRecord,
             ],
+            nextSeq: 2,
         };
 
         expect(() => supersede(parked, intent({ entity: 'recipe', intentKind: 'delete', localId: 'r1' }))).toThrow(
             /parked/iu,
         );
+    });
+});
+
+/**
+ * ⛔ A RECORD HAS AN IDENTITY OF ITS OWN, and every settlement is addressed by it. The drain sends a SNAPSHOT while
+ * `submit` keeps appending; when the drain reports back, "remove what synced" must remove exactly the record that was
+ * sent. Keyed by entity and kind it would delete the NEWER edit that coalesced into that slot during the send.
+ */
+describe('record identity', () => {
+    it('gives every appended record a new sequence number, and a coalesced replacement a new one too', () => {
+        const once = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' }));
+        const twice = appendIntent(
+            once,
+            intent({ entity: 'recipe', intentKind: 'update', localId: 'r1', payload: { title: 'newer' } }),
+        );
+
+        expect(once.records.map((record) => record.seq)).toStrictEqual([1]);
+        expect(twice.records.map((record) => record.seq)).toStrictEqual([2]);
+        expect(twice.nextSeq).toBe(3);
+    });
+
+    /**
+     * ⛔ THE COUNTER NEVER GOES BACK. A seq computed from the records still present would be reused once an in-flight
+     * record was superseded, and the drain's settlement for the old record would then land on the new one.
+     */
+    it('⛔ never reuses a sequence number, even after the records holding it are gone', () => {
+        const queued = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' }));
+        const annihilated = supersede(queued, intent({ entity: 'recipe', intentKind: 'delete', localId: 'r1' }));
+        const next = appendIntent(annihilated, intent({ entity: 'recipe', intentKind: 'update', localId: 'r2' }));
+
+        // Seq 1 was the annihilated create's; a counter derived from the surviving records would hand it out again.
+        expect(next.records[0]?.seq).toBeGreaterThan(1);
+    });
+
+    /**
+     * ⛔ AN IN-FLIGHT RECORD IS NEVER REPLACED. Coalescing into it would make the drain's answer for the OLD body be
+     * filed against the NEW one, and a coalesced create would be sent twice.
+     */
+    it('⛔ appends beside a record that is being sent, rather than replacing it', () => {
+        const queued = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' }));
+        const sending = markSending(queued, 1);
+        const edited = appendIntent(
+            sending,
+            intent({ entity: 'recipe', intentKind: 'update', localId: 'r1', payload: { title: 'newer' } }),
+        );
+
+        expect(edited.records.map((record) => [record.seq, record.state])).toStrictEqual([
+            [1, 'sending'],
+            [2, 'pending'],
+        ]);
+    });
+});
+
+describe('settle — the drain reports back by sequence number', () => {
+    it('removes the synced record and records the id it produced', () => {
+        const queued = appendIntent(
+            EMPTY,
+            intent({ entity: 'recipe', intentKind: 'create', localId: 'r1', produces: 'local:recipe:r1' }),
+        );
+
+        const after = settle(markSending(queued, 1), {
+            seq: 1,
+            outcome: 'synced',
+            produces: 'local:recipe:r1',
+            serverId: 'srv-1',
+        });
+
+        expect(after.records).toStrictEqual([]);
+        expect(after.resolutions).toStrictEqual({ 'local:recipe:r1': 'srv-1' });
+    });
+
+    /** ⛔ THE CLOBBER, AT THE LEVEL OF THE LOG: a record appended while the drain was sending survives its report. */
+    it('⛔ leaves a record appended during the send untouched', () => {
+        const queued = markSending(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' })),
+            1,
+        );
+        const appendedMeanwhile = appendIntent(
+            queued,
+            intent({ entity: 'recipe', intentKind: 'update', localId: 'r1', payload: { title: 'newer' } }),
+        );
+
+        const after = settle(appendedMeanwhile, { seq: 1, outcome: 'synced', serverId: 'srv-1' });
+
+        expect(after.records.map((record) => [record.seq, record.payload])).toStrictEqual([[2, { title: 'newer' }]]);
+    });
+
+    it('parks a refused record with the status it was refused with', () => {
+        const queued = markSending(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' })),
+            1,
+        );
+
+        const after = settle(queued, { seq: 1, outcome: 'parked', status: 422 });
+
+        expect(after.records.map((record) => [record.state, record.lastStatus])).toStrictEqual([['parked', 422]]);
+    });
+
+    it('returns a deferred record to pending, and leaves a settlement for an absent record as a no-op', () => {
+        const queued = markSending(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' })),
+            1,
+        );
+
+        const deferred = settle(queued, { seq: 1, outcome: 'deferred', until: 5_000 });
+
+        expect(deferred.records[0]?.state).toBe('pending');
+        expect(deferred.pausedUntil).toBe(5_000);
+        expect(settle(queued, { seq: 99, outcome: 'parked', status: 422 })).toStrictEqual(queued);
+    });
+});
+
+/**
+ * ⛔ A RECORD LEFT `sending` ON DISK HAS AN UNKNOWN OUTCOME. The app died between sending it and hearing back, so the
+ * server may hold it. Re-sending on relaunch is the blind retry the drainer's rule forbids; it parks for the cook.
+ */
+describe('recoverInterrupted', () => {
+    it('⛔ parks a record that was being sent, with no status, and leaves every other record alone', () => {
+        const queued = appendIntent(
+            markSending(appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' })), 1),
+            intent({ entity: 'recipe', intentKind: 'update', localId: 'r2' }),
+        );
+
+        const after = recoverInterrupted(queued);
+
+        expect(after.records.map((record) => [record.seq, record.state, record.lastStatus])).toStrictEqual([
+            [1, 'parked', undefined],
+            [2, 'pending', undefined],
+        ]);
+    });
+});
+
+describe('supersede — a record being sent', () => {
+    /**
+     * ⛔ A CREATE IN FLIGHT CANNOT BE ANNIHILATED. It may already exist on the server; dropping both it and the delete
+     * would leave a recipe the cook removed. The delete is kept, ordered after the create and addressed to the id the
+     * create produces.
+     */
+    it('⛔ keeps an in-flight create and queues the delete behind it', () => {
+        const queued = markSending(
+            appendIntent(
+                EMPTY,
+                intent({ entity: 'recipe', intentKind: 'create', localId: 'r1', produces: 'local:recipe:r1' }),
+            ),
+            1,
+        );
+
+        const after = supersede(
+            queued,
+            intent({ entity: 'recipe', intentKind: 'delete', localId: 'r1', payload: { id: 'local:recipe:r1' } }),
+        );
+
+        expect(after.records.map((record) => [record.intentKind, record.state, record.dependsOn])).toStrictEqual([
+            ['create', 'sending', []],
+            ['delete', 'pending', ['local:recipe:r1']],
+        ]);
+    });
+});
+
+describe('claimForSending', () => {
+    it('marks a queued record sending', () => {
+        const queued = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' }));
+
+        expect(claimForSending(queued, 1)?.records[0]?.state).toBe('sending');
+    });
+
+    /** ⛔ The claim is what stops a drain sending a body the cook has since replaced or deleted. */
+    it.each([
+        ['replaced by a newer edit', 2],
+        ['deleted with its entity', 1],
+    ])('⛔ refuses a record that was %s', (_label, sequence) => {
+        const queued = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' }));
+        const changed =
+            sequence === 2
+                ? appendIntent(
+                      queued,
+                      intent({ entity: 'recipe', intentKind: 'update', localId: 'r1', payload: { v: 2 } }),
+                  )
+                : supersede(queued, intent({ entity: 'recipe', intentKind: 'delete', localId: 'r1' }));
+
+        expect(claimForSending(changed, 1)).toBeUndefined();
+    });
+
+    it('refuses a record already on the wire', () => {
+        const sending = markSending(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' })),
+            1,
+        );
+
+        expect(claimForSending(sending, 1)).toBeUndefined();
     });
 });

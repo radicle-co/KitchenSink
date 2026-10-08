@@ -1590,6 +1590,10 @@ jobs:
             # from real modules (leaf, hooks, TanStack Query, the real client's zod parsing), with only `fetch` mocked.
             - name: Run features-recipes integration tests
               run: npm run test:integration --workspace=@commise/features-recipes
+            # The offline write path composed from its real parts (SyncProvider, the outbox mutator and drainer, the
+            # recipe sender, the real client's zod parsing), with only `fetch` mocked.
+            - name: Run query integration tests
+              run: npm run test:integration --workspace=@commise/query
             - name: Run recipe-service-client integration tests
               run: npm run test:integration --workspace=@kitchensink/recipe-service-client
             # Self-contained like the recipe one: a real in-process `node:http` server, no Docker. It covers the
@@ -1915,6 +1919,11 @@ jobs:
                   NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
                   NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
                   NEXT_PUBLIC_FOOD_API_URL: http://localhost:3002
+                  # Routes the `en-XA` pseudo-locale in THIS build only (the web app reads nothing else), so the
+                  # stubbed-API Playwright tier can run `controlLabels.spec.ts`. Safe here because this output is
+                  # deployed nowhere; `pseudoLocaleBuildGate.test.ts` holds that no other workflow and no Vercel
+                  # configuration sets it.
+                  COMMISE_PSEUDO_LOCALE: '1'
 
             # ⛔ AN ARTIFACT, NOT `actions/cache`. The repo's Actions cache sits under GitHub's 10 GB cap with
             # LRU eviction, and it has already been the outage: at 9.77 GB, entries were evicted out from under

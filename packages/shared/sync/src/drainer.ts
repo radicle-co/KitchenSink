@@ -8,36 +8,150 @@
  * to be idempotent that is not already: no client-minted recipe id, no `ON CONFLICT` upsert, no unique index
  * on a photo key. One rule, a large amount of server work deleted.
  *
- * @pattern Command Processor — it owns the send loop, the classification and the parking; it does not own
- *     WHICH client sends (that is injected) or what anything means to a user.
+ * ⛔ AND A TRANSIENT REFUSAL IS RE-SENT AFTER A WAIT, never immediately: full-jitter backoff under a doubling ceiling,
+ * floored at the server's `Retry-After`. A wait too long to sleep through ends the drain and is handed back to the
+ * caller to schedule.
+ *
+ * The rules here — the journal, the re-send rule, the backoff — are ADR-0057's, with the format they write.
+ *
+ * @pattern Command Processor — it owns the send loop, the classification, the backoff and the parking; it does not
+ *     own WHICH client sends (that is injected), where the log is stored (the journal is), or what anything means to a
+ *     user.
  */
 import { classifyFailure, type SyncFailure } from './itemStatus.js';
-import { drainOrder, type OutboxLog } from './outboxLog.js';
-import { resolveRef, substituteRefs, type ResolutionMap } from './references.js';
+import { drainOrder, markSending, settle, type OutboxLog, type Settlement } from './outboxLog.js';
+import { substituteRefs } from './references.js';
 import type { OutboxRecord } from './record.js';
 
 /** What a send attempt produced. */
 export type SendResult =
-    { readonly outcome: 'ok'; readonly serverId: string } | { readonly outcome: 'failed'; readonly status?: number };
+    | { readonly outcome: 'ok'; readonly serverId: string }
+    | {
+          readonly outcome: 'failed';
+          readonly status?: number;
+          /**
+           * The seconds the server's `Retry-After` asked for, already parsed (`@kitchensink/retry-after` at the
+           * sender, which owns the header). A floor under the backoff, never a replacement for it.
+           */
+          readonly retryAfterSeconds?: number;
+      };
 
 /** Sends one record. Injected, so the domain never learns which client or which transport. */
 export type Sender = (record: OutboxRecord) => Promise<SendResult>;
 
+/**
+ * Where the drain writes down each step AS IT HAPPENS. The outbox mutator implements it; a test may record it.
+ *
+ * ⛔ `claim` IS AWAITED BEFORE THE REQUEST LEAVES and `settle` right after the answer, so storage is never behind the
+ * wire by more than one record: a crash leaves a synced record gone and an interrupted one `sending`.
+ */
+export interface DrainJournal {
+    /**
+     * Mark the record `sending` in the log as stored now, if it is still there as the drain saw it
+     * (`claimForSending`). Resolves `false` when it was replaced, deleted or is already on the wire: the drain then
+     * neither sends nor settles it.
+     */
+    readonly claim: (seq: number) => Promise<boolean>;
+    readonly settle: (settlement: Settlement) => Promise<void>;
+}
+
+/** The clock and the coin, injected so the backoff is testable without waiting. */
+export interface DrainOptions {
+    readonly journal?: DrainJournal;
+    /** Resolves after `ms`. Defaults to `setTimeout`. */
+    readonly sleep?: (ms: number) => Promise<void>;
+    /** A uniform draw in [0, 1). Defaults to `Math.random` — the jitter needs no cryptographic strength. */
+    readonly random?: () => number;
+    /** The current time, epoch milliseconds. Defaults to `Date.now`. */
+    readonly now?: () => number;
+}
+
 /** What a drain produced. */
 export interface DrainReport {
+    /** The log the drain was given, with every settlement applied — what a caller with no journal persists. */
     readonly log: OutboxLog;
     readonly synced: readonly { readonly entity: string; readonly localId: string; readonly serverId: string }[];
     readonly failed: readonly SyncFailure[];
+    /**
+     * Set when the drain stopped because the server asked for a wait longer than {@link MAX_INLINE_WAIT_MS}: how long
+     * to wait before draining again. The records from there on are untouched and still pending.
+     */
+    readonly retryAfterMs?: number;
+}
+
+/** How many times a transient refusal is sent before it parks. */
+const MAX_TRANSIENT_ATTEMPTS = 3;
+
+/** The first backoff ceiling; it doubles per attempt. */
+const BASE_BACKOFF_MS = 500;
+
+/** The largest backoff ceiling. */
+const MAX_BACKOFF_MS = 8_000;
+
+/**
+ * The longest wait the drain sleeps through. Beyond it the drain ends and the caller schedules the next one.
+ *
+ * ⛔ THE DRAIN IS SERIAL AND HOLDS THE QUEUE'S ONE DRAIN SLOT, so a minute's `Retry-After` slept inline would stall
+ * every record behind it for a minute while the app looked stuck.
+ */
+export const MAX_INLINE_WAIT_MS = 10_000;
+
+/**
+ * Whether a record may be sent by this drain.
+ *
+ * ⛔ A PARKED RECORD IS RE-SENT ONLY WHEN THAT CANNOT WRITE TWICE: a transient refusal (the server did not process
+ * it) or `401` (the sender refused before sending, because its cook was signed out). An unknown outcome, a conflict
+ * and a terminal refusal wait for the cook — re-sending an unknown outcome on the next reconnect is the blind retry
+ * this module's rule forbids, one trigger later.
+ */
+function sendable(record: OutboxRecord): boolean {
+    // ⛔ Drains are serialized, so a record already `sending` is one whose answer was never written down: unknown.
+    if (record.state === 'sending') {
+        return false;
+    }
+
+    if (record.state !== 'parked') {
+        return true;
+    }
+
+    if (record.lastStatus === 401) {
+        return true;
+    }
+
+    return classifyFailure({ ...record, ...statusOf(record.lastStatus) }) === 'transient';
+}
+
+/** A status as an optional property. Pure. */
+function statusOf(status: number | undefined): { readonly status?: number } {
+    return status === undefined ? {} : { status };
 }
 
 /**
- * How many times a transient refusal is re-sent before it parks.
+ * The wait before attempt `attempt + 1`: a uniform draw under a doubling ceiling ("full jitter"), floored at what the
+ * server asked for.
  *
- * ⚠️ THESE THREE ATTEMPTS HAVE NO DELAY BETWEEN THEM — a 429 or 503 is re-sent immediately, three times.
- * That contradicts this module's own thundering-herd rationale for draining serially, and a 429 is the one
- * status where a delay is not optional. Owed: jittered backoff honouring `Retry-After`.
+ * Hand-written rather than taken from `p-retry`, which the tools use: that library retries a function that THROWS,
+ * while this sender never throws by contract (`recipeSender.ts`), and it cannot end a serial drain early and hand the
+ * wait back to the caller. The formula is three lines; the policy around it is this module's.
+ *
+ * @param attempt - The attempt that just failed, from 1.
+ * @param retryAfterSeconds - The server's stated wait, if any.
+ * @param random - The coin.
+ * @returns Milliseconds. Pure given `random`.
  */
-const MAX_TRANSIENT_ATTEMPTS = 3;
+function backoffMs(attempt: number, retryAfterSeconds: number | undefined, random: () => number): number {
+    const ceiling = Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** (attempt - 1));
+    const jittered = Math.floor(random() * ceiling);
+    const stated = retryAfterSeconds === undefined ? 0 : Math.max(0, retryAfterSeconds) * 1000;
+
+    return Math.max(jittered, stated);
+}
+
+/** The default sleep. @sideEffect Arms a timer. */
+const sleepFor = async (ms: number): Promise<void> =>
+    new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
 
 /**
  * Drain the log.
@@ -50,65 +164,115 @@ const MAX_TRANSIENT_ATTEMPTS = 3;
  * sent — but the cook has ONE problem to fix, not two, and reporting both is how an error state becomes
  * noise.
  *
- * @param log - The queued intents.
+ * @param log - The queued intents, with the resolutions earlier drains made.
  * @param send - The injected sender.
- * @returns The resulting log plus what synced and what failed. @sideEffect Calls `send`.
+ * @param options - The journal, the clock and the coin.
+ * @returns The resulting log plus what synced and what failed. @sideEffect Calls `send`, the journal and `sleep`.
  */
-export async function drain(log: OutboxLog, send: Sender): Promise<DrainReport> {
-    const ordered = drainOrder(log);
+export async function drain(log: OutboxLog, send: Sender, options: DrainOptions = {}): Promise<DrainReport> {
+    const sleep = options.sleep ?? sleepFor;
+    const random = options.random ?? Math.random;
+    const now = options.now ?? Date.now;
     const synced: { entity: string; localId: string; serverId: string }[] = [];
     const failed: SyncFailure[] = [];
-    const remaining: OutboxRecord[] = [];
     const parkedRefs = new Set<string>();
-    let resolved: ResolutionMap = {};
+    let current = log;
 
-    for (const record of ordered) {
-        const blocked = record.dependsOn.some((ref) => parkedRefs.has(ref));
+    // ⛔ A WAIT THE SERVER STATED HOLDS FOR THE WHOLE OUTBOX: a `429` is per cook, a `503` per service, so nothing else
+    // would fare better. The remaining wait goes back to the caller to schedule.
+    if (log.pausedUntil !== undefined && log.pausedUntil > now()) {
+        return { log, synced, failed, retryAfterMs: log.pausedUntil - now() };
+    }
 
-        if (blocked) {
-            remaining.push({ ...record, state: 'blocked' });
+    const record = async (settlement: Settlement): Promise<void> => {
+        current = settle(current, settlement);
+        await options.journal?.settle(settlement);
+    };
 
-            if (record.produces !== undefined) {
-                parkedRefs.add(record.produces);
+    for (const queued of drainOrder(log)) {
+        if (!sendable(queued) || queued.dependsOn.some((ref) => parkedRefs.has(ref))) {
+            if (queued.state === 'pending' || queued.state === 'blocked') {
+                await record({ seq: queued.seq, outcome: 'blocked' });
+            }
+
+            if (queued.produces !== undefined) {
+                parkedRefs.add(queued.produces);
             }
 
             continue;
         }
 
+        // ⛔ NEVER SEND A PLACEHOLDER. A dependency still unresolved here was not synced by this drain (its producer was
+        // skipped, or queued after the snapshot was read). The record waits, pending, for a later drain.
+        if (queued.dependsOn.some((ref) => current.resolutions[ref] === undefined)) {
+            continue;
+        }
+
+        const claimed = options.journal === undefined ? true : await options.journal.claim(queued.seq);
+
+        if (!claimed) {
+            continue;
+        }
+
+        current = markSending(current, queued.seq);
+
         let result: SendResult | undefined;
+        let deferMs: number | undefined;
 
         for (let attempt = 1; attempt <= MAX_TRANSIENT_ATTEMPTS; attempt += 1) {
-            result = await send({ ...record, payload: substituteRefs(record.payload, resolved) });
+            result = await send({ ...queued, payload: substituteRefs(queued.payload, current.resolutions) });
 
-            if (result.outcome === 'ok' || classifyFailure({ ...record, status: result.status }) !== 'transient') {
+            if (result.outcome === 'ok' || classifyFailure({ ...queued, ...statusOf(result.status) }) !== 'transient') {
                 break;
             }
+
+            if (attempt === MAX_TRANSIENT_ATTEMPTS) {
+                break;
+            }
+
+            const wait = backoffMs(attempt, result.retryAfterSeconds, random);
+
+            if (wait > MAX_INLINE_WAIT_MS) {
+                deferMs = wait;
+
+                break;
+            }
+
+            await sleep(wait);
+        }
+
+        if (deferMs !== undefined) {
+            await record({ seq: queued.seq, outcome: 'deferred', until: now() + deferMs });
+
+            return { log: current, synced, failed, retryAfterMs: deferMs };
         }
 
         if (result !== undefined && result.outcome === 'ok') {
-            synced.push({ entity: record.entity, localId: record.localId, serverId: result.serverId });
-
-            if (record.produces !== undefined) {
-                resolved = resolveRef(resolved, record.produces, result.serverId);
-            }
+            synced.push({ entity: queued.entity, localId: queued.localId, serverId: result.serverId });
+            await record({
+                seq: queued.seq,
+                outcome: 'synced',
+                serverId: result.serverId,
+                ...(queued.produces === undefined ? {} : { produces: queued.produces }),
+            });
 
             continue;
         }
 
-        const failure: SyncFailure = {
-            entity: record.entity,
-            intentKind: record.intentKind,
-            localId: record.localId,
-            ...(result?.status === undefined ? {} : { status: result.status }),
-        };
+        const status = result?.outcome === 'failed' ? result.status : undefined;
 
-        failed.push(failure);
-        remaining.push({ ...record, state: 'parked' });
+        failed.push({
+            entity: queued.entity,
+            intentKind: queued.intentKind,
+            localId: queued.localId,
+            ...statusOf(status),
+        });
+        await record({ seq: queued.seq, outcome: 'parked', ...statusOf(status) });
 
-        if (record.produces !== undefined) {
-            parkedRefs.add(record.produces);
+        if (queued.produces !== undefined) {
+            parkedRefs.add(queued.produces);
         }
     }
 
-    return { log: { records: remaining }, synced, failed };
+    return { log: current, synced, failed };
 }

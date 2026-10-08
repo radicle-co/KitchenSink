@@ -49,6 +49,7 @@ export function mapRecipe(row: RecipeExportRow): RecipeExport {
         ratingCount: row.ratingCount,
         visibility: row.visibility,
         status: row.status,
+        firstPublishedAt: toIsoStringOrNull(row.firstPublishedAt),
         sourceType: row.sourceType,
         sourceUrl: row.sourceUrl,
         sourceAttribution: row.sourceAttribution,

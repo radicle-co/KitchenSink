@@ -132,6 +132,9 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             tags: { type: 'text[]', notNull: true },
             author_handle: { type: 'text', notNull: false },
             status: { type: 'text', notNull: true },
+            // ADR-0058 — nullable: NULL exactly while the recipe has never been published. Set and kept by the 0053
+            // trigger, which `tests/e2e/draftVersions.e2e.test.ts` proves against a real Postgres.
+            first_published_at: { type: 'timestamp with time zone', notNull: false },
             current_version: { type: 'integer', notNull: true },
             ingredient_names_text: { type: 'text', notNull: true },
             search_vector: { type: 'tsvector', notNull: false },

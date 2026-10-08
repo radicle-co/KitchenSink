@@ -246,6 +246,11 @@ export const recipeExportSchema = z
         ratingCount: z.number().int(),
         visibility: z.string(),
         status: z.string(),
+        /**
+         * When the recipe was first published, or `null` for a draft that never was (ADR-0058). A stored fact
+         * about the cook's recipe, so a faithful export carries it.
+         */
+        firstPublishedAt: exportTimestampSchema.nullable(),
         sourceType: z.string(),
         sourceUrl: z.string().nullable(),
         sourceAttribution: z.string().nullable(),

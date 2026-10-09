@@ -46,6 +46,8 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
   wait until React Navigation marks them stable.
 - **D15, dark mode.** Dark mode is built inside the overhaul. Every slice builds and tests both themes. Every
   component reads colour from roles only, and a guard enforces it. The designers specify the dark values first.
+- **D17, theme choice.** The app follows the device or browser appearance setting. There is no in-app theme switch
+  for now.
 - **D16, sandbox alarms.** Sandbox alarms stay off. A failed morning start is reported by the Sentry cron monitor.
 
 ## Adopted from the joint recommendations

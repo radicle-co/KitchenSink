@@ -19,12 +19,12 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { renderWithRecipeClient } from '@commise/test-utils';
 import type { PullUpdatesDialogProps } from '@commise/features-recipes';
 
 import { CollectionDetailContainer } from '@/components/recipes/CollectionDetailContainer';
 
 import { makeCollectionWithRecipes } from './__fixtures__/collectionFixtures';
+import { renderWithSnackbar } from './__fixtures__/renderCollectionDetail';
 
 const { pushMock, useAuthMock, useUserProfileMock } = vi.hoisted(() => ({
     pushMock: vi.fn(),
@@ -45,8 +45,8 @@ vi.mock('@/hooks/useUserProfile', () => ({
 }));
 
 // Replace ONLY `PullUpdatesDialog` with a fake that renders its confirm control unconditionally (no
-// `diff`/`showDiff` gate). Every other export (`CollectionHeader`, `CollectionActions`, `CloneInfoPanel`,
-// `CollectionDetail`, `collectionMessages`) stays the REAL implementation via `importOriginal`.
+// `diff`/`showDiff` gate). Every other export (`CollectionHeader`,
+// `CollectionMembers`, `collectionMessages`) stays the REAL implementation via `importOriginal`.
 vi.mock('@commise/features-recipes', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@commise/features-recipes')>();
 
@@ -97,9 +97,10 @@ describe('CollectionDetailContainer — confirmPull guards against an undefined 
         vi.spyOn(client, 'previewPullFromSource').mockReturnValue(new Promise(() => {}));
         const pullSpy = vi.spyOn(client, 'pullCollectionFromSource');
 
-        renderWithRecipeClient(<CollectionDetailContainer id="col_9" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'Pull Updates from Source' }));
+        await user.click(await screen.findByRole('button', { name: 'More actions for Weeknight dinners' }));
+        await user.click(await screen.findByRole('menuitem', { name: 'Pull updates' }));
         await user.click(await screen.findByRole('button', { name: 'Force confirm (test seam)' }));
 
         expect(pullSpy).not.toHaveBeenCalled();

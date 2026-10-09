@@ -1,91 +1,83 @@
 // @vitest-environment jsdom
 /**
- * Tests for the `/profile` route content (U3): its SSR identity-fetch resilience (degrade, never crash) AND
- * the U3 shell — it renders inside the shared `AppShell` (nav on desktop AND narrow) with localized
- * copy. The AppShell avatar hook is mocked; the state gate + logout are stubbed to keep the focus on the
- * profile content and its degrade path.
+ * Tests for the `/profile` route content: it renders the one Profile page inside the shared `AppShell` (the nav chrome
+ * on desktop AND narrow), names itself in the document title, and leaves the page as the only level-1 heading. The
+ * page's own states (loading, failed, ready, the sheet, the switch) are `ProfileSurface`'s suite; the shell's reads are
+ * stood in for so this one asks only how the route is composed.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { cleanup, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '@commise/test-utils';
 
-const getMe = vi.fn();
-
-// The identity read now goes through the TYPED `ProfileServiceClient` (its response is parsed against
-// `@kitchensink/schema-identity`), so the seam to mock is the client factory rather than the deleted
-// `lib/apiClient`. `getMe` stands in for the whole client, which is all this suite touches.
+// The shell's sidebar opens the editor through the router and its tab bar reads the route (slice 3).
+vi.mock('next/navigation', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('next/navigation')>()),
+    useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+    usePathname: () => '/en',
+}));
+vi.mock('@clerk/nextjs', () => ({
+    useUser: () => ({ user: null }),
+    useAuth: () => ({ getToken: async () => 'tok' }),
+}));
 vi.mock('@/lib/identityServiceClient', () => ({
     IDENTITY_SERVICE_BASE_URL: 'http://identity.test',
-    createProfileServiceClient: () => ({ getMe }),
+    createProfileServiceClient: () => ({ patchMe: vi.fn() }),
 }));
 vi.mock('@/hooks/useUserProfile', () => ({
-    useUserProfile: () => ({ data: { user: { displayName: 'Ada' } } }),
+    useUserProfile: () => ({
+        isError: false,
+        data: { user: { displayName: 'Ada', email: 'ada@example.com' } },
+        refetch: vi.fn(),
+    }),
 }));
 vi.mock('@/components/auth/AccountStateGate', () => ({
     AccountStateGate: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 vi.mock('@/components/auth/LogoutButton', () => ({
-    LogoutButton: () => <button type="button">Log out</button>,
+    LogoutButton: () => <button type="button">Sign out</button>,
+}));
+vi.mock('@/components/auth/AccountCloseForm', () => ({
+    AccountCloseForm: () => <button type="button">Close account</button>,
+}));
+vi.mock('@/components/auth/AccountEraseForm', () => ({
+    AccountEraseForm: () => <button type="button">Erase my data</button>,
 }));
 
 import { ProfileContent } from '../ProfileContent.js';
 
-describe('ProfileContent — SSR identity fetch resilience + U3 shell', () => {
-    beforeEach(() => {
-        getMe.mockReset();
-    });
+const mount = (): void => {
+    renderWithProviders(
+        <QueryClientProvider client={new QueryClient()}>
+            <ProfileContent />
+        </QueryClientProvider>,
+    );
+};
 
-    afterEach(cleanup);
+afterEach(cleanup);
 
-    it('renders the profile inside the nav chrome when the identity service responds', async () => {
-        getMe.mockResolvedValue({
-            user: { displayName: 'Ada', email: 'ada@example.com', status: 'active' },
-            account: { subscriptionTier: 'free' },
-        });
+describe('ProfileContent — the route', () => {
+    it('renders the Profile page inside the nav chrome', () => {
+        mount();
 
-        renderWithProviders(await ProfileContent({ accessToken: 'tok', locale: 'en' }));
-
-        expect(screen.getByText('ada@example.com')).toBeInTheDocument();
-        // The U3 change: the surface now renders inside the shared navigation chrome (was a bare <main>).
-        expect(screen.getAllByRole('navigation').length).toBeGreaterThan(0);
-        // The app's snackbar host keeps its own, empty, status region mounted (UI-overhaul slice 2); no OTHER may appear.
-        expect(screen.queryAllByRole('status').filter((region) => region.textContent !== '')).toHaveLength(0);
-    });
-
-    it('degrades to a recoverable state (no throw) when the identity fetch rejects (ECONNREFUSED)', async () => {
-        getMe.mockRejectedValue(new Error('fetch failed'));
-
-        renderWithProviders(await ProfileContent({ accessToken: 'tok', locale: 'en' }));
-
-        // The one status that SAYS something; the snackbar host's own region stays mounted and empty.
-        const [notice] = screen.getAllByRole('status').filter((region) => region.textContent !== '');
-        expect(notice).toHaveTextContent(/couldn’t load your profile/i);
-        // The page still renders its heading + a way out, inside the nav chrome, rather than crashing SSR.
-        expect(screen.getByRole('heading', { name: 'Profile' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
+        expect(screen.getByText('ada@example.com', { selector: 'p' })).toBeInTheDocument();
         expect(screen.getAllByRole('navigation').length).toBeGreaterThan(0);
     });
 
-    /**
-     * `/profile` is the sharpest case for the two defects being fixed together: the top bar's title used to be
-     * the hard-coded 'Home', and the page's own `<h1>` is 'Profile'. Now the bar says 'Profile' too — so if it
-     * were still a heading, `getByRole('heading', { name: 'Profile' })` would be ambiguous AND the page would
-     * carry two `h1`s. It is plain banner text, so exactly one level-1 heading survives.
-     */
-    it('names ITSELF in the top bar and leaves the page content as the only h1', async () => {
-        getMe.mockResolvedValue({
-            user: { displayName: 'Ada', email: 'ada@example.com', status: 'active' },
-            account: { subscriptionTier: 'free' },
-        });
+    it('names ITSELF in the document title and leaves the page as the only h1', () => {
+        mount();
 
-        renderWithProviders(await ProfileContent({ accessToken: 'tok', locale: 'en' }));
+        expect(document.title).toBe('Profile · Commise');
 
-        expect(within(screen.getByRole('banner')).getByText('Profile')).toBeInTheDocument();
-        expect(within(screen.getByRole('banner')).queryByText('Home')).not.toBeInTheDocument();
         const level1 = screen.getAllByRole('heading', { level: 1 });
+
         expect(level1).toHaveLength(1);
         expect(level1[0]?.textContent).toBe('Profile');
+    });
+
+    it('fetches nothing on the server: it is a plain component, not an async one', () => {
+        expect(ProfileContent.constructor.name).not.toBe('AsyncFunction');
     });
 });

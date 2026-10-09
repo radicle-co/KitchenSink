@@ -100,6 +100,12 @@ export interface ComboboxProps {
     /** Called with an option's key when the cook chooses it: Enter on the active option, or a press. Never on typing. */
     readonly onSelect: (key: string) => void;
     /**
+     * The cook submitted the field without choosing: Enter with no option active on web (never while an input method
+     * composes), the keyboard's submit key on native, which keeps the keyboard up. Nothing is chosen; the host may say
+     * why (build spec §7.5.3, "Pick a food from the list.").
+     */
+    readonly onSubmitWithoutChoice?: () => void;
+    /**
      * The polite channel (WCAG 4.1.3), localised by the host: what the list holds for the field's CURRENT text. That is
      * the settled read of that text, `searching` while the read runs, or `''` when there is no read
      * (`docs/design/rowEditorOpenDecisions.md` R3).
@@ -150,6 +156,11 @@ export interface ComboboxProps {
     readonly leadingIcon?: ReactNode;
     /** A hint that describes the field (WCAG 3.3.2). */
     readonly hint?: string;
+    /**
+     * A line the host draws directly under the field, before the list (the ingredient add field's live reading, build
+     * spec §7.5.3). On native the list is in the page's flow, so a line after the combobox would sit below the list.
+     */
+    readonly belowField?: ReactNode;
     readonly invalid?: boolean;
     /** Web: the id of another element that describes the field, after the hint. */
     readonly describedBy?: string;

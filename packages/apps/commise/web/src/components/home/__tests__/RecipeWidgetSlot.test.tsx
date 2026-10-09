@@ -40,10 +40,11 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: pushMock }) }));
 vi.mock('next/dynamic', async () => {
     const widgetModule = await import('@commise/features-recipes/widget/web');
 
-    return { default: (): ComponentType<{ recipesPromise: Promise<readonly Recipe[]> }> => widgetModule.default };
+    return { default: (): ComponentType<RecipeHomeWidgetProps> => widgetModule.default };
 });
 
 import type { Recipe } from '@kitchensink/recipe-core';
+import type { RecipeHomeWidgetProps } from '@commise/features-recipes/widget/web';
 import { recipeQueries, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { QueryClient } from '@tanstack/react-query';
 
@@ -140,7 +141,7 @@ describe('RecipeWidgetSlot (web)', () => {
         );
 
         expect(screen.getByText('Recent recipes')).toBeTruthy(); // the skeleton card title
-        expect(screen.queryByText('No recipes yet. Create your first recipe to see it here.')).toBeNull();
+        expect(screen.queryByText('Your recipes will show up here.')).toBeNull();
 
         // ⛔ And the route off Home is STILL THERE while the widget waits. The slot suspends internally now
         // (its inner container has to resolve the recipes before it can start the deferred calorie batch), and
@@ -184,18 +185,19 @@ describe('RecipeWidgetSlot (web)', () => {
     it('renders the empty state when the viewer has no recipes', async () => {
         await renderResolved(clientReturning(() => Promise.resolve([])));
 
-        expect(screen.getByText('No recipes yet. Create your first recipe to see it here.')).toBeTruthy();
+        expect(screen.getByText('Your recipes will show up here.')).toBeTruthy();
     });
 
     it('renders a "see all recipes" entry point into the recipes surface', async () => {
-        await renderResolved(clientReturning(() => Promise.resolve([])));
+        // The first run drops "See all" (`buildSpec.md` §4.2), so the library has a recipe.
+        await renderResolved(clientReturning(() => Promise.resolve([makeRecipe({ id: 'rec_1' })])));
 
         const link = screen.getByRole('link', { name: 'See all recipes' });
         expect(link.getAttribute('href')).toContain('/recipes');
     });
 
     it('keeps the "see all recipes" link WCAG-AA legible on the Home surface', async () => {
-        await renderResolved(clientReturning(() => Promise.resolve([])));
+        await renderResolved(clientReturning(() => Promise.resolve([makeRecipe({ id: 'rec_1' })])));
 
         // The slot's only navigation affordance is bare text on the Home surface — no tint of its own — so
         // the ratio is the token against the surface: seafoam scored 4.02:1, under the 4.5:1 body-text floor
@@ -205,14 +207,14 @@ describe('RecipeWidgetSlot (web)', () => {
         expect(utilityContrast(link.className), '“See all recipes” link').toBeGreaterThanOrEqual(4.5);
     });
 
-    it('lays the recent recipes out as the mockup card grid (2-up, 4-up from md)', async () => {
+    it('lays the recent recipes out as Home’s grid (2 × 2, one row of four from a 600 container)', async () => {
         const { container } = await renderResolvedResult(
             clientReturning(() => Promise.resolve([makeRecipe({ id: 'rec_1' })])),
         );
 
         const className = container.querySelector('ul')?.className ?? '';
         expect(className).toContain('grid-cols-2');
-        expect(className).toContain('md:grid-cols-4');
+        expect(className).toContain('@regular/main:grid-cols-4');
     });
 
     it('navigates to the activated recipe’s locale-prefixed detail route (the slot owns routing)', async () => {
@@ -226,7 +228,7 @@ describe('RecipeWidgetSlot (web)', () => {
             ),
         );
 
-        await user.click(screen.getByRole('button', { name: 'Chana Masala' }));
+        await user.click(screen.getByRole('link', { name: 'Chana Masala' }));
 
         // The SECOND recipe's id, under the active locale prefix — a bare `/recipes/rec_2` or the first
         // recipe's id would both fail here.
@@ -237,5 +239,45 @@ describe('RecipeWidgetSlot (web)', () => {
         await renderResolved(clientReturning(() => Promise.resolve([makeRecipe({ id: 'rec_1' })])));
 
         expect(pushMock).not.toHaveBeenCalled();
+    });
+
+    // Slice 4 (`buildSpec.md` §4.2 First run): the three ways in, each routed by the slot.
+    it('routes the first run’s three ways in', async () => {
+        const user = userEvent.setup();
+        await renderResolved(clientReturning(() => Promise.resolve([])));
+
+        await user.click(screen.getByRole('button', { name: 'Add your first recipe' }));
+        await user.click(screen.getByRole('button', { name: 'Paste ingredients' }));
+        await user.click(screen.getByRole('link', { name: 'Or find one on Discover' }));
+
+        expect(pushMock.mock.calls.map(([path]) => path)).toEqual([
+            '/en/recipes/new',
+            // Slice 8: the new editor at Ingredients with its Paste a list sheet open (§7.5.4).
+            '/en/recipes/new?paste=1#ingredients',
+            '/en/discover',
+        ]);
+    });
+
+    it('shows the block’s load error with Try again when the read fails, and a retry reads afresh', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        let calls = 0;
+        const client = clientReturning(() => {
+            calls += 1;
+
+            return calls === 1
+                ? Promise.reject(new Error('down'))
+                : Promise.resolve([makeRecipe({ title: 'Back Again' })]);
+        });
+        const user = userEvent.setup();
+        await renderResolved(client);
+
+        expect(screen.getByText('We couldn’t load your recent recipes.')).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'See all recipes' })).toBeTruthy();
+
+        await act(async () => {
+            await user.click(screen.getByRole('button', { name: 'Try again' }));
+        });
+
+        expect(screen.getByText('Back Again')).toBeTruthy();
     });
 });

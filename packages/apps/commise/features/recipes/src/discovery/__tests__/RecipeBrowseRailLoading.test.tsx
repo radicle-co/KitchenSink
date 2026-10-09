@@ -8,11 +8,13 @@ import { cleanup, render, screen } from '@testing-library/react';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { RecipeBrowseRailLoading } from '../RecipeBrowseRailLoading.js';
+import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.js';
 
 afterEach(cleanup);
 
 const noop = () => undefined;
+const SAVE_COPY: SaveCopy = { stateOf: () => ({ kind: 'idle' }), save: noop };
 
 describe('RecipeBrowseRailLoading (web)', () => {
     it('shows a busy status', () => {
@@ -39,8 +41,11 @@ describe('RecipeBrowseRailLoading (web)', () => {
         render(<RecipeBrowseRailLoading />);
         const pendingTrack = screen.getByRole('status').querySelector('[aria-hidden="true"]');
         cleanup();
-        render(<RecipeBrowseRailResults results={[{ recipe: makeRecipe() }]} onSelectRecipe={noop} onClone={noop} />);
-        const loadedTrack = screen.getByRole('list');
+        render(
+            <RecipeBrowseRailResults results={[{ recipe: makeRecipe() }]} saveCopy={SAVE_COPY} onSelectRecipe={noop} />,
+        );
+        // The scroll container is the list's parent: it carries the overflow, so it is what must not drift.
+        const loadedTrack = screen.getByRole('list').parentElement as HTMLElement;
 
         expect(pendingTrack?.tagName).toBe(loadedTrack.tagName);
         expect(pendingTrack?.className).toBe(loadedTrack.className);

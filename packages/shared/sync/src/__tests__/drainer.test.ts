@@ -544,3 +544,80 @@ describe('drain — a pause the server asked for', () => {
         expect(later.log.records).toStrictEqual([]);
     });
 });
+
+/**
+ * The drain's replies (slice 7): the editor that queued a write must learn what it produced — the version an update
+ * returned, a 409's two sides — and it learns it by the record's sequence number. The reply is IN MEMORY only: the log's
+ * durable facts (the resolutions) are already persisted, and nothing about an answer is written to the format.
+ */
+describe('drain — settlement events', () => {
+    it('reports each synced and parked record, with the sender`s answer, after the journal wrote it', async () => {
+        const order: string[] = [];
+        const log = appendIntent(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' })),
+            intent({ entity: 'recipe', intentKind: 'update', localId: 'r2' }),
+        );
+        const send = scripted(
+            { outcome: 'ok', serverId: 'r1', answer: { version: 4 } },
+            { outcome: 'failed', status: 409, answer: { sides: 'both' } },
+        );
+        const journal: DrainJournal = {
+            claim: async () => true,
+            settle: async (settlement) => {
+                order.push(`journal:${String(settlement.seq)}`);
+            },
+        };
+        const events: unknown[] = [];
+
+        await drain(log, send, {
+            ...noSleep,
+            journal,
+            onSettled: (event) => {
+                order.push(`event:${String(event.seq)}`);
+                events.push(event);
+            },
+        });
+
+        expect(events).toStrictEqual([
+            {
+                seq: 1,
+                entity: 'recipe',
+                localId: 'r1',
+                intentKind: 'update',
+                outcome: 'synced',
+                serverId: 'r1',
+                answer: { version: 4 },
+            },
+            {
+                seq: 2,
+                entity: 'recipe',
+                localId: 'r2',
+                intentKind: 'update',
+                outcome: 'parked',
+                status: 409,
+                answer: { sides: 'both' },
+            },
+        ]);
+        // ⛔ After the journal: a listener that reads the store must find the settlement already there.
+        expect(order).toStrictEqual(['journal:1', 'event:1', 'journal:2', 'event:2']);
+    });
+
+    it('an unknown outcome is reported with no status and no answer', async () => {
+        const log = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'local:recipe:a' }));
+        const events: unknown[] = [];
+
+        await drain(log, scripted({ outcome: 'failed' }), { ...noSleep, onSettled: (event) => events.push(event) });
+
+        expect(events).toStrictEqual([
+            { seq: 1, entity: 'recipe', localId: 'local:recipe:a', intentKind: 'create', outcome: 'parked' },
+        ]);
+    });
+
+    it('a record that is not sent (blocked, deferred) reports nothing', async () => {
+        const events: unknown[] = [];
+
+        await drain(parkedWith(409), scripted(), { ...noSleep, onSettled: (event) => events.push(event) });
+
+        expect(events).toStrictEqual([]);
+    });
+});

@@ -19,6 +19,7 @@ const { LocaleProvider } = await import('@commise/i18n/react');
 const { NotFoundSurface } = await import('@/components/app/NotFoundSurface');
 const { RedactedAnalytics } = await import('@/components/app/RedactedAnalytics');
 const { RecipeProviders } = await import('@/components/recipes/RecipeProviders');
+const { SidebarPreferenceProvider } = await import('@/components/home/chrome/sidebarPreferenceContext');
 const { getDictionary } = await import('@/i18n/getDictionary');
 const { DEFAULT_LOCALE } = await import('@/lib/i18n');
 const { default: GlobalNotFound, metadata } = await import('../global-not-found.js');
@@ -72,6 +73,7 @@ describe('global-not-found.tsx', () => {
             'html',
             'body',
             LocaleProvider,
+            SidebarPreferenceProvider,
             RecipeProviders,
             NotFoundSurface,
         ]);

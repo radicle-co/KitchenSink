@@ -12,7 +12,6 @@ import { RecipeDifficulty } from '@kitchensink/recipe-core';
 import { makeRecipe } from '../../__fixtures__/index.js';
 import {
     STAR_COUNT,
-    difficultyTone,
     formatAverageRating,
     formatRatingCount,
     formatRelativeTime,
@@ -130,14 +129,8 @@ describe('toRecipeCardModel', () => {
     });
 });
 
-describe('difficultyTone', () => {
-    it('maps easy → success, medium → warning, hard → error (mockup pill colors)', () => {
-        expect(difficultyTone(RecipeDifficulty.EASY)).toBe('success');
-        expect(difficultyTone(RecipeDifficulty.MEDIUM)).toBe('warning');
-        expect(difficultyTone(RecipeDifficulty.HARD)).toBe('error');
-    });
-});
-
+// `difficultyTone` is deleted with slice 4: the difficulty's LEVEL is the view's (`recipeCardView.test.ts`), and its
+// tint and word are the design-system `DifficultyBadge`'s (`@commise/ui/difficulty-badge`). `error` is no difficulty.
 describe('toStarFills', () => {
     it('produces exactly STAR_COUNT booleans', () => {
         expect(toStarFills(3)).toHaveLength(STAR_COUNT);

@@ -5,13 +5,11 @@ appId: io.commise.mobile
 # `config.yaml`'s discovery (`visual/*` is omitted on purpose), it runs by name through `npm run local:maestro -- flows
 # visual/primitives`, and its screenshots are reviewed by eye in the slice's EVALUATE pass.
 - runFlow: ../auth/signinHome.yaml
-# The tab bar: the Registry's Lucide glyphs (house, book-open, calendar, cart, chart, user) over their labels.
+# The tab bar: the Registry's Lucide glyphs (house, book-open, compass) over their labels.
 - takeScreenshot: primitives_tabBar
 
 # The recipe list: Buttons, the chip row and the cards, through the app's own tab.
-- tapOn:
-      text: 'Recipes'
-      leftOf: 'Meal Plan.*'
+- tapOn: 'Recipes'
 - extendedWaitUntil:
       visible: 'My recipes'
       timeout: 20000

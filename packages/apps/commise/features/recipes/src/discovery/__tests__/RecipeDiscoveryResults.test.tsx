@@ -5,6 +5,13 @@
  * the result grid with its clone actions and load-more control, the notice for a failed refresh, and the busy state
  * while newer results are pending.
  *
+ * ⚠️ REWRITTEN for slice 5 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.5, §4.6). The result count and its
+ * query-naming sentence moved to the frame (one element that is both the visible line and the polite live region); the
+ * clone cases became Save a copy on the footer; the single no-match body became three states (a search, filters, both) plus
+ * the empty catalogue, each ending in "Try one of these" tag chips and the Trending rail. The grid cards are `compact` below
+ * a 600 container and `grid` from 600, chosen by the host. The pending-bar, load-more, browse-slot and refresh-notice
+ * assertions are kept.
+ *
  * Moved from the retired `RecipeDiscoveryList.test.tsx` ("empty state", "no-match state", "populated state" minus its
  * sort cases, "browse slot (U7)" minus sort and back-to-browse, "clone", the load-more touch floor, and "a failed
  * refresh of the rows on screen" minus its focus hand-off). The browse cases that paired `browseSlot` with `status`
@@ -21,12 +28,16 @@ import userEvent from '@testing-library/user-event';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
+import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeDiscoveryResults } from '../RecipeDiscoveryResults.js';
 import type { RecipeDiscoveryResultsProps } from '../model.js';
 
 afterEach(cleanup);
 
 const noop = () => undefined;
+
+/** A save-a-copy surface where nothing has been copied. */
+const SAVE_COPY: SaveCopy = { stateOf: () => ({ kind: 'idle' }), save: noop };
 
 /** Inline factory: wrap a {@link Recipe} in a search-result envelope. */
 function makeSearchResult(recipe: Partial<Recipe> = {}): RecipeSearchResult {
@@ -39,15 +50,24 @@ const threeResults = [
     makeSearchResult({ id: 'rec_3', title: 'Gourmet Garden Salad', sourceAttribution: 'Bon Appétit' }),
 ];
 
+const NO_RESULT: NonNullable<RecipeDiscoveryResultsProps['noResult']> = {
+    onClearSearch: noop,
+    onClearFilters: noop,
+    tryTags: [],
+    onPickTag: noop,
+};
+
 function results(overrides: Partial<RecipeDiscoveryResultsProps> = {}) {
     return (
         <RecipeDiscoveryResults
             results={[]}
             query=""
-            searching={false}
+            kind={undefined}
             stale={false}
+            cardVariant="grid"
+            saveCopy={SAVE_COPY}
             onSelectRecipe={noop}
-            onClone={noop}
+            noResult={NO_RESULT}
             {...overrides}
         />
     );
@@ -62,50 +82,146 @@ function resultsRegion(_container: HTMLElement): HTMLElement {
     return screen.getByRole('region', { name: 'Search results' });
 }
 
-describe('RecipeDiscoveryResults (web) — empty and no-match', () => {
-    it('shows the browse-empty copy, with neither a count nor rows, when nothing was searched', () => {
+describe('RecipeDiscoveryResults (web) — empty catalogue and no-result states', () => {
+    it('says the catalogue is empty when nothing was searched, with neither rows nor recovery', () => {
         renderResults();
 
-        expect(screen.getByText('No recipes found')).toBeTruthy();
-        expect(screen.queryByText('No matching recipes')).toBeNull();
-        expect(screen.queryByText('0 recipes')).toBeNull();
+        expect(screen.getByRole('heading', { level: 2, name: 'No public recipes yet.' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Clear/u })).toBeNull();
         expect(screen.queryByRole('list')).toBeNull();
     });
 
-    it('shows the no-match copy (NOT the browse-empty copy) when a search or filter matched nothing', () => {
-        renderResults({ query: 'tiramisu', searching: true });
+    it('a search alone: names the term, advises on spelling, and offers Clear search', async () => {
+        const user = userEvent.setup();
+        const onClearSearch = vi.fn();
+        renderResults({ kind: 'query', query: 'lamb', noResult: { ...NO_RESULT, onClearSearch } });
+        const status = screen.getByRole('status');
 
-        expect(screen.getByText('No matching recipes')).toBeTruthy();
-        expect(screen.queryByText('No recipes found')).toBeNull();
+        expect(within(status).getByRole('heading', { level: 2, name: 'No recipes for “lamb”' })).toBeTruthy();
+        expect(within(status).getByText('Check the spelling, or try a shorter search.')).toBeTruthy();
+        expect(within(status).queryByRole('button', { name: 'Clear filters' })).toBeNull();
+
+        await user.click(within(status).getByRole('button', { name: 'Clear search' }));
+
+        expect(onClearSearch).toHaveBeenCalledOnce();
     });
 
-    it('shows the no-match copy when only a filter (no term) matched nothing', () => {
-        renderResults({ query: '', searching: true });
+    it('filters alone: says so, advises removing one, and offers Clear filters', async () => {
+        const user = userEvent.setup();
+        const onClearFilters = vi.fn();
+        renderResults({ kind: 'filters', noResult: { ...NO_RESULT, onClearFilters } });
+        const status = screen.getByRole('status');
 
-        expect(screen.getByText('No matching recipes')).toBeTruthy();
+        expect(within(status).getByRole('heading', { level: 2, name: 'No recipes match these filters' })).toBeTruthy();
+        expect(within(status).getByText('Remove a filter to see more.')).toBeTruthy();
+        expect(within(status).queryByRole('button', { name: 'Clear search' })).toBeNull();
+
+        await user.click(within(status).getByRole('button', { name: 'Clear filters' }));
+
+        expect(onClearFilters).toHaveBeenCalledOnce();
+    });
+
+    it('both: names the term and the filters, and offers both clears', async () => {
+        const user = userEvent.setup();
+        const onClearSearch = vi.fn();
+        const onClearFilters = vi.fn();
+        renderResults({ kind: 'both', query: 'lamb', noResult: { ...NO_RESULT, onClearSearch, onClearFilters } });
+        const status = screen.getByRole('status');
+
+        expect(
+            within(status).getByRole('heading', { level: 2, name: 'No recipes for “lamb” with these filters' }),
+        ).toBeTruthy();
+
+        await user.click(within(status).getByRole('button', { name: 'Clear filters' }));
+        await user.click(within(status).getByRole('button', { name: 'Clear search' }));
+
+        expect(onClearFilters).toHaveBeenCalledOnce();
+        expect(onClearSearch).toHaveBeenCalledOnce();
+    });
+
+    it('takes no focus: the heading is not focusable, so focus stays in the search field', () => {
+        renderResults({ kind: 'query', query: 'lamb' });
+
+        expect(screen.getByRole('heading', { level: 2 }).hasAttribute('tabindex')).toBe(false);
+    });
+
+    it('every narrowed state ends with “Try one of these” tag chips, then the Trending rail — never a dead end', async () => {
+        const user = userEvent.setup();
+        const onPickTag = vi.fn();
+        renderResults({
+            kind: 'query',
+            query: 'lamb',
+            noResult: {
+                ...NO_RESULT,
+                tryTags: ['quick', 'vegan', 'dinner'],
+                onPickTag,
+                trendingSlot: <p>TRENDING RAIL</p>,
+            },
+        });
+
+        expect(screen.getByText('Try one of these')).toBeTruthy();
+        const tags = screen.getByRole('group', { name: 'Popular tags' });
+
+        expect(
+            within(tags)
+                .getAllByRole('button')
+                .map((button) => button.textContent),
+        ).toEqual(['quick', 'vegan', 'dinner']);
+        expect(screen.getByText('TRENDING RAIL')).toBeTruthy();
+
+        await user.click(within(tags).getByRole('button', { name: 'vegan' }));
+
+        expect(onPickTag).toHaveBeenCalledExactlyOnceWith('vegan');
+    });
+
+    it('hides the tag chips when there are none to offer, but still shows the Trending rail', () => {
+        renderResults({ kind: 'filters', noResult: { ...NO_RESULT, tryTags: [], trendingSlot: <p>TRENDING RAIL</p> } });
+
+        expect(screen.queryByText('Try one of these')).toBeNull();
+        expect(screen.getByText('TRENDING RAIL')).toBeTruthy();
+    });
+
+    it('offers no tags and no Trending rail for an empty catalogue', () => {
+        renderResults({
+            kind: undefined,
+            noResult: { ...NO_RESULT, tryTags: ['a', 'b', 'c'], trendingSlot: <p>TRENDING RAIL</p> },
+        });
+
+        expect(screen.queryByText('Try one of these')).toBeNull();
+        expect(screen.queryByText('TRENDING RAIL')).toBeNull();
     });
 });
 
 describe('RecipeDiscoveryResults (web) — populated', () => {
-    it('renders a pluralized result count when no query is typed', () => {
-        renderResults({ results: threeResults });
-
-        expect(screen.getByText('3 recipes')).toBeTruthy();
-    });
-
-    it('names the query the results belong to in the header (S5)', () => {
-        renderResults({ results: threeResults, query: 'pasta', searching: true });
-
-        expect(screen.getByText('Showing 3 recipes for “pasta”')).toBeTruthy();
-    });
-
-    it('renders one row per result in a list structure', () => {
-        renderResults({ results: threeResults });
+    it('renders one card per result in a list, each a link named by its title', () => {
+        renderResults({ results: threeResults, hrefOf: (id) => `/en/recipes/${id}` });
 
         expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(3);
-        expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Asparagus with Green Sauce' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Gourmet Garden Salad' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Mediterranean Grilled Lamb' }).getAttribute('href')).toBe(
+            '/en/recipes/rec_1',
+        );
+        expect(screen.getByRole('link', { name: 'Asparagus with Green Sauce' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Gourmet Garden Salad' })).toBeTruthy();
+    });
+
+    it('draws grid cards from a 600 container and compact cards below it, in a grid that fits their width', () => {
+        const { rerender } = renderResults({ results: threeResults, cardVariant: 'grid' });
+
+        expect(screen.getAllByRole('article').map((card) => card.getAttribute('data-card-variant'))).toEqual([
+            'grid',
+            'grid',
+            'grid',
+        ]);
+        expect(screen.getByRole('list').className).toContain('auto-fill');
+
+        rerender(results({ results: threeResults, cardVariant: 'compact' }));
+
+        expect(screen.getAllByRole('article').map((card) => card.getAttribute('data-card-variant'))).toEqual([
+            'compact',
+            'compact',
+            'compact',
+        ]);
+        expect(screen.getByRole('list').className).toContain('grid-cols-2');
     });
 
     it('reports the selected recipe id upward', async () => {
@@ -118,36 +234,25 @@ describe('RecipeDiscoveryResults (web) — populated', () => {
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_2');
     });
 
-    it('renders source attribution only when present', () => {
+    it('renders source attribution only when the recipe has no author handle', () => {
         renderResults({ results: threeResults });
 
         expect(screen.getByText('From Serious Eats')).toBeTruthy();
         expect(screen.getByText('From Bon Appétit')).toBeTruthy();
-        expect(screen.queryByText(/From undefined/)).toBeNull();
+        expect(screen.queryByText(/From undefined/u)).toBeNull();
     });
 
-    // The `leadCaloriesPerServing` fixture line left with the field (ADR-0021's "Follow-up owed"), so what still has
-    // teeth is that no fabricated `0 cal` renders; the figure's real states live in `RecipeCalorieChip.test.tsx`.
-    it('composes the compound card fields — author handle, cuisine, visibility (S1), and no fabricated 0', () => {
+    it('shows the author as @handle in the card footer, and no fabricated 0 cal', () => {
         renderResults({
             results: [
-                makeSearchResult({
-                    id: 'rec_x',
-                    title: 'Ribollita',
-                    authorHandle: 'tuscan_cook',
-                    cuisine: 'Tuscan',
-                    visibility: 'public',
-                    status: 'published',
-                }),
+                makeSearchResult({ id: 'rec_x', title: 'Ribollita', authorHandle: 'tuscan_cook', cuisine: 'Tuscan' }),
             ],
         });
 
-        expect(screen.getByText('by @tuscan_cook')).toBeTruthy();
+        expect(screen.getByText('@tuscan_cook')).toBeTruthy();
         expect(screen.getByText('Tuscan')).toBeTruthy();
         expect(screen.queryByText('0 cal')).toBeNull();
-        expect(screen.getByText('Public')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Ribollita' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Clone Ribollita' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Save a copy of Ribollita' })).toBeTruthy();
     });
 
     it('renders each card’s nutrition from the host’s renderer, keyed by recipe id', () => {
@@ -155,6 +260,12 @@ describe('RecipeDiscoveryResults (web) — populated', () => {
 
         expect(screen.getByText('kcal for rec_1')).toBeTruthy();
         expect(screen.getByText('kcal for rec_3')).toBeTruthy();
+    });
+
+    it('does not draw the count: the frame owns the one line that is also the live region', () => {
+        renderResults({ results: threeResults, query: 'pasta', kind: 'query' });
+
+        expect(screen.queryByText(/for “pasta”/u)).toBeNull();
     });
 });
 
@@ -229,7 +340,7 @@ describe('RecipeDiscoveryResults (web) — browse slot (U7)', () => {
         renderResults({ browseSlot });
 
         expect(screen.getByText('CURATED RAILS')).toBeTruthy();
-        expect(screen.queryByText('No recipes found')).toBeNull();
+        expect(screen.queryByText('No public recipes yet.')).toBeNull();
     });
 
     it('takes precedence over the flat result body', () => {
@@ -237,43 +348,43 @@ describe('RecipeDiscoveryResults (web) — browse slot (U7)', () => {
 
         expect(screen.getByText('CURATED RAILS')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeNull();
-        expect(screen.queryByText('3 recipes')).toBeNull();
     });
 });
 
-describe('RecipeDiscoveryResults (web) — clone', () => {
-    it('reports the cloned recipe id upward', async () => {
+describe('RecipeDiscoveryResults (web) — Save a copy', () => {
+    it('reports the recipe to copy upward', async () => {
         const user = userEvent.setup();
-        const onClone = vi.fn();
-        renderResults({ results: threeResults, onClone });
+        const save = vi.fn();
+        renderResults({ results: threeResults, saveCopy: { stateOf: () => ({ kind: 'idle' }), save } });
 
-        await user.click(screen.getByRole('button', { name: 'Clone Asparagus with Green Sauce' }));
+        await user.click(screen.getByRole('button', { name: 'Save a copy of Asparagus with Green Sauce' }));
 
-        expect(onClone).toHaveBeenCalledWith('rec_2');
+        expect(save).toHaveBeenCalledExactlyOnceWith('rec_2');
     });
 
-    it('marks only the cloning row busy, leaving the others actionable', async () => {
+    it('shows each card its own copy state, leaving the others actionable', async () => {
         const user = userEvent.setup();
-        const onClone = vi.fn();
-        renderResults({ results: threeResults, cloningId: 'rec_2', onClone });
+        const save = vi.fn();
+        renderResults({
+            results: threeResults,
+            saveCopy: { stateOf: (id) => (id === 'rec_2' ? { kind: 'saving' } : { kind: 'idle' }), save },
+        });
 
-        const busy = screen.getByRole('button', { name: 'Cloning Asparagus with Green Sauce' });
+        const busy = screen.getByRole('button', { name: 'Saving a copy of Asparagus with Green Sauce' });
+
         expect(busy.getAttribute('aria-busy')).toBe('true');
-        // Busy is `aria-disabled` and stays focusable (native `disabled` drops focus — WCAG 2.2 SC 2.4.3).
-        expect(busy.getAttribute('aria-disabled')).toBe('true');
-        expect((busy as HTMLButtonElement).disabled).toBe(false);
 
         await user.click(busy);
-        expect(onClone).not.toHaveBeenCalled();
+        expect(save).not.toHaveBeenCalled();
 
-        await user.click(screen.getByRole('button', { name: 'Clone Gourmet Garden Salad' }));
-        expect(onClone).toHaveBeenCalledWith('rec_3');
+        await user.click(screen.getByRole('button', { name: 'Save a copy of Gourmet Garden Salad' }));
+        expect(save).toHaveBeenCalledExactlyOnceWith('rec_3');
     });
 });
 
 describe('RecipeDiscoveryResults (web) — newer results pending', () => {
     it('mounts the pending bar inside the results region while stale, without marking the results busy', () => {
-        const { container } = renderResults({ results: threeResults, query: 'past', searching: true, stale: true });
+        const { container } = renderResults({ results: threeResults, query: 'past', kind: 'query', stale: true });
 
         const region = resultsRegion(container);
         // The bar is absolutely placed, so the region must be its containing block or it floats to the page top.
@@ -285,12 +396,11 @@ describe('RecipeDiscoveryResults (web) — newer results pending', () => {
         expect(container.querySelector('[aria-busy="true"]')).toBeNull();
     });
 
-    it('⛔ keeps the previous results readable and usable, still naming the query they belong to', async () => {
+    it('⛔ keeps the previous results readable and usable', async () => {
         const user = userEvent.setup();
         const onSelectRecipe = vi.fn();
-        renderResults({ results: threeResults, query: 'past', searching: true, stale: true, onSelectRecipe });
+        renderResults({ results: threeResults, query: 'past', kind: 'query', stale: true, onSelectRecipe });
 
-        expect(screen.getByText('Showing 3 recipes for “past”')).toBeTruthy();
         await user.click(screen.getByRole('button', { name: 'Gourmet Garden Salad' }));
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_3');
     });

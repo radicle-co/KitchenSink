@@ -139,29 +139,35 @@ describe('browseRailSearchParams', () => {
 
 describe('formatDiscoveryResultsSummary', () => {
     it('counts the results alone when no query is typed', () => {
-        expect(formatDiscoveryResultsSummary({ count: 3, query: '', searching: false }, messages, 'en')).toBe(
+        expect(formatDiscoveryResultsSummary({ count: 3, query: '', kind: undefined }, messages, 'en')).toBe(
             '3 recipes',
         );
-        expect(formatDiscoveryResultsSummary({ count: 1, query: '', searching: true }, messages, 'en')).toBe(
+        expect(formatDiscoveryResultsSummary({ count: 1, query: '', kind: 'filters' }, messages, 'en')).toBe(
             '1 recipe',
         );
     });
 
     it('names the (trimmed) query the results belong to', () => {
-        expect(formatDiscoveryResultsSummary({ count: 12, query: ' past ', searching: true }, messages, 'en')).toBe(
-            'Showing 12 recipes for “past”',
+        expect(formatDiscoveryResultsSummary({ count: 12, query: ' past ', kind: 'query' }, messages, 'en')).toBe(
+            '12 recipes for “past”',
         );
     });
 
-    it('says nothing matched when a search or filter found nothing', () => {
-        expect(formatDiscoveryResultsSummary({ count: 0, query: 'tiramisu', searching: true }, messages, 'en')).toBe(
-            'No matching recipes',
+    it('says what narrowed the search when it found nothing', () => {
+        expect(formatDiscoveryResultsSummary({ count: 0, query: 'tiramisu', kind: 'query' }, messages, 'en')).toBe(
+            'No recipes for “tiramisu”',
+        );
+        expect(formatDiscoveryResultsSummary({ count: 0, query: '', kind: 'filters' }, messages, 'en')).toBe(
+            'No recipes match these filters',
+        );
+        expect(formatDiscoveryResultsSummary({ count: 0, query: 'tiramisu', kind: 'both' }, messages, 'en')).toBe(
+            'No recipes for “tiramisu” with these filters',
         );
     });
 
-    it('says there are no recipes, not that nothing matched, when nothing was searched', () => {
-        expect(formatDiscoveryResultsSummary({ count: 0, query: '', searching: false }, messages, 'en')).toBe(
-            'No recipes found',
+    it('says the catalogue is empty, not that nothing matched, when nothing was searched', () => {
+        expect(formatDiscoveryResultsSummary({ count: 0, query: '', kind: undefined }, messages, 'en')).toBe(
+            'No public recipes yet.',
         );
     });
 });
@@ -171,7 +177,7 @@ describe('discoverySortLabel', () => {
         expect(DISCOVERY_SORTS.map((sort) => discoverySortLabel(sort, messages))).toEqual([
             'Relevance',
             'Newest',
-            'Most cloned',
+            'Most saved',
             'Quickest',
         ]);
     });

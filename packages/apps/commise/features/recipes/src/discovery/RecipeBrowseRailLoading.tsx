@@ -24,7 +24,7 @@ export const RecipeBrowseRailLoading: FC = () => {
                 {[0, 1, 2].map((card) => (
                     <li
                         key={card}
-                        className="h-56 w-64 shrink-0 animate-pulse rounded-xl bg-line-divider motion-reduce:animate-none"
+                        className="h-56 w-[clamp(240px,78%,256px)] shrink-0 animate-pulse rounded-md bg-line-divider motion-reduce:animate-none"
                     />
                 ))}
             </RailTrack>

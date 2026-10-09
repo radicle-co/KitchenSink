@@ -44,32 +44,8 @@ export interface RecipeListMessages {
     readonly filterAll: string;
     /** Visible label of the "Quick (<30m)" time-bucket quick-filter chip (recipe-list wireframe). */
     readonly filterQuick: string;
-    /** Label of the create-recipe call to action (the pinned FAB, which is the create dial's trigger). */
+    /** The create entry's label and name, "New recipe": one tap opens the editor (build spec §3.4). */
     readonly createCta: string;
-    /** Accessible name of the menu the create dial discloses (U34). */
-    readonly createMenuLabel: string;
-    /**
-     * Label of the dial's ONLY destination (U34).
-     *
-     * ⛔ Scan / Import / AI belong to features 004 and 005 and have no string here on purpose: they are not
-     * rendered at all, because promising a stopped feature is worse than omitting it.
-     */
-    readonly createFromScratch: string;
-    /**
-     * The dial's SECOND creation destination (plan U9) — paste an ingredient list and have it read.
-     *
-     * ⚠️ Names the INPUT, not the machinery. A cook knows they have a list to paste; they do not know or
-     * care that a CRF engine and a queue are behind it, and "Parse ingredients" would describe our
-     * implementation rather than their intent.
-     */
-    readonly createFromPaste: string;
-    /**
-     * Accessible name of the native backdrop behind the open dial; a tap on it dismisses.
-     *
-     * Native-only in effect: on web everything outside the dialog content is `aria-hidden` while the dial is
-     * open, so that platform's scrim is decorative and dismissal is owned by the dismissable layer.
-     */
-    readonly createMenuDismiss: string;
     /** Label of the empty-state create call to action (the sole create control when the list is empty). */
     readonly emptyCreateCta: string;
     /** Message shown when the list fails to load. */
@@ -78,6 +54,44 @@ export interface RecipeListMessages {
     readonly retry: string;
     /** The notice when refreshing the recipes already on screen fails. */
     readonly refreshError: string;
+    /** The Collections segment of the Recipes screen (`buildSpec.md` §4.3). */
+    readonly tabCollections: string;
+    /** The accessible name of the My recipes · Collections segments. */
+    readonly segmentsLabel: string;
+    /** The first-run "Paste ingredients" action (§4.3 first run). */
+    readonly pasteIngredients: string;
+    /** The no-match body for a search (contains `{query}`). */
+    readonly noMatchQuery: string;
+    /** The no-match body for chips. */
+    readonly noMatchFilters: string;
+    /** Clears the search. Also the search field's clear control. */
+    readonly clearSearch: string;
+    /** Clears every chip. */
+    readonly clearFilters: string;
+    /** The accessible name of the list/grid switch. */
+    readonly viewLabel: string;
+    /** The list segment's name. */
+    readonly viewList: string;
+    /** The grid segment's name. */
+    readonly viewGrid: string;
+    /** The sort control's visible label (contains `{choice}`). */
+    readonly sortButton: string;
+    /** The sort menu's title and accessible name. */
+    readonly sortMenuLabel: string;
+    /** Sort by last edit (the default). */
+    readonly sortRecent: string;
+    /** Sort by creation. */
+    readonly sortNewest: string;
+    /** Sort by title. */
+    readonly sortTitle: string;
+    /** Closes the native sort sheet. */
+    readonly sortClose: string;
+    /** "Load more" past 500 recipes. */
+    readonly loadMore: string;
+    /** Announced while more recipes load. */
+    readonly loadingMore: string;
+    /** When loading more recipes fails. */
+    readonly loadMoreError: string;
 }
 
 /** Shared copy for the recipe-detail screen (T066), rendered by both the web and native detail views. */
@@ -238,16 +252,14 @@ export interface RecipeDetailMessages {
     readonly clonePrivateFoodsBannerMany: string;
     /** Dismiss control on the clone banner. */
     readonly clonePrivateFoodsDismiss: string;
-    /** Heading for the instructions section. */
+    /** Heading for the steps section ("Steps" replaces "Instructions", `ownerDecisions.md`). */
     readonly instructionsHeading: string;
     /** A step's timer (contains `{duration}`, already said in hours and minutes), shown after the timer glyph. */
     readonly stepTimer: string;
     /** Accessible name of the timer glyph, which is all that tells a step's duration is a timer. */
     readonly stepTimerIcon: string;
-    /** Accessible name for a step's completion checkbox (contains `{step}`). */
+    /** Accessible name of a step's current-step toggle, its numeral (contains `{step}`). */
     readonly stepToggleLabel: string;
-    /** Accessible name for a tappable tag chip that filters search (contains `{tag}`). */
-    readonly tagFilterLabel: string;
     /** Heading for the nutrition section. */
     readonly nutritionHeading: string;
     /** Notice shown when per-serving nutrition is incomplete (FR-007 partial nutrition). */
@@ -331,6 +343,46 @@ export interface RecipeDetailMessages {
     readonly refreshError: string;
     /** Label of the retry action beside {@link refreshError}. */
     readonly refreshRetry: string;
+    /** The stat strip's difficulty cell label. */
+    readonly difficultyLabel: string;
+    /** The author in the meta line of another cook's recipe (contains `{handle}`). */
+    readonly byAuthor: string;
+    /** The serving count beside the Ingredients heading (contains `{count}`). */
+    readonly ingredientsFor: string;
+    /** The note shown while the amounts are scaled (contains `{original}`). */
+    readonly scaledFrom: string;
+    /** The ghost action that returns the amounts to the recipe's own servings. */
+    readonly resetScale: string;
+    /** Announced politely when the serving count changes (contains `{count}`). */
+    readonly scaledAnnounce: string;
+    /** The "Screen on" switch's name. */
+    readonly screenOn: string;
+    /** The one-time hint under the section switch the first time Screen on shows. */
+    readonly screenOnHint: string;
+    /** The steps section with no steps. */
+    readonly noSteps: string;
+    /** The owner's action from the empty steps section. */
+    readonly addSteps: string;
+    /** The ingredients section with no ingredients. */
+    readonly noIngredients: string;
+    /** The owner's action from the empty ingredients section. */
+    readonly addIngredients: string;
+    /** The ghost link on a section heading that opens the editor at that section. */
+    readonly editSection: string;
+    /** The full name of the Ingredients heading's Edit link. */
+    readonly editIngredientsLabel: string;
+    /** The full name of the Steps heading's Edit link. */
+    readonly editStepsLabel: string;
+    /** The text button that expands a clamped description. */
+    readonly descriptionMore: string;
+    /** The same button once the description is expanded. */
+    readonly descriptionLess: string;
+    /** The name of the section switch's navigation. */
+    readonly sectionsLabel: string;
+    /** The section switch's link to the nutrition section. */
+    readonly nutritionLink: string;
+    /** The ghost link in the footer facts that opens the version history. */
+    readonly versionHistory: string;
 }
 
 /**
@@ -361,6 +413,12 @@ export interface RecipeCardMessages {
     readonly ratingCountOther: string;
     /** Shown/announced for a recipe that has no ratings yet (never a fabricated 0-star score). */
     readonly unrated: string;
+    /** The rating beside the stars, e.g. "4.8 (12)" (contains `{average}` and `{count}`). */
+    readonly ratingShort: string;
+    /** The count of tags past the ones a card shows, e.g. "+3" (contains `{count}`). */
+    readonly moreTags: string;
+    /** The separator between the items of one card line, e.g. "Moroccan · Serves 8". */
+    readonly separator: string;
     /** Accessible label for the cover-image placeholder shown when a recipe has no photo. */
     readonly noPhotoLabel: string;
     /*
@@ -646,6 +704,26 @@ export interface IngredientDetailsMessages {
  * How a duration stored in seconds is said (F1): in hours and minutes, never in seconds. Each template takes the
  * named number(s) it shows.
  */
+/** Copy for Home's "Recent recipes" block (`docs/design/uiOverhaul/buildSpec.md` §4.2). */
+export interface RecipeHomeMessages {
+    /** The first run's line. */
+    readonly recentEmptyBody: string;
+    /** The first run's primary action. */
+    readonly firstRecipe: string;
+    /** The first run's paste action. */
+    readonly pasteIngredients: string;
+    /** The first run's link to Discover. */
+    readonly findOnDiscover: string;
+    /** The heading row's link to My recipes: what it shows. */
+    readonly seeAll: string;
+    /** …and its accessible name, which contains it (SC 2.5.3). */
+    readonly seeAllLabel: string;
+    /** When the recent recipes fail to load. */
+    readonly loadError: string;
+    /** Retry the load. */
+    readonly retry: string;
+}
+
 export interface RecipeDurationMessages {
     /** Under an hour (contains `{minutes}`), e.g. "20 min". */
     readonly minutes: string;
@@ -660,6 +738,8 @@ export interface RecipeMessages {
     readonly widgetTitle: string;
     /** Empty state shown in the live recipe widget when the viewer has no recipes yet. */
     readonly emptyState: string;
+    /** Copy for Home's "Recent recipes" block (`docs/design/uiOverhaul/buildSpec.md` §4.2). */
+    readonly home: RecipeHomeMessages;
     /** Copy for the recipe-list screen. */
     readonly list: RecipeListMessages;
     /** Copy for the recipe-detail screen. */
@@ -688,6 +768,16 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
     en: {
         widgetTitle: 'Recent recipes',
         emptyState: 'No recipes yet. Create your first recipe to see it here.',
+        home: {
+            recentEmptyBody: 'Your recipes will show up here.',
+            firstRecipe: 'Add your first recipe',
+            pasteIngredients: 'Paste ingredients',
+            findOnDiscover: 'Or find one on Discover',
+            seeAll: 'See all',
+            seeAllLabel: 'See all recipes',
+            loadError: 'We couldn’t load your recent recipes.',
+            retry: 'Try again',
+        },
         duration: {
             minutes: '{minutes} min',
             hours: '{hours} h',
@@ -784,31 +874,46 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
         },
         list: {
             heading: 'Recipes',
-            searchLabel: 'Search recipes',
-            searchPlaceholder: 'Search recipes...',
+            searchLabel: 'Search your recipes',
+            searchPlaceholder: 'Search your recipes',
             countOne: '{count} recipe',
             countOther: '{count} recipes',
             durationMinutes: '{minutes} min',
             loadingLabel: 'Loading recipes',
-            emptyTitle: 'No recipes yet',
-            emptyBody: 'Create your first recipe to see it here.',
-            noMatchTitle: 'No matching recipes',
+            emptyTitle: 'Your recipe box is empty',
+            emptyBody: 'Add a recipe you love, or paste an ingredient list and we’ll set it up.',
+            noMatchTitle: 'No recipes match',
             noMatchBody: 'No recipes match your search. Try a different term.',
             createCta: 'New recipe',
-            createMenuLabel: 'Create a recipe',
-            createFromScratch: 'Create from Scratch',
-            createFromPaste: 'Paste an Ingredient List',
-            createMenuDismiss: 'Close the create menu',
-            emptyCreateCta: 'Create your first recipe',
-            tabMine: 'My Recipes',
+            emptyCreateCta: 'Add your first recipe',
+            tabMine: 'My recipes',
             tabCommunity: 'Community',
             tabsLabel: 'Recipe source',
             filtersLabel: 'Quick filters',
             filterAll: 'All',
-            filterQuick: 'Quick (<30m)',
+            filterQuick: 'Under 30 min',
             errorTitle: 'We couldn’t load your recipes.',
             retry: 'Try again',
             refreshError: 'We couldn’t refresh your recipes.',
+            tabCollections: 'Collections',
+            segmentsLabel: 'Recipes',
+            pasteIngredients: 'Paste ingredients',
+            noMatchQuery: 'Nothing matches “{query}”.',
+            noMatchFilters: 'No recipes match these filters.',
+            clearSearch: 'Clear search',
+            clearFilters: 'Clear filters',
+            viewLabel: 'View',
+            viewList: 'List view',
+            viewGrid: 'Grid view',
+            sortButton: 'Sort: {choice}',
+            sortMenuLabel: 'Sort recipes',
+            sortRecent: 'Recently edited',
+            sortNewest: 'Newest',
+            sortTitle: 'A–Z',
+            sortClose: 'Close sort',
+            loadMore: 'Load more',
+            loadingMore: 'Loading more recipes',
+            loadMoreError: 'We couldn’t load more recipes.',
         },
         detail: {
             refreshError: 'We couldn’t refresh this recipe.',
@@ -861,11 +966,10 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             clonePrivateFoodsBannerMany:
                 '{count} ingredients use the original cook’s private foods, so you can’t see their names or nutrition. Their amounts are kept.',
             clonePrivateFoodsDismiss: 'Dismiss',
-            instructionsHeading: 'Instructions',
+            instructionsHeading: 'Steps',
             stepTimer: '{duration}',
             stepTimerIcon: 'Timer',
-            stepToggleLabel: 'Mark step {step} complete',
-            tagFilterLabel: 'Find recipes tagged {tag}',
+            stepToggleLabel: 'Mark step {step} as current',
             nutritionHeading: 'Nutrition (per serving)',
             nutritionPartial: 'Estimated — some items aren’t counted yet',
             nutritionRangeDerivedLow: 'Estimated from the lower amount of each stated range',
@@ -895,6 +999,26 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             scaledNotice: 'Adjusted from {original} servings — ingredient amounts and prep time are scaled.',
             scaledTimingCaveat:
                 'Cook times and step timers are shown unchanged: cooking time does not scale with batch size. Check for doneness.',
+            difficultyLabel: 'Difficulty',
+            byAuthor: 'by @{handle}',
+            ingredientsFor: 'for {count}',
+            scaledFrom: 'Amounts scaled from {original} servings.',
+            resetScale: 'Reset',
+            scaledAnnounce: 'Amounts for {count} servings.',
+            screenOn: 'Screen on',
+            screenOnHint: 'Keeps the screen awake while you cook.',
+            noSteps: 'No steps yet.',
+            addSteps: 'Add steps',
+            noIngredients: 'No ingredients yet.',
+            addIngredients: 'Add ingredients',
+            editSection: 'Edit',
+            editIngredientsLabel: 'Edit ingredients',
+            editStepsLabel: 'Edit steps',
+            descriptionMore: 'More',
+            descriptionLess: 'Less',
+            sectionsLabel: 'Recipe sections',
+            nutritionLink: 'Nutrition',
+            versionHistory: 'Version history',
         },
         card: {
             proBadge: 'PRO',
@@ -908,7 +1032,10 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             ratingSummary: 'Rated {average} out of 5, {ratings}',
             ratingCountOne: '{count} rating',
             ratingCountOther: '{count} ratings',
-            unrated: 'Not yet rated',
+            unrated: 'No ratings yet',
+            ratingShort: '{average} ({count})',
+            moreTags: '+{count}',
+            separator: ' · ',
             noPhotoLabel: 'No photo yet',
             versionBadge: 'v{version}',
             versionLabel: 'Version {version}',

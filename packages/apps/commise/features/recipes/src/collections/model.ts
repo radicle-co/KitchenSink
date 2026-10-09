@@ -5,29 +5,17 @@
  * building blocks, so the two renders can never drift on shape. No React, no platform APIs. These are
  * controlled, presentational components: they fetch nothing and delegate every interaction upward.
  */
+import type { HeaderAction } from '@commise/ui/large-title-header';
+import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { Locale } from '@commise/i18n';
 import type { ReactNode } from 'react';
-import type { Collection, Recipe, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { PullDiff } from '@kitchensink/recipe-service-client';
 // Imported (not merely re-exported) because the props below reference both by name, and an `export … from`
 // re-export does not bring a name into this module's scope.
-import type { CollectionMemberRecipe, CollectionWithRecipesResponse } from '@kitchensink/schema-recipe';
+import type { CollectionResponse, CollectionWithRecipesResponse } from '@kitchensink/schema-recipe';
 
-import type { RecipeListRefreshControl } from '../list/model.js';
+import type { RecipeListRefreshControl, RecipesSegmentControl } from '../list/model.js';
 import type { RefreshNoticeControl } from '../refresh/model.js';
-import type { RenderRecipeNutrition } from '../nutrition/model.js';
-
-/**
- * The minimal recipe shape the collection picker needs to list and add a candidate. The picker renders a
- * lightweight one-line-per-recipe chooser (title + an add control) — deliberately NOT the full mockup
- * `RecipeCardModel`. Typing candidates as this `Pick` keeps the picker decoupled from the card's growing
- * field set (difficulty, ratings, cover photo, PRO), so a caller need only supply what the picker reads. A
- * caller holding a fuller model (e.g. a `RecipeListItem` from `toRecipeListItem`) is still assignable.
- */
-export type RecipePickerCandidate = Pick<Recipe, 'id' | 'title'>;
-
-/** The two modes the collection form operates in: creating a new collection, or renaming an existing one. */
-export type CollectionFormMode = 'create' | 'rename';
 
 /**
  * A member recipe's provenance within a specific collection (W5 Task 9, C3 / FR-011) — the PUBLISHED wire
@@ -71,14 +59,20 @@ export type CollectionWithRecipes = CollectionWithRecipesResponse;
  * boundary, so a pending or failed read never unmounts it. The boundary renders inside, as `children`.
  */
 export interface CollectionListFrameProps {
-    /** Invoked when the create-collection action is activated. */
+    /** Invoked when the create-collection action is activated (it opens the new-collection sheet). */
     readonly onCreate: () => void;
+    /** The My recipes · Collections segments. Absent → none (a host whose shell switches the places itself). */
+    readonly segments?: RecipesSegmentControl;
     /**
      * A counter whose change moves focus to the heading: the owner advances it when a retry from the refresh notice
      * succeeds, because that retry removed the button the viewer pressed. It starts wherever the owner starts it; the
      * frame never moves focus on mount.
      */
     readonly headingFocusSignal: number;
+    /** The large title's action (slice 3): the avatar, which opens Profile. The app supplies it. */
+    readonly headerAction?: HeaderAction;
+    /** The cook has no collections yet: the first run's own start buttons take the floating button's place (§3.4). */
+    readonly firstRun?: boolean;
     /** The read boundary: its loading or error fallback, or the settled results. */
     readonly children: ReactNode;
 }
@@ -88,9 +82,24 @@ export interface CollectionListFrameProps {
  * refresh notice, then the empty state or the rows, then the load-more control. It performs NO data fetching.
  */
 export interface CollectionListResultsProps {
-    readonly collections: readonly Collection[];
-    /** Invoked with a collection id when a row is activated. */
+    /** The visible collections — the loaded ones after the search. The wire body, for the copy's attribution. */
+    readonly collections: readonly CollectionResponse[];
+    /** How many collections are loaded: the count the result bar says, and whether the search shows (from six). */
+    readonly total: number;
+    /** Invoked with a collection id when a card is activated. */
     readonly onSelect: (id: string) => void;
+    /** Where a collection lives, which makes each card a real link on web. Native ignores it. */
+    readonly hrefOf?: (id: string) => string;
+    /** The search over the loaded collections. */
+    readonly search: { readonly value: string; readonly onChange: (value: string) => void };
+    /** The first run's action, which depends on whether the cook has recipes to group yet (§5.1 States). */
+    readonly firstRun: {
+        readonly hasRecipes: boolean;
+        /** Open the new-collection sheet. */
+        readonly onCreate: () => void;
+        /** Open the editor: a collection needs recipes first. */
+        readonly onAddRecipe: () => void;
+    };
     /**
      * Optional server-paged load-more control (W5/C7) — grouped into ONE optional prop rather than three flat
      * `hasMore`/`isFetchingNextPage`/`onLoadMore` fields, so the whole feature expresses "load more" as a single thing
@@ -104,6 +113,11 @@ export interface CollectionListResultsProps {
      * `RecipeListRefreshControl` shape (one pull-to-refresh contract across every list).
      */
     readonly refresh?: RecipeListRefreshControl;
+    /**
+     * The screen's scroll host's bind for this, its one vertical scroller (blueprint A7) — native only: the host reads
+     * the scroll (the floating create button, the tab's second tap). Web's document scrolls, so the web leaf ignores it.
+     */
+    readonly scrollBind?: ScrollBind;
 }
 
 /** Props for the collection list's LOAD-ERROR fallback — the read failed with nothing loaded. */
@@ -133,247 +147,10 @@ export interface CollectionListLoadMore {
     readonly onLoadMore: () => void;
 }
 
-/**
- * The member-list reveal window (W5/C7): the detail embed (`CollectionWithRecipes.recipes`) returns EVERY
- * member in one round trip — there is no member-pagination endpoint, and adding one is out of scope (see
- * the W5 plan's Task 11) — so the view itself windows the list client-side, revealing this many rows at a
- * time behind a `[Load more (K more)]` control. Pinned to `4` to match the collection-view wireframe
- * (`specs/001-commise-recipe-app/product-spec/wireframes/collection-view.md`): 4 rows rendered, "Load more
- * (4 more)" for an 8-recipe collection.
- */
-export const MEMBER_WINDOW_SIZE = 4;
-
-/**
- * Which honest error a failed collection mutation surfaces (localized copy lives in the block, keyed by this
- * discriminant — the B17 code pattern, so the composing container never reaches into the block's dictionary).
- * - `delete` — deleting the collection failed (the action looked frozen before B17).
- * - `remove` — removing a member recipe failed.
- */
-export type CollectionDetailError = 'delete' | 'remove';
-
-/**
- * Props for the collection-detail view — a presentational render of a loaded {@link CollectionWithRecipes}'s
- * MEMBER LIST (heading, add-a-recipe control, member recipe rows, and the client-side reveal windowing).
- *
- * The collection's HEADER zone — name, description, visibility badge, recipe count, source attribution,
- * last-pulled date, and the rename/delete/back affordances — is owned by the sibling
- * {@link CollectionHeaderViewProps} block (W5 Task 6), composed ABOVE this one by the container (W5 Task 12).
- * This block therefore holds NO name/rename/delete of its own — that markup used to live here and was removed
- * so there is exactly ONE header, not two. Fetch states (loading/error) belong to the composing app, not here.
- */
-export interface CollectionDetailViewProps {
-    readonly collection: CollectionWithRecipes;
-    /** Invoked with a recipe id when a member row is activated. */
-    readonly onSelectRecipe: (id: string) => void;
-    /** Invoked with a recipe id when a member's remove control is activated. */
-    readonly onRemoveRecipe: (recipeId: string) => void;
-    /** Invoked when the add-a-recipe action is activated (opens the {@link CollectionRecipePickerProps} view). */
-    readonly onAddRecipe: () => void;
-    /** An honest error from the last delete/remove attempt to surface, or ABSENT for none (B17). */
-    readonly error?: CollectionDetailError;
-    /**
-     * How to render one card's deferred calorie figure — called once per visible card with its recipe id
-     * (see {@link RenderRecipeNutrition}). The host closes over the page's ONE batch promise, so N cards are
-     * ONE read. Absent ⇒ no card shows a nutrition line, which is the card's absent-value rule, not a gap.
-     */
-    readonly renderNutrition?: RenderRecipeNutrition;
-}
-
-/**
- * Props for a single collection member row (W5 Task 9, C3) — composes the shared `RecipeCardModel`
- * (via `RecipeCard`/`toRecipeCardModel`: title, calories, the version badge past v1, the visibility/draft
- * badge) with the two row-specific things the card does NOT already render: a read-only source-indicator
- * (owner-added/protected vs from-source/will-sync, derived from `member.addedVia`) and the `by @handle`
- * author attribution. A presentational, controlled component — it fetches nothing and performs no mutation.
- * Selecting the row and removing the member are SIBLING affordances, never nested, so activating Remove can
- * never also fire `onSelect` (the double-fire guard).
- */
-export interface CollectionMemberRowProps {
-    readonly member: CollectionMemberRecipe;
-    /** Invoked with the member's recipe id when the row's select target is activated. */
-    readonly onSelect: (recipeId: string) => void;
-    /** Invoked with the member's recipe id when the row's remove control is activated. */
-    readonly onRemove: (recipeId: string) => void;
-    /**
-     * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
-     * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
-     */
-    readonly nutrition?: ReactNode;
-}
-
-/**
- * Props for the collection recipe-picker — the ADD half of FR-009 (T072), a controlled, presentational
- * component that lists the caller's OWN recipes and adds them, one at a time, to a single named collection.
- * It fetches nothing: the composing app wires the recipe query, the current membership, and the add mutation
- * to these props, filters the candidate list by `query`, and drives the per-row in-flight/success/failure
- * signals below. Multi-membership (FR-009 — a recipe MAY belong to many collections) is expressed per row:
- * membership is scoped to THIS collection, so a recipe already in another collection is still addable here,
- * and a recipe already in THIS collection shows an inert "in this collection" marker rather than a re-add.
- */
-export interface CollectionRecipePickerProps {
-    /** The name of the collection recipes are added to — surfaced in the heading. */
-    readonly collectionName: string;
-    /** The controlled search value — reflected in the input. */
-    readonly query: string;
-    /** Invoked with the new search value as the caller types. */
-    readonly onQueryChange: (query: string) => void;
-    /** Invoked when the done action is activated (dismisses the picker). */
-    readonly onDone: () => void;
-    /**
-     * The picker's body — {@link CollectionRecipePickerCandidatesProps the settled candidates}, or the loading or
-     * load-error body while the candidates are pending or failed. The frame stays mounted around all three, so the
-     * search field keeps focus and Done stays reachable whatever the body is.
-     */
-    readonly children: ReactNode;
-}
-
-/**
- * Props for the picker's settled body: the caller's candidates, already loaded. `ready` splits here into no
- * recipes owned at all vs a search that matched none vs a populated candidate list.
- */
-export interface CollectionRecipePickerCandidatesProps {
-    /** The caller's candidate recipes, already filtered by `query` upstream. */
-    readonly recipes: readonly RecipePickerCandidate[];
-    /** Ids of the recipes already in THIS collection — their rows show an inert membership marker. */
-    readonly memberRecipeIds: readonly string[];
-    /** The search value — disambiguates "no recipes" from "no matches". */
-    readonly query: string;
-    /** The recipe whose add is in flight, if any — its row shows a busy, non-interactive control. */
-    readonly pendingRecipeId?: string;
-    /** The last recipe successfully added — drives the polite success announcement. */
-    readonly lastAddedRecipeId?: string;
-    /** Whether the most recent add failed — surfaces an alert without hiding the rows. Defaults to `false`. */
-    readonly addFailed?: boolean;
-    /** Invoked with a recipe id when its add control is activated (suppressed for member/in-flight rows). */
-    readonly onAdd: (recipeId: string) => void;
-    /** Invoked when the create-recipe action is activated in the no-recipes empty state. */
-    readonly onCreateRecipe: () => void;
-}
-
 /** Props for the picker's load-error body. */
 export interface CollectionRecipePickerLoadErrorProps {
     /** Invoked when the retry action is activated. */
     readonly onRetry: () => void;
-}
-
-/**
- * Props for the collection form (create/rename) — a controlled, presentational component. The `name` value
- * is owned by the caller; the form reports edits via `onChange` and delegates submit/cancel upward. While
- * `submitting`, the input and both actions are disabled to prevent duplicate submissions.
- */
-export interface CollectionFormProps {
-    readonly mode: CollectionFormMode;
-    readonly name: string;
-    /** Whether a submission is in flight; disables the input and actions. Defaults to `false`. */
-    readonly submitting?: boolean;
-    /** A validation/submission error to surface, if any. */
-    readonly error?: string;
-    readonly onChange: (name: string) => void;
-    readonly onSubmit: () => void;
-    readonly onCancel: () => void;
-}
-
-/**
- * Props for the collection-header view (W5 Task 6) — a presentational render of the collection-view
- * wireframe's header zone: the collection name with its Edit/Delete affordances (C4), a visibility badge,
- * the recipe count, source attribution for a cloned collection, its last-pulled date, and a Back affordance
- * (C6). Takes individual scalar fields rather than a `Collection`/`CollectionWithRecipes` object so this
- * block stays decoupled from the recipe-service client's response-only provenance widening (`./types.js`'s
- * `Collection`) — the composing screen projects whatever collection shape it holds down to these fields.
- * It fetches nothing and delegates every interaction upward.
- */
-export interface CollectionHeaderViewProps {
-    readonly name: string;
-    readonly description?: string;
-    readonly visibility: RecipeVisibility;
-    readonly recipeCount: number;
-    /** The source collection's name, present only when this collection was cloned (FR-011). */
-    readonly sourceCollectionName?: string;
-    /** The source owner's display handle; may be absent even for a cloned collection (unresolved owner). */
-    readonly sourceOwnerHandle?: string;
-    /** ISO 8601 timestamp of the last successful pull from source (FR-011); absent if never pulled. */
-    readonly lastPulledAt?: string;
-    /** Invoked when the back affordance is activated; omit to render no Back control (C6). */
-    readonly onBack?: () => void;
-    /** Invoked when the edit/rename action is activated (C4). */
-    readonly onEdit: () => void;
-    /** Invoked when the delete action is activated (C4). */
-    readonly onDelete: () => void;
-    /** Optional notice for a failed refresh of the collection on screen — both platforms. Absent ⇒ no notice. */
-    readonly refreshNotice?: RefreshNoticeControl;
-}
-
-/**
- * Props for the collection-actions sidebar (W5 Task 7) — a presentational render of the collection-view
- * wireframe's "COLLECTION ACTIONS" panel: Add Recipes, Pull Updates from Source (clones only, FR-011),
- * Clone Collection, and a premium-gated Public/Private visibility toggle with a Save action (C1, FR-010).
- *
- * The premium gate is carried as the plain boolean `canGoPrivate` (+ an already-localized `disabledReason`),
- * NOT a `Viewer` — the composing container computes `canGoPrivate(viewer)` from `@kitchensink/recipe-core`'s
- * policy module and passes the result down, so this component stays pure `props → JSX` with no tier/policy
- * logic of its own (mirrors `RecipeVisibilityToggleProps`, the sibling
- * recipe-visibility gate this block was modeled on).
- *
- * The toggle is two-stage, unlike the recipe toggle it mirrors: `pendingVisibility` is the control's current
- * selection and may differ from the saved `visibility` until the caller commits it via `onSaveVisibility`
- * (wired to the Save action, enabled only while the two differ). It fetches nothing and performs no
- * mutations — the composing container (W5 Task 12) owns every mutation this panel triggers.
- */
-export interface CollectionActionsProps {
-    /** Whether this collection was cloned from another — gates the Pull Updates action (FR-011). */
-    readonly isCloned: boolean;
-    /** The collection's current saved visibility. */
-    readonly visibility: RecipeVisibility;
-    /** The visibility toggle's current selection; may differ from `visibility` until saved. */
-    readonly pendingVisibility: RecipeVisibility;
-    /** Whether the viewer's tier permits a private collection (C1), computed by the composing container via
-     *  `canGoPrivate(viewer)`. This component reads only the boolean result. */
-    readonly canGoPrivate: boolean;
-    /** Localized explanation shown when the private option is gated off (rendered only when `!canGoPrivate`). */
-    readonly disabledReason?: string;
-    /** Whether the clone mutation is in flight — disables and marks Clone Collection busy. */
-    readonly isCloning: boolean;
-    /** Whether the pull-updates mutation is in flight — disables and marks Pull Updates busy. */
-    readonly isPulling: boolean;
-    /** Invoked when the add-recipes action is activated. */
-    readonly onAddRecipes: () => void;
-    /** Invoked when Pull Updates is activated; opens the preview flow (dialog lands in W5 Task 10/12). */
-    readonly onPullUpdates: () => void;
-    /** Invoked when Clone Collection is activated. */
-    readonly onClone: () => void;
-    /** Invoked with the requested next visibility when the user selects an enabled toggle option. */
-    readonly onVisibilityChange: (next: RecipeVisibility) => void;
-    /** Invoked to commit `pendingVisibility`; enabled only while it differs from `visibility`. */
-    readonly onSaveVisibility: () => void;
-}
-
-/**
- * Props for the clone-info panel (W5 Task 8, C5) — a presentational render of the collection-view
- * wireframe's "CLONE INFO" panel: the source collection's `@owner / "name"` attribution, the date this
- * collection was cloned, and a View Source control. Rendered by the composing container (W5 Task 12) ONLY
- * when the collection is a clone, so `sourceCollectionId` is always present here — this component assumes
- * clone props and holds no "not a clone" branch of its own.
- *
- * `sourceOwnerHandle`/`sourceCollectionName` are frozen at clone time (W5 Task 2) and may independently be
- * absent — an unresolved owner, or a source deleted after cloning — so the attribution degrades gracefully
- * (name-only, then a generic fallback) rather than leaking `undefined` into the DOM. `locale` arrives as an
- * explicit prop (unlike the sibling {@link CollectionHeaderViewProps}, which reads it via `useLocale()`) so
- * this leaf stays pure `props → JSX` with no hook of its own. It fetches nothing and performs no mutations;
- * the View Source interaction is delegated upward.
- */
-export interface CloneInfoPanelProps {
-    /** The source owner's display handle, frozen at clone time; absent for an unresolved owner. */
-    readonly sourceOwnerHandle?: string;
-    /** The source collection's name, frozen at clone time; absent if the source is no longer resolvable. */
-    readonly sourceCollectionName?: string;
-    /** The source collection's id, for the View Source navigation — always present for a clone. */
-    readonly sourceCollectionId: string;
-    /** ISO 8601 timestamp of this collection's clone creation (the clone's `createdAt`). */
-    readonly clonedAt: string;
-    /** The active BCP-47 locale, used to format {@link clonedAt} via {@link formatCollectionDate}. */
-    readonly locale: Locale;
-    /** Invoked with `sourceCollectionId` when the View Source control is activated. */
-    readonly onViewSource: (sourceCollectionId: string) => void;
 }
 
 /**
@@ -426,3 +203,24 @@ export interface PullUpdatesDialogProps {
  */
 export const formatCollectionDate = (isoDate: string, locale: Locale): string =>
     new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(isoDate));
+
+/** The number of collections from which the list offers its search (§5.1). */
+export const COLLECTION_SEARCH_FROM = 6;
+
+/**
+ * The collections whose name holds the search term, in the loaded order. Pure.
+ *
+ * @param collections - The loaded collections.
+ * @param searchValue - The raw search term.
+ * @returns The visible collections.
+ */
+export function narrowCollections<T extends { readonly name: string }>(
+    collections: readonly T[],
+    searchValue: string,
+): readonly T[] {
+    const term = searchValue.trim().toLowerCase();
+
+    return term.length === 0
+        ? collections
+        : collections.filter((collection) => collection.name.toLowerCase().includes(term));
+}

@@ -66,10 +66,9 @@ import {
  *     drops them (measured: zero network requests, an empty `document.fonts`). So their headings fall back to
  *     a host serif while the app renders real Playfair Display. Read the typeface from the `fontFamily` delta,
  *     never from the raster.
- *  2. **`screenProfile.html` is one page; the app splits it across three routes** (`/profile` views,
- *     `/account` edits + closes, `/settings` holds security). This pass pairs it with `/profile`, the surface
- *     `002-user-auth` FR-018 describes; the wireframe's Notifications and Subscription sections have no
- *     implementation anywhere and surface as `mockup-only` anchors.
+ *  2. **`screenProfile.html` is one page, and so is the app's Profile** (slice 9 folded `/account` and `/settings` into
+ *     `/profile`). This pass pairs them, the surface `002-user-auth` FR-018 describes; the wireframe's Notifications
+ *     and Subscription sections have no implementation anywhere and surface as `mockup-only` anchors.
  *  3. **Four wireframes have no implementation at all** — cooking, meal plan, grocery, nutrition. They are
  *     recorded as `unpaired` against the spec that owns each, so the gap is traceable scope rather than a
  *     fidelity defect, and {@link test} below fails if a NEW wireframe is added to the archive without being
@@ -158,7 +157,7 @@ const PAIRS: readonly PairSpec[] = [
             {
                 anchor: 'signUpAffordance',
                 mockup: (page) => page.getByRole('button', { name: /already have an account/i }),
-                implementation: (page) => page.getByRole('link', { name: /sign up/i }),
+                implementation: (page) => page.getByRole('link', { name: /create an account/i }),
             },
         ],
     },
@@ -219,7 +218,7 @@ const PAIRS: readonly PairSpec[] = [
         ],
         settle: async (page) => {
             await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
-            await expect(page.getByRole('button', { name: RECIPE_TITLE })).toBeVisible();
+            await expect(page.getByRole('link', { name: RECIPE_TITLE, exact: true })).toBeVisible();
         },
         anchors: [
             {
@@ -237,12 +236,11 @@ const PAIRS: readonly PairSpec[] = [
                 implementation: (page) => page.getByRole('searchbox'),
             },
             {
-                // The card's own <h3>, on both sides — NOT the app's card <button>, whose accessible name
-                // concatenates every metadata chip ("\u2026 45 min 4 Public Created 21w ago Not yet rated") and
-                // would compare a title against a paragraph.
+                // The card's own <h3>, on both sides (slice 5: the app's card title is the heading around its one
+                // link, named by the title alone).
                 anchor: 'recipeCardTitle',
                 mockup: (page) => page.getByRole('heading', { name: RECIPE_TITLE }),
-                implementation: (page) => page.getByRole('button', { name: RECIPE_TITLE }).first().getByRole('heading'),
+                implementation: (page) => page.getByRole('heading', { name: RECIPE_TITLE }).first(),
             },
         ],
     },
@@ -274,7 +272,9 @@ const PAIRS: readonly PairSpec[] = [
             {
                 anchor: 'instructionsHeading',
                 mockup: (page) => page.getByRole('heading', { name: 'Instructions', exact: true }),
-                implementation: (page) => page.getByRole('heading', { name: 'Instructions', exact: true }),
+                // "Steps" replaces "Instructions" in en-US (`docs/design/uiOverhaul/ownerDecisions.md`); the wireframe
+                // keeps its old word, so this anchor now records a deliberate copy difference.
+                implementation: (page) => page.getByRole('heading', { name: 'Steps', exact: true }),
             },
             {
                 anchor: 'nutritionHeading',
@@ -291,13 +291,10 @@ const PAIRS: readonly PairSpec[] = [
         // looking for an FR-018 in `specs/001-commise-recipe-app/spec.md`.
         requirementIds: ['002:FR-018', '002:FR-019', 'FR-013b'],
         caveats: [
-            'The implementation side is the DEGRADE state ("We couldn\u2019t load your profile right now"): the ' +
-                'identity service is not reachable from this hermetic suite and the profile read happens in ' +
-                'SSR, which page.route() cannot intercept. The chrome, background and heading type are still ' +
-                'comparable; the field rows are not present to compare.',
-            'The wireframe is ONE page; the implementation splits it across /profile (view), /account (edit, ' +
-                'close, erase) and /settings (security). Notifications and Subscription & Billing have no ' +
-                'implementation on any route.',
+            'The implementation side may be the FAILED state ("We couldn\u2019t load your profile."): the identity ' +
+                'service is not reachable from this hermetic suite unless the spec mocks it. The chrome, ' +
+                'background and heading type are still comparable.',
+            'Notifications and Subscription & Billing have no implementation on any route.',
         ],
         settle: async (page) => {
             await expect(page.getByRole('heading', { level: 1, name: 'Profile', exact: true })).toBeVisible();

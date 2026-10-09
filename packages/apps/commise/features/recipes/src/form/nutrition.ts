@@ -120,3 +120,24 @@ export const recipeNutritionTotal = (values: RecipeFormValues, lookup: LineNutri
         values.ingredients.map((line) => toNutritionLine(line, lineCatalogOf(line, lookup))),
         values.servings,
     );
+
+/** How many of the draft's lines the running total counts, and how many there are (build spec §7.5.6). */
+export interface NutritionCount {
+    readonly counted: number;
+    readonly total: number;
+}
+
+/**
+ * How many lines the running total counts: a line counts when the aggregator adds it in, asked of each line through the
+ * same `computeRecipeNutrition`, so "counted" has one authority with the total. Pure.
+ *
+ * @param values - The editor's draft.
+ * @param lookup - The editor's nutrition lookup.
+ * @returns The counted lines and all lines.
+ */
+export const nutritionCountOf = (values: RecipeFormValues, lookup: LineNutritionLookup): NutritionCount => ({
+    counted: values.ingredients.filter(
+        (line) => computeRecipeNutrition([toNutritionLine(line, lineCatalogOf(line, lookup))], 1).isComplete,
+    ).length,
+    total: values.ingredients.length,
+});

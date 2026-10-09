@@ -130,7 +130,7 @@ describe('RecipeListContainer — the deferred calorie lookup', () => {
 
         await renderList(client);
 
-        expect(screen.getAllByRole('button', { name: 'Weeknight Pasta' })).toHaveLength(1);
+        expect(screen.getAllByRole('link', { name: 'Weeknight Pasta' })).toHaveLength(1);
         expect(screen.getAllByText('Loading calories')).toHaveLength(2);
     });
 
@@ -170,7 +170,7 @@ describe('RecipeListContainer — the deferred calorie lookup', () => {
             });
 
             expect(batch, 'the batch was attempted, then retried once').toHaveBeenCalledTimes(2);
-            expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+            expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
             expect(screen.queryByText('Loading calories'), 'a failed batch must not leave a spinner').toBeNull();
             expect(screen.queryByRole('img', { name: /cal/u })).toBeNull();
         } finally {
@@ -187,7 +187,7 @@ describe('RecipeListContainer — the deferred calorie lookup', () => {
         expect(batch).toHaveBeenCalledTimes(1);
 
         await act(async () => {
-            await user.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'pasta');
+            await user.type(screen.getByRole('searchbox', { name: 'Search your recipes' }), 'pasta');
         });
 
         expect(screen.queryByRole('button', { name: 'Sunday Roast' }), 'the filter did apply').toBeNull();
@@ -205,7 +205,7 @@ describe('RecipeListContainer — the deferred calorie lookup', () => {
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
         await settle();
 
-        expect(screen.getByText('No recipes yet')).toBeInTheDocument();
+        expect(screen.getByText('Your recipe box is empty')).toBeInTheDocument();
         expect(batch, 'an empty batch is a guaranteed 400 — it must never be sent').not.toHaveBeenCalled();
     });
 });
@@ -221,7 +221,11 @@ describe('RecipeListContainer — the deferred calorie lookup across the server 
     function prefetchedQueryClient(client: ReturnType<typeof clientWithNutrition>['client']): QueryClient {
         const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
 
-        queryClient.setQueryData(recipeQueries(client).list().queryKey, PAGE);
+        // The whole-library read (slice 4, A11) caches chunks, not pages.
+        queryClient.setQueryData(recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey, {
+            pages: [{ data: PAGE.data, total: PAGE.total, hasMore: false, nextFirstPage: 2 }],
+            pageParams: [1],
+        });
 
         return queryClient;
     }

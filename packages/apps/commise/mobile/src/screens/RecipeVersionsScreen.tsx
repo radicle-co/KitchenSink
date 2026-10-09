@@ -17,17 +17,19 @@
  * checkbox once two are picked, rather than silently evicting the oldest pick.
  */
 import {
-    classifyRestoreError,
     RecipeVersionList,
     VersionCompareView,
     VersionPreviewModal,
-    diffSnapshots,
+    classifyRestoreError,
+    compareWithCurrent,
+    recipeMessages,
+    recipeVersionMessages,
     resolveVersionPreview,
 } from '@commise/features-recipes';
+import { useSnackbar } from '@commise/ui/snackbar';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
-import { palette } from '@commise/ui';
-import type { RecipeVersion } from '@kitchensink/recipe-core';
+import { Button } from '@commise/ui/button';
 import { isVersionConflictError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQueries } from '@tanstack/react-query';
@@ -65,14 +67,9 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
                 renderError={({ resetErrorBoundary }) => (
                     <View style={styles.center}>
                         <Text accessibilityRole="alert">{t.versionsError}</Text>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={t.versionsRetry}
-                            onPress={resetErrorBoundary}
-                            style={styles.retryButton}
-                        >
-                            <Text style={styles.retryLabel}>{t.versionsRetry}</Text>
-                        </Pressable>
+                        <Button variant="secondary" icon="refreshCw" onPress={resetErrorBoundary}>
+                            {t.versionsRetry}
+                        </Button>
                     </View>
                 )}
                 resetKeys={[recipeId]}
@@ -105,9 +102,13 @@ function RecipeVersionsView({ recipeId }: Pick<RecipeVersionsScreenProps, 'recip
 
     // W6 Task 5 — Preview: which version (by number) is being previewed, or `null` when the modal is closed.
     const [previewTarget, setPreviewTarget] = useState<number | null>(null);
-    // W6 Task 5 — Compare: the 0/1/2 version numbers currently selected for the compare sheet, in the order
-    // they were picked (see `toggleCompare` for the cap-at-two UX this order feeds).
-    const [compareSelection, setCompareSelection] = useState<readonly number[]>([]);
+    // §6.6 — Compare is per row, against the current version: which version (by number) is open, or `null`.
+    const [compareTarget, setCompareTarget] = useState<number | null>(null);
+    // "Edited 2 days ago" is measured from the moment the history was read, held so the render stays pure.
+    const [now] = useState(() => new Date().toISOString());
+    const snackbar = useSnackbar();
+    const { versionList } = useMessages(recipeVersionMessages);
+    const { ingredientLineName } = useMessages(recipeMessages);
 
     const versionRows = versions.data;
     const currentRecipe = recipe.data;
@@ -120,12 +121,21 @@ function RecipeVersionsView({ recipeId }: Pick<RecipeVersionsScreenProps, 'recip
 
     /** Shared restore trigger for BOTH the list's row action and the preview modal's Restore action — same
      *  mutation, same B17 conflict-refetch; `onRestored` (only supplied from the preview modal) additionally
-     *  closes the modal once the restore actually lands. */
+     *  closes the modal once the restore actually lands. A restore makes a NEW version, so it asks no confirmation:
+     *  the snackbar's Undo restores the version that was current before, which makes another (§6.6). */
     const restoreVersion = (versionNumber: number, onRestored?: () => void): void => {
+        const wasCurrent = recipe.data.currentVersion;
+
         restore.mutate(
             { id: recipeId, versionNumber },
             {
-                onSuccess: onRestored,
+                onSuccess: () => {
+                    onRestored?.();
+                    snackbar.show({
+                        message: versionList.restored.replace('{version}', String(versionNumber)),
+                        action: { label: versionList.undo, onAction: () => restoreVersion(wasCurrent) },
+                    });
+                },
                 // On a conflict the local history + current version are stale — refetch so the viewer sees
                 // the version that landed before they retry.
                 onError: (error) => {
@@ -149,30 +159,13 @@ function RecipeVersionsView({ recipeId }: Pick<RecipeVersionsScreenProps, 'recip
         restoringVersion,
     });
 
-    const compareVersions = compareSelection
-        .map((versionNumber) => versionRows.find((v) => v.versionNumber === versionNumber))
-        .filter((version): version is RecipeVersion => version !== undefined);
-    const [olderCompareVersion, newerCompareVersion] =
-        compareVersions.length === 2
-            ? [...compareVersions].sort((a, b) => a.versionNumber - b.versionNumber)
-            : [undefined, undefined];
+    // §6.6 — Compare: both snapshots come from the already-loaded list (no fetch).
+    const compareVersion = versionRows.find((version) => version.versionNumber === compareTarget);
+    const currentEntry = versionRows.find((version) => version.versionNumber === currentRecipe.currentVersion);
     const compareDiff =
-        olderCompareVersion !== undefined && newerCompareVersion !== undefined
-            ? diffSnapshots(olderCompareVersion.snapshot, newerCompareVersion.snapshot)
+        compareVersion !== undefined && currentEntry !== undefined
+            ? compareWithCurrent(compareVersion, currentEntry, locale, ingredientLineName)
             : undefined;
-
-    // Cap-at-two (W6 Task 5): once two versions are selected, `RecipeVersionList` disables every OTHER row's
-    // checkbox rather than silently evicting the oldest pick; this handler's own `current.length >= 2` guard
-    // is the defensive second half of that contract.
-    const toggleCompare = (versionNumber: number): void => {
-        setCompareSelection((current) => {
-            if (current.includes(versionNumber)) {
-                return current.filter((selected) => selected !== versionNumber);
-            }
-
-            return current.length >= 2 ? current : [...current, versionNumber];
-        });
-    };
 
     return (
         <>
@@ -181,10 +174,13 @@ function RecipeVersionsView({ recipeId }: Pick<RecipeVersionsScreenProps, 'recip
                 currentVersion={currentRecipe.currentVersion}
                 restoringVersion={restoringVersion}
                 restoreError={restoreError}
-                selectedForCompare={compareSelection}
+                now={now}
+                recipeTitle={currentRecipe.title}
                 onRestore={(versionNumber) => restoreVersion(versionNumber)}
                 onPreview={(versionNumber) => setPreviewTarget(versionNumber)}
-                onToggleCompare={toggleCompare}
+                {...(currentEntry === undefined
+                    ? {}
+                    : { onCompare: (versionNumber: number) => setCompareTarget(versionNumber) })}
             />
             <VersionPreviewModal
                 {...preview}
@@ -194,12 +190,10 @@ function RecipeVersionsView({ recipeId }: Pick<RecipeVersionsScreenProps, 'recip
                 onRestore={(versionNumber) => restoreVersion(versionNumber, () => setPreviewTarget(null))}
             />
             <VersionCompareView
-                open={compareSelection.length === 2}
-                versionA={olderCompareVersion}
-                versionB={newerCompareVersion}
-                diff={compareDiff}
-                locale={locale}
-                onClose={() => setCompareSelection([])}
+                open={compareDiff !== undefined}
+                {...(compareVersion === undefined ? {} : { version: compareVersion })}
+                {...(compareDiff === undefined ? {} : { diff: compareDiff })}
+                onClose={() => setCompareTarget(null)}
             />
         </>
     );
@@ -208,7 +202,4 @@ function RecipeVersionsView({ recipeId }: Pick<RecipeVersionsScreenProps, 'recip
 const styles = StyleSheet.create({
     container: { flex: 1 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-    // 44px touch floor (10 + 10 padding around a ~24px line box), matching the other screens' controls.
-    retryButton: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 22, backgroundColor: palette.seafoam },
-    retryLabel: { color: palette.white, fontWeight: '600', fontSize: 15 },
 });

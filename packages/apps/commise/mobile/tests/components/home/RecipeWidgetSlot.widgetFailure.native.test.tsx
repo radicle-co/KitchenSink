@@ -102,7 +102,7 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
 
         await settleChunkRejection();
 
-        const entry = screen.getByRole('button', { name: 'See all recipes' });
+        const entry = screen.getByRole('link', { name: 'See all recipes' });
         fireEvent.click(entry);
 
         expect(onSeeAllRecipes).toHaveBeenCalledTimes(1);
@@ -121,7 +121,7 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
         // The drift this fixes: mobile's inner boundary rendered `null`, so a failed widget left unexplained
         // blank space — and a screen-reader user got NOTHING at all. Web renders its localized `widgetError`
         // here; the two platforms must degrade identically (FR-044 / §14), so the copy is the SAME literal.
-        expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t load your recent recipes.')).toBeTruthy();
 
         // Announced, not merely painted — the accessibility half of the same defect — and POLITELY, in the
         // same register web uses. See `HomeWidgetErrorNotice`'s web suite for why a widget that failed is a
@@ -133,7 +133,7 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
         // sentinel would be showing and the navigation entry would be gone — a silent regression that a bare
         // "is the message on screen?" assertion would happily pass.
         expect(screen.queryByText(HOST_BOUNDARY_SENTINEL)).toBeNull();
-        expect(screen.getByRole('button', { name: 'See all recipes' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'See all recipes' })).toBeTruthy();
     });
 
     it('does not offer a retry affordance it cannot honour (React.lazy caches the rejection)', async () => {
@@ -151,10 +151,9 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
         // cached `_result` WITHOUT re-invoking the loader, so a "try again" that merely reset this boundary
         // would re-throw instantly and appear dead. A retry that silently fails is worse than none; see the
         // boundary's comment in `RecipeWidgetSlot.tsx` for what a real retry would have to do instead.
-        const controls = screen.getAllByRole('button');
-
-        expect(controls).toHaveLength(1);
-        expect(controls[0]?.textContent).toBe('See all recipes');
+        // Slice 4: "See all" is a link in the heading row now, so the failed slot holds no button at all.
+        expect(screen.queryAllByRole('button')).toHaveLength(0);
+        expect(screen.getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual(['See all recipes']);
     });
 
     it('reports the widget failure rather than swallowing it', async () => {
@@ -173,7 +172,7 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
 
         await settleChunkRejection();
 
-        expect(screen.getByRole('button', { name: 'See all recipes' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'See all recipes' })).toBeTruthy();
         expect(onWidgetError).toHaveBeenCalledTimes(1);
         expect(onWidgetError.mock.calls[0]?.[0]).toBeInstanceOf(Error);
     });

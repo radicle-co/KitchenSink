@@ -162,8 +162,11 @@ describe('DialogFrame (native)', () => {
             animationType: 'fade',
             statusBarTranslucent: true,
             navigationBarTranslucent: true,
-            onRequestClose,
         });
+        // The Modal adapter wraps the close request (a Back with the keyboard open closes the keyboard only), so the
+        // frame's own callback is what a close request with the keyboard closed reaches.
+        state.modal?.onRequestClose?.({} as never);
+        expect(onRequestClose).toHaveBeenCalledTimes(1);
     });
 
     it('keeps the card inside the safe area: each edge padded by its inset, at least 16 dp', () => {

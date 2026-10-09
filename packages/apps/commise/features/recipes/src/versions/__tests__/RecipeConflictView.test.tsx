@@ -1183,3 +1183,24 @@ describe('RecipeConflictView (web) — the design-system Button (UI overhaul sli
         expectDesignSystemButton(screen.getByRole('button', { name: 'Back to options' }), 'secondary', 'chevron-left');
     });
 });
+
+/**
+ * A never-published draft records no versions (ADR-0058), so its 409 has no `base`. Without `neverPublished` the view
+ * would show "Your version" with an evicted-history warning and block Overwrite behind it — each of which is false for
+ * a draft. These assertions fail if the prop is dropped anywhere between the leaf and `conflictCopyOf`.
+ */
+describe('RecipeConflictView (web) — a never-published draft', () => {
+    it('speaks of a draft saved elsewhere, with no version numbers and no stale-base gate', () => {
+        freezeClock();
+        renderConflict({ base: undefined, versionsBehind: 6, neverPublished: true });
+
+        expect(screen.getByRole('heading', { name: 'This draft changed somewhere else' })).toBeTruthy();
+        expect(screen.getByText('Saved elsewhere 2 minutes ago')).toBeTruthy();
+        expect(screen.getByText('This screen')).toBeTruthy();
+        expect(screen.queryByText(/v6/)).toBeNull();
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }).disabled).toBe(
+            false,
+        );
+    });
+});

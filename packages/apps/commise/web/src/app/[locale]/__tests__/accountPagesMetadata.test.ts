@@ -1,5 +1,5 @@
 /**
- * The profile, account and settings routes' document metadata: the browser tab's title and a shared link's description
+ * The profile route's document metadata: the browser tab's title and a shared link's description
  * come from the message catalogue, for the request's locale, never from a literal in the route (CLAUDE.md "Localize
  * user-facing strings"). The Data sources route established the shape (`legal/sources/__tests__/page.test.ts`).
  *
@@ -26,8 +26,6 @@ const { getDictionary: realDictionary } =
 
 const ROUTES = {
     profile: await import('../profile/page'),
-    account: await import('../account/page'),
-    settings: await import('../settings/page'),
 } as const;
 
 afterEach(() => {
@@ -36,37 +34,36 @@ afterEach(() => {
 
 const paramsFor = (locale: string) => ({ params: Promise.resolve({ locale }) });
 
-describe.each([
-    ['profile', 'Profile | Commise', 'Your user profile'],
-    ['account', 'Account Settings | Commise', 'Manage your account settings'],
-    ['settings', 'Settings | Commise', 'Account security and settings'],
-] as const)('/%s metadata', (page, title, description) => {
-    const route = ROUTES[page];
+describe.each([['profile', 'Profile | Commise', 'Your user profile']] as const)(
+    '/%s metadata',
+    (page, title, description) => {
+        const route = ROUTES[page];
 
-    it('reads the title and the description from the catalogue, for the request’s locale', async () => {
-        const dictionary = realDictionary('en');
+        it('reads the title and the description from the catalogue, for the request’s locale', async () => {
+            const dictionary = realDictionary('en');
 
-        getDictionary.mockReturnValue({
-            ...dictionary,
-            pageMetadata: {
-                ...dictionary.pageMetadata,
-                [page]: { title: `«${page}» | Commise`, description: `«${page}»` },
-            },
+            getDictionary.mockReturnValue({
+                ...dictionary,
+                pageMetadata: {
+                    ...dictionary.pageMetadata,
+                    [page]: { title: `«${page}» | Commise`, description: `«${page}»` },
+                },
+            });
+
+            await expect(route.generateMetadata(paramsFor('de'))).resolves.toEqual({
+                title: `«${page}» | Commise`,
+                description: `«${page}»`,
+            });
+            expect(getDictionary).toHaveBeenCalledWith('de');
         });
 
-        await expect(route.generateMetadata(paramsFor('de'))).resolves.toEqual({
-            title: `«${page}» | Commise`,
-            description: `«${page}»`,
+        it('keeps its English copy', async () => {
+            await expect(route.generateMetadata(paramsFor('en'))).resolves.toEqual({ title, description });
         });
-        expect(getDictionary).toHaveBeenCalledWith('de');
-    });
 
-    it('keeps its English copy', async () => {
-        await expect(route.generateMetadata(paramsFor('en'))).resolves.toEqual({ title, description });
-    });
-
-    // Next refuses a segment that exports both.
-    it('exports no static metadata beside the generator', () => {
-        expect('metadata' in route).toBe(false);
-    });
-});
+        // Next refuses a segment that exports both.
+        it('exports no static metadata beside the generator', () => {
+            expect('metadata' in route).toBe(false);
+        });
+    },
+);

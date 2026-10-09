@@ -107,11 +107,12 @@ describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
     it('explains the loss with the localized notice, in the same words mobile uses', async () => {
         await renderSlot();
 
+        // ⚠️ Slice 4: the block's own load error (`buildSpec.md` §4.2), the same words on both platforms.
         // The inner boundary's own copy was previously unasserted on BOTH platforms: mobile had drifted to a
         // silent `null` here, and nothing on web would have failed if this fallback had been deleted too. The
         // literal is asserted (not `webMessages.en...`) and is character-identical to the mobile catalog's
         // `home.widgetError`, so the two surfaces cannot drift apart again without one of these tests going red.
-        expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t load your recent recipes.')).toBeTruthy();
     });
 
     it('announces the loss POLITELY instead of leaving it silent to assistive tech', async () => {
@@ -120,7 +121,7 @@ describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
         // Announced (the original drift was a plain <p>, silent to a screen reader) but POLITE, not
         // assertive — see `HomeWidgetErrorNotice`'s own suite for why `status` is the right register here,
         // and mobile's mirror of this test for the matching native decision.
-        expect(screen.getByRole('status').textContent).toBe('This section couldn’t load.');
+        expect(screen.getByRole('status').textContent).toBe('We couldn’t load your recent recipes.');
         expect(screen.queryByRole('alert')).toBeNull();
 
         // …and it must be the INNER boundary's notice. Were the throw escaping to the host, the sentinel would
@@ -142,6 +143,6 @@ describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
         const controls = screen.getAllByRole('link');
 
         expect(controls).toHaveLength(1);
-        expect(controls[0]?.textContent).toBe('See all recipes');
+        expect(controls[0]?.getAttribute('aria-label')).toBe('See all recipes');
     });
 });

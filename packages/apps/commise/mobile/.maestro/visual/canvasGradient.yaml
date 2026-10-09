@@ -75,7 +75,7 @@ appId: io.commise.mobile
 
 # A SECOND surface, reached by navigation, proves the canvas is painted once at the ROOT and survives a screen
 # change — not re-applied per screen (the flat-fill-per-screen shape this fix replaced).
-- tapOn: 'Sign up'
+- tapOn: 'Create an account'
 - extendedWaitUntil:
       visible: 'Create your account'
       timeout: 30000

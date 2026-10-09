@@ -45,10 +45,10 @@ appId: io.commise.mobile
       label: 'USDA answered the progressive search for "apple sauce" on this stage'
 # One pick, of a remote food: the review adopts it and re-points THAT line to the root (ADR-0055 point 10). The line
 # leaves the review and the surface says it saved.
-- scrollUntilVisible:
-      element: '.*, from USDA'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
 - tapOn:
       text: '.*, from USDA'
       index: 0

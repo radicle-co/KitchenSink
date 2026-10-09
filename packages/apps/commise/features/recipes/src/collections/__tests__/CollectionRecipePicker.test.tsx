@@ -1,347 +1,283 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web collection recipe-picker — the ADD half of FR-009 (T072). The picker is a frame
- * (heading, Done, search) around one of three bodies: the loading body, the load-error body, or the settled
- * candidates. Covers every branch: loading, load error + retry, empty (the caller owns no recipes), no-matches (a search
- * that narrows everything out — a DIFFERENT state to "no recipes"), populated, already-a-member, in-flight,
- * the post-add status announcement, and the add-failure alert.
+ * The add-recipes picker (`docs/design/uiOverhaul/buildSpec.md` §5.3): a full-height sheet "Add to {name}" with a sticky
+ * search field, one checkbox row per recipe — the whole row toggles, named by the recipe — and a pinned **Done** that says
+ * what changed ("Done · 2 added, 1 removed", a zero part left out). Each toggle saves at once, so × does what Done does.
+ * Its body is whichever of the rows, a skeleton, or a load error the host's boundary renders; the field keeps its focus and
+ * Done stays reachable in all of them.
  *
- * The member/in-flight rows assert `aria-disabled` (NOT the `disabled` attribute) and that the control stays
- * focusable and mounted: the row's button must never unmount on activation, or the keyboard user's focus is
- * dropped to `<body>` mid-flow. Handler-suppression is asserted too, so making the control merely LOOK
- * inert would fail.
+ * ⚠️ REWRITTEN for slice 5, replacing a page with an "Add" button per row, a separate heading and a text "Done". The
+ * member badge, the per-row add state and the add-failed banner are gone with the page: a row is a checkbox that flips back
+ * and says so when its toggle fails.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { makeRecipe } from '@kitchensink/recipe-core/testing';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ringContrast, utilityContrast } from '@commise/test-utils';
-import { semantic } from '@commise/ui';
-import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
+import { LocaleProvider } from '@commise/i18n/react';
 
+import { CollectionPickerRow } from '../CollectionPickerRow.js';
 import { CollectionRecipePicker } from '../CollectionRecipePicker.js';
 import { CollectionRecipePickerCandidates } from '../CollectionRecipePickerCandidates.js';
 import { CollectionRecipePickerLoadError } from '../CollectionRecipePickerLoadError.js';
 import { CollectionRecipePickerLoading } from '../CollectionRecipePickerLoading.js';
-import type { CollectionRecipePickerCandidatesProps, CollectionRecipePickerProps } from '../model.js';
+import type { CollectionRecipePickerProps } from '../detailModel.js';
 
 afterEach(cleanup);
 
-const noop = () => undefined;
+const inLocale = (ui: React.ReactElement) => <LocaleProvider locale="en">{ui}</LocaleProvider>;
 
-const RECIPES = [
-    { id: 'rec_1', title: 'Weeknight Pasta', totalTimeMinutes: 30, updatedAt: '2026-04-19T09:30:00.000Z' },
-    { id: 'rec_2', title: 'Sheet-Pan Chicken', totalTimeMinutes: 45, updatedAt: '2026-04-18T09:30:00.000Z' },
-] as const;
+function picker(over: Partial<CollectionRecipePickerProps> = {}) {
+    const props: CollectionRecipePickerProps = {
+        open: true,
+        onClose: vi.fn(),
+        collectionName: 'Weeknight Dinners',
+        query: '',
+        onQueryChange: vi.fn(),
+        summary: { added: 0, removed: 0 },
+        children: <p>BODY</p>,
+        ...over,
+    };
 
-type FrameProps = Omit<CollectionRecipePickerProps, 'children'>;
+    render(inLocale(<CollectionRecipePicker {...props} />));
 
-/** The frame's props, with the fixture collection and inert callbacks. */
-function frameProps(overrides: Partial<FrameProps> = {}): FrameProps {
-    return { collectionName: 'Weeknight Dinners', query: '', onQueryChange: noop, onDone: noop, ...overrides };
+    return props;
 }
 
-/** Render the frame around the settled candidates. */
-function renderPicker(overrides: Partial<FrameProps & CollectionRecipePickerCandidatesProps> = {}) {
-    const { collectionName, onQueryChange, onDone, ...candidates } = overrides;
-    const frame = frameProps({
-        ...(collectionName === undefined ? {} : { collectionName }),
-        ...(onQueryChange === undefined ? {} : { onQueryChange }),
-        ...(onDone === undefined ? {} : { onDone }),
-        ...(candidates.query === undefined ? {} : { query: candidates.query }),
-    });
-    render(
-        <CollectionRecipePicker {...frame}>
-            <CollectionRecipePickerCandidates
-                recipes={RECIPES}
-                memberRecipeIds={[]}
-                query={frame.query}
-                onAdd={noop}
-                onCreateRecipe={noop}
-                {...candidates}
-            />
-        </CollectionRecipePicker>,
-    );
-}
+describe('CollectionRecipePicker (web) — the frame', () => {
+    it('is a dialog titled “Add to {name}”, with the search field and the body', () => {
+        picker();
+        const dialog = screen.getByRole('dialog', { name: 'Add to Weeknight Dinners' });
 
-/** Render the frame around the loading body. */
-function renderLoading() {
-    render(
-        <CollectionRecipePicker {...frameProps()}>
-            <CollectionRecipePickerLoading />
-        </CollectionRecipePicker>,
-    );
-}
-
-/** Render the frame around the load-error body. */
-function renderLoadError(onRetry: () => void = noop) {
-    render(
-        <CollectionRecipePicker {...frameProps()}>
-            <CollectionRecipePickerLoadError onRetry={onRetry} />
-        </CollectionRecipePicker>,
-    );
-}
-
-describe('CollectionRecipePicker (web) — chrome', () => {
-    it('names the collection it adds to in the heading', () => {
-        renderPicker({ collectionName: 'Holiday Baking' });
-
-        expect(screen.getByRole('heading', { level: 1, name: 'Add recipes to Holiday Baking' })).toBeTruthy();
+        expect(within(dialog).getByRole('searchbox', { name: 'Search your recipes' })).toBeTruthy();
+        expect(within(dialog).getByText('BODY')).toBeTruthy();
     });
 
-    it('reports search input upward', async () => {
+    it('draws nothing while shut', () => {
+        picker({ open: false });
+
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('reports what is typed, and clears the field from its own control', async () => {
         const user = userEvent.setup();
-        const onQueryChange = vi.fn();
-        renderPicker({ onQueryChange });
+        const props = picker({ query: 'pas' });
 
-        // This is a controlled input backed by a `vi.fn()` onChange (no state update between keystrokes), so
-        // `user.type` would fire once per character with the char alone, never the full string — paste
-        // fires a single change event with the whole value, matching the "one edit" intent of this test.
-        const input = screen.getByLabelText('Search your recipes');
-        await user.click(input);
-        await user.paste('pasta');
+        await user.type(screen.getByRole('searchbox'), 'x');
+        expect(props.onQueryChange).toHaveBeenCalledWith('pasx');
 
-        expect(onQueryChange).toHaveBeenCalledWith('pasta');
+        await user.click(screen.getByRole('button', { name: 'Clear search' }));
+        expect(props.onQueryChange).toHaveBeenLastCalledWith('');
     });
 
-    it('reflects the query value it is given (controlled)', () => {
-        renderPicker({ query: 'chicken' });
+    it('says what changed on Done, leaving a zero part out', () => {
+        picker({ summary: { added: 2, removed: 1 } });
+        expect(screen.getByRole('button', { name: 'Done · 2 added, 1 removed' })).toBeTruthy();
+        cleanup();
 
-        expect((screen.getByLabelText('Search your recipes') as HTMLInputElement).value).toBe('chicken');
-    });
+        picker({ summary: { added: 3, removed: 0 } });
+        expect(screen.getByRole('button', { name: 'Done · 3 added' })).toBeTruthy();
+        cleanup();
 
-    it('reports done upward', async () => {
-        const user = userEvent.setup();
-        const onDone = vi.fn();
-        renderPicker({ onDone });
-
-        await user.click(screen.getByRole('button', { name: 'Done' }));
-
-        expect(onDone).toHaveBeenCalledTimes(1);
-    });
-});
-
-describe('CollectionRecipePicker (web) — fetch states', () => {
-    it('shows a busy status and no rows while loading', () => {
-        renderLoading();
-
-        expect(screen.getByRole('status', { name: 'Loading your recipes' })).toBeTruthy();
-        expect(screen.queryByRole('list')).toBeNull();
-        // The frame is the same in every state: the search field and Done stay put while the body changes.
-        expect(screen.getByRole('searchbox', { name: 'Search your recipes' })).toBeTruthy();
+        picker();
         expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
     });
 
-    it('announces the localized loading label as the live region CONTENT, not only its aria-label', () => {
-        renderLoading();
+    it('closes from Done, from ×, and from Escape — each the same, because nothing is unsaved', async () => {
+        const user = userEvent.setup();
+        const props = picker();
 
-        // A `role="status"` node rendered EMPTY is doubly broken: it is zero-height (nothing for a sighted
-        // viewer, and Playwright resolves it as `hidden`) AND it is silent, because a live region announces
-        // its CONTENT, not its label. The label must therefore be the visible caption.
-        expect(screen.getByRole('status', { name: 'Loading your recipes' }).textContent).toContain(
-            'Loading your recipes',
+        await user.click(screen.getByRole('button', { name: 'Done' }));
+        await user.click(screen.getByRole('button', { name: 'Close' }));
+        await user.keyboard('{Escape}');
+
+        expect(props.onClose).toHaveBeenCalledTimes(3);
+    });
+
+    it('announces a toggle politely, from a region that is always there', () => {
+        picker();
+        const region = screen.getAllByRole('status').find((node) => node.classList.contains('sr-only'));
+
+        expect(region?.textContent).toBe('');
+        cleanup();
+
+        picker({ announcement: { text: 'Added Pasta', occurrence: 1 } });
+        expect(screen.getAllByRole('status').some((node) => node.textContent === 'Added Pasta')).toBe(true);
+    });
+});
+
+function row(over: Partial<React.ComponentProps<typeof CollectionPickerRow>> = {}) {
+    const props = {
+        recipe: makeRecipe({ id: 'rec_1', title: 'Pasta', cuisine: 'Italian', totalTimeMinutes: 25 }),
+        checked: false,
+        onToggle: vi.fn(),
+        ...over,
+    };
+
+    render(inLocale(<CollectionPickerRow {...props} />));
+
+    return props;
+}
+
+describe('CollectionPickerRow (web)', () => {
+    it('is one checkbox named by the recipe, and the whole row toggles it', async () => {
+        const user = userEvent.setup();
+        const props = row();
+        const box = screen.getByRole('checkbox', { name: 'Pasta' });
+
+        expect(box.getAttribute('aria-checked')).toBe('false');
+
+        await user.click(screen.getByText('Italian · 25 min').closest('[role="checkbox"]') as HTMLElement);
+
+        expect(props.onToggle).toHaveBeenCalledExactlyOnceWith(true);
+    });
+
+    it('shows a member checked, and asks to remove it when pressed', async () => {
+        const user = userEvent.setup();
+        const props = row({ checked: true });
+        const box = screen.getByRole('checkbox', { name: 'Pasta' });
+
+        expect(box.getAttribute('aria-checked')).toBe('true');
+
+        await user.click(box);
+
+        expect(props.onToggle).toHaveBeenCalledExactlyOnceWith(false);
+    });
+
+    it('toggles from the keyboard with Space, and is in the tab order', async () => {
+        const user = userEvent.setup();
+        const props = row();
+
+        await user.tab();
+        expect(document.activeElement).toBe(screen.getByRole('checkbox'));
+
+        await user.keyboard(' ');
+
+        expect(props.onToggle).toHaveBeenCalledExactlyOnceWith(true);
+    });
+
+    it('says the title, the cuisine and the time', () => {
+        row();
+
+        expect(screen.getByText('Pasta')).toBeTruthy();
+        expect(screen.getByText('Italian · 25 min')).toBeTruthy();
+    });
+
+    it('says a refused add in an alert naming the recipe, and a refused remove the same way', () => {
+        row({ failed: 'add' });
+        expect(screen.getByRole('alert').textContent).toBe('Couldn’t add Pasta. Try again.');
+        cleanup();
+
+        row({ failed: 'remove' });
+        expect(screen.getByRole('alert').textContent).toBe('Couldn’t remove Pasta. Try again.');
+    });
+
+    it('draws no alert otherwise', () => {
+        row();
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('keeps every toggle reaching the host in order when pressed quickly, flipping from the shown state each time', async () => {
+        const user = userEvent.setup();
+        const calls: boolean[] = [];
+
+        function Flipper() {
+            const [checked, setChecked] = useState(false);
+
+            return (
+                <CollectionPickerRow
+                    recipe={makeRecipe({ id: 'rec_1', title: 'Pasta' })}
+                    checked={checked}
+                    onToggle={(next) => {
+                        calls.push(next);
+                        setChecked(next);
+                    }}
+                />
+            );
+        }
+
+        render(inLocale(<Flipper />));
+        const box = screen.getByRole('checkbox', { name: 'Pasta' });
+
+        await user.click(box);
+        await user.click(box);
+        await user.click(box);
+
+        expect(calls).toEqual([true, false, true]);
+    });
+});
+
+function candidates(over: Partial<React.ComponentProps<typeof CollectionRecipePickerCandidates>> = {}) {
+    const props = {
+        recipes: [makeRecipe({ id: 'rec_1', title: 'Pasta' }), makeRecipe({ id: 'rec_2', title: 'Soup' })],
+        query: '',
+        onClearSearch: vi.fn(),
+        onCreateRecipe: vi.fn(),
+        renderRow: (recipe: { id: string; title: string }) => <p key={recipe.id}>{`row ${recipe.title}`}</p>,
+        ...over,
+    };
+
+    render(inLocale(<CollectionRecipePickerCandidates {...props} />));
+
+    return props;
+}
+
+describe('CollectionRecipePickerCandidates (web)', () => {
+    it('draws one list item per recipe, each the host’s row', () => {
+        candidates();
+
+        expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(2);
+        expect(screen.getByText('row Pasta')).toBeTruthy();
+        expect(screen.getByText('row Soup')).toBeTruthy();
+    });
+
+    it('with no recipes at all: says so and offers Add a recipe, which opens the editor', async () => {
+        const user = userEvent.setup();
+        const props = candidates({ recipes: [] });
+
+        expect(screen.getByText('You have no recipes yet.')).toBeTruthy();
+
+        await user.click(screen.getByRole('button', { name: 'Add a recipe' }));
+
+        expect(props.onCreateRecipe).toHaveBeenCalledOnce();
+    });
+
+    it('with a search that matched none: says so and offers Clear search', async () => {
+        const user = userEvent.setup();
+        const props = candidates({ recipes: [], query: 'zzz' });
+
+        expect(screen.getByText('No recipes match your search')).toBeTruthy();
+        expect(screen.queryByText('You have no recipes yet.')).toBeNull();
+
+        await user.click(screen.getByRole('button', { name: 'Clear search' }));
+
+        expect(props.onClearSearch).toHaveBeenCalledOnce();
+    });
+});
+
+describe('the picker’s other bodies (web)', () => {
+    it('loading: a status that says what is loading, over six skeleton rows that stop being decorative to no one', () => {
+        render(inLocale(<CollectionRecipePickerLoading />));
+        const status = screen.getByRole('status');
+
+        expect(status.textContent).toContain('Loading your recipes');
+        expect(status.querySelectorAll('[aria-hidden="true"] > *, [aria-hidden="true"]').length).toBeGreaterThanOrEqual(
+            6,
         );
     });
 
-    it('shows an alert and retries on request when the load fails', async () => {
+    it('load error: an alert with a Try again that retries', async () => {
         const user = userEvent.setup();
         const onRetry = vi.fn();
-        renderLoadError(onRetry);
+        render(inLocale(<CollectionRecipePickerLoadError onRetry={onRetry} />));
 
-        expect(screen.getByRole('alert')).toBeTruthy();
-        expect(screen.queryByRole('list')).toBeNull();
-        expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
+        expect(screen.getByRole('alert').textContent).toContain('We couldn’t load your recipes.');
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
 
-        expect(onRetry).toHaveBeenCalledTimes(1);
-    });
-
-    it('offers to create a recipe when the caller owns none', async () => {
-        const user = userEvent.setup();
-        const onCreateRecipe = vi.fn();
-        renderPicker({ recipes: [], query: '', onCreateRecipe });
-
-        expect(screen.getByText('No recipes yet')).toBeTruthy();
-        expect(screen.queryByRole('list')).toBeNull();
-
-        await user.click(screen.getByRole('button', { name: 'New recipe' }));
-
-        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
-    });
-
-    it('distinguishes a search with no matches from owning no recipes', () => {
-        renderPicker({ recipes: [], query: 'zzz' });
-
-        expect(screen.getByText('No recipes match your search')).toBeTruthy();
-        // The create CTA belongs to the "no recipes at all" state — offering it here would be wrong: the
-        // user HAS recipes, their search just matched none.
-        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
-        expect(screen.queryByText('No recipes yet')).toBeNull();
-    });
-});
-
-describe('CollectionRecipePicker (web) — adding', () => {
-    it('renders one row per candidate recipe', () => {
-        renderPicker();
-
-        const list = screen.getByRole('list');
-        expect(within(list).getAllByRole('listitem')).toHaveLength(2);
-        expect(screen.getByRole('button', { name: 'Add Weeknight Pasta' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' })).toBeTruthy();
-    });
-
-    it('reports the added recipe id upward', async () => {
-        const user = userEvent.setup();
-        const onAdd = vi.fn();
-        renderPicker({ onAdd });
-
-        await user.click(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' }));
-
-        expect(onAdd).toHaveBeenCalledWith('rec_2');
-    });
-
-    it('marks a member row in TEXT (not colour alone) and offers no add control for it', () => {
-        renderPicker({ memberRecipeIds: ['rec_1'] });
-
-        expect(screen.getByText('In this collection')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Add Weeknight Pasta' })).toBeNull();
-        // The non-member row is unaffected — membership is per row, not per screen.
-        expect(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' })).toBeTruthy();
-    });
-
-    it('keeps a member row control mounted, focusable and aria-disabled, and suppresses re-adds', async () => {
-        const user = userEvent.setup();
-        const onAdd = vi.fn();
-        renderPicker({ memberRecipeIds: ['rec_1'], onAdd });
-
-        const control = screen.getByRole('button', { name: 'Weeknight Pasta is in this collection' });
-
-        expect(control.getAttribute('aria-disabled')).toBe('true');
-        // NOT the `disabled` attribute: a disabled button is removed from the tab order, so a keyboard user
-        // who just activated it would lose focus to <body>.
-        expect((control as HTMLButtonElement).disabled).toBe(false);
-
-        await user.click(control);
-
-        expect(onAdd).not.toHaveBeenCalled();
-    });
-
-    it('marks the in-flight row as busy and suppresses duplicate submissions', async () => {
-        const user = userEvent.setup();
-        const onAdd = vi.fn();
-        renderPicker({ pendingRecipeId: 'rec_1', onAdd });
-
-        const control = screen.getByRole('button', { name: 'Add Weeknight Pasta' });
-
-        expect(within(control).getByText('Adding…')).toBeTruthy();
-        expect(control.getAttribute('aria-disabled')).toBe('true');
-        expect((control as HTMLButtonElement).disabled).toBe(false);
-
-        await user.click(control);
-
-        expect(onAdd).not.toHaveBeenCalled();
-        // Other rows stay live while one add is in flight.
-        await user.click(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' }));
-        expect(onAdd).toHaveBeenCalledWith('rec_2');
-    });
-
-    it('announces a successful add politely (WCAG 4.1.3 status message)', () => {
-        renderPicker({ memberRecipeIds: ['rec_1'], lastAddedRecipeId: 'rec_1' });
-
-        expect(screen.getByRole('status').textContent).toContain('Added Weeknight Pasta');
-    });
-
-    it('announces nothing when no add has succeeded', () => {
-        renderPicker();
-
-        expect(screen.queryByRole('status')).toBeNull();
-    });
-
-    it('surfaces an add failure as an alert without hiding the rows', () => {
-        renderPicker({ addFailed: true });
-
-        expect(screen.getByRole('alert').textContent).toContain('We couldn’t add that recipe. Please try again.');
-        // The failure is per-add, not per-screen: the user must still be able to retry from the row.
-        expect(screen.getByRole('button', { name: 'Add Weeknight Pasta' })).toBeTruthy();
-    });
-
-    it('tints the add-failure alert with the error token, never coral', () => {
-        renderPicker({ addFailed: true });
-        const className = screen.getByRole('alert').className;
-
-        // The banner labelled itself `text-danger-text` (#B1442B) but filled with `bg-coral/10` (#E8917A): two
-        // adjacent-but-different hues in one element, and coral is a brand ACCENT, not the failure register.
-        expect(className).toContain('text-danger-text');
-        expect(className).toContain('bg-danger/10');
-        expect(className).not.toContain('coral');
-    });
-});
-
-/**
- * The picker's two bare TEXT controls (Done, Retry) are read, so they carry the 4.5:1 body-text floor — not
- * the 3:1 accent floor `seafoam` clears. Both painted `text-action-text`: 4.02:1 on the white card at rest and
- * 3.57:1 the moment `hover:bg-action/10` lands, so the pointer alone made a failing label worse. `@commise/ui`'s
- * palette JSDoc states once, authoritatively, where seafoam IS still the right token.
- *
- * The ratio is MEASURED off the rendered class list rather than asserted as a spelling: an
- * `expect(className).toContain('text-ocean-dark')` would keep passing if the palette re-themed that token to
- * near-white.
- */
-describe('CollectionRecipePicker (web) — text controls clear the AA body-text floor', () => {
-    it('keeps the Done control legible at rest AND over its hover tint', () => {
-        renderPicker();
-        const done = screen.getByRole('button', { name: 'Done' });
-
-        expect(utilityContrast(done.className), 'Done at rest').toBeGreaterThanOrEqual(4.5);
-        expect(utilityContrast(done.className, { variant: 'hover' }), 'Done on hover').toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('keeps the load-error Retry control legible at rest AND over its hover tint', () => {
-        renderLoadError();
-        const retry = screen.getByRole('button', { name: 'Try again' });
-
-        expect(utilityContrast(retry.className), 'Retry at rest').toBeGreaterThanOrEqual(4.5);
-        expect(utilityContrast(retry.className, { variant: 'hover' }), 'Retry on hover').toBeGreaterThanOrEqual(4.5);
-    });
-});
-
-/**
- * The picker is a `<section>` on the app background (it paints no surface of its own), so that is the backdrop
- * its search field's focus ring is drawn on — not the field's own white fill, because a Tailwind ring is a
- * spread box-shadow OUTSIDE the border box.
- *
- * The ring shipped as `ring-focus-ring` (2.58:1), under the 3:1 SC 1.4.11 floor (#114).
- */
-describe('CollectionRecipePicker (web) — the search field’s focus ring clears the 3:1 SC 1.4.11 floor', () => {
-    it('rings the search box legibly against the page it sits on', () => {
-        renderPicker();
-
-        const search = screen.getByRole('searchbox', { name: 'Search your recipes' });
-
-        expect(search.className, 'the browser outline is suppressed, so the ring is the whole indicator') //
-            .toContain('outline-none');
-        expect(
-            ringContrast(search.className, { surface: semantic.background }),
-            'picker-search focus ring',
-        ).toBeGreaterThanOrEqual(3);
-    });
-
-    it('out-measures the `seafoam-light` it replaced', () => {
-        renderPicker();
-
-        expect(
-            ringContrast(screen.getByRole('searchbox', { name: 'Search your recipes' }).className, {
-                surface: semantic.background,
-            }),
-        ).toBeGreaterThan(ringContrast('ring-2 ring-seafoam-light', { surface: semantic.background }));
-    });
-});
-
-describe('CollectionRecipePicker (web) — the design-system Button (UI overhaul slice 2)', () => {
-    it('offers a new recipe through a primary plus Button when the caller owns none', () => {
-        renderPicker({ recipes: [], query: '' });
-
-        expectDesignSystemButton(screen.getByRole('button', { name: 'New recipe' }), 'primary', 'plus');
+        expect(onRetry).toHaveBeenCalledOnce();
     });
 });

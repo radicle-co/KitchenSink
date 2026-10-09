@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DetailsDialogOutcome } from '../../details/detailsDialogMachine.js';
 import type { UseVariantDetailsDialogOptions } from '../../details/useVariantDetailsDialog.js';
 import { seedLineKey } from '../../form/lineKey.js';
-import type { GateOutcome } from '../../wizard/model.js';
+import type { GateOutcome } from '../../editor/gate.js';
 import type { IngredientPick, LineCommitOutcome, LineCommitPort, LineCommitTarget } from '../lineCommit.js';
 import type { UseAuthoredFoodCreateOptions } from '../useAuthoredFoodCreate.js';
 
@@ -310,12 +310,15 @@ describe('useIngredientRowEditor — a refusal for pending text (`rowEditorOpenD
     it.each<[string, GateOutcome]>([
         ['a gate that went ahead', { kind: 'send' }],
         ['a gate that waited on a command', { kind: 'busy' }],
-        ['a refusal for a title', { kind: 'refused', errors: { title: 'titleRequired' }, step: 1 }],
-        ['another ingredients code', { kind: 'refused', errors: { ingredients: 'ingredientsEmpty' }, step: 2 }],
-        // The refusal lands on step 1, so step 2's field is not where it points (R7 item 2).
+        ['a refusal for a title', { kind: 'refused', errors: { title: 'titleRequired' }, section: 'details' }],
         [
-            'pending text, landing on step 1',
-            { kind: 'refused', errors: { title: 'titleRequired', ...PENDING }, step: 1 },
+            'another ingredients code',
+            { kind: 'refused', errors: { ingredients: 'ingredientsEmpty' }, section: 'ingredients' },
+        ],
+        // The refusal lands on Details, so the Ingredients field is not where it points (R7 item 2).
+        [
+            'pending text, landing on Details',
+            { kind: 'refused', errors: { title: 'titleRequired', ...PENDING }, section: 'details' },
         ],
     ])('%s raises no focus request', (_case, outcome) => {
         // A field holds pending text, so a level raised here would stand rather than drop by itself.
@@ -327,9 +330,13 @@ describe('useIngredientRowEditor — a refusal for pending text (`rowEditorOpenD
         expect(result.current.pendingFocusRequested).toBe(false);
     });
 
-    it('a refusal that lands on step 2 for pending text raises a level that holds until the field takes it, and the next refusal raises it again', () => {
+    it('a refusal that lands on Ingredients for pending text raises a level that holds until the field takes it, and the next refusal raises it again', () => {
         const { result } = render();
-        const landsOnTwo: GateOutcome = { kind: 'refused', errors: { ...PENDING, steps: 'stepsRequired' }, step: 2 };
+        const landsOnTwo: GateOutcome = {
+            kind: 'refused',
+            errors: { ...PENDING, steps: 'stepsRequired' },
+            section: 'ingredients',
+        };
 
         mocks.entryPending = { target: LINE, text: 'saffron' };
         expect(result.current.pendingFocusRequested).toBe(false);
@@ -354,7 +361,7 @@ describe('useIngredientRowEditor — a refusal for pending text (`rowEditorOpenD
         mocks.entryPending = { target: LINE, text: 'saffron' };
         const { result, rerender } = render();
 
-        act(() => result.current.refused({ kind: 'refused', errors: PENDING, step: 2 }));
+        act(() => result.current.refused({ kind: 'refused', errors: PENDING, section: 'ingredients' }));
         expect(result.current.pendingFocusRequested).toBe(true);
 
         // The cook cleared the text before the field took focus (or a target no field shows held it).
@@ -373,7 +380,7 @@ describe('useIngredientRowEditor — a refusal for pending text (`rowEditorOpenD
 
         expect(result.current.pendingRefused).toBe(false);
 
-        act(() => result.current.refused({ kind: 'refused', errors: PENDING, step: 2 }));
+        act(() => result.current.refused({ kind: 'refused', errors: PENDING, section: 'ingredients' }));
         expect(result.current.pendingRefused).toBe(true);
 
         // Taking focus is not an answer: the sentence stays while the text does (R7, "On the field").
@@ -394,7 +401,13 @@ describe('useIngredientRowEditor — a refusal for pending text (`rowEditorOpenD
         mocks.entryPending = { target: LINE, text: 'saffron' };
         const { result } = render();
 
-        act(() => result.current.refused({ kind: 'refused', errors: { title: 'titleRequired', ...PENDING }, step: 1 }));
+        act(() =>
+            result.current.refused({
+                kind: 'refused',
+                errors: { title: 'titleRequired', ...PENDING },
+                section: 'details',
+            }),
+        );
 
         expect(result.current.pendingRefused).toBe(false);
     });

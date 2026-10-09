@@ -114,12 +114,14 @@ test.describe('recipe lines with no name (plan 002)', () => {
         await page.goto(route(`/recipes/${recipeId}/versions`));
         await expect(page.getByRole('heading', { name: 'Version history' })).toBeVisible();
 
-        await page.getByRole('button', { name: 'Restore version 1' }).click();
+        await page.getByRole('button', { name: 'More actions for version 1' }).click();
+        await page.getByRole('menuitem', { name: 'Restore this version' }).click();
         await expect(page.getByRole('region', { name: 'Version history' }).getByRole('alert')).toHaveText(
             'This version can’t be restored: one of its ingredients no longer exists, and this version didn’t save its name. Nothing was changed. Preview the version to see which one.',
         );
 
-        await page.getByRole('button', { name: 'Preview version 1' }).click();
+        await page.getByRole('button', { name: 'More actions for version 1' }).click();
+        await page.getByRole('menuitem', { name: 'Preview' }).click();
         const dialog = page.getByRole('dialog');
 
         await dialog.getByRole('button', { name: 'Restore this version' }).click();

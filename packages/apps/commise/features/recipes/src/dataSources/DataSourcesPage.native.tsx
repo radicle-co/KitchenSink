@@ -9,7 +9,7 @@
  *
  * Focus (§S16): once the sheet is presented, the reading cursor moves to the title, and again when
  * `headingFocusSignal` advances (a retry that took Try again away). Returning it to the control that opened the sheet
- * is the host's, through `DataSourcesSettingsLink`'s `returnFocusSignal`.
+ * is the host's.
  *
  * @pattern Adapter over `FullScreenSheet` — the title takes the reading cursor on `Modal.onShow`, the one moment a
  *     native modal is on screen (a mount effect runs before it is)

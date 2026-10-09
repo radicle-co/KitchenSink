@@ -15,7 +15,7 @@
 
 appId: io.commise.mobile
 ---
-# Sign in and land on the Home widget surface (the login core waits on the time-of-day "…Chef" greeting).
+# Sign in and land on the Home widget surface (the login core waits on the large title's avatar, "Profile…").
 - runFlow: auth/signinHome.yaml
 
 # The recipe (recent-recipes) widget renders on Home. The wait absorbs the lazy widget-chunk load plus the
@@ -53,7 +53,7 @@ appId: io.commise.mobile
       when:
           visible: '${E2E_RECIPE_LAMB}'
       commands:
-          # The card is a single accessible button named by the recipe title (the shared `RecipeCard` root
+          # The card is a single accessible LINK named by the recipe title (the shared `RecipeCard` root
           # wraps its content in ONE `PressScale` Pressable labelled with the title).
           - tapOn: '${E2E_RECIPE_LAMB}'
 
@@ -62,7 +62,10 @@ appId: io.commise.mobile
           - extendedWaitUntil:
                 visible: '${E2E_RECIPE_LAMB}'
                 timeout: 40000
-          - assertVisible: 'Ingredients'
+          - scrollUntilVisible:
+                element: 'Ingredients'
+                direction: DOWN
+                timeout: 20000
           # ⚠️ `Instructions` and `Nutrition (per serving)` were asserted BLIND here, and can no longer be: the
           # seeded lamb now carries five ingredient lines and four steps
           # (`packages/services/recipe-service/src/database/seed.ts`), which pushes both headings roughly a
@@ -72,7 +75,7 @@ appId: io.commise.mobile
           # (unlike a `when: visible` guard, which would SKIP it). Same remedy `recipes/listDetail.yaml`
           # applies to the same two headings on the same screen.
           - scrollUntilVisible:
-                element: 'Instructions'
+                element: 'Steps'
                 direction: DOWN
                 timeout: 20000
           - scrollUntilVisible:
@@ -81,10 +84,11 @@ appId: io.commise.mobile
                 timeout: 20000
 
           # We really left Home: the time-of-day greeting is gone.
-          - assertNotVisible: '.*Chef.*'
+          # We really left Home: its recent-recipes widget is gone.
+          - assertNotVisible: 'Recent recipes'
 
-          # Back must land on the recipe LIST, not on a dead end — proving `RecipesScreen` was seeded with the
-          # list beneath the pushed detail. `Back` lives INSIDE the detail's own ScrollView, so the walk above
+          # Back must land on HOME, not on a dead end: the detail was pushed onto the Home tab's own stack
+          # (slice 3, ADR-0056), so Back pops it there. `Back` lives INSIDE the detail's own ScrollView, so the walk above
           # left it off the TOP of the screen — scroll back up to it rather than tapping blind (the idiom
           # `recipes/listDetail.yaml` uses after the same walk).
           #
@@ -106,5 +110,8 @@ appId: io.commise.mobile
                 text: 'Back'
                 above:
                     text: '${E2E_RECIPE_LAMB}'
-          - assertVisible: 'Recipes'
+          - scrollUntilVisible:
+                element: 'Recent recipes'
+                direction: UP
+                timeout: 20000
           - assertVisible: 'New recipe'

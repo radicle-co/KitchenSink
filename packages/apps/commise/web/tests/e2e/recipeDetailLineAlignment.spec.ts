@@ -113,7 +113,7 @@ async function measure(row: Locator, texts: { quantity: string; name: string; fi
             return null;
         };
 
-        const target = item.querySelector('[role="checkbox"]')?.getBoundingClientRect();
+        const target = item.querySelector('[role="checkbox"] [aria-hidden="true"]')?.getBoundingClientRect();
 
         return {
             quantity: firstLineOf(wanted.quantity),

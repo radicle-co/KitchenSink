@@ -1,39 +1,39 @@
 /**
- * Native component tests for the discovery LOAD ERROR body (react-native-web under jsdom). Mirrors
- * `RecipeDiscoveryLoadError.test.tsx`; moved from the retired `RecipeDiscoveryList.native.test.tsx` ("error state").
+ * The native discovery LOAD ERROR body, the twin of `RecipeDiscoveryLoadError.test.tsx` (`docs/design/uiOverhaul/
+ * buildSpec.md` §4.6): the message and a Try again under the field, with the previous results kept under them.
+ *
+ * ⚠️ REWRITTEN for slice 5 with the web test: the body is no longer a card that replaces the results, so its surface
+ * assertions go; the assertive live region (`accessibilityRole="alert"` alone is silent on iOS, SC 4.1.3) is kept.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { Text } from 'react-native';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { LocaleProvider } from '@commise/i18n/react';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDiscoveryLoadError } from '../RecipeDiscoveryLoadError.native.js';
 
 afterEach(cleanup);
 
-describe('RecipeDiscoveryLoadError (native)', () => {
-    it('shows an alert with a retry action that reports upward', () => {
-        const onRetry = vi.fn();
-        render(<RecipeDiscoveryLoadError onRetry={onRetry} />);
+const inLocale = (ui: React.ReactElement) => <LocaleProvider locale="en">{ui}</LocaleProvider>;
 
-        expect(screen.getByRole('alert').textContent).toContain('We couldn’t load recipes.');
-        // Spoken assertively through `LiveRegion`: `accessibilityRole="alert"` alone is silent on iOS (SC 4.1.3).
-        expect(screen.getByText('We couldn’t load recipes.').getAttribute('aria-live')).toBe('assertive');
+describe('RecipeDiscoveryLoadError (native)', () => {
+    it('says the search failed, spoken assertively, with a Try again that reports upward', () => {
+        const onRetry = vi.fn();
+        render(inLocale(<RecipeDiscoveryLoadError onRetry={onRetry} />));
+
+        expect(screen.getByText('We couldn’t search right now.').getAttribute('aria-live')).toBe('assertive');
 
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it('clears the 44pt touch floor on the retry action', () => {
-        render(<RecipeDiscoveryLoadError onRetry={() => undefined} />);
+    it('keeps the previous results under the message', () => {
+        render(inLocale(<RecipeDiscoveryLoadError onRetry={vi.fn()} previous={<Text>PREVIOUS RESULTS</Text>} />));
 
-        // Every other control on the surface carries `minHeight: 44`; the retry was once a bare `Pressable` around a
-        // `Text` — a ~20pt target.
-        const retry = screen.getByRole('button', { name: 'Try again' });
-        const surface = [retry, ...Array.from(retry.querySelectorAll<HTMLElement>('*'))].find(
-            (node) => window.getComputedStyle(node).minHeight === '44px',
-        );
-
-        expect(surface, 'the retry action does not reach a 44pt target').toBeDefined();
+        expect(screen.getByText('PREVIOUS RESULTS')).toBeTruthy();
     });
 });

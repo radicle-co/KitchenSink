@@ -49,7 +49,13 @@ import type { IngredientFoodNutritionRequest, ParseJobResponse, RecipeSearchQuer
 import type { RecipeServiceClient } from './client.js';
 import { isSourceUnavailableError } from './errors.js';
 import { shouldRetryRecipeServiceFailure } from './retryPolicy.js';
-import type { ListCollectionsParams, ListRecipesParams } from './types.js';
+import { fetchLibraryChunk, type LibraryChunk } from './libraryChunk.js';
+import type { ListCollectionsParams, ListRecipesParams, RecipeListSortBy } from './types.js';
+
+/** What the whole-library read is keyed by: only the server's sort — the paging is the read's own. */
+export interface LibraryParams {
+    readonly sortBy?: RecipeListSortBy;
+}
 
 /** One food ref of the batch food nutrition read: a root or a variant. */
 type FoodNutritionRef = IngredientFoodNutritionRequest['refs'][number];
@@ -110,6 +116,11 @@ export const recipeServiceKeys = {
      */
     recipeListInfinite: (params: ListRecipesParams = {}) =>
         ['recipe-service', 'recipes', 'list', 'infinite', params] as const,
+    /**
+     * The whole-library read My recipes filters on the device (`libraryChunk.ts`): chunks of up to 500 recipes, a
+     * third SHAPE of the same region, so its own segment, still under `recipeLists` for every broad invalidation.
+     */
+    recipeLibrary: (params: LibraryParams = {}) => ['recipe-service', 'recipes', 'list', 'library', params] as const,
     recipe: (id: string) => ['recipe-service', 'recipes', 'detail', id] as const,
     recipeVersions: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'versions'] as const,
     recipeVersion: (id: string, versionNumber: number) =>
@@ -367,6 +378,23 @@ export function recipeQueries(client: RecipeServiceClient) {
                 queryFn: ({ pageParam }) => client.listRecipes({ ...params, page: pageParam }),
                 initialPageParam: 1,
                 getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
+                staleTime: RECIPE_STANDARD_STALE_TIME_MS,
+            }),
+        /**
+         * `GET /api/v1/recipes`, read as the whole library in chunks of up to 500 recipes — what My recipes searches,
+         * filters and counts on the device (`libraryChunk.ts`). Each "Load more" reads the next chunk.
+         */
+        library: (params: LibraryParams = {}) =>
+            infiniteQueryOptions({
+                queryKey: recipeServiceKeys.recipeLibrary(params),
+                queryFn: ({ pageParam }) =>
+                    fetchLibraryChunk(client, {
+                        firstPage: pageParam,
+                        ...(params.sortBy === undefined ? {} : { sortBy: params.sortBy }),
+                    }),
+                initialPageParam: 1,
+                getNextPageParam: (lastChunk: LibraryChunk) =>
+                    lastChunk.hasMore ? lastChunk.nextFirstPage : undefined,
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
         /** `GET /api/v1/recipes/{id}` — a single recipe. */

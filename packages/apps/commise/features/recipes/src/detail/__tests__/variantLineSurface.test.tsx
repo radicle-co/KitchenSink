@@ -9,7 +9,7 @@
  * same set (§14).
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render as renderUnscoped, screen, within } from '@testing-library/react';
 
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { makeRecipeDetail, idleUnreachableRetry } from '../../__fixtures__/index.js';
@@ -22,6 +22,12 @@ import {
 import { QUANTITY_LINE_SHAPES } from '../__fixtures__/quantityLineShapes.js';
 import { RecipeDetailView } from '../RecipeDetailView.js';
 import { resetServingScale } from '../servingScale.js';
+import type { ReactElement } from 'react';
+import { DetailTestScope } from '../../__fixtures__/detailScope.js';
+
+/** Every detail renders inside its page's scroll host and the session’s cook-marks scope, as the app mounts them. */
+const render = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
+    renderUnscoped(ui, { wrapper: DetailTestScope });
 
 afterEach(() => {
     cleanup();
@@ -30,15 +36,10 @@ afterEach(() => {
 
 const PART_TEXTS = BRISKET_FLAT_HALF_PARTS.map((part) => part.text);
 
-/** The list item that holds the checkbox named `name`. */
+/** The ingredient row (the checkbox) named `name`. */
 function lineItem(name: string): HTMLElement {
-    const item = screen.getByRole('checkbox', { name }).closest('li');
-
-    if (item === null) {
-        throw new Error(`No list item holds the checkbox "${name}".`);
-    }
-
-    return item;
+    // The whole row IS the checkbox (build spec §6.3): its children are the drawn box and the one text block.
+    return screen.getByRole('checkbox', { name });
 }
 
 /** The parts a line's dotted line shows, in order: each part is one `lang="en"` span of the primitive. */
@@ -90,7 +91,8 @@ describe('RecipeDetailView (web) — a variant-bound line (F1/AE1 display, R25)'
             />,
         );
 
-        const item = lineItem(`2 lb beef brisket, ${BRISKET_FLAT_HALF_SPOKEN}`);
+        // The row's name is the whole line, so it ends with the cook's preparation.
+        const item = lineItem(`2 lb beef brisket, ${BRISKET_FLAT_HALF_SPOKEN}, sliced thin`);
         const name = within(item).getByText('beef brisket');
         const firstPart = item.querySelector('[lang="en"]');
         const preparation = within(item).getByText('sliced thin');

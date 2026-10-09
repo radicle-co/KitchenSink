@@ -20,6 +20,7 @@ import {
     filtersFromQueryString,
 } from '@commise/features-recipes';
 import { LocaleProvider } from '@commise/i18n/react';
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { createAppQueryClient } from '@commise/query';
 import { isInvalidRequestError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
@@ -34,10 +35,9 @@ import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { renderWithRecipeClient } from '@commise/test-utils';
-
 import { RecipeDiscoveryContainer } from '@/components/recipes/RecipeDiscoveryContainer';
 
+import { renderWithSnackbar } from './__fixtures__/renderCollectionDetail';
 import { makeRecipe } from './__fixtures__/recipeFixtures';
 
 const { pushMock, replaceStateMock, nav } = vi.hoisted(() => ({
@@ -65,6 +65,29 @@ beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.stubGlobal('history', { ...window.history, replaceState: replaceStateMock });
 });
+
+/**
+ * Calories live on the grid card; the compact card (a narrow `<main>`) is the cover, the title and the footer only. jsdom
+ * measures nothing, so the page is rendered inside a `<main>` 1000 px wide, which is the width the grid card is chosen at.
+ */
+const MAIN_WIDTH_PX = 1000;
+
+beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(MAIN_WIDTH_PX);
+});
+
+function renderDiscovery(
+    client: ReturnType<typeof createFakeRecipeServiceClient>,
+    options?: Parameters<typeof renderWithSnackbar>[2],
+) {
+    return renderWithSnackbar(
+        <main>
+            <RecipeDiscoveryContainer locale="en" />
+        </main>,
+        client,
+        options,
+    );
+}
 
 const PAGE_ONE = '00000000-0000-4000-8000-00000000000a';
 const PAGE_TWO = '00000000-0000-4000-8000-00000000000b';
@@ -134,10 +157,23 @@ const settle = async (): Promise<void> => {
 };
 
 describe('RecipeDiscoveryContainer — the deferred calorie lookup', () => {
+    // The compact card (a narrow `<main>`, or none measured yet) draws no figure. A batch for it would have nobody to read
+    // its promise, so a rejection would surface as an unhandled one on every narrow phone whose food service had a bad minute.
+    it('asks for NO figures while the cards are compact, since a compact card draws none', async () => {
+        const { client, batch } = twoPageClient();
+
+        renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
+        await settle();
+
+        expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+        expect(screen.queryByRole('img', { name: /cal/u })).toBeNull();
+        expect(batch).not.toHaveBeenCalled();
+    });
+
     it('issues ONE batch for the first page of results', async () => {
         const { client, batch } = twoPageClient();
 
-        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+        renderDiscovery(client);
         await settle();
 
         expect(screen.getByRole('img', { name: '420 cal' })).toBeInTheDocument();
@@ -150,7 +186,7 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup', () => {
         const user = userEvent.setup();
         const { client, batch } = twoPageClient();
 
-        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+        renderDiscovery(client);
         await settle();
 
         await act(async () => {
@@ -172,7 +208,7 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup', () => {
         const { client } = twoPageClient();
         vi.spyOn(client, 'getRecipeNutrition').mockReturnValue(new Promise<RecipeNutritionResponse>(() => undefined));
 
-        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+        renderDiscovery(client);
         await settle();
 
         expect(screen.getByText('Loading calories')).toBeInTheDocument();
@@ -185,12 +221,12 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup', () => {
             const { client } = twoPageClient();
             vi.spyOn(client, 'getRecipeNutrition').mockRejectedValue(new Error('food service unavailable'));
 
-            renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+            renderDiscovery(client);
             await act(async () => {
                 await vi.advanceTimersByTimeAsync(5_000);
             });
 
-            expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+            expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
             expect(screen.queryByText('Loading calories')).toBeNull();
             expect(screen.queryByRole('img', { name: /cal/u })).toBeNull();
         } finally {
@@ -249,7 +285,7 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup on the browse
             nutrition: Object.fromEntries(ids.map((id) => [id, known(300)])),
         }));
 
-        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client, { queryClient });
+        renderDiscovery(client, { queryClient });
         await settle();
 
         expect(screen.getByRole('heading', { name: 'Trending' })).toBeInTheDocument();
@@ -299,25 +335,23 @@ describe('RecipeDiscoveryContainer — a typed search never waits on the calorie
     async function searchFromTheRails(client: ReturnType<typeof createFakeRecipeServiceClient>): Promise<void> {
         nav.query = '';
         const user = userEvent.setup();
-        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client, {
-            queryClient: createAppQueryClient('browser'),
-        });
+        renderDiscovery(client, { queryClient: createAppQueryClient('browser') });
 
-        await waitFor(() => expect(screen.getAllByRole('button', { name: 'Weeknight Pasta' })).toHaveLength(3), {
+        await waitFor(() => expect(screen.getAllByRole('link', { name: 'Weeknight Pasta' })).toHaveLength(3), {
             timeout: RESULTS_BOUND_MS,
         });
 
-        await user.type(screen.getByRole('searchbox', { name: 'Search public recipes' }), 'paella');
+        await user.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'paella');
     }
 
     /** The results list for the term is on screen and the rails are gone, within the bound. */
     async function expectResultsReplaceRails(): Promise<void> {
         await waitFor(
             () => {
-                expect(screen.getAllByText('Showing 1 recipe for “paella”').length).toBeGreaterThan(0);
+                expect(screen.getAllByText('1 recipe for “paella”').length).toBeGreaterThan(0);
                 expect(screen.queryByRole('heading', { name: 'Trending' })).toBeNull();
-                expect(screen.queryByRole('button', { name: 'Weeknight Pasta' })).toBeNull();
-                expect(screen.getAllByRole('button', { name: 'Seafood Paella' })).toHaveLength(1);
+                expect(screen.queryByRole('link', { name: 'Weeknight Pasta' })).toBeNull();
+                expect(screen.getAllByRole('link', { name: 'Seafood Paella' })).toHaveLength(1);
             },
             { timeout: RESULTS_BOUND_MS },
         );
@@ -377,7 +411,11 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup across the se
             <LocaleProvider locale="en">
                 <QueryClientProvider client={queryClient}>
                     <RecipeServiceProvider client={client}>
-                        <RecipeDiscoveryContainer locale="en" />
+                        <SnackbarHost>
+                            <main>
+                                <RecipeDiscoveryContainer locale="en" />
+                            </main>
+                        </SnackbarHost>
                     </RecipeServiceProvider>
                 </QueryClientProvider>
             </LocaleProvider>
@@ -390,8 +428,8 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup across the se
         const html = renderToString(page(client, await prefetchedQueryClient(client)));
 
         expect(html, 'the prefetched results ship in the HTML').toContain('Weeknight Pasta');
-        // Each card still reserves the chip's box, so the figure arriving after hydration shifts nothing.
-        expect(html).toContain('Loading calories');
+        // The server renders at the narrow width, where the compact card carries no figure and so reserves no box.
+        expect(html).not.toContain('Loading calories');
         expect(batch).not.toHaveBeenCalled();
     });
 

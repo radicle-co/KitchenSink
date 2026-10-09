@@ -27,6 +27,9 @@ import type { HomeNavItemId } from '@commise/features-core';
 
 import { SHELL_SURFACE_IDS, type ShellSurfaceId } from '@/components/app/shellSurfaces';
 
+// `/recipes` reads its list/grid cookie (slice 4); there is no request scope under vitest.
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
+
 vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }));
 vi.mock('next/navigation', () => ({
     redirect: vi.fn((url: string) => {
@@ -58,8 +61,8 @@ const localeParams = () => ({ params: Promise.resolve({ locale: 'en' }) });
 const idParams = () => ({ params: Promise.resolve({ locale: 'en', id: 'rec_1' }) });
 
 /**
- * Every route whose page wraps the shell itself. `/profile`, `/account`, and `/settings` wrap inside their own
- * `*Content` component instead (their suites assert the shell there), so they appear only in the
+ * Every route whose page wraps the shell itself. `/profile` wraps inside its own
+ * `*Content` component instead (its suite asserts the shell there), so it appears only in the
  * `force-dynamic` table below.
  */
 const shellRoutes: readonly ShellRoute[] = [
@@ -76,20 +79,6 @@ const shellRoutes: readonly ShellRoute[] = [
         props: localeParams,
         activeId: 'recipes',
         titleId: 'recipeNew',
-    },
-    {
-        path: '/[locale]/recipes/parse',
-        load: () => import('../[locale]/recipes/parse/page'),
-        props: localeParams,
-        activeId: 'recipes',
-        titleId: 'recipeParse',
-    },
-    {
-        path: '/[locale]/recipes/parse/[jobId]',
-        load: () => import('../[locale]/recipes/parse/[jobId]/page'),
-        props: () => ({ params: Promise.resolve({ locale: 'en', jobId: '00000000-0000-4000-8000-00000000d001' }) }),
-        activeId: 'recipes',
-        titleId: 'recipeParseReview',
     },
     {
         path: '/[locale]/recipes/[id]',
@@ -116,7 +105,7 @@ const shellRoutes: readonly ShellRoute[] = [
         path: '/[locale]/discover',
         load: () => import('../[locale]/discover/page'),
         props: () => ({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) }),
-        activeId: 'recipes',
+        activeId: 'discover',
         titleId: 'discover',
     },
     {
@@ -127,32 +116,11 @@ const shellRoutes: readonly ShellRoute[] = [
         titleId: 'collections',
     },
     {
-        path: '/[locale]/collections/new',
-        load: () => import('../[locale]/collections/new/page'),
-        props: localeParams,
-        activeId: 'recipes',
-        titleId: 'collectionNew',
-    },
-    {
         path: '/[locale]/collections/[id]',
         load: () => import('../[locale]/collections/[id]/page'),
         props: idParams,
         activeId: 'recipes',
         titleId: 'collectionDetail',
-    },
-    {
-        path: '/[locale]/collections/[id]/add',
-        load: () => import('../[locale]/collections/[id]/add/page'),
-        props: idParams,
-        activeId: 'recipes',
-        titleId: 'collectionAddRecipes',
-    },
-    {
-        path: '/[locale]/collections/[id]/rename',
-        load: () => import('../[locale]/collections/[id]/rename/page'),
-        props: idParams,
-        activeId: 'recipes',
-        titleId: 'collectionRename',
     },
 ];
 
@@ -160,8 +128,6 @@ const shellRoutes: readonly ShellRoute[] = [
 const contentSplitRoutes: readonly { readonly path: string; readonly load: () => Promise<{ dynamic?: string }> }[] = [
     { path: '/[locale]', load: () => import('../[locale]/page') },
     { path: '/[locale]/profile', load: () => import('../[locale]/profile/page') },
-    { path: '/[locale]/account', load: () => import('../[locale]/account/page') },
-    { path: '/[locale]/settings', load: () => import('../[locale]/settings/page') },
     { path: '/[locale]/legal/sources', load: () => import('../[locale]/legal/sources/page') },
 ];
 
@@ -263,8 +229,6 @@ describe('every authenticated route names ITSELF in the top bar', () => {
             ...shellRoutes.map((route) => route.titleId),
             'home',
             'profile',
-            'account',
-            'settings',
             'dataSources',
             // The 404 page: no route renders it, a boundary does (`NotFoundSurface.test.tsx`).
             'notFound',

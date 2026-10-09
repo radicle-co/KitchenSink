@@ -1,17 +1,17 @@
 import { expect, test } from '@playwright/test';
 
-import { route } from './utils/basePath';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
+import { addStep, openNewRecipe } from './utils/recipeEditor';
 
 /**
- * U16 — the create-your-own-food story, driven through the real create wizard (Next dev server + Clerk
+ * U16 — the create-your-own-food story, driven through the real one-page editor (Next dev server + Clerk
  * session + client hooks + routing) with the recipe-service HTTP contract intercepted.
  *
  * Playwright IS this feature's UI integration test (repo testing policy): what it proves beyond the
  * component tier is that the whole food `POST /api/v1/foods/authored` → recipe `POST /api/v1/ingredients/by-food` →
- * line → recipe publish round-trip holds through the live clients and the real wizard (plan 002 S5.5) — the cook
+ * line → recipe publish round-trip holds through the live clients and the real editor (plan 002 S5.5) — the cook
  * authors a food and uses it in a recipe WITHOUT LEAVING THE ADD ROW (the unit's verification line), and food's
  * per-author duplicate offers the existing food, which Use that one admits the same way.
  *
@@ -28,14 +28,11 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
         await mockRecipeApi(page, { viewerId, tier: 'premium', ownFoods });
         await mockFoodApi(page, { authored: ownFoods });
 
-        await page.goto(route('/recipes/new'));
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
+        await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Grandma Blend Bowl');
         await page.getByRole('radio', { name: 'Easy' }).click();
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
 
-        // Step 2: the food is not listed, so the create option is the door, and it is the list's LAST option (O3).
-        await expect(page.getByText('Step 2 of 4')).toBeVisible();
+        // Ingredients: the food is not listed, so the create option is the door, and it is the list's LAST option (O3).
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('grandma blend zq');
         const list = page.getByRole('listbox', { name: 'Food suggestions for ingredient 1' });
         await expect(list.getByRole('option').last()).toHaveText('Create my own food');
@@ -74,10 +71,7 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
         await expect(page.getByRole('button', { name: 'About grandma blend zq' })).toHaveAccessibleDescription('');
 
         // …and the id is real enough to publish with (the falsifiable end of the story).
-        await page.getByRole('button', { name: 'Next: Instructions' }).click();
-        await page.getByRole('button', { name: 'Add step' }).click();
-        await page.getByLabel('Step 1 instruction').fill('Blend, then chill.');
-        await page.getByRole('button', { name: 'Next: Review' }).click();
+        await addStep(page, 'Blend, then chill.');
         await page.getByRole('button', { name: 'Publish' }).click();
         await expect(page.getByRole('heading', { name: 'E2E Grandma Blend Bowl' })).toBeVisible();
     });
@@ -91,10 +85,9 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
         await mockRecipeApi(page, { viewerId, tier: 'premium', ownFoods });
         await mockFoodApi(page, { authored: ownFoods });
 
-        await page.goto(route('/recipes/new'));
+        await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Duplicate Blend');
         await page.getByRole('radio', { name: 'Easy' }).click();
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
 
         /** Open the create form for `query` and submit a valid macro profile. */
         const createOnce = async (query: string): Promise<void> => {
@@ -128,10 +121,9 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
         await mockRecipeApi(page, { viewerId, tier: 'premium', ownFoods });
         await mockFoodApi(page, { authored: ownFoods });
 
-        await page.goto(route('/recipes/new'));
+        await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Invalid Blend');
         await page.getByRole('radio', { name: 'Easy' }).click();
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
 
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('empty blend zq');
         await page.getByRole('option', { name: 'Create my own food' }).click();

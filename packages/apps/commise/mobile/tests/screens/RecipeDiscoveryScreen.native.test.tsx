@@ -19,6 +19,7 @@ import { createElement, type ReactElement, type ReactNode } from 'react';
 
 import { RECENT_SEARCHES_STORAGE_KEY } from '@commise/features-recipes';
 import { renderWithRecipeClient } from '@commise/test-utils';
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 
@@ -74,7 +75,7 @@ let client: ReturnType<typeof createFakeRecipeServiceClient>;
 let queryClient: QueryClient;
 
 function render(ui: ReactElement) {
-    return renderWithRecipeClient(ui, client, { queryClient });
+    return renderWithRecipeClient(<SnackbarHost>{ui}</SnackbarHost>, client, { queryClient });
 }
 
 /** Answer every search with `response`. */
@@ -108,10 +109,12 @@ describe('RecipeDiscoveryScreen — loading and error', () => {
     it('keeps the heading and search field on screen, with the loading body under them, while the search runs', () => {
         vi.spyOn(client, 'searchRecipes').mockReturnValue(new Promise(() => {}));
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={resultsMode} />);
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
 
-        expect(screen.getByRole('heading', { name: 'Discover recipes' })).toBeTruthy();
-        expect(screen.getByLabelText('Search public recipes')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Discover' })).toBeTruthy();
+        expect(screen.getByLabelText('Search recipes')).toBeTruthy();
         expect(screen.getByLabelText('Loading recipes')).toBeTruthy();
     });
 
@@ -121,14 +124,16 @@ describe('RecipeDiscoveryScreen — loading and error', () => {
             .mockRejectedValueOnce(new Error('network down'))
             .mockResolvedValue(makeSearchResponse([makeRecipeSearchResult({ id: 'rec_1', title: 'Fish Tacos' })]));
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={resultsMode} />);
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
 
         expect(await screen.findByRole('alert')).toBeTruthy();
         await act(async () => {
             fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         });
 
-        expect(await screen.findByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
+        expect(await screen.findByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
         expect(search).toHaveBeenCalledTimes(2);
     });
 
@@ -139,11 +144,13 @@ describe('RecipeDiscoveryScreen — loading and error', () => {
             )
             .mockRejectedValueOnce(new Error('network down'));
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={resultsMode} />);
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
         fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
 
         expect(await screen.findByText('We couldn’t load more recipes.')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
     });
 });
@@ -157,13 +164,15 @@ describe('RecipeDiscoveryScreen — a failed refresh of the results on screen', 
             .mockRejectedValueOnce(new Error('network down'))
             .mockResolvedValue(response);
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={resultsMode} />);
-        await screen.findByRole('button', { name: 'Fish Tacos' });
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
+        await screen.findByRole('link', { name: 'Fish Tacos' });
         await act(async () => {
             await queryClient.refetchQueries({ queryKey: recipeServiceKeys.recipeSearches });
         });
 
-        expect(screen.getByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
         expect(screen.queryByText('We couldn’t load recipes.')).toBeNull();
         expect((await screen.findAllByText('We couldn’t refresh these results.')).length).toBeGreaterThan(0);
 
@@ -175,7 +184,7 @@ describe('RecipeDiscoveryScreen — a failed refresh of the results on screen', 
         // The pressed Try again is gone, so the screen-reader cursor goes to the heading, across the boundary.
         await waitFor(() =>
             expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
-                screen.getByRole('heading', { name: 'Discover recipes' }),
+                screen.getByRole('heading', { name: 'Discover' }),
                 'focus',
             ),
         );
@@ -187,9 +196,9 @@ describe('RecipeDiscoveryScreen — a failed refresh of the browse rails on scre
         const response = makeSearchResponse([makeRecipeSearchResult({ id: 'rec_1', title: 'Curated Dish' })]);
         const search = answerSearches(response);
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
         await screen.findByRole('heading', { name: 'Trending' });
-        await waitFor(() => expect(screen.getAllByRole('button', { name: 'Curated Dish' }).length).toBeGreaterThan(2));
+        await waitFor(() => expect(screen.getAllByRole('link', { name: 'Curated Dish' }).length).toBeGreaterThan(2));
 
         search.mockRejectedValue(new Error('down'));
         await act(async () => {
@@ -218,7 +227,13 @@ describe('RecipeDiscoveryScreen — initial filters (D6 tag deep-link)', () => {
     it('runs the first search pre-filtered by the initial tag', () => {
         const search = answerSearches(makeSearchResponse());
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={{ tags: ['grill'] }} />);
+        render(
+            <RecipeDiscoveryScreen
+                onEditRecipe={() => undefined}
+                onSelectRecipe={noop}
+                initialFilters={{ tags: ['grill'] }}
+            />,
+        );
 
         // Still the SAME visibility-scoped search — the preset tag only seeds its params.
         expect(search).toHaveBeenCalledWith(expect.objectContaining({ tags: ['grill'] }));
@@ -233,19 +248,43 @@ describe('RecipeDiscoveryScreen — populated (result list)', () => {
     it('forwards a selected recipe upward', async () => {
         const onSelectRecipe = vi.fn();
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={onSelectRecipe} initialFilters={resultsMode} />);
-        fireEvent.click(await screen.findByRole('button', { name: 'Fish Tacos' }));
+        render(
+            <RecipeDiscoveryScreen
+                onEditRecipe={() => undefined}
+                onSelectRecipe={onSelectRecipe}
+                initialFilters={resultsMode}
+            />,
+        );
+        fireEvent.click(await screen.findByRole('link', { name: 'Fish Tacos' }));
 
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_9');
     });
 
-    it('clones the selected recipe from its clone action', async () => {
+    it('saves a copy of the selected recipe from its Save a copy control', async () => {
         const cloneRecipe = vi.spyOn(client, 'cloneRecipe').mockReturnValue(new Promise(() => {}));
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={resultsMode} />);
-        fireEvent.click(await screen.findByRole('button', { name: 'Clone Fish Tacos' }));
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
+        fireEvent.click(await screen.findByRole('button', { name: 'Save a copy of Fish Tacos' }));
 
         await waitFor(() => expect(cloneRecipe).toHaveBeenCalledWith('rec_9'));
+        expect(await screen.findByRole('button', { name: 'Saving a copy of Fish Tacos' })).toBeTruthy();
+    });
+
+    it('opens nothing by itself once the copy exists; the snackbar’s Edit opens the COPY', async () => {
+        vi.spyOn(client, 'cloneRecipe').mockResolvedValue({ id: 'rec_copy' } as never);
+        const onEditRecipe = vi.fn();
+
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={onEditRecipe} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
+        fireEvent.click(await screen.findByRole('button', { name: 'Save a copy of Fish Tacos' }));
+
+        expect(await screen.findByText('Saved a copy to My recipes.')).toBeTruthy();
+        expect(onEditRecipe).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+        expect(onEditRecipe).toHaveBeenCalledWith('rec_copy');
     });
 });
 
@@ -253,12 +292,12 @@ describe('RecipeDiscoveryScreen — browse rails (U7)', () => {
     it('shows the curated rails (not a bare stream) when nothing is active, with no sort', async () => {
         answerSearches(makeSearchResponse([makeRecipeSearchResult({ id: 'rec_1', title: 'Curated' })]));
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
 
         expect(await screen.findByRole('heading', { name: 'Trending' })).toBeTruthy();
         expect(screen.getByRole('heading', { name: 'New' })).toBeTruthy();
         expect(screen.getByRole('heading', { name: 'Quick' })).toBeTruthy();
-        expect(screen.queryByRole('radiogroup', { name: 'Sort by' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Sort:/ })).toBeNull();
     });
 
     it('⛔ keeps a rail that failed to load to ITSELF — the other rails render, and its Try again loads it', async () => {
@@ -273,10 +312,10 @@ describe('RecipeDiscoveryScreen — browse rails (U7)', () => {
             ]);
         });
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
 
         expect(await screen.findByText('Couldn’t load this row.')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'most-cloned dish' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'most-cloned dish' })).toBeTruthy();
         expect(screen.getByRole('heading', { name: 'Quick' })).toBeTruthy();
 
         quickFails = false;
@@ -285,7 +324,7 @@ describe('RecipeDiscoveryScreen — browse rails (U7)', () => {
             fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         });
 
-        expect(await screen.findByRole('button', { name: 'quickest dish' })).toBeTruthy();
+        expect(await screen.findByRole('link', { name: 'quickest dish' })).toBeTruthy();
         expect(screen.queryByText('Couldn’t load this row.')).toBeNull();
         // The pressed Try again unmounted as the rail reloaded, so the cursor went to that rail's own heading.
         const quick = screen.getByRole('heading', { name: 'Quick' });
@@ -300,8 +339,8 @@ describe('RecipeDiscoveryScreen — browse rails (U7)', () => {
     it('⛔ refreshes THE RAILS from a pull while browsing — not the main search hidden behind them (review D1)', async () => {
         const search = answerSearches(makeSearchResponse([makeRecipeSearchResult({ id: 'rec_1', title: 'Curated' })]));
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
-        await waitFor(() => expect(screen.getAllByRole('button', { name: 'Curated' }).length).toBeGreaterThan(2));
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
+        await waitFor(() => expect(screen.getAllByRole('link', { name: 'Curated' }).length).toBeGreaterThan(2));
         search.mockClear();
 
         await act(async () => {
@@ -319,19 +358,19 @@ describe('RecipeDiscoveryScreen — browse rails (U7)', () => {
             params?.query === undefined ? Promise.resolve(makeSearchResponse()) : new Promise(() => {}),
         );
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
         await screen.findByRole('heading', { name: 'Trending' });
 
-        fireEvent.change(screen.getByLabelText('Search public recipes'), { target: { value: 'l' } });
+        fireEvent.change(screen.getByLabelText('Search recipes'), { target: { value: 'l' } });
 
-        expect(screen.getByRole('radiogroup', { name: 'Sort by' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Sort: Relevance' })).toBeTruthy();
         expect(screen.getByRole('heading', { name: 'Trending' })).toBeTruthy();
     });
 
     it('leaves the rails for a rail’s full list, and returns to them through Back to browse', async () => {
         const search = answerSearches(makeSearchResponse([makeRecipeSearchResult({ id: 'rec_1', title: 'Curated' })]));
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
         fireEvent.click(await screen.findByRole('button', { name: 'See all Trending' }));
 
         await waitFor(() => expect(screen.queryByRole('heading', { name: 'Trending' })).toBeNull());
@@ -371,31 +410,33 @@ describe('RecipeDiscoveryScreen — a newer search pending behind the results on
                 params?.query === 'lamb' ? lamb.promise : Promise.resolve(makeSearchResponse([tacos])),
             );
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={resultsMode} />);
-        await screen.findByRole('button', { name: 'Fish Tacos' });
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
+        await screen.findByRole('link', { name: 'Fish Tacos' });
         const settledHidden = hiddenCount();
 
-        fireEvent.change(screen.getByLabelText('Search public recipes'), { target: { value: 'lamb' } });
+        fireEvent.change(screen.getByLabelText('Search recipes'), { target: { value: 'lamb' } });
         await vi.waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ query: 'lamb' })));
 
-        // The pending bar arrives after its delay; nothing is marked busy.
-        await vi.waitFor(() => expect(hiddenCount()).toBe(settledHidden + 1));
+        // The pending bar arrives after its delay; nothing is marked busy. Typing also brings in the sort control, whose
+        // chevron is hidden from assistive tech too, so the bar is the second addition.
+        await vi.waitFor(() => expect(hiddenCount()).toBe(settledHidden + 2));
         expect(document.querySelector('[aria-busy="true"]')).toBeNull();
-        expect(screen.getByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
-        expect(screen.getAllByText('1 recipe').filter((node) => node.getAttribute('aria-live') === null)).toHaveLength(
-            1,
-        );
+        expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
+        // The count line is the frame's one element: the visible count and the polite region are the same node.
+        expect(politeRegionSays('1 recipe')).toBe(true);
         expect(screen.queryByLabelText('Loading recipes')).toBeNull();
-        expect(politeRegionSays('Showing 1 recipe for “lamb”')).toBe(false);
+        expect(politeRegionSays('1 recipe for “lamb”')).toBe(false);
 
         await act(async () => {
             lamb.resolve(makeSearchResponse([tagine]));
         });
 
-        expect(await screen.findByRole('button', { name: 'Lamb Tagine' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Fish Tacos' })).toBeNull();
-        expect(hiddenCount()).toBe(settledHidden);
-        expect(politeRegionSays('Showing 1 recipe for “lamb”')).toBe(true);
+        expect(await screen.findByRole('link', { name: 'Lamb Tagine' })).toBeTruthy();
+        expect(screen.queryByRole('link', { name: 'Fish Tacos' })).toBeNull();
+        await vi.waitFor(() => expect(hiddenCount()).toBe(settledHidden + 1));
+        expect(politeRegionSays('1 recipe for “lamb”')).toBe(true);
     });
 
     it('keeps the previous results on screen while a new sort loads', async () => {
@@ -406,14 +447,17 @@ describe('RecipeDiscoveryScreen — a newer search pending behind the results on
                 params?.sortBy === 'quickest' ? quickest.promise : Promise.resolve(makeSearchResponse([tacos])),
             );
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={resultsMode} />);
-        await screen.findByRole('button', { name: 'Fish Tacos' });
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
+        await screen.findByRole('link', { name: 'Fish Tacos' });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'Quickest' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Sort: Relevance' }));
+        fireEvent.click(await screen.findByRole('radio', { name: 'Quickest' }));
         await vi.waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ sortBy: 'quickest' })));
 
-        expect(screen.getByRole('radio', { name: 'Quickest' }).getAttribute('aria-checked')).toBe('true');
-        expect(screen.getByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Sort: Quickest' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
         expect(screen.queryByLabelText('Loading recipes')).toBeNull();
     });
 
@@ -434,15 +478,17 @@ describe('RecipeDiscoveryScreen — a newer search pending behind the results on
                   ),
         );
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={resultsMode} />);
-        await screen.findByRole('button', { name: 'Fish Tacos' });
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
+        await screen.findByRole('link', { name: 'Fish Tacos' });
 
-        fireEvent.change(screen.getByLabelText('Search public recipes'), { target: { value: 'lamb' } });
+        fireEvent.change(screen.getByLabelText('Search recipes'), { target: { value: 'lamb' } });
         await vi.waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ query: 'lamb' })));
         fireEvent.click(screen.getByRole('button', { name: /^Filters/ }));
 
-        expect(await screen.findByRole('button', { name: 'vegan, 2 recipes' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
+        expect(await screen.findByRole('checkbox', { name: 'vegan 2' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
     });
 
     it('replaces the stale results with the load error when the newer search fails, and clears it on the next term', async () => {
@@ -454,9 +500,11 @@ describe('RecipeDiscoveryScreen — a newer search pending behind the results on
                     : Promise.resolve(makeSearchResponse(params?.query === 'lambs' ? [tagine] : [tacos])),
             );
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={resultsMode} />);
-        await screen.findByRole('button', { name: 'Fish Tacos' });
-        const box = screen.getByLabelText('Search public recipes');
+        render(
+            <RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} initialFilters={resultsMode} />,
+        );
+        await screen.findByRole('link', { name: 'Fish Tacos' });
+        const box = screen.getByLabelText('Search recipes');
 
         fireEvent.change(box, { target: { value: 'lamb' } });
 
@@ -470,7 +518,7 @@ describe('RecipeDiscoveryScreen — a newer search pending behind the results on
 
         fireEvent.change(box, { target: { value: 'lambs' } });
 
-        expect(await screen.findByRole('button', { name: 'Lamb Tagine' })).toBeTruthy();
+        expect(await screen.findByRole('link', { name: 'Lamb Tagine' })).toBeTruthy();
         expect(screen.queryByRole('alert')).toBeNull();
     });
 });
@@ -504,16 +552,16 @@ describe('RecipeDiscoveryScreen — ingredient facet (FR-006 gap #3)', () => {
     });
 
     it('applies a picked ingredient to the search, leaving browse for the no-match state', async () => {
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
 
         expect(await screen.findByRole('heading', { name: 'Trending' })).toBeTruthy();
 
         openFilters();
-        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'Flour' } });
+        fireEvent.change(screen.getByRole('textbox', { name: 'Has ingredient' }), { target: { value: 'Flour' } });
 
         // The option is addressable by its ACTION even though the field now holds the same word.
         const option = await screen.findByRole('button', { name: 'Filter by Flour' });
-        expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('Flour');
+        expect((screen.getByRole('textbox', { name: 'Has ingredient' }) as HTMLInputElement).value).toBe('Flour');
         fireEvent.click(option);
 
         // The FOOD id reached the wire params — the falsifiable core (a dropped facet sends no `foodIds`).
@@ -521,23 +569,24 @@ describe('RecipeDiscoveryScreen — ingredient facet (FR-006 gap #3)', () => {
             expect(client.searchRecipes).toHaveBeenCalledWith(expect.objectContaining({ foodIds: ['food_flour'] })),
         );
         // …and the surface really left browse for the no-match state, with the trigger badging one filter.
-        expect((await screen.findAllByText('No matching recipes')).length).toBeGreaterThan(0);
-        await waitFor(() => expect(screen.queryByRole('heading', { name: 'Trending' })).toBeNull());
+        // The no-result state ends in the Trending rail alone, so "left browse" is the New and Quick rails going.
+        expect(await screen.findByRole('heading', { name: 'No recipes match these filters' })).toBeTruthy();
+        await waitFor(() => expect(screen.queryByRole('heading', { name: 'New' })).toBeNull());
         expect(screen.getByRole('button', { name: 'Filters, 1 active' })).toBeTruthy();
     });
 
     it('restores browse when the ingredient chip is removed', async () => {
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
         await screen.findByRole('heading', { name: 'Trending' });
 
         openFilters();
-        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'Flour' } });
+        fireEvent.change(screen.getByRole('textbox', { name: 'Has ingredient' }), { target: { value: 'Flour' } });
         fireEvent.click(await screen.findByRole('button', { name: 'Filter by Flour' }));
-        await waitFor(() => expect(screen.queryByRole('heading', { name: 'Trending' })).toBeNull());
+        await waitFor(() => expect(screen.queryByRole('heading', { name: 'New' })).toBeNull());
 
         fireEvent.click(screen.getByRole('button', { name: 'Remove Flour' }));
 
-        expect(await screen.findByRole('heading', { name: 'Trending' })).toBeTruthy();
+        expect(await screen.findByRole('heading', { name: 'New' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Remove Flour' })).toBeNull();
     });
 });
@@ -546,9 +595,9 @@ describe('RecipeDiscoveryScreen — debounced search (U7)', () => {
     it('echoes the typed value immediately but debounces the value fed to the search', async () => {
         const search = answerSearches(makeSearchResponse());
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
 
-        const box = screen.getByLabelText('Search public recipes');
+        const box = screen.getByLabelText('Search recipes');
         fireEvent.change(box, { target: { value: 'ramen' } });
 
         // Immediate echo — the field carries the typed value at once.
@@ -570,15 +619,15 @@ describe('RecipeDiscoveryScreen — debounced search (U7)', () => {
 describe('RecipeDiscoveryScreen — recent searches (U7)', () => {
     /** Focus the keyword field via the bubbling `focusin` React delegates `onFocus` to. */
     function focusSearch(): void {
-        fireEvent.focusIn(screen.getByLabelText('Search public recipes'));
+        fireEvent.focusIn(screen.getByLabelText('Search recipes'));
     }
 
     it('records a search that actually ran and offers it once the field goes blank again', async () => {
         const search = answerSearches(makeSearchResponse());
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
 
-        const box = screen.getByLabelText('Search public recipes');
+        const box = screen.getByLabelText('Search recipes');
         fireEvent.change(box, { target: { value: 'ramen' } });
         await vi.waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ query: 'ramen' })));
 
@@ -596,7 +645,7 @@ describe('RecipeDiscoveryScreen — recent searches (U7)', () => {
         asyncStorageMock.store.set(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto', 'lamb tagine']));
         answerSearches(makeSearchResponse());
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
         focusSearch();
 
         expect(await screen.findByRole('button', { name: 'Search for “risotto”' })).toBeTruthy();
@@ -607,12 +656,12 @@ describe('RecipeDiscoveryScreen — recent searches (U7)', () => {
         asyncStorageMock.store.set(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto']));
         const search = answerSearches(makeSearchResponse());
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
         focusSearch();
 
         fireEvent.click(await screen.findByRole('button', { name: 'Search for “risotto”' }));
 
-        expect((screen.getByLabelText('Search public recipes') as HTMLInputElement).value).toBe('risotto');
+        expect((screen.getByLabelText('Search recipes') as HTMLInputElement).value).toBe('risotto');
         await vi.waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ query: 'risotto' })));
     });
 
@@ -620,7 +669,7 @@ describe('RecipeDiscoveryScreen — recent searches (U7)', () => {
         asyncStorageMock.store.set(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['risotto', 'ramen']));
         answerSearches(makeSearchResponse());
 
-        render(<RecipeDiscoveryScreen onSelectRecipe={noop} />);
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
         focusSearch();
 
         fireEvent.click(await screen.findByRole('button', { name: 'Clear recent searches' }));

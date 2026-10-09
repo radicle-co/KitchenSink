@@ -12,6 +12,8 @@ import type { LocalizedMessages } from '@commise/i18n';
 export interface AccountCloseMessages {
     /** Label of the danger-zone control that opens the close confirmation. */
     readonly trigger: string;
+    /** The hint under the Profile row (`buildSpec.md` §9.1): what closing does, in one line. */
+    readonly rowHint: string;
     /** Confirmation title / accessible name. */
     readonly title: string;
     /** Body copy — MUST convey that this is recoverable and NOT permanent deletion. */
@@ -30,6 +32,8 @@ export interface AccountCloseMessages {
 export interface AccountEraseMessages {
     /** Label of the danger-zone control that opens the erasure dialog. */
     readonly trigger: string;
+    /** The hint under the Profile row (`buildSpec.md` §9.1): what erasing does, in one line. */
+    readonly rowHint: string;
     /** Dialog title / accessible name. */
     readonly title: string;
     /** The primary irreversibility warning. */
@@ -72,6 +76,7 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
     en: {
         close: {
             trigger: 'Close account',
+            rowHint: 'Signs you out and deactivates your account. Support can restore it.',
             title: 'Close account?',
             description:
                 'Closing signs you out and deactivates your account. Your recipes and data are kept, and you ' +
@@ -84,6 +89,7 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
         },
         erase: {
             trigger: 'Erase my data',
+            rowHint: 'Permanently deletes your account and personal data.',
             title: 'Erase my data',
             warning:
                 'This permanently deletes your account and erases your personal data everywhere we hold it — ' +

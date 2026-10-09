@@ -1,115 +1,206 @@
 'use client';
 
 /**
- * @module @commise/features-recipes — web recipe-list RESULTS (presentational): what renders inside the list's
- * suspense boundary once the library has settled.
+ * @module @commise/features-recipes — the web My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3): what
+ * renders inside the list's suspense boundary once the library has settled.
  *
- * The quick-filter chips (derived from the loaded library, so they exist only here), the notice for a failed refresh
- * of the rows on screen, then one of three bodies — the first-run empty library, a no-match for the viewer's own
- * narrowing, or the populated grid — and the create dial wherever {@link shouldShowCreateDial} keeps it.
+ * The facet chips with their counts and the result bar (count, sort, list/grid switch), the notice for a failed refresh,
+ * then the body the host's `LibraryState` names — the first run, a no-match for a search, for chips or for both, or the
+ * cards in the variant the host decided — then "Load more" past 500 recipes, and the create button wherever
+ * `shouldShowCreateButton` keeps it. Pure `props → JSX`: the host reads, narrows and decides.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { Chip, ChipRow } from '@commise/ui/chip';
+import { LoadMoreControl } from '@commise/ui/load-more';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
-import type { FC, ReactElement } from 'react';
+import { SegmentedControl } from '@commise/ui/segmented-control';
+import { useId, type FC, type ReactElement } from 'react';
 
+import { GRID_CELL_CLASS, LIBRARY_GRID_CLASS, LIBRARY_LIST_CLASS } from '../card/cardGridClass.js';
+import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
+import { RecipeCard } from '../card/RecipeCard.js';
 import { recipeMessages } from '../messages.js';
-import { RecipeCreateDial } from './RecipeCreateDial.js';
-import { RecipeListCard } from './RecipeListCard.js';
-import { filterChipLabel, formatRecipeCount, shouldShowCreateDial, type RecipeListResultsProps } from './model.js';
+import { LibrarySortMenu } from './LibrarySortMenu.js';
+import { RecipeCreateButton } from './RecipeCreateButton.js';
+import { fillTemplate, formatRecipeCount, shouldShowCreateButton, type RecipeListResultsProps } from './model.js';
+
+/** The first run: the two ways to start, stacked below a 600 container and side by side above. */
+const FirstRun: FC<Pick<RecipeListResultsProps, 'onCreateRecipe' | 'onPasteIngredients'>> = ({
+    onCreateRecipe,
+    onPasteIngredients,
+}) => {
+    const { list } = useMessages(recipeMessages);
+
+    return (
+        <section className="mx-auto flex w-full max-w-[28rem] flex-col items-center gap-3 py-8 text-center">
+            <h2 className="text-section-title text-ink">{list.emptyTitle}</h2>
+            <p className="text-body text-ink-muted">{list.emptyBody}</p>
+            <div className="flex w-full flex-col gap-3 @regular/main:w-auto @regular/main:flex-row">
+                <Button icon="pencilLine" size="lg" width="fill" onPress={onCreateRecipe}>
+                    {list.emptyCreateCta}
+                </Button>
+                {onPasteIngredients === undefined ? null : (
+                    <Button
+                        variant="secondary"
+                        icon="clipboardPaste"
+                        size="lg"
+                        width="fill"
+                        onPress={onPasteIngredients}
+                    >
+                        {list.pasteIngredients}
+                    </Button>
+                )}
+            </div>
+        </section>
+    );
+};
+
+/** A no-match: what narrowed the rows, and the action that clears it. */
+const NoMatch: FC<Pick<RecipeListResultsProps, 'state' | 'searchValue' | 'onClearSearch' | 'onClearFilters'>> = ({
+    state,
+    searchValue,
+    onClearSearch,
+    onClearFilters,
+}) => {
+    const { list } = useMessages(recipeMessages);
+    const searched = state === 'noMatchQuery' || state === 'noMatchBoth';
+    const filtered = state === 'noMatchFilters' || state === 'noMatchBoth';
+
+    return (
+        // A status region: it is announced, and its heading takes no focus — focus stays in the search field (§4.6).
+        <div role="status" className="flex flex-col items-start gap-3 py-6">
+            <h2 className="text-section-title text-ink">{list.noMatchTitle}</h2>
+            {searched ? (
+                <p className="text-body text-ink-muted">
+                    {fillTemplate(list.noMatchQuery, { query: searchValue.trim() })}
+                </p>
+            ) : null}
+            {filtered ? <p className="text-body text-ink-muted">{list.noMatchFilters}</p> : null}
+            <div className="flex flex-wrap gap-3">
+                {filtered ? (
+                    <Button variant="secondary" icon="x" onPress={onClearFilters}>
+                        {list.clearFilters}
+                    </Button>
+                ) : null}
+                {searched ? (
+                    <Button variant="secondary" icon="x" onPress={onClearSearch}>
+                        {list.clearSearch}
+                    </Button>
+                ) : null}
+            </div>
+        </div>
+    );
+};
 
 export const RecipeListResults: FC<RecipeListResultsProps> = ({
     recipes,
-    narrowed,
+    state,
+    searchValue,
+    onClearSearch,
+    onClearFilters,
     onSelectRecipe,
+    hrefOf,
+    variant,
+    chipOverflow,
+    facets,
+    view,
+    sort,
+    loadMore,
     onCreateRecipe,
     onPasteIngredients,
-    filters,
     refreshNotice,
     renderNutrition,
 }) => {
     const { list } = useMessages(recipeMessages);
     const locale = useLocale();
+    const countId = useId();
+    const count = formatRecipeCount(recipes.length, { one: list.countOne, other: list.countOther }, locale);
+    const isGrid = variant === 'grid';
+
+    if (state === 'firstRun') {
+        // No chips, no result bar, no button: the block's own two actions are the only way in.
+        return <FirstRun onCreateRecipe={onCreateRecipe} onPasteIngredients={onPasteIngredients} />;
+    }
 
     let body: ReactElement;
 
-    if (recipes.length === 0) {
-        // A narrowed zero (search term or pressed chip) is a NO-MATCH, not "no recipes yet" — the caller HAS recipes.
+    if (state === 'results') {
         body = (
-            <div className="flex flex-col items-start gap-3">
-                <p>{narrowed ? list.noMatchTitle : list.emptyTitle}</p>
-                <p>{narrowed ? list.noMatchBody : list.emptyBody}</p>
-                {!narrowed && (
-                    // Empty-state CTA — the SOLE create control here (the dial is suppressed on a true empty library so
-                    // there are never two competing create affordances).
-                    <Button icon="plus" onPress={onCreateRecipe}>
-                        {list.emptyCreateCta}
-                    </Button>
-                )}
-            </div>
+            <ul aria-labelledby={countId} className={isGrid ? LIBRARY_GRID_CLASS : LIBRARY_LIST_CLASS}>
+                {recipes.map((recipe) => (
+                    <li key={recipe.id} className={isGrid ? GRID_CELL_CLASS : undefined}>
+                        {/* ONE promise, N slots: the host's renderer closes over the library's single nutrition
+                            batch, so the figures cost one request and land together. */}
+                        <RecipeCard
+                            variant={variant}
+                            recipe={recipe}
+                            onSelect={onSelectRecipe}
+                            {...(hrefOf === undefined ? {} : { href: hrefOf(recipe.id) })}
+                            nutrition={renderNutrition?.(recipe.id)}
+                        />
+                    </li>
+                ))}
+            </ul>
         );
     } else {
-        const count = formatRecipeCount(recipes.length, { one: list.countOne, other: list.countOther }, locale);
         body = (
-            <div className="flex flex-col gap-4">
-                <p className="text-body-sm font-medium text-ink-muted">{count}</p>
-                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {recipes.map((recipe) => (
-                        <li key={recipe.id}>
-                            {/* ONE promise, N slots: the host's renderer closes over the page's single
-                                nutrition batch, so this grid's figures cost one request and land together. */}
-                            <RecipeListCard
-                                recipe={recipe}
-                                onSelect={onSelectRecipe}
-                                nutrition={renderNutrition?.(recipe.id)}
-                            />
-                        </li>
-                    ))}
-                </ul>
-            </div>
+            <NoMatch
+                state={state}
+                searchValue={searchValue}
+                onClearSearch={onClearSearch}
+                onClearFilters={onClearFilters}
+            />
         );
     }
 
     return (
         <>
-            {filters !== undefined && filters.available.length > 0 && (
-                <div role="group" aria-label={list.filtersLabel} className="flex flex-wrap gap-2">
-                    {/* Leading "All" chip (mockup L4) resets every quick-filter; pressed when nothing is active. */}
-                    <button
-                        type="button"
-                        aria-pressed={filters.active.length === 0}
-                        onClick={filters.onClear}
-                        // Base `py-1.5` + the `min-h-11` (44px) floor make the mobile tap target clear the
-                        // minimum; `md:py-1 md:min-h-0` restores the desktop chip density exactly.
-                        className={`inline-flex min-h-11 items-center rounded-full px-3 py-1.5 text-body-sm font-medium transition md:min-h-0 md:py-1 ${
-                            filters.active.length === 0
-                                ? 'bg-action text-on-action'
-                                : 'bg-surface-muted text-ink-muted hover:bg-ink/6'
-                        }`}
-                    >
-                        {list.filterAll}
-                    </button>
-                    {filters.available.map((value) => {
-                        const active = filters.active.includes(value);
-
-                        return (
-                            <button
-                                key={value}
-                                type="button"
-                                aria-pressed={active}
-                                onClick={() => filters.onToggle(value)}
-                                className={`inline-flex min-h-11 items-center rounded-full px-3 py-1.5 text-body-sm font-medium transition md:min-h-0 md:py-1 ${
-                                    active
-                                        ? 'bg-action text-on-action'
-                                        : 'bg-surface-muted text-ink-muted hover:bg-ink/6'
-                                }`}
-                            >
-                                {filterChipLabel(value, list.filterQuick)}
-                            </button>
-                        );
-                    })}
-                </div>
+            {facets.facets.length > 0 && (
+                <ChipRow mode="filter" label={list.filtersLabel} overflow={chipOverflow}>
+                    <Chip
+                        kind="filter"
+                        label={list.filterAll}
+                        selected={facets.facets.every((facet) => !facet.selected)}
+                        onPress={facets.onClear}
+                    />
+                    {facets.facets.map((facet) => (
+                        <Chip
+                            key={facet.value}
+                            kind="filter"
+                            label={facet.label}
+                            count={facet.count}
+                            selected={facet.selected}
+                            onPress={() => facets.onToggle(facet.value)}
+                        />
+                    ))}
+                </ChipRow>
             )}
+
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                <p id={countId} className="text-meta font-semibold text-ink tabular-nums lining-nums">
+                    {count}
+                </p>
+                <div className="flex items-center gap-2">
+                    <LibrarySortMenu value={sort.value} onChange={sort.onChange} />
+                    <SegmentedControl
+                        form="view"
+                        label={list.viewLabel}
+                        labelVisibility="hidden"
+                        value={view.mode}
+                        onChange={(mode) => {
+                            if (isListViewMode(mode)) {
+                                view.onChange(mode);
+                            }
+                        }}
+                        segments={LIST_VIEW_MODES.map((mode) => ({
+                            id: mode,
+                            label: mode === 'list' ? list.viewList : list.viewGrid,
+                            icon: mode === 'list' ? 'list' : 'layoutGrid',
+                        }))}
+                    />
+                </div>
+            </div>
 
             {refreshNotice !== undefined && (
                 <RefreshNotice
@@ -122,11 +213,21 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
 
             {body}
 
-            {/* ⚠️ The policy owns ONE SIDE of a two-sided invariant — "exactly one create affordance is on screen" — and
-                the empty-state CTA above is its complement, spelled inline. What keeps the two in step is this leaf's
-                tests, which check the true-empty and narrowed-zero branches from BOTH directions. */}
-            {shouldShowCreateDial({ recipeCount: recipes.length, narrowed }) && (
-                <RecipeCreateDial onCreateRecipe={onCreateRecipe} onPasteIngredients={onPasteIngredients} />
+            {loadMore === undefined ? null : (
+                <LoadMoreControl
+                    {...loadMore}
+                    labels={{
+                        loadMore: list.loadMore,
+                        loadingMore: list.loadingMore,
+                        retry: list.retry,
+                        failed: list.loadMoreError,
+                    }}
+                />
+            )}
+
+            {/* The policy owns ONE side of "exactly one create affordance": the first-run block above is the other. */}
+            {shouldShowCreateButton({ recipeCount: recipes.length, narrowed: true }) && (
+                <RecipeCreateButton onCreateRecipe={onCreateRecipe} />
             )}
         </>
     );

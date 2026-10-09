@@ -118,7 +118,7 @@ describe('maestro iOS driver lifecycle — one flow through the real loop', () =
     let recorded: Recorded;
 
     beforeAll(() => {
-        recorded = runWithStubs(['run-one', 'recipes/discoverClone'], IOS);
+        recorded = runWithStubs(['run-one', 'recipes/discoverDetailSaveCopy'], IOS);
     }, 60_000);
 
     const indexOf = (pattern: RegExp): number => recorded.calls.findIndex((call) => pattern.test(call));
@@ -144,7 +144,7 @@ describe('maestro iOS driver lifecycle — one flow through the real loop', () =
             ...manifestToEnvLines(manifest, ERASURE_SUBJECT).flatMap((pair) => ['-e', pair]),
             '--driver-host-port',
             port,
-            'packages/apps/commise/mobile/.maestro/recipes/discoverClone.yaml',
+            'packages/apps/commise/mobile/.maestro/recipes/discoverDetailSaveCopy.yaml',
         ]);
     });
 
@@ -192,7 +192,7 @@ describe('maestro iOS run mode — install, filter, and say what did not run', (
     it('⛔ never drives a flow iOS cannot run, and annotates each one with its class and reason', () => {
         expect(flowsDriven()).not.toContain('recipes/discoverBrowse');
         expect(flowsDriven()).toContain('auth/loginFlow');
-        expect(flowsDriven()).toContain('recipes/discoverClone');
+        expect(flowsDriven()).toContain('recipes/discoverDetailSaveCopy');
         expect(recorded.output).toMatch(/::notice::excluded on ios: recipes\/discoverBrowse \[coverage-gap\] — \S/u);
     });
 

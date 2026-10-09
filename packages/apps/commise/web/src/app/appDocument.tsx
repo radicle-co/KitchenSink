@@ -1,10 +1,13 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import { LocaleProvider } from '@commise/i18n/react';
+import { CLERK_CSS_LAYER } from '@commise/ui/clerk';
 import type { ReactElement, ReactNode } from 'react';
 
 import { RedactedAnalytics } from '@/components/app/RedactedAnalytics';
+import { SidebarPreferenceProvider } from '@/components/home/chrome/sidebarPreferenceContext';
 import { RecipeProviders } from '@/components/recipes/RecipeProviders';
 import { withBasePath } from '@/lib/basePath';
+import { clerkLocalizationFor } from '@/lib/clerkLocalization';
 import type { Locale } from '@/lib/i18n';
 
 import './globals.css';
@@ -13,6 +16,8 @@ import './globals.css';
 export interface AppDocumentProps {
     readonly locale: Locale;
     readonly children: ReactNode;
+    /** The sidebar's collapse preference, read from its cookie by the server (`sidebarPreference.ts`). */
+    readonly sidebarCollapsed?: boolean;
 }
 
 /**
@@ -58,7 +63,7 @@ export interface AppDocumentProps {
  *
  * Pure.
  */
-export function appDocument({ locale, children }: AppDocumentProps): ReactElement {
+export function appDocument({ locale, children, sidebarCollapsed = false }: AppDocumentProps): ReactElement {
     return (
         <ClerkProvider
             signInUrl={withBasePath(`/${locale}/sign-in`)}
@@ -66,11 +71,18 @@ export function appDocument({ locale, children }: AppDocumentProps): ReactElemen
             signInFallbackRedirectUrl={`/${locale}`}
             signUpFallbackRedirectUrl={`/${locale}`}
             afterSignOutUrl={withBasePath(`/${locale}`)}
+            // The brand line and the sign-up link's words: Clerk takes localization on its provider.
+            localization={clerkLocalizationFor(locale)}
+            // Clerk's own styles go in this layer, which `globals.css` ranks below `utilities`, so the role classes on
+            // its elements win. A GLOBAL option: Clerk reads it here, not from a form's own `appearance`.
+            appearance={{ cssLayerName: CLERK_CSS_LAYER }}
         >
             <html lang={locale}>
                 <body>
                     <LocaleProvider locale={locale}>
-                        <RecipeProviders>{children}</RecipeProviders>
+                        <SidebarPreferenceProvider collapsed={sidebarCollapsed}>
+                            <RecipeProviders>{children}</RecipeProviders>
+                        </SidebarPreferenceProvider>
                     </LocaleProvider>
                     <RedactedAnalytics />
                 </body>

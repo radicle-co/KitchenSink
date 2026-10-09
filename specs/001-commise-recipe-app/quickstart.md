@@ -387,7 +387,7 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 maestro test packages/apps/commise/mobile/.maestro
 ```
 
-Flows live in `packages/apps/commise/mobile/.maestro/` (auth + recipes: create/edit/delete/rating/visibility/collections/conflict/discoverClone/listDetail/search/accessibility). They require the Expo debug build installed on a running emulator and a reachable recipe API (`EXPO_PUBLIC_API_URL`).
+Flows live in `packages/apps/commise/mobile/.maestro/` (auth + recipes: create/edit/delete/rating/visibility/collections/conflict/discoverDetailSaveCopy/listDetail/search/accessibility). They require the Expo debug build installed on a running emulator and a reachable recipe API (`EXPO_PUBLIC_API_URL`).
 
 ### Load Tests (k6 — SC-009)
 

@@ -1,60 +1,86 @@
+'use client';
+
 /**
- * @module @commise/features-recipes — web collection recipe-picker frame (the ADD half of T072 / FR-009).
+ * @module @commise/features-recipes/collections — the web add-recipes picker frame (the ADD half of T072 / FR-009; slice 5
+ * of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md` §5.3).
  *
- * The picker lists the caller's OWN recipes and adds them, one at a time, to a single named collection. This is its
- * FRAME — heading, Done and the search field — a controlled, presentational view that fetches nothing and stays
- * mounted around whichever body the composing app's read boundary renders: `CollectionRecipePickerCandidates` once
- * the candidates settle, or `CollectionRecipePickerLoading` / `CollectionRecipePickerLoadError` while they are
- * pending or failed. So the search field keeps its focus and value, and Done stays reachable, in every state.
+ * A full-height `Sheet` titled "Add to {name}" (a 640 px dialog, 80% of the window tall, from 840): a sticky search field
+ * in the sheet's toolbar, the body the host's read boundary renders in the scroll region, and a pinned **Done** (`check`,
+ * primary, `lg`) that says what changed — "Done · 2 added, 1 removed", a zero part left out. Each toggle saves at once, so
+ * × and Escape do what Done does: nothing is unsaved.
  *
- * The two bare text controls (Done here, Retry in the load-error body) label in `ocean-dark`, not `seafoam`: seafoam
- * as a FOREGROUND is 4.02:1 on the white card and 3.57:1 under its own `hover:bg-action/10` tint, both below the
- * 4.5:1 body-text floor. The tint itself stays seafoam — see the palette JSDoc in `@commise/ui` for that (single,
- * authoritative) accent-vs-text rule.
+ * It fetches nothing and holds no state. It stays mounted around whichever body arrives — the rows, a skeleton, a load
+ * error — so the search field keeps its focus and Done stays reachable in every state. A polite live region, always
+ * mounted, says "Added {title}" and "Removed {title}".
+ *
+ * Presentational: the frame of the picker; the host supplies the body and runs every request.
+ *
+ * @pattern Adapter over the design-system `Sheet`
  */
 import { useMessages } from '@commise/i18n/react';
-import type { FC } from 'react';
+import { Button } from '@commise/ui/button';
+import { LiveRegion } from '@commise/ui/live-region';
+import { SearchField } from '@commise/ui/search-field';
+import { Sheet } from '@commise/ui/sheet';
+import { useId, type FC } from 'react';
 
 import { fillTemplate } from '../list/model.js';
+import type { CollectionRecipePickerProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
-import type { CollectionRecipePickerProps } from './model.js';
+import { doneLabelOf } from './pickerModel.js';
 
-/** The presentational picker frame: heading, Done and search, around the body the composing app renders. */
 export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
+    open,
+    onClose,
     collectionName,
     query,
     onQueryChange,
-    onDone,
+    summary,
+    announcement,
     children,
 }) => {
     const { picker } = useMessages(collectionMessages);
-    const heading = fillTemplate(picker.heading, { name: collectionName });
+    const searchId = useId();
 
     return (
-        <section aria-label={heading} className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8">
-            <header className="flex items-center justify-between gap-4">
-                <h1 className="font-display text-display-md font-bold text-ink">{heading}</h1>
-                <button
-                    type="button"
-                    onClick={onDone}
-                    className="rounded-full px-5 py-2.5 text-body-sm font-semibold text-action-text transition hover:bg-action/10"
-                >
-                    {picker.done}
-                </button>
-            </header>
-
-            <label className="flex flex-col gap-1">
-                <span className="text-body-sm font-medium text-ink-muted">{picker.searchLabel}</span>
-                <input
-                    type="search"
-                    value={query}
-                    placeholder={picker.searchPlaceholder}
-                    onChange={(event) => onQueryChange(event.target.value)}
-                    className="w-full rounded-lg border border-line-divider bg-paper px-3 py-2 text-body-md text-ink outline-none focus:ring-2 focus:ring-focus-ring"
-                />
-            </label>
-
+        <Sheet
+            open={open}
+            onOpenChange={(next) => {
+                if (!next) {
+                    onClose();
+                }
+            }}
+            title={fillTemplate(picker.title, { name: collectionName })}
+            closeLabel={picker.close}
+            size="full"
+            toolbar={{
+                heading: <span className="text-overline uppercase text-ink-muted">{picker.toolbarHeading}</span>,
+                controls: (
+                    <SearchField
+                        id={searchId}
+                        label={picker.searchLabel}
+                        labelVisibility="hidden"
+                        clearLabel={picker.clearSearch}
+                        placeholder={picker.searchPlaceholder}
+                        value={query}
+                        onChangeText={onQueryChange}
+                    />
+                ),
+            }}
+            footer={
+                <Button icon="check" size="lg" width="fill" onPress={onClose}>
+                    {doneLabelOf(summary, picker)}
+                </Button>
+            }
+        >
+            <LiveRegion
+                politeness="polite"
+                visuallyHidden
+                {...(announcement === undefined ? {} : { occurrence: announcement.occurrence })}
+            >
+                {announcement?.text ?? ''}
+            </LiveRegion>
             {children}
-        </section>
+        </Sheet>
     );
 };

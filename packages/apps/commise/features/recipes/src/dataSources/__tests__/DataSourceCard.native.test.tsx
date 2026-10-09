@@ -6,9 +6,19 @@
  * language per span, so the credit cannot carry its `lang` on this platform (recorded in §S16); it is still shown word
  * for word.
  */
+import { role, roleDark } from '@commise/ui/colors';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+/** `#RRGGBB` → the `rgb(r, g, b)` spelling react-native-web writes. */
+const rgb = (hex: string): string => {
+    const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+
+    return `rgb(${r}, ${g}, ${b})`;
+};
+
+const device = vi.hoisted(() => ({ scheme: null as 'light' | 'dark' | null }));
 
 // `accessibilityLanguage` is iOS's; react-native-web maps only its own `lang`, so under jsdom the prop would vanish and
 // no test could see it. This forwards it to `lang` the way VoiceOver consumes it, and changes nothing else.
@@ -18,28 +28,55 @@ vi.mock('react-native', async (importOriginal) => {
     const Text = (props: { accessibilityLanguage?: string }) =>
         createElement(actual.Text, { ...props, lang: props.accessibilityLanguage } as never);
 
-    return { ...actual, Text };
+    return { ...actual, Text, useColorScheme: () => device.scheme };
 });
 
 import { CIQUAL_SOURCE, SWISS_SOURCE, makeDataSource } from '../__fixtures__/makeDataSource.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { DataSourceCard } from '../DataSourceCard.native.js';
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    device.scheme = null;
+});
 
 describe('DataSourceCard (native)', () => {
-    it('heads the card with the short name, then shows the full name and the publisher', () => {
+    // D15: colour comes from the scheme's roles, not from a palette baked into a static sheet.
+    it.each(['light', 'dark'] as const)(
+        'paints the heading, the name and the licence link from the %s roles',
+        (scheme) => {
+            device.scheme = scheme;
+            const colors = scheme === 'dark' ? roleDark : role;
+
+            render(<DataSourceCard source={makeDataSource()} onOpen={vi.fn()} />);
+
+            const heading = screen.getByRole('heading', {
+                name: 'U.S. Department of Agriculture, Agricultural Research Service',
+            });
+
+            expect(getComputedStyle(heading).color).toBe(rgb(colors.ink));
+            expect(getComputedStyle(screen.getByText('FoodData Central')).color).toBe(rgb(colors.ink));
+
+            const link = screen.getByRole('link', { name: 'CC0 1.0 Universal, license for USDA' });
+
+            expect(getComputedStyle(link.querySelector('div') ?? link).color).toBe(rgb(colors.actionText));
+        },
+    );
+
+    // `buildSpec.md` §9.2, as on web: the heading is the PUBLISHER, the dataset's name under it.
+    it('heads the card with the publisher, then shows the dataset name', () => {
         render(<DataSourceCard source={makeDataSource()} onOpen={vi.fn()} />);
 
-        expect(screen.getByRole('heading', { name: 'USDA' })).toBeTruthy();
+        expect(
+            screen.getByRole('heading', { name: 'U.S. Department of Agriculture, Agricultural Research Service' }),
+        ).toBeTruthy();
         expect(screen.getByText('FoodData Central')).toBeTruthy();
-        expect(screen.getByText('U.S. Department of Agriculture, Agricultural Research Service')).toBeTruthy();
     });
 
-    it('heads a source with no short name by its name, shown once', () => {
+    it('names the dataset once, whether or not it has a short name', () => {
         render(<DataSourceCard source={SWISS_SOURCE} onOpen={vi.fn()} />);
 
-        expect(screen.getByRole('heading', { name: 'Swiss Food Composition Database' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: SWISS_SOURCE.publisher })).toBeTruthy();
         expect(screen.getAllByText('Swiss Food Composition Database')).toHaveLength(1);
     });
 

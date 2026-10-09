@@ -111,3 +111,46 @@ describe('RecipeHero (web) — the no-cover placeholder is legible on the beach-
         ).toBeGreaterThanOrEqual(4.5);
     });
 });
+
+/**
+ * Slice 3's seam for slice 6 (D12): the back and ⋯ controls sit ON the photo. The hero takes them as an `overlay` and
+ * places them over its top edge, in either state, FIRST in the reading order so Back is reached before the photos.
+ */
+describe('RecipeHero (web) — the overlay over the photo', () => {
+    const photos = [makePhoto({ id: 'pho_0', url: 'https://cdn/p0.jpg' })];
+    const overlay = (
+        <>
+            <button type="button">Back</button>
+            <button type="button">More actions</button>
+        </>
+    );
+
+    it.each([
+        ['photos present', photos],
+        ['no photo', []],
+    ])('draws the overlay over the top of the hero (%s)', (_state, list) => {
+        renderHero(<RecipeHero title="Herb Risotto" photos={list} overlay={overlay} />);
+
+        const back = screen.getByRole('button', { name: 'Back' });
+        const layer = back.parentElement;
+
+        expect(layer?.className.split(' ')).toEqual(expect.arrayContaining(['absolute', 'top-0', 'z-10']));
+        expect(screen.getByRole('button', { name: 'More actions' }).parentElement).toBe(layer);
+        expect(layer?.parentElement?.className.split(' ')).toContain('relative');
+    });
+
+    it('puts the overlay before the photos in the reading order', () => {
+        renderHero(<RecipeHero title="Herb Risotto" photos={photos} overlay={overlay} />);
+
+        const back = screen.getByRole('button', { name: 'Back' });
+        const region = screen.getByRole('region', { name: 'Recipe photos' });
+
+        expect(back.compareDocumentPosition(region) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('adds no wrapper when there is no overlay', () => {
+        const { container } = renderHero(<RecipeHero title="Herb Risotto" photos={photos} />);
+
+        expect(container.querySelector('.relative > .absolute.top-0')).toBeNull();
+    });
+});

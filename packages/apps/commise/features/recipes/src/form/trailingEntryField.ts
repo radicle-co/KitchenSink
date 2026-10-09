@@ -15,6 +15,7 @@
  */
 import type { ComboboxProps } from '@commise/ui/combobox';
 
+import type { EditorMessages } from '../editor/messages.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientEntry } from '../hooks/useIngredientEntry.js';
 import { fillTemplate } from '../list/model.js';
@@ -25,8 +26,9 @@ import { chooseEntryOption } from './rowEntryField.js';
 
 /** The copy the trailing field reads, already localised. */
 export interface TrailingEntryFieldCopy extends EntryComboboxCopy {
-    readonly form: EntryComboboxCopy['form'] &
-        Pick<RecipeFormMessages, 'addIngredientRowLabel' | 'ingredientSuggestionsLabel' | 'ingredientNameEditableHint'>;
+    readonly form: EntryComboboxCopy['form'] & Pick<RecipeFormMessages, 'ingredientSuggestionsLabel'>;
+    /** The add field's own name and its amount-first hint (build spec §7.5.3). */
+    readonly add: Pick<EditorMessages['ingredients'], 'addLabel' | 'addHint'>;
 }
 
 /** The trailing field, as its host sees it. */
@@ -52,6 +54,8 @@ export interface TrailingEntryFieldInput {
     readonly onTextChange: () => void;
     /** Create my own food was chosen, on the field's trimmed text. */
     readonly onCreateOwnFood: (text: string) => void;
+    /** Enter (or the keyboard's submit) with no option chosen: nothing is stored, and the host says to pick a food. */
+    readonly onSubmitWithoutChoice: () => void;
     /** How the row names a remote source and says a time and a list (`useSourceNaming`). */
     readonly naming: SourceNaming;
     /** The remote picks the session's limit refused (`IngredientRowEditor.limitRefusals`): each says it again (R8). */
@@ -91,9 +95,9 @@ export const trailingEntryFieldOf = (
     );
 
     return {
-        label: copy.form.addIngredientRowLabel,
+        label: copy.add.addLabel,
         listLabel: fillTemplate(copy.form.ingredientSuggestionsLabel, { number: input.nextNumber }),
-        placeholder: copy.form.addIngredientRowLabel,
+        placeholder: copy.add.addLabel,
         value: text,
         onValueChange: (next) => {
             input.onTextChange();
@@ -104,6 +108,7 @@ export const trailingEntryFieldOf = (
         trailingStatus: view.trailingStatus,
         onSelect: (key) =>
             chooseEntryOption(view.optionFor(key), entry, text, { onCreateOwnFood: input.onCreateOwnFood }),
+        onSubmitWithoutChoice: input.onSubmitWithoutChoice,
         countAnnouncement: view.countAnnouncement,
         alertAnnouncement: view.alertAnnouncement,
         onFocus: () => entry.focus(TRAILING),
@@ -112,7 +117,7 @@ export const trailingEntryFieldOf = (
             input.onTextChange();
             entry.abandon(TRAILING);
         },
-        hint: copy.form.ingredientNameEditableHint,
+        hint: copy.add.addHint,
         invalid: input.invalid,
         ...(input.describedBy === undefined ? {} : { describedBy: input.describedBy }),
         focusRequested: input.focusRequested,

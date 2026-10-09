@@ -135,22 +135,18 @@ export interface RecipeVersionListProps {
      *  preview modal itself lands separately). ABSENT → no Preview affordance is rendered for any row; a
      *  caller not yet wired to the preview flow simply omits this prop rather than showing a dead control. */
     readonly onPreview?: (versionNumber: number) => void;
-    /** The version numbers currently picked for the two-version compare (W6 Task 5), in the composing
-     *  container's own selection state — 0, 1, or 2 entries. Read-only here; the container owns the
-     *  selection (see {@link onToggleCompare}). ABSENT (together with `onToggleCompare`) → no Compare
-     *  affordance is rendered for any row, mirroring `onPreview`'s "no prop, no dead control" contract. */
-    readonly selectedForCompare?: readonly number[];
-    /** Invoked with a version number when its Compare checkbox is toggled (selected when unchecked,
-     *  deselected when checked). Capped at two selections by the CALLER: once `selectedForCompare` already
-     *  has two entries, every row NOT already selected renders its checkbox disabled instead of silently
-     *  evicting the oldest pick — an explicit "deselect one first" UX beats a selection changing out from
-     *  under the viewer (W6 Task 5). ABSENT (together with `selectedForCompare`) → no Compare affordance is
-     *  rendered for any row. */
-    readonly onToggleCompare?: (versionNumber: number) => void;
-    /** Invoked when the "Back to Recipe" affordance is activated (V6). Rendered ONLY by the web leaf —
-     *  native screens (`RecipeVersionsScreen`) already compose their own back chrome outside this shared
-     *  component, so the native leaf intentionally does not read this prop. */
+    /** Invoked with the version number when a row's "Compare with current" is chosen (§6.6). ABSENT → no compare
+     *  entry, under the same "no prop, no dead control" contract as `onPreview`. */
+    readonly onCompare?: (versionNumber: number) => void;
+    /** The moment the list is read at (ISO 8601), which "Edited 2 days ago" is measured from. The caller holds it,
+     *  so the render stays pure. */
+    readonly now: string;
+    /** The recipe's title, the page's subtitle. */
+    readonly recipeTitle?: string;
+    /** Return to the recipe (web: the header's back link; native screens compose their own back chrome). */
     readonly onBack?: () => void;
+    /** Web: the recipe's address, so a modified click on the back link still works. */
+    readonly backHref?: string;
 }
 
 /**

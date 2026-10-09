@@ -1,188 +1,73 @@
 /**
- * @module @commise/features-recipes/versions — The two-version COMPARE panel's model: its state, its field rows, and the collection tally.
+ * @module @commise/features-recipes/versions/compare — compare one version with the CURRENT one (build spec §6.6).
  *
- * Pure and platform-agnostic: shared unchanged by the web (`*.tsx`) and native (`*.native.tsx`) leaves, so
- * the two renders can never drift. No React, no platform APIs.
+ * Compare is per row, against the current version; comparing two old versions is deferred. It reuses the pure
+ * three-way `computeConflictDiff` with the version as both the base and "mine" and the current version as "theirs"
+ * (blueprint Part C, slice 6): then "mine" never changed, so every row the diff reports is a change the CURRENT version
+ * made, its `base` is what the version said and its `theirs` what the recipe says now. The diff's own rules for what
+ * counts as a changed step or ingredient therefore hold here too, and there is no new server API.
+ *
+ * ⛔ The two-version selection this replaced (`compareViewState`, `buildCompareFieldRows` over `diffSnapshots`) is
+ * deleted, not kept beside it: one compare, one diff.
  */
 import type { Locale } from '@commise/i18n';
-import type { RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
-import { fillTemplate, formatDurationMinutes, formatRecipeCount } from '../list/model.js';
-import type { DiffTally, SnapshotDiff, SnapshotFieldKey } from './diff.js';
-import type { RecipeConflictMessages, RecipeVersionCompareMessages } from './messages.js';
-import { snapshotFieldLabel } from './diffLabels.js';
+import type { RecipeVersion } from '@kitchensink/recipe-core';
 
-// ─── Version compare (W6 Task 4 / FR-007b, FR-007c) ─────────────────────────────────────────────────
-//
-// The wireframe's "Compare Versions" right sidebar: pick two versions (selection UI lives in the composing
-// container, Task 5) and show the Diff Summary (Added/Removed/Modified rollup, `SnapshotDiff.summary`)
-// plus a CHANGED-ONLY field-by-field A/B display — only `diff.changedFields` are rendered, each with both
-// versions' values side by side. `steps`/`ingredients` render as a compact count (never a per-line
-// explosion — see `buildCompareFieldRows`'s module docs on the reorder sanity note from Task 1).
+import type { IngredientLineNameMessages } from '../messages.js';
+import { computeConflictDiff, type ConflictDiff } from './conflictDiff.js';
+import { conflictRowLabel } from './diffLabels.js';
+import type { RecipeConflictMessages } from './messages.js';
 
-/**
- * Props for the two-version compare panel (W6 Task 4) — a FULLY controlled, presentational component. It
- * renders the Diff Summary + changed-only A/B display for two ALREADY-SELECTED versions; it computes no
- * diff itself (`diff` is `diffSnapshots(versionA.snapshot, versionB.snapshot)`, computed by the composing
- * container, Task 5) and fetches nothing. `versionA`/`versionB`/`diff` are OPTIONAL together — while `open`
- * is true but fewer than two versions have been chosen yet, the view shows
- * {@link RecipeVersionCompareMessages.selectTwoVersions} instead of a broken partial render.
- */
+/** Props for the `VersionCompareView` leaves (web panel, native sheet). */
 export interface VersionCompareViewProps {
-    /** Whether the panel (web right-side panel) / sheet (native full-screen) is open. */
+    /** Whether the panel (web) / sheet (native) is open. */
     readonly open: boolean;
-    /** The first selected version. */
-    readonly versionA?: RecipeVersion;
-    /** The second selected version. */
-    readonly versionB?: RecipeVersion;
-    /** `diffSnapshots(versionA.snapshot, versionB.snapshot)`, computed by the caller. */
-    readonly diff?: SnapshotDiff;
-    /** Invoked to close the panel/sheet — the explicit close control, Escape (web), and the Radix overlay/
-     *  backdrop dismissal all resolve to this ONE callback (mirrors `VersionPreviewModalProps.onCancel`'s (`preview.ts`)
-     *  single exit path). */
+    /** The version compared with the current one. */
+    readonly version?: RecipeVersion;
+    /** {@link compareWithCurrent} for it, computed by the caller. */
+    readonly diff?: ConflictDiff;
+    /** Close the panel: the close control, Escape (web) and the overlay all resolve to this one callback. */
     readonly onClose: () => void;
-    /** The active BCP-47 locale (count-pluralization input only; this component owns no locale state). */
-    readonly locale: Locale;
 }
 
-/** The three mutually-exclusive states {@link VersionCompareViewProps} renders, computed once so the web and
- *  native leaves can't drift on which state they're in. */
-export type VersionCompareState = 'selecting' | 'unchanged' | 'changed';
-
 /**
- * Determine which of the three compare-panel states applies. `'selecting'` when fewer than two versions (or
- * no `diff`) have been supplied yet; `'unchanged'` when both are supplied but the snapshots are identical
- * (`diff.changedFields` is empty); `'changed'` otherwise. Pure.
+ * The differences between a version and the current one. Pure.
  *
- * @param versionA - The first selected version, if chosen.
- * @param versionB - The second selected version, if chosen.
- * @param diff - The diff between them, if computed.
- * @returns The panel's current state.
+ * @param version - The version to compare.
+ * @param current - The current version.
+ * @param locale - The active locale, for ingredient amounts.
+ * @param lineNames - The stand-ins for a line with no name.
+ * @returns The changed rows, each a change the current version made.
  */
-export const compareViewState = (
-    versionA: RecipeVersion | undefined,
-    versionB: RecipeVersion | undefined,
-    diff: SnapshotDiff | undefined,
-): VersionCompareState => {
-    if (versionA === undefined || versionB === undefined || diff === undefined) {
-        return 'selecting';
-    }
+export const compareWithCurrent = (
+    version: RecipeVersion,
+    current: RecipeVersion,
+    locale: Locale,
+    lineNames: IngredientLineNameMessages,
+): ConflictDiff => computeConflictDiff(version.snapshot, version.snapshot, current.snapshot, locale, lineNames);
 
-    return diff.changedFields.length === 0 ? 'unchanged' : 'changed';
-};
-
-/** One row of the compare panel's changed-only field-by-field A/B display. */
-export interface CompareFieldRow {
-    /** Stable key for React reconciliation and test lookup — the diffed field itself. */
-    readonly key: SnapshotFieldKey;
-    /** The localized field label (reused from {@link RecipeConflictMessages} — see {@link snapshotFieldLabel}). */
+/** One row of the compare panel. */
+export interface CompareRow {
+    readonly key: string;
+    /** The localized field or element label ("Title", "Step 2", "Ingredient: …"). */
     readonly label: string;
-    /** Version A's rendered value for this field. */
-    readonly valueA: string;
-    /** Version B's rendered value for this field. */
-    readonly valueB: string;
-    /** For `steps`/`ingredients` rows ONLY: this collection's own Added/Removed/Modified tally, rendered
-     *  behind the `showFullDiff` toggle. ABSENT for scalar fields, which already show their full value and
-     *  have no separate tally to reveal. */
-    readonly tally?: DiffTally;
+    /** What the version said; empty when the element did not exist in it. */
+    readonly was: string;
+    /** What the recipe says now; empty when the current version removed it. */
+    readonly now: string;
 }
 
-/** The scalar `SnapshotFieldKey`s — every field except `steps`/`ingredients`. */
-type ScalarFieldKey = Exclude<SnapshotFieldKey, 'steps' | 'ingredients'>;
-
-/** Render one scalar field's raw value for display — `prepTimeMinutes`/`cookTimeMinutes` through the shared
- *  duration template (the SAME template every duration-rendering surface in this module uses, so they can
- *  never disagree on how a duration reads); every other scalar (`title`/`description`/`servings`) as its own
- *  string form. Pure. */
-const scalarFieldValue = (field: ScalarFieldKey, snapshot: RecipeSnapshot, messages: RecipeConflictMessages): string =>
-    field === 'prepTimeMinutes' || field === 'cookTimeMinutes'
-        ? formatDurationMinutes(snapshot[field], messages.minutes)
-        : String(snapshot[field]);
-
 /**
- * Render a `steps`/`ingredients` field's value as a COUNT ONLY — deliberately never a per-line explosion.
- * This is the Task 1 sanity note's resolution: the ingredient diff's `modified` tally folds in `sortOrder`
- * (so a pure reorder — same ingredients, swapped positions — reports `modified > 0` with an UNCHANGED
- * count), and a per-line render of "5 modified" identical-looking lines would misread as content having
- * changed when only the order did. A same-count A/B ("5 ingredients" both sides) is truthful either way: no
- * lines were added or removed, and the row's mere presence in the changed-only list already signals
- * "something differs" without asserting WHAT. The full Added/Removed/Modified tally (accurate regardless of
- * cause) is available as opt-in detail via `showFullDiff` ({@link formatCollectionTally}), never as the
- * default headline number. Pure.
- */
-const collectionFieldValue = (
-    field: 'steps' | 'ingredients',
-    snapshot: RecipeSnapshot,
-    messages: RecipeConflictMessages,
-    locale: Locale,
-): string =>
-    field === 'steps'
-        ? formatRecipeCount(
-              snapshot.steps.length,
-              { one: messages.stepCountOne, other: messages.stepCountOther },
-              locale,
-          )
-        : formatRecipeCount(
-              snapshot.ingredients.length,
-              { one: messages.ingredientCountOne, other: messages.ingredientCountOther },
-              locale,
-          );
-
-/**
- * Project a diff into the changed-only field-by-field A/B rows the compare panel renders — ONLY
- * `diff.changedFields`, each with version A's and version B's value (see {@link scalarFieldValue} /
- * {@link collectionFieldValue}). Preserves {@link SnapshotFieldKey}'s declared order (the order
- * `changedFields` already carries). Pure.
+ * The panel's rows for a {@link compareWithCurrent} diff. Pure.
  *
- * @param diff - The diff to project.
- * @param versionA - The first selected version.
- * @param versionB - The second selected version.
- * @param messages - The shared conflict-panel field labels + duration/count templates.
- * @param locale - The active BCP-47 locale (for count pluralization).
- * @returns The changed-only A/B rows, in declared field order.
+ * @param diff - The diff.
+ * @param messages - The shared conflict-panel copy, which owns the field labels.
+ * @returns The rows, in the diff's order.
  */
-export const buildCompareFieldRows = (
-    diff: SnapshotDiff,
-    versionA: RecipeVersion,
-    versionB: RecipeVersion,
-    messages: RecipeConflictMessages,
-    locale: Locale,
-): readonly CompareFieldRow[] =>
-    diff.changedFields.map((field) => {
-        const label = snapshotFieldLabel(field, messages);
-
-        if (field === 'steps' || field === 'ingredients') {
-            return {
-                key: field,
-                label,
-                valueA: collectionFieldValue(field, versionA.snapshot, messages, locale),
-                valueB: collectionFieldValue(field, versionB.snapshot, messages, locale),
-                tally: diff[field],
-            };
-        }
-
-        return {
-            key: field,
-            label,
-            valueA: scalarFieldValue(field, versionA.snapshot, messages),
-            valueB: scalarFieldValue(field, versionB.snapshot, messages),
-        };
-    });
-
-/**
- * Render a `steps`/`ingredients` row's own Added/Removed/Modified tally for the `showFullDiff` opt-in detail
- * — reuses the SAME localized templates the Diff Summary rollup renders
- * ({@link RecipeVersionCompareMessages.added}/`removed`/`modified`), applied to this ONE collection's tally
- * instead of the overall summary, so "Added: N" is one piece of knowledge regardless of which tally it is
- * reporting.
- * Pure.
- *
- * @param tally - The collection's own Added/Removed/Modified tally.
- * @param messages - The localized compare-panel copy.
- * @returns The formatted tally line.
- */
-export const formatCollectionTally = (tally: DiffTally, messages: RecipeVersionCompareMessages): string =>
-    [
-        fillTemplate(messages.added, { count: tally.added }),
-        fillTemplate(messages.removed, { count: tally.removed }),
-        fillTemplate(messages.modified, { count: tally.modified }),
-    ].join(' · ');
+export const compareRowsOf = (diff: ConflictDiff, messages: RecipeConflictMessages): readonly CompareRow[] =>
+    diff.rows.map((row) => ({
+        key: row.key,
+        label: conflictRowLabel(row, messages),
+        was: row.base ?? '',
+        now: row.theirs,
+    }));

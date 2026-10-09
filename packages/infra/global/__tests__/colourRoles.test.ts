@@ -117,12 +117,6 @@ const DESIGN_SYSTEM = 'packages/apps/commise/ui/src/';
  * exactly, so an exempt file cannot grow; the entry is deleted when its file reaches zero.
  */
 const DESIGN_SYSTEM_EXEMPTIONS: Readonly<Record<string, { readonly count: number; readonly reason: string }>> = {
-    'packages/apps/commise/ui/src/clerk.ts': {
-        count: 2,
-        reason:
-            'Clerk’s appearance API takes concrete colours and derives shades from them; whether it accepts a CSS ' +
-            'variable is unverified, so the sign-in surface is themed when the auth slice rebuilds it.',
-    },
     'packages/apps/commise/ui/src/surface/GlassCard.tsx': {
         count: 1,
         reason: 'D12 takes glass off content cards; slices 3 and 4 rebuild the cards and retire this tier from them.',
@@ -158,7 +152,7 @@ describe('components take colour from roles only', () => {
 
     it('discovers the components, including a primitive and a screen (a vacuous pass would hide the rule)', () => {
         expect(componentSources()).toContain('packages/apps/commise/ui/src/button/Button.tsx');
-        expect(componentSources()).toContain('packages/apps/commise/mobile/src/screens/RecipeEditScreen.tsx');
+        expect(componentSources()).toContain('packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx');
     });
 
     it('holds the design system at zero, but for its named exemptions', () => {

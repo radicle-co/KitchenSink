@@ -6,7 +6,7 @@
  * a middle dot between them.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render as renderUnscoped, screen, within } from '@testing-library/react';
 
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { makeRecipeDetail, idleUnreachableRetry } from '../../__fixtures__/index.js';
@@ -19,6 +19,12 @@ import {
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
 import { resetServingScale } from '../servingScale.js';
+import type { ReactElement } from 'react';
+import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
+
+/** Every detail renders inside the session’s cook-marks scope, as each app root mounts it. */
+const render = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
+    renderUnscoped(ui, { wrapper: CookMarksTestProvider });
 
 afterEach(() => {
     cleanup();
@@ -27,13 +33,8 @@ afterEach(() => {
 
 /** The checkbox's row: the dotted line, the name and the cook's words sit in it. */
 function lineRow(name: string): HTMLElement {
-    const row = screen.getByRole('checkbox', { name }).parentElement;
-
-    if (row === null) {
-        throw new Error(`The checkbox "${name}" has no row.`);
-    }
-
-    return row;
+    // The whole row IS the checkbox (build spec §6.3).
+    return screen.getByRole('checkbox', { name });
 }
 
 describe('RecipeDetailView (native) — a variant-bound line (F1/AE1 display, R25)', () => {
@@ -78,7 +79,8 @@ describe('RecipeDetailView (native) — a variant-bound line (F1/AE1 display, R2
             />,
         );
 
-        const row = lineRow(`2 lb beef brisket, ${BRISKET_FLAT_HALF_SPOKEN}`);
+        // The row's name is the whole line, so it ends with the cook's preparation.
+        const row = lineRow(`2 lb beef brisket, ${BRISKET_FLAT_HALF_SPOKEN}, sliced thin`);
         const name = within(row).getByText('beef brisket');
         const line = within(row).getByLabelText(BRISKET_FLAT_HALF_SPOKEN);
         const preparation = within(row).getByText('sliced thin');
@@ -87,8 +89,8 @@ describe('RecipeDetailView (native) — a variant-bound line (F1/AE1 display, R2
         expect(name.compareDocumentPosition(line)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
         expect(line.compareDocumentPosition(preparation)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
         expect(preparation.compareDocumentPosition(notes)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-        // "Under": in the wrapping text block, the line's box takes the whole row.
-        expect(line.parentElement === null ? '' : window.getComputedStyle(line.parentElement).flexBasis).toBe('100%');
+        // "Under": the row's text block is a column, so the dotted line takes a line of its own.
+        expect(window.getComputedStyle(row.lastElementChild as Element).flexDirection).toBe('column');
     });
 });
 

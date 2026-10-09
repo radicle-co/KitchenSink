@@ -54,7 +54,7 @@ import {
  *
  * The client clock is now the authority (the SSR pass commits to no bucket and reserves an `aria-hidden`
  * placeholder until hydration), so the pin DOES reach the render and the mask is gone: the Home capture asserts
- * {@link PINNED_GREETING} and {@link PINNED_GREETING_DATE} — the exact strings `VISUAL_CLOCK_ISO` +
+ * {@link PINNED_GREETING} and {@link PINNED_GREETING_DATE} — the bucket and the date `VISUAL_CLOCK_ISO` +
  * `VISUAL_TIMEZONE` must produce — before photographing them. That is a stronger guarantee than the mask it
  * replaces, and of the same kind as the card-footer assertion above: it is the greeting's proof that the pinned
  * clock reached the render. Reintroduce the server-clock read and this capture goes red rather than quietly
@@ -102,11 +102,12 @@ const PINNED_CARD_TIMESTAMP = 'Created 21w ago';
  * The greeting the pinned clock must produce, read from the VIEWER's clock (#144).
  *
  * `VISUAL_CLOCK_ISO` is 15:30 in `VISUAL_TIMEZONE`, which `greetingBucketForHour` buckets as `afternoon` (its
- * boundaries are 05/12/17/22). Exact strings, not the four-bucket alternation this used to mask: a regex that
- * accepts every bucket cannot tell "the client clock decided" from "some clock decided", which is the whole
- * distinction #144 turned on.
+ * boundaries are 05/12/17/22). ONE bucket, not the four-bucket alternation this used to mask: a pattern that accepts
+ * every bucket cannot tell "the client clock decided" from "some clock decided", which is the whole distinction #144
+ * turned on. Since slice 3 the greeting is the page's H1 and names the signed-in cook ("Good afternoon, {name}"),
+ * whose name is the run's pool user, so only the bucket is pinned.
  */
-const PINNED_GREETING = 'Good afternoon, Chef!';
+const PINNED_GREETING = /^Good afternoon(, \S.*)?$/u;
 
 /**
  * The date subtitle the same pin must produce. 2026-05-31 is a SUNDAY — the wireframe's "Saturday" is fictional
@@ -185,7 +186,7 @@ test.describe('Argos visual-regression baselines — desktop', () => {
         // duplicated greeting (SSR text left beside the hydrated one) also fails here. `exact` on both, because
         // Playwright's default name/text matching is case-insensitive SUBSTRING — which would accept a greeting
         // that merely contains the pinned one.
-        await expect(page.getByRole('heading', { level: 2, name: PINNED_GREETING, exact: true })).toHaveCount(1);
+        await expect(page.getByRole('heading', { level: 1, name: PINNED_GREETING })).toHaveCount(1);
         await expect(page.getByText(PINNED_GREETING_DATE, { exact: true })).toHaveCount(1);
 
         await captureBaseline(page, 'home-widget-surface-desktop');
@@ -197,7 +198,7 @@ test.describe('Argos visual-regression baselines — desktop', () => {
         await page.goto(route('/recipes'));
 
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
-        await expect(page.getByRole('button', { name: RECIPE_TITLE })).toBeVisible();
+        await expect(page.getByRole('link', { name: RECIPE_TITLE, exact: true })).toBeVisible();
         // The pinned clock reached CLIENT-rendered content: the card footer is computed in the browser from
         // `new Date()` against the fixture's fixed `createdAt`. Unpinned this drifts by one week every week.
         await expect(page.getByText(PINNED_CARD_TIMESTAMP)).toBeVisible();

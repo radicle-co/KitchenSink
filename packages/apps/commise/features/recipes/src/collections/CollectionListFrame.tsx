@@ -10,28 +10,73 @@
  * The heading takes focus when `headingFocusSignal` advances: a retry from the refresh notice (inside the boundary)
  * that succeeds removes the button the viewer pressed, and the container reports that across the boundary.
  */
-import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { CreateFab } from '@commise/ui/create-fab';
+import { LargeTitleHeader } from '@commise/ui/large-title-header';
+import { SegmentedControl } from '@commise/ui/segmented-control';
 import type { FC } from 'react';
 
+import { recipeMessages } from '../messages.js';
+import { RECIPES_SEGMENTS, RECIPES_TITLE_ID } from '../list/model.js';
 import { collectionMessages } from './messages.js';
 import type { CollectionListFrameProps } from './model.js';
 
-export const CollectionListFrame: FC<CollectionListFrameProps> = ({ onCreate, headingFocusSignal, children }) => {
+export const CollectionListFrame: FC<CollectionListFrameProps> = ({
+    onCreate,
+    segments,
+    headingFocusSignal,
+    headerAction,
+    firstRun = false,
+    children,
+}) => {
     const { list } = useMessages(collectionMessages);
-    const headingRef = useFocusOnSignal<HTMLHeadingElement>(headingFocusSignal);
+    const recipes = useMessages(recipeMessages).list;
 
     return (
-        <section aria-label={list.heading} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
-            <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-ink">
-                    {list.heading}
-                </h1>
-                <Button icon="plus" onPress={onCreate}>
-                    {list.createCta}
-                </Button>
-            </header>
+        <section aria-label={list.heading} className="mx-auto flex w-full max-w-page flex-col gap-4">
+            {/* The Recipes screen's large title with Collections selected (slice 3, `buildSpec.md` §5.1). Below 840 the
+                avatar is the action and "New collection" floats, right after the H1 in DOM order; from 840 the
+                header's action is the New collection button and the sidebar holds the avatar. */}
+            <LargeTitleHeader
+                headingId={RECIPES_TITLE_ID}
+                title={recipes.heading}
+                focusSignal={headingFocusSignal}
+                {...(headerAction === undefined ? {} : { action: headerAction })}
+                afterTitle={
+                    <>
+                        <div className="hidden nav:block nav:flex-none">
+                            <Button variant="secondary" icon="plus" onPress={onCreate}>
+                                {list.createCta}
+                            </Button>
+                        </div>
+                        <CreateFab label={list.createCta} icon="plus" onPress={onCreate} firstRun={firstRun} />
+                    </>
+                }
+                {...(segments === undefined
+                    ? {}
+                    : {
+                          segments: (
+                              <SegmentedControl
+                                  form="route"
+                                  label={recipes.segmentsLabel}
+                                  current={segments.current}
+                                  segments={RECIPES_SEGMENTS.map((segment) => ({
+                                      id: segment,
+                                      label: segment === 'mine' ? recipes.tabMine : recipes.tabCollections,
+                                      href: segments.href[segment],
+                                  }))}
+                                  onSelect={(id) => {
+                                      const segment = RECIPES_SEGMENTS.find((candidate) => candidate === id);
+
+                                      if (segment !== undefined) {
+                                          segments.onSelect(segment);
+                                      }
+                                  }}
+                              />
+                          ),
+                      })}
+            />
             {children}
         </section>
     );

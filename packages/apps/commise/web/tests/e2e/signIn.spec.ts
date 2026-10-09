@@ -43,7 +43,36 @@ test.describe('sign-in flow', () => {
 
         await expect.poll(() => isHome(pathnameOf(page)), { timeout: 30_000 }).toBe(true);
         expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
-        await expect(page.getByRole('heading', { name: /welcome to commise/i })).toBeVisible();
+        // Home rendered, signed in: the shell marks Home the current page (the H1 is the time-of-day greeting since slice 3).
+        await expect(page.getByRole('link', { name: 'Home', exact: true }).filter({ visible: true })).toHaveAttribute(
+            'aria-current',
+            'page',
+        );
+    });
+
+    // §8: the code step must fit a 320 px phone. Clerk renders the field in a narrow box; the appearance gives the cell no
+    // horizontal padding so a digit is not clipped, and this proves the box is whole, on screen, and not scrolling.
+    test('the verification-code step fits a 320 px screen with no sideways scroll', async ({ page }) => {
+        test.slow();
+        await page.setViewportSize({ width: 320, height: 700 });
+        await setupClerkTestingToken({ page });
+        await page.goto(route('/sign-in'));
+
+        await page.getByRole('textbox', { name: /email/i }).fill(TEST_USER_EMAIL);
+        await clerkPrimarySubmit(page).click();
+        await page.getByRole('textbox', { name: 'Password' }).fill(TEST_USER_PASSWORD);
+        await clerkPrimarySubmit(page).click();
+
+        await expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible({ timeout: 15_000 });
+
+        const code = await page.getByRole('textbox', { name: /verification code/i }).boundingBox();
+
+        expect(code).not.toBeNull();
+        expect(code?.x ?? -1).toBeGreaterThanOrEqual(0);
+        expect((code?.x ?? 0) + (code?.width ?? 0)).toBeLessThanOrEqual(320);
+        expect(
+            await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+        ).toBeLessThanOrEqual(0);
     });
 
     test('a signed-in user visiting /sign-in is redirected to home', async ({ page }) => {

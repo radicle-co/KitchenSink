@@ -17,7 +17,7 @@ import {
     isListNarrowed,
     isQuickRecipe,
     matchesListFacet,
-    shouldShowCreateDial,
+    shouldShowCreateButton,
     toRecipeListItem,
 } from '../model.js';
 
@@ -168,14 +168,14 @@ describe('isListNarrowed (the empty-vs-no-match discriminator)', () => {
     });
 });
 
-describe('shouldShowCreateDial (U34)', () => {
+describe('shouldShowCreateButton (U34)', () => {
     // REWRITTEN for the suspense split. The policy used to carry four gates — loading, error, true-empty, Community —
     // and now carries one. Loading and error are no longer answered HERE but by which boundary branch renders:
     // `RecipeListLoading` mounts no dial (its own test holds the mid-press-unmount defect) and `RecipeListLoadError`
     // mounts it unconditionally (its own test holds "a failed load keeps a create affordance"). The Community gate
     // went with the Community branch of this list, which no host renders — the community surface is discovery.
-    const show = (over: Partial<Parameters<typeof shouldShowCreateDial>[0]> = {}) =>
-        shouldShowCreateDial({ recipeCount: 3, narrowed: false, ...over });
+    const show = (over: Partial<Parameters<typeof shouldShowCreateButton>[0]> = {}) =>
+        shouldShowCreateButton({ recipeCount: 3, narrowed: false, ...over });
 
     it('shows the dial over populated results', () => {
         expect(show()).toBe(true);

@@ -112,6 +112,24 @@ export interface DataSourcesLoadErrorProps {
  */
 export type DataSourcesLoadErrorNativeProps = Omit<DataSourcesLoadErrorProps, 'failures'>;
 
+/** The way back from the web page, to Profile (`buildSpec.md` §9.2). The host owns the route and the router. */
+export interface DataSourcesBack {
+    /** The accessible name: "Back to Profile". */
+    readonly label: string;
+    /** The parent's name, for the 840+ eyebrow: "‹ Profile". */
+    readonly parent: string;
+    /** The parent's web address, so a modified click (a new tab) still works. */
+    readonly href?: string;
+    /** Go back: a plain click comes here and the link's own navigation is cancelled. */
+    readonly onPress: () => void;
+}
+
+/** Props for the web `DataSourcesScreen`. */
+export interface DataSourcesScreenProps {
+    /** The way back, when the page was reached from somewhere that has a name (Profile). */
+    readonly back?: DataSourcesBack;
+}
+
 /** Props for the web `DataSourcesPage`: the region below the intro, where the read's states render. */
 export interface DataSourcesPageProps {
     /** The read's state — the skeleton, the error, or the list — which the host's boundary chooses. */
@@ -123,6 +141,9 @@ export interface DataSourcesPageProps {
     readonly headingFocusSignal: number;
 }
 
+/** Props for the web `DataSourcesPage`: the shared props and the way back. */
+export interface DataSourcesPageWebProps extends DataSourcesPageProps, DataSourcesScreenProps {}
+
 /** Props for the native `DataSourcesPage`, a full-screen sheet. */
 export interface DataSourcesPageNativeProps extends DataSourcesPageProps {
     /** The sheet's one way out: Close, and Android back (§S16). */
@@ -133,23 +154,4 @@ export interface DataSourcesPageNativeProps extends DataSourcesPageProps {
 export interface DataSourcesScreenNativeProps {
     /** Close, Android back: the sheet's one way out. */
     readonly onRequestClose: () => void;
-}
-
-/** Props for the web `DataSourcesSettingsLink`: the page's address, which the app's router owns. */
-export interface DataSourcesSettingsLinkProps {
-    /** The page's address, `/{locale}/legal/sources`, which the app's router owns. */
-    readonly href: string;
-    /** The host's card classes, so the section matches its siblings on the settings page. */
-    readonly className?: string;
-}
-
-/** Props for the native `DataSourcesSettingsLink`: opens the sheet, which the host mounts. */
-export interface DataSourcesSettingsLinkNativeProps {
-    /** Opens the Data sources sheet, which the host mounts and closes. */
-    readonly onOpen: () => void;
-    /**
-     * A count the host advances each time the sheet this link opened closes. A change takes the reading cursor back
-     * to the link (design §S16 Focus); the first value moves nothing.
-     */
-    readonly returnFocusSignal?: number;
 }

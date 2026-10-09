@@ -27,34 +27,31 @@ describe('RecipeListLoadError (web)', () => {
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it('⛔ keeps the create dial, since this body has no create CTA to replace it', async () => {
-        // Suppressing it would strand a cook whose library failed to load with no way to create at all.
+    it('⛔ keeps the create button, since this body has no create CTA to replace it: one tap opens the editor', async () => {
+        // Suppressing it would strand a cook whose library failed to load with no way to create at all. Rewritten for
+        // slice 8: the button no longer discloses a menu (Paste lives in the editor's Ingredients section).
         const user = userEvent.setup();
         const onCreateRecipe = vi.fn();
-        const onPasteIngredients = vi.fn();
-        render(
-            <RecipeListLoadError
-                onRetry={noop}
-                onCreateRecipe={onCreateRecipe}
-                onPasteIngredients={onPasteIngredients}
-            />,
-        );
+        render(<RecipeListLoadError onRetry={noop} onCreateRecipe={onCreateRecipe} />);
 
         await user.click(screen.getByRole('button', { name: 'New recipe' }));
-        await user.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
-        // Both destinations reach the dial — the error branch must not quietly drop the second one.
-        await user.click(screen.getByRole('button', { name: 'New recipe' }));
-        await user.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
-
-        expect(onPasteIngredients).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('menu')).toBeNull();
     });
 
     it('offers no first-run CTA — the library has not said it is empty', () => {
         render(<RecipeListLoadError onRetry={noop} onCreateRecipe={noop} />);
 
-        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
-        expect(screen.queryByText('No recipes yet')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+        expect(screen.queryByText('Your recipe box is empty')).toBeNull();
+    });
+
+    // Slice 4 (`buildSpec.md` §4.3 Load error): Try again is the design-system secondary button with its glyph.
+    it('offers Try again as the secondary design-system button', () => {
+        render(<RecipeListLoadError onRetry={noop} onCreateRecipe={noop} />);
+        const retry = screen.getByRole('button', { name: 'Try again' });
+
+        expect(retry.querySelector('svg.lucide-rotate-ccw')).not.toBeNull();
     });
 });

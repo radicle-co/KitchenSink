@@ -80,6 +80,9 @@ export default defineConfig({
             '@': srcPath,
             // The `/danger` subpath (the account danger-zone components) must be listed BEFORE the base
             // package alias so it wins the more-specific match.
+            '@commise/features-account/profile': fileURLToPath(
+                new URL('../features/account/src/profile/index.ts', import.meta.url),
+            ),
             '@commise/features-account/danger': fileURLToPath(
                 new URL('../features/account/src/danger/index.ts', import.meta.url),
             ),

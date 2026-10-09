@@ -14,6 +14,8 @@ export interface MobileMessages {
          * and mobile greet identically (FR-044); a missing bucket is a compile error, not a blank header.
          */
         readonly greetings: Readonly<Record<GreetingBucket, string>>;
+        /** Home's H1 with the cook's name in `{name}`: "Good afternoon, Eliza" (`buildSpec.md` §4.2). */
+        readonly greetingsNamed: Readonly<Record<GreetingBucket, string>>;
         /** Accessible label for the Home widget-surface region (the scrollable widget list). */
         readonly regionLabel: string;
         /** Label of the recipe widget's entry point into the full recipes surface. */
@@ -31,20 +33,12 @@ export interface MobileMessages {
          * model in `@commise/features-core`, so a destination added there without copy is a compile error.
          */
         readonly chrome: {
-            /** Title shown in the top bar on the Home route. */
-            readonly pageTitle: string;
-            /** Accessible name of the search entry point. */
-            readonly search: string;
-            /** Accessible name of the notifications control. */
-            readonly notifications: string;
-            /** Accessible name of the avatar / account entry point. */
-            readonly account: string;
-            /** Fallback avatar accessible name when the viewer has no display name yet. */
-            readonly accountNoName: string;
+            /** The avatar's name, with the cook's name in `{name}` (`buildSpec.md` §3.3). */
+            readonly profileButton: string;
+            /** The same name when the cook has none yet. */
+            readonly profileButtonNoName: string;
             /** Accessible name of the bottom tab-bar navigation landmark. */
             readonly tabNavLabel: string;
-            /** Suffix appended to an unreachable destination's accessible name (never a dead tab). */
-            readonly comingSoonSuffix: string;
             /** Label of each navigation destination, keyed by the shared nav model's id. */
             readonly destinations: Readonly<Record<HomeNavItemId, string>>;
         };
@@ -77,8 +71,14 @@ export interface MobileMessages {
     readonly auth: {
         /** Brand wordmark shown atop the sign-in / sign-up screens. */
         readonly brand: string;
-        /** Sub-heading on the sign-up screen. */
+        /** The sign-in screen's H1 (`buildSpec.md` §8: "Sign in to Commise"). */
+        readonly signInTitle: string;
+        /** The one line under the H1 on both auth screens (`buildSpec.md` §8). */
+        readonly brandLine: string;
+        /** The sign-up screen's H1. */
         readonly createHeading: string;
+        /** Alert above the primary action when Clerk could not be reached (`buildSpec.md` §8 "States"). */
+        readonly networkError: string;
         /** Visible label for the email field (also its accessible name). */
         readonly emailLabel: string;
         /** Placeholder shown in the empty email field. */
@@ -132,11 +132,8 @@ export interface MobileMessages {
         /** Appended when a session id is known, for support to correlate. Contains `{sessionId}`. */
         readonly sessionLabel: string;
     };
+    /** The native-only photo control's copy. The rest of the Profile page's copy is `profileMessages`. */
     readonly profile: {
-        /** Field label for the display-name input (also its accessible name). */
-        readonly displayName: string;
-        /** Placeholder shown in the empty display-name field. */
-        readonly displayNamePlaceholder: string;
         /** Section label above the avatar picker. */
         readonly avatarLabel: string;
         /** Accessible name of the avatar image preview. */
@@ -149,31 +146,9 @@ export interface MobileMessages {
         readonly avatarTooLargeError: string;
         /** Alert shown when the picked avatar's type is outside the JPEG/PNG/WebP allowlist. */
         readonly avatarUnsupportedTypeError: string;
-        /** Primary save action. */
-        readonly save: string;
-        /** Busy label shown while the profile save is in flight. */
-        readonly saving: string;
-        /** Accessible label for the profile-loading spinner. */
-        readonly loading: string;
-        /** Message shown when the profile fails to load. */
-        readonly loadError: string;
     };
-    /** Copy for the account hub (security + sign-out + danger zone entry) — U2. */
+    /** Copy the Profile page's danger zone needs beyond `accountDangerMessages`. */
     readonly account: {
-        /** Screen heading. */
-        readonly heading: string;
-        /** Fallback shown when the signed-in viewer has no primary email yet. */
-        readonly signedInFallback: string;
-        /** Heading of the security section. */
-        readonly securityHeading: string;
-        /** Body copy of the security section. */
-        readonly securityBody: string;
-        /** Label of the sign-out action. */
-        readonly signOutAction: string;
-        /** Busy label shown while the sign-out is in flight. */
-        readonly signingOut: string;
-        /** Alert shown when the sign-out fails, so the control is retryable rather than silent (ADR-0009). */
-        readonly signOutFailed: string;
         /**
          * Alert shown when an account ERASURE was accepted (202) but the follow-up sign-out failed.
          * Deliberately distinct from `signOutFailed` and from the erasure dialog's own submit error: the
@@ -181,10 +156,6 @@ export interface MobileMessages {
          * outstanding action is leaving the (now-destroyed) account's session.
          */
         readonly eraseSignOutFailed: string;
-        /** Label of the back affordance returning to the profile surface. */
-        readonly backAction: string;
-        /** Label of the profile-surface entry point into this account hub. */
-        readonly settingsAction: string;
     };
     readonly suspension: {
         readonly title: string;
@@ -201,14 +172,6 @@ export interface MobileMessages {
         readonly detailRetry: string;
         /** Label of the back affordance on the recipe-detail screen. */
         readonly back: string;
-        /** Label of the owner action that opens the recipe editor. */
-        readonly editAction: string;
-        /** Label of the owner action that opens the delete-confirmation dialog. */
-        readonly deleteAction: string;
-        /** Label of the owner action that opens the version-history screen. */
-        readonly versionsAction: string;
-        /** Reason shown when the private-visibility option is gated behind a premium plan (C-004). */
-        readonly visibilityUpgradeReason: string;
         /** Alert shown when creating a recipe fails. */
         readonly createError: string;
         /**
@@ -315,29 +278,30 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
     en: {
         home: {
             greetings: {
-                morning: 'Good morning, Chef!',
-                afternoon: 'Good afternoon, Chef!',
-                evening: 'Good evening, Chef!',
-                night: 'Still up, Chef?',
+                morning: 'Good morning',
+                afternoon: 'Good afternoon',
+                evening: 'Good evening',
+                night: 'Still up?',
+            },
+            greetingsNamed: {
+                morning: 'Good morning, {name}',
+                afternoon: 'Good afternoon, {name}',
+                evening: 'Good evening, {name}',
+                night: 'Still up, {name}?',
             },
             regionLabel: 'Home',
             seeAllRecipes: 'See all recipes',
             widgetError: 'This section couldn’t load.',
             chrome: {
-                pageTitle: 'Home',
-                search: 'Search',
-                notifications: 'Notifications',
-                account: 'Account',
-                accountNoName: 'Your account',
+                profileButton: 'Profile, {name}',
+                profileButtonNoName: 'Profile',
                 tabNavLabel: 'Main',
-                comingSoonSuffix: 'coming soon',
                 destinations: {
                     home: 'Home',
                     recipes: 'Recipes',
-                    'meal-plan': 'Meal Plan',
-                    grocery: 'Grocery',
-                    nutrition: 'Nutrition',
-                    profile: 'Profile',
+                    discover: 'Discover',
+                    'meal-plan': 'Plan',
+                    grocery: 'Shop',
                 },
             },
             roadmap: {
@@ -358,7 +322,10 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
         },
         auth: {
             brand: 'Commise',
+            signInTitle: 'Sign in to Commise',
+            brandLine: 'Your recipes, in one place.',
             createHeading: 'Create your account',
+            networkError: 'We couldn’t reach the sign-in service. Check your connection and try again.',
             emailLabel: 'Email',
             emailPlaceholder: 'you@example.com',
             passwordLabel: 'Password',
@@ -369,8 +336,8 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             signInAction: 'Sign in',
             verifyAction: 'Verify',
             createAccountAction: 'Create account',
-            noAccountPrompt: 'Don’t have an account?',
-            signUpLink: 'Sign up',
+            noAccountPrompt: 'New to Commise?',
+            signUpLink: 'Create an account',
             haveAccountPrompt: 'Already have an account?',
             signInLink: 'Sign in',
             signInFailed: 'We couldn’t sign you in. Please try again.',
@@ -386,31 +353,16 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             sessionLabel: 'Session: {sessionId}',
         },
         profile: {
-            displayName: 'Display name',
-            displayNamePlaceholder: 'Your name',
             avatarLabel: 'Profile photo',
             avatarImageLabel: 'Your profile photo',
             avatarChangeAction: 'Change photo',
             avatarUploadError: 'We couldn’t update your photo. Please try again.',
             avatarTooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
             avatarUnsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
-            save: 'Save',
-            saving: 'Saving…',
-            loading: 'Loading your profile…',
-            loadError: 'Failed to load profile.',
         },
         account: {
-            heading: 'Account',
-            signedInFallback: 'Signed in',
-            securityHeading: 'Security',
-            securityBody: 'Manage your password, MFA, and linked social accounts from the IdP-hosted user profile.',
-            signOutAction: 'Sign out',
-            signingOut: 'Signing out…',
-            signOutFailed: 'We couldn’t sign you out. Please try again.',
             eraseSignOutFailed:
                 'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
-            backAction: 'Back',
-            settingsAction: 'Account settings',
         },
         suspension: {
             title: 'Account Suspended',
@@ -424,10 +376,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             detailNotFound: 'We couldn’t find that recipe.',
             detailRetry: 'Try again',
             back: 'Back',
-            editAction: 'Edit recipe',
-            deleteAction: 'Delete recipe',
-            versionsAction: 'Version history',
-            visibilityUpgradeReason: 'Upgrade to premium to make a recipe private.',
             createError: 'We couldn’t create your recipe. Please try again.',
             photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
             photosFinishWithout: 'Finish without the remaining photos',

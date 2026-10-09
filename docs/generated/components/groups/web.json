@@ -4,158 +4,18 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 85,
-        "implementations": 85,
-        "props": 112,
-        "documentedComponents": 76,
-        "implementationsWithModuleDoc": 58,
+        "components": 77,
+        "implementations": 77,
+        "props": 97,
+        "documentedComponents": 74,
+        "implementationsWithModuleDoc": 59,
         "implementationsWithComponentDoc": 57,
-        "documentedProps": 73,
-        "classifiedComponents": 33,
-        "componentsWithPatternTag": 19,
+        "documentedProps": 61,
+        "classifiedComponents": 32,
+        "componentsWithPatternTag": 25,
         "crossPlatformComponents": 0
     },
     "components": [
-        {
-            "id": "web/app/[locale]/account/AccountContent",
-            "name": "AccountContent",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]/account",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": false,
-            "implementations": [
-                {
-                    "name": "AccountContent",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/account/AccountContent.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]/account",
-                    "moduleDoc": "",
-                    "moduleTags": [],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "accessToken",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        },
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/app/[locale]/account/AccountPage",
-            "name": "AccountPage",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]/account",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": false,
-            "implementations": [
-                {
-                    "name": "AccountPage",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/account/page.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]/account",
-                    "moduleDoc": "",
-                    "moduleTags": [],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "compiler-fallback",
-                    "exportKind": "default",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/app/[locale]/collections/[id]/add/AddRecipeToCollectionPage",
-            "name": "AddRecipeToCollectionPage",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]/collections/[id]/add",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "AddRecipeToCollectionPage",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/collections/[id]/add/page.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]/collections/[id]/add",
-                    "moduleDoc": "",
-                    "moduleTags": [],
-                    "description": "Add-a-recipe-to-collection route (`/[locale]/collections/[id]/add`). A thin server page: it enforces auth\nand renders the client {@link CollectionRecipePickerContainer}, which lists the caller's own recipes and\nadds them to this collection. This is the navigation target of the detail view's add-a-recipe action.\n\nL9: renders inside the shared {@link AppShell} with `recipes` active — collections are a recipe-domain\nsurface, and the shared nav model has no separate collections destination.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "default",
-                    "props": [
-                        {
-                            "name": "params",
-                            "type": "Promise<{ locale: string; id: string; }>",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
         {
             "id": "web/app/[locale]/collections/[id]/CollectionDetailPage",
             "name": "CollectionDetailPage",
@@ -180,53 +40,6 @@
                     "moduleDoc": "",
                     "moduleTags": [],
                     "description": "Collection-detail route (`/[locale]/collections/[id]`). A thin server page: it enforces auth and hands the\ncollection id + locale to the client {@link CollectionDetailContainer}, which fetches the collection and\nrenders the detail view (or a localized loading / not-found / error affordance).\n\nL9: renders inside the shared {@link AppShell} with `recipes` active — collections are a recipe-domain\nsurface, and the shared nav model has no separate collections destination.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "default",
-                    "props": [
-                        {
-                            "name": "params",
-                            "type": "Promise<{ locale: string; id: string; }>",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/app/[locale]/collections/[id]/rename/RenameCollectionPage",
-            "name": "RenameCollectionPage",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]/collections/[id]/rename",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RenameCollectionPage",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/collections/[id]/rename/page.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]/collections/[id]/rename",
-                    "moduleDoc": "",
-                    "moduleTags": [],
-                    "description": "Collection-rename route (`/[locale]/collections/[id]/rename`). A thin server page: it enforces auth and\nrenders the client {@link CollectionFormContainer} in `rename` mode, which seeds the name from the loaded\ncollection and owns the update mutation. This is the navigation target of the detail view's rename action.\n\nL9: renders inside the shared {@link AppShell} with `recipes` active — collections are a recipe-domain\nsurface, and the shared nav model has no separate collections destination.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "default",
@@ -367,53 +180,6 @@
                     "moduleDoc": "",
                     "moduleTags": [],
                     "description": "Collection-list route (`/[locale]/collections`). A thin server page: it enforces auth (these are the\ncaller's private collections) and hands the locale to the client {@link CollectionListContainer}, which\nowns the data fetching. Route protection is at the resource, per the app's middleware ADR.\n\nB19 — SSR prefetch + `HydrationBoundary`: a server `QueryClient` prefetches the SAME query the container's\n`useCollectionsInfinite()` reads. The container is an INFINITE query (W5/C7 \"Load more\"), so this uses\n`prefetchInfiniteQuery` (not `prefetchQuery`) over the P5 `collectionQueries(client).listInfinite({})`\nfactory. The two shapes key separately (`recipeServiceKeys.collectionListInfinite`, PR #91 review), so a\nflat `prefetchQuery` would land under a key this container never reads and hydrate nothing. Authenticated\nwith THIS request's own Clerk session token (`auth().getToken()`, the `profile/page.tsx` pattern). A\nfailed prefetch dehydrates to an empty state (`prefetchInfiniteQuery` never throws; `dehydrate()` drops\nnon-`success` queries), so the container's own client-side fetch takes over — never a 500.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "default",
-                    "props": [
-                        {
-                            "name": "params",
-                            "type": "Promise<{ locale: string; }>",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/app/[locale]/collections/new/NewCollectionPage",
-            "name": "NewCollectionPage",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]/collections/new",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "NewCollectionPage",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/collections/new/page.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]/collections/new",
-                    "moduleDoc": "",
-                    "moduleTags": [],
-                    "description": "Collection-create route (`/[locale]/collections/new`). A thin server page: it enforces auth and renders the\nclient {@link CollectionFormContainer} in `create` mode, which owns the controlled name field and the\ncreate mutation. (Static `new` takes precedence over the dynamic `[id]` sibling in Next routing.)\n\nL9: renders inside the shared {@link AppShell} with `recipes` active — collections are a recipe-domain\nsurface, and the shared nav model has no separate collections destination.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "default",
@@ -677,7 +443,7 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/app/[locale]/legal/sources",
-            "kind": "presentational",
+            "kind": "unclassified",
             "patterns": [],
             "platforms": [
                 "web"
@@ -693,7 +459,7 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/legal/sources",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "The `/legal/sources` route content (curated U25, design §S16), presentational: the Data sources page inside the\nshared shell. Kept\nout of `page.tsx` so the route segment exports only Next.js-valid fields, the `SettingsContent` pattern. The page\nreads food-service directly through the app-wide `FoodServiceProvider` (plan 002 S5).\n\n⚠️ The address is a one-way door: the attribution the licences require points here, and people bookmark it.",
+                    "description": "The `/legal/sources` route content (curated U25, design §S16), the Data sources page inside the shared shell.\nKept out of `page.tsx` so the route segment exports only Next.js-valid fields. The page reads food-service directly\nthrough the app-wide `FoodServiceProvider` (plan 002 S5).\n\nA client component for one reason: the way back to Profile (`buildSpec.md` §9.2) is the router's, and a function\ncannot cross from the server page. Profile is where the page is reached from, so it is where Back goes.\n\n⚠️ The address is a one-way door: the attribution the licences require points here, and people bookmark it.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -701,7 +467,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
+                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -851,7 +617,7 @@
             ],
             "crossPlatform": false,
             "propsDiverge": false,
-            "documented": false,
+            "documented": true,
             "implementations": [
                 {
                     "name": "ProfileContent",
@@ -860,30 +626,16 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/profile",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
+                    "description": "The `/profile` route content — the one Profile page (`docs/design/uiOverhaul/buildSpec.md` §9.1) in the shared\n{@link AppShell}, behind the account-state gate (a suspended or impersonated session sees the notice, not the page).\nKept OUT of `page.tsx` so the route segment exports only Next.js-valid fields (a page module may not export arbitrary\ncomponents — `next build` rejects it).\n\nIt fetches nothing. The profile is read in the browser by `ProfileSurface` through the same cached query the shell's\navatar uses, with a fresh bearer token per call: the server used to read it here and hand a captured token to the\nclient forms, and a Clerk session token lives about a minute, so a cook who read the page for longer than that had\nevery danger-zone call rejected as unauthenticated. The read's loading and failed states are the page's own, which an\nawait in this component could not express.",
+                    "tags": [
                         {
-                            "name": "accessToken",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        },
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
+                            "name": "returns",
+                            "text": "The page."
                         }
                     ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -953,7 +705,7 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/edit",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "Recipe-edit route (`/[locale]/recipes/[id]/edit`). A thin server page: it enforces auth and hands the\nlocale + recipe id to the client {@link RecipeEditContainer}, which loads the recipe, seeds the form, and\npersists the edit. Route protection is at the resource, per the app's middleware ADR.\n\nL9: renders inside the shared {@link AppShell} with `recipes` active, so the editor keeps the app's nav\nchrome on both desktop and narrow viewports.",
+                    "description": "Recipe-edit route (`/[locale]/recipes/[id]/edit`). A thin server page: it enforces auth and hands the\nlocale + recipe id to the client {@link RecipeEditorContainer} — the one-page editor (slice 7), which\nloads the recipe and its device draft and saves the edit. Route protection is at the resource, per the app's middleware ADR.\n\nL9: renders inside the shared {@link AppShell} with `recipes` active, so the editor keeps the app's nav\nchrome on both desktop and narrow viewports.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "default",
@@ -1187,101 +939,7 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/recipes/new",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "Recipe-create route (`/[locale]/recipes/new`). A thin server page: it enforces auth (creating a recipe is\nan owner action) and hands the locale to the client {@link RecipeCreateContainer}, which owns the form\nstate, ingredient resolution, and submission. Route protection is at the resource, per the app's\nmiddleware ADR.\n\nL9: renders inside the shared {@link AppShell} — the same chrome Home and the recipe list use — with\n`recipes` as the active destination, so the creation surface keeps the sidebar on desktop and the bottom tab\nbar on narrow viewports instead of stranding the viewer with no navigation.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "default",
-                    "props": [
-                        {
-                            "name": "params",
-                            "type": "Promise<{ locale: string; }>",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/app/[locale]/recipes/parse/[jobId]/ParseJobReviewPage",
-            "name": "ParseJobReviewPage",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]/recipes/parse/[jobId]",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ParseJobReviewPage",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/parse/[jobId]/page.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]/recipes/parse/[jobId]",
-                    "moduleDoc": "",
-                    "moduleTags": [],
-                    "description": "Parse-review route (`/[locale]/recipes/parse/[jobId]`).\n\n⛔ THE JOB ID IS IN THE URL, and that is what makes the server's 24-hour TTL mean anything. The service\nspends a TTL constant, a sweep, a seven-day purge grace and a wire `expiresAt` field on ONE affordance —\nleave the review open overnight, come back, and see an honest `expired` job rather than a `404`. Holding\nthe id in React state instead would discard it on a refresh, and every one of those server affordances\nwould become unreachable code that no user could ever observe.\n\nOwner scoping is entirely server-side: a stranger's job answers `404`, deliberately indistinguishable\nfrom an absent one, so this page needs no ownership check of its own — only that a viewer is signed in.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "default",
-                    "props": [
-                        {
-                            "name": "params",
-                            "type": "Promise<{ locale: string; jobId: string; }>",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/app/[locale]/recipes/parse/ParseIngredientsPage",
-            "name": "ParseIngredientsPage",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]/recipes/parse",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ParseIngredientsPage",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/parse/page.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]/recipes/parse",
-                    "moduleDoc": "",
-                    "moduleTags": [],
-                    "description": "Ingredient-paste route (`/[locale]/recipes/parse`). A thin server page: it enforces auth (a parse job is\nowned by its creator and a stranger's poll answers `404`) and hands the locale to the client\n{@link ParsePasteContainer}, which owns the text and the create mutation. Route protection is at the\nresource, per the app's middleware ADR.\n\nL9: renders inside the shared {@link AppShell} with `recipes` as the active destination, so the surface\nkeeps the sidebar on desktop and the bottom tab bar on narrow viewports.",
+                    "description": "Recipe-create route (`/[locale]/recipes/new`). A thin server page: it enforces auth (creating a recipe is\nan owner action) and hands the locale to the client {@link RecipeEditorContainer} — the one-page editor (slice 7),\nwhich owns the draft, its saving and its publication. Route protection is at the resource, per the app's\nmiddleware ADR.\n\nL9: renders inside the shared {@link AppShell} — the same chrome Home and the recipe list use — with\n`recipes` as the active destination, so the creation surface keeps the sidebar on desktop and the bottom tab\nbar on narrow viewports instead of stranding the viewer with no navigation.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "default",
@@ -1446,90 +1104,6 @@
             ]
         },
         {
-            "id": "web/app/[locale]/settings/SettingsContent",
-            "name": "SettingsContent",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]/settings",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "SettingsContent",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/settings/SettingsContent.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]/settings",
-                    "moduleDoc": "",
-                    "moduleTags": [],
-                    "description": "The `/settings` route content, kept OUT of `page.tsx` so the route segment exports only Next.js-valid\nfields and so the AppShell wiring can be unit-tested directly.\n\nU3: settings now renders inside the shared {@link AppShell} (nav on desktop AND narrow — the bare,\nnav-less route was a defect) with the design-system card idiom, and all copy resolves through\n{@link authMessages}. The sign-out control is the shared DS `Button` via {@link LogoutButton}. The Food data card\nlinks to the Data sources page (curated U25).",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/app/[locale]/settings/SettingsPage",
-            "name": "SettingsPage",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/app/[locale]/settings",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": false,
-            "implementations": [
-                {
-                    "name": "SettingsPage",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/settings/page.tsx",
-                    "dir": "packages/apps/commise/web/src/app/[locale]/settings",
-                    "moduleDoc": "",
-                    "moduleTags": [],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "compiler-fallback",
-                    "exportKind": "default",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "web/app/[locale]/sign-in/[[...sign-in]]/SignInPage",
             "name": "SignInPage",
             "group": "web",
@@ -1543,7 +1117,7 @@
             ],
             "crossPlatform": false,
             "propsDiverge": false,
-            "documented": false,
+            "documented": true,
             "implementations": [
                 {
                     "name": "SignInPage",
@@ -1552,7 +1126,7 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/sign-in/[[...sign-in]]",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "",
+                    "description": "The sign-in page. The routing, redirect and sign-up-link rules live with the widget they govern, in `SignInForm`.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "default",
@@ -1590,7 +1164,7 @@
             ],
             "crossPlatform": false,
             "propsDiverge": false,
-            "documented": false,
+            "documented": true,
             "implementations": [
                 {
                     "name": "SignUpPage",
@@ -1599,7 +1173,7 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/sign-up/[[...sign-up]]",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "",
+                    "description": "The sign-up page. The routing and redirect rules live with the widget they govern, in `SignUpForm`.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "default",
@@ -1739,26 +1313,26 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/app/AppShell.tsx",
                     "dir": "packages/apps/commise/web/src/components/app",
-                    "moduleDoc": "components/app/AppShell — the app-wide navigation shell (web; W1/L9, FR-044/FR-046).\n\nWraps an authenticated surface in the shared {@link HomeChrome}: the desktop left sidebar, the sticky top\nbar, and — below the `lg` breakpoint — the bottom tab bar + hamburger drawer. Every authenticated route\n(Home, the recipe list, …) renders inside this ONE shell so the navigation is consistent across the app\ninstead of living only on Home; each surface passes its own `activeId` for the active destination.\n\n`liveCapabilities` is the set of deployed backend capabilities — an app-wide fact, not a per-page one — so\nit is owned here once and reused by every surface (and by Home's widget curation). The responsive cutover\nis the shared `lg` token (see HomeSidebar / HomeTabBar): sidebar at desktop widths, bottom nav at tablet +\nmobile widths.\n\n**The top bar names the SURFACE, resolved here from a `titleId`.** It used to render one hard-coded 'Home'\nfor all 15 shell-hosted routes. A route passes a {@link ShellSurfaceId} rather than a resolved string\nbecause those routes are SERVER components with no locale context while this shell (a client component)\nalready has it — and an id-keyed copy record makes a surface without a title a COMPILE error instead of a\nblank bar. `titleId` is optional and defaults to Home, so a caller that says nothing behaves exactly as\nbefore. See `components/app/shellSurfaces.ts` for why surfaces are a separate axis from nav destinations.\n\n⚠️ It is ORCHESTRATION, and exactly ONE line makes it so: `useUserProfile()`, the read that puts the\nsigned-in cook's name in the top bar. Everything else here is layout, so the component reads as a wrapper\nand the split between it and {@link HomeChrome} — which owns no data at all — is invisible unless stated.\nThe rule the pair encodes: data enters the chrome HERE, and never below.",
+                    "moduleDoc": "components/app/AppShell — the app-wide navigation shell (web; `docs/design/uiOverhaul/buildSpec.md` §3).\n\nWraps an authenticated page in {@link HomeChrome} — the sidebar from `nav` (840), the bottom tab bar below it — and\nin the page's one `ScrollHost`, so the tab bar's second tap, the floating create button and \"Back to top\" read one\nscroll. Each page passes its `activeId`.\n\n`titleId` names the page in the document title, \"{page} · Commise\". Routes pass an id rather than a string because\nthey are SERVER components with no locale context, while this shell is a client component that has it; an id-keyed\ncopy record makes a page without a title a compile error.\n\n⚠️ ORCHESTRATION, through exactly three reads: the signed-in profile (`useUserProfile`, for the sidebar's profile\nrow), the router (the sidebar's New recipe opens the editor or the paste page) and the locale. `HomeChrome` below it\nowns no data at all: data enters the chrome HERE, and never below.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "components/app/AppShell — the app-wide navigation shell (web; W1/L9, FR-044/FR-046)."
+                            "text": "components/app/AppShell — the app-wide navigation shell (web; `docs/design/uiOverhaul/buildSpec.md` §3)."
                         },
                         {
                             "name": "pattern",
                             "text": "Composition root binding the signed-in profile read and the app-wide capability set to the pure\n    `HomeChrome` shell — the one place chrome learns who is signed in and what is deployed."
                         }
                     ],
-                    "description": "The authenticated app shell. Resolves the chrome copy, the surface title, the active locale, and the viewer\nname, then renders {@link HomeChrome} around `children`.",
+                    "description": "The authenticated app shell.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The active destination id, the surface title id, and the surface content."
+                            "text": "props - The active destination id, the page title id, whether the page is a focused task, and the page."
                         },
                         {
                             "name": "returns",
-                            "text": "The surface wrapped in the shared navigation chrome."
+                            "text": "The page in the shared navigation chrome and its scroll host."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -1797,27 +1371,20 @@
                             "typeDetail": [
                                 "\"home\"",
                                 "\"recipes\"",
-                                "\"profile\"",
+                                "\"discover\"",
                                 "\"recipeNew\"",
                                 "\"recipeDetail\"",
                                 "\"recipeEdit\"",
                                 "\"recipeVersions\"",
-                                "\"recipeParse\"",
-                                "\"recipeParseReview\"",
-                                "\"discover\"",
                                 "\"collections\"",
-                                "\"collectionNew\"",
                                 "\"collectionDetail\"",
-                                "\"collectionAddRecipes\"",
-                                "\"collectionRename\"",
-                                "\"account\"",
-                                "\"settings\"",
+                                "\"profile\"",
                                 "\"dataSources\"",
                                 "\"notFound\""
                             ],
                             "required": false,
                             "defaultValue": "home",
-                            "description": "Which surface the top bar names. Defaults to `'home'` — the value the bar hard-coded before it became\nper-surface — so an un-migrated caller renders exactly what it did before.",
+                            "description": "Which page the document title names. Defaults to `'home'`.",
                             "declaredIn": "packages/apps/commise/web/src/components/app/AppShell.tsx"
                         }
                     ],
@@ -2259,6 +1826,73 @@
             ]
         },
         {
+            "id": "web/components/app/ShellBackToTop",
+            "name": "ShellBackToTop",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/app",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over `@commise/ui/back-to-top`"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ShellBackToTop",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/app/ShellBackToTop.tsx",
+                    "dir": "packages/apps/commise/web/src/components/app",
+                    "moduleDoc": "components/app/ShellBackToTop — web's \"Back to top\" on a long list page (`buildSpec.md` §3.6): the\ndesign-system `BackToTop` with the shell's copy, handing focus back to the page's H1 once it has scrolled. A page\nplaces it LAST inside its `AppShell`, so it is last in DOM order. Web only: native's job is the tab re-tap.\n\nORCHESTRATION: it binds the shell's copy and the H1 focus move to the design-system control.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/app/ShellBackToTop — web's \"Back to top\" on a long list page (`buildSpec.md` §3.6): the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `@commise/ui/back-to-top`"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - Whether the page floats a create button."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The page's \"Back to top\"."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "aboveFab",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the page floats a create button, which \"Back to top\" then sits above.",
+                            "declaredIn": "packages/apps/commise/web/src/components/app/ShellBackToTop.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
             "id": "web/components/auth/AccountCloseForm",
             "name": "AccountCloseForm",
             "group": "web",
@@ -2294,86 +1928,9 @@
                     ],
                     "description": "",
                     "tags": [],
-                    "detectedBy": "react-docgen-typescript",
+                    "detectedBy": "compiler-fallback",
                     "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "accessToken",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The signed-in viewer's Clerk session token, used to authenticate the closure request.",
-                            "declaredIn": "packages/apps/commise/web/src/components/auth/AccountCloseForm.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/auth/AccountEditForm",
-            "name": "AccountEditForm",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/auth",
-            "kind": "orchestration",
-            "patterns": [
-                "Command over the profile PATCH — the write and the `router.refresh()` that makes it visible are\n    issued as ONE action, so a saved change can never be left invisible on the surface that saved it."
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "AccountEditForm",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/auth/AccountEditForm.tsx",
-                    "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "components/auth/AccountEditForm — the signed-in cook's own profile edit (web).\n\nTwo labelled fields (display name, avatar URL) over the identity service's `PATCH /users/me`, submitted\ninside a `useTransition` so the control disables itself for the round-trip, followed by a\n`router.refresh()` — the server components above this form hold the old profile, so without the refresh a\nsuccessful save shows the previous name until the next navigation.\n\n⚠️ It is ORCHESTRATION, and it is the archetype of the component that does not look it: a `<form>` with\ntwo controlled inputs and a submit button is the shape of a render leaf. The mutation is four lines inside\na handler. A render leaf may not fetch or mutate (CLAUDE.md rule 3), so classifying this one as a leaf\nwould mean moving the write out — which is precisely the decision a reader needs the layer stated to make.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "components/auth/AccountEditForm — the signed-in cook's own profile edit (web)."
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Command over the profile PATCH — the write and the `router.refresh()` that makes it visible are\n    issued as ONE action, so a saved change can never be left invisible on the surface that saved it."
-                        }
-                    ],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "accessToken",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": "packages/apps/commise/web/src/components/auth/AccountEditForm.tsx"
-                        },
-                        {
-                            "name": "initialProfile",
-                            "type": "{ user: { id: string; email: string; displayName: string; avatarUrl: string | null; status: \"active\" | \"suspended\" | \"tombstoned\" | \"erased\"; createdAt: string; updatedAt: string; }; account: { ...; }; }",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": "packages/apps/commise/web/src/components/auth/AccountEditForm.tsx"
-                        }
-                    ],
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -2521,6 +2078,58 @@
             ]
         },
         {
+            "id": "web/components/auth/AuthSplitLayout",
+            "name": "AuthSplitLayout",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/auth",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "AuthSplitLayout",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/auth/AuthSplitLayout.tsx",
+                    "dir": "packages/apps/commise/web/src/components/auth",
+                    "moduleDoc": "components/auth/AuthSplitLayout — the frame around the sign-in and sign-up forms\n(`docs/design/uiOverhaul/buildSpec.md` §8).\n\nBelow 1024 px the form is a column centred on the canvas wash, with 24 px of side padding (a 272 px column at 320 px).\nFrom 1024 px the page is a 50/50 split: a food photograph on the start half and the form, centred, on the end half.\nThe photograph is decoration: `aria-hidden`, no text alternative, `object-fit: cover`, and `display: none` below the\nsplit so a phone never fetches it. ⚠️ Never `priority`: Next turns it into a preload `<link>` that a phone obeys even\nthough the image is hidden. Lazy, a hidden image is not fetched. The form is the front door and nothing else (FR-045a); this is not a welcome page.\n\nPresentational: props → JSX. It fetches nothing and owns no state.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/AuthSplitLayout — the frame around the sign-in and sign-up forms"
+                        }
+                    ],
+                    "description": "The frame.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The Clerk form.",
+                            "declaredIn": "packages/apps/commise/web/src/components/auth/AuthSplitLayout.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "web/components/auth/LoginButton",
             "name": "LoginButton",
             "group": "web",
@@ -2590,11 +2199,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/auth/LogoutButton.tsx",
                     "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "auth/LogoutButton — the web sign-out control (U3).\n\nThe orchestration half of the sign-out surface: it owns only the control's own state (busy, error) and\nissues the app's one sign-out command, `useSignOutAndLeave` —\nwhich owns the mechanism (Clerk's load-safe `signOut`), the ordering (await the revoke, THEN replace the\ndocument), and the post-condition that the session really ended. Read that module before changing anything\nhere; the post-condition guards a real, observed security defect (B23), not a hypothetical one.\n\nB17/B23 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never\nswallowed: the busy state is released and a localized alert appears, so the control is retryable instead of\nmarching the viewer to the public page on a session that is still live.",
+                    "moduleDoc": "auth/LogoutButton — the web sign-out control: the Profile page's sign-out row.\n\nThe orchestration half of the sign-out surface: it owns only the control's own state (busy, error) and\nissues the app's one sign-out command, `useSignOutAndLeave` —\nwhich owns the mechanism (Clerk's load-safe `signOut`), the ordering (await the revoke, THEN replace the\ndocument), and the post-condition that the session really ended. Read that module before changing anything\nhere; the post-condition guards a real, observed security defect (B23), not a hypothetical one.\n\nB17/B23 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never\nswallowed: the busy state is released and a localized alert appears, so the control is retryable instead of\nmarching the viewer to the public page on a session that is still live.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "auth/LogoutButton — the web sign-out control (U3)."
+                            "text": "auth/LogoutButton — the web sign-out control: the Profile page's sign-out row."
                         },
                         {
                             "name": "pattern",
@@ -2603,24 +2212,148 @@
                     ],
                     "description": "",
                     "tags": [],
+                    "detectedBy": "compiler-fallback",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/auth/SignInForm",
+            "name": "SignInForm",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/auth",
+            "kind": "unclassified",
+            "patterns": [
+                "Adapter over Clerk's `<SignIn>` — the app's routing, copy and appearance as its props"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SignInForm",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/auth/SignInForm.tsx",
+                    "dir": "packages/apps/commise/web/src/components/auth",
+                    "moduleDoc": "components/auth/SignInForm — Clerk's `<SignIn>` for the sign-in page, themed for the browser's scheme\n(`docs/design/uiOverhaul/buildSpec.md` §8; D15).\n\nThe sign-in surface IS the front door (FR-045a): nothing stands in front of it, and the \"Create an account\" link it\nrenders from `signUpUrl` is the ONLY route to registration, so the appearance keeps it on one line. Its wording and the\nbrand line are Clerk localization, which Clerk takes on its provider (`lib/clerkLocalization`), not on this widget.\n\nWhy a client component: Clerk's `variables` cannot read a CSS custom property, so the appearance is built for the\nscheme `useColorScheme` reports (the page's server render reads light and the client corrects it). Every other colour\nis a role class and needs no scheme.\n\nThe routing notes below are the page's, moved with the widget they describe:\n- `routing=\"hash\"`: Clerk derives its path from `usePathname()` (basePath-STRIPPED), so under a preview basePath\n  (`/pr-{N}`) path routing cannot reconcile and renders an empty widget. Hash routing drives the multi-step flow\n  through the URL fragment, independent of basePath.\n- `signUpUrl` is a page LOCATOR consumed as-is, so the caller passes it WITH the basePath. `forceRedirectUrl` runs\n  through Next's router, which already prepends the basePath, so it is passed BARE; a pre-prefixed value\n  double-prefixes to `/pr-{N}/pr-{N}/` and strands the signed-in user. The OAuth/SSO-callback flow navigates it raw\n  (its Next router is not wired during the callback page load), which drops the prefix to the bare root; that landing\n  is re-homed onto the basePath by the bare-root redirect in `next.config.ts`. Do NOT prefix `forceRedirectUrl`.\n- `forceRedirectUrl` is ALSO the sole guard against an open redirect: `clerkMiddleware`'s protected-route bounce\n  appends `?redirect_url=<original path>`, and forcing the locale root ignores it. If return-to-original-route is\n  ever added, validate that `redirect_url` is same-origin first.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/SignInForm — Clerk's `<SignIn>` for the sign-in page, themed for the browser's scheme"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over Clerk's `<SignIn>` — the app's routing, copy and appearance as its props"
+                        }
+                    ],
+                    "description": "The sign-in widget.",
+                    "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "children",
-                            "type": "ReactNode",
+                            "name": "forceRedirectUrl",
+                            "type": "string",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "Overrides the default localized \"Sign out\" label (e.g. a page-specific phrasing).",
-                            "declaredIn": "packages/apps/commise/web/src/components/auth/LogoutButton.tsx"
+                            "description": "Where a completed sign-in lands, WITHOUT the basePath.",
+                            "declaredIn": "packages/apps/commise/web/src/components/auth/SignInForm.tsx"
+                        },
+                        {
+                            "name": "signUpUrl",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The sign-up page's URL, WITH the basePath.",
+                            "declaredIn": "packages/apps/commise/web/src/components/auth/SignInForm.tsx"
                         }
                     ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": true
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/auth/SignUpForm",
+            "name": "SignUpForm",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/auth",
+            "kind": "unclassified",
+            "patterns": [
+                "Adapter over Clerk's `<SignUp>` — the app's routing and appearance as its props"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SignUpForm",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/auth/SignUpForm.tsx",
+                    "dir": "packages/apps/commise/web/src/components/auth",
+                    "moduleDoc": "components/auth/SignUpForm — Clerk's `<SignUp>` for the sign-up page, themed for the browser's scheme\n(`docs/design/uiOverhaul/buildSpec.md` §8; D15). Sign-up asks for email and password, plus Google; username and the\nfirst and last name are off in the Clerk dashboard, so there is nothing to configure here.\n\nThe routing is the sign-in form's (see `SignInForm`): hash routing under the preview basePath, `signInUrl` WITH the\nbasePath, `forceRedirectUrl` BARE — a pre-prefixed redirect double-prefixes to `/pr-{N}/pr-{N}/` and strands the\nnow-signed-in user on a blank sign-up (\"<SignUp/> cannot render when a user is already signed in\").",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/SignUpForm — Clerk's `<SignUp>` for the sign-up page, themed for the browser's scheme"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over Clerk's `<SignUp>` — the app's routing and appearance as its props"
+                        }
+                    ],
+                    "description": "The sign-up widget.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "forceRedirectUrl",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where a completed sign-up lands, WITHOUT the basePath.",
+                            "declaredIn": "packages/apps/commise/web/src/components/auth/SignUpForm.tsx"
+                        },
+                        {
+                            "name": "signInUrl",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The sign-in page's URL, WITH the basePath.",
+                            "declaredIn": "packages/apps/commise/web/src/components/auth/SignUpForm.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
                     }
                 }
             ]
@@ -2646,22 +2379,22 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeChrome — the Home app shell (web; US-000 / FR-046).\n\nAssembles the four renderings of the Home navigation into the mockup's layout: the desktop\n{@link HomeSidebar}, the sticky {@link HomeTopBar}, the mobile {@link HomeTabBar}, and the hamburger-driven\n{@link HomeMobileNav} drawer — with the surface content (`children`) in the `<main>` landmark between them.\n\nIt owns only the two pieces of ephemeral chrome state — whether the desktop rail is collapsed and whether\nthe mobile drawer is open — because they are pure view state with no home for them elsewhere. Everything\nthat decides WHAT the nav shows (destinations, reachability, active id) is derived from props, so the shell\nhas no product knowledge of its own to drift.\n\n⚠️ That makes it PRESENTATIONAL, and it is worth saying because the pair above it splits the other way:\n`AppShell` — one component up, same \"shell\" vocabulary — reads the signed-in profile and sits on the far\nside of the line. That line is exactly the `useUserProfile()` call, which lives there and must not move\nhere.",
+                    "moduleDoc": "home/chrome/HomeChrome — the web app shell's layout (`docs/design/uiOverhaul/buildSpec.md` §3.2): the\n{@link HomeSidebar} at `nav` (840) and wider, the bottom {@link HomeTabBar} below it, and the page in the `<main>`\nlandmark between. There is no top bar and no drawer: each page's large title is its H1 (`LargeTitleHeader`).\n\n`<main>` is the `main` container every page queries; its gutters are padding, so a query reads the content box. Below\n`nav` its foot reserves the tab bar plus the floating create button's 88 px, and the same reservation is the\ndocument's `scroll-padding-bottom` (`globals.css`, keyed on the bar), so a focused last card is never hidden (SC\n2.4.11). `--bottom-chrome` — the tab bar's height, 0 from `nav` and on a focused task — is what the floating button,\n\"Back to top\" and the snackbar stand on.\n\nThe sidebar's collapse comes from `useSidebarPreference`, which holds it above every page.\n\n⚠️ PRESENTATIONAL about data: the profile arrives from `AppShell`, which is where data enters the chrome.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/chrome/HomeChrome — the Home app shell (web; US-000 / FR-046)."
+                            "text": "home/chrome/HomeChrome — the web app shell's layout (`docs/design/uiOverhaul/buildSpec.md` §3.2): the"
                         }
                     ],
-                    "description": "The Home application shell.",
+                    "description": "The web app shell.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The chrome copy, the surface title, locale, live capabilities, active id, viewer display\nname, and the main surface content."
+                            "text": "props - The copy, locale, capabilities, active destination, profile, New recipe and the page."
                         },
                         {
                             "name": "returns",
-                            "text": "The full Home chrome with `children` in the main landmark."
+                            "text": "The sidebar, the page in `<main>`, and the tab bar."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -2673,25 +2406,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The active destination for this surface.",
+                            "description": "",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx"
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 14 more ... | \"notFound\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"discover\" | \"recipeNew\" | ... 7 more ... | \"notFound\", string>>; ... 5 more ...; readonly destinations: Readonly<...>; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The chrome copy, resolved for the active locale.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx"
-                        },
-                        {
-                            "name": "displayName",
-                            "type": "string | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The viewer's display name, if known — the source of the avatar initials.",
+                            "description": "",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx"
                         },
                         {
@@ -2700,7 +2424,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": "false",
-                            "description": "Whether this surface OWNS the bottom edge — a focused task with its own pinned action bar.\n\n⛔ THE TAB BAR AND A PINNED ACTION BAR CANNOT SHARE THE FOOT. Both are `fixed bottom-0`, so on the\nrecipe wizard the tab bar painted over Prev, Save Draft and Next at every width below `lg` and create\nand edit could not be completed on phone or tablet web at all.\n\n⚠️ SUPPRESSED RATHER THAN RESTACKED, and that is the product decision behind the z-index one: a\ndestination change mid-creation discards unsaved work, so offering it from under the task's own\ncontrols is the wrong affordance even when it is reachable. The wizard's own `z-60` is the belt\nagainst a FUTURE pinned surface; this is the braces for the one that exists.",
+                            "description": "Whether this page OWNS the bottom edge: a focused task with its own pinned action bar (the recipe wizard). The tab\nbar and a pinned action bar cannot share the foot, and leaving a task mid-way from under its own controls is the\nwrong affordance, so the bar is suppressed rather than restacked.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx"
                         },
                         {
@@ -2709,7 +2433,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Capabilities whose backing service is live — the single fact that drives nav reachability.",
+                            "description": "",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx"
                         },
                         {
@@ -2718,16 +2442,25 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The active locale segment.",
+                            "description": "",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx"
                         },
                         {
-                            "name": "pageTitle",
-                            "type": "string",
+                            "name": "newRecipe",
+                            "type": "(collapsed: boolean) => ReactNode",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The localized title of the surface in the shell, shown in the top bar (plain text, never a heading).",
+                            "description": "The sidebar's New recipe control, for each of its two widths.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx"
+                        },
+                        {
+                            "name": "profile",
+                            "type": "ProfileEntry",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The profile read, for the sidebar's profile row.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx"
                         }
                     ],
@@ -2741,125 +2474,13 @@
             ]
         },
         {
-            "id": "web/components/home/chrome/HomeMobileNav",
-            "name": "HomeMobileNav",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/home/chrome",
-            "kind": "unclassified",
-            "patterns": [
-                "Adapter over the house Radix `Dialog` for the slide-over drawer."
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "HomeMobileNav",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeMobileNav.tsx",
-                    "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeMobileNav — the mobile navigation drawer (web; US-000 / FR-046, B6/CR-003).\n\nThe slide-over the top-bar hamburger opens below the `lg` breakpoint. The bottom tab bar carries the\nprimary narrow-viewport nav as compact icons; this drawer is the fuller rendering — the same destinations\nwith their text labels and the product wordmark, and the \"coming soon\" context that the icon-only tab bar\ncannot show. It renders the SAME shared nav model, so it cannot drift from the sidebar or the tab bar.\n\n⚠️ Its cutover must stay the hamburger's (`HomeTopBar`, `lg:hidden`) and therefore the sidebar's\n(`HomeSidebar`, `lg:flex`). Overlay and panel both hid at `md` while the sidebar only appeared at `lg`, so\n768–1023px had no full navigation at all — and a drawer that hides at a width where its own trigger is\nstill shown opens onto nothing (U39).\n\nA11y: built on Radix `Dialog` (mirrors `PullUpdatesDialog`'s pattern) — Radix owns the focus TRAP,\nEscape-to-dismiss, backdrop-click dismiss, and background inert, so this component hand-rolls none of\nthat (no manual `keydown` listener, no `role=\"dialog\"` div, no scrim button standing in for Radix's own\noutside-click dismissal). `onOpenChange` maps every Radix close path onto the same `onClose` the explicit\nclose control uses — one exit path, not two.\n\nFocus on OPEN is Radix's own default, and it lands on the close control by construction: `FocusScope`\nfocuses the first tabbable in `Content` after removing links, and the close button is the only non-link\ncontrol in the drawer. That is why this component holds no ref. It used to override `onOpenAutoFocus` to\n`.focus()` a `closeRef` — the same element Radix already picks — so the override bought nothing and cost a\nsanctioned ref. `HomeChrome.test.tsx`'s \"moves focus to the close control\" case pins the outcome, so a markup\nchange that puts another control ahead of the close button reds there rather than silently moving focus.\n\nFocus on CLOSE is NOT Radix's default: the hamburger is a SIBLING control in `HomeTopBar`, not an owned\n`Dialog.Trigger`, so Radix's own `onCloseAutoFocus` (which only restores an OWNED trigger — see\n`PullUpdatesDialog`'s module doc) would silently focus nothing. `useReturnFocusOnClose`\n(`@commise/ui/dialog-focus`) owns that half, snapshotting `document.activeElement` at the render where `open`\nflips true, before `Dialog.Content` ever commits.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "home/chrome/HomeMobileNav — the mobile navigation drawer (web; US-000 / FR-046, B6/CR-003)."
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Adapter over the house Radix `Dialog` for the slide-over drawer."
-                        }
-                    ],
-                    "description": "The mobile navigation drawer.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - Open state + close handler, the chrome copy, locale, live capabilities, and active id."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The Radix `Dialog.Root` — its `Content` (the drawer) is present in the DOM only while `open`."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "activeId",
-                            "type": "HomeNavItemId | null",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The currently active destination — marked `aria-current`.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeMobileNav.tsx"
-                        },
-                        {
-                            "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 14 more ... | \"notFound\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The chrome copy (labels + accessible names), resolved for the active locale.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeMobileNav.tsx"
-                        },
-                        {
-                            "name": "liveCapabilities",
-                            "type": "readonly string[]",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Capabilities whose backing service is live — decides reachability.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeMobileNav.tsx"
-                        },
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The active locale segment, for building destination routes.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeMobileNav.tsx"
-                        },
-                        {
-                            "name": "onClose",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Close the drawer.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeMobileNav.tsx"
-                        },
-                        {
-                            "name": "open",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the drawer is open.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeMobileNav.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "web/components/home/chrome/HomeSidebar",
             "name": "HomeSidebar",
             "group": "web",
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home/chrome",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [],
             "platforms": [
                 "web"
@@ -2873,22 +2494,22 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeSidebar — the desktop navigation sidebar (web; US-000 / FR-046).\n\nThe glass rail from the Home mockup: logo + wordmark, the six navigation destinations, and a collapse\ncontrol. It is `hidden` below the `lg` breakpoint (the tab bar plus the hamburger drawer take over there),\nso it is the DESKTOP rendering of the shared nav model — the other two are the same model rendered\ndifferently.\n\n⚠️ `lg` is the ONE cutover the whole chrome turns on, and this component is where it is defined: the\nhamburger (`HomeTopBar`), the drawer (`HomeMobileNav`) and the tab bar (`HomeTabBar`) all hide at exactly\nthe width this rail appears at. Move one and you must move all four, or you reopen U39 — the 768–1023px\nband where this rail had not arrived and the hamburger had already left, so there was no way to reach the\nfull navigation at all.\n\n## The two decisions that matter here\n\n**Reachability is derived, not declared.** The destinations come from `resolveHomeNav(liveCapabilities)`;\na destination whose backing service is not live renders as a non-interactive, `aria-disabled` control whose\naccessible name carries the \"coming soon\" suffix — NEVER a link to a route that 404s. When the service\nships, the same fact that reveals its Home widget makes its nav entry reachable, from one source.\n\n**Collapsed is a visual state, not an information state.** Collapsing hides the text labels visually, but\neach control keeps its accessible name (the label, plus \"coming soon\" when gated), so a screen-reader user\ngets the same nav whether the rail is expanded or collapsed.",
+                    "moduleDoc": "home/chrome/HomeSidebar — the web sidebar at `nav` (840 px) and wider (`docs/design/uiOverhaul/buildSpec.md`\n§3.2; ownerDecisions D5). It replaces the tab bar there. Sticky and full height, so it never scrolls away; its list\nscrolls inside it if it is ever taller than the window. A flat `paper` panel over the canvas wash with no blur:\nnothing scrolls under it, so glass would only cost a compositing pass (`modernizeA.md` §5).\n\nTop to bottom: the wordmark; **New recipe** (`newRecipe`, one tap to the editor since slice 8); the destinations\n(`resolveHomeNav`); a divider; the profile row (the avatar and the cook's name, to Profile); the collapse control.\n256 px expanded, 80 px collapsed. Collapsed is a visual state, not an information state: each control keeps its\naccessible name.\n\nPresentational: every fact arrives in props; the collapse is the parent's state.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/chrome/HomeSidebar — the desktop navigation sidebar (web; US-000 / FR-046)."
+                            "text": "home/chrome/HomeSidebar — the web sidebar at `nav` (840 px) and wider (`docs/design/uiOverhaul/buildSpec.md`"
                         }
                     ],
-                    "description": "The desktop navigation sidebar.",
+                    "description": "The web sidebar.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The chrome copy, locale, live capabilities, active destination, and collapse state/handler."
+                            "text": "props - The copy, locale, live capabilities, active destination, profile read, collapse state and New recipe."
                         },
                         {
                             "name": "returns",
-                            "text": "The glass navigation rail (hidden below `lg`)."
+                            "text": "The sticky navigation sidebar (hidden below `nav`)."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -2900,16 +2521,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The currently active destination (Home, for this surface) — marked `aria-current`.",
+                            "description": "The active destination, marked `aria-current`; `null` on a page that is none of them.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx"
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 14 more ... | \"notFound\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"discover\" | \"recipeNew\" | ... 7 more ... | \"notFound\", string>>; ... 5 more ...; readonly destinations: Readonly<...>; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The chrome copy (labels + accessible names), resolved for the active locale.",
+                            "description": "",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx"
                         },
                         {
@@ -2918,7 +2539,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Whether the rail is collapsed to icons only.",
+                            "description": "Whether the sidebar is collapsed to the 80 px rail.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx"
                         },
                         {
@@ -2927,7 +2548,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Capabilities whose backing service is live — the single fact that decides reachability.",
+                            "description": "",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx"
                         },
                         {
@@ -2936,7 +2557,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The active locale segment, for building destination routes.",
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx"
+                        },
+                        {
+                            "name": "newRecipe",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The New recipe control, drawn for the current width (the full-width button, or the rail's round one).",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx"
                         },
                         {
@@ -2945,14 +2575,23 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Toggle the collapsed state.",
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx"
+                        },
+                        {
+                            "name": "profile",
+                            "type": "ProfileEntry",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The profile read, for the profile row.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx"
                         }
                     ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -2965,8 +2604,10 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home/chrome",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter from the shared nav model and the current route to tab links"
+            ],
             "platforms": [
                 "web"
             ],
@@ -2979,22 +2620,26 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTabBar — the mobile bottom tab bar (web; US-000 / FR-046).\n\nThe fixed bottom navigation from the mockup, shown only below the `lg` breakpoint (the desktop sidebar\ntakes over above it). It is the COMPACT rendering of the same shared nav model the sidebar renders — icon\nover a short label — so the two can never list different destinations.\n\nGated destinations render exactly as they do in the sidebar: non-interactive, `aria-disabled`, with a\n\"coming soon\" accessible name — never a tab that navigates to a 404.",
+                    "moduleDoc": "home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`\n§3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`).\n\n- The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.\n  Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is\n  told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top\n  (`tabRootOf`; the page's `ScrollHost` moves the document).\n- 64 px plus the bottom safe-area inset; each item at least 96 × 56 at 320 px.\n\n⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second\ntap. Everything it draws is derived from props.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/chrome/HomeTabBar — the mobile bottom tab bar (web; US-000 / FR-046)."
+                            "text": "home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter from the shared nav model and the current route to tab links"
                         }
                     ],
-                    "description": "The mobile bottom tab bar.",
+                    "description": "The web bottom tab bar.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The chrome copy, locale, live capabilities, and active destination."
+                            "text": "props - The chrome copy, locale, live capabilities and active destination."
                         },
                         {
                             "name": "returns",
-                            "text": "The fixed bottom navigation (hidden at `lg`+)."
+                            "text": "The fixed bottom navigation (gone from `nav`)."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -3006,16 +2651,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The currently active destination (Home, for this surface) — marked `aria-current`.",
+                            "description": "The active destination, marked `aria-current`; `null` on a page that is none of them (Profile, the 404).",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 14 more ... | \"notFound\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
+                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"discover\" | \"recipeNew\" | ... 7 more ... | \"notFound\", string>>; ... 5 more ...; readonly destinations: Readonly<...>; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The chrome copy (labels + accessible names), resolved for the active locale.",
+                            "description": "The chrome copy, resolved for the active locale.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
@@ -3024,7 +2669,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Capabilities whose backing service is live — decides which tabs are reachable.",
+                            "description": "Capabilities whose backing service is live — which destinations show.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
@@ -3033,7 +2678,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The active locale segment, for building destination routes.",
+                            "description": "The active locale segment.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
@@ -3050,20 +2695,22 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
         },
         {
-            "id": "web/components/home/chrome/HomeTopBar",
-            "name": "HomeTopBar",
+            "id": "web/components/home/chrome/ProfileAvatarEntry",
+            "name": "ProfileAvatarEntry",
             "group": "web",
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home/chrome",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter — the profile read and the router, as the design-system Avatar's props"
+            ],
             "platforms": [
                 "web"
             ],
@@ -3072,82 +2719,89 @@
             "documented": true,
             "implementations": [
                 {
-                    "name": "HomeTopBar",
+                    "name": "ProfileAvatarEntry",
                     "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeTopBar.tsx",
+                    "sourcePath": "packages/apps/commise/web/src/components/home/chrome/ProfileAvatarEntry.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTopBar — the sticky app top bar (web; US-000 / FR-046).\n\nThe `h-14` glass bar from the mockup: a narrow-viewport nav trigger (hamburger, hidden at `lg`+ where the\nsidebar takes over), the current surface's title, a search affordance, a notifications affordance, and the\naccount avatar.\n\n## The title is CALLER-supplied, and is NOT a heading\n\nIt used to read `chrome.pageTitle` — one hard-coded 'Home' rendered on every shell-hosted route — so the\nrecipe list, an editor, and the account page all announced themselves as \"Home\". It is now a `pageTitle`\nprop the shell resolves per surface.\n\nIt is also deliberately plain text rather than a heading. Every shell-hosted page's own `<main>` content\nalready renders the authoritative `<h1>`, so exposing this bar's title as an `h1` too gave each page TWO —\nand once the title became per-route it would additionally be a SECOND heading carrying the SAME accessible\nname as the page's own `h1` on most routes (\"Recipes\", \"Profile\", \"Settings\", …), which is ambiguous to\nanyone navigating by heading. The `<header>` banner landmark is the structural anchor; the text inside it is\norientational chrome that stays visible while the page scrolls.\n\n## Two deliberate departures from the mockup\n\n**The notification bell carries NO count.** The mockup shows a red \"3\" badge, but there is no notifications\nservice in Home v1 — a hard-coded \"3\" would be fabricated data, the same class of dishonesty the roadmap\nskeletons forbid. The bell ships as a labelled control with no badge; the count returns when a real\nnotifications feed does.\n\n**The avatar shows REAL initials, or nothing invented.** Initials are derived from the viewer's actual\nprofile display name via `initialsFor`. A name-less account (email sign-up, no name set) is a real state:\nit falls back to a person glyph, never invented initials, and its accessible name says \"your account\".\n\n## Touch floors go on the CONTROL box, never on a painted one\n\nThe 44px mobile touch minimum is a floor on the interactive box. Putting it on a box that also PAINTS is a\ndefect: `min-height`/`min-width` cannot lose to `height`/`width`, so a floor larger than the paint silently\nreplaces the design's geometry — which is how the 32px avatar came to paint as a 44px disc inside a 56px\nbar. The avatar therefore nests the disc inside a transparent 44px link, the structure both the mockup\n(`screenHome`) and the native leaf already use.",
+                    "moduleDoc": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header below `nav`, opening\nProfile (`docs/design/uiOverhaul/buildSpec.md` §3.3). From `nav` the header drops it; the sidebar's profile row is the\nsame entry there.\n\nORCHESTRATION: it reads the signed-in profile (`useUserProfile`, the same cached query `AppShell` reads) and the\nrouter, and hands `@commise/ui/avatar` its state. Data enters the page chrome here, and only here.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/chrome/HomeTopBar — the sticky app top bar (web; US-000 / FR-046)."
-                        }
-                    ],
-                    "description": "The sticky app top bar.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The chrome copy, the current surface's title, the locale, the viewer display name, and the\nmobile-nav open handler."
+                            "text": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header below `nav`, opening"
                         },
                         {
-                            "name": "returns",
-                            "text": "The sticky glass header."
+                            "name": "pattern",
+                            "text": "Adapter — the profile read and the router, as the design-system Avatar's props"
                         }
                     ],
+                    "description": "The page header's profile entry.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/home/chrome/SidebarPreferenceProvider",
+            "name": "SidebarPreferenceProvider",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/home/chrome",
+            "kind": "orchestration",
+            "patterns": [
+                "Context Provider — the one owner of a document-wide view preference, seeded server-side"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SidebarPreferenceProvider",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/home/chrome/sidebarPreferenceContext.tsx",
+                    "dir": "packages/apps/commise/web/src/components/home/chrome",
+                    "moduleDoc": "home/chrome/sidebarPreferenceContext — the sidebar's collapse preference for the whole document: seeded from\nthe cookie the locale layout read on the server (`sidebarPreference.ts`), so the first render — server and client\nalike — draws the right width, and held HERE, above every page, so a re-mounted shell (a route change, a server\nrefresh) keeps the cook's choice instead of re-reading a stale seed. A toggle writes the cookie back for the next\nrequest.\n\nORCHESTRATION: it owns the preference and its one side effect, the cookie; it draws nothing.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "home/chrome/sidebarPreferenceContext — the sidebar's collapse preference for the whole document: seeded from"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Context Provider — the one owner of a document-wide view preference, seeded server-side"
+                        }
+                    ],
+                    "description": "Provides the preference, seeded from the server-read cookie.",
+                    "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "chrome",
-                            "type": "{ readonly wordmark: string; readonly logoAlt: string; readonly primaryNavLabel: string; readonly tabNavLabel: string; readonly pageTitles: Readonly<Record<\"home\" | \"recipes\" | \"profile\" | \"recipeNew\" | ... 14 more ... | \"notFound\", string>>; ... 9 more ...; readonly destinations: Readonly<...>; }",
+                            "name": "collapsed",
+                            "type": "boolean",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The chrome copy (accessible names + nav labels), resolved for the active locale.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTopBar.tsx"
-                        },
-                        {
-                            "name": "displayName",
-                            "type": "string | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The viewer's display name, if known — the source of the avatar initials.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTopBar.tsx"
-                        },
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The active locale segment, for the account link route.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTopBar.tsx"
-                        },
-                        {
-                            "name": "onOpenNav",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Open the navigation drawer (hamburger; only shown below `lg`, where the sidebar is not yet present).",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTopBar.tsx"
-                        },
-                        {
-                            "name": "pageTitle",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The localized title of the surface currently in the shell (e.g. \"Version history\"). Rendered as plain\nbanner text, never a heading — the page content owns the `<h1>` (see the module doc).",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTopBar.tsx"
+                            "description": "",
+                            "declaredIn": null
                         }
                     ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -3173,23 +2827,55 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/HomeGreeting — the time-of-day Home greeting + date subtitle (web; US-000 / FR-046).\n\nThe mockup's \"Good afternoon, Chef!\" over \"Saturday, May 31, 2026\". Both are derived from the viewer's\nLOCAL clock: the greeting from the hour-of-day bucket ({@link greetingBucketForHour}) and the subtitle from\n{@link formatHomeDate} — the shared, locale-aware formatters in `@commise/features-core`, so web and mobile\ngreet identically (FR-044).\n\n## Why the clock is read AFTER hydration, not during the server render (#144)\n\nThis surface is server-rendered and then hydrated, and only ONE of those two runtimes knows the viewer's\ntimezone: the client. Whatever the Next server's `new Date()` says is the server's zone, so a server-computed\nbucket greets an Auckland viewer at 9am with \"Good evening\" and can be a whole calendar day out.\n\n`suppressHydrationWarning` was the previous answer and it does NOT work: React never patches a suppressed\ntext mismatch — it KEEPS the server-rendered text — so the greeting and the long date were permanently the\nserver's clock (measured: with the browser clock pinned to 03:00, the `night` bucket, the DOM still read\n\"Good afternoon, Chef!\"). Suppression silences the warning about the divergence; it does not resolve it.\n\nSo the reading is gated on hydration ({@link useIsHydrated}) and the server pass renders a reserved,\n`aria-hidden` placeholder instead of a guess. Three consequences, all deliberate:\n - **No flash of a WRONG greeting.** The pre-hydration frame commits to no bucket at all, so the text never\n   changes from one greeting to a different one — the correction that would itself be the defect.\n - **No layout shift.** The placeholder lines carry the SAME typography classes as the real ones, so each\n   reserves its exact line box (`mb-1` included) rather than a hand-guessed pixel height.\n - **The greeting becomes testable end-to-end.** A browser-side clock pin (Playwright's `page.clock`) cannot\n   reach the Next server, which is why the visual suites had to MASK these two lines. Now that the client\n   clock is the authority, the pin reaches the render and the masks can be replaced by real assertions.\n\nA viewer's-timezone header (Vercel's geo-IP `x-vercel-ip-timezone`) or a zone cookie were both rejected: the\nformer is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is\nreachable from a browser test, so both would keep the masks.",
+                    "moduleDoc": "home/HomeGreeting — Home's large title: the time-of-day greeting as the page's H1 and the date under it (web;\nUS-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), drawn by the design system's `LargeTitleHeader` with the\nheader's action (the avatar) and the floating create button right after the H1.\n\n\"Good afternoon, Eliza\" over \"Sunday, May 31, 2026\"; \"Good afternoon\" when the cook has no name yet. Both are derived from the viewer's\nLOCAL clock: the greeting from the hour-of-day bucket ({@link greetingBucketForHour}) and the subtitle from\n{@link formatHomeDate} — the shared, locale-aware formatters in `@commise/features-core`, so web and mobile\ngreet identically (FR-044).\n\n## Why the clock is read AFTER hydration, not during the server render (#144)\n\nThis surface is server-rendered and then hydrated, and only ONE of those two runtimes knows the viewer's\ntimezone: the client. Whatever the Next server's `new Date()` says is the server's zone, so a server-computed\nbucket greets an Auckland viewer at 9am with \"Good evening\" and can be a whole calendar day out.\n\n`suppressHydrationWarning` was the previous answer and it does NOT work: React never patches a suppressed\ntext mismatch — it KEEPS the server-rendered text — so the greeting and the long date were permanently the\nserver's clock (measured: with the browser clock pinned to 03:00, the `night` bucket, the DOM still read\n\"Good afternoon, Chef!\"). Suppression silences the warning about the divergence; it does not resolve it.\n\nSo the reading is gated on hydration ({@link useIsHydrated}) and the server pass renders a reserved,\n`aria-hidden` placeholder instead of a guess. Three consequences, all deliberate:\n - **No flash of a WRONG greeting.** The pre-hydration frame commits to no bucket at all, so the text never\n   changes from one greeting to a different one — the correction that would itself be the defect.\n - **No layout shift.** The placeholder lines carry the SAME typography classes as the real ones, so each\n   reserves its exact line box (`mb-1` included) rather than a hand-guessed pixel height.\n - **The greeting becomes testable end-to-end.** A browser-side clock pin (Playwright's `page.clock`) cannot\n   reach the Next server, which is why the visual suites had to MASK these two lines. Now that the client\n   clock is the authority, the pin reaches the render and the masks can be replaced by real assertions.\n\nA viewer's-timezone header (Vercel's geo-IP `x-vercel-ip-timezone`) or a zone cookie were both rejected: the\nformer is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is\nreachable from a browser test, so both would keep the masks.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/HomeGreeting — the time-of-day Home greeting + date subtitle (web; US-000 / FR-046)."
+                            "text": "home/HomeGreeting — Home's large title: the time-of-day greeting as the page's H1 and the date under it (web;"
                         }
                     ],
-                    "description": "The Home greeting header.",
+                    "description": "The Home large title.",
                     "tags": [
                         {
+                            "name": "param",
+                            "text": "props - The cook's name, the header's action, and what follows the H1."
+                        },
+                        {
                             "name": "returns",
-                            "text": "The time-of-day greeting and the localized full-date subtitle once the viewer's clock is readable;\nbefore that, the same two lines reserved as an `aria-hidden` placeholder."
+                            "text": "The time-of-day greeting as the H1 and the localized full-date subtitle once the viewer's clock is readable;\nbefore that, the same two lines reserved as an `aria-hidden` placeholder."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "action",
+                            "type": "HeaderAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The header's action: the avatar, below 840.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx"
+                        },
+                        {
+                            "name": "afterTitle",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What comes right after the H1: the floating create button.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx"
+                        },
+                        {
+                            "name": "name",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The cook's display name, if any.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx"
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -3323,7 +3009,7 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home",
-            "kind": "presentational",
+            "kind": "unclassified",
             "patterns": [],
             "platforms": [
                 "web"
@@ -3337,18 +3023,18 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/RecipeWidgetSlot.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/RecipeWidgetSlot — the recipe Home widget's host slot (web).\n\nThe Home composition root renders one slot per curated widget id; this is the slot for the recipe\n(recent-recipes) widget. It owns the two things the generic host cannot: it code-splits the widget module\nthrough the descriptor's loader seam via **`next/dynamic`** (RSC-compatible, per FR-046 — not\n`React.lazy`), and it supplies the widget's data prop — the viewer's recent recipes as a **promise** the\nslot starts (via the shared authenticated {@link useRecipeServiceClient}) and hands down, so the widget\nstreams under its own `<Suspense>` instead of branching on a loading flag.\n\nIt also owns the widget's navigation entry point (\"see all recipes\" → the recipes surface), since the\npresentational widget building blocks carry no navigation.\n\nFinally it owns the DEFERRED CALORIE LOOKUP (ADR-0021 §6) — see {@link RecipeWidgetNutritionContainer} for\nwhy that needs a component of its own rather than a few lines in this one.",
+                    "moduleDoc": "home/RecipeWidgetSlot — the recipe Home widget's host slot (web).\n\nThe Home composition root renders one slot per curated widget id; this is the slot for the recipe\n(recent-recipes) widget. It owns what the generic host cannot: it code-splits the widget module through the\ndescriptor's loader seam via **`next/dynamic`**, and it supplies the widget's data — the viewer's recent recipes as\na **promise** the slot starts and hands down, so the widget streams under its own `<Suspense>`.\n\nIt also owns the block's navigation and presentation (`docs/design/uiOverhaul/buildSpec.md` §4.2, owner ruling D8):\nthe card variant from the container class of `<main>` (compact below 960, full from 960), \"See all\" in the block's\nheading row — kept on a failure, so the route to My recipes never fails with the content — the first run's three\nways in, and the routes each card leads to. A failed READ shows Try again, which starts a fresh read.\n\nFinally it owns the DEFERRED CALORIE LOOKUP (ADR-0021 §6) — see {@link RecipeWidgetNutritionContainer}.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "home/RecipeWidgetSlot — the recipe Home widget's host slot (web)."
                         }
                     ],
-                    "description": "The recipe Home-widget slot: starts the recent-recipes fetch as a stable promise and renders the widget\nplus its \"see all\" entry into the recipes surface.",
+                    "description": "The recipe Home widget's slot.",
                     "tags": [
                         {
                             "name": "returns",
-                            "text": "The recipe widget with its navigation affordance."
+                            "text": "The block, with its loading and failure states."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -3357,7 +3043,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
+                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -3703,14 +3389,110 @@
             ]
         },
         {
+            "id": "web/components/profile/ProfileSurface",
+            "name": "ProfileSurface",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/profile",
+            "kind": "orchestration",
+            "patterns": [
+                "Composition root over the Profile render leaves — the read, the editor and the router meet here and nowhere\n    below"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ProfileSurface",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/profile/ProfileSurface.tsx",
+                    "dir": "packages/apps/commise/web/src/components/profile",
+                    "moduleDoc": "components/profile/ProfileSurface — the one Profile page (web; `docs/design/uiOverhaul/buildSpec.md` §9.1).\nProfile, Settings and Account used to be three routes; this is all of it: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the router and the\ndisplay-name editor, and hands the render leaves from `@commise/features-account/profile` their state. The read\ndecides one of three states — loading, failed, ready — and ONLY the account group depends on it: sign out and the\ndanger zone need no profile, so a failed read never takes them away (E15).\n\nSign out is `LogoutButton`, which issues the one verified sign-out command (ADR-0009); close and erase keep their own\ndialogs and flows. Nothing here calls Clerk's `signOut`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/profile/ProfileSurface — the one Profile page (web; `docs/design/uiOverhaul/buildSpec.md` §9.1)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composition root over the Profile render leaves — the read, the editor and the router meet here and nowhere\n    below"
+                        }
+                    ],
+                    "description": "The Profile page.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/profile/ShortcutSwitchRow",
+            "name": "ShortcutSwitchRow",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/profile",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ShortcutSwitchRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/profile/ShortcutSwitchRow.tsx",
+                    "dir": "packages/apps/commise/web/src/components/profile",
+                    "moduleDoc": "components/profile/ShortcutSwitchRow — Profile › Keyboard shortcuts (web only): the switch that turns the `/`\nsearch shortcut off (`docs/architecture/uiOverhaulBlueprint.md` A18; WCAG 2.1.4 Character Key Shortcuts).\n\nThe whole 56 px row is one `switch`, so the target is the row, not the 40 px track. State is never colour alone: the\nthumb sits at the end when on and the start when off. It reads and writes the per-device preference through\n`useSyncExternalStore`, so a change in another tab shows here too.\n\n⚠️ The track and thumb are drawn here from role colours because the design system names no row switch\n(`KeepAwakeToggle` is a chip). It is a gap for `staff-ux-engineer` to specify and for `@commise/ui` to own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/profile/ShortcutSwitchRow — Profile › Keyboard shortcuts (web only): the switch that turns the `/`"
+                        },
+                        {
+                            "name": "sideEffect",
+                            "text": "Writes `localStorage` through `writeSearchShortcutEnabled`."
+                        }
+                    ],
+                    "description": "The keyboard-shortcuts switch row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "web/components/recipes/CollectionDetailContainer",
             "name": "CollectionDetailContainer",
             "group": "web",
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "presentational",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Facade — one screen over the removal, visibility, pull and picker hooks and the sheets they drive"
+            ],
             "platforms": [
                 "web"
             ],
@@ -3723,8 +3505,13 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/CollectionDetailContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the collection-detail route (W5 Task 12 — the collection-view integration linchpin). It\nreads a single collection (with its member recipes) and composes the shared,\npresentational collection building blocks around it: the {@link CollectionHeader} (name, visibility badge,\nrecipe count, source attribution, last-pulled, Back + rename/delete — C4/C6), the {@link CollectionActions}\nsidebar (add-recipes, pull-updates, clone, and the premium-gated visibility toggle — C1/FR-009/FR-010/\nFR-011), the {@link CloneInfoPanel} (only for a cloned collection — C5), the member list\n({@link CollectionDetail}), and the {@link PullUpdatesDialog} (C2). The fetch-state affordances (loading,\ngeneric error with retry, distinct not-found) belong to the app, not the blocks, and are localized through\nthe web dictionary (`useMessages`).\n\nThe read is a suspense read under a `ClientQueryBoundary` — hydration-gated, because this route is not\nserver-prefetched. The boundary owns loading and failure, choosing not-found or the retrying error from the\nclient's `isNotFoundError`; a background refetch that fails while the collection is on screen does not throw, so\nthe cook keeps reading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED on the id: the App Router keeps this\ncontainer mounted across `/collections/A` → `/collections/B`, and the remount is what clears A's pending\nvisibility, pull dialog and mutation state before B renders.\n\nRemote state stays in TanStack Query — the view is derived from the query, never copied into local state;\nthe only local state is view state the server does not own: the pending (unsaved) visibility selection and\nthe pull preview→commit→drift dialog state machine.\n\nPremium gate (C1): a single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from Clerk's\n`external_id` session claim + `useUserProfile`'s subscription tier — the SAME signals and the SAME\n`canGoPrivate` predicate the recipe detail container and the mobile screen evaluate, so the two platforms\nand the two surfaces can never diverge on the gate. It fails safe (gated OFF) while the profile loads/absent.\n\nPull-updates state machine (C2/FR-011): opening Pull runs `previewPull` (imperative `mutateAsync`) and shows\nits {@link PullDiff} in the dialog; confirming commits with `pullCollectionFromSource({ previewedDiff })`; a\n`PullDriftError` (409 — the source drifted since the preview) is caught, RE-PREVIEWED for the fresh diff, and\nsurfaced as the dialog's `'drift'` state (never a blind retry, never an infinite spinner). A successful\ncommit invalidates via the hook, then closes + clears the dialog.",
-                    "moduleTags": [],
+                    "moduleDoc": "Container for the collection-detail route (orchestration; W5 Task 12; slice 5 of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md`\n§5.2, §5.3). It reads a single collection (with its member recipes) and composes the shared building blocks around it:\nthe {@link CollectionHeader} (back, name, meta, description, Add recipes and the ⋯ menu), the {@link CollectionMembers}\nlist, the rename sheet, the delete confirmation, the Premium sheet, the add-recipes picker and the pull-updates dialog.\nThe fetch-state affordances (loading, generic error with retry, distinct not-found) belong to the app, not the blocks.\n\nThe read is a suspense read under a `ClientQueryBoundary` — hydration-gated, because this route is not\nserver-prefetched. A background refetch that fails while the collection is on screen does not throw, so the cook keeps\nreading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED\non the id: the App Router keeps this container mounted across `/collections/A` → `/collections/B`, and the remount is what\nclears A's pending removal, sheets and pull state before B renders.\n\nRemote state stays in TanStack Query: the view is derived from the query, never copied into local state. The hooks own\nthe work — `useMemberRemoval` (a removal hides the row and commits when its Undo snackbar times out),\n`useCollectionVisibility` (changes at once, with a compensating Undo and the Premium sheet), `useCollectionPull` (the\npreview → commit → drift machine) — and the only local state is which sheet is open and the picker's search.\n\nPremium gate (C1): a single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from Clerk's `external_id`\nsession claim + `useUserProfile`'s subscription tier — the SAME signals and the SAME `canGoPrivate` predicate the recipe\ndetail container and the mobile screen evaluate. It fails safe (gated OFF) while the profile loads/absent.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Facade — one screen over the removal, visibility, pull and picker hooks and the sheets they drive"
+                        }
+                    ],
                     "description": "The live collection-detail container: the route's read boundary around {@link CollectionDetailView}.",
                     "tags": [
                         {
@@ -3756,90 +3543,25 @@
                             "defaultValue": null,
                             "description": "The active route locale, used to build locale-prefixed navigation targets.",
                             "declaredIn": "packages/apps/commise/web/src/components/recipes/CollectionDetailContainer.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/recipes/CollectionFormContainer",
-            "name": "CollectionFormContainer",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "CollectionFormContainer",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/CollectionFormContainer.tsx",
-                    "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the collection create/rename routes: owns the controlled name field and binds the shared,\npresentational `CollectionForm` building block to the create/update mutations. In `create` mode it fetches\nnothing and calls `useCreateCollection`; in `rename` mode it seeds the field from the loaded collection and calls\n`useUpdateCollection`. On success it navigates to the affected collection; the empty-name guard and mutation\nfailures are surfaced as localized form errors through the web dictionary (`useMessages`).\n\nThe mode selects the render component rather than branching inside one: `create` renders the editor with an empty\nseed, and `rename` renders a read boundary around {@link CollectionRenameSeed}, whose suspense read supplies the\nseed. So a rename form can only ever show a name that loaded — the boundary owns the wait and the failure (a\ndistinct not-found, or the load error with a retry), and a failed seed is never a blank form. The boundary is the\nhydration-gated one because this route is not server-prefetched.",
-                    "moduleTags": [],
-                    "description": "The live collection create/rename container.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The form mode, active locale, and (for rename) the collection id."
                         },
                         {
-                            "name": "returns",
-                            "text": "The create editor, or the rename editor behind its seed's read boundary."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "collectionId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The collection to rename.",
-                            "declaredIn": null
-                        },
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The active route locale, used to build locale-prefixed navigation targets.",
-                            "declaredIn": null
-                        },
-                        {
-                            "name": "mode",
+                            "name": "storedViewMode",
                             "type": "enum",
                             "typeDetail": [
-                                "\"create\"",
-                                "\"rename\""
+                                "\"list\"",
+                                "\"grid\""
                             ],
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Create a new collection.\nRename an existing collection.",
-                            "declaredIn": null
+                            "description": "The cook's stored list/grid choice (the cookie the page read), so the server renders it.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/CollectionDetailContainer.tsx"
                         }
                     ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]
@@ -3888,6 +3610,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "avatar",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays\nwhere data enters the chrome and this container does not depend on the auth session.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/CollectionListContainer.tsx"
+                        },
                         {
                             "name": "locale",
                             "type": "string",
@@ -3980,7 +3711,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/CollectionNotFound.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "CollectionNotFound — what a collection surface renders when the collection it reads does not exist or is\nnot the viewer's to see. It offers no retry, because nothing a retry could change. Rendered by the read boundary of\nevery surface that reads ONE collection (the detail route and the rename form), which decides not-found from the\nowning client's `isNotFoundError`.",
+                    "moduleDoc": "CollectionNotFound — what a collection surface renders when the collection it reads does not exist or is\nnot the viewer's to see (`docs/design/uiOverhaul/buildSpec.md` §5.2: \"the 404 body inside the shell with 'Back to\nCollections'\"). It offers no retry, because nothing a retry could change, and a way out instead. Rendered by the read\nboundary of the collection detail route, which decides not-found from the owning client's `isNotFoundError`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3991,7 +3722,17 @@
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "locale",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The active route locale, for the way back.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/CollectionNotFound.tsx"
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -4002,14 +3743,16 @@
             ]
         },
         {
-            "id": "web/components/recipes/CollectionRecipePickerContainer",
-            "name": "CollectionRecipePickerContainer",
+            "id": "web/components/recipes/EditorDraftAnswers",
+            "name": "EditorDraftAnswers",
             "group": "web",
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "presentational",
-            "patterns": [],
+            "kind": "unclassified",
+            "patterns": [
+                "Observer — the app's mount point for the draft observer"
+            ],
             "platforms": [
                 "web"
             ],
@@ -4018,49 +3761,36 @@
             "documented": true,
             "implementations": [
                 {
-                    "name": "CollectionRecipePickerContainer",
+                    "name": "EditorDraftAnswers",
                     "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/CollectionRecipePickerContainer.tsx",
+                    "sourcePath": "packages/apps/commise/web/src/components/recipes/EditorDraftAnswers.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the add-a-recipe-to-collection route (the ADD half of FR-009 / T072): it loads the target\ncollection (for its name + current membership) and the caller's own recipes, then drives the shared,\npresentational `CollectionRecipePicker`. The caller sees only their\nOWN recipes and their OWN collection — both queries are scoped to the authenticated caller by the recipe\nservice, so no other user's recipe or collection can be offered here.\n\nRemote state stays in TanStack Query: the candidate list, the membership, and the add's in-flight/success/\nfailure signals are all DERIVED from the queries and the `useAddRecipeToCollection` mutation, never copied\ninto local state. The only local state is the ephemeral search box value — view state, not server data. The\nadd mutation invalidates the collection's cache on success, so a just-added recipe re-renders as a member\n(its row flips to the inert \"in this collection\" marker), which is what makes a re-add idempotent-feeling.\nSearch filtering is a client-side title match over the already-fetched page — the same projection the list\ncard renders (`toRecipeListItem`).\n\nThe picker FRAME (heading, Done, search) sits OUTSIDE the read boundary and the candidates INSIDE it, so the\nsearch field is one element in every state (typing while the list loads keeps its focus and value) and Done is\nreachable while loading and after a failure. The candidates are suspense reads under a `ClientQueryBoundary` —\nhydration-gated, because this route is not server-prefetched. The heading's collection NAME is the one read that\nis not: the heading renders without it (as it always did while loading), so it is enrichment, read with\n`useCollection` on the same cache key as the suspense read — one request, not two.",
-                    "moduleTags": [],
-                    "description": "The live add-a-recipe picker container.",
-                    "tags": [
+                    "moduleDoc": "Records the outbox's recipe answers in the signed-in cook's device drafts, whether or not an editor is open\n(`useDraftAnswers`, slice 7): a cook can leave the editor while its write is still queued. Mounted once, inside\n`SyncProvider`, in `RecipeProviders`. Renders nothing.",
+                    "moduleTags": [
                         {
-                            "name": "param",
-                            "text": "props - The target collection id and the active locale."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The picker frame around its read boundary: the loading and load-error bodies, or the candidates."
+                            "name": "pattern",
+                            "text": "Observer — the app's mount point for the draft observer"
                         }
                     ],
+                    "description": "The web mount of the draft observer.",
+                    "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "id",
-                            "type": "string",
+                            "name": "subject",
+                            "type": "string | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The target collection's id from the `[id]` route segment.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/CollectionRecipePickerContainer.tsx"
-                        },
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The active route locale, used to build locale-prefixed navigation targets.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/CollectionRecipePickerContainer.tsx"
+                            "description": "The signed-in cook (Clerk `userId`), or `undefined` while nobody is signed in.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/EditorDraftAnswers.tsx"
                         }
                     ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
+                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -4132,174 +3862,6 @@
             ]
         },
         {
-            "id": "web/components/recipes/ParseJobReviewContainer",
-            "name": "ParseJobReviewContainer",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ParseJobReviewContainer",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/ParseJobReviewContainer.tsx",
-                    "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the parse-review route: binds the shared, presentational `ParseJobReview` to the live job.\n\n⛔ It owns almost nothing, on purpose. `useParseJobReview` is the headless seam shared with mobile — it\nholds the poll, both mutations, the clock and the error-to-sentence mapping — so this file's entire\ncontribution is the ONE thing that is genuinely per-platform: where \"start over\" goes.\n\n⚠️ The correction slot is deliberately not supplied. `renderCorrection` is optional and its write route\ndoes not exist yet (see `parse/props.ts`); passing a placeholder would put a control on screen that\ncannot do what it says.",
-                    "moduleTags": [],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "jobId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The job this route addresses — the URL is the job's identity, so a refresh resumes the review.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/ParseJobReviewContainer.tsx"
-                        },
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The active route locale, used to build the locale-prefixed paste target.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/ParseJobReviewContainer.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/recipes/ParsePasteContainer",
-            "name": "ParsePasteContainer",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ParsePasteContainer",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/ParsePasteContainer.tsx",
-                    "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the paste route: binds the shared, presentational `ParsePasteForm` to the create mutation.\n\nIt owns exactly two things — the pasted text (client state, never a server value) and where a created job\nlands. Everything else is delegated: the admission verdict to `toParseSubmissionModel`, the request to\n`useCreateParseJob`, the copy to `recipeParseMessages`.\n\n⛔ NAVIGATION IS A `replace`, NOT A `push`. The paste route and the review route are two views of ONE act,\nso a Back press from the review should return to the recipe list rather than to a form still holding text\nfor a job that already exists — pressing submit again there would create a SECOND job from the same paste.",
-                    "moduleTags": [],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The active route locale, used to build the locale-prefixed review target.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/ParsePasteContainer.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/recipes/RecipeCreateContainer",
-            "name": "RecipeCreateContainer",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "orchestration",
-            "patterns": [
-                "Orchestration container over the `Wizard` compound-component shell — it owns the editable form values and\n    the step/draft/publish navigation, and issues the create Command."
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeCreateContainer",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeCreateContainer.tsx",
-                    "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Orchestration container for the recipe-create route (w3/e1,e2 on the 4-step `Wizard` shell; U28/U32/U33/U34).\nOwns the editable {@link RecipeFormValues} (seeded blank via `defaultRecipeFormValues`) AND the wizard's own\nstep/draft/publish navigation — unlike the edit route, create has no seed/conflict/version concerns, so it\ndoes not use `useRecipeEditor` (that hook's machinery is edit-only); this container reimplements the SAME\nstep-gating (`canAdvanceFromStep`/`stepErrorsFor`) and the SAME draft-vs-publish floor\n(`stepErrorsFor(values, 1)` for a draft, `validateRecipeForm` for a publish) the hook uses for edit, so the\ntwo flows cannot drift on what \"valid enough to advance/draft/publish\" means.\n\n⛔ **INGREDIENTS ARE PICK-FIRST (U28).** The only way a line enters `values.ingredients` here is a pick in the\nfields leaf's trailing add row (plan 002 V1 B8), committed through the row editor as `appendResolvedIngredient`,\nwhose line is a `ResolvedRecipeFormIngredient` — an unresolved row is not a value this container can construct.\n\n⛔ **PHOTOS ARE A FIELD NOW, and the create path is why (U33, owner ruling 2026-08-25).** This container\nused to render \"Save this recipe first — you can add photos from its edit page\" where a control should\nhave been, because `RecipePhotoUploaderContainer` takes a REQUIRED `recipeId`. A pick is now recorded in\nthe DRAFT (`useRecipeDraftPhotos`) and handed to the upload queue by the create mutation's `onSuccess`,\nwhich calls the hook's `flush` in the same batch that records the new id. The edit route never needs this:\nits recipe already exists, so its uploader enqueues directly.\n\n⛔ **THE FAILURE MODE THAT SEAM CREATES, AND THE OUTCOME CHOSEN FOR IT.** The create endpoint takes JSON\nand photos go through a separate presign → PUT → confirm mutation, so a save is create-THEN-upload: the\ncreate can succeed while an upload fails, leaving a recipe whose photo did not land. The two calls must\ntherefore NOT look like one to the cook. The outcome is **surface and retry, with an explicit discard**:\n\n  - a successful create does NOT navigate away while any picked photo is still queued, uploading, or\n    failed — navigating would unmount the queue mid-flight and lose the upload silently, which is the very\n    failure being designed away;\n  - the recipe IS saved by then, and the surface says so: a `role=\"status\"` line reports the photos still\n    in flight, and the shared `RecipePhotoManager` renders each file's own `queued`/`uploading`/`failed`\n    state with its message and its Retry;\n  - when a file cannot be made to upload, the cook may leave anyway through an explicit \"finish without\n    them\" control. Discarding is a DECISION they take, never an outcome they are handed;\n  - once every file reaches `ok`, navigation happens on its own.\n\n⚠️ **Auto-save is deliberately NOT wired on this route.** An unattended write needs an\n`expectedVersion` to be safe, and a recipe that does not exist yet has no version to send — the first\nwrite here is a POST, not a CAS-guarded PATCH. Auto-save begins on the edit route, once there is a version\ntoken to carry. Firing a create on a timer would also mint a recipe from a form the cook has not finished\nand may abandon.",
-                    "moduleTags": [
-                        {
-                            "name": "pattern",
-                            "text": "Orchestration container over the `Wizard` compound-component shell — it owns the editable form values and\n    the step/draft/publish navigation, and issues the create Command."
-                        }
-                    ],
-                    "description": "The live recipe-create container.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The active locale."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The wired 4-step create wizard, or the post-save photo-flush surface."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "locale",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The active route locale, used to build locale-prefixed navigation targets.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeCreateContainer.tsx"
-                        }
-                    ],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
             "id": "web/components/recipes/RecipeDetailContainer",
             "name": "RecipeDetailContainer",
             "group": "web",
@@ -4320,7 +3882,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeDetailContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the recipe-detail route: reads a single recipe under a suspense boundary and renders the\nshared, presentational `RecipeDetailView` once it settles, plus the recipe-action building blocks below it —\nowner-only delete (T068) and visibility (T074), and a public-recipe clone (T075). The fetch-state\naffordances belong to the boundary, not the building blocks: `Suspense` renders the loading status, the error\nboundary renders a distinct not-found message (no retry) or the generic error with a retry that refetches, and\nboth are localized through the web dictionary (`useMessages`).\n\n`/recipes/[id]` is server-prefetched, so the boundary is `ClientQueryBoundary` with the prefetched detail key: a\nsuccessful prefetch ships the recipe in the server HTML, a failed one ships the loading status and the browser\nreads after hydration (B19). The settled view is keyed on the id, so a `/recipes/A` → `/recipes/B` navigation\n(which the App Router serves from the SAME mounted container) remounts it — every mutation, the delete dialog and\nthe cooking progress start fresh for B, and nothing of A's can leak onto it.\n\nRemote state stays in TanStack Query — this component derives its view from the query, never copying the\nrecipe into local state; the only local state is the ephemeral delete-dialog open flag. The mutations are\nowned by the recipe-service hooks (`useDeleteRecipe` / `useSetRecipeVisibility` / `useCloneRecipe`), which\ninvalidate the relevant caches; the container only wires the blocks' callbacks to them and handles\npost-success navigation.\n\nA single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from the recipe's `ownerId`\nkey — the app-user ULID read off Clerk's `external_id` session claim, the SAME claim the recipe service\nuses as the owner key (see `IDENTITY_SYNC_PENDING_CODE`) — plus `useUserProfile`'s subscription tier. Every\nownership/clone/tier gate below reads from that ONE `Viewer` through the shared `isOwner`/`canClone`/\n`canGoPrivate` policy predicates, the SAME predicates the mobile detail screen evaluates, so the two\nplatforms can never diverge on a gate (this closes D7, where the clone gate previously disagreed: web\nignored ownership while mobile checked it). Free-tier owners see the private option disabled with a\nlocalized upgrade reason; the tier read fails safe (gated OFF) while the profile is still loading or absent.\n\nRecipe-detail wireframe parity (C1/C3/C4): a Back control returns to the recipe list (C1, mirroring\nmobile's `onBack`); the header keeps Edit as the sole primary owner control, with Version history, the\nvisibility toggle, and the delete trigger grouped behind a `MoreActionsMenu` (C4, `[Edit] [More]`); the\nclone action is passed into `RecipeDetailView`'s `footerActions` slot so it renders alongside the version +\nvisibility badges in ONE grouped footer row (C3), instead of as a separate block.",
+                    "moduleDoc": "Container for the recipe-detail route: reads a single recipe under a suspense boundary and renders the\nshared, presentational `RecipeDetailView` once it settles, plus the recipe-action building blocks below it —\nowner-only delete (T068) and visibility (T074), and a public-recipe clone (T075). The fetch-state\naffordances belong to the boundary, not the building blocks: `Suspense` renders the loading status, the error\nboundary renders a distinct not-found message (no retry) or the generic error with a retry that refetches, and\nboth are localized through the web dictionary (`useMessages`).\n\n`/recipes/[id]` is server-prefetched, so the boundary is `ClientQueryBoundary` with the prefetched detail key: a\nsuccessful prefetch ships the recipe in the server HTML, a failed one ships the loading status and the browser\nreads after hydration (B19). The settled view is keyed on the id, so a `/recipes/A` → `/recipes/B` navigation\n(which the App Router serves from the SAME mounted container) remounts it — every mutation, the delete dialog and\nthe cooking progress start fresh for B, and nothing of A's can leak onto it.\n\nRemote state stays in TanStack Query — this component derives its view from the query, never copying the\nrecipe into local state; the only local state is the ephemeral delete-dialog open flag. The mutations are\nowned by the recipe-service hooks (`useDeleteRecipe` / `useSetRecipeVisibility` / `useCloneRecipe`), which\ninvalidate the relevant caches; the container only wires the blocks' callbacks to them and handles\npost-success navigation.\n\nA single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from the recipe's `ownerId`\nkey — the app-user ULID read off Clerk's `external_id` session claim, the SAME claim the recipe service\nuses as the owner key (see `IDENTITY_SYNC_PENDING_CODE`) — plus `useUserProfile`'s subscription tier. Every\nownership/clone/tier gate below reads from that ONE `Viewer` through the shared `isOwner`/`canClone`/\n`canGoPrivate` policy predicates, the SAME predicates the mobile detail screen evaluates, so the two\nplatforms can never diverge on a gate (this closes D7, where the clone gate previously disagreed: web\nignored ownership while mobile checked it). Free-tier owners see the private option disabled with a\nlocalized upgrade reason; the tier read fails safe (gated OFF) while the profile is still loading or absent.\n\nThe recipe page (build spec §6): a back link to the list above the meta line; the action row's primary — Edit\nrecipe for the owner, Save a copy for another cook who may clone — beside the ⋯ menu, whose entries come from the\nshared `detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); and the rating block in the\nview's `rating` slot, under the nutrition. The cook's marks, the serving scale and Screen on are bound by the view\nitself; this container reads the marks only to offer Clear checks.",
                     "moduleTags": [],
                     "description": "The live recipe-detail container: the read boundary around the settled view.",
                     "tags": [
@@ -4378,7 +3940,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeDiscoveryContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the public-discovery route (orchestration): the shared discovery FRAME around a suspense read of the\nsearch, with the curated rails as the body while the viewer is browsing.\n\nThe frame (heading, source switcher, search field, filter bar, back-to-browse, sort) sits outside the read boundary,\nso a pending or failed search swaps only the results. `Suspense` renders `RecipeDiscoveryLoading`, the error boundary\nrenders `RecipeDiscoveryLoadError`, and once settled the RESULTS render the rails or the counted grid. TanStack Query is\nthe source of truth for the results; the search term and filters live in the URL (`?query=…&tags=…`), so a filtered\nview is shareable and survives reload, and are written back with `window.history.replaceState`, which updates\n`useSearchParams()` without a server round-trip.\n\nThree behaviours meet at the criteria:\n- **Debounced search.** The field echoes every keystroke; the term that SEARCHES waits for\n  {@link DISCOVERY_SEARCH_DEBOUNCE_MS} of quiet, so typing does not send a request per keystroke.\n- **Deferred results.** The criteria are deferred (`useDeferredDiscoveryCriteria`), so a new term, filter or sort keeps\n  the previous results on screen — marked busy, still naming their own query — until the new ones settle, instead of\n  the skeleton. The boundary resets when the settled criteria change, so a failed search clears once the viewer\n  changes what they asked for.\n- **Browsable default.** With nothing searched, the body is the curated rails (Trending/New/Quick + cuisine\n  shortcuts); a rail's \"see all\" leaves for the full sorted list, and back-to-browse returns.\n\nThe frame follows what the viewer asked for NOW (sort appears on the keystroke that starts a search); the results\nfollow what has settled. The filter bar's facets come from a PASSIVE observer of the settled search (`enabled: false`\n— it reads the cache the suspense read fills and never fetches), so they keep their last settled values while a newer\nsearch is pending, and the same observer supplies the count the frame announces.\n\n`/discover` is server-prefetched with the URL's criteria, so the boundary is `ClientQueryBoundary` with that key. A\nretry from the results' refresh notice that succeeds moves focus to the frame's heading, across the boundary, as a\n`useRecoverySignal` counter.",
+                    "moduleDoc": "Container for the public-discovery route (orchestration): the shared discovery FRAME around a suspense read of the\nsearch, with the curated rails as the body while the viewer is browsing (`docs/design/uiOverhaul/buildSpec.md` §4.4–§4.6).\n\nThe frame (heading, search field, filters, back-to-browse, sort, the count line) sits outside the read boundary, so a\npending or failed search swaps only the results. `Suspense` renders `RecipeDiscoveryLoading`, the error boundary\nrenders `RecipeDiscoveryLoadError` — over the PREVIOUS results, which stay — and once settled the RESULTS render the\nrails or the counted grid. TanStack Query is the source of truth for the results; the search term and filters live in\nthe URL (`?query=…&tags=…`), so a filtered view is shareable and survives reload, and are written back with\n`window.history.replaceState`, which updates `useSearchParams()` without a server round-trip.\n\nThree behaviours meet at the criteria:\n- **Debounced search.** The field echoes every keystroke; the term that SEARCHES waits for\n  {@link DISCOVERY_SEARCH_DEBOUNCE_MS} of quiet, so typing does not send a request per keystroke.\n- **Deferred results.** The criteria are deferred (`useDeferredDiscoveryCriteria`), so a new term, filter or sort keeps\n  the previous results on screen — marked busy, still naming their own query — until the new ones settle, instead of\n  the skeleton. The boundary resets when the settled criteria change, so a failed search clears once the viewer\n  changes what they asked for.\n- **Browsable default.** With nothing searched, the body is the curated rails (Trending/New/Quick + cuisine\n  shortcuts, once three cuisines hold three recipes each); a rail's \"see all\" leaves for the full sorted list, and\n  back-to-browse returns.\n\nThe facets live in ONE place (`useFilterPresentation`): a sticky panel beside the results at a 960 container, otherwise\nthe Filters button, the applied-filter chips and the sheet. Their groups come from a PASSIVE observer of the settled\nsearch (`enabled: false` — it reads the cache the suspense read fills and never fetches), so they keep their last settled\nvalues while a newer search is pending, and the same observer supplies the count the frame announces and the sheet's\n\"Show {n} recipes\".\n\nSave a copy is `useSaveCopy`: each card derives its control from the clone mutation, the snackbar's Edit opens the copy.\n\n`/discover` is server-prefetched with the URL's criteria, so the boundary is `ClientQueryBoundary` with that key. A\nretry from the results' refresh notice that succeeds moves focus to the frame's heading, across the boundary, as a\n`useRecoverySignal` counter.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -4400,6 +3962,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "avatar",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays\nwhere data enters the chrome and this container does not depend on the auth session.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeDiscoveryContainer.tsx"
+                        },
+                        {
                             "name": "locale",
                             "type": "string",
                             "typeDetail": null,
@@ -4419,15 +3990,15 @@
             ]
         },
         {
-            "id": "web/components/recipes/RecipeEditContainer",
-            "name": "RecipeEditContainer",
+            "id": "web/components/recipes/RecipeEditorContainer",
+            "name": "RecipeEditorContainer",
             "group": "web",
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
             "kind": "orchestration",
             "patterns": [
-                "Adapter — binds the `useRecipeEditor` statechart to the `Wizard` compound shell, under a read boundary\n    whose settled view is keyed on the recipe id."
+                "Mediator — the container wires the editor's ports (outbox, drafts, row editor, photos) and its hand-offs"
             ],
             "platforms": [
                 "web"
@@ -4437,28 +4008,19 @@
             "documented": true,
             "implementations": [
                 {
-                    "name": "RecipeEditContainer",
+                    "name": "RecipeEditorContainer",
                     "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeEditContainer.tsx",
+                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeEditorContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Orchestration container for the recipe-edit route: a suspense read of the recipe under `ClientQueryBoundary`, whose\nsettled branch is the editor. The boundary owns loading and the load failure (a 404 offers no retry, anything else\nretries); the settled editor is keyed on the recipe id, so editing another recipe is a fresh editor seeded from it,\nand a failed background refetch never reaches the boundary, so the wizard and the draft stay. The route is not\nserver-prefetched, so the boundary takes no prefetched keys. ⛔ Nothing under the boundary may suspend without its\nown nested `<Suspense>` (nothing does today: the photo uploader reads through `useQuery`, and the calorie figures are\nderived from the draft): React hides a re-suspended subtree, and the cook would watch the form vanish.\n\nHistory (CP-6/P1: rewired onto the shared `useRecipeEditor`\nheadless hook, `@commise/features-recipes/hooks`; w3/e1,e2: rewired again onto the 4-step `Wizard`\nshell). The hook owns\nthe whole edit lifecycle — the mount-time seed, validation, submit-with-`expectedVersion`, the 409-to-conflict\ntransition, the three FR-007c resolutions, AND (w3) the step/draft/publish extensions — as a\ndiscriminated-union statechart (`EditorState`) plus orthogonal step-navigation state; this container is a\nthin renderer that switches on `state.status` and, once past loading/conflict, wires the `Wizard` compound\nshell — `Wizard.Header`/`Wizard.Rail` plus one `Wizard.Step` per step, each hosting the SAME extracted\n`RecipeBasicsFields`/`RecipeIngredientsFields`/`RecipeInstructionsFields`/`RecipeVisibilityField`/\n`RecipeReviewFields` leaves (`@commise/features-recipes`) — no field is duplicated or rewritten; step 2's trailing\nadd row is the fields leaf's own (plan 002 V1 B8). See the hook's module doc for the full statechart\nand the reseed-incompatibility fix it resolves (web previously reseeded in place; mobile previously\nremounted via a `seedNonce`/`seedOverride` hack — both platforms now seed once from the settled read and edit\nthrough the SAME `setValues` transition).\n\n⛔ **`Wizard.Controls` is NOT placed here (U32).** `Wizard.Header` renders the action bar itself, because\non web the bar's POSITION is what the `lg` breakpoint changes — `fixed` to the viewport bottom below it,\n`static` inside the header band above it — and one element that moves is the only shape with ONE\naccessible name per control. Placing it here as well would ship two bars.\n\n⛔ **Photos are on step 1 now, not step 4 (U33).** {@link RecipePhotoUploaderContainer} composes into\nDetails beside the other fields, and step 4 is the read-only `RecipeReviewFields`. On this route the\nrecipe always has an id, so the uploader is live from the first render; the create route reaches the same\nsurface through the draft-photo seam (`useRecipeDraftPhotos`).\n\n⚠️ **Auto-save (U34) is wired here, and its `enabled` gate is this container's judgement.** It is `false`\nwhenever an unattended write would land in an unresolved race: while a save is in flight (that request\nalready holds the version token) and while a conflict is unresolved (the token is known stale). The write goes through the editor's `autoSaveDraft` — NOT its\n`saveDraft`, which also calls `onSaved`, which this container wires to a NAVIGATION. A background timer\ncalling that would close the editor two seconds after the cook stopped typing. It still carries\n`expectedVersion`, and a 409 surfaces exactly as a manual save's does.\n\n**OQ-1 resolve→detail navigation (W7 Task 6).** A successful `overwrite`/`merge` resolves through the SAME\n`submitDraft` → `onSuccess` → `opts.onSaved` path a plain save uses, so it lands on the SAME\n`router.push(detailRoute)` this container already wires for `onSaved` — no separate branch needed. Choosing\n`keepServer` (Option A) is different: it is a discard, not a write, so `useRecipeEditor` never calls\n`onSaved` for it — it transitions to the DISTINCT `status: 'discarded'` terminal instead. This container\nwatches for that transition in its own `useEffect` and navigates to the SAME `detailRoute`, but WITHOUT any\n\"Saved!\" success affordance (there is none to suppress today — the point is that a future one must key off\n`status: 'saved'`, never fire for a discard).\n\n**\"Discard and close\" (wireframe gap #1) reuses this SAME wiring.** `editor.discardAndClose` (the header\nexit `RecipeConflictView` now renders) also lands on `status: 'discarded'` — it needs no separate `useEffect`\nbranch here, since it is indistinguishable from `keepServer`'s own discard from this container's point of\nview (no write, navigate to the recipe, no \"Saved!\"). Unlike `keepServer`, it stays callable even while a\nresolve is in flight — see `useRecipeEditor`'s own doc for the epoch-guard that neutralizes a late resolve.",
+                    "moduleDoc": "Orchestration container for the web one-page recipe editor (UI overhaul slice 7; owner decisions D1, D7, D10): one\ncontainer for `/recipes/new` and `/recipes/{id}/edit`. It reads what the editor is seeded from — the recipe (edit, a\nsuspense read under `ClientQueryBoundary`) and the device draft from the tab's session storage — then mounts one\neditor session keyed on the recipe, so editing another recipe is a fresh editor.\n\nThe session binds the platform to the editor's lifecycle (`useRecipeEditor`): the outbox (`useSyncQueue`) as its\nwrite port, the draft store, the row editor and its pollers, the nutrition read, the photos, visibility, and the\nhand-offs (Publish → the recipe, Save changes → the recipe, Discard → My recipes). What the page draws is\n`RecipeEditorView`'s.\n\n⛔ The URL follows the recipe without a navigation: a new recipe's local ref is kept in `?draft=` so a reload in the\nsame tab reopens its draft (D7), and once the server has created it the URL becomes its edit address — both through\n`history.replaceState`, because a router navigation would remount the page and reseed the editor mid-typing.\n\n⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload\nendpoint takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
                     "moduleTags": [
                         {
                             "name": "pattern",
-                            "text": "Adapter — binds the `useRecipeEditor` statechart to the `Wizard` compound shell, under a read boundary\n    whose settled view is keyed on the recipe id."
+                            "text": "Mediator — the container wires the editor's ports (outbox, drafts, row editor, photos) and its hand-offs"
                         }
                     ],
-                    "description": "The live recipe-edit container.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The active locale and the recipe id to edit."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The read boundary around the settled editor."
-                        }
-                    ],
+                    "description": "The web recipe editor: new or edit.",
+                    "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
@@ -4468,17 +4030,17 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The active route locale, used to build locale-prefixed navigation targets.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeEditContainer.tsx"
+                            "description": "The active route locale, for locale-prefixed navigation.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeEditorContainer.tsx"
                         },
                         {
                             "name": "recipeId",
                             "type": "string",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "The recipe id from the `[id]` route segment.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeEditContainer.tsx"
+                            "description": "The recipe to edit; absent for a new recipe.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeEditorContainer.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -4560,18 +4122,18 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeListContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the recipe-list route (orchestration): the shared recipe-list FRAME around a suspense read of the\ncaller's library.\n\nThe frame (title band, source switcher, search field) sits outside the read boundary, so a pending or failed read\nswaps only what is under the search field — never the field a cook is typing in. `Suspense` renders\n`RecipeListLoading`, the error boundary renders `RecipeListLoadError` (its retry refetches, and it keeps the create\ndial), and once settled the RESULTS render the facet chips, the rows narrowed by the search term and chips, and a\nnotice for a failed refresh of them. TanStack Query is the source of truth; the visible rows are derived from it.\n\nThe container owns the search term and the active chips, because both outlive the boundary: typing while the library\nloads, or pressing Try again, must not reset them. `/recipes` is server-prefetched, so the boundary is\n`ClientQueryBoundary` with the prefetched key — a successful prefetch ships the rows in the server HTML, a failed one\nships the loading state and the browser reads after hydration (B19). A retry from the refresh notice that succeeds\nmoves focus to the frame's heading; the notice is inside the boundary and the heading outside it, so the recovery\ncrosses as a `useRecoverySignal` counter.",
+                    "moduleDoc": "Container for the My recipes route (orchestration, `docs/design/uiOverhaul/buildSpec.md` §4.3): the shared list\nFRAME around a suspense read of the cook's whole library.\n\nThe library is read with `recipeQueries(client).library` — chunks of up to 500 recipes — because the search and the\nchips narrow it on the device: over one server page of 20 they misreported every count past the first page\n(`docs/architecture/uiOverhaulBlueprint.md` A11). The sort is the server's (`sortBy`), so it is correct across chunks;\na new sort is a new key, read under `useDeferredValue` so the cards on screen stay until the new order lands.\n\nThe container owns what outlives the boundary — the search term, the chips, the sort and the list/grid choice — and\ndecides the presentation: the container class of `<main>`, the stored view (a cookie the page reads on the server, so\nthe first render is the cook's choice) and so the card variant (`cardVariantOf`). The frame sits outside the boundary,\nso a pending or failed read never unmounts the field a cook is typing in; it hides the field on a settled empty\nlibrary, read through a cache-only observer of the same key.",
                     "moduleTags": [
                         {
                             "name": "pattern",
                             "text": "Layout slot — the persistent frame around a Suspense read boundary, with the viewer's narrowing and the\n    recovery counter lifted to the frame's side"
                         }
                     ],
-                    "description": "The live recipe-list container.",
+                    "description": "The live My recipes container.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The active locale."
+                            "text": "props - The active locale and the stored view."
                         },
                         {
                             "name": "returns",
@@ -4582,12 +4144,33 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "avatar",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays\nwhere data enters the chrome and this container does not depend on the auth session.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeListContainer.tsx"
+                        },
+                        {
                             "name": "locale",
                             "type": "string",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "The active route locale, used to build locale-prefixed navigation targets.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeListContainer.tsx"
+                        },
+                        {
+                            "name": "storedViewMode",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"list\"",
+                                "\"grid\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The cook's list/grid choice, read from its cookie on the server. Absent → the width's default.",
                             "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeListContainer.tsx"
                         }
                     ],

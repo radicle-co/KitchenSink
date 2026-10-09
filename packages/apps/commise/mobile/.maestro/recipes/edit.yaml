@@ -1,24 +1,20 @@
 appId: io.commise.mobile
 ---
-# Recipe edit happy path (US1, T067; rewritten w3/e8 for the 4-step SCREEN-PER-STEP wizard). Assumes an
-# authenticated session (auth flow runs first in CI) and a seeded recipe API. Drives list -> detail -> edit,
-# walks the wizard's 4 steps, changes the title, clears the stated difficulty, and Publishes. Mobile mirror of
-# the web Playwright `recipeCrud.spec.ts` edit path (cross-platform mandate).
-#
-# w3 replaced the editor's old single tall Basics form with `Wizard.Step`s that each fill the viewport as
-# their own "screen"; `Wizard.TopBar` (Save Draft / Preview / Cancel / Publish) is a STICKY header rendered
-# OUTSIDE the scrolling step body, so Publish never needs scrolling into view (unlike the old flow's
-# foot-of-form "Save changes"); only the FOOTER `Next: …` nav (inside each step's own scroll) does.
+# Recipe edit happy path (US1, T067). REWRITTEN for slice 7: the four-step wizard is retired; the recipe is edited
+# on the ONE scrolling editor page (build spec §7). Assumes an authenticated session (auth flow runs first in CI) and
+# a seeded recipe API. Drives list -> detail -> edit, changes the title, clears the stated difficulty, adds a line
+# and a step, and saves. The seeded lamb is PUBLISHED (the schema's default status), so its edits stay on the device
+# until Save changes, which is ONE write (owner decision D1) — the bar's primary is `Save changes`, not `Publish`.
+# Mobile mirror of the web Playwright `recipeCrud.spec.ts` edit path (cross-platform mandate).
 #
 # The seed is guaranteed present (the CI loop reseeds the DB before every flow), so the target recipe is
 # reached by scrolling to it rather than a `when: visible` guard that would silently SKIP the whole flow when
 # the recipe is below the fold (the list scrolls; only ~1 tall cover card fits the viewport at a time). The
 # seed recipe now arrives WITH five ingredient lines and four steps of its own (it did not when this flow was
-# written), so the >= 1-of-each a full Publish requires is already satisfied when the editor opens. The
-# "as written" add on step 2 and the step add on step 3 are kept anyway — they are this flow's coverage of those
-# paths — but BOTH of their
-# checkpoints had to be re-aimed at the row/step this flow itself adds, because the ones written against an
-# empty fixture now land on SEEDED content instead (see steps 2 and 3).
+# written), so the >= 1-of-each a save requires is already satisfied when the editor opens. The
+# "as written" add and the step add are kept anyway — they are this flow's coverage of those paths — but BOTH of
+# their checkpoints had to be re-aimed at the row/step this flow itself adds, because the ones written against an
+# empty fixture now land on SEEDED content instead (see Ingredients and Steps below).
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
@@ -37,42 +33,40 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Edit recipe'
 
-# Step 1 of 4 (Basic) — the wizard opens here, seeded with the recipe's current title/difficulty. No page
-# heading of its own (that copy belonged to the retired flat `RecipeForm`), so the step-progress label is the
-# entry checkpoint instead.
-- assertVisible: 'Step 1 of 4'
+# Details — the editor opens seeded with the recipe's current title/difficulty. Its × is the entry checkpoint.
+- assertVisible: 'Close editor'
 # Empty the title first: the run-scoped seed title defeats a single erase (see the sub-flow).
 - runFlow: common/clearTitle.yaml
 - inputText: '${E2E_RECIPE_LAMB} (edited)'
-# Clear the stated difficulty (FR-001b): choosing "Not stated" sends the three-state update's explicit clear
-# (null), not an omit. It sits further down Basic (w3/e5 added a taller cuisine picker above it), so scroll
-# defensively rather than assume it is already on screen.
+# A difficulty chip clears by being pressed again (slice 7: the row has no "Not stated" chip). The seeded lamb states
+# none, so choose Hard, then clear it; the wire's explicit null is `recipeCrud.spec.ts`'s. It sits further down
+# Details, so scroll defensively rather than assume it is on screen.
 - scrollUntilVisible:
       element: 'Difficulty'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Not stated'
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
+- tapOn: 'Hard'
+- assertVisible:
+      text: 'Hard'
+      checked: true
+- tapOn: 'Hard'
+- assertVisible:
+      text: 'Hard'
+      checked: false
 
-# Step 2 of 4 (Ingredients) — the seeded recipe already carries five lines, so this add is no longer what
-# satisfies Publish's >= 1; it is this flow's coverage of a line declared "as written" (no food-service dependency).
+# Ingredients — the seeded recipe already carries five lines, so this add is no longer what satisfies the >= 1 a
+# save needs; it is this flow's coverage of a line declared "as written" (no food-service dependency).
 # Since plan 002 V1 B8 the entry is the trailing "Add an ingredient" field, AFTER the last seeded line.
-- assertVisible: 'Step 2 of 4'
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
-- scrollUntilVisible:
-      element:
-          text: 'Use .*Tomato.* as written.*'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
 - tapOn:
       text: 'Use .*Tomato.* as written.*'
 # ⛔ THE CHECKPOINT THAT THE DECLARATION REACHED THE FORM. This was `Ingredient 1 name`, and that was a
@@ -98,45 +92,30 @@ appId: io.commise.mobile
 - scrollUntilVisible:
       element:
           text: '^Tomato'
-      direction: DOWN
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 30000
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
 
-# Step 3 of 4 (Instructions) — same as step 2: the seeded recipe already has steps, so this add is coverage
-# of the add-a-step path, not what opens the gate.
+# Steps — as with Ingredients, the seeded recipe already has steps, so this add is coverage of the add-a-step path,
+# not what opens the gate.
 #
-# ⛔ `Step 5 instruction`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
+# ⛔ `Step 5`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
 # (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row this flow just
 # created is the fifth. This index is the one place the flow is coupled to the fixture's COUNT; it is stated
-# rather than derived because Maestro has no "last match" selector. Typing into `Step 1 instruction` does not
-# merely assert the wrong row — it appends this text to the SEEDED first step and leaves the added step EMPTY,
-# and `validateRecipeForm` fails `steps` when ANY instruction is blank, so `canAdvanceFromStep(3)` never opens
-# and the `Next: Review` below can no longer be tapped through.
-- assertVisible: 'Step 3 of 4'
+# rather than derived because Maestro has no "last match" selector. Typing into `Step 1` does not merely assert the
+# wrong row — it appends this text to the SEEDED first step and leaves the added step EMPTY, which the save below
+# then has to refuse ('Fill in or remove the empty step').
 - scrollUntilVisible:
       element: 'Add step'
-      # ⛔ DOWN, not UP. Advancing a step now returns the scroller to the TOP (`useScrollResetOnChange`,
-      # wired in `RecipeEditor`), so `Add step` — which sits below this step's instruction list — is
-      # ALWAYS downward from here. `UP` was compensating for the wizard's old behaviour of carrying the
-      # previous step's scroll position over, which is the defect that reset fixes.
+      # DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
       direction: DOWN
       timeout: 20000
 - tapOn: 'Add step'
-- tapOn: 'Step 5 instruction'
+- tapOn: 'Step 5'
 - inputText: 'Combine everything and simmer.'
-- scrollUntilVisible:
-      element: 'Next: Review'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Review'
 
-# Step 4 of 4 (Photos) — Publish is the sticky top-bar action, present on every step; no scroll needed.
-- assertVisible: 'Step 4 of 4'
-- tapOn: 'Publish'
+# Save changes is the pinned action bar's primary, on screen wherever the page is scrolled: ONE write.
+- tapOn: 'Save changes'
 # Back on the detail with the new title (regex tolerates Maestro's occasional last-char input dup).
 - extendedWaitUntil:
       visible:

@@ -78,9 +78,11 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     {face.icon === undefined ? null : (
                         <Icon name={face.icon} size={20} tone={face.selected ? 'ink' : 'inkMuted'} />
                     )}
-                    <Text style={[styles.label, { color: face.selected ? colors.ink : colors.inkMuted }]}>
-                        {face.label}
-                    </Text>
+                    {props.form === 'view' && props.labelVisibility === 'hidden' ? null : (
+                        <Text style={[styles.label, { color: face.selected ? colors.ink : colors.inkMuted }]}>
+                            {face.label}
+                        </Text>
+                    )}
                 </Pressable>
             ))}
         </View>

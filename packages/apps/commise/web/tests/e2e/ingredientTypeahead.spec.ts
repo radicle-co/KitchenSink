@@ -1,13 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-import { route } from './utils/basePath';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
+import { addStep, fillTimes, openNewRecipe, setServings } from './utils/recipeEditor';
 
 /**
  * Ingredient-typeahead trigger threshold (REQ-057) and the partial-nutrition disclosure gate (REQ-034),
- * driven through the real create wizard (Next dev server + Clerk session + client hooks + routing) with the
+ * driven through the real one-page editor (Next dev server + Clerk session + client hooks + routing) with the
  * recipe contract and food's search intercepted (`utils/recipeApi`, `utils/foodApi`). REQ-057: the trailing
  * "Add an ingredient" field MUST NOT surface a suggestion below the minimum, even though the mocked search would
  * return a match for any query.
@@ -24,19 +24,15 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
         await mockFoodApi(page);
 
-        await page.goto(route('/recipes/new'));
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
+        await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Herb Blend');
         await page.getByLabel('Description').fill('A pantry-forward herb blend.');
         await page.getByLabel('Cuisine').selectOption('French');
-        await page.getByLabel('Servings').fill('4');
-        await page.getByLabel('Prep time (minutes)').fill('5');
-        await page.getByLabel('Cook time (minutes)').fill('0');
+        await setServings(page, 4);
+        await fillTimes(page, { prepMinutes: 5 });
         await page.getByRole('radio', { name: 'Easy' }).click();
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
 
-        // Step 2 (Ingredients).
-        await expect(page.getByText('Step 2 of 4')).toBeVisible();
+        // Ingredients.
         const search = page.getByRole('combobox', { name: 'Add an ingredient' });
 
         // 003-FR-010a (plan U37) — below the three-character minimum no suggestion is ever offered, even
@@ -90,13 +86,8 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
         await search.fill('dried thyme blend');
         await page.getByRole('option', { name: 'Use “dried thyme blend” as written, without nutrition' }).click();
 
-        await page.getByRole('button', { name: 'Next: Instructions' }).click();
-        await expect(page.getByText('Step 3 of 4')).toBeVisible();
-        await page.getByRole('button', { name: 'Add step' }).click();
-        await page.getByLabel('Step 1 instruction').fill('Combine and store airtight.');
+        await addStep(page, 'Combine and store airtight.');
 
-        await page.getByRole('button', { name: 'Next: Review' }).click();
-        await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Herb Blend' })).toBeVisible();

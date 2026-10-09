@@ -9,9 +9,12 @@
  *
  * Pure and platform-agnostic. No React, no platform APIs.
  */
+import { ABSENT_QUANTITY } from '@kitchensink/recipe-core';
+
+import { readLeadingMeasure } from '../form/leadingMeasure.js';
 import type { IngredientLineKey } from '../form/lineKey.js';
 import { hasEntryText } from '../form/validate.js';
-import type { LineCommitTarget } from './lineCommit.js';
+import type { LineCommitTarget, LineMeasure } from './lineCommit.js';
 
 /** A target's identity in the entry's maps. A line key never spells `newLine` (`isIngredientLineKey`). */
 type EntryTargetId = IngredientLineKey | 'newLine';
@@ -208,4 +211,36 @@ export const pendingEntryOf = (state: EntryState, lines: readonly EntryLine[]): 
     }
 
     return undefined;
+};
+
+/**
+ * What a field's text asks the food search, trimmed: on the trailing row the food alone, after the measure the cook
+ * typed in front of it and before the preparation's comma (`../form/leadingMeasure.ts`, blueprint A1). A row's own field
+ * (Change food, a nameless row) searches its whole text: it names a food and carries no measure. Pure.
+ *
+ * @param target - The field.
+ * @param text - Its text.
+ * @returns The search.
+ */
+export const searchTextOf = (target: LineCommitTarget | undefined, text: string): string =>
+    target?.kind === 'newLine' ? readLeadingMeasure(text).search.trim() : text.trim();
+
+/**
+ * The target a pick on `target` commits to: the trailing row carries the measure read from the text the pick was made
+ * on, and only when the text states one, so a bare food commits as the plain trailing target. Pure.
+ *
+ * @param target - The field the pick was made on.
+ * @param text - Its text at the pick.
+ * @returns The commit target.
+ */
+export const commitTargetOf = (target: LineCommitTarget, text: string): LineCommitTarget => {
+    if (target.kind !== 'newLine') {
+        return target;
+    }
+
+    const { quantity, unit, preparation } = readLeadingMeasure(text);
+    const measure: LineMeasure = { quantity, unit, preparation };
+    const stated = quantity !== ABSENT_QUANTITY || unit !== '' || preparation !== '';
+
+    return stated ? { kind: 'newLine', measure } : { kind: 'newLine' };
 };

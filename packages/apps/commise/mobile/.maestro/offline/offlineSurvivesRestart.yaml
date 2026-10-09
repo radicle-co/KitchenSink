@@ -28,13 +28,17 @@ tags:
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 
 - setAirplaneMode: enabled
 - runFlow: ../recipes/common/clearTitle.yaml
 - inputText: ' survives restart'
-- tapOn: 'Save'
-- assertVisible: 'Saved'
+# The recipe is published, so the edit reaches the server only at Save changes (owner decision D1).
+- tapOn: 'Save changes'
+# Offline, the write waits in the outbox on the device: the header says so in its own words ('Saved on this device'),
+# and 'Saved' once the answer lands. Either is the cook's saved state; a failure line is not.
+- assertVisible:
+      text: '^Saved( on this device)?$'
 
 # Kill and relaunch WITHOUT clearing state — the queue must still be there.
 - stopApp

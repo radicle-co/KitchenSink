@@ -148,6 +148,10 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'One node handle, the trigger, for `.focus()` on a host focus request and before a held item runs, so a dialog that item opens records the trigger as its return target. `.focus()` has no declarative form, and Radix owns every other focus move.',
     },
+    'designSystem/scrollHost/ScrollHost': {
+        verdict: 'sanctioned-adjacent',
+        why: "`lastY` is a previous-value latch, read and advanced ONLY inside the scroll handler — never during render — so a discarded render cannot consume or advance it; it is what tells the scroll direction (an `IntersectionObserver` cannot, and there is no declarative scroll-direction API). The scroller's own imperative handle is NOT a ref: it arrives through a callback ref into STATE (`bind.ref`), the shape the web app shell's tab bar uses. The module is the screen's one `ScrollHost` (blueprint A7), and its docblock names the pattern.",
+    },
     'designSystem/button/Button': {
         verdict: 'sanctioned',
         why: 'One node handle, the button, for a host focus request: `.focus()` on web and the screen-reader cursor (`moveScreenReaderFocus`) on native, neither of which has a declarative form. The same level-triggered request Combobox and Popover take.',
@@ -160,17 +164,9 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'One node handle, the trigger, for `.focus()` when a host requests focus (a level-triggered request, acknowledged once taken). `.focus()` has no declarative form, and Radix owns every other focus move.',
     },
-    'featuresRecipes/filters/RecipeFilterBar': {
-        verdict: 'sanctioned',
-        why: 'One node handle, the inline bar, to move focus to its first control when the window leaves the Sheet layout and the open Sheet closes. `.focus()` has no declarative form, and the control that held focus is gone with the Sheet.',
-    },
-    'web/components/recipes/RecipeCreateContainer': {
-        verdict: 'sanctioned-adjacent',
-        why: 'A file-input handle (resetting `.value` is the only way to re-fire `change` for the same file), sanctioned; plus an Object-URL ledger swept on unmount. `createObjectURL`/`revokeObjectURL` is a two-call browser API whose lifetime React does not model, and the ledger is never read to drive rendering.',
-    },
     'web/components/recipes/RecipePhotoUploaderContainer': {
         verdict: 'sanctioned-adjacent',
-        why: 'Two file-input handles (one to reset `.value`, one to open the picker programmatically) plus a fileId→Object-URL ledger revoked per item and on unmount. Same reasoning as `RecipeCreateContainer`; the ledger never drives a render.',
+        why: 'Two file-input handles (one to reset `.value` — the only way to re-fire `change` for the same file — and one to open the picker programmatically) plus a fileId→Object-URL ledger revoked per item and on unmount. `createObjectURL`/`revokeObjectURL` is a two-call browser API whose lifetime React does not model, and the ledger never drives a render.',
     },
 };
 
@@ -260,10 +256,6 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned-adjacent',
         why: 'ONE `useRef`, `sessionRef`, the open analytics session (a Memento). It holds no render-affecting state: it is written and read only in effects and in the handlers that settle a session (a pick, a change of active field, a row removed), so a session survives the re-renders typing causes and settles exactly once.',
     },
-    'packages/apps/commise/features/recipes/src/hooks/useRecipeEditor.ts': {
-        verdict: 'sanctioned-adjacent',
-        why: "Two refs, both about a timing React does not model: `epochRef`, a generation token compared inside the mutation callbacks TanStack fires at an arbitrary later time (its two declarative alternatives are rejected in writing beside it), and `submitDraftRef`, a stable handle over a `submitDraft` that closes over every-render state. ⚠️ `submitDraftRef` was UNSANCTIONED until 2026-09-03: it was assigned in the RENDER BODY, so a discarded pass advanced it and the committed tree submitted through a closure carrying another recipe's id — an unattended write of this draft onto that recipe. It is now assigned in an effect, which a discarded render never runs, and the Suspense case in `useRecipeEditor.test.tsx` fails on the old shape.",
-    },
     'packages/apps/commise/features/recipes/src/hooks/useRecipePhotoUpload.ts': {
         verdict: 'sanctioned-adjacent',
         why: '`abortControllerRef` holds a real `AbortController` — a genuinely external, non-declarative object that is also the single-flight mutex (non-null IS "an upload is in flight") and the abort-on-unmount handle. `mountedRef` is a plain lifecycle latch guarding two post-await `setState` calls, and ⚠️ it is REDUNDANT: React 18 made a `setState` after unmount a silent no-op and removed the warning it used to guard. It holds no state, no derived data and nothing render-affecting, so it is not a rule violation — but it is machinery with nothing left to do, and deleting it is owed work that no test can prove either way (both halves stay green), which is why it is recorded here instead of quietly removed.',
@@ -342,8 +334,20 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * puts out of scope. Thirteen components arrived or were rewritten; nine state their layer, and four do not because
  * they hold local layout or announcement state and are not pure renders: `Stepper`, `TextArea`, `RecipeCover`,
  * `SearchField`.
+ *
+ * ⚠️ It went 107 → 104 at UI-overhaul slice 3, measured on the working tree slices 3, 4 and 6 shared. Slice 3 deleted
+ * the top bars, the drawer and `RecipesScreen`, and every component it added states its layer in its docblock.
+ *
+ * ⚠️ It went 104 → 98 at UI-overhaul slice 5, measured on the shared working tree. The slice deleted the filter bar, the
+ * collection form, actions, clone-info and detail blocks, the picker styles, three web pages and two mobile screens, and
+ * every component it added states its layer in its docblock.
+ *
+ * ⚠️ It went 98 → 96 at UI-overhaul slice 9, measured on the shared working tree. Slice 9 deleted `AccountEditForm`,
+ * the settings link and the `/account` and `/settings` containers, and every component it added states its layer in its
+ * docblock. `AccountEditForm` also leaves `DECLARED_ORCHESTRATION` below: it was deleted, not reclassified — the
+ * display-name sheet replaced its form.
  */
-const LAYER_UNSTATED_CENSUS = 107;
+const LAYER_UNSTATED_CENSUS = 96;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.
@@ -361,7 +365,6 @@ const LAYER_UNSTATED_CENSUS = 107;
  */
 const DECLARED_ORCHESTRATION: readonly string[] = [
     'designSystem/backIntercept/BackInterceptProvider',
-    'featuresRecipes/components/RecentRecipeGrid',
     'featuresRecipes/detail/AmbiguityReview',
     'featuresRecipes/detail/PhotoCarousel',
     'featuresRecipes/detail/RecipeDetailBody',
@@ -371,17 +374,14 @@ const DECLARED_ORCHESTRATION: readonly string[] = [
     'featuresRecipes/nutrition/RecipeNutritionBoundary',
     'featuresRecipes/nutrition/RecipeNutritionSlot',
     'featuresRecipes/rating/RecipeRatingDisplay',
-    'featuresRecipes/wizard/Wizard',
     'web/components/app/AppShell',
     'web/components/app/RedactedAnalytics',
     'web/components/app/RouteErrorBoundary',
     'web/components/app/RouteErrorState',
     'web/components/auth/AccountCloseForm',
-    'web/components/auth/AccountEditForm',
     'web/components/auth/AccountEraseForm',
     'web/components/auth/LogoutButton',
-    'web/components/recipes/RecipeCreateContainer',
-    'web/components/recipes/RecipeEditContainer',
+    'web/components/recipes/CollectionDetailContainer',
     'web/components/recipes/RecipePhotoUploaderContainer',
     'web/components/recipes/RecipeProviders',
     'mobile/components/account/AccountDangerZone',
@@ -389,7 +389,7 @@ const DECLARED_ORCHESTRATION: readonly string[] = [
     'mobile/i18n/LocaleProvider',
     'mobile/providers/AppProviders',
     'mobile/providers/RecipeServiceGate',
-    'mobile/screens/RecipeEditor',
+    'mobile/screens/CollectionDetailScreen',
 ];
 
 /** The real, committed catalogue. Read once — it is the same bytes for every assertion below. */

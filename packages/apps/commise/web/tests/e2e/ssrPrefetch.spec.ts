@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Page, type Request } from '@playwright/test';
 
 import { route } from './utils/basePath';
-import { makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { E2E_RECIPE_IDS, makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -84,7 +84,7 @@ test.describe('SSR prefetch degradation (B19)', () => {
         const response = await page.goto(route('/discover'));
 
         expect(response?.status()).toBe(200);
-        await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Discover', exact: true })).toBeVisible();
         // With no query, U7's discovery default is the CURATED RAILS surface (Trending / New / Quick), not a
         // flat relevance stream — so the seeded recipe legitimately renders once per rail (three sorts of the
         // same public corpus; a recipe can be the newest AND the quickest). This spec's claim is only that the
@@ -107,8 +107,9 @@ test.describe('SSR prefetch degradation (B19)', () => {
         const response = await page.goto(route('/collections'));
 
         expect(response?.status()).toBe(200);
-        await expect(page.getByRole('heading', { name: 'Collections' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'SSR Prefetch Collection' })).toBeVisible();
+        // Collections is a segment of the Recipes tab, so the large title is "Recipes" (slice 3).
+        await expect(page.getByRole('heading', { level: 1, name: 'Recipes' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'SSR Prefetch Collection' })).toBeVisible();
     });
 });
 
@@ -192,7 +193,7 @@ test.describe('suspense read boundary across a failed SSR prefetch (§11.0)', ()
 
         expect(response?.status()).toBe(200);
         await expect(unhydrated.getByRole('heading', { name: 'Recipes' })).toBeVisible();
-        await expect(unhydrated.getByRole('searchbox', { name: 'Search recipes' })).toBeVisible();
+        await expect(unhydrated.getByRole('searchbox', { name: 'Search your recipes' })).toBeVisible();
         await expect(unhydrated.getByRole('status', { name: 'Loading recipes' })).toBeVisible();
         await expect(unhydrated.getByRole('alert')).toHaveCount(0);
         await context.close();
@@ -257,8 +258,8 @@ test.describe('suspense read boundary across a failed SSR prefetch (§11.0)', ()
         const response = await unhydrated.goto(route('/discover'));
 
         expect(response?.status()).toBe(200);
-        await expect(unhydrated.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
-        await expect(unhydrated.getByRole('searchbox', { name: 'Search public recipes' })).toBeVisible();
+        await expect(unhydrated.getByRole('heading', { name: 'Discover', exact: true })).toBeVisible();
+        await expect(unhydrated.getByRole('searchbox', { name: 'Search recipes' })).toBeVisible();
         await expect(unhydrated.getByRole('status', { name: 'Loading recipes' })).toBeVisible();
         await expect(unhydrated.getByRole('alert')).toHaveCount(0);
         await context.close();
@@ -269,7 +270,11 @@ test.describe('suspense read boundary across a failed SSR prefetch (§11.0)', ()
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            recipes: [makeRecipeDetail({ id: 'rec_ssr', ownerId: 'usr_other', title: 'SSR Prefetch Recipe' })],
+            // A UUID, not a `rec_*` slug: every card on Discover's rails starts a calorie batch for its id, and the client refuses
+            // a slug before the request, which React then logs when the card's boundary catches it (`E2E_RECIPE_IDS`).
+            recipes: [
+                makeRecipeDetail({ id: E2E_RECIPE_IDS.pasta, ownerId: 'usr_other', title: 'SSR Prefetch Recipe' }),
+            ],
         });
         const seen = observe(page, isMainDiscoverySearch);
 
@@ -292,7 +297,7 @@ test.describe('suspense read boundary across a failed SSR prefetch (§11.0)', ()
         const response = await unhydrated.goto(route('/collections'));
 
         expect(response?.status()).toBe(200);
-        await expect(unhydrated.getByRole('heading', { name: 'Collections' })).toBeVisible();
+        await expect(unhydrated.getByRole('heading', { level: 1, name: 'Recipes' })).toBeVisible();
         await expect(unhydrated.getByRole('status', { name: 'Loading collections' })).toBeVisible();
         await expect(unhydrated.getByRole('alert')).toHaveCount(0);
         await context.close();
@@ -312,7 +317,7 @@ test.describe('suspense read boundary across a failed SSR prefetch (§11.0)', ()
         expect(response?.status()).toBe(200);
         // The document is not held back by the failed server read: the gate renders the skeleton instead of retrying.
         expect(response?.request().timing().responseEnd ?? Number.POSITIVE_INFINITY).toBeLessThan(2000);
-        await expect(page.getByRole('button', { name: 'SSR Prefetch Collection' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'SSR Prefetch Collection' })).toBeVisible();
         expect(seen.pageErrors).toEqual([]);
         expect(seen.hydrationErrors).toEqual([]);
         expect(seen.reads).toHaveLength(1);

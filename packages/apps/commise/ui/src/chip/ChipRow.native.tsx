@@ -21,7 +21,13 @@ import type { ChipRowOverflow, ChipRowProps, ChoiceRowProps } from './props.js';
 /** Lay chips out on one scrolling line, or wrapped. */
 const Lines: FC<{ readonly overflow: ChipRowOverflow; readonly children: ReactNode }> = ({ overflow, children }) =>
     overflow === 'scroll' ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.line}>
+        // One `scrollsToTop` per screen: a chip row never takes the iOS status-bar tap from the screen's scroller.
+        <ScrollView
+            horizontal
+            scrollsToTop={false}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.line}
+        >
             {children}
         </ScrollView>
     ) : (

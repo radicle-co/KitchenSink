@@ -5,12 +5,16 @@
  *
  * Moved from the retired `CollectionList.test.tsx` ("empty state", "populated state", the name's contrast, "load-more"
  * and "a failed refresh"). The heading's focus move went to `CollectionListFrame.test.tsx`, which now owns the heading.
+ *
+ * ⚠️ REWRITTEN in part for slice 4 (`docs/design/uiOverhaul/buildSpec.md` §5.1): the first run, the count, the album
+ * card named "{name}, {visibility}" with its copy credit, the two-column grid and the search from six collections. The
+ * card is a level-1 card in roles now, so the hover colour-shift (and its contrast test) is gone with it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { utilityContrast } from '@commise/test-utils';
+import { LocaleProvider } from '@commise/i18n/react';
 import { makeCollection } from '@kitchensink/recipe-core/testing';
 
 import { CollectionListResults } from '../CollectionListResults.js';
@@ -23,81 +27,124 @@ const noop = () => undefined;
 function renderList(overrides: Partial<CollectionListResultsProps> = {}) {
     const props: CollectionListResultsProps = {
         collections: [],
+        total: overrides.collections?.length ?? 0,
         onSelect: noop,
+        search: { value: '', onChange: noop },
+        firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop },
         ...overrides,
     };
-    render(<CollectionListResults {...props} />);
+    render(
+        <LocaleProvider locale="en">
+            <CollectionListResults {...props} />
+        </LocaleProvider>,
+    );
 
     return props;
 }
 
 const threeCollections = [
-    makeCollection({ id: 'col_1', name: 'Weeknight Dinners' }),
-    makeCollection({ id: 'col_2', name: 'Holiday Baking' }),
-    makeCollection({ id: 'col_3', name: 'Meal Prep', description: 'Batch-cook staples.' }),
+    makeCollection({ id: 'col_1', name: 'Weeknight Dinners', visibility: 'private' }),
+    makeCollection({ id: 'col_2', name: 'Holiday Baking', visibility: 'public' }),
+    makeCollection({ id: 'col_3', name: 'Meal Prep', visibility: 'private' }),
 ];
 
-describe('CollectionListResults (web) — empty state', () => {
-    it('shows the empty message when a successful load returns no collections', () => {
-        renderList({ collections: [] });
+describe('CollectionListResults (web) — the first run', () => {
+    it('invites the first collection, with New collection', async () => {
+        const onCreate = vi.fn();
+        renderList({ firstRun: { hasRecipes: true, onCreate, onAddRecipe: noop } });
 
-        expect(screen.getByText('No collections yet')).toBeTruthy();
+        expect(screen.getByRole('heading', { level: 2, name: 'Group recipes your way' })).toBeTruthy();
+        expect(screen.getByText('Make a collection for weeknights, holidays or anything else.')).toBeTruthy();
+        expect(screen.queryByRole('list')).toBeNull();
+
+        await userEvent.click(screen.getByRole('button', { name: 'New collection' }));
+
+        expect(onCreate).toHaveBeenCalledTimes(1);
     });
 
-    it('renders no list when empty', () => {
-        renderList({ collections: [] });
+    it('with no recipes yet, asks for a few first and offers Add a recipe instead', async () => {
+        const onAddRecipe = vi.fn();
+        renderList({ firstRun: { hasRecipes: false, onCreate: noop, onAddRecipe } });
 
-        expect(screen.queryByRole('list')).toBeNull();
+        expect(screen.getByText('Add a few recipes first.')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'New collection' })).toBeNull();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
+
+        expect(onAddRecipe).toHaveBeenCalledTimes(1);
     });
 });
 
 describe('CollectionListResults (web) — populated state', () => {
-    it('renders one row per collection in a list structure', () => {
+    it('says how many collections there are, and draws one card each', () => {
         renderList({ collections: threeCollections });
 
-        const list = screen.getByRole('list');
-        expect(within(list).getAllByRole('listitem')).toHaveLength(3);
-        expect(screen.getByRole('button', { name: 'Weeknight Dinners' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Holiday Baking' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Meal Prep' })).toBeTruthy();
+        expect(screen.getByText('3 collections')).toBeTruthy();
+        expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(3);
     });
 
-    it('renders a collection description when present', () => {
+    it('names each card by its name and its visibility, said with a word beside its glyph', () => {
         renderList({ collections: threeCollections });
 
-        expect(screen.getByText('Batch-cook staples.')).toBeTruthy();
+        expect(screen.getByRole('article', { name: 'Weeknight Dinners, Private' })).toBeTruthy();
+        expect(screen.getByRole('article', { name: 'Holiday Baking, Public' })).toBeTruthy();
+        expect(
+            within(screen.getByRole('article', { name: 'Holiday Baking, Public' })).getByText('Public'),
+        ).toBeTruthy();
     });
 
-    it('reports the selected collection id upward', async () => {
-        const user = userEvent.setup();
+    it('credits a copy to its source', () => {
+        renderList({
+            collections: [{ ...makeCollection({ id: 'col_9', name: 'Borrowed' }), sourceOwnerHandle: 'clara' }],
+        });
+
+        expect(screen.getByText('Copied from @clara')).toBeTruthy();
+    });
+
+    it('makes each card one link when the host gives an href, reporting a plain click', async () => {
         const onSelect = vi.fn();
-        renderList({ collections: threeCollections, onSelect });
+        renderList({ collections: threeCollections, onSelect, hrefOf: (id) => `/en/collections/${id}` });
 
-        await user.click(screen.getByRole('button', { name: 'Holiday Baking' }));
+        const link = screen.getByRole('link', { name: 'Holiday Baking' });
+        expect(link.getAttribute('href')).toBe('/en/collections/col_2');
+
+        await userEvent.click(link);
 
         expect(onSelect).toHaveBeenCalledWith('col_2');
     });
+
+    it('lays the cards out two to a row on a phone and auto-fill from 600', () => {
+        renderList({ collections: threeCollections });
+        const list = screen.getByRole('list');
+
+        expect(list.className).toContain('grid-cols-2');
+        expect(list.className).toContain('@regular/main:grid-cols-[repeat(auto-fill,minmax(15rem,1fr))]');
+    });
 });
 
-/**
- * The card's hover colour-shift is a TEXT colour, and the collection name is the thing a reader reads. At
- * 20px/600 it is NOT WCAG "large text" (which needs 18.66px BOLD, i.e. ≥700), so the 4.5:1 body floor applies
- * to the hovered state exactly as it does at rest. `group-hover:text-action-text` scored 4.02:1 on the white card —
- * so pointing at a card made its own title HARDER to read, which is the inverse of the affordance's intent.
- *
- * Both states are measured off the rendered class list, so neither the resting `text-ink` nor the hover
- * colour can drift under the floor, and a re-theme of either token moves the test with it.
- */
-describe('CollectionListResults (web) — the collection name clears the AA body-text floor in BOTH states', () => {
-    it('keeps the collection name legible at rest AND while its card is hovered', () => {
-        renderList({ collections: threeCollections });
-        const name = within(screen.getByRole('button', { name: 'Weeknight Dinners' })).getByText('Weeknight Dinners');
+describe('CollectionListResults (web) — the search', () => {
+    const six = Array.from({ length: 6 }, (_unused, index) => makeCollection({ id: `c${index}`, name: `C ${index}` }));
 
-        expect(utilityContrast(name.className), 'collection name at rest').toBeGreaterThanOrEqual(4.5);
-        expect(
-            utilityContrast(name.className, { variant: 'group-hover' }),
-            'collection name on card hover',
-        ).toBeGreaterThanOrEqual(4.5);
+    it('shows from six collections only', () => {
+        renderList({ collections: threeCollections });
+        expect(screen.queryByRole('searchbox')).toBeNull();
+        cleanup();
+
+        renderList({ collections: six });
+        expect(screen.getByRole('searchbox', { name: 'Search your collections' })).toBeTruthy();
+    });
+
+    it('reports a search, and says when nothing matches it', () => {
+        const onChange = vi.fn();
+        renderList({ collections: [], total: 6, search: { value: 'zzz', onChange } });
+
+        fireEvent.change(screen.getByRole('searchbox', { name: 'Search your collections' }), {
+            target: { value: 'z' },
+        });
+
+        expect(onChange).toHaveBeenCalledWith('z');
+        expect(screen.getByText('No collections match “zzz”.')).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Group recipes your way' })).toBeNull();
     });
 });
 
@@ -174,7 +221,16 @@ describe('CollectionListResults (web) — a failed refresh of the rows on screen
     });
 
     function viewWith(refreshNotice: CollectionListResultsProps['refreshNotice']) {
-        return <CollectionListResults collections={threeCollections} onSelect={noop} refreshNotice={refreshNotice} />;
+        return (
+            <CollectionListResults
+                collections={threeCollections}
+                total={threeCollections.length}
+                onSelect={noop}
+                search={{ value: '', onChange: noop }}
+                firstRun={{ hasRecipes: true, onCreate: noop, onAddRecipe: noop }}
+                refreshNotice={refreshNotice}
+            />
+        );
     }
 
     it('shows no notice while nothing has failed', () => {

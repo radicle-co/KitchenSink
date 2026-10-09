@@ -35,12 +35,18 @@ export interface DiscoveryMessages {
     readonly refreshError: string;
     /** Accessible name for the sort control (S3). */
     readonly sortLabel: string;
+    /** The sort button's text (contains `{choice}`): "Sort: Relevance". */
+    readonly sortButton: string;
+    /** The native sort sheet's title and the menu's name. */
+    readonly sortMenuLabel: string;
+    /** The native sort sheet's Close control. */
+    readonly sortClose: string;
     /** Visible label for the Relevance sort. */
     readonly sortRelevance: string;
     /** Visible label for the Newest (recent) sort. */
     readonly sortNewest: string;
-    /** Visible label for the Most-cloned sort. */
-    readonly sortMostCloned: string;
+    /** Visible label for the Most-saved sort (the glossary retires "cloned"). */
+    readonly sortMostSaved: string;
     /** Visible label for the Quickest sort. */
     readonly sortQuickest: string;
     /** Accessible label for the loading state. */
@@ -51,24 +57,35 @@ export interface DiscoveryMessages {
     readonly emptyBody: string;
     /** Heading of the no-match state (an active search/filter matched nothing). */
     readonly noMatchTitle: string;
-    /** Body copy of the no-match state. */
-    readonly noMatchBody: string;
+    /** Body of the no-result state caused by filters alone. */
+    readonly noMatchFiltersBody: string;
+    /** Heading of the no-result state caused by a search (contains `{query}`). */
+    readonly noMatchQueryTitle: string;
+    /** Body of the no-result state caused by a search. */
+    readonly noMatchQueryBody: string;
+    /** Heading of the no-result state caused by a search AND filters (contains `{query}`). */
+    readonly noMatchBothTitle: string;
+    /** Clears the search term. */
+    readonly clearSearch: string;
+    /** Clears the filters. */
+    readonly clearFilters: string;
+    /** The lead-in to the tag chips every no-result state ends with. */
+    readonly tryThese: string;
+    /** The tag chips' group name. */
+    readonly tryTheseLabel: string;
     /** Message shown when discovery fails to load. */
     readonly errorTitle: string;
     /** Label of the retry action in the error state. */
     readonly retry: string;
     /** Source-provenance template shown on a row (contains `{source}`). */
     readonly attribution: string;
-    /** Author-handle attribution shown on a search result card (contains `{handle}`) — S1. */
-    readonly byAuthor: string;
-    /** Visible label of the idle clone action. */
-    readonly clone: string;
-    /** Visible label of the clone action while its clone is in flight. */
-    readonly cloning: string;
-    /** Accessible label for the idle clone action (contains `{title}`, so each row is uniquely named). */
-    readonly cloneLabel: string;
-    /** Accessible label for the in-flight clone action (contains `{title}`). */
-    readonly cloningLabel: string;
+    /** The author's handle on a result card (contains `{handle}`) — S1. */
+    readonly authorHandle: string;
+    /** Previous / next on a rail, for a fine pointer. */
+    readonly previous: string;
+    readonly next: string;
+    /** A rail's track region name (contains `{rail}`): "Trending recipes". */
+    readonly railRegion: string;
     /** Accessible name for the curated browse-rails region (U7). */
     readonly browseLabel: string;
     /** Title of the Trending rail (most-cloned). */
@@ -105,35 +122,44 @@ export interface DiscoveryMessages {
 
 export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
     en: {
-        heading: 'Discover recipes',
+        heading: 'Discover',
         resultsLabel: 'Search results',
-        searchLabel: 'Search public recipes',
-        searchPlaceholder: 'Search public recipes...',
+        searchLabel: 'Search recipes',
+        searchPlaceholder: 'Search recipes',
         countOne: '{count} recipe',
         countOther: '{count} recipes',
-        resultsForQuery: 'Showing {count} for “{query}”',
+        resultsForQuery: '{count} for “{query}”',
         loadMore: 'Load more',
         loadingMore: 'Loading…',
         loadMoreError: 'We couldn’t load more recipes.',
         refreshError: 'We couldn’t refresh these results.',
         sortLabel: 'Sort by',
+        sortButton: 'Sort: {choice}',
+        sortMenuLabel: 'Sort by',
+        sortClose: 'Close sort menu',
         sortRelevance: 'Relevance',
         sortNewest: 'Newest',
-        sortMostCloned: 'Most cloned',
+        sortMostSaved: 'Most saved',
         sortQuickest: 'Quickest',
         loadingLabel: 'Loading recipes',
-        emptyTitle: 'No recipes found',
-        emptyBody: 'Try a different search to discover public recipes.',
-        noMatchTitle: 'No matching recipes',
-        noMatchBody: 'No public recipes match your search and filters. Try adjusting them.',
-        errorTitle: 'We couldn’t load recipes.',
+        emptyTitle: 'No public recipes yet.',
+        emptyBody: 'Public recipes will show up here.',
+        noMatchTitle: 'No recipes match these filters',
+        noMatchFiltersBody: 'Remove a filter to see more.',
+        noMatchQueryTitle: 'No recipes for “{query}”',
+        noMatchQueryBody: 'Check the spelling, or try a shorter search.',
+        noMatchBothTitle: 'No recipes for “{query}” with these filters',
+        clearSearch: 'Clear search',
+        clearFilters: 'Clear filters',
+        tryThese: 'Try one of these',
+        tryTheseLabel: 'Popular tags',
+        errorTitle: 'We couldn’t search right now.',
         retry: 'Try again',
         attribution: 'From {source}',
-        byAuthor: 'by @{handle}',
-        clone: 'Clone',
-        cloning: 'Cloning',
-        cloneLabel: 'Clone {title}',
-        cloningLabel: 'Cloning {title}',
+        authorHandle: '@{handle}',
+        previous: 'Previous',
+        next: 'Next',
+        railRegion: '{rail} recipes',
         browseLabel: 'Browse recipes',
         railTrending: 'Trending',
         railNew: 'New',

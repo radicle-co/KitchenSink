@@ -1,41 +1,46 @@
 /**
- * @module @commise/features-recipes — native "Recent recipes" card list (Home widget building block).
+ * @module @commise/features-recipes — the native "Recent recipes" grid: Home's 2 × 2 below a 600 container and one row
+ * of four from 600 (`HOME_COLUMNS`), of cards in the variant the host decided (owner ruling D8). Pure `props → JSX`.
  *
- * The React Native leaf of `RecentRecipeGrid` — same contract, same
- * navigation seam. PLATFORM-FORK: the web leaf paints the mockup's 2-up/4-up CSS grid; on a phone-width
- * native surface the equivalent arrangement is a single column, which is what the mobile Home widget already
- * presents. Keeping the arrangement in a leaf per platform (rather than a shared component with a layout
- * flag) is what lets each platform express its own without the other carrying a dead branch.
- *
- * @pattern Layout component over a pure projection, forked per platform on purpose — each leaf expresses its own
- *     arrangement so neither carries the other's dead branch.
+ * @pattern Layout component over a pure projection — it owns the arrangement and nothing else
  */
+import { containerClassOf, contentWidthOf } from '@commise/ui/container-class';
 import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { RecentRecipeItem } from './RecentRecipeItem.js';
+import { HOME_COLUMNS } from '../card/cardGridLayout.js';
+import { RecipeCard } from '../card/RecipeCard.native.js';
 import type { RecentRecipeGridProps } from './props.js';
 
-/** The recent-recipes card list on React Native: a single column of tappable cards. */
-export const RecentRecipeGrid: FC<RecentRecipeGridProps> = ({ recipes, onSelectRecipe, renderNutrition }) => (
-    <View style={styles.list}>
-        {recipes.map((recipe) =>
-            onSelectRecipe === undefined ? (
-                <RecentRecipeItem key={recipe.id} recipe={recipe} nutrition={renderNutrition?.(recipe.id)} />
-            ) : (
-                <RecentRecipeItem
+/** A cell's width as a share of the row, leaving each gap its room without a negative margin. */
+const CELL_WIDTH: Readonly<Record<number, `${number}%`>> = { 2: '48%', 4: '23%' };
+
+export const RecentRecipeGrid: FC<RecentRecipeGridProps> = ({ recipes, variant, onSelectRecipe, renderNutrition }) => {
+    const columns = HOME_COLUMNS[containerClassOf(contentWidthOf(useWindowDimensions().width))];
+
+    return (
+        <View collapsable={false} role="list" style={styles.grid}>
+            {recipes.map((recipe) => (
+                <View
                     key={recipe.id}
-                    recipe={recipe}
-                    onSelect={onSelectRecipe}
-                    nutrition={renderNutrition?.(recipe.id)}
-                />
-            ),
-        )}
-    </View>
-);
+                    collapsable={false}
+                    role="listitem"
+                    {...{ dataSet: { homeCell: '' } }}
+                    style={{ width: CELL_WIDTH[columns] ?? '48%' }}
+                >
+                    <RecipeCard
+                        variant={variant}
+                        recipe={recipe}
+                        {...(onSelectRecipe === undefined ? {} : { onSelect: onSelectRecipe })}
+                        nutrition={renderNutrition?.(recipe.id)}
+                    />
+                </View>
+            ))}
+        </View>
+    );
+};
 
 const styles = StyleSheet.create({
-    // The same 16px rhythm the web grid's `gap-4` applies, from the shared spacing scale.
-    list: { gap: nativeTokens.spacing[4] },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: nativeTokens.spacing[3] },
 });

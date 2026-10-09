@@ -1,9 +1,11 @@
 'use client';
 
 /**
- * @module home/HomeGreeting — the time-of-day Home greeting + date subtitle (web; US-000 / FR-046).
+ * @module home/HomeGreeting — Home's large title: the time-of-day greeting as the page's H1 and the date under it (web;
+ * US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), drawn by the design system's `LargeTitleHeader` with the
+ * header's action (the avatar) and the floating create button right after the H1.
  *
- * The mockup's "Good afternoon, Chef!" over "Saturday, May 31, 2026". Both are derived from the viewer's
+ * "Good afternoon, Eliza" over "Sunday, May 31, 2026"; "Good afternoon" when the cook has no name yet. Both are derived from the viewer's
  * LOCAL clock: the greeting from the hour-of-day bucket ({@link greetingBucketForHour}) and the subtitle from
  * {@link formatHomeDate} — the shared, locale-aware formatters in `@commise/features-core`, so web and mobile
  * greet identically (FR-044).
@@ -35,7 +37,13 @@
  */
 import { formatHomeDate, greetingBucketForHour } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import type { JSX } from 'react';
+import {
+    LARGE_SUBTITLE_CLASS,
+    LARGE_TITLE_CLASS,
+    LargeTitleHeader,
+    type HeaderAction,
+} from '@commise/ui/large-title-header';
+import type { JSX, ReactNode } from 'react';
 
 import { useIsHydrated } from '@/hooks/useIsHydrated';
 import { webMessages } from '@/i18n/messages';
@@ -44,27 +52,41 @@ import { webMessages } from '@/i18n/messages';
  * The greeting line's typography, stated ONCE so the real line and the reserved placeholder cannot drift into
  * different heights (which is what would reintroduce a layout shift at hydration).
  */
-const GREETING_LINE = 'mb-1 font-display text-3xl font-bold text-ink';
+const GREETING_LINE = `${LARGE_TITLE_CLASS} focus:outline-none`;
 
 /** The date line's typography — same single-statement reason as {@link GREETING_LINE}. */
-const DATE_LINE = 'text-ink-muted';
+const DATE_LINE = LARGE_SUBTITLE_CLASS;
+
+/** The id of Home's H1. */
+export const HOME_TITLE_ID = 'home-title';
+
+/** Props for {@link HomeGreeting}. */
+export interface HomeGreetingProps {
+    /** The cook's display name, if any. */
+    readonly name?: string;
+    /** The header's action: the avatar, below 840. */
+    readonly action?: HeaderAction;
+    /** What comes right after the H1: the floating create button. */
+    readonly afterTitle?: ReactNode;
+}
 
 /** The skeleton shape utilities: the repo's reserved `pearl` skeleton fill (see `RecipeCardGridSkeleton`). */
 const PLACEHOLDER_BAR = 'max-w-full rounded-md bg-surface-muted';
 
 /**
- * The Home greeting header.
+ * The Home large title.
  *
- * @returns The time-of-day greeting and the localized full-date subtitle once the viewer's clock is readable;
+ * @param props - The cook's name, the header's action, and what follows the H1.
+ * @returns The time-of-day greeting as the H1 and the localized full-date subtitle once the viewer's clock is readable;
  *          before that, the same two lines reserved as an `aria-hidden` placeholder.
  */
-export function HomeGreeting(): JSX.Element {
+export function HomeGreeting({ name, action, afterTitle }: HomeGreetingProps = {}): JSX.Element {
     const { home } = useMessages(webMessages);
     const locale = useLocale();
     const hydrated = useIsHydrated();
 
     if (!hydrated) {
-        // Hidden from assistive tech rather than labelled: there is nothing to say yet, and an empty <h2> is a
+        // Hidden from assistive tech rather than labelled: there is nothing to say yet, and an empty <h1> is a
         // heading with no accessible name. No pulse either — nothing is being fetched, so a shimmer would
         // claim a wait that is not happening (and would then owe `prefers-reduced-motion` handling).
         return (
@@ -76,13 +98,16 @@ export function HomeGreeting(): JSX.Element {
     }
 
     const now = new Date();
-    const greeting = home.greetings[greetingBucketForHour(now.getHours())];
-    const date = formatHomeDate(now, locale);
+    const bucket = greetingBucketForHour(now.getHours());
+    const greeting = name === undefined ? home.greetings[bucket] : home.greetingsNamed[bucket].replace('{name}', name);
 
     return (
-        <div>
-            <h2 className={GREETING_LINE}>{greeting}</h2>
-            <p className={DATE_LINE}>{date}</p>
-        </div>
+        <LargeTitleHeader
+            headingId={HOME_TITLE_ID}
+            title={greeting}
+            subtitle={formatHomeDate(now, locale)}
+            {...(action === undefined ? {} : { action })}
+            {...(afterTitle === undefined ? {} : { afterTitle })}
+        />
     );
 }

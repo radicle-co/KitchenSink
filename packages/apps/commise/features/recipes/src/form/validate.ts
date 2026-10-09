@@ -10,6 +10,8 @@
  * leaves and by the app container, so the two renders can never drift. No React, no platform APIs.
  */
 import { recipeStepInstructionSchema, recipeTitleSchema } from '@kitchensink/recipe-core';
+
+import { TITLE_MAX_LENGTH } from './limits.js';
 import { type RecipeFormValues } from './values.js';
 import { draftQuantityVerdict } from './quantity.js';
 
@@ -20,6 +22,10 @@ import { draftQuantityVerdict } from './quantity.js';
  */
 export type RecipeFormErrorCode =
     | 'titleRequired'
+    /** Past the 120 publish limit: Publish is refused, a draft still saves. */
+    | 'titleTooLong'
+    /** Past the wire's 200: even a draft cannot be saved (`draftFloorErrors`). */
+    | 'titleTooLongToSave'
     | 'ingredientsPendingText'
     | 'ingredientsEmpty'
     | 'ingredientsUnresolved'
@@ -131,9 +137,13 @@ export const hasEntryText = (text: string): boolean => text.trim().length > 0;
  */
 export const validateRecipeForm = (values: RecipeFormValues, pendingEntryText: string): RecipeFormErrors => {
     const errors: RecipeFormErrors = {};
+    const title = titleErrorOf(values.title);
 
-    if (!titleSchema.safeParse(values.title.trim()).success) {
-        errors.title = 'titleRequired';
+    if (title !== undefined) {
+        // A title the wire refuses is past the publish limit as well, and the cook is told the one limit to meet.
+        errors.title = title === 'titleTooLongToSave' ? 'titleTooLong' : title;
+    } else if (values.title.trim().length > TITLE_MAX_LENGTH) {
+        errors.title = 'titleTooLong';
     }
 
     if (hasEntryText(pendingEntryText)) {
@@ -173,4 +183,40 @@ export const validateRecipeForm = (values: RecipeFormValues, pendingEntryText: s
     }
 
     return errors;
+};
+
+/**
+ * What the WIRE says about a title: empty, past its bound, or nothing. Pure.
+ *
+ * @param raw - The title as typed.
+ * @returns The code, or `undefined` when the wire accepts the trimmed title.
+ */
+const titleErrorOf = (raw: string): 'titleRequired' | 'titleTooLongToSave' | undefined => {
+    const title = raw.trim();
+
+    if (title.length === 0) {
+        return 'titleRequired';
+    }
+
+    return titleSchema.safeParse(title).success ? undefined : 'titleTooLongToSave';
+};
+
+/**
+ * The floor a SERVER write of a draft checks (blueprint A4; `editor/checkpointPolicy.ts`'s `draftFloorMet`): only what
+ * the wire refuses outright — a title (within the wire's bound, not the publish limit), positive servings and
+ * non-negative times. Ingredients and steps may be empty, and are wire-legal as empty arrays on an update. A write the
+ * floor would refuse is never asked for, so a checkpoint cannot loop on a `400`. Pure.
+ *
+ * @param values - The editor's form values.
+ * @returns The errors that keep the draft on the device (empty when a server write may go ahead).
+ */
+export const draftFloorErrors = (values: RecipeFormValues): RecipeFormErrors => {
+    const { servings, times } = validateRecipeForm(values, '');
+    const title = titleErrorOf(values.title);
+
+    return {
+        ...(title === undefined ? {} : { title }),
+        ...(servings === undefined ? {} : { servings }),
+        ...(times === undefined ? {} : { times }),
+    };
 };

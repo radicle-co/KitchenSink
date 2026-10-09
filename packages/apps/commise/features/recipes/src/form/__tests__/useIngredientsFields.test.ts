@@ -7,6 +7,7 @@
  * holds what the hook wires them to, and what a row's actions do to the hook's own focus levels and settled failure.
  */
 import { act, renderHook } from '@testing-library/react';
+import { createElement } from 'react';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -22,6 +23,7 @@ import {
 import type { IngredientEntry } from '../../hooks/useIngredientEntry.js';
 import type { LineCommitTarget } from '../../hooks/lineCommit.js';
 import type { IngredientRowEditor, RowDetailsTarget, SettledRowCommit } from '../../hooks/useIngredientRowEditor.js';
+import { SectionPresenceContext } from '../../editor/sectionPresence.js';
 import { recipeMessages } from '../../messages.js';
 import { trailingCommitFailureId, trailingEntryDescribedBy } from '../fieldErrorIds.js';
 import type { LookupRetry } from '../ingredientStatus.js';
@@ -372,6 +374,33 @@ describe('useIngredientsFields — a settled failure, across the step’s lifeti
         rerender(failing(props, { movedPast: true }));
 
         expect(rowsOf(result.current)[0]?.failure).toBeUndefined();
+        expect(rowsOf(result.current)[0]?.entryField.pickFailure).toBeUndefined();
+    });
+
+    /**
+     * One page holds every section, so the field group stays mounted while the cook works elsewhere: whether the cook is
+     * HERE comes from the editor's section (`SectionPresenceContext`). A failure that settles while the cook is in another
+     * section is a state on return, the same as one found on mount — it never interrupts them where they are.
+     */
+    it('a failure that settles while the cook is in another section shows its line, silently, even on return', () => {
+        const props = propsOf({ lines: [bound('flour')] });
+        let present = false;
+        const { result, rerender } = renderHook((each: RecipeIngredientsFieldsProps) => useIngredientsFields(each), {
+            initialProps: props,
+            wrapper: ({ children }) => createElement(SectionPresenceContext, { value: present }, children),
+        });
+
+        // One settled commit, as the host holds it: its identity is what the field group compares.
+        const failed = failing(props);
+        rerender(failed);
+
+        expect(rowsOf(result.current)[0]?.failure).toBeDefined();
+        expect(rowsOf(result.current)[0]?.entryField.pickFailure).toBeUndefined();
+
+        present = true;
+        rerender(failed);
+
+        expect(rowsOf(result.current)[0]?.failure).toBeDefined();
         expect(rowsOf(result.current)[0]?.entryField.pickFailure).toBeUndefined();
     });
 

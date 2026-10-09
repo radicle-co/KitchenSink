@@ -31,18 +31,22 @@ tags:
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 
 # ── go offline ────────────────────────────────────────────────────────────────
 - setAirplaneMode: enabled
 
 - runFlow: ../recipes/common/clearTitle.yaml
 - inputText: ' offline edit'
-- tapOn: 'Save'
+# The recipe is published, so the edit reaches the server only at Save changes (owner decision D1).
+- tapOn: 'Save changes'
 
 # ⛔ THE SAVE SUCCEEDS FROM THE COOK'S POINT OF VIEW. Offline is a pause, so the editor must reach its saved
 # state rather than reporting a failure — this assertion is the whole owner ruling in one line.
-- assertVisible: 'Saved'
+# Offline, the write waits in the outbox on the device: the header says so in its own words ('Saved on this device'),
+# and 'Saved' once the answer lands. Either is the cook's saved state; a failure line is not.
+- assertVisible:
+      text: '^Saved( on this device)?$'
 
 # ⛔ AND THEY ARE TOLD. "As long as we are clearly notifying a user that they are offline and what data/recipe
 # hasn't been synced with the servers, then that should be good."
@@ -63,15 +67,13 @@ tags:
 
 # The edit is on the server: a fresh read of the detail shows it.
 #
-# ⛔ ANCHORED ON THE EDITOR'S STEP LABEL. A Maestro selector matches the WHOLE string, and under
-# three-button navigation Android's system bar publishes a node named exactly `Back` — so a bare
-# `tapOn: 'Back'` has two matches and may tap the OS button, which leaves the editor too and keeps this
-# flow green while testing none of the app's header. `Step 1 of 4` is asserted on entry above and this flow
-# never advances a step, so it is the editor's own marker throughout; the system bar is at the bottom of
-# the display and is above nothing.
-- tapOn:
-      text: 'Back'
-      above:
-          text: 'Step 1 of 4'
+# The editor's own × (`Close editor`), not `Back`: under three-button navigation Android's system bar publishes a
+# node named exactly `Back`, so a bare `tapOn: 'Back'` may tap the OS button. If the editor already handed off to
+# the detail once the save answered, there is nothing to close.
+- runFlow:
+      when:
+          visible: 'Close editor'
+      commands:
+          - tapOn: 'Close editor'
 - assertVisible:
       text: '.*offline edit.*'

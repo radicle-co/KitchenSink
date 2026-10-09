@@ -123,6 +123,15 @@ export interface RecipeFormIngredient {
      * there is one, else the root — which the row panel and the running total both read.
      */
     readonly variant?: IngredientVariant;
+    /**
+     * The pasted line this line was read from, verbatim (blueprint A5). Set only for a line pasted while the recipe has
+     * no server row, and sent only on the CREATE (`toCreateRecipeInput`): the wire field is create-only (ADR-0023's
+     * shape), so `toUpdateRecipeInput` drops it, and a line pasted into a stored recipe is an authored line. A
+     * typed-then-picked line never has one (A2).
+     */
+    readonly sourceLine?: string;
+    /** The ingredient phrase the parse lifted out of {@link sourceLine}: the cross-user memo's key. Create-only too. */
+    readonly sourcePhrase?: string;
     readonly userCalories?: number;
     readonly userProteinG?: number;
     readonly userCarbsG?: number;
@@ -240,3 +249,20 @@ export const defaultRecipeFormValues = (): RecipeFormValues => ({
     steps: [],
     photos: [],
 });
+
+/**
+ * Structural equality over {@link RecipeFormValues}: whether two drafts carry the same data. Every builder in this
+ * package (`defaultRecipeFormValues`, `toRecipeFormValues`, the `props.ts` transitions) omits absent optional fields
+ * rather than storing `undefined`, and builds object keys in a stable order, so a `JSON.stringify` comparison is exact
+ * here. `NaN` (the draft's "no amount") serialises as `null` on both sides, so two amount-less lines compare equal.
+ *
+ * The editor reads it to decide whether the server already holds the draft (a checkpoint with nothing new is not
+ * sent; Save changes is disabled while there is nothing to save). Pure.
+ *
+ * @param a - One draft.
+ * @param b - The other draft.
+ * @returns Whether `a` and `b` carry the same data.
+ */
+export function recipeFormValuesEqual(a: RecipeFormValues, b: RecipeFormValues): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+}

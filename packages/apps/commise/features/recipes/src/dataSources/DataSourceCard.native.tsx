@@ -11,8 +11,8 @@
  * recorded, not papered over with a translation.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { FC, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -25,27 +25,35 @@ const ExternalLink: FC<{
     readonly link: DataSourceLink;
     readonly onOpen: (href: string) => void;
     readonly children: string;
-}> = ({ link, onOpen, children }) => (
-    <Pressable
-        accessibilityRole="link"
-        accessibilityLabel={link.accessibleName}
-        style={styles.linkTouch}
-        onPress={() => onOpen(link.href)}
-    >
-        <Text style={styles.link}>
-            {children}
-            <Text aria-hidden> ↗</Text>
-        </Text>
-    </Pressable>
-);
+}> = ({ link, onOpen, children }) => {
+    const { colors } = useTheme();
+
+    return (
+        <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={link.accessibleName}
+            style={styles.linkTouch}
+            onPress={() => onOpen(link.href)}
+        >
+            <Text style={[styles.link, { color: colors.actionText }]}>
+                {children}
+                <Text aria-hidden> ↗</Text>
+            </Text>
+        </Pressable>
+    );
+};
 
 /** One term, stacked above its value. */
-const Entry: FC<{ readonly term: string; readonly children: ReactNode }> = ({ term, children }) => (
-    <View style={styles.entry}>
-        <Text style={styles.term}>{term}</Text>
-        {children}
-    </View>
-);
+const Entry: FC<{ readonly term: string; readonly children: ReactNode }> = ({ term, children }) => {
+    const { colors } = useTheme();
+
+    return (
+        <View style={styles.entry}>
+            <Text style={[styles.term, { color: colors.inkMuted }]}>{term}</Text>
+            {children}
+        </View>
+    );
+};
 
 /**
  * One cited source (native): its heading, names, edition, licence, credit, conversion note and website.
@@ -56,20 +64,21 @@ const Entry: FC<{ readonly term: string; readonly children: ReactNode }> = ({ te
 export const DataSourceCard: FC<DataSourceCardNativeProps> = ({ source, onOpen = openExternalUrl }) => {
     const messages = useMessages(dataSourcesMessages);
     const card = dataSourceCardModel(source, messages);
+    const { colors } = useTheme();
+    const value = [styles.value, { color: colors.ink }];
 
     return (
-        <View style={styles.card}>
-            <Text accessibilityRole="header" style={styles.heading}>
-                {card.heading}
+        <View style={[styles.card, { backgroundColor: colors.surfaceMuted, borderColor: colors.lineDivider }]}>
+            <Text accessibilityRole="header" style={[styles.heading, { color: colors.ink }]}>
+                {source.publisher}
             </Text>
-            {card.fullName !== undefined && <Text style={styles.name}>{card.fullName}</Text>}
-            <Text style={styles.publisher}>{source.publisher}</Text>
+            <Text style={[styles.name, { color: colors.ink }]}>{source.name}</Text>
             <Entry term={messages.editionLabel}>
-                <Text style={styles.value}>{source.edition}</Text>
+                <Text style={value}>{source.edition}</Text>
             </Entry>
             <Entry term={messages.licenceLabel}>
                 {card.licence === null ? (
-                    <Text style={styles.value}>{source.licenceName}</Text>
+                    <Text style={value}>{source.licenceName}</Text>
                 ) : (
                     <ExternalLink link={card.licence} onOpen={onOpen}>
                         {source.licenceName}
@@ -79,11 +88,13 @@ export const DataSourceCard: FC<DataSourceCardNativeProps> = ({ source, onOpen =
             <Entry term={messages.creditLabel}>
                 {/* Its own `Text`, so it can carry its language: VoiceOver reads it in that language (WCAG 2.2 SC
                     3.1.2). `accessibilityLanguage` is iOS-only; Android has no equivalent and reads it in the app's. */}
-                <Text accessibilityLanguage={source.attributionLanguage} style={styles.value}>
+                <Text accessibilityLanguage={source.attributionLanguage} style={value}>
                     {source.attribution}
                 </Text>
             </Entry>
-            {source.converted && <Text style={styles.note}>{messages.convertedNote}</Text>}
+            {source.converted && (
+                <Text style={[styles.note, { color: colors.inkMuted }]}>{messages.convertedNote}</Text>
+            )}
             {card.homepage !== null && (
                 <ExternalLink link={card.homepage} onOpen={onOpen}>
                     {messages.homepageLink}
@@ -94,32 +105,22 @@ export const DataSourceCard: FC<DataSourceCardNativeProps> = ({ source, onOpen =
 };
 
 const styles = StyleSheet.create({
-    // `pearl`, not white: the sheet's surface is white, and a white card on it is invisible (1.00:1).
+    // `surfaceMuted` and a hairline, not the sheet's own surface: a card of the same colour as the sheet is invisible.
     card: {
-        backgroundColor: palette.pearl,
         borderRadius: nativeTokens.radius.lg,
+        borderWidth: StyleSheet.hairlineWidth,
         padding: nativeTokens.spacing[4],
         gap: nativeTokens.spacing[2],
     },
-    heading: {
-        fontFamily: nativeTokens.fontFace.display.semibold,
-        fontSize: nativeTokens.fontSize.headingSm,
-        color: palette.charcoal,
-    },
-    name: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.charcoal },
-    publisher: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+    heading: { ...nativeTokens.type.sectionTitle },
+    // The dataset's name: `body` 600 (§9.2).
+    name: { ...nativeTokens.type.body, fontFamily: nativeTokens.fontFace.body.semibold },
     entry: { gap: nativeTokens.spacing[1] },
-    term: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600', color: palette.slate },
-    value: { fontSize: nativeTokens.fontSize.bodySm, color: palette.charcoal },
-    note: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+    term: { ...nativeTokens.type.caption },
+    value: { ...nativeTokens.type.meta },
+    note: { ...nativeTokens.type.meta },
     // 48 dp, the §S16 floor for a link that leaves the app; the text may wrap inside it.
     linkTouch: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start', flexShrink: 1 },
-    // Contrast (WCAG AA) on the `pearl` card: `ocean-dark` 5.68:1, `slate` 4.81:1. Underlined, so the affordance is not
-    // colour alone (SC 1.4.1).
-    link: {
-        fontSize: nativeTokens.fontSize.bodySm,
-        fontWeight: '500',
-        color: palette['ocean-dark'],
-        textDecorationLine: 'underline',
-    },
+    // Underlined, so the affordance is not colour alone (SC 1.4.1).
+    link: { ...nativeTokens.type.meta, textDecorationLine: 'underline' },
 });

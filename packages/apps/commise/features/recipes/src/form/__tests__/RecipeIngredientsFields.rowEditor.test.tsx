@@ -42,6 +42,7 @@ import {
     trailingPendingTextId,
 } from '../fieldErrorIds.js';
 import { recipeFormMessages } from '../messages.js';
+import { editorMessages } from '../../editor/messages.js';
 import type { IngredientNutrition } from '../nutritionLookup.js';
 import { RecipeIngredientsFields } from '../RecipeIngredientsFields.js';
 import type { IngredientLineKey } from '../lineKey.js';
@@ -700,7 +701,7 @@ describe('a refusal for pending text points at its field (`rowEditorOpenDecision
 
 describe('the trailing add row (plan 002 V1 B8; §2d, §4b; items 1 and 3)', () => {
     const TRAILING = { kind: 'newLine' } as const;
-    const trailing = () => screen.getByRole('combobox', { name: en.addIngredientRowLabel });
+    const trailing = () => screen.getByRole('combobox', { name: editorMessages.en.ingredients.addLabel });
     const NOTHING_FOUND = settledFoodView(answeredGroup(), answeredGroup());
 
     it('a pick it appended is said politely, for the appended row, and focus stays in the emptied field (F1)', () => {
@@ -828,6 +829,91 @@ describe('the trailing add row (plan 002 V1 B8; §2d, §4b; items 1 and 3)', () 
         await user.keyboard('{Escape}');
 
         expect(trailing()).toHaveProperty('value', '');
+    });
+});
+
+describe('the add field reads the amount first (build spec §7.5.3; blueprint A1, A2)', () => {
+    const TRAILING = { kind: 'newLine' } as const;
+    const trailing = () => screen.getByRole('combobox', { name: 'Add an ingredient' });
+    const NOTHING_FOUND = settledFoodView(answeredGroup(), answeredGroup());
+
+    it('is described by the amount-first hint', () => {
+        render(<Harness initial={valuesWith([])} />);
+
+        const ids = (trailing().getAttribute('aria-describedby') ?? '').split(' ');
+        const described = ids.map((id) => document.getElementById(id)?.textContent ?? '');
+
+        expect(described).toContain('Type the amount first, then pick the food. For example: 2 tbsp olive oil.');
+    });
+
+    it('shows the live reading under the field, and says it politely once the cook pauses', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+        try {
+            render(<Harness initial={valuesWith([])} />);
+            await user.type(trailing(), '2 tbsp olive oil, for frying');
+
+            expect(screen.getByText('2 tbsp · olive oil · for frying')).toBeTruthy();
+            const spoken = 'Amount 2, unit tablespoon, food olive oil, preparation for frying.';
+            // Not per keystroke: nothing is said until the 500 ms pause.
+            expect(screen.queryAllByRole('status').some((region) => region.textContent === spoken)).toBe(false);
+
+            act(() => {
+                vi.advanceTimersByTime(500);
+            });
+
+            expect(screen.getAllByRole('status').some((region) => region.textContent === spoken)).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('shows no reading for a food alone: the field already says it', async () => {
+        const user = userEvent.setup();
+        render(<Harness initial={valuesWith([])} />);
+
+        await user.type(trailing(), 'olive oil');
+
+        expect(screen.queryByText(/·/u)).toBeNull();
+    });
+
+    it('Enter with no option active stores nothing and says to pick a food; typing again clears the line', async () => {
+        const user = userEvent.setup();
+        const onValues = vi.fn();
+        render(<Harness initial={valuesWith([])} onValues={onValues} over={{ entry: { view: NOTHING_FOUND } }} />);
+
+        await user.type(trailing(), '2 tbsp olive oil{Enter}');
+
+        expect(screen.getByText('Pick a food from the list.')).toBeTruthy();
+        expect(onValues).not.toHaveBeenCalled();
+
+        await user.type(trailing(), 's');
+
+        expect(screen.queryByText('Pick a food from the list.')).toBeNull();
+    });
+
+    it('Create my own food opens the form on the food alone, for a new line carrying the measure', async () => {
+        const user = userEvent.setup();
+        const open = vi.fn();
+        render(
+            <Harness
+                initial={valuesWith([])}
+                over={{
+                    entry: { view: NOTHING_FOUND },
+                    editor: { authoredFood: makeAuthoredFoodController({ open }) },
+                }}
+            />,
+        );
+
+        await user.type(trailing(), '2 tsp saffron, crushed');
+        const options = within(screen.getByRole('listbox')).getAllByRole('option');
+        await user.click(options.at(-1) ?? trailing());
+
+        expect(open).toHaveBeenCalledWith('saffron', {
+            ...TRAILING,
+            measure: { quantity: { kind: 'exact', value: 2 }, unit: 'teaspoon', preparation: 'crushed' },
+        });
     });
 });
 

@@ -17,11 +17,10 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { renderWithRecipeClient } from '@commise/test-utils';
-
 import { CollectionDetailContainer } from '@/components/recipes/CollectionDetailContainer';
 
 import { makeCollectionWithRecipes } from './__fixtures__/collectionFixtures';
+import { renderWithSnackbar } from './__fixtures__/renderCollectionDetail';
 import { makeRecipe } from './__fixtures__/recipeFixtures';
 
 const { pushMock, useAuthMock, useUserProfileMock } = vi.hoisted(() => ({
@@ -100,7 +99,7 @@ describe('CollectionDetailContainer — the deferred calorie lookup', () => {
         );
         vi.spyOn(client, 'getRecipeNutrition').mockResolvedValue(NUTRITION);
 
-        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
         await settle();
         expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument();
 
@@ -117,7 +116,7 @@ describe('CollectionDetailContainer — the deferred calorie lookup', () => {
         vi.spyOn(client, 'getCollectionById').mockResolvedValue(collection());
         const batch = vi.spyOn(client, 'getRecipeNutrition').mockResolvedValue(NUTRITION);
 
-        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
         await settle();
 
         expect(batch).toHaveBeenCalledTimes(1);
@@ -129,7 +128,7 @@ describe('CollectionDetailContainer — the deferred calorie lookup', () => {
         vi.spyOn(client, 'getCollectionById').mockResolvedValue(collection());
         vi.spyOn(client, 'getRecipeNutrition').mockReturnValue(new Promise<RecipeNutritionResponse>(() => undefined));
 
-        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
         await settle();
 
         expect(screen.getByText('Loading calories')).toBeInTheDocument();
@@ -143,7 +142,7 @@ describe('CollectionDetailContainer — the deferred calorie lookup', () => {
             vi.spyOn(client, 'getCollectionById').mockResolvedValue(collection());
             vi.spyOn(client, 'getRecipeNutrition').mockRejectedValue(new Error('food service unavailable'));
 
-            renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
+            renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
 
             // Advance in steps, not one jump: the collection is a suspense read, so the batch starts only once React
             // has retried the suspended render — a link that lands between timer drains, after a single 5 s jump
@@ -154,7 +153,7 @@ describe('CollectionDetailContainer — the deferred calorie lookup', () => {
                 });
             }
 
-            expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+            expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
             expect(screen.queryByText('Loading calories')).toBeNull();
             expect(screen.queryByRole('img', { name: /cal/u })).toBeNull();
         } finally {
@@ -169,7 +168,7 @@ describe('CollectionDetailContainer — the deferred calorie lookup', () => {
         );
         const batch = vi.spyOn(client, 'getRecipeNutrition');
 
-        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id="col_1" locale="en" />, client);
         await settle();
 
         expect(batch, 'an empty batch is a guaranteed 400 — it must never be sent').not.toHaveBeenCalled();

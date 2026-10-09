@@ -1,162 +1,119 @@
 /**
- * ⛔ UNSAVED RECIPE WORK MUST NOT BE LOST WITHOUT A PROMPT — the web half of a cross-platform data-loss fix.
+ * REWRITTEN for slice 7 (build spec §13: "rewritten for the resume notice"). The wizard's discard guard asked before
+ * leaving; the one-page editor never asks (Settled 24), because nothing is lost: a published recipe's changes stay in
+ * this tab (owner D1, D7) until the cook presses Save changes. What a browser shows here:
  *
- * The defect was found on mobile (Android's hardware back button popped the recipe wizard with no
- * confirmation, on create as well as edit; the mobile half is `.maestro/recipes/systemBackGuard.yaml`). The
- * owner's requirement is that BOTH platforms prompt, each following its own platform-standard pattern. On web
- * that is two mechanisms, and this spec covers both:
- *
- *   1. the in-app discard dialog for an exit the wizard itself owns;
- *   2. the browser's own `beforeunload` prompt for a tab close or reload.
- *
- * **Viewports are PINNED, never inferred.** U32 gives the wizard two different exit affordances by width — the
- * back arrow below `lg`, the overflow menu's Cancel at `lg` and above (`recipeWizardActionBar.spec.ts` owns
- * that cutover) — so a spec that branched on which control happened to be visible would pass without telling
- * anyone which path it exercised. Both are driven here, each at its own width.
- *
- * ⚠️ WHAT IS DELIBERATELY NOT ASSERTED. There is no spec for "browser back is blocked", because it is not —
- * the Next.js App Router exposes no supported navigation blocker and `popstate` cannot be cancelled. That is a
- * recorded decision (see `useUnloadGuard`'s module doc), not an oversight, and testing it would mean testing a
- * history-sentinel hack that was rejected as a worse defect than the one it patches. Nor is the unload
- * prompt's TEXT asserted: browsers have ignored page-supplied copy since 2016, so "the listener is armed" is
- * the whole of what `beforeunload` guarantees and the whole of what is claimed.
+ * - leaving an edited published recipe asks nothing, and reopening it brings the changes back with the resume notice;
+ * - the notice's Save changes writes them as one update, and its Discard (confirmed) drops them;
+ * - the browser's own unload prompt is armed only while such changes stand — the one state where closing the tab loses
+ *   work (`staff-ux-engineer`, slice 7).
  */
-
 import { expect, test, type Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
-/** Sign in and put the recipe contract behind a controlled in-memory store. */
-async function signInWithMockedApi(page: Page) {
+const RECIPE_ID = 'rec_resume';
+
+/** Sign in, seed one published recipe the viewer owns, and open its editor. */
+async function openPublished(page: Page) {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
-    await mockRecipeApi(page, { viewerId, tier: 'premium' });
+    const store = await mockRecipeApi(page, {
+        viewerId,
+        tier: 'premium',
+        recipes: [
+            makeRecipeDetail({
+                id: RECIPE_ID,
+                ownerId: viewerId,
+                title: 'Resume Stew',
+                status: 'published',
+                currentVersion: 2,
+            }),
+        ],
+    });
 
-    return viewerId;
+    await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
+    await expect(page.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeVisible();
+
+    return store;
 }
 
-/** Open the create wizard at step 1, waiting for the rail so the assertions run against a hydrated tree. */
-async function openCreateWizard(page: Page) {
-    await page.goto(route('/recipes/new'));
-    // Rail-scoped (not `getByText`) for the reason `recipeEditWizard.spec.ts` documents: a direct `goto` can
-    // briefly hold both the server-rendered wizard and its hydrated replacement, and only the accessibility
-    // tree hides the stale copy.
-    await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 1 of 4');
+/** Edit the description and wait for the device draft, which is written one second after typing stops. */
+async function editAndKeep(page: Page, description: string): Promise<void> {
+    await page.getByLabel('Description').fill(description);
+    await expect(page.getByText('Changes kept in this tab')).toBeVisible();
 }
 
-test.describe('unsaved changes — the wizard’s own exit below `lg` (the back arrow)', () => {
-    test.use({ viewport: { width: 375, height: 812 } });
+test.describe('a published recipe`s changes kept in this tab (D1, D7)', () => {
+    test('× leaves without asking, and reopening brings the changes back with the resume notice', async ({ page }) => {
+        await openPublished(page);
+        await editAndKeep(page, 'Thicker, with barley.');
 
-    test('confirms before discarding, and Keep editing preserves what was typed', async ({ page }) => {
-        await signInWithMockedApi(page);
-        await openCreateWizard(page);
+        await page.getByRole('button', { name: 'Close editor' }).click();
+        await expect(page.getByRole('alertdialog')).toHaveCount(0);
+        await expect(page.getByRole('heading', { level: 1, name: 'Resume Stew' })).toBeVisible();
 
-        await page.getByLabel('Title').fill('E2E Unsaved Draft');
-        await page.getByRole('button', { name: 'Back' }).click();
+        await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
 
-        await expect(page.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeVisible();
-
-        await page.getByRole('button', { name: 'Keep editing' }).click();
-
-        // BOTH halves. Asserting only that the dialog closed would pass against a guard that discarded the
-        // work behind it.
-        await expect(page.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeHidden();
-        await expect(page.getByLabel('Title')).toHaveValue('E2E Unsaved Draft');
+        await expect(page.getByRole('region', { name: /You have changes from/u })).toBeVisible();
+        await expect(page.getByLabel('Description')).toHaveValue('Thicker, with barley.');
     });
 
-    test('leaves the wizard only once the discard is confirmed', async ({ page }) => {
-        await signInWithMockedApi(page);
-        await openCreateWizard(page);
+    test('the notice`s Save changes writes them as ONE update', async ({ page }) => {
+        const store = await openPublished(page);
+        await editAndKeep(page, 'Saved from the notice.');
+        await page.reload();
 
-        await page.getByLabel('Title').fill('E2E Discarded Draft');
-        await page.getByRole('button', { name: 'Back' }).click();
-        await page.getByRole('button', { name: 'Discard changes' }).click();
+        await page
+            .getByRole('region', { name: /You have changes from/u })
+            .getByRole('button', { name: 'Save changes' })
+            .click();
 
-        await expect(page.getByLabel('Title')).toBeHidden();
+        await expect(page.getByRole('heading', { level: 1, name: 'Resume Stew' })).toBeVisible();
+        expect(store.get(RECIPE_ID)?.currentVersion).toBe(3);
+        expect(store.get(RECIPE_ID)?.description).toBe('Saved from the notice.');
     });
 
-    test('a CLEAN wizard leaves immediately — a guard that always prompts is a nuisance, not a guard', async ({
-        page,
-    }) => {
-        await signInWithMockedApi(page);
-        await openCreateWizard(page);
+    test('the notice`s Discard asks first, then drops the changes and writes nothing', async ({ page }) => {
+        const store = await openPublished(page);
+        await editAndKeep(page, 'To be discarded.');
+        await page.reload();
 
-        await page.getByRole('button', { name: 'Back' }).click();
+        await page
+            .getByRole('region', { name: /You have changes from/u })
+            .getByRole('button', { name: 'Discard' })
+            .click();
+        const dialog = page.getByRole('alertdialog', { name: 'Discard your changes?' });
+        await dialog.getByRole('button', { name: 'Discard' }).click();
 
-        await expect(page.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeHidden();
-        await expect(page.getByLabel('Title')).toBeHidden();
-    });
-});
+        await expect(page.getByRole('heading', { level: 1, name: 'Resume Stew' })).toBeVisible();
+        expect(store.get(RECIPE_ID)?.currentVersion).toBe(2);
 
-test.describe('unsaved changes — the wizard’s own exit at `lg` (the overflow menu’s Cancel)', () => {
-    test.use({ viewport: { width: 1024, height: 800 } });
-
-    test('Cancel from the kebab asks before discarding at desktop width too', async ({ page }) => {
-        // The same guard reached by the OTHER affordance. U32 swaps the control at `lg`, so covering only one
-        // width would leave half the users' exit path unproven.
-        await signInWithMockedApi(page);
-        await openCreateWizard(page);
-
-        await page.getByLabel('Title').fill('E2E Desktop Draft');
-        await page.getByRole('button', { name: 'More actions' }).click();
-        await page.getByRole('menu', { name: 'More actions' }).getByRole('menuitem', { name: 'Cancel' }).click();
-
-        await expect(page.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeVisible();
-
-        await page.getByRole('button', { name: 'Keep editing' }).click();
-
-        await expect(page.getByLabel('Title')).toHaveValue('E2E Desktop Draft');
-    });
-});
-
-test.describe('unsaved changes — the browser’s own unload prompt', () => {
-    test('⛔ closing the tab on a DIRTY draft raises it', async ({ page }) => {
-        await signInWithMockedApi(page);
-        await openCreateWizard(page);
-        await page.getByLabel('Title').fill('E2E Unload Guard');
-
-        // `page.close({ runBeforeUnload: true })` is the ONLY way Playwright surfaces a `beforeunload` dialog
-        // — a normal `close()` suppresses it. The listener must be armed BEFORE the close, and the dialog must
-        // be handled or the page never finishes closing.
-        const dialog = page.waitForEvent('dialog');
-        await page.close({ runBeforeUnload: true });
-        const raised = await dialog;
-
-        expect(raised.type()).toBe('beforeunload');
-        await raised.dismiss();
+        await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
+        await expect(page.getByRole('region', { name: /You have changes from/u })).toHaveCount(0);
     });
 
-    test('closing the tab on a CLEAN editor raises NO prompt', async ({ page }) => {
-        // ⛔ THE FALSIFYING HALF, AND ITS TIMING IS THE POINT. A bare `expect(sawDialog).toBe(false)` after the
-        // close reads the flag before the event could ever have arrived, so it passes whether or not the guard
-        // is wrongly armed — the mutation-lens failure. Waiting for a dialog that must NOT come, and treating
-        // the timeout as the pass, is the only form of this check that can fail.
-        // Seeded inline rather than through the helper: the recipe must be owned by THIS viewer for the edit
-        // route to render it at all, and the viewer id is only known after sign-in.
-        await signInWithTicket(page);
-        const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, {
-            viewerId,
-            tier: 'premium',
-            recipes: [makeRecipeDetail({ id: 'rec_clean', ownerId: viewerId, title: 'Untouched Recipe' })],
+    test('the browser`s unload prompt is armed only while the changes stand', async ({ page }) => {
+        await openPublished(page);
+        let prompted = 0;
+        page.on('dialog', (dialog) => {
+            prompted += 1;
+            void dialog.dismiss();
         });
 
-        await page.goto(route('/recipes/rec_clean/edit'));
-        await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 1 of 4');
+        // Unedited: nothing to lose, so a reload completes and does not prompt.
+        await page.reload();
+        expect(prompted).toBe(0);
 
-        const sawDialog = page
-            .waitForEvent('dialog', { timeout: 3_000 })
-            .then(async (dialog) => {
-                await dialog.dismiss();
+        await editAndKeep(page, 'Kept only here.');
+        // `beforeunload` fires for a close or a reload; Playwright surfaces the prompt as a dialog. Dismissing it CANCELS
+        // the reload, so the reload itself never settles: the proof is the dialog, awaited on its own.
+        const prompt = page.waitForEvent('dialog');
+        void page.reload().catch(() => undefined);
 
-                return true;
-            })
-            .catch(() => false);
-
-        await page.close({ runBeforeUnload: true });
-
-        expect(await sawDialog).toBe(false);
+        expect((await prompt).type()).toBe('beforeunload');
+        expect(prompted).toBe(1);
     });
 });

@@ -78,6 +78,9 @@ export interface RecipeConflictViewProps {
      *  the escape hatch a hung `onOverwrite`/`onMerge` request must not be able to trap the user behind (see
      *  `useRecipeEditor`'s `discardAndClose`). */
     readonly onDiscardAndClose: () => void;
+    /** Whether the recipe is a draft that was never published (ADR-0058): no versions, so no base. Swaps the copy
+     *  for the draft's (`conflictCopyOf`) and lifts the stale-base gate. Absent means a published recipe. */
+    readonly neverPublished?: boolean;
 }
 
 /**
@@ -182,10 +185,35 @@ const STALE_VERSIONS_BEHIND_THRESHOLD = 10;
  *
  * @param base - The 409's base side, or `undefined` when evicted from version history.
  * @param versionsBehind - `server.versionNumber - (base?.versionNumber ?? 0)`, the X6 staleness signal.
+ * @param neverPublished - A never-published draft has no versions, so no base to be stale against: never warns.
  * @returns Whether the stale-base warning + confirm gate applies.
  */
-export const isConflictBaseStale = (base: VersionConflictSide | undefined, versionsBehind: number): boolean =>
-    base === undefined || versionsBehind > STALE_VERSIONS_BEHIND_THRESHOLD;
+export const isConflictBaseStale = (
+    base: VersionConflictSide | undefined,
+    versionsBehind: number,
+    neverPublished = false,
+): boolean => !neverPublished && (base === undefined || versionsBehind > STALE_VERSIONS_BEHIND_THRESHOLD);
+
+/**
+ * The conflict copy for this recipe. A never-published draft records no versions (ADR-0058), so its 409 never has a
+ * `base`: its copy speaks of a draft saved elsewhere, with no version numbers and no "evicted" fallback. Pure.
+ *
+ * @param messages - The localized conflict copy.
+ * @param neverPublished - Whether the recipe is a draft that was never published.
+ * @returns `messages` itself for a published recipe; otherwise `messages` with the `draft*` slots laid over their twins.
+ */
+export const conflictCopyOf = (messages: RecipeConflictMessages, neverPublished: boolean): RecipeConflictMessages =>
+    neverPublished
+        ? {
+              ...messages,
+              heading: messages.draftHeading,
+              explanation: messages.draftExplanation,
+              serverBanner: messages.draftServerBanner,
+              serverCardHeading: messages.draftServerCardHeading,
+              yourCardHeading: messages.draftYourCardHeading,
+              yourCardHeadingUnknown: messages.draftYourCardHeading,
+          }
+        : messages;
 
 /** How the user's EXPLICIT per-field/per-element merge picks (W7 Task 5's running "Summary of choices")
  *  currently split between the two sides. An absent key (still defaulting to "mine" for composition — see

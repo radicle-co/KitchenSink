@@ -9,7 +9,6 @@ import { fireEvent } from '@testing-library/dom';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionListFrame } from '../CollectionListFrame.native.js';
-import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
 vi.mock('react-native', async (importOriginal) => {
@@ -30,7 +29,7 @@ describe('CollectionListFrame (native)', () => {
             </CollectionListFrame>,
         );
 
-        expect(screen.getByRole('heading', { name: 'Collections' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'New collection' })).toBeTruthy();
         expect(screen.getByText('boundary content')).toBeTruthy();
     });
@@ -64,7 +63,7 @@ describe('CollectionListFrame (native)', () => {
         );
 
         expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
-            screen.getByRole('heading', { name: 'Collections' }),
+            screen.getByRole('heading', { name: 'Recipes' }),
             'focus',
         );
     });
@@ -75,26 +74,41 @@ describe('CollectionListFrame (native)', () => {
  * heading is the one node that says it (N4).
  */
 describe('CollectionListFrame (native) — N1: the frame’s name is said once, by its heading', () => {
-    it('says "Collections" through one header, and no node is labelled with it', () => {
+    // Slice 3 (buildSpec §5.1): Collections is a segment of the Recipes destination, so the H1 reads "Recipes".
+    it('says "Recipes" through one header, and no node is labelled with it', () => {
         render(
             <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
                 {null}
             </CollectionListFrame>,
         );
 
-        expect(screen.getAllByRole('heading', { name: 'Collections' })).toHaveLength(1);
-        expect(screen.queryAllByLabelText('Collections')).toEqual([]);
+        expect(screen.getAllByRole('heading', { name: 'Recipes' })).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Recipes')).toEqual([]);
     });
 });
 
-describe('CollectionListFrame (native) — the design-system Button (UI overhaul slice 2)', () => {
-    it('creates through a primary plus Button', () => {
+/**
+ * Slice 3 replaced the slice 2 secondary header Button with the floating create button (buildSpec §5.1). The FAB's
+ * own face is pinned by `@commise/ui`'s `CreateFab` suite; this pins that the frame offers ONE create control.
+ */
+describe('CollectionListFrame (native) — the floating create button (UI overhaul slice 3)', () => {
+    it('offers exactly one "New collection" control, the floating button', () => {
         render(
             <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
                 <Text>boundary content</Text>
             </CollectionListFrame>,
         );
 
-        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'New collection' }), 'primary', 'plus');
+        expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(1);
+    });
+
+    it('hides it during the first run, whose own start buttons take its place (buildSpec §3.4)', () => {
+        render(
+            <CollectionListFrame onCreate={noop} headingFocusSignal={0} firstRun>
+                <Text>boundary content</Text>
+            </CollectionListFrame>,
+        );
+
+        expect(screen.queryByRole('button', { name: 'New collection' })).toBeNull();
     });
 });

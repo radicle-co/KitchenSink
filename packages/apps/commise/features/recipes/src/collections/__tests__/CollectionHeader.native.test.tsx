@@ -1,299 +1,243 @@
 /**
- * Native component tests for the collection-header view (W5 Task 6, rendered via react-native-web under
- * jsdom). Mirrors the web leaf across every branch — non-cloned public, cloned private with full
- * attribution + last-pulled, cloned with an unresolved source owner, the Back affordance, and the
- * Edit/Delete affordances — so the two platform renders cannot drift.
+ * The native collection header (`docs/design/uiOverhaul/buildSpec.md` §5.2): "‹ Collections" back, the name as the page's one H1,
+ * the meta line — visibility (icon and word), "6 recipes" and, for a copy, "Copied from @clara" — the description, and ONE
+ * primary (Add recipes) with ONE ⋯ menu named for the collection: Rename · Make private / Make public · Save a copy · Pull
+ * updates (copies only) · divider · Delete collection. At a 600 container the pair sits at the end of the title row; below
+ * it, under the description. Either way it is drawn once.
+ *
+ * ⚠️ REWRITTEN for slice 5. The header used to carry its own Edit and Delete buttons and a separate actions panel held
+ * Add, Pull, Clone and the visibility toggle; one primary and one menu replace them all (the pair
+ * `LargeTitleHeader.action` takes).
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AccessibilityInfo } from 'react-native';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { computedContrast } from '@commise/test-utils';
-import { palette } from '@commise/ui';
+import { LocaleProvider } from '@commise/i18n/react';
 
-import { tintOf } from '../../__tests__/cssColor.js';
-// Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionHeader } from '../CollectionHeader.native.js';
-import type { CollectionHeaderViewProps } from '../model.js';
-
-// react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
-vi.mock('react-native', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('react-native')>();
-
-    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
-});
+import type { CollectionHeaderProps } from '../detailModel.js';
 
 afterEach(cleanup);
 
-const noop = () => undefined;
-
-function renderHeader(overrides: Partial<CollectionHeaderViewProps> = {}) {
-    const props: CollectionHeaderViewProps = {
-        name: 'Keto Week',
-        visibility: 'public',
-        recipeCount: 8,
-        onEdit: noop,
-        onDelete: noop,
-        ...overrides,
+function renderHeader(over: Partial<CollectionHeaderProps> = {}) {
+    const props: CollectionHeaderProps = {
+        name: 'Weeknight Dinners',
+        description: 'Quick dinners for school nights.',
+        visibility: RecipeVisibility.PRIVATE,
+        recipeCount: 6,
+        actionsPlacement: 'title',
+        headingId: 'collection-title',
+        headingFocusSignal: 0,
+        onBack: vi.fn(),
+        onAddRecipes: vi.fn(),
+        onRename: vi.fn(),
+        onToggleVisibility: vi.fn(),
+        onSaveCopy: vi.fn(),
+        onPullUpdates: vi.fn(),
+        onDelete: vi.fn(),
+        ...over,
     };
-    render(<CollectionHeader {...props} />);
+
+    render(
+        <LocaleProvider locale="en">
+            <CollectionHeader {...props} />
+        </LocaleProvider>,
+    );
 
     return props;
 }
 
-describe('CollectionHeader (native) — non-cloned collection', () => {
-    it('renders the name, the Public badge, and the recipe count', () => {
+describe('CollectionHeader (native) — what it says', () => {
+    it('is the name as the page’s one H1', () => {
         renderHeader();
 
-        expect(screen.getByRole('heading', { name: 'Keto Week' })).toBeTruthy();
+        expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+        expect(screen.getByRole('heading', { level: 1, name: 'Weeknight Dinners' })).toBeTruthy();
+    });
+
+    it('goes back to the collections list from “Back to Collections”', () => {
+        const props = renderHeader();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to Collections' }));
+
+        expect(props.onBack).toHaveBeenCalledOnce();
+    });
+
+    it('states visibility as a word, the recipe count, and the description', () => {
+        renderHeader({ visibility: RecipeVisibility.PUBLIC, recipeCount: 1 });
+
         expect(screen.getByText('Public')).toBeTruthy();
-        expect(screen.getByText('8 recipes')).toBeTruthy();
+        expect(screen.getByText('1 recipe')).toBeTruthy();
+        expect(screen.getByText('Quick dinners for school nights.')).toBeTruthy();
     });
 
-    it('renders no source-attribution or last-pulled line', () => {
-        renderHeader();
-
-        expect(screen.queryByText(/^Source:/)).toBeNull();
-        expect(screen.queryByText(/^Last pulled/)).toBeNull();
-    });
-});
-
-describe('CollectionHeader (native) — cloned collection with full attribution', () => {
-    it('renders the Private badge, the templated source attribution, and the last-pulled date', () => {
-        renderHeader({
-            visibility: 'private',
-            sourceCollectionName: 'Keto Staples',
-            sourceOwnerHandle: 'clara',
-            lastPulledAt: '2026-05-01T00:00:00.000Z',
-        });
+    it('says Private for a private collection', () => {
+        renderHeader({ visibility: RecipeVisibility.PRIVATE });
 
         expect(screen.getByText('Private')).toBeTruthy();
-        expect(screen.getByText('Source: @clara’s "Keto Staples"')).toBeTruthy();
-        expect(screen.getByText(/Last pulled: May 1, 2026/)).toBeTruthy();
-    });
-});
-
-describe('CollectionHeader (native) — cloned collection with an unresolved source owner', () => {
-    it('shows the source name without an @handle, and does not crash', () => {
-        renderHeader({ sourceCollectionName: 'Keto Staples', sourceOwnerHandle: undefined });
-
-        expect(screen.getByText('Source: "Keto Staples"')).toBeTruthy();
-        expect(screen.queryByText(/@/)).toBeNull();
-    });
-});
-
-describe('CollectionHeader (native) — Back affordance', () => {
-    it('renders a Back control that fires onBack', () => {
-        const onBack = vi.fn();
-        renderHeader({ onBack });
-
-        fireEvent.click(screen.getByRole('button', { name: /back/i }));
-
-        expect(onBack).toHaveBeenCalledTimes(1);
     });
 
-    it('renders no Back control when onBack is omitted', () => {
-        renderHeader({ onBack: undefined });
-
-        expect(screen.queryByRole('button', { name: /back/i })).toBeNull();
-    });
-});
-
-/**
- * Cross-platform parity for the web leaf's seafoam-as-text fix. Three foregrounds here are read as text — Back,
- * Rename, and the visibility badge — and all three were `palette.seafoam`: 4.02:1 on the header's white surface,
- * and 3.57:1 for the badge once its own 10%-alpha seafoam tint is composited. The 4.5:1 body-text floor governs
- * all three; the badge's TINT is a background and stays (see `@commise/ui`'s palette JSDoc).
- *
- * Measured, not spelled: `expect(...color).toBe(cssColor(palette['ocean-dark']))` would pin a token NAME and
- * still pass if the palette re-themed it to near-white. A ratio cannot.
- */
-describe('CollectionHeader (native) — the seafoam text foregrounds clear the AA body-text floor', () => {
-    it('keeps the Back label legible', () => {
-        renderHeader({ onBack: noop });
-
-        expect(
-            computedContrast(screen.getByText('Back to My Collections')),
-            'Back to My Collections',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('keeps the Rename label legible', () => {
-        renderHeader();
-
-        expect(computedContrast(screen.getByText('Rename')), 'Rename').toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('keeps the visibility badge legible over its own seafoam tint, in both visibility states', () => {
-        renderHeader({ visibility: 'public' });
-        // The tint lives on the badge leaf ITSELF, so `computedContrast` reads it off the DOM and composites it
-        // over the white header — no guessed alpha.
-        expect(computedContrast(screen.getByText('Public')), 'Public badge').toBeGreaterThanOrEqual(4.5);
-
+    it('says a copy’s source: by handle, by name alone, or in general — and nothing for an original', () => {
+        renderHeader({ sourceCollectionName: 'Dinners', sourceOwnerHandle: 'clara' });
+        expect(screen.getByText('Copied from @clara')).toBeTruthy();
         cleanup();
-        renderHeader({ visibility: 'private' });
-        expect(computedContrast(screen.getByText('Private')), 'Private badge').toBeGreaterThanOrEqual(4.5);
-    });
 
-    it('keeps the badge’s seafoam TINT — a background, which the 4.5 floor never governed', () => {
+        renderHeader({ sourceCollectionName: 'Dinners' });
+        expect(screen.getByText('Copied from “Dinners”')).toBeTruthy();
+        cleanup();
+
+        renderHeader({ sourceCollectionId: 'col_9' });
+        expect(screen.getByText('Copied from another collection')).toBeTruthy();
+        cleanup();
+
         renderHeader();
-
-        // Derived from the token, so a re-theme moves the test and an `rgba(...)` literal on the wrong hue
-        // cannot pass by coincidence (RN has no alpha-suffix colour syntax, so the leaf spells the tint out).
-        expect(window.getComputedStyle(screen.getByText('Public')).backgroundColor).toBe(tintOf(palette.seafoam, 0.1));
+        expect(screen.queryByText(/Copied from/u)).toBeNull();
     });
-});
 
-describe('CollectionHeader (native) — Edit/Delete affordances', () => {
-    it('reports edit and delete requests upward', () => {
-        const onEdit = vi.fn();
-        const onDelete = vi.fn();
-        renderHeader({ onEdit, onDelete });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-
-        expect(onEdit).toHaveBeenCalledTimes(1);
-        expect(onDelete).toHaveBeenCalledTimes(1);
-    });
-});
-
-/**
- * Resolve the value react-native-web actually APPLIED for a CSS property, by walking the element's atomic
- * `r-*` classes back to their compiled rules. `getComputedStyle` does not resolve these, and a `style`
- * attribute check would miss `StyleSheet.create` styles entirely. Mirrors `RecipeHero.native.test.tsx`.
- */
-function appliedStyle(element: Element, property: string): string | undefined {
-    const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
-    const sheets = document.styleSheets;
-    let resolved: string | undefined;
-
-    for (const className of classNames) {
-        for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
-            const rules = sheets[sheetIndex]?.cssRules;
-
-            for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
-                const rule = rules?.[ruleIndex];
-
-                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
-                    const value = rule.style.getPropertyValue(property);
-
-                    if (value !== '') {
-                        resolved = value;
-                    }
-                }
-            }
-        }
-    }
-
-    return resolved;
-}
-
-/**
- * Regression (Maestro `collections` / `collectionsPagination`): the title row is
- * `[name][Rename][Delete]` at `justifyContent: 'space-between'`, and React Native's default `flexShrink`
- * is 0 — so a long collection name took its full intrinsic width and pushed the action group off the
- * right edge. On-device, "Rename" was clipped to a 33px slither at x=1047..1080 and **"Delete" was not in
- * the view hierarchy at all** (laid out past the 1080px screen edge), making deleting a collection
- * impossible on mobile. jsdom has no layout engine, so this asserts the flex CONTRACT that prevents it:
- * the name is allowed to shrink (and wrap), the action group is not.
- */
-describe('CollectionHeader (native) — title row cannot squeeze its actions off-screen', () => {
-    it('lets a long name shrink instead of pushing Rename/Delete out of the viewport', () => {
-        renderHeader({ name: 'Maestro renamed collection with a deliberately very long name' });
-
-        const heading = screen.getByRole('heading', {
-            name: 'Maestro renamed collection with a deliberately very long name',
+    it('opens the original from “Copied from …” when it knows which one that is', () => {
+        const onViewSource = vi.fn();
+        renderHeader({
+            sourceCollectionName: 'Dinners',
+            sourceOwnerHandle: 'clara',
+            sourceCollectionId: 'col_9',
+            onViewSource,
         });
 
-        // `flexShrink: 0` (RN's default) is exactly the bug; anything shrinkable keeps the actions on screen.
-        expect(appliedStyle(heading, 'flex-shrink')).toBe('1');
+        fireEvent.click(screen.getByRole('button', { name: 'Copied from @clara' }));
+
+        expect(onViewSource).toHaveBeenCalledExactlyOnceWith('col_9');
     });
 
-    it('never shrinks the action group itself, so neither control is clipped', () => {
-        renderHeader({ name: 'Maestro renamed collection with a deliberately very long name' });
+    it('says when the copy last took updates from the original', () => {
+        renderHeader({ sourceCollectionName: 'Dinners', lastPulledAt: '2026-04-19T09:30:00.000Z' });
 
-        const actions = screen.getByRole('button', { name: 'Delete' }).parentElement;
+        expect(screen.getByText(/Last pulled: Apr 19, 2026/u)).toBeTruthy();
+    });
 
-        expect(actions).not.toBeNull();
-        expect(appliedStyle(actions as Element, 'flex-shrink')).toBe('0');
+    it('draws no description when there is none', () => {
+        renderHeader({ description: undefined });
+
+        expect(screen.queryByText('Quick dinners for school nights.')).toBeNull();
     });
 });
 
-describe('CollectionHeader (native) — a failed refresh of what is on screen', () => {
-    const notice = (
-        overrides: Partial<{ failed: boolean; refreshing: boolean; recoveries: number; onRetry: () => void }> = {},
-    ) => ({
-        failed: false,
-        refreshing: false,
-        onRetry: () => undefined,
-        recoveries: 0,
-        ...overrides,
+describe.each(['title', 'below'] as const)(
+    'CollectionHeader (native) — actions placed in the %s',
+    (actionsPlacement) => {
+        it('draws one Add recipes and one ⋯ menu named for the collection, whichever placement', () => {
+            const props = renderHeader({ actionsPlacement });
+
+            expect(screen.getAllByRole('button', { name: 'Add recipes' })).toHaveLength(1);
+            expect(screen.getAllByRole('button', { name: 'More actions for Weeknight Dinners' })).toHaveLength(1);
+
+            fireEvent.click(screen.getByRole('button', { name: 'Add recipes' }));
+
+            expect(props.onAddRecipes).toHaveBeenCalledOnce();
+        });
+    },
+);
+
+describe('CollectionHeader (native) — placement in the document', () => {
+    it('puts the pair in the title row from a 600 container, ahead of the description', () => {
+        renderHeader({ actionsPlacement: 'title' });
+        const add = screen.getByRole('button', { name: 'Add recipes' });
+        const description = screen.getByText('Quick dinners for school nights.');
+
+        expect(add.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    function viewWith(refreshNotice: ReturnType<typeof notice>) {
-        return (
-            <CollectionHeader
-                name="Keto Week"
-                visibility="public"
-                recipeCount={8}
-                onEdit={noop}
-                onDelete={noop}
-                refreshNotice={refreshNotice}
-            />
-        );
+    it('puts the pair under the description below it, with Add recipes filling the row', () => {
+        renderHeader({ actionsPlacement: 'below' });
+        const add = screen.getByRole('button', { name: 'Add recipes' });
+        const description = screen.getByText('Quick dinners for school nights.');
+
+        expect(description.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+});
+
+describe('CollectionHeader (native) — the ⋯ menu', () => {
+    function open() {
+        fireEvent.click(screen.getByRole('button', { name: 'More actions for Weeknight Dinners' }));
+
+        return screen;
     }
 
-    it('shows no notice while nothing has failed', () => {
-        render(viewWith(notice()));
+    it('lists Rename, Make public (for a private collection) and Save a copy for an original, then Delete after a divider', () => {
+        renderHeader({ visibility: RecipeVisibility.PRIVATE });
+        const menu = open();
 
-        expect(screen.queryByText('We couldn’t refresh this collection.')).toBeNull();
+        expect(menu.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+            'Rename',
+            'Make public',
+            'Save a copy',
+            'Delete collection',
+        ]);
     });
 
-    it('⛔ keeps what is shown and says the refresh failed, with a Try again that retries', () => {
-        const onRetry = vi.fn();
-        render(viewWith(notice({ failed: true, onRetry })));
+    it('offers Make private for a public collection', () => {
+        renderHeader({ visibility: RecipeVisibility.PUBLIC });
+        const menu = open();
 
-        expect(screen.getByRole('heading', { name: 'Keto Week' })).toBeTruthy();
+        expect(menu.getByRole('menuitem', { name: 'Make private' })).toBeTruthy();
+        expect(menu.queryByRole('menuitem', { name: 'Make public' })).toBeNull();
+    });
+
+    it('adds Pull updates, after Save a copy, for a copy only', () => {
+        renderHeader({ sourceCollectionName: 'Dinners' });
+        const menu = open();
+
+        expect(menu.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+            'Rename',
+            'Make public',
+            'Save a copy',
+            'Pull updates',
+            'Delete collection',
+        ]);
+    });
+
+    it.each([
+        ['Rename', 'onRename'],
+        ['Make public', 'onToggleVisibility'],
+        ['Save a copy', 'onSaveCopy'],
+        ['Delete collection', 'onDelete'],
+    ] as const)('%s reports what it asks for', async (label, callback) => {
+        const props = renderHeader({ visibility: RecipeVisibility.PRIVATE });
+        const menu = open();
+
+        fireEvent.click(menu.getByRole('menuitem', { name: label }));
+
+        expect(props[callback]).toHaveBeenCalledOnce();
+    });
+
+    it('Pull updates reports it', () => {
+        const props = renderHeader({ sourceCollectionName: 'Dinners' });
+        const menu = open();
+
+        fireEvent.click(menu.getByRole('menuitem', { name: 'Pull updates' }));
+
+        expect(props.onPullUpdates).toHaveBeenCalledOnce();
+    });
+});
+
+describe('CollectionHeader (native) — a failed refresh', () => {
+    const notice = (over: Partial<NonNullable<CollectionHeaderProps['refreshNotice']>> = {}) => ({
+        failed: false,
+        refreshing: false,
+        onRetry: vi.fn(),
+        recoveries: 0,
+        ...over,
+    });
+
+    it('says so, with a Try again that retries', () => {
+        const refreshNotice = notice({ failed: true });
+        renderHeader({ refreshNotice });
+
         expect(screen.getAllByText('We couldn’t refresh this collection.').length).toBeGreaterThan(0);
-        screen.getByRole('button', { name: 'Try again' }).click();
-        expect(onRetry).toHaveBeenCalledTimes(1);
-    });
 
-    it('⛔ moves focus to the title when a retry from the notice succeeds, since its button is gone', () => {
-        const { rerender } = render(viewWith(notice({ failed: true })));
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
-        rerender(viewWith(notice({ recoveries: 1 })));
-
-        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
-            screen.getByRole('heading', { name: 'Keto Week' }),
-            'focus',
-        );
-    });
-});
-
-/**
- * `docs/design/nativeContainerNames.md` N1 rule 2: the collection's name is its header, so the header block carries no
- * name of its own and the header is the one node that says it (N4).
- */
-describe('CollectionHeader (native) — N1: the collection’s name is said once, by its header', () => {
-    it('says "Keto Week" through one header, and no node is labelled with it', () => {
-        renderHeader();
-
-        expect(screen.getAllByRole('heading', { name: 'Keto Week' })).toHaveLength(1);
-        expect(screen.queryAllByLabelText('Keto Week')).toEqual([]);
-    });
-});
-
-/** E3 — mirrors the web leaf: the name keeps a real basis in a row that wraps, so Rename and Delete drop below it. */
-describe('CollectionHeader (native) — the name is never squeezed beside the actions (E3)', () => {
-    it('lays the name and the actions out in a wrapping row, the name with a real basis', () => {
-        renderHeader({ name: 'Weeknight Dinners the Whole Family Will Actually Eat' });
-        const name = screen.getByRole('heading', { name: 'Weeknight Dinners the Whole Family Will Actually Eat' });
-        const row = name.parentElement;
-
-        expect(row === null ? '' : window.getComputedStyle(row).flexWrap).toBe('wrap');
-        expect(window.getComputedStyle(name).flexBasis).toBe('256px');
+        expect(refreshNotice.onRetry).toHaveBeenCalledOnce();
     });
 });

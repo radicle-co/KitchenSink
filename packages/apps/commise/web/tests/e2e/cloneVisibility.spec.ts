@@ -26,11 +26,10 @@ test.describe('clone + visibility (T080)', () => {
         await page.goto(route('/recipes/rec_pub'));
         await expect(page.getByRole('heading', { name: 'Public Paella' })).toBeVisible();
 
-        await page.getByRole('button', { name: 'Clone' }).click();
+        await page.getByRole('button', { name: 'Save a copy' }).click();
 
-        // A successful clone navigates to the newly-created copy's detail.
-        await expect(page).toHaveURL(/\/recipes\/rec_clone_/);
-        await expect(page.getByRole('heading', { name: 'Public Paella (copy)' })).toBeVisible();
+        // A copy needs a real edit before it can be published (FR-005b), so it opens in the editor.
+        await expect(page).toHaveURL(/\/recipes\/rec_clone_[^/]+\/edit/);
     });
 
     test('a premium owner switches their public recipe to private', async ({ page }) => {
@@ -47,13 +46,13 @@ test.describe('clone + visibility (T080)', () => {
         await page.goto(route('/recipes/rec_own'));
         await expect(page.getByRole('heading', { name: 'My Public Dish' })).toBeVisible();
 
-        // The visibility toggle is a secondary owner action, behind the "More" overflow menu (C4).
+        // The visibility change is a secondary owner action, in the ⋯ menu (§6.4).
         await page.getByRole('button', { name: /^More actions for /u }).click();
-        const privateOption = page.getByRole('radio', { name: 'Private' });
-        await expect(privateOption).toBeEnabled();
+        await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        // Controlled toggle: the click fires the mutation; the option reflects private after the refetch.
-        await privateOption.click();
-        await expect(privateOption).toBeChecked();
+        // After the refetch the rating line says Private, and the menu offers the way back.
+        await expect(page.getByText('Private', { exact: true })).toBeVisible();
+        await page.getByRole('button', { name: /^More actions for /u }).click();
+        await expect(page.getByRole('menuitem', { name: 'Make public' })).toBeVisible();
     });
 });

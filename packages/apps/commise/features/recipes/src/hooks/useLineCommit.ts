@@ -41,6 +41,7 @@ import {
     commitRouteFor,
     lineBindingOf,
     toIngredientLine,
+    withLineMeasure,
     type BoundPick,
     type IngredientPick,
     type LineCommandOutcome,
@@ -150,7 +151,7 @@ export function useLineCommit<Origin>(surface: LineCommitSurface, sourceLimit: S
         if (target.kind === 'newLine') {
             const key = mintLineKey();
 
-            surface.dispatch({ kind: 'appendResolvedIngredient', key, line });
+            surface.dispatch({ kind: 'appendResolvedIngredient', key, line: withLineMeasure(line, target.measure) });
 
             return { kind: 'committed', key, binding };
         }

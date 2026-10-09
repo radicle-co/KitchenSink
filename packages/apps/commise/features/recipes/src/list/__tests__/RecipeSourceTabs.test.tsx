@@ -42,8 +42,8 @@ describe('RecipeSourceTabs (web) — navigation semantics', () => {
         const nav = screen.getByRole('navigation', { name: 'Recipe source' });
         const links = within(nav).getAllByRole('link');
 
-        expect(links.map((link) => link.textContent)).toEqual(['My Recipes', 'Community']);
-        expect(within(nav).getByRole('link', { name: 'My Recipes' }).getAttribute('href')).toBe('/en/recipes');
+        expect(links.map((link) => link.textContent)).toEqual(['My recipes', 'Community']);
+        expect(within(nav).getByRole('link', { name: 'My recipes' }).getAttribute('href')).toBe('/en/recipes');
         expect(within(nav).getByRole('link', { name: 'Community' }).getAttribute('href')).toBe('/en/discover');
     });
 
@@ -51,7 +51,7 @@ describe('RecipeSourceTabs (web) — navigation semantics', () => {
         renderTabs({ active: 'community' });
 
         expect(screen.getByRole('link', { name: 'Community' }).getAttribute('aria-current')).toBe('page');
-        expect(screen.getByRole('link', { name: 'My Recipes' }).getAttribute('aria-current')).toBeNull();
+        expect(screen.getByRole('link', { name: 'My recipes' }).getAttribute('aria-current')).toBeNull();
     });
 
     it('does NOT announce itself as an in-page tab set (no tab/tablist, no aria-selected)', () => {
@@ -141,7 +141,7 @@ describe('RecipeSourceTabs (web) — the INACTIVE tab’s resting affordance (WC
 describe('RecipeSourceTabs (web) — the ACTIVE tab', () => {
     it('keeps the seafoam underline with a legible ocean-dark label (the palette rule)', () => {
         renderTabs({ active: 'mine' });
-        const active = screen.getByRole('link', { name: 'My Recipes' });
+        const active = screen.getByRole('link', { name: 'My recipes' });
 
         expect(
             utilityContrast(active.className, { surface: semantic.background }),
@@ -160,7 +160,7 @@ describe('RecipeSourceTabs (web) — touch targets', () => {
     it('gives every source tab the 44px touch floor, reset for the mouse at md', () => {
         renderTabs();
 
-        for (const name of ['My Recipes', 'Community']) {
+        for (const name of ['My recipes', 'Community']) {
             const tab = screen.getByRole('link', { name });
             expect(tab.className).toContain('min-h-11');
             expect(tab.className).toContain('md:min-h-0');

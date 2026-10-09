@@ -47,7 +47,7 @@ export type ResetMode = 'seeded' | 'empty';
  *
  * Collections are cleared unconditionally because the seeded world contains none: `seed.ts`'s one
  * collection belongs to the PRO owner, so the signer's list has always started empty, and
- * `recipes/collectionsClone` asserts exactly that.
+ * `recipes/collectionsSaveCopy` asserts exactly that.
  */
 export function planWorldReset(actual: WorldSnapshot, manifest: FixtureManifest, mode: ResetMode): WorldResetPlan {
     return reconcile(actual, mode === 'empty' ? [] : manifest.recipes.filter((recipe) => recipe.owner === 'signer'));

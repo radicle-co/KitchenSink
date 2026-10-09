@@ -109,7 +109,7 @@ test.describe('recipe detail — configurable serving size', () => {
         const servings = page.getByLabel('Servings', { exact: true });
         // DEFAULT: the count the recipe was created with, and nothing announced as adjusted.
         await expect(servings).toHaveValue('4');
-        await expect(page.getByText(/Adjusted from/)).toHaveCount(0);
+        await expect(page.getByText(/Amounts scaled from/)).toHaveCount(0);
         await expect(page.getByText('1 tsp')).toBeVisible();
 
         // Double it, one serving at a time through the real control.
@@ -119,7 +119,7 @@ test.describe('recipe detail — configurable serving size', () => {
 
         await expect(servings).toHaveValue('8');
         await expect(page.getByText('2 tsp')).toBeVisible();
-        await expect(page.getByText(/Adjusted from 4 servings/)).toBeVisible();
+        await expect(page.getByText(/Amounts scaled from 4 servings/)).toBeVisible();
     });
 
     test('scales prep and total but NOT cook time, and says so', async ({ page }) => {
@@ -134,9 +134,10 @@ test.describe('recipe detail — configurable serving size', () => {
             await page.getByRole('button', { name: 'More servings' }).click();
         }
 
-        // Prep 15 → 30, total 45 → 60 (the prep delta only, so the 5 inactive minutes survive) …
+        // Prep 15 → 30, total 45 → 60 (the prep delta only, so the 5 inactive minutes survive), said in hours and
+        // minutes through `formatDuration` (§6.1), so the total reads "1 h" …
         await expect(page.getByText('30 min')).toBeVisible();
-        await expect(page.getByText('60 min')).toBeVisible();
+        await expect(page.getByText('1 h', { exact: true })).toBeVisible();
         // … and cook time is STILL 25. This is the assertion that fails if anyone "finishes the job" by
         // scaling every timing: a doubled batch does not bake twice as long, and saying it does is a
         // food-safety error, not a rounding difference.
@@ -157,13 +158,31 @@ test.describe('recipe detail — configurable serving size', () => {
         await expect(servings).toHaveValue('4');
 
         await page.getByRole('button', { name: 'More servings' }).click();
-        await expect(page.getByText(/Adjusted from 4 servings/)).toBeVisible();
+        await expect(page.getByText(/Amounts scaled from 4 servings/)).toBeVisible();
 
         await page.getByRole('button', { name: 'Fewer servings' }).click();
 
-        // Back at the author's yield the disclosure disappears — the page is the recipe as written again.
+        // Back at the author's yield the disclosure disappears — the page is the recipe as written again. The note's
+        // own Reset does the same in one press (§6.1).
         await expect(servings).toHaveValue('4');
-        await expect(page.getByText(/Adjusted from/)).toHaveCount(0);
+        await expect(page.getByText(/Amounts scaled from/)).toHaveCount(0);
         await expect(page.getByText('1 tsp')).toBeVisible();
+    });
+
+    test('the scaled note’s Reset returns the amounts to the recipe’s own servings', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [scalable(viewerId)] });
+
+        await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
+        const servings = page.getByLabel('Servings', { exact: true });
+        await page.getByRole('button', { name: 'More servings' }).click();
+        await page.getByRole('button', { name: 'More servings' }).click();
+        await expect(servings).toHaveValue('6');
+
+        await page.getByRole('button', { name: 'Reset' }).click();
+
+        await expect(servings).toHaveValue('4');
+        await expect(page.getByText(/Amounts scaled from/)).toHaveCount(0);
     });
 });

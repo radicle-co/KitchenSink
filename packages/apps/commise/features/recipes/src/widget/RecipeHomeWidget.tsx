@@ -18,77 +18,92 @@
 import { useMessages } from '@commise/i18n/react';
 import { Suspense, use, type FC } from 'react';
 
-import type { RenderRecipeNutrition } from '../nutrition/model.js';
 import type { Recipe } from '@kitchensink/recipe-core';
 
+import type { CardVariant } from '../card/cardVariant.js';
 import { recipeMessages } from '../messages.js';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
 import { RecentRecipeGrid } from '../components/RecentRecipeGrid.js';
 import { RecipeWidgetCard } from '../components/RecipeWidgetCard.js';
 import { RecipeWidgetEmptyState } from '../components/RecipeWidgetEmptyState.js';
 import { RecipeWidgetLoadingCard } from '../components/RecipeWidgetLoadingCard.js';
-import { MAX_RECENT_RECIPES, toRecipeSummary } from '../components/props.js';
+import {
+    MAX_RECENT_RECIPES,
+    toRecipeSummary,
+    type RecipeWidgetFirstRun,
+    type RecipeWidgetSeeAll,
+} from '../components/props.js';
 
 /**
- * Props for the recipe Home widget (web). `recipesPromise` is the viewer's recent recipes as a PROMISE
- * the host starts (and does not await), so the widget streams under Suspense instead of branching on a
- * loading flag.
+ * Props for the recipe Home widget (web). `recipesPromise` is the viewer's recent recipes as a PROMISE the host starts
+ * (and does not await), so the widget streams under Suspense instead of branching on a loading flag.
  */
 export interface RecipeHomeWidgetProps {
-    recipesPromise: Promise<readonly Recipe[]>;
-    /**
-     * Navigation seam for a card activation (mockup `screenHome`: the recent-recipe cards are tappable
-     * through to the recipe). The widget reports the activated recipe's id; the HOST routes, because only the
-     * host knows the platform's router and its locale-prefixed paths. Absent ⇒ the cards render inert.
-     */
+    readonly recipesPromise: Promise<readonly Recipe[]>;
+    /** The card variant the host decided (`cardVariantOf(containerClass, …, 'home')`, owner ruling D8). */
+    readonly variant: CardVariant;
+    /** A card activation. Absent ⇒ the cards render inert. The HOST routes. */
     readonly onSelectRecipe?: (id: string) => void;
+    /** Where a recipe lives, which makes each card a real link. */
+    readonly hrefOf?: (id: string) => string;
+    /** "See all" at the end of the heading row, while the cook has recipes. */
+    readonly seeAll?: RecipeWidgetSeeAll;
+    /** The first run's ways in. */
+    readonly firstRun?: RecipeWidgetFirstRun;
     /**
-     * Per-card calorie slot (ADR-0021). A RENDER PROP, so this widget stays a pure `props → JSX` leaf and
-     * never learns what a promise, a batch or a `QueryClient` is — the HOST owns the lookup, exactly as the
-     * `.native` leaf does. That split is also what keeps this component testable without a provider.
+     * Per-card calorie slot (ADR-0021). A RENDER PROP, so this widget stays a pure `props → JSX` leaf and never learns
+     * what a promise, a batch or a `QueryClient` is — the HOST owns the lookup.
      */
     readonly renderNutrition?: RenderRecipeNutrition;
 }
 
 /**
- * Suspends on the recipes promise via `use`, then — as the orchestration step — SELECTS the render component:
- * the dedicated empty state when the viewer has none, else the mockup's recent-recipes card grid. The choice
- * lives here rather than as a mode prop on one component.
+ * Suspends on the recipes promise via `use`, then SELECTS the render component: the first run when the cook has none,
+ * else the recent-recipes grid. The choice lives here rather than as a mode prop on one component.
  */
-const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise, onSelectRecipe, renderNutrition }) => {
+const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({
+    recipesPromise,
+    variant,
+    onSelectRecipe,
+    hrefOf,
+    seeAll,
+    firstRun,
+    renderNutrition,
+}) => {
     const { widgetTitle } = useMessages(recipeMessages);
     const recent = use(recipesPromise).slice(0, MAX_RECENT_RECIPES).map(toRecipeSummary);
 
     if (recent.length === 0) {
         return (
             <RecipeWidgetCard title={widgetTitle}>
-                <RecipeWidgetEmptyState />
+                <RecipeWidgetEmptyState {...(firstRun === undefined ? {} : { firstRun })} />
             </RecipeWidgetCard>
         );
     }
 
     return (
-        <RecipeWidgetCard title={widgetTitle}>
-            <RecentRecipeGrid recipes={recent} onSelectRecipe={onSelectRecipe} renderNutrition={renderNutrition} />
+        <RecipeWidgetCard title={widgetTitle} {...(seeAll === undefined ? {} : { seeAll })}>
+            <RecentRecipeGrid
+                recipes={recent}
+                variant={variant}
+                {...(onSelectRecipe === undefined ? {} : { onSelectRecipe })}
+                {...(hrefOf === undefined ? {} : { hrefOf })}
+                {...(renderNutrition === undefined ? {} : { renderNutrition })}
+            />
         </RecipeWidgetCard>
     );
 };
 
 /**
- * The recipe Home widget (web): a `<Suspense>` boundary whose fallback is the skeleton card and whose
- * content suspends on the recipes promise — the loading state is declarative, not an `isLoading` branch.
+ * The recipe Home widget (web): a `<Suspense>` boundary whose fallback is the block's loading state and whose content
+ * suspends on the recipes promise.
  *
- * ⚠️ EVERY prop is threaded to the content component, `renderNutrition` included. The split into two
- * functions across a Suspense hop is exactly where a prop goes missing without a compile error — the widget
- * still accepts it, still type-checks, and renders identically to a surface that never supplied one, so the
- * only thing that catches it is an assertion that the returned NODE reached a card.
+ * ⚠️ EVERY prop is threaded to the content component, `renderNutrition` included: the split across a Suspense hop is
+ * exactly where a prop goes missing without a compile error.
  */
-const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipesPromise, onSelectRecipe, renderNutrition }) => (
-    <Suspense fallback={<RecipeWidgetLoadingCard />}>
-        <RecipeHomeWidgetContent
-            recipesPromise={recipesPromise}
-            onSelectRecipe={onSelectRecipe}
-            renderNutrition={renderNutrition}
-        />
+const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = (props) => (
+    <Suspense fallback={<RecipeWidgetLoadingCard variant={props.variant} />}>
+        <RecipeHomeWidgetContent {...props} />
     </Suspense>
 );
 

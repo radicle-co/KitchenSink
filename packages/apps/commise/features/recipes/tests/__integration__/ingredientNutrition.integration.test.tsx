@@ -113,7 +113,8 @@ describe('the editor’s nutrition read (integration)', () => {
         renderEditor(fetchDouble);
 
         await waitFor(() =>
-            expect(screen.getByText((text) => text.startsWith('Total nutrition')).textContent).toContain('390 cal'),
+            // Build spec §7.5.6: the one total line.
+            expect(screen.getByText((text) => text.endsWith('counted')).textContent).toContain('390 cal per serving'),
         );
         expect(sent).toEqual([
             {

@@ -9,8 +9,17 @@ import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// The shell's sidebar opens the editor through the router and its tab bar reads the route (slice 3).
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock('next/navigation', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('next/navigation')>()),
+    useRouter: () => ({ push, replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+    usePathname: () => '/en',
+}));
+vi.mock('@/lib/basePath', () => ({ withBasePath: (path: string) => path }));
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({ data: { user: { displayName: 'Ada' } } }),
 }));
@@ -49,5 +58,24 @@ describe('SourcesContent (U25)', () => {
             'Data sources',
         ]);
         expect(screen.getByText('Loading data sources…')).toBeTruthy();
+    });
+
+    // §9.2: Data sources is reached from Profile and goes back to it.
+    it('goes back to Profile, by a link a new tab can follow', async () => {
+        renderWithProviders(
+            <QueryClientProvider client={new QueryClient()}>
+                <FoodServiceProvider client={pendingClient()} subject="user_1">
+                    <SourcesContent />
+                </FoodServiceProvider>
+            </QueryClientProvider>,
+        );
+
+        const back = screen.getByRole('link', { name: 'Back to Profile' });
+
+        expect(back.getAttribute('href')).toBe('/en/profile');
+
+        await userEvent.click(back);
+
+        expect(push).toHaveBeenCalledWith('/en/profile');
     });
 });

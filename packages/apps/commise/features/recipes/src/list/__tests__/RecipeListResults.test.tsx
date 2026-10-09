@@ -1,255 +1,271 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web recipe-list RESULTS — what renders inside the list's suspense boundary once the library
- * has settled: the quick-filter chips, the refresh notice, the empty / no-match / populated body, and the create dial.
+ * The web My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3): the facet chips with counts, the result bar
+ * (count, sort, list/grid switch), every state's body, the cards in the decided variant, "Load more" past 500, the
+ * refresh notice, the deferred calorie slot, and the create dial's one-affordance rule.
  *
- * Moved from the retired `RecipeList.test.tsx` ("quick-filter chips (L4)", "empty state", "no-match state",
- * "populated state", "touch targets", "a failed refresh of the rows on screen", and the settled half of "create FAB
- * (L1)"). Two things did NOT move, deliberately:
- *
- *  - the Community-tab empty copy and its dial suppression — no host renders this list on the Community source (the
- *    community surface is discovery), so the branch was deleted rather than ported;
- *  - "empty copy for a whitespace-only search" / "chips offered but none active" as SEARCH-driven cases — the leaf now
- *    receives the host's `narrowed` answer, and `isListNarrowed` is proven in `model.test.ts` and wired in the
- *    container tests.
+ * ⚠️ REWRITTEN for slice 4 of the UI overhaul. The leaf used to take `narrowed` and draw one generic no-match body over
+ * one grid; it now takes the `LibraryState` the host decides (`library.ts`), with a distinct body and "Clear" action
+ * for a search, for chips and for both, the design-system `ChipRow`/`Chip` with counts, the result bar, and the card
+ * variant. The dial assertions are kept: exactly one create affordance on screen.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
+
+import { LocaleProvider } from '@commise/i18n/react';
 
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 import { RecipeListResults } from '../RecipeListResults.js';
 import type { RecipeListResultsProps } from '../model.js';
-import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 
 afterEach(cleanup);
+
+if (typeof Element !== 'undefined') {
+    // jsdom implements neither pointer capture nor scrollIntoView, which Radix's menu calls on open.
+    Element.prototype.hasPointerCapture ??= (): boolean => false;
+    Element.prototype.releasePointerCapture ??= (): void => undefined;
+    Element.prototype.scrollIntoView ??= (): void => undefined;
+}
 
 const noop = () => undefined;
 
 const threeRecipes = [
-    makeRecipeListItem({ id: 'rec_1', title: 'Mediterranean Grilled Lamb', totalTimeMinutes: 45 }),
-    makeRecipeListItem({ id: 'rec_2', title: 'Asparagus with Green Sauce', totalTimeMinutes: 20 }),
-    makeRecipeListItem({ id: 'rec_3', title: 'Gourmet Garden Salad', totalTimeMinutes: 15 }),
+    makeRecipeListItem({ id: 'rec_1', title: 'Mediterranean Grilled Lamb' }),
+    makeRecipeListItem({ id: 'rec_2', title: 'Asparagus with Green Sauce' }),
+    makeRecipeListItem({ id: 'rec_3', title: 'Gourmet Garden Salad' }),
 ];
 
 function results(overrides: Partial<RecipeListResultsProps> = {}) {
     return (
-        <RecipeListResults
-            recipes={threeRecipes}
-            narrowed={false}
-            onSelectRecipe={noop}
-            onCreateRecipe={noop}
-            {...overrides}
-        />
+        <LocaleProvider locale="en">
+            <RecipeListResults
+                recipes={threeRecipes}
+                state="results"
+                searchValue=""
+                onClearSearch={noop}
+                onClearFilters={noop}
+                onSelectRecipe={noop}
+                onCreateRecipe={noop}
+                variant="row"
+                chipOverflow="scroll"
+                facets={{
+                    facets: [
+                        { value: 'quick', label: 'Under 30 min', count: 2, selected: false },
+                        { value: 'Moroccan', label: 'Moroccan', count: 1, selected: true },
+                    ],
+                    onToggle: noop,
+                    onClear: noop,
+                }}
+                view={{ mode: 'list', onChange: noop }}
+                sort={{ value: 'updatedAt', onChange: noop }}
+                {...overrides}
+            />
+        </LocaleProvider>
     );
 }
 
 describe('RecipeListResults (web) — populated', () => {
-    it('renders a pluralized result count', () => {
+    it('says how many recipes are on screen', () => {
         render(results());
 
         expect(screen.getByText('3 recipes')).toBeTruthy();
     });
 
-    it('renders one card per recipe, in a list structure', () => {
-        render(results());
+    it('draws one card per recipe, in the variant the host decided', () => {
+        render(results({ variant: 'grid' }));
+        const list = screen.getByRole('list', { name: '3 recipes' });
 
-        const list = screen.getByRole('list');
         expect(within(list).getAllByRole('listitem')).toHaveLength(3);
-        expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Gourmet Garden Salad' })).toBeTruthy();
+        expect(
+            within(list)
+                .getAllByRole('article')
+                .map((card) => card.getAttribute('data-card-variant')),
+        ).toEqual(['grid', 'grid', 'grid']);
     });
 
-    it('reports the selected recipe id upward', async () => {
-        const user = userEvent.setup();
+    it('makes each card a link to its recipe when the host gives an href, and reports a plain click', async () => {
         const onSelectRecipe = vi.fn();
-        render(results({ onSelectRecipe }));
+        render(results({ hrefOf: (id) => `/en/recipes/${id}`, onSelectRecipe }));
 
-        await user.click(screen.getByRole('button', { name: 'Asparagus with Green Sauce' }));
+        const link = screen.getByRole('link', { name: 'Asparagus with Green Sauce' });
+        expect(link.getAttribute('href')).toBe('/en/recipes/rec_2');
+
+        await userEvent.click(link);
 
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_2');
     });
 
-    it('mounts the create dial over populated results, wired to both destinations', async () => {
-        const user = userEvent.setup();
-        const onPasteIngredients = vi.fn();
-        render(results({ onPasteIngredients }));
+    it('asks the host for each card’s calorie figure, and renders what it returns', () => {
+        render(results({ renderNutrition: (id) => <span>{`cal ${id}`}</span> }));
 
-        await user.click(screen.getByRole('button', { name: 'New recipe' }));
-        await user.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
-
-        expect(onPasteIngredients).toHaveBeenCalledTimes(1);
+        expect(screen.getByText('cal rec_1')).toBeTruthy();
+        expect(screen.getByText('cal rec_3')).toBeTruthy();
     });
 });
 
-describe('RecipeListResults (web) — a TRUE empty library', () => {
-    it('shows the empty message, and neither a count nor rows', () => {
-        render(results({ recipes: [] }));
+describe('RecipeListResults (web) — the facet chips', () => {
+    it('leads with All, pressed only when nothing is selected, then each facet with its count', () => {
+        render(results());
+        const group = screen.getByRole('group', { name: 'Quick filters' });
+        const chips = within(group).getAllByRole('button');
 
-        expect(screen.getByText('No recipes yet')).toBeTruthy();
-        expect(screen.queryByText('0 recipes')).toBeNull();
-        expect(screen.queryByRole('list')).toBeNull();
+        expect(chips.map((chip) => chip.textContent)).toEqual(['All', 'Under 30 min 2', 'Moroccan 1']);
+        expect(chips.map((chip) => chip.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true']);
     });
 
-    it('offers exactly ONE create affordance — the empty-state CTA, never a second floating dial', () => {
-        render(results({ recipes: [] }));
+    it('reports a toggle with the facet value, and All clears', async () => {
+        const onToggle = vi.fn();
+        const onClear = vi.fn();
+        render(
+            results({
+                facets: {
+                    facets: [{ value: 'quick', label: 'Under 30 min', count: 2, selected: false }],
+                    onToggle,
+                    onClear,
+                },
+            }),
+        );
 
-        expect(screen.getAllByRole('button', { name: /Create your first recipe|New recipe/ })).toHaveLength(1);
-        expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
-        expect(screen.queryByRole('menu')).toBeNull();
-        expect(screen.queryByRole('menuitem')).toBeNull();
+        await userEvent.click(screen.getByRole('button', { name: 'Under 30 min 2' }));
+        await userEvent.click(screen.getByRole('button', { name: 'All' }));
+
+        expect(onToggle).toHaveBeenCalledWith('quick');
+        expect(onClear).toHaveBeenCalledTimes(1);
     });
 
-    it('wires the empty-state CTA to the create handler', async () => {
+    it('draws no chip row when the library offers no facet', () => {
+        render(results({ facets: { facets: [], onToggle: noop, onClear: noop } }));
+
+        expect(screen.queryByRole('group', { name: 'Quick filters' })).toBeNull();
+    });
+});
+
+describe('RecipeListResults (web) — the result bar', () => {
+    it('switches between list and grid as one radio group', async () => {
+        const onChange = vi.fn();
+        render(results({ view: { mode: 'list', onChange } }));
+        const group = screen.getByRole('radiogroup', { name: 'View' });
+
+        expect(within(group).getByRole('radio', { name: 'List view' }).getAttribute('aria-checked')).toBe('true');
+
+        await userEvent.click(within(group).getByRole('radio', { name: 'Grid view' }));
+
+        expect(onChange).toHaveBeenCalledWith('grid');
+    });
+
+    it('says the sort in use, and offers the three server sorts', async () => {
+        const onChange = vi.fn();
+        render(results({ sort: { value: 'createdAt', onChange } }));
+
         const user = userEvent.setup();
-        const onCreateRecipe = vi.fn();
-        render(results({ recipes: [], onCreateRecipe }));
+        screen.getByRole('button', { name: 'Sort: Newest' }).focus();
+        await user.keyboard('{Enter}');
+        // Radix names the menu by its trigger, so it is announced with the sort in use.
+        const menu = await screen.findByRole('menu', { name: 'Sort: Newest' });
+        const items = within(menu).getAllByRole('menuitemradio');
 
-        await user.click(screen.getByRole('button', { name: 'Create your first recipe' }));
+        expect(items.map((item) => item.textContent)).toEqual(['Recently edited', 'Newest', 'A–Z']);
+        expect(items.map((item) => item.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
+
+        await user.click(within(menu).getByRole('menuitemradio', { name: 'A–Z' }));
+
+        expect(onChange).toHaveBeenCalledWith('title');
+    });
+});
+
+describe('RecipeListResults (web) — the first run', () => {
+    it('hides the chips and the result bar, and offers the two ways to start', async () => {
+        const onCreateRecipe = vi.fn();
+        const onPasteIngredients = vi.fn();
+        render(results({ recipes: [], state: 'firstRun', onCreateRecipe, onPasteIngredients }));
+
+        expect(screen.getByRole('heading', { level: 2, name: 'Your recipe box is empty' })).toBeTruthy();
+        expect(screen.queryByRole('group', { name: 'Quick filters' })).toBeNull();
+        expect(screen.queryByRole('radiogroup', { name: 'View' })).toBeNull();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Add your first recipe' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Paste ingredients' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+        expect(onPasteIngredients).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers exactly one create affordance: the block, never the floating dial too', () => {
+        render(results({ recipes: [], state: 'firstRun' }));
+
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+    });
+
+    it('drops Paste ingredients when the host has nowhere to paste', () => {
+        render(results({ recipes: [], state: 'firstRun' }));
+
+        expect(screen.queryByRole('button', { name: 'Paste ingredients' })).toBeNull();
     });
 });
 
-describe('RecipeListResults (web) — a NARROWED zero (no-match)', () => {
-    it('shows the no-match copy, NOT the empty copy — the caller has recipes', () => {
-        render(results({ recipes: [], narrowed: true }));
+describe('RecipeListResults (web) — no match', () => {
+    it('for a search, quotes it and offers Clear search', async () => {
+        const onClearSearch = vi.fn();
+        render(results({ recipes: [], state: 'noMatchQuery', searchValue: 'zzz', onClearSearch }));
+        const status = screen.getByRole('status');
 
-        expect(screen.getByText('No matching recipes')).toBeTruthy();
-        expect(screen.queryByText('No recipes yet')).toBeNull();
+        expect(within(status).getByRole('heading', { level: 2, name: 'No recipes match' })).toBeTruthy();
+        expect(within(status).getByText('Nothing matches “zzz”.')).toBeTruthy();
+        expect(within(status).queryByRole('button', { name: 'Clear filters' })).toBeNull();
+
+        await userEvent.click(within(status).getByRole('button', { name: 'Clear search' }));
+
+        expect(onClearSearch).toHaveBeenCalledTimes(1);
     });
 
-    it('offers no first-run create CTA, and KEEPS the dial, whose body has no CTA to replace it', () => {
-        render(results({ recipes: [], narrowed: true }));
+    it('for chips, says so and offers Clear filters, keeping the chips on screen', async () => {
+        const onClearFilters = vi.fn();
+        render(results({ recipes: [], state: 'noMatchFilters', onClearFilters }));
+        const status = screen.getByRole('status');
 
-        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+        expect(within(status).getByText('No recipes match these filters.')).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Quick filters' })).toBeTruthy();
+
+        await userEvent.click(within(status).getByRole('button', { name: 'Clear filters' }));
+
+        expect(onClearFilters).toHaveBeenCalledTimes(1);
+    });
+
+    it('for both, offers both Clear actions', () => {
+        render(results({ recipes: [], state: 'noMatchBoth', searchValue: 'z' }));
+        const status = screen.getByRole('status');
+
+        expect(within(status).getByRole('button', { name: 'Clear search' })).toBeTruthy();
+        expect(within(status).getByRole('button', { name: 'Clear filters' })).toBeTruthy();
+    });
+
+    it('keeps the create dial: a no-match body has no create action of its own', () => {
+        render(results({ recipes: [], state: 'noMatchQuery', searchValue: 'z' }));
+
         expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
     });
 });
 
-describe('RecipeListResults (web) — quick-filter chips (L4)', () => {
-    const chips = (overrides: Partial<NonNullable<RecipeListResultsProps['filters']>> = {}) =>
-        results({
-            filters: { available: ['Vegetarian', 'Italian'], active: [], onToggle: noop, onClear: noop, ...overrides },
-        });
+describe('RecipeListResults (web) — past 500 recipes, and a failed refresh', () => {
+    it('offers Load more while more remain, and reports the press', async () => {
+        const onLoadMore = vi.fn();
+        render(results({ loadMore: { hasMore: true, loading: false, failed: false, onLoadMore } }));
 
-    it('renders no chip row when no filters prop is given', () => {
-        render(results());
+        await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
 
-        expect(screen.queryByRole('group', { name: 'Quick filters' })).toBeNull();
+        expect(onLoadMore).toHaveBeenCalledTimes(1);
     });
 
-    it('renders no chip row when no facet is available', () => {
-        render(chips({ available: [] }));
-
-        expect(screen.queryByRole('group', { name: 'Quick filters' })).toBeNull();
-    });
-
-    it('renders one chip per available facet, marking active ones pressed', () => {
-        render(chips({ active: ['Italian'] }));
-
-        const group = screen.getByRole('group', { name: 'Quick filters' });
-        expect(within(group).getByRole('button', { name: 'Vegetarian' }).getAttribute('aria-pressed')).toBe('false');
-        expect(within(group).getByRole('button', { name: 'Italian' }).getAttribute('aria-pressed')).toBe('true');
-    });
-
-    it('renders a leading "All" chip, pressed exactly when no facet is active, that clears the filters', async () => {
-        const user = userEvent.setup();
-        const onClear = vi.fn();
-        render(chips({ active: ['Vegetarian'], onClear }));
-
-        const group = screen.getByRole('group', { name: 'Quick filters' });
-        expect(within(group).getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('false');
-
-        await user.click(within(group).getByRole('button', { name: 'All' }));
-        expect(onClear).toHaveBeenCalledTimes(1);
-
-        cleanup();
-        render(chips());
-        expect(screen.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true');
-    });
-
-    it('reports a chip toggle upward with the facet value', async () => {
-        const user = userEvent.setup();
-        const onToggle = vi.fn();
-        render(chips({ onToggle }));
-
-        await user.click(screen.getByRole('button', { name: 'Vegetarian' }));
-
-        expect(onToggle).toHaveBeenCalledWith('Vegetarian');
-    });
-
-    it('renders the QUICK_TIME_FACET sentinel as the localized "Quick (<30m)" label, not the raw token', async () => {
-        const user = userEvent.setup();
-        const onToggle = vi.fn();
-        render(chips({ available: ['quick', 'Italian'], onToggle }));
-
-        expect(screen.queryByRole('button', { name: 'quick' })).toBeNull();
-
-        await user.click(screen.getByRole('button', { name: 'Quick (<30m)' }));
-
-        // Toggling still reports the underlying sentinel token upward, not the display label.
-        expect(onToggle).toHaveBeenCalledWith('quick');
-    });
-
-    it('gives every chip the 44px touch floor and a taller base tap target, reset to desktop density at md (U5)', () => {
-        render(chips({ active: ['Italian'] }));
-
-        const group = screen.getByRole('group', { name: 'Quick filters' });
-
-        for (const name of ['All', 'Vegetarian', 'Italian']) {
-            const chip = within(group).getByRole('button', { name });
-            expect(chip.className).toContain('min-h-11');
-            expect(chip.className).toContain('md:min-h-0');
-            expect(chip.className).toContain('py-1.5');
-            expect(chip.className).toContain('md:py-1');
-        }
-    });
-});
-
-describe('RecipeListResults (web) — a failed refresh of the rows on screen', () => {
-    const notice = (overrides: Partial<NonNullable<RecipeListResultsProps['refreshNotice']>> = {}) => ({
-        failed: false,
-        refreshing: false,
-        onRetry: noop,
-        recoveries: 0,
-        ...overrides,
-    });
-
-    it('shows no notice while nothing has failed', () => {
-        render(results({ refreshNotice: notice() }));
-
-        expect(screen.queryByText('We couldn’t refresh your recipes.')).toBeNull();
-    });
-
-    it('⛔ keeps the rows and says the refresh failed, with a Try again that retries', () => {
+    it('keeps the rows and says the refresh failed, with a Try again that retries', async () => {
         const onRetry = vi.fn();
-        render(results({ refreshNotice: notice({ failed: true, onRetry }) }));
+        render(results({ refreshNotice: { failed: true, refreshing: false, onRetry, recoveries: 0 } }));
 
-        expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
-        expect(screen.getByRole('status').textContent).toBe('We couldn’t refresh your recipes.');
+        expect(screen.getAllByText('We couldn’t refresh your recipes.').length).toBeGreaterThan(0);
+        expect(screen.getByText('Mediterranean Grilled Lamb')).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
         expect(onRetry).toHaveBeenCalledTimes(1);
-    });
-});
-
-describe('RecipeListResults (web) — the deferred calorie figure', () => {
-    it('asks the host for each visible card’s figure by recipe id, and renders what it returns', () => {
-        const renderNutrition = vi.fn((recipeId: string) => <span>{`kcal for ${recipeId}`}</span>);
-        render(results({ renderNutrition }));
-
-        expect(renderNutrition.mock.calls.map(([recipeId]) => recipeId)).toEqual(['rec_1', 'rec_2', 'rec_3']);
-        expect(screen.getByText('kcal for rec_2')).toBeTruthy();
-    });
-});
-
-describe('RecipeListResults (web) — the design-system Button (UI overhaul slice 2)', () => {
-    it('offers the first recipe through a primary plus Button', () => {
-        render(results({ recipes: [] }));
-
-        expectDesignSystemButton(screen.getByRole('button', { name: 'Create your first recipe' }), 'primary', 'plus');
     });
 });

@@ -93,14 +93,21 @@ const lineKeySchema = z.custom<IngredientLineKey>(
 
 const rebindTargetSchema = rebindIngredientLineRequestSchema.shape.target;
 
+/**
+ * A draft amount: a number, or JSON's `null` for the `NaN` the draft spells "no amount" with (`toRecipeFormValues`, and a
+ * fresh pick, F5). `JSON.stringify` writes `NaN` as `null`, so the format reads `null` back as `NaN` — the stored bytes
+ * and the form agree on one spelling each, and an amount-less line is not mistaken for an unreadable draft.
+ */
+const draftAmountSchema = z.union([z.number(), z.null().transform(() => Number.NaN)]);
+
 const draftIngredientSchema = z
     .strictObject({
         key: lineKeySchema,
         ingredientId: z.string().nullable(),
         name: z.string().optional(),
         isUserEntered: z.boolean(),
-        quantity: z.number(),
-        quantityHigh: z.number().optional(),
+        quantity: draftAmountSchema,
+        quantityHigh: draftAmountSchema.optional(),
         unit: z.string().optional(),
         notes: z.string().optional(),
         preparation: z.string().optional(),
@@ -115,6 +122,9 @@ const draftIngredientSchema = z
         userProteinG: z.number().optional(),
         userCarbsG: z.number().optional(),
         userFatG: z.number().optional(),
+        // Blueprint A5: a line pasted before the server create keeps what it was read from until the create sends it.
+        sourceLine: z.string().optional(),
+        sourcePhrase: z.string().optional(),
     })
     .readonly();
 
@@ -169,6 +179,14 @@ export function toDraftValues(values: RecipeFormValues): DraftValues {
     return kept;
 }
 
+/** What a server write answered, as the draft records it. */
+export interface DraftAnswer {
+    /** The recipe's server id. */
+    readonly serverId: string;
+    /** The version the write produced: the next update's `expectedVersion`. */
+    readonly version: number;
+}
+
 /** One user's drafts on one device. */
 export interface DraftStore {
     /** The draft for a recipe, or `undefined` when there is none or it could not be read. */
@@ -177,14 +195,45 @@ export interface DraftStore {
     readonly save: (memento: DraftMemento) => Promise<void>;
     /** Remove a recipe's draft. */
     readonly discard: (recipeRef: string) => Promise<void>;
-    /** Move a draft from its local ref to the server id the create returned, at the version it returned. */
-    readonly rekey: (localRef: string, serverId: string, baseVersion: number) => Promise<void>;
+    /**
+     * Record a server write's answer: a create moves the draft from its local ref to the server id, and every answer
+     * raises `baseVersion` to the version it returned — never lowers it, so a late answer for an older write cannot
+     * regress the token. An answer for a recipe with no draft writes nothing. The editor calls it while open; an
+     * observer of the outbox calls it once the editor has closed (`useDraftAnswers`).
+     */
+    readonly adopt: (recipeRef: string, answer: DraftAnswer) => Promise<void>;
     /** Remove every draft and the quarantine — the session-end clear (ADR-0054). */
     readonly clear: () => Promise<void>;
 }
 
+/** One store per port and user, so every caller shares one serial queue over the key. */
+const stores = new WeakMap<OutboxStore, Map<string, DraftStore>>();
+
 /**
- * The draft store for one user.
+ * The ONE draft store for a user on a port — the editor and the outbox observer must share it, or two serial queues
+ * would interleave their read-modify-writes over one key and lose a write.
+ *
+ * @param store - The platform adapter.
+ * @param subject - The IdP subject.
+ * @returns The memoized store. @sideEffect Records it for the next caller.
+ */
+export function draftStoreFor(store: OutboxStore, subject: string): DraftStore {
+    const bySubject = stores.get(store) ?? new Map<string, DraftStore>();
+    const existing = bySubject.get(subject);
+
+    if (existing !== undefined) {
+        return existing;
+    }
+
+    const created = createDraftStore(store, subject);
+    bySubject.set(subject, created);
+    stores.set(store, bySubject);
+
+    return created;
+}
+
+/**
+ * The draft store for one user. Prefer {@link draftStoreFor}, which shares one per port and user.
  *
  * @param store - The platform adapter.
  * @param subject - The IdP subject.
@@ -226,17 +275,38 @@ export function createDraftStore(store: OutboxStore, subject: string): DraftStor
 
     return {
         load: (recipeRef) => serialized(async () => (await read())[recipeRef]),
-        save: (memento) => change((drafts) => newest({ ...drafts, [memento.recipeRef]: memento })),
+        // ⛔ Never lowers the version an answer already recorded: the editor and the outbox observer both write, and
+        // whichever writes last must not regress the token.
+        save: (memento) =>
+            change((drafts) =>
+                newest({
+                    ...drafts,
+                    [memento.recipeRef]: {
+                        ...memento,
+                        baseVersion: higherVersion(drafts[memento.recipeRef]?.baseVersion ?? null, memento.baseVersion),
+                    },
+                }),
+            ),
         discard: (recipeRef) => change((drafts) => without(drafts, recipeRef)),
-        rekey: (localRef, serverId, baseVersion) =>
-            change((drafts) => {
-                const draft = drafts[localRef];
+        adopt: (recipeRef, { serverId, version }) =>
+            serialized(async () => {
+                const drafts = await read();
+                const draft = drafts[recipeRef];
 
                 if (draft === undefined) {
-                    return drafts;
+                    return;
                 }
 
-                return { ...without(drafts, localRef), [serverId]: { ...draft, recipeRef: serverId, baseVersion } };
+                const already = drafts[serverId]?.baseVersion ?? null;
+
+                await write({
+                    ...without(drafts, recipeRef),
+                    [serverId]: {
+                        ...draft,
+                        recipeRef: serverId,
+                        baseVersion: higherVersion(higherVersion(already, draft.baseVersion), version),
+                    },
+                });
             }),
         clear: () =>
             serialized(async () => {
@@ -244,6 +314,15 @@ export function createDraftStore(store: OutboxStore, subject: string): DraftStor
                 await store.removeItem(quarantineKey);
             }),
     };
+}
+
+/** The higher of two versions, `null` meaning none. Pure. */
+function higherVersion(a: number | null, b: number | null): number | null {
+    if (a === null) {
+        return b;
+    }
+
+    return b === null ? a : Math.max(a, b);
 }
 
 /** The drafts in a stored string, or `undefined` when it is not this format. Pure. */

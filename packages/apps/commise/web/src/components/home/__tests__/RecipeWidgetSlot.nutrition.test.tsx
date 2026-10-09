@@ -69,6 +69,13 @@ vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
 // wiring all stay under test; only the bundler chunk-load seam is removed. Awaiting the import in the mock
 // FACTORY also pre-loads the module before any render, which is what keeps a pending batch from parking the
 // whole widget behind an unresolved chunk (the artifact mobile's suite documents in its `beforeAll`).
+// The calorie figure is drawn by the full card (the compact card has no meta line), which Home shows from a 960 container
+// (owner ruling D8); jsdom lays nothing out, so `<main>` is read as wide here.
+vi.mock('@commise/features-recipes', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes')>()),
+    useMainContainerClass: () => 'wide' as const,
+}));
+
 vi.mock('next/dynamic', async () => {
     const widgetModule = await import('@commise/features-recipes/widget/web');
 
@@ -235,7 +242,7 @@ describe('RecipeWidgetSlot (web) — the deferred calorie lookup', () => {
 
         await renderSlot(client);
 
-        expect(screen.queryByRole('button', { name: 'Fifth Recipe' }), 'the 5th card really is not shown').toBeNull();
+        expect(screen.queryByRole('link', { name: 'Fifth Recipe' }), 'the 5th card really is not shown').toBeNull();
         expect(batch.mock.calls[0]?.[0]).toStrictEqual([PASTA, ROAST, TACOS, RISOTTO]);
     });
 
@@ -248,7 +255,7 @@ describe('RecipeWidgetSlot (web) — the deferred calorie lookup', () => {
         await renderSlot(client);
 
         // The cards are already painted — the figure is deferred, the CARD is not.
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
         expect(screen.getAllByText('Loading calories')).toHaveLength(2);
     });
 
@@ -275,7 +282,7 @@ describe('RecipeWidgetSlot (web) — the deferred calorie lookup', () => {
         // nothing — never `undefined` falling through and leaving the skeleton up forever.
         expect(screen.queryByText('Loading calories')).toBeNull();
         expect(screen.queryByRole('img', { name: /cal/u })).toBeNull();
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' }), 'the card itself survives').toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Weeknight Pasta' }), 'the card itself survives').toBeInTheDocument();
     });
 
     // ⛔ THE INVARIANT, end to end. Note the FAKE TIMERS: the read seam sets `retry: 1` (its own option, which
@@ -305,7 +312,7 @@ describe('RecipeWidgetSlot (web) — the deferred calorie lookup', () => {
             });
 
             expect(batch, 'the batch was attempted, then retried once').toHaveBeenCalledTimes(2);
-            expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+            expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
             expect(screen.queryByText('Loading calories'), 'a failed batch must not leave a spinner').toBeNull();
             expect(screen.queryByRole('img', { name: /cal/u })).toBeNull();
             // The failure is confined to the FIGURE: the viewer's route off Home is a sibling of the widget's
@@ -327,7 +334,7 @@ describe('RecipeWidgetSlot (web) — the deferred calorie lookup', () => {
 
         await renderSlot(client);
 
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' }), 'the card still renders').toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Weeknight Pasta' }), 'the card still renders').toBeInTheDocument();
         expect(screen.queryByText('Loading calories'), 'an unasked question is not a pending one').toBeNull();
         expect(screen.queryByRole('img', { name: /cal/u })).toBeNull();
     });
@@ -337,7 +344,7 @@ describe('RecipeWidgetSlot (web) — the deferred calorie lookup', () => {
 
         await renderSlot(client);
 
-        expect(screen.getByText('No recipes yet. Create your first recipe to see it here.')).toBeInTheDocument();
+        expect(screen.getByText('Your recipes will show up here.')).toBeInTheDocument();
         expect(batch, 'an empty batch is a guaranteed 400 — it must never be sent').not.toHaveBeenCalled();
     });
 
@@ -364,7 +371,7 @@ describe('RecipeWidgetSlot (web) — the deferred calorie lookup', () => {
         expect(screen.getByRole('img', { name: '420 cal' }), 'the figure survived the re-render').toBeInTheDocument();
         expect(screen.queryByText('Loading calories'), 'and did not blink back to its skeleton').toBeNull();
         expect(
-            screen.getByRole('button', { name: 'Weeknight Pasta' }),
+            screen.getByRole('link', { name: 'Weeknight Pasta' }),
             'and neither did the card around it',
         ).toBeInTheDocument();
         expect(batch, 'a re-render is not a new read').toHaveBeenCalledTimes(1);

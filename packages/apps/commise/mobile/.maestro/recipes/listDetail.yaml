@@ -13,7 +13,7 @@ appId: io.commise.mobile
 
 # Chrome that renders in EVERY state — including a hung load — so it proves the screen mounted, nothing more.
 - assertVisible: 'Recipes'
-- assertVisible: 'Search recipes'
+- assertVisible: 'Search your recipes'
 
 # That the list actually SETTLED is a separate claim, and this is what makes it: the "{n} recipes" count
 # label is rendered only by the POPULATED branch. The old settle assertion was `New recipe` (the pinned
@@ -32,8 +32,8 @@ appId: io.commise.mobile
 # Populated ⇒ the pinned FAB is the create control and the first-run CTA is absent (L1: exactly one create
 # control per state). Asserted as a PAIR, because either one alone is satisfied by more than one state.
 - assertVisible: 'New recipe'
-- assertNotVisible: 'Create your first recipe'
-- assertNotVisible: 'No recipes yet'
+- assertNotVisible: 'Add your first recipe'
+- assertNotVisible: 'Your recipe box is empty'
 
 # W1/L8 — pull-to-refresh: a downward swipe on the list triggers the RefreshControl (smoke: the list
 # survives the gesture and its chrome is still present afterwards).
@@ -73,7 +73,8 @@ appId: io.commise.mobile
 # assertion, is deliberately NOT asserted for that reason — it would be the one claim here resting on
 # untested ground, and a flow that cannot be run locally must not add one.
 - assertVisible: 'Herb-marinated grilled lamb.'
-- assertVisible: 'Serves'
+# The serving count sits beside the Ingredients heading ("for 4", build spec §6.1), no longer in the stat strip.
+- assertVisible: 'for 4'
 - assertVisible: '15 min'
 - assertVisible: '30 min'
 - assertVisible: '45 min'
@@ -127,7 +128,8 @@ appId: io.commise.mobile
 # The step list, populated from this recipe rather than merely mounted: the heading is chrome, the first
 # step's own instruction text is the proof.
 - scrollUntilVisible:
-      element: 'Instructions'
+      # "Steps" replaces "Instructions" (`docs/design/uiOverhaul/ownerDecisions.md`).
+      element: 'Steps'
       direction: DOWN
       timeout: 20000
 - scrollUntilVisible:
@@ -138,12 +140,10 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 
-# W2/D4 — per-step cooking-progress checkboxes are interactive (smoke: tapping does not crash). UNGUARDED
-# now: the `when: visible` wrapper existed only because a seeded recipe had no steps, so the tap SKIPPED
-# silently on every run. Step 1 exists by construction (the seed numbers each recipe's steps contiguously
-# from 1, asserted in `src/database/__tests__/seed.test.ts`), so a missing control is a real failure. The
-# control sits on step 1's own row, which the scroll above just brought on screen.
-- tapOn: 'Mark step 1 complete'
+# §6.3 — the step's own current-step toggle is interactive (smoke; `detailCooking.yaml` asserts its state).
+# UNGUARDED: step 1 exists by construction (the seed numbers each recipe's steps contiguously from 1, asserted
+# in `src/database/__tests__/seed.test.ts`), so a missing control is a real failure.
+- tapOn: 'Mark step 1 as current'
 
 - scrollUntilVisible:
       element: 'Nutrition (per serving)'

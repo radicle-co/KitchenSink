@@ -13,7 +13,7 @@ import {
 // run (E2E_BASE_PATH=''); in the prod shape hasDoublePrefix is inert (empty prefix), so the prod path
 // is pinned by isRoute('/sign-in') + the app-origin check.
 test.describe('route protection (signed out)', () => {
-    for (const path of ['/profile', '/account', '/settings']) {
+    for (const path of ['/profile']) {
         test(`${path} redirects to the app /sign-in`, async ({ page }) => {
             await page.goto(route(path));
 
@@ -77,7 +77,16 @@ test.describe('route protection (signed out)', () => {
     test.describe('as the server sends it', () => {
         test.use({ javaScriptEnabled: false });
 
-        for (const path of ['/this-page-does-not-exist', '/recipes/rec_seed/typo']) {
+        // `/account` and `/settings` (slice 9) and the paste review page (slice 8) are deleted routes (blueprint A10).
+        // They are NOT in the protected list above: a deleted path must answer the 404 surface, not bounce to sign-in as
+        // though it still existed. (The paste page's own `/recipes/parse` is now a recipe id to `/recipes/[id]`.)
+        for (const path of [
+            '/this-page-does-not-exist',
+            '/recipes/rec_seed/typo',
+            '/account',
+            '/settings',
+            '/recipes/parse/00000000-0000-4000-8000-000000000001',
+        ]) {
             test(`${path} answers 404 with the app’s own page in the first HTML`, async ({ page }) => {
                 const response = await page.goto(route(path));
 
@@ -115,7 +124,7 @@ test.describe('route protection (signed out)', () => {
         await page.goto(route('/'));
         await expect.poll(() => isRoute(pathnameOf(page), '/sign-in')).toBe(true);
 
-        await page.getByRole('link', { name: /sign up/i }).click();
+        await page.getByRole('link', { name: 'Create an account' }).click();
 
         await expect.poll(() => isRoute(pathnameOf(page), '/sign-up'), { timeout: 20_000 }).toBe(true);
         expect(hasDoublePrefix(pathnameOf(page))).toBe(false);

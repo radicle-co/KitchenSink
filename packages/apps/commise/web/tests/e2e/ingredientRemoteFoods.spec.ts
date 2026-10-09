@@ -6,6 +6,7 @@ import { route } from './utils/basePath';
 import { mockFoodApi, type RemoteFoodDouble } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { E2E_CATALOG_FOOD, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { addStep, openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Remote foods, in every place a cook picks a food (owner ruling 2026-10-02: "The users should see the remote foods and
@@ -19,7 +20,7 @@ import { E2E_CATALOG_FOOD, makeRecipeDetail, mockRecipeApi, readViewerAppId } fr
  * decision 7). One pick binds one line.
  *
  * What only this tier proves: the stream, the adopt and the line's write hold together through the live clients, the
- * live query cache and the real wizard and detail page. How the list fills in frame by frame is the component tier's
+ * live query cache and the real editor and detail page. How the list fills in frame by frame is the component tier's
  * (`foodSuggestions.model.test.ts`, `entryCombobox.test.ts`). Selectors are role, label and text only.
  */
 
@@ -75,10 +76,9 @@ const ambiguousLine = (ingredientId: string, quantity: number, unit: string) =>
 const savedRecipe = (viewerId: string, id: string, ingredients: RecipeDetail['ingredients']): RecipeDetail =>
     makeRecipeDetail({ id, ownerId: viewerId, title: 'Remote probe', status: 'draft', currentVersion: 1, ingredients });
 
-/** Open a saved recipe's ingredients step. */
+/** Open a saved recipe's editor and return its Ingredients section. */
 async function openIngredients(page: Page, recipeId: string) {
-    await page.goto(route(`/recipes/${recipeId}/edit`));
-    await page.getByRole('button', { name: /Ingredients:/ }).click();
+    await openRecipeEditor(page, recipeId);
 
     return page.getByRole('region', { name: 'Ingredients' });
 }
@@ -92,11 +92,9 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
         const searches = await mockFoodApi(page, onlyUsda(USDA_PEPPER));
 
-        await page.goto(route('/recipes/new'));
+        await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Remote Pepper Broth');
         await page.getByRole('radio', { name: 'Easy' }).click();
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
-        await expect(page.getByText('Step 2 of 4')).toBeVisible();
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('pepper');
 
         // No button asks for it: the source's food is in the list, under its source's name.
@@ -119,10 +117,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         await expect(page.getByRole('button', { name: `About ${E2E_CATALOG_FOOD.name}` })).toBeVisible();
 
         // The line names a real root, so the recipe publishes with it: the falsifiable end of the story.
-        await page.getByRole('button', { name: 'Next: Instructions' }).click();
-        await page.getByRole('button', { name: 'Add step' }).click();
-        await page.getByLabel('Step 1 instruction').fill('Simmer, then season generously.');
-        await page.getByRole('button', { name: 'Next: Review' }).click();
+        await addStep(page, 'Simmer, then season generously.');
         await page.getByRole('button', { name: 'Publish' }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Remote Pepper Broth' })).toBeVisible();
@@ -290,19 +285,23 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
     });
 
     /**
-     * E2 (`docs/design/rowEditorOpenDecisions.md`): a pick that fails while its step is not shown. The cook picks a
-     * USDA food, goes back to Details while it is adopted, and food refuses it there. The rail marks Ingredients on
-     * step 1, and back on step 2 the row shows its failure line, which describes the field, with no alert: it is a
-     * state by then, not an event.
+     * E2 (`docs/design/rowEditorOpenDecisions.md`): a pick that fails while the cook is elsewhere. The cook picks a
+     * USDA food, jumps to Details while it is adopted, and food refuses it there. The row shows its failure line, which
+     * describes the field, with no alert, and the cook is left where they went: it is a state by then, not an event.
+     *
+     * REWRITTEN for slice 7: there is no hidden step any more, so "on return" is gone. What the one page must still not
+     * do is announce the refusal as an alert or pull the cook back to the row; the section index's marking of
+     * Ingredients is not asserted here (its wording is the section-status model's, pinned by its unit tests).
      */
-    test('a pick refused while the cook is on another step: the rail marks Ingredients, and the row says why on return', async ({
+    test('a pick refused while the cook is in another section: no alert, no jump back, and the row says why', async ({
         page,
     }) => {
+        await page.setViewportSize({ width: 1280, height: 800 });
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
         await mockFoodApi(page, onlyUsda(USDA_PEPPER));
-        // The adopt waits until the cook is on step 1, then food refuses it: the food is gone from its source.
+        // The adopt waits until the cook is in Details, then food refuses it: the food is gone from its source.
         let refuse: () => void = () => undefined;
         const adoptHeld = new Promise<void>((resolve) => {
             refuse = resolve;
@@ -316,10 +315,9 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
             });
         });
 
-        await page.goto(route('/recipes/new'));
+        await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Away Refusal');
         await page.getByRole('radio', { name: 'Easy' }).click();
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
         const field = page.getByRole('combobox', { name: 'Add an ingredient' });
 
         await field.fill('pepper');
@@ -329,20 +327,17 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
             .getByRole('option', { name: `${USDA_PEPPER.name}, from USDA` })
             .click();
 
-        // While the adopt runs, the cook goes back to Details (the draft is dirty, so the guard asks first).
-        await page.getByRole('button', { name: 'Prev: Details' }).click();
-        await page.getByRole('button', { name: 'Discard changes' }).click();
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
+        // While the adopt runs, the cook jumps to Details through the section index.
+        await page.getByRole('navigation', { name: 'Recipe sections' }).getByRole('link', { name: 'Details' }).click();
+        const details = page.getByRole('heading', { level: 2, name: 'Details' });
+        await expect(details).toBeFocused();
         refuse();
 
         const sentence = `${USDA_PEPPER.name} isn’t available any more. Choose another food.`;
 
-        await expect(page.getByRole('button', { name: /^Ingredients: needs attention/u })).toBeVisible();
-        await expect(page.getByText(sentence)).toHaveCount(0);
-
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
-
-        await expect(page.getByText(sentence)).toBeVisible();
+        await expect(page.getByText(sentence)).toBeAttached();
+        // The refusal does not take the cook back to the row.
+        await expect(details).toBeFocused();
         await expect(field).toHaveValue('pepper');
         await expect(field).toHaveAccessibleDescription(/isn’t available any more\. Choose another food\./u);
         await expect(page.getByRole('alert').filter({ hasText: sentence })).toHaveCount(0);

@@ -3,19 +3,23 @@ import type { CatalogSearchResultView } from '@kitchensink/food-service-client';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 
 import { signInWithTicket } from './utils/auth';
-import { route } from './utils/basePath';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { editorTopChrome, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * The food list and the row's name, measured where V3 measured them (`docs/design/v3Evaluation.md`, cases A to F;
  * `docs/design/rowEditorOpenDecisions.md` V3-1 to V3-4; `docs/design/ingredientStatusExplanation.md`, V3 amendment).
  *
- * jsdom has no layout, so every rule here is a geometry fact only a browser can show: the list against the wizard's
- * header band and controls bar, the side it opens on, its width at 320 px, its floor at 200% text, the keyboard
+ * jsdom has no layout, so every rule here is a geometry fact only a browser can show: the list against the editor's
+ * header band and action bar, the side it opens on, its width at 320 px, its floor at 200% text, the keyboard
  * highlight's ring, and the name's line. Each case places the field where the rule decides something, then reads the
  * boxes. Locators are role and label only; the popup and the bar are reached from a located element inside
  * `evaluate`, because neither has a role of its own.
+ *
+ * REWRITTEN for slice 7: the wizard's header toolbar and its `Next` are gone. The band is now the one-page editor's
+ * sticky header (`banner`), and the bar is the action bar around `Save changes` (the probe recipe is published). That
+ * bar is `sticky` rather than `fixed`, so it counts as pinned while its foot is at the viewport's foot.
  */
 
 /** A rectangle as `getBoundingClientRect` reports it. */
@@ -34,8 +38,8 @@ interface Frame {
     readonly popup: Box;
     readonly band: Box;
     /**
-     * The controls bar while it is fixed to the viewport's foot; `undefined` at `lg`, where it sits in the band, and
-     * once it unpins to the end of the content (`compactHeightLayout.md` A1).
+     * The action bar while it is pinned to the viewport's foot; `undefined` once it sits at the end of the content
+     * instead (`compactHeightLayout.md` A1).
      */
     readonly bar: Box | undefined;
     readonly viewportHeight: number;
@@ -67,7 +71,7 @@ const lines = (): RecipeDetail['ingredients'] =>
         resolutionStatus: 'RESOLVED' as const,
     }));
 
-/** Open a saved recipe's ingredients step with the food double answering `options`. */
+/** Open a saved recipe's editor, returning its Ingredients section, with the food double answering `options`. */
 async function openIngredients(
     page: Page,
     options: Parameters<typeof mockFoodApi>[1] = { catalog: CATALOG },
@@ -84,8 +88,7 @@ async function openIngredients(
 
     await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [recipe] });
     await mockFoodApi(page, options);
-    await page.goto(route(`/recipes/${recipe.id}/edit`));
-    await page.getByRole('button', { name: /Ingredients:/ }).click();
+    await openRecipeEditor(page, recipe.id);
 
     return page.getByRole('region', { name: 'Ingredients' });
 }
@@ -109,10 +112,10 @@ async function placeFieldAt(field: Locator, top: number): Promise<void> {
     await expect.poll(async () => Math.round((await field.boundingBox())?.y ?? Number.NaN)).toBe(Math.round(top));
 }
 
-/** Read the field, its popup, the header band and the controls bar, as the browser lays them out now. */
+/** Read the field, its popup, the header band and the action bar, as the browser lays them out now. */
 async function measure(page: Page, field: Locator): Promise<Frame> {
-    const band = await page.getByRole('toolbar', { name: 'Recipe wizard actions' }).boundingBox();
-    const next = page.getByRole('button', { name: /^Next: / });
+    const band = await editorTopChrome(page);
+    const primary = page.getByRole('button', { name: 'Save changes' });
     const frame = await field.evaluate((element) => {
         const boxOf = (node: Element): Box => {
             const { top, bottom, left, right, width, height } = node.getBoundingClientRect();
@@ -130,10 +133,10 @@ async function measure(page: Page, field: Locator): Promise<Frame> {
             viewportHeight: document.documentElement.clientHeight,
         };
     });
-    const bar = await next.evaluate((element) => {
+    const bar = await primary.evaluate((element) => {
         let node: Element | null = element;
 
-        while (node !== null && getComputedStyle(node).position !== 'fixed') {
+        while (node !== null && !['fixed', 'sticky'].includes(getComputedStyle(node).position)) {
             node = node.parentElement;
         }
 
@@ -143,11 +146,14 @@ async function measure(page: Page, field: Locator): Promise<Frame> {
 
         const { top, bottom, left, right, width, height } = node.getBoundingClientRect();
 
-        return { top, bottom, left, right, width, height };
+        // Sticky, the bar is pinned only while held at the viewport's foot; anywhere else it sits after the content.
+        return Math.abs(bottom - document.documentElement.clientHeight) <= 1
+            ? { top, bottom, left, right, width, height }
+            : undefined;
     });
 
-    if (frame.popup === undefined || band === null) {
-        throw new Error('The popup or the header band is not on the page.');
+    if (frame.popup === undefined) {
+        throw new Error('The popup is not on the page.');
     }
 
     return {
@@ -171,7 +177,7 @@ function expectClearOfChrome(frame: Frame): void {
     expect(frame.popup.top, 'the popup covers the header band').toBeGreaterThanOrEqual(frame.band.bottom - 0.5);
 
     if (frame.bar !== undefined) {
-        expect(frame.popup.bottom, 'the popup covers the controls bar').toBeLessThanOrEqual(frame.bar.top + 0.5);
+        expect(frame.popup.bottom, 'the popup covers the action bar').toBeLessThanOrEqual(frame.bar.top + 0.5);
     }
 }
 
@@ -202,10 +208,10 @@ async function hold(page: Page, url: string): Promise<{ readonly release: () => 
 
 const PROGRESSIVE = '**/api/v1/foods/search/progressive?**';
 
-test.describe('the food list keeps clear of the wizard’s chrome (V3-1, case B and C)', () => {
+test.describe('the food list keeps clear of the editor’s chrome (V3-1, case B and C)', () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    test('390 px: where the list would reach the controls bar below, it opens above, and Next stays reachable', async ({
+    test('390 px: where the list would reach the action bar below, it opens above, and Save changes stays reachable', async ({
         page,
     }) => {
         const field = await middleField(page, await openIngredients(page));
@@ -218,7 +224,7 @@ test.describe('the food list keeps clear of the wizard’s chrome (V3-1, case B 
 
         expectClearOfChrome(frame);
         expect(frame.popup.bottom, 'the popup covers its own field').toBeLessThanOrEqual(frame.field.top);
-        expect(await isReachable(page.getByRole('button', { name: /^Next: / }))).toBe(true);
+        expect(await isReachable(page.getByRole('button', { name: 'Save changes' }))).toBe(true);
     });
 
     test('390 px: the side is chosen at the list’s full height, so a list that grows never reaches the bar', async ({
@@ -254,13 +260,16 @@ test.describe('the food list keeps clear of the header band at desktop width (V3
         page,
     }) => {
         const field = await middleField(page, await openIngredients(page));
-        const band = await page.getByRole('toolbar', { name: 'Recipe wizard actions' }).boundingBox();
+        const band = await editorTopChrome(page);
         // Stuck to the top once the page scrolls, the band covers its own height. 20rem fits above only if the band is
-        // left out (top >= 320 + 12), not below (top > 640 - 376), and below has more room than above with the band
-        // left in (top < (640 - 44 + band) / 2). Measured before this landed, the band was 116 px tall.
-        const top = 336;
+        // left out: 320 + 12 <= top < 332 + band. REWRITTEN for slice 7: the band was the wizard's 116 px header and
+        // rail; the editor's is its header alone at this width (the index is a sidebar), so the window is derived
+        // from the band as measured, and so is the side with more room (the field is 44 px tall).
+        const top = 332 + band.height / 2;
+        const roomAbove = top - (band.y + band.height);
+        const roomBelow = 640 - 44 - top;
 
-        expect(top, 'the band leaves this case no window').toBeLessThan((640 - 44 + (band?.height ?? 0)) / 2);
+        expect(band.height, 'the band leaves this case no window').toBeGreaterThan(0);
         await placeFieldAt(field, top);
 
         await field.fill('pepper');
@@ -268,8 +277,11 @@ test.describe('the food list keeps clear of the header band at desktop width (V3
         const frame = await measure(page, field);
 
         expectClearOfChrome(frame);
-        expect(frame.popup.top, 'the popup opened below, where there is more room').toBeGreaterThanOrEqual(
-            frame.field.bottom,
+        expect(frame.popup.top >= frame.field.bottom, 'the popup opened below, where there is more room').toBe(
+            roomBelow > roomAbove,
+        );
+        expect(frame.popup.bottom <= frame.field.top + 0.5, 'the popup opened above, where there is more room').toBe(
+            roomBelow <= roomAbove,
         );
         expect(frame.popup.bottom).toBeLessThanOrEqual(frame.viewportHeight - 8 + 0.5);
     });
@@ -336,7 +348,7 @@ test.describe('the food list at 320 px (V3-2, case E)', () => {
 });
 
 /**
- * Case D also needs the wizard's controls bar out of the way: the band and the bar together take more than half of 360,
+ * Case D also needs the editor's action bar out of the way: the band and the bar together take more than half of 360,
  * so the bar unpins to the end of the content (`docs/design/compactHeightLayout.md` A1, §4) and the list gets the room.
  */
 test.describe('the food list at 640 × 360 with 200% text (V3-3, case D; compactHeightLayout.md A1)', () => {
@@ -360,9 +372,9 @@ test.describe('the food list at 640 × 360 with 200% text (V3-3, case D; compact
         });
         await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
         const field = await middleField(page, ingredients);
-        const band = await page.getByRole('toolbar', { name: 'Recipe wizard actions' }).boundingBox();
+        const band = await editorTopChrome(page);
 
-        await placeFieldAt(field, (band?.y ?? 0) + (band?.height ?? 0) + 1);
+        await placeFieldAt(field, band.y + band.height + 1);
         await field.fill('pepper');
         const listbox = page.getByRole('listbox');
 
@@ -416,7 +428,7 @@ test.describe('the food list at 640 × 360 with 200% text (V3-3, case D; compact
             type: 'measured',
             description: `popup ${String(Math.round(frame.popup.height))} px tall; listbox ${String(Math.round(floor.height))} px; first option ${String(Math.round(rows.firstHeight))} px tall, ${String(Math.round(rows.firstOffset))} px down the card at rest; ${String(rows.wholeAtRest)} whole option rows at rest`,
         });
-        expect(frame.bar, 'the controls bar is still fixed to the foot').toBeUndefined();
+        expect(frame.bar, 'the action bar is still pinned to the foot').toBeUndefined();
         // V3-M2a: with the cook's foods to show, no line leads them. The first option starts inside the card at rest,
         // and the catalog's sentence is the first line after the listbox, before the limit's note.
         expect(rows.firstOffset, 'the first option starts above the card').toBeGreaterThanOrEqual(-0.5);
@@ -430,24 +442,24 @@ test.describe('the food list at 640 × 360 with 200% text (V3-3, case D; compact
         expect(floor.cardScrolls).toBe('auto');
         expectClearOfChrome(frame);
 
-        // Unpinned, the bar sits after the content, inside the page's padding: it still fits across, and Next still
-        // takes a press.
+        // Unpinned, the bar sits after the content, inside the page's padding: it still fits across, and Save changes
+        // still takes a press.
         await field.press('Escape');
         await expect(listbox).toHaveCount(0);
-        const next = page.getByRole('button', { name: /^Next: / });
+        const publish = page.getByRole('button', { name: 'Save changes' });
 
-        await next.scrollIntoViewIfNeeded();
-        const nextBox = await next.boundingBox();
+        await publish.scrollIntoViewIfNeeded();
+        const publishBox = await publish.boundingBox();
 
         expect(
             await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
             'the page scrolls sideways',
         ).toBeLessThanOrEqual(0);
         expect(
-            (nextBox?.x ?? Number.NaN) + (nextBox?.width ?? Number.NaN),
-            'Next hangs off the right edge',
+            (publishBox?.x ?? Number.NaN) + (publishBox?.width ?? Number.NaN),
+            'Save changes hangs off the right edge',
         ).toBeLessThanOrEqual(640);
-        expect(await isReachable(next), 'something covers Next').toBe(true);
+        expect(await isReachable(publish), 'something covers Save changes').toBe(true);
     });
 
     // V3-M2a's residual: the listbox (its floor) is taller than the card, so ArrowDown must scroll the card as well.

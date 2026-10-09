@@ -38,6 +38,11 @@ export {
 // The query-key factory. Exported from the main barrel (not only the React-only `./hooks` subpath) because a
 // key is a plain value: a non-React caller inspecting or seeding the cache needs it without pulling in hooks.
 export { recipeServiceKeys } from './queries.js';
+export type { LibraryParams } from './queries.js';
+
+// The whole-library read My recipes filters on the device (A11).
+export { LIBRARY_CHUNK_SIZE } from './libraryChunk.js';
+export type { LibraryChunk } from './libraryChunk.js';
 
 export {
     BadRequestError,

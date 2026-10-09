@@ -12,53 +12,66 @@ import type { FC } from 'react';
 
 import type { Recipe } from '@kitchensink/recipe-core';
 
+import type { CardVariant } from '../card/cardVariant.js';
 import { recipeMessages } from '../messages.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
-import { RecentRecipeGrid } from '../components/RecentRecipeGrid.js';
-import { RecipeWidgetCard } from '../components/RecipeWidgetCard.js';
-import { RecipeWidgetEmptyState } from '../components/RecipeWidgetEmptyState.js';
-import { MAX_RECENT_RECIPES, toRecipeSummary } from '../components/props.js';
+import { RecentRecipeGrid } from '../components/RecentRecipeGrid.native.js';
+import { RecipeWidgetCard } from '../components/RecipeWidgetCard.native.js';
+import { RecipeWidgetEmptyState } from '../components/RecipeWidgetEmptyState.native.js';
+import {
+    MAX_RECENT_RECIPES,
+    toRecipeSummary,
+    type RecipeWidgetFirstRun,
+    type RecipeWidgetSeeAll,
+} from '../components/props.js';
 
 /**
  * Props for the recipe Home widget (native).
  *
  * The RECIPES arrive as settled props while the web entry takes a promise: the host slot reads them with
- * `useSuspenseQuery` under its own `QueryBoundary`, so by the time this leaf renders the read has resolved, and the
- * boundary — not this leaf — owns the loading card and the failure notice. `use(promise)` + `<Suspense>` are
- * client-side React 19 and work identically on React Native (ADR-0021 §6), which is how
- * {@link RecipeHomeWidgetProps.renderNutrition} works; only SERVER streaming is web-only.
+ * `useSuspenseQuery` under its own `QueryBoundary`, which owns the loading and failure states.
  */
 export interface RecipeHomeWidgetProps {
-    recipes?: readonly Recipe[];
-    /**
-     * Navigation seam for a card activation — the mirror of the web entry's prop, so the two platforms expose
-     * the same capability. Absent ⇒ the cards render inert.
-     */
+    readonly recipes?: readonly Recipe[];
+    /** The card variant the host decided (`cardVariantOf(containerClass, …, 'home')`, owner ruling D8). */
+    readonly variant: CardVariant;
+    /** A card activation. Absent ⇒ the cards render inert. */
     readonly onSelectRecipe?: (id: string) => void;
-    /**
-     * Render one recipe's deferred per-serving calorie figure (see {@link RenderRecipeNutrition}) — the
-     * PROMISE-driven half of this widget, and the proof that the premise corrected above was wrong. The host
-     * slot closes over the widget's ONE batch promise. Absent ⇒ the cards render no nutrition line.
-     */
+    /** "See all" at the end of the heading row, while the cook has recipes. */
+    readonly seeAll?: RecipeWidgetSeeAll;
+    /** The first run's ways in. */
+    readonly firstRun?: RecipeWidgetFirstRun;
+    /** Render one recipe's deferred per-serving calorie figure (see {@link RenderRecipeNutrition}). */
     readonly renderNutrition?: RenderRecipeNutrition;
 }
 
-const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipes = [], onSelectRecipe, renderNutrition }) => {
+const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({
+    recipes = [],
+    variant,
+    onSelectRecipe,
+    seeAll,
+    firstRun,
+    renderNutrition,
+}) => {
     const { widgetTitle } = useMessages(recipeMessages);
-
     const recent = recipes.slice(0, MAX_RECENT_RECIPES).map(toRecipeSummary);
 
     if (recent.length === 0) {
         return (
             <RecipeWidgetCard title={widgetTitle}>
-                <RecipeWidgetEmptyState />
+                <RecipeWidgetEmptyState {...(firstRun === undefined ? {} : { firstRun })} />
             </RecipeWidgetCard>
         );
     }
 
     return (
-        <RecipeWidgetCard title={widgetTitle}>
-            <RecentRecipeGrid recipes={recent} onSelectRecipe={onSelectRecipe} renderNutrition={renderNutrition} />
+        <RecipeWidgetCard title={widgetTitle} {...(seeAll === undefined ? {} : { seeAll })}>
+            <RecentRecipeGrid
+                recipes={recent}
+                variant={variant}
+                {...(onSelectRecipe === undefined ? {} : { onSelectRecipe })}
+                {...(renderNutrition === undefined ? {} : { renderNutrition })}
+            />
         </RecipeWidgetCard>
     );
 };

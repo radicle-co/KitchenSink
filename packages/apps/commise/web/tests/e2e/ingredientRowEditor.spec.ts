@@ -2,10 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 
 import { signInWithTicket } from './utils/auth';
-import { route } from './utils/basePath';
 import { mockFoodApi } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { E2E_CATALOG_FOOD, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * The ingredient row editor's stories on a saved recipe (plan 002 V1 B7), through the real web app with the recipe
@@ -14,8 +14,9 @@ import { E2E_CATALOG_FOOD, makeRecipeDetail, mockRecipeApi, readViewerAppId } fr
  * - US7, Change food: the cook reopens a matched line's food and picks another, keeping the amount, unit, preparation
  *   and section. Before B7 the rebind command existed and no editor control called it (plan 002 status, R17/US3).
  * - Row 1's Find a food: a line in the cook's own wording gets a food from its own field.
- * - `docs/design/rowEditorOpenDecisions.md` R7: text a Change food row holds refuses Save Draft; the refusal lands on
- *   step 2 with focus in that field, which says why, and choosing "Use … as written" lets the save go ahead.
+ * - `docs/design/rowEditorOpenDecisions.md` R7: text a Change food row holds refuses Publish; the refusal lands in that
+ *   field, which says why, and choosing "Use … as written" lets the publish go ahead. REWRITTEN for slice 7: Save Draft
+ *   is gone (the editor saves at checkpoints), so the refused write is Publish, pressed from the Steps section.
  * - Row 6 (`docs/design/ingredientStatusExplanation.md` SPECIFY.1; `docs/design/rowEditorOpenDecisions.md` S7 list
  *   contract P12): an `UNRESOLVED` line's glyph opens a list searched from the line's own words, as row 7's is. A pick
  *   of a remote food adopts it and rebinds THAT line (ADR-0055 point 10), and None of these returns the line to its
@@ -78,10 +79,8 @@ const kaleLine = {
 /** Kale as USDA streams it: no catalog food matches the line, so the list's only food is this remote one. */
 const KALE_RAW = { name: 'Kale, raw', reference: 'sealed.kale.raw', rootId: 'food_kale' } as const;
 
-async function openIngredientsStep(page: Page): Promise<void> {
-    await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
-    await page.getByRole('button', { name: /Ingredients:/ }).click();
-    await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 2 of 4');
+async function openIngredientsSection(page: Page): Promise<void> {
+    await openRecipeEditor(page, RECIPE_ID);
 }
 
 test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', () => {
@@ -94,7 +93,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         await mockFoodApi(page);
         const rebinds = await mockRebind(page, store, { foodNames: { [PEPPER.foodId]: PEPPER.name } });
 
-        await openIngredientsStep(page);
+        await openIngredientsSection(page);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
         await ingredients.getByRole('button', { name: 'Actions for Garlic' }).click();
@@ -143,7 +142,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         await mockFoodApi(page);
         const rebinds = await mockRebind(page, store, { foodNames: { [PEPPER.foodId]: PEPPER.name } });
 
-        await openIngredientsStep(page);
+        await openIngredientsSection(page);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
         await ingredients.getByRole('button', { name: 'Actions for my spice mix' }).click();
@@ -160,7 +159,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         ]);
     });
 
-    test('R7: text a Change food row holds refuses Save Draft from step 3, lands in that field, and “as written” lets it save', async ({
+    test('R7: text a Change food row holds refuses Publish from the Steps section, lands in that field, and “as written” lets it publish', async ({
         page,
     }) => {
         await signInWithTicket(page);
@@ -169,18 +168,18 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         await mockFoodApi(page);
         const rebinds = await mockRebind(page, store, {});
 
-        await openIngredientsStep(page);
+        await openIngredientsSection(page);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
         await ingredients.getByRole('button', { name: 'Actions for Garlic' }).click();
         await page.getByRole('menuitem', { name: 'Change food' }).click();
         await ingredients.getByRole('combobox', { name: 'Ingredient 2 name' }).fill('smoked garlic');
-        // The rail is ungated (R6), so the cook can be on another step when the save is refused.
-        await page.getByRole('button', { name: /Instructions:/ }).click();
-        await page.getByRole('button', { name: 'Save Draft' }).click();
+        // The cook can be in another section when the publish is refused.
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.getByRole('navigation', { name: 'Recipe sections' }).getByRole('link', { name: 'Steps' }).click();
+        await page.getByRole('button', { name: 'Publish' }).click();
 
-        // The refusal lands on step 2, in the field, which says why; nothing was written.
-        await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 2 of 4');
+        // The refusal lands in the field, which says why; nothing was written.
         const field = page
             .getByRole('region', { name: 'Ingredients' })
             .getByRole('combobox', { name: 'Ingredient 2 name' });
@@ -199,7 +198,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         // The list opened with the focus (R7 item 3), so the cook keeps the words without editing them.
         await expect(field).toHaveAttribute('aria-expanded', 'true');
         await page.getByRole('option', { name: 'Use “smoked garlic” as written, without nutrition' }).click();
-        await page.getByRole('button', { name: 'Save Draft' }).click();
+        await page.getByRole('button', { name: 'Publish' }).click();
 
         await expect(page.getByRole('heading', { name: 'Garlic supper' })).toBeVisible();
         expect(store.get(RECIPE_ID)?.ingredients[1]).toMatchObject({
@@ -207,6 +206,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
             isUserEntered: true,
             preparation: 'minced',
         });
+        expect(store.get(RECIPE_ID)?.status).toBe('published');
         // A declaration has no food to rebind to, so it went through the draft, not the command (decision 7).
         expect(rebinds).toEqual([]);
     });
@@ -229,7 +229,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         await mockFoodApi(page);
         const rebinds = await mockRebind(page, store, { foodNames: { [PEPPER.foodId]: PEPPER.name } });
 
-        await openIngredientsStep(page);
+        await openIngredientsSection(page);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
         await ingredients.getByRole('button', { name: `Actions for ${PEPPER.name}` }).click();
@@ -264,7 +264,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         await mockFoodApi(page);
         const rebinds = await mockRebind(page, store, { foodNames: { [PEPPER.foodId]: PEPPER.name } });
 
-        await openIngredientsStep(page);
+        await openIngredientsSection(page);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
         const loaded = store.get(RECIPE_ID);
 
@@ -279,7 +279,9 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         await ingredients.getByRole('combobox', { name: 'Ingredient 2 name' }).fill('pepper');
         await page.getByRole('option', { name: PEPPER.name }).click();
 
-        await expect(page.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeVisible();
+        // The seed is a never-published draft, so the conflict speaks of a draft saved elsewhere, with no versions
+        // (ADR-0058; slice 7's draft conflict copy).
+        await expect(page.getByRole('heading', { name: 'This draft changed somewhere else' })).toBeVisible();
         expect(rebinds.map((each) => each.body.expectedVersion)).toEqual([1]);
         expect(store.get(RECIPE_ID)?.ingredients[1]?.foodId).toBe('food_garlic');
     });
@@ -296,7 +298,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         });
         const rebinds = await mockRebind(page, store, { foodNames: { [KALE_RAW.rootId]: KALE_RAW.name } });
 
-        await openIngredientsStep(page);
+        await openIngredientsSection(page);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
         // The panel never opens by itself, and nothing is searched until the cook asks.
@@ -338,7 +340,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         });
         const rebinds = await mockRebind(page, store, {});
 
-        await openIngredientsStep(page);
+        await openIngredientsSection(page);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
         await ingredients.getByRole('button', { name: 'About Kale' }).click();

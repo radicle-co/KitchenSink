@@ -318,11 +318,15 @@ describe('the platform set', () => {
 });
 
 describe('the exclusion table holds to the flows, in both directions', () => {
-    it('is not vacuous: the detector finds the direct case and the sub-flow-only case on the real tree', () => {
+    /**
+     * REWRITTEN for UI overhaul slice 7: the editor stopped asking before it leaves, so the ingredient flows no longer
+     * raise the discard guard, and no planned flow reaches the back key ONLY through a sub-flow any more. The walk's
+     * transitivity is proved where it always was first, by the fixture table's `viaSubFlow` and `viaSubFlowFile`; on
+     * the real tree the guard proves it finds the direct case, and that the shared sub-flow still reaches the key.
+     */
+    it('is not vacuous: the detector finds the direct case on the real tree', () => {
         expect(ANDROID_ONLY).toContain('recipes/systemBackGuard');
-        // Reaches `pressKey: Back` ONLY through `common/raiseDiscardGuard.yaml` — proves the walk is transitive.
-        expect(readCommittedFlow('recipes/ingredientUnmatched')).not.toMatch(/pressKey:\s*Back/u);
-        expect(ANDROID_ONLY).toContain('recipes/ingredientUnmatched');
+        expect(flowReachesAndroidOnly('recipes/common/raiseDiscardGuard', readCommittedFlow)).toBe(true);
     });
 
     it('excludes NOTHING on android — the plan is the Android plan', () => {

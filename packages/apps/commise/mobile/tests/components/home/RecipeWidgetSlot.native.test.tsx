@@ -59,7 +59,7 @@ describe('RecipeWidgetSlot (mobile)', () => {
 
         // The lazy chunk resolves to the widget, which renders its skeleton under the loading flag.
         expect(await screen.findByText('Recent recipes')).toBeTruthy();
-        expect(screen.queryByText('No recipes yet. Create your first recipe to see it here.')).toBeNull();
+        expect(screen.queryByText('Your recipes will show up here.')).toBeNull();
     });
 
     it('renders the recent recipes once the query resolves with data', async () => {
@@ -77,7 +77,7 @@ describe('RecipeWidgetSlot (mobile)', () => {
 
         renderSlot();
 
-        expect(await screen.findByText('No recipes yet. Create your first recipe to see it here.')).toBeTruthy();
+        expect(await screen.findByText('Your recipes will show up here.')).toBeTruthy();
     });
 
     /**
@@ -91,11 +91,50 @@ describe('RecipeWidgetSlot (mobile)', () => {
 
         renderSlot(noop, noop, onWidgetError);
 
-        expect(await screen.findByText('This section couldn’t load.')).toBeTruthy();
-        expect(screen.queryByText('No recipes yet. Create your first recipe to see it here.')).toBeNull();
+        expect(await screen.findByText('We couldn’t load your recent recipes.')).toBeTruthy();
+        expect(screen.queryByText('Your recipes will show up here.')).toBeNull();
         expect(onWidgetError).toHaveBeenCalledWith(expect.objectContaining({ message: 'recipe service unavailable' }));
         // The route off Home survives the failure.
-        expect(screen.getByRole('button', { name: 'See all recipes' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'See all recipes' })).toBeTruthy();
+    });
+
+    // Slice 4 (`buildSpec.md` §4.2 Load error): a failed READ offers Try again, and its reset refetches.
+    it('refetches the recent recipes from Try again after a failed read', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const list = vi
+            .spyOn(client, 'listRecipes')
+            .mockRejectedValueOnce(new Error('down'))
+            .mockResolvedValue(makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]));
+
+        renderSlot();
+        fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+
+        expect(await screen.findByText('Weeknight Pasta')).toBeTruthy();
+        expect(list.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('offers the first run’s three ways in when the host wires them', async () => {
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipePage([]));
+        const onCreateRecipe = vi.fn();
+        const onFindOnDiscover = vi.fn();
+
+        renderWithRecipeClient(
+            <RecipeWidgetSlot
+                onSeeAllRecipes={noop}
+                onSelectRecipe={noop}
+                onCreateRecipe={onCreateRecipe}
+                onPasteIngredients={noop}
+                onFindOnDiscover={onFindOnDiscover}
+            />,
+            client,
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Add your first recipe' }));
+        fireEvent.click(screen.getByRole('link', { name: 'Or find one on Discover' }));
+
+        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+        expect(onFindOnDiscover).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: 'Paste ingredients' })).toBeTruthy();
     });
 
     it('shows NO failure notice while the widget renders normally', async () => {
@@ -115,28 +154,27 @@ describe('RecipeWidgetSlot (mobile)', () => {
     });
 
     it('renders a "see all recipes" entry and forwards activation to onSeeAllRecipes', async () => {
-        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipePage([]));
+        // The first run drops "See all", so the library has a recipe.
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipePage([makeRecipe({ id: 'r1' })]));
         const onSeeAllRecipes = vi.fn();
 
         renderSlot(onSeeAllRecipes);
 
-        const entry = await screen.findByRole('button', { name: 'See all recipes' });
+        const entry = await screen.findByRole('link', { name: 'See all recipes' });
         fireEvent.click(entry);
 
         expect(onSeeAllRecipes).toHaveBeenCalledTimes(1);
     });
 
     it('keeps the "see all recipes" label WCAG-AA legible on the Home surface', async () => {
-        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipePage([]));
+        vi.spyOn(client, 'listRecipes').mockResolvedValue(makeRecipePage([makeRecipe({ id: 'r1' })]));
 
         renderSlot();
 
         // Bare text on the Home screen's `sand` background — no tint of its own — so the ratio is the token
         // against that surface: seafoam scored 3.73:1, under the 4.5:1 body floor (SC 1.4.3). Mirrors the web
         // slot's link, which is the same control on the other platform (§14).
-        const label = within(await screen.findByRole('button', { name: 'See all recipes' })).getByText(
-            'See all recipes',
-        );
+        const label = within(await screen.findByRole('link', { name: 'See all recipes' })).getByText('See all');
 
         expect(computedContrast(label, { surface: palette.sand }), '“See all recipes” label').toBeGreaterThanOrEqual(
             4.5,
@@ -158,7 +196,7 @@ describe('RecipeWidgetSlot (mobile) — recipe card activation', () => {
 
         renderSlot(noop, onSelectRecipe);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Weeknight Pasta' }));
+        fireEvent.click(await screen.findByRole('link', { name: 'Weeknight Pasta' }));
 
         expect(onSelectRecipe).toHaveBeenCalledWith('r1');
     });
@@ -177,7 +215,7 @@ describe('RecipeWidgetSlot (mobile) — recipe card activation', () => {
 
         // The mutation that matters: a slot that hardcoded the first id, or dropped the argument, passes the
         // single-card test above and fails here.
-        fireEvent.click(await screen.findByRole('button', { name: 'Herb Risotto' }));
+        fireEvent.click(await screen.findByRole('link', { name: 'Herb Risotto' }));
 
         expect(onSelectRecipe).toHaveBeenCalledTimes(1);
         expect(onSelectRecipe).toHaveBeenCalledWith('r2');
@@ -192,7 +230,7 @@ describe('RecipeWidgetSlot (mobile) — recipe card activation', () => {
 
         renderSlot(onSeeAllRecipes, onSelectRecipe);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Weeknight Pasta' }));
+        fireEvent.click(await screen.findByRole('link', { name: 'Weeknight Pasta' }));
 
         expect(onSelectRecipe).toHaveBeenCalledWith('r1');
         expect(onSeeAllRecipes).not.toHaveBeenCalled();

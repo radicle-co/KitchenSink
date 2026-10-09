@@ -24,11 +24,11 @@ import { Popover } from '@commise/ui/popover';
 import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
 
 import { rowBadgeStatus, rowGlyphIcon } from './ingredientRowPolicy.js';
-import { errorText, fieldChrome, sectionCard, sectionHeading, sizedField } from './formSectionStyles.js';
+import { errorText, fieldChrome, sectionCard, sizedField } from './formSectionStyles.js';
 import { fillTemplate } from '../list/model.js';
 import {
     ingredientCommitFailureId,
@@ -52,7 +52,9 @@ import { trailingEntryFieldOf } from './trailingEntryField.js';
 import { NutritionPanelBody } from './NutritionPanelBody.js';
 import { ShortlistPanel } from './ShortlistPanel.js';
 import { recipeFormMessages } from './messages.js';
+import { PastedReadingRow } from './PastedReadingRow.js';
 import { quantityInputValue, type RecipeIngredientsFieldsProps } from './props.js';
+import { editorMessages, pluralOf } from '../editor/messages.js';
 import { useIngredientsFields } from './useIngredientsFields.js';
 
 /** What a row draws with, beyond its view. */
@@ -324,15 +326,19 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
 /** Step 2: the dynamic ingredient list, and the trailing add row after it. */
 export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props) => {
     const m = useMessages(recipeFormMessages);
+    const { ingredients: editor, index } = useMessages(editorMessages);
+    const editorSections = index.sections;
+    const locale = useLocale();
     const model = useIngredientsFields(props);
-    const { nutrition, rowEditor } = props;
+    const { nutrition, rowEditor, paste } = props;
+    const reading = paste?.reading ?? [];
     const { authoredFood, details } = rowEditor;
-    const { trailing, total } = model;
+    const { trailing } = model;
     const drawing: RowDrawing = { m, entryCopy: model.entryCopy, nutrition };
 
     return (
-        <section aria-label={m.ingredientsHeading} className={sectionCard}>
-            <h2 className={sectionHeading}>{m.ingredientsHeading}</h2>
+        // Slice 7: the editor's section holds the region and its H2 ("Ingredients"); this leaf is the body under it.
+        <div className={sectionCard}>
             {/* The settled retry's outcome, announced politely; focus does not move (V1 sign-off 3c). Always rendered,
                 so the region exists before its text changes. */}
             <p role="status" className="sr-only">
@@ -347,10 +353,13 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     {model.listError}
                 </p>
             )}
-            {model.sections.length === 0 ? (
+            <p role="status" className="sr-only">
+                {paste?.added === undefined ? '' : pluralOf(editor.pasteAdded, paste.added.count, locale)}
+            </p>
+            {model.sections.length === 0 && reading.length === 0 ? (
                 <p className="text-body-sm text-ink-muted">{m.noIngredients}</p>
             ) : (
-                <ul className="flex flex-col gap-3">
+                <ul aria-label={editorSections.ingredients} className="flex flex-col gap-3">
                     {model.sections.flatMap((section) => [
                         // The sections are interleaved in this ONE list (`useIngredientsFields`), with no heading for
                         // an unlabelled run. `role="presentation"` so the heading is not counted as a list item: the
@@ -367,16 +376,42 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                         // focused field, its open panel — to the row below when a line above is removed (plan 002 V1).
                         ...section.rows.map((row) => <IngredientRow key={row.line.key} row={row} {...drawing} />),
                     ])}
+                    {reading.map((row) => (
+                        <PastedReadingRow key={row.key} row={row} onRetry={paste?.onRetry} />
+                    ))}
                 </ul>
             )}
             {/* B8: the trailing add row. Nothing enters the draft until a pick (U28); then the line appends, the field
                 empties, and focus stays in it (§2d). Below 640 px it takes a full-width line, as row names do. */}
             <div className="flex flex-col gap-1">
+                {paste?.onOpen !== undefined && model.sections.length === 0 && reading.length === 0 && (
+                    // §7.5.4: in the empty section, Paste a list sits beside the add field as a secondary button.
+                    <div className="flex">
+                        <Button variant="secondary" icon="clipboardPaste" onPress={paste.onOpen}>
+                            {editor.pasteList}
+                        </Button>
+                    </div>
+                )}
                 <Combobox
                     {...trailingEntryFieldOf(trailing.entryField, model.entryCopy)}
+                    // How the text was read, and "Pick a food from the list." (§7.5.3), directly under the field. The
+                    // reading is said to a screen reader, after a pause, below.
+                    belowField={
+                        <>
+                            {trailing.readingShown === undefined ? null : (
+                                <span className="text-caption text-ink-muted">{trailing.readingShown}</span>
+                            )}
+                            <p role="status" className={trailing.pickFoodNotice === undefined ? 'sr-only' : errorText}>
+                                {trailing.pickFoodNotice ?? ''}
+                            </p>
+                        </>
+                    }
                     leadingIcon={<Icon name="plus" size={16} />}
                     loadingIcon={<Icon name="search" size={16} />}
                 />
+                <p role="status" className="sr-only">
+                    {trailing.readingSpoken}
+                </p>
                 {trailing.busyText !== undefined && (
                     <span className="text-caption text-ink-muted">{trailing.busyText}</span>
                 )}
@@ -425,15 +460,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 )}
                 {nutrition.read === 'ready' && (
                     <>
-                        <p className="text-body-sm font-medium text-ink">
-                            {fillTemplate(m.nutritionTotalTemplate, {
-                                calories: total.calories,
-                                protein: total.proteinG,
-                                carbs: total.carbsG,
-                                fat: total.fatG,
-                            })}
-                        </p>
-                        {!total.isComplete && <p className="text-caption text-ink-muted">{m.nutritionPartialNotice}</p>}
+                        <p className="text-body-sm font-medium tabular-nums text-ink">{model.totalLine}</p>
                         {/* R38 — a total computed from the low end of `2–3 cups` is up to a third under, and says so
                             here rather than reading as an exact figure. */}
                         {model.rangeNotice !== undefined && (
@@ -442,6 +469,6 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     </>
                 )}
             </div>
-        </section>
+        </div>
     );
 };

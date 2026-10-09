@@ -48,6 +48,9 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
   component reads colour from roles only, and a guard enforces it. The designers specify the dark values first.
 - **D17, theme choice.** The app follows the device or browser appearance setting. There is no in-app theme switch
   for now.
+- **D18, cook marks on web.** The recipe page keeps the ticked ingredients and the current step in `sessionStorage`,
+  as recipe and line ids only. They survive a reload in the same tab. Closing the tab or signing out clears them. This
+  is the second narrow exception to the ruling of 2026-09-17, after D7.
 - **D16, sandbox alarms.** Sandbox alarms stay off. A failed morning start is reported by the Sentry cron monitor.
 
 ## Adopted from the joint recommendations

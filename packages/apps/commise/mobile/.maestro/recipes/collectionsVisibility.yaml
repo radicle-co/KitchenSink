@@ -1,33 +1,20 @@
 appId: io.commise.mobile
 ---
-# Collection visibility, PREMIUM path (W5 Task 13, C1/FR-010): the mobile mirror of the web Playwright
-# visibility-toggle spec. It drives a real Public -> Private round trip and SAVES each leg.
+# Collection visibility, PREMIUM path (W5 Task 13, C1/FR-010; slice 5, `docs/design/uiOverhaul/buildSpec.md` §5.2) — the
+# mobile mirror of the web Playwright visibility spec. It drives a real Private -> Public -> Private round trip from the
+# collection's ⋯ menu ("Make public" / "Make private"). A change takes effect AT ONCE and says so in a snackbar
+# ("Collection is now public.") whose Undo changes it back with a compensating write.
 #
-# ⛔ WHY THIS NO LONGER ASSERTS THE FREE-TIER GATE, and why that is not a weakening. Read before "restoring" it.
+# ⛔ WHY THIS DOES NOT ASSERT THE FREE-TIER GATE, and why that is not a weakening. The Maestro signer is the pool's `signer`
+# slot, which the roster declares `premium` (`packages/tools/e2e-fixtures/src/testPool.ts`,
+# `lane('signer', { premium: true, … })`) so the seeded world can hold its two PRIVATE recipes. A free-tier cook meets the
+# Premium sheet for "Make private"; that gate stays covered by `CollectionDetailScreen.native.test.tsx` and the web
+# Playwright spec, because proving it here would take a second, free-tier device sign-in the fixture contract does not
+# provide.
 #
-#   This flow used to assert that "Private" was DISABLED and showed "Upgrade to premium…". That was true only
-#   while the Maestro signer was a free-tier account. It is not free now: the signer is the Maestro pool's
-#   `signer` slot, which the roster declares `premium` (`packages/tools/e2e-fixtures/src/testPool.ts`,
-#   `lane('signer', { premium: true, … })`). It has to be premium so the seeded world can hold its two PRIVATE
-#   recipes (see `e2e-seed`'s `provision.ts`). Run 34863424203's hierarchy shows the private radio ENABLED and
-#   no upgrade copy. The gate assertion was describing an identity this suite no longer signs in as.
-#
-#   The old docblock named what was owed once a premium identity existed: "Covering the successful save
-#   on-device needs a PREMIUM e2e identity; until one exists, that path is verified only by the component tests".
-#   It exists, so this flow now covers that save. The FREE-tier gate (private option disabled, localized reason,
-#   inert press) stays covered by `CollectionActions.native.test.tsx`, `CollectionDetailScreen.native.test.tsx`
-#   and the web Playwright spec. It no longer has an on-device check, because proving it here would take a second,
-#   free-tier device sign-in that the fixture contract does not provide.
-#
-# Creates its own OWNED collection (HERMETIC — same reasoning as `collections.yaml`) and deletes it at the end;
-# the per-flow reset also clears every collection unconditionally, so a failure part-way leaves nothing behind.
-# A fresh collection is PRIVATE by default. The header's visibility BADGE and the radio's own LABEL render the
-# identical text on this screen; every radio assertion disambiguates with `checked:`, which only the radio — a
-# real accessibility-checkable control — can satisfy.
-#
-# The falsifiable core of each save is `Save changes` going back to DISABLED. The screen enables Save exactly
-# when the pending choice differs from the SAVED visibility, so Save is disabled again only once the server's
-# answer has made the choice the saved value. A save that failed, or was never sent, leaves it enabled.
+# Creates its own OWNED collection (HERMETIC — same reasoning as `collections.yaml`) and deletes it at the end; the per-flow
+# reset also clears every collection unconditionally. A fresh collection is PRIVATE by default, and the header's meta line
+# says so ("Private" / "Public"), which is what each step asserts.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
@@ -37,79 +24,50 @@ appId: io.commise.mobile
       timeout: 40000
 
 - tapOn: 'New collection'
-- assertVisible: 'Collection name'
-- tapOn: 'Collection name'
+- assertVisible: 'Name'
+- tapOn: 'Name'
 - inputText: 'Maestro visibility gate'
-- tapOn: 'Create'
+# Enter submits the name from the keyboard, as a cook finishes a one-field form.
+- pressKey: Enter
 
 - extendedWaitUntil:
-      visible: 'Maestro visibility gate'
+      visible: 'More actions for Maestro visibility gate'
       timeout: 40000
-- tapOn: 'Maestro visibility gate'
-- assertVisible: 'Rename'
+- assertVisible: 'Private'
 
-# ⚠️ WHICH STATE FILTERS CAN FAIL. Each control here is TWO matchable nodes: the accessible control (label as
-# `accessibilityText`, carrying checked/enabled) and its visible `Text` child, which is never checked and never
-# disabled. So `checked: true` and `enabled: false` can match only the control and really test it. `checked:
-# false` or `enabled: true` would ALWAYS match the child and prove nothing. "Enabled" is therefore asserted as
-# `assertNotVisible … enabled: false`.
-#
-# The current visibility (private, the create default) is the CHECKED radio, and nothing is pending yet.
-- assertVisible:
-      text: '^Private$'
-      checked: true
-- assertVisible:
-      text: 'Save changes'
-      enabled: false
-
-# A premium owner is NOT gated: the private option is enabled and no upgrade reason renders. Falsifiable in the
-# other direction from the old flow: a gate that wrongly blocked a premium account fails here.
-- assertNotVisible:
-      text: '^Private$'
-      enabled: false
-- assertNotVisible: 'Upgrade to premium to make a collection private.'
-
-# Private -> Public: choosing is only a PENDING change, so Save becomes available; saving makes it the saved value.
-- tapOn:
-      text: '^Public$'
-- assertVisible:
-      text: '^Public$'
-      checked: true
-- assertNotVisible:
-      text: 'Save changes'
-      enabled: false
-- tapOn: 'Save changes'
+# A premium owner is NOT gated: the menu offers Make public, and no Premium sheet stands in the way.
+- tapOn: 'More actions for Maestro visibility gate'
+- assertVisible: 'Make public'
+- tapOn: 'Make public'
 - extendedWaitUntil:
-      visible:
-          text: 'Save changes'
-          enabled: false
+      visible: 'Collection is now public.'
       timeout: 40000
-- assertVisible:
-      text: '^Public$'
-      checked: true
+- assertVisible: 'Public'
 
-# Public -> Private: the PREMIUM-ONLY transition, and the one the free-tier gate exists to refuse. This is the leg
-# the old flow could not reach on a device.
-- tapOn:
-      text: '^Private$'
-- assertVisible:
-      text: '^Private$'
-      checked: true
-- assertNotVisible:
-      text: 'Save changes'
-      enabled: false
-- tapOn: 'Save changes'
+# UNDO: a compensating write changes it back at once.
+- tapOn: 'Undo'
 - extendedWaitUntil:
-      visible:
-          text: 'Save changes'
-          enabled: false
+      visible: 'Private'
       timeout: 40000
-- assertVisible:
-      text: '^Private$'
-      checked: true
+
+# Private -> Public again, then Public -> Private: the PREMIUM-ONLY transition, the one the free-tier gate exists to refuse.
+- tapOn: 'More actions for Maestro visibility gate'
+- tapOn: 'Make public'
+- extendedWaitUntil:
+      visible: 'Collection is now public.'
+      timeout: 40000
+- tapOn: 'More actions for Maestro visibility gate'
+- assertVisible: 'Make private'
+- tapOn: 'Make private'
+- extendedWaitUntil:
+      visible: 'Collection is now private.'
+      timeout: 40000
+- assertVisible: 'Private'
 
 # CLEANUP (hermetic).
-- tapOn: 'Delete'
+- tapOn: 'More actions for Maestro visibility gate'
+- tapOn: 'Delete collection'
+- tapOn: 'Delete collection'
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000

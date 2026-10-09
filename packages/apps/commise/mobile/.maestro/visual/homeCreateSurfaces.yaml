@@ -1,4 +1,4 @@
-# VISUAL REGRESSION — the Home widget surface + the recipe-creation wizard entry (U10b). Maestro's OWN
+# VISUAL REGRESSION — the Home widget surface + the recipe editor's entry (U10b). Maestro's OWN
 # `assertScreenshot`; no paid vendor.
 #
 # ⚠️ INERT UNTIL BASELINES EXIST — see the header of `visual/authSurfaces.yaml` for the full reasoning
@@ -14,7 +14,7 @@
 #     PLACEHOLDER carrying the real widget's heading and a visible "Coming soon", with NO fabricated data.
 #     That distinction ("coming soon", not "stuck loading", and never invented content) is a purely VISUAL
 #     property, which is why it earns a pixel baseline on top of `home.yaml`'s text assertions.
-#   - FR-001 / FR-001b — the recipe-creation wizard's first step: the form chrome, and the difficulty picker
+#   - FR-001 / FR-001b — the recipe editor's first screen (Details): the form chrome, and the difficulty picker
 #     whose "no difficulty stated" is a first-class state that MUST render no badge and no default.
 
 appId: io.commise.mobile
@@ -31,7 +31,7 @@ appId: io.commise.mobile
 - waitForAnimationToEnd
 
 # ⚠️ `cropOn` IS MANDATORY ON HOME, and the reason is not cosmetic: `HomeGreeting` renders a time-of-day
-# greeting from one of THREE buckets (`Good morning/afternoon/evening, Chef!`) over the viewer's LIVE local
+# greeting from one of THREE buckets (`Good morning/afternoon/evening`, with the cook's name when there is one) over the viewer's LIVE local
 # calendar date. A full-screen Home baseline would therefore false-fail every day, and three times a day. A
 # threshold loose enough to swallow that variance (~0.5% of the frame) would also swallow real regressions,
 # which is not a gate — so the variance is EXCLUDED by cropping instead of tolerated.
@@ -50,7 +50,7 @@ appId: io.commise.mobile
       thresholdPercentage: 99
       label: 'FR-046/CR-001 — roadmap widget renders as a skeleton placeholder, not fabricated data'
 
-# Cross into the recipes surface and open the creation wizard. `scrollUntilVisible` first: the recipe widget's
+# Cross into the recipes surface and open the recipe editor. `scrollUntilVisible` first: the recipe widget's
 # entry sits below the roadmap placeholders (same reason `auth/signin.yaml` scrolls for it).
 - scrollUntilVisible:
       element: 'See all recipes'
@@ -62,18 +62,16 @@ appId: io.commise.mobile
 
 # The pinned create FAB (present in the populated state the per-flow reseed hands this flow).
 - tapOn: 'New recipe'
-# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
-- tapOn: 'Create from Scratch'
 - extendedWaitUntil:
-      visible: 'Step 1 of 4'
+      visible: 'Close editor'
       timeout: 30000
 - waitForAnimationToEnd
 
-# FR-001 / FR-001b — full-screen is safe HERE (unlike Home): the wizard opens at scroll-top with an EMPTY
+# FR-001 / FR-001b — full-screen is safe HERE (unlike Home): the editor opens at scroll-top with an EMPTY
 # form and its valid defaults (servings 1 / prep 0 / cook 0 per `defaultRecipeFormValues`), no seeded data and
 # no clock-derived copy. Nothing has been tapped yet, so no soft keyboard is up either (and the runner sets
 # `show_ime_with_hard_keyboard 0` regardless). Threshold 98 for the status-bar clock, as in auth-surfaces.
 - assertScreenshot:
       path: baselines/recipe-create-step1.png
       thresholdPercentage: 98
-      label: 'FR-001/FR-001b — creation wizard step 1 chrome and difficulty picker (no default difficulty)'
+      label: 'FR-001/FR-001b — recipe editor Details chrome and difficulty picker (no default difficulty)'

@@ -65,7 +65,7 @@ const readSpec = (name: string): string => readFileSync(join(E2E_DIR, name), 'ut
 const SESSION_HOSTILE_SIGNATURES: readonly { readonly pattern: RegExp; readonly meaning: string }[] = [
     { pattern: /clerkSessionStatus\(/, meaning: 'asserts a session status at Clerk (i.e. that it was revoked)' },
     { pattern: /clerk\.signOut\(/, meaning: 'signs out through @clerk/testing' },
-    { pattern: /name: 'Sign out of your account'/, meaning: 'clicks the app sign-out control' },
+    { pattern: /name: 'Sign out'/, meaning: 'clicks the app sign-out control' },
     { pattern: /account\/erasure/, meaning: 'drives the erasure flow, which ends in a sign-out' },
     // Added after CI caught what review missed. `mockupFidelity.spec.ts` contains no sign-out at all: it
     // simply visits `/sign-in` to capture that screen, and a restored session redirects that route to Home, so
@@ -90,7 +90,7 @@ const SESSION_HOSTILE_SIGNATURES: readonly { readonly pattern: RegExp; readonly 
 const SESSION_SAFE_ACKNOWLEDGED: Readonly<Record<string, string>> = {
     // Asserts the sign-out control is VISIBLE and is the shared design-system Button. Never clicks it, so the
     // session survives. Verified by reading the spec, 2026-08-11.
-    'accountShell.spec.ts': 'asserts the sign-out button is visible; never clicks it',
+    'profile.spec.ts': 'asserts the sign-out button is visible; never clicks it',
 };
 
 describe('the shared-session split covers every spec exactly once', () => {

@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Plan 002 US6, through the real web app with the recipe-service contract intercepted: deleting an ingredient from a
@@ -61,9 +61,7 @@ test.describe('removing an ingredient (plan 002 US6)', () => {
             ],
         });
 
-        await page.goto(route('/recipes/rec_remove/edit'));
-        await page.getByRole('button', { name: /Ingredients:/ }).click();
-        await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 2 of 4');
+        await openRecipeEditor(page, 'rec_remove');
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
         // Remove the middle row (a FAILED one) from the keyboard.
@@ -83,8 +81,8 @@ test.describe('removing an ingredient (plan 002 US6)', () => {
         await expect(ingredients.getByRole('button', { name: 'About Stock' })).toBeFocused();
         await expect(ingredients.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText('Stock');
 
-        await page.getByRole('button', { name: /Review:/ }).click();
-        await page.getByRole('button', { name: 'Publish' }).click();
+        // The seed is published, so its one write is Save changes (slice 7, D1).
+        await page.getByRole('button', { name: 'Save changes' }).click();
         await expect(page.getByRole('heading', { name: 'Paella' })).toBeVisible();
 
         expect(store.get('rec_remove')?.ingredients.map((saved) => saved.ingredientId)).toEqual([LINE_IDS.stock]);

@@ -12,21 +12,21 @@ afterEach(cleanup);
 
 describe('RecipeListLoading (web)', () => {
     it('shows a busy status and no recipe rows', () => {
-        render(<RecipeListLoading />);
+        render(<RecipeListLoading variant="row" />);
 
         expect(screen.getByRole('status')).toBeTruthy();
         expect(screen.queryByRole('list')).toBeNull();
     });
 
     it('announces the localized loading label as the live region CONTENT, not only its aria-label', () => {
-        render(<RecipeListLoading />);
+        render(<RecipeListLoading variant="row" />);
 
         // The shimmer placeholders are all `aria-hidden`, and a live region announces its CONTENT, not its label.
         expect(screen.getByRole('status').textContent).toContain('Loading recipes');
     });
 
     it('renders real shimmer skeleton rows (not blank spans), hidden from assistive tech (U5)', () => {
-        render(<RecipeListLoading />);
+        render(<RecipeListLoading variant="row" />);
 
         const shimmer = screen.getByRole('status').querySelectorAll('.animate-pulse');
         expect(shimmer.length).toBeGreaterThanOrEqual(3);
@@ -42,10 +42,18 @@ describe('RecipeListLoading (web)', () => {
         // opened, the empty library settled and the whole control detached under their finger (Playwright:
         // `element was detached from the DOM`). The settled empty results offer only their own CTA, so a cook is never
         // handed a create control that the transition takes away.
-        render(<RecipeListLoading />);
+        render(<RecipeListLoading variant="row" />);
 
         expect(screen.queryByRole('button')).toBeNull();
         expect(screen.queryByRole('menu')).toBeNull();
         expect(screen.queryByRole('menuitem')).toBeNull();
+    });
+
+    // Slice 4 (`buildSpec.md` §4.3 Loading: "6 skeletons of the active variant").
+    it.each(['row', 'grid'] as const)('draws six skeletons of the active %s variant', (variant) => {
+        const { container } = render(<RecipeListLoading variant={variant} />);
+        const skeletons = container.querySelectorAll(`[data-skeleton-variant="${variant}"]`);
+
+        expect(skeletons).toHaveLength(6);
     });
 });

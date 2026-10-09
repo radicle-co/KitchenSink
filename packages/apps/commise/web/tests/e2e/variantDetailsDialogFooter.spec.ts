@@ -2,8 +2,8 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { FoodResponse, VariantView } from '@kitchensink/food-service-client';
 
 import { signInWithTicket } from './utils/auth';
-import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Curated U14, the details dialog's footer (`docs/design/ingredientSpecialization.md` §S8.2 "Footer", §S10;
@@ -80,8 +80,7 @@ async function openEditDetails(page: Page, variants: readonly VariantView[]): Pr
     // Only the root's exact path, so every other food read keeps its own handler.
     await page.route(`**/api/v1/foods/${ROOT_ID}`, (intercepted) => intercepted.fulfill({ json: rootWith(variants) }));
 
-    await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
-    await page.getByRole('button', { name: /Ingredients:/ }).click();
+    await openRecipeEditor(page, RECIPE_ID);
     const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
     await ingredients.getByRole('button', { name: `Actions for ${ROOT_NAME}, roasted` }).click();

@@ -3,14 +3,14 @@ import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 
 import { AppShell } from '@/components/app/AppShell';
-import { RecipeCreateContainer } from '@/components/recipes/RecipeCreateContainer';
+import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContainer';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Recipe-create route (`/[locale]/recipes/new`). A thin server page: it enforces auth (creating a recipe is
- * an owner action) and hands the locale to the client {@link RecipeCreateContainer}, which owns the form
- * state, ingredient resolution, and submission. Route protection is at the resource, per the app's
+ * an owner action) and hands the locale to the client {@link RecipeEditorContainer} — the one-page editor (slice 7),
+ * which owns the draft, its saving and its publication. Route protection is at the resource, per the app's
  * middleware ADR.
  *
  * L9: renders inside the shared {@link AppShell} — the same chrome Home and the recipe list use — with
@@ -30,10 +30,10 @@ export default async function NewRecipePage({
     }
 
     return (
-        // `focusedTask`: the wizard pins its own action bar to the foot, and the tab bar would cover it
-        // entirely below `lg` — see `HomeChromeProps.focusedTask`.
+        // `focusedTask`: the editor is a focused task — the tab bar hides and the editor's own header and action bar
+        // hold the edges (build spec §7.1) — see `HomeChromeProps.focusedTask`.
         <AppShell activeId="recipes" titleId="recipeNew" focusedTask>
-            <RecipeCreateContainer locale={locale} />
+            <RecipeEditorContainer locale={locale} />
         </AppShell>
     );
 }

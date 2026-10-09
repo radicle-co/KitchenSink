@@ -38,10 +38,7 @@ describe('DataSourcesScreen (web)', () => {
 
         const headings = await screen.findAllByRole('heading', { level: 2 });
 
-        expect(headings.map((heading) => heading.textContent)).toEqual([
-            USDA.shortName ?? USDA.name,
-            CIQUAL_SOURCE.shortName ?? CIQUAL_SOURCE.name,
-        ]);
+        expect(headings.map((heading) => heading.textContent)).toEqual([USDA.publisher, CIQUAL_SOURCE.publisher]);
     });
 
     it('shows the failure with Try again, which reads again', async () => {
@@ -107,7 +104,7 @@ describe('DataSourcesScreen (web)', () => {
         tryAgain.focus();
         fireEvent.click(tryAgain);
 
-        expect(await screen.findByRole('heading', { level: 2, name: USDA.shortName ?? USDA.name })).toBeTruthy();
+        expect(await screen.findByRole('heading', { level: 2, name: USDA.publisher })).toBeTruthy();
         expect(tryAgain.isConnected).toBe(false);
         expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Data sources' }));
     });

@@ -442,6 +442,88 @@ describe('useIngredientEntry — picks go to the commit port for the active fiel
     });
 });
 
+describe('useIngredientEntry — the trailing row reads the measure in front of the food (blueprint A1, A2)', () => {
+    it('the trailing row asks the food search for the food alone, not the measure or the preparation', () => {
+        const { result } = render([OIL]);
+
+        typeSettled(result, TRAILING, '2 tbsp olive oil, for frying');
+
+        expect(lastEnabledQuery()).toBe('olive oil');
+    });
+
+    it('⛔ a row’s own field (Change food) still searches its whole text: only the trailing row reads a measure', () => {
+        const { result } = render([OIL]);
+
+        act(() => result.current.beginChange(OIL.key));
+        typeSettled(result, at(OIL), '2 tbsp olive oil');
+
+        expect(lastEnabledQuery()).toBe('2 tbsp olive oil');
+    });
+
+    it('a measure with no food yet asks nothing and lists nothing: the search is empty', () => {
+        const { result } = render([OIL]);
+
+        typeSettled(result, TRAILING, '2 cups');
+
+        expect(lastEnabledQuery()).toBeUndefined();
+        expect(result.current.view.kind).toBe('idle');
+    });
+
+    it('a pick commits the trailing line with the measure read from the text it was picked on', async () => {
+        const commit = port(committed());
+        const { result } = render([OIL], commit);
+
+        act(() => result.current.setText(TRAILING, '2 tbsp chickpeas, rinsed'));
+        await act(async () => {
+            result.current.selectFood(CANNED_OPTION);
+        });
+
+        expect(commit).toHaveBeenCalledWith(
+            { kind: 'catalogFood', foodId: 'food_cp', name: 'Chickpeas, canned' },
+            {
+                kind: 'newLine',
+                measure: { quantity: { kind: 'exact', value: 2 }, unit: 'tablespoon', preparation: 'rinsed' },
+            },
+        );
+    });
+
+    it('Find nutrition and Use as written name the food alone, and carry the measure', async () => {
+        const commit = port(committed());
+        const { result } = render([OIL], commit);
+
+        act(() => result.current.setText(TRAILING, '400 g chickpeas'));
+        await act(async () => {
+            result.current.findByName();
+        });
+
+        expect(commit).toHaveBeenCalledWith(
+            { kind: 'name', text: 'chickpeas' },
+            { kind: 'newLine', measure: { quantity: { kind: 'exact', value: 400 }, unit: 'g', preparation: '' } },
+        );
+    });
+
+    it('a measure with no food commits nothing: a line is never stored without a food', async () => {
+        const commit = port(committed());
+        const { result } = render([OIL], commit);
+
+        act(() => result.current.setText(TRAILING, '2 cups'));
+        await act(async () => {
+            result.current.declareAsWritten();
+        });
+
+        expect(commit).not.toHaveBeenCalled();
+    });
+
+    it('the measure is not pending text a save drops: the field still holds the whole text the cook typed', () => {
+        const { result } = render([OIL]);
+
+        act(() => result.current.setText(TRAILING, '2 tbsp olive oil'));
+
+        expect(result.current.textOf(TRAILING)).toBe('2 tbsp olive oil');
+        expect(result.current.pendingEntryText).toBe('2 tbsp olive oil');
+    });
+});
+
 describe('useIngredientEntry — Change food and the pending text', () => {
     it('Change food puts the row in entry mode on its name, and the name alone is not pending', () => {
         const { result } = render();

@@ -2,10 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 
 import { signInWithTicket } from './utils/auth';
-import { route } from './utils/basePath';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Row 7 (`docs/design/ingredientStatusExplanation.md` SPECIFY.1 row 7), through the real web app with the recipe
@@ -55,8 +55,7 @@ async function openIngredients(page: Page) {
             corrections.push(request.postDataJSON());
         }
     });
-    await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
-    await page.getByRole('button', { name: /Ingredients:/ }).click();
+    await openRecipeEditor(page, RECIPE_ID);
 
     return { store, searches, rebinds, corrections, ingredients: page.getByRole('region', { name: 'Ingredients' }) };
 }

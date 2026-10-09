@@ -35,6 +35,7 @@ import type { RecipeFormErrors } from '../validate.js';
 import { type RecipeFormValues, defaultRecipeFormValues } from '../values.js';
 import { ingredientNoFoodNoteId, ingredientsErrorId } from '../fieldErrorIds.js';
 import { recipeFormMessages } from '../messages.js';
+import { editorMessages } from '../../editor/messages.js';
 import { recipeMessages } from '../../messages.js';
 import {
     makeIngredientNutrition,
@@ -47,7 +48,7 @@ import type { LookupRetry } from '../ingredientStatus.js';
 import { seedLineKey } from '../lineKey.js';
 import type { IngredientNutrition } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
-import { applyDraftAction } from '../props.js';
+import { applyDraftAction, type IngredientsPasteView } from '../props.js';
 
 /** The design-system status badge around a word (UI-overhaul slice 2: the words sit in a span inside the badge). */
 function badgeAround(word: string): HTMLElement {
@@ -115,6 +116,7 @@ interface LeafOverrides {
     readonly nutrition?: IngredientNutrition;
     readonly lookupRetry?: LookupRetry;
     readonly rowEditor?: IngredientRowEditor;
+    readonly paste?: IngredientsPasteView;
 }
 
 const leafElement = (over: LeafOverrides = {}) => (
@@ -125,6 +127,7 @@ const leafElement = (over: LeafOverrides = {}) => (
         nutrition={over.nutrition ?? NUTRITION}
         lookupRetry={over.lookupRetry ?? LOOKUP_RETRY}
         rowEditor={over.rowEditor ?? ROW_EDITOR}
+        {...(over.paste === undefined ? {} : { paste: over.paste })}
     />
 );
 
@@ -142,7 +145,7 @@ describe('RecipeIngredientsFields (web) — the states', () => {
         expect(screen.getByText(en.noIngredients)).toBeTruthy();
         expect(screen.queryByRole('listitem')).toBeNull();
         // The trailing add row is present even with nothing to add to — that IS the empty state's action.
-        expect(screen.getByRole('combobox', { name: en.addIngredientRowLabel })).toBeTruthy();
+        expect(screen.getByRole('combobox', { name: editorMessages.en.ingredients.addLabel })).toBeTruthy();
     });
 
     it('POPULATED: renders one row per line, bound to its values', () => {
@@ -324,9 +327,9 @@ describe('RecipeIngredientsFields (web) — an unresolved row surfaces its reaso
 describe('RecipeIngredientsFields (web) — the trailing add row (B8)', () => {
     it('is a combobox named “Add an ingredient”, with that as its placeholder and the hint', () => {
         renderLeaf({ values: valuesWith([]) });
-        const field = screen.getByRole('combobox', { name: en.addIngredientRowLabel });
+        const field = screen.getByRole('combobox', { name: editorMessages.en.ingredients.addLabel });
 
-        expect(field.getAttribute('placeholder')).toBe(en.addIngredientRowLabel);
+        expect(field.getAttribute('placeholder')).toBe(editorMessages.en.ingredients.addLabel);
         expect(field.getAttribute('aria-describedby')).toBeTruthy();
     });
 
@@ -340,7 +343,7 @@ describe('RecipeIngredientsFields (web) — the trailing add row (B8)', () => {
             rowEditor: makeIngredientRowEditor({ entry: makeIngredientEntry({ setText }) }),
         });
 
-        await user.type(screen.getByRole('combobox', { name: en.addIngredientRowLabel }), 'k');
+        await user.type(screen.getByRole('combobox', { name: editorMessages.en.ingredients.addLabel }), 'k');
 
         expect(setText).toHaveBeenCalledWith({ kind: 'newLine' }, 'k');
         expect(onChange).not.toHaveBeenCalled();
@@ -1118,10 +1121,19 @@ describe('RecipeIngredientsFields (web) — plan 002 V1 row states', () => {
         it('computes the total from the read\u2019s figures, and no row shows a calorie chip', () => {
             renderLeaf({ values: { ...valuesWith(withLineKeys([riceLine])), servings: 1 }, nutrition: found });
 
-            expect(
-                screen.getByText((content) => content.startsWith(en.nutritionTotalTemplate.split('{')[0])).textContent,
-            ).toContain('390');
+            // Build spec §7.5.6: one line, the calories and how many lines count.
+            expect(screen.getByText('390 cal per serving · 1 of 1 counted')).toBeTruthy();
             expect(screen.queryByText(/\d+ cal$/)).toBeNull();
+        });
+
+        it('⛔ with no line counted it never says "0 cal": nutrition appears as the cook matches lines (F7)', () => {
+            renderLeaf({
+                values: { ...valuesWith(withLineKeys([riceLine])), servings: 1 },
+                nutrition: makeIngredientNutrition({ lookup: () => ({ state: 'pending' }) }),
+            });
+
+            expect(screen.getByText(en.nutritionEmpty)).toBeTruthy();
+            expect(screen.queryByText(/0 cal/u)).toBeNull();
         });
 
         it('says LOADING instead of a total while the read has not answered', () => {
@@ -1143,9 +1155,7 @@ describe('RecipeIngredientsFields (web) — plan 002 V1 row states', () => {
 
             expect(screen.getByText(en.nutritionLoadFailed)).toBeTruthy();
             // REVIEW F3: no figure stands beside the failure — a total built from no catalog lines reads as a fact.
-            expect(
-                screen.queryByText((content) => content.startsWith(en.nutritionTotalTemplate.split('{')[0])),
-            ).toBeNull();
+            expect(screen.queryByText(/cal per serving/u)).toBeNull();
             await user.click(screen.getByRole('button', { name: en.statusActionRetry }));
             expect(retry).toHaveBeenCalledTimes(1);
         });
@@ -1354,7 +1364,9 @@ describe('RecipeIngredientsFields (web) — focus after Remove (V1 sign-off item
 
         await removeThrough(user, 'Leek');
 
-        expect(document.activeElement).toBe(screen.getByRole('combobox', { name: en.addIngredientRowLabel }));
+        expect(document.activeElement).toBe(
+            screen.getByRole('combobox', { name: editorMessages.en.ingredients.addLabel }),
+        );
     });
 });
 
@@ -1488,5 +1500,61 @@ describe('RecipeIngredientsFields (web) — the name takes the row’s first ful
         for (const field of fields) {
             expect(field.className.split(/\s+/)).toContain('min-w-16');
         }
+    });
+});
+
+describe('RecipeIngredientsFields (web) — pasted lines (build spec §7.5.1 "Reading", §7.5.4)', () => {
+    const PASTE: IngredientsPasteView = {
+        reading: [
+            { key: 'j:0', sourceLine: '2 cups flour', failed: false },
+            { key: 'j:1', sourceLine: '1 tsp salt', failed: true },
+        ],
+        onRetry: noop,
+        added: undefined,
+        onOpen: undefined,
+    };
+
+    it('each line not in the recipe yet is a row of the list, with its own text and its state', () => {
+        renderLeaf({ values: valuesWith([]), paste: PASTE });
+
+        const rows = within(screen.getByRole('list', { name: editorMessages.en.index.sections.ingredients }))
+            .getAllByRole('listitem')
+            .map((row) => row.textContent);
+
+        expect(rows).toEqual([
+            '2 cups flour' + en.rowStateReading,
+            '1 tsp salt' + en.rowStateLookupFailed + en.statusActionRetry,
+        ]);
+        expect(screen.queryByText(en.noIngredients)).toBeNull();
+    });
+
+    it('a line whose lookup failed offers Try again, named for its line', async () => {
+        const user = userEvent.setup();
+        const onRetry = vi.fn();
+        renderLeaf({ values: valuesWith([]), paste: { ...PASTE, onRetry } });
+
+        await user.click(screen.getByRole('button', { name: 'Try again for 1 tsp salt' }));
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('says politely how many ingredients a finished paste added', () => {
+        renderLeaf({ paste: { ...PASTE, reading: [], added: { count: 2, occurrence: 1 } } });
+
+        expect(screen.getAllByRole('status').some((region) => region.textContent === 'Added 2 ingredients.')).toBe(
+            true,
+        );
+    });
+
+    it('the empty section offers Paste a list beside the add field; a section with lines does not', async () => {
+        const user = userEvent.setup();
+        const onOpen = vi.fn();
+        const { rerender } = render(leafElement({ values: valuesWith([]), paste: { ...PASTE, reading: [], onOpen } }));
+
+        await user.click(screen.getByRole('button', { name: editorMessages.en.ingredients.pasteList }));
+        expect(onOpen).toHaveBeenCalledTimes(1);
+
+        rerender(leafElement({ paste: { ...PASTE, reading: [], onOpen } }));
+        expect(screen.queryByRole('button', { name: editorMessages.en.ingredients.pasteList })).toBeNull();
     });
 });

@@ -66,7 +66,7 @@ appId: io.commise.mobile
 
 # FR-045a — the sign-up affordance on the sign-in surface is the ONLY route to registration, so the screen it
 # opens is worth a baseline of its own. Copy comes from mobile i18n `auth.signUpLink` / `createHeading`.
-- tapOn: 'Sign up'
+- tapOn: 'Create an account'
 - extendedWaitUntil:
       visible: 'Create your account'
       timeout: 30000

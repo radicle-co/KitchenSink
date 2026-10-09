@@ -31,6 +31,16 @@ import { isValidElement } from 'react';
 import { ROUTABLE_LOCALES } from '@/lib/i18n';
 
 vi.mock('@vercel/analytics/next', () => ({ Analytics: vi.fn((): null => null) }));
+// The layout reads ONE cookie, the sidebar's collapse preference (slice 3).
+const cookieJar = vi.hoisted(() => ({ sidebar: undefined as string | undefined }));
+vi.mock('next/headers', () => ({
+    cookies: async () => ({
+        get: (name: string) =>
+            name === 'commise.sidebar' && cookieJar.sidebar !== undefined
+                ? { name, value: cookieJar.sidebar }
+                : undefined,
+    }),
+}));
 vi.mock('next/navigation', () => ({
     notFound: vi.fn(() => {
         // Mirrors Next's real `notFound()`: typed `never`, aborts the render by throwing.
@@ -43,6 +53,7 @@ const { ClerkProvider } = await import('@clerk/nextjs');
 const { LocaleProvider } = await import('@commise/i18n/react');
 const { RedactedAnalytics } = await import('@/components/app/RedactedAnalytics');
 const { RecipeProviders } = await import('@/components/recipes/RecipeProviders');
+const { SidebarPreferenceProvider } = await import('@/components/home/chrome/sidebarPreferenceContext');
 const { default: LocaleLayout, generateStaticParams } = await import('../layout.js');
 
 /** A marker child, so "the layout still renders what it was handed" is assertable by identity. */
@@ -149,8 +160,19 @@ describe('the locale root layout preserves its provider composition', () => {
             'html',
             'body',
             LocaleProvider,
+            SidebarPreferenceProvider,
             RecipeProviders,
         ]);
+    });
+
+    it('hands the sidebar the collapse preference read from its cookie, expanded by default', async () => {
+        cookieJar.sidebar = 'collapsed';
+        const [collapsed] = collectElementsByType(await renderLayout('en'), SidebarPreferenceProvider);
+        cookieJar.sidebar = undefined;
+        const [fallback] = collectElementsByType(await renderLayout('en'), SidebarPreferenceProvider);
+
+        expect((collapsed?.props as { collapsed?: boolean } | undefined)?.collapsed).toBe(true);
+        expect((fallback?.props as { collapsed?: boolean } | undefined)?.collapsed).toBe(false);
     });
 
     it('hangs the analytics leaf off <body> directly, NOT inside the provider tree', async () => {

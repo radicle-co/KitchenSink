@@ -141,4 +141,24 @@ describe('SegmentedControl (native) — view', () => {
         expect(glyph?.dataset['iconName']).toBe('menu');
         expect(glyph?.dataset['iconColor']).toBe(role.ink);
     });
+
+    // Slice 4 (`buildSpec.md` §4.3): an icon-only switch draws no label text, and each segment keeps its name.
+    it('draws no label text in an icon-only switch, and keeps each segment named', () => {
+        render(
+            <SegmentedControl
+                form="view"
+                label="View"
+                labelVisibility="hidden"
+                value="list"
+                onChange={() => undefined}
+                segments={[
+                    { id: 'list', label: 'List view', icon: 'list' },
+                    { id: 'grid', label: 'Grid view', icon: 'layoutGrid' },
+                ]}
+            />,
+        );
+
+        expect(screen.getByRole('radio', { name: 'List view' })).toBeTruthy();
+        expect(screen.queryByText('List view')).toBeNull();
+    });
 });

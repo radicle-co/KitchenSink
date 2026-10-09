@@ -20,6 +20,8 @@ import type * as PackageSurface from '../../index.js';
 import {
     applyDraftAction,
     addChip,
+    addChips,
+    splitAtCommas,
     difficultyOptions,
     ingredientSections,
     mealTypeOptions,
@@ -28,6 +30,7 @@ import {
     removeChipAt,
     unitClassNote,
     unresolvedLineNote,
+    visibilityChoice,
 } from '../props.js';
 
 const messages: Pick<
@@ -1033,5 +1036,111 @@ describe('removeIngredient', () => {
         const removed = applyDraftAction(values, { kind: 'removeIngredient', key: lines[1]!.key });
 
         expect(applyDraftAction(removed, { kind: 'removeIngredient', key: lines[1]!.key })).toBe(removed);
+    });
+});
+
+/**
+ * `moveStep` reorders without drag (SC 2.5.7, build spec §7.6): the step's whole value — instruction AND timer — moves,
+ * and a move that would leave the list changes nothing.
+ */
+describe('moveStep', () => {
+    const values = makeRecipeFormValues({
+        steps: [{ instruction: 'One' }, { instruction: 'Two', timerSeconds: 60 }, { instruction: 'Three' }],
+    });
+    const order = (next: RecipeFormValues): string[] => next.steps.map((step) => step.instruction);
+
+    it('moves a step up', () => {
+        expect(order(applyDraftAction(values, { kind: 'moveStep', from: 1, to: 0 }))).toEqual(['Two', 'One', 'Three']);
+    });
+
+    it('moves a step down, timer and all', () => {
+        const next = applyDraftAction(values, { kind: 'moveStep', from: 1, to: 2 });
+
+        expect(order(next)).toEqual(['One', 'Three', 'Two']);
+        expect(next.steps[2]).toBe(values.steps[1]);
+    });
+
+    it.each([
+        [0, -1],
+        [2, 3],
+        [-1, 0],
+        [3, 2],
+        [1, 1],
+    ])('from %i to %i changes nothing', (from, to) => {
+        expect(applyDraftAction(values, { kind: 'moveStep', from, to })).toBe(values);
+    });
+});
+
+/** `appendSteps` adds pasted steps at the end, in order, with no timer. */
+describe('appendSteps', () => {
+    const values = makeRecipeFormValues({ steps: [{ instruction: 'One', timerSeconds: 30 }] });
+
+    it('appends each instruction as a step, after the existing ones', () => {
+        const next = applyDraftAction(values, { kind: 'appendSteps', instructions: ['Two', 'Three'] });
+
+        expect(next.steps).toEqual([
+            { instruction: 'One', timerSeconds: 30 },
+            { instruction: 'Two' },
+            { instruction: 'Three' },
+        ]);
+        expect(next.steps[0]).toBe(values.steps[0]);
+    });
+
+    it('appending nothing changes nothing', () => {
+        expect(applyDraftAction(values, { kind: 'appendSteps', instructions: [] })).toBe(values);
+    });
+});
+
+/** `setStepTimer` sets a step's timer, and clearing it REMOVES the key (the omit-never-undefined convention). */
+describe('setStepTimer', () => {
+    const values = makeRecipeFormValues({ steps: [{ instruction: 'One', timerSeconds: 30 }, { instruction: 'Two' }] });
+
+    it('sets a timer', () => {
+        expect(applyDraftAction(values, { kind: 'setStepTimer', index: 1, seconds: 90 }).steps[1]).toEqual({
+            instruction: 'Two',
+            timerSeconds: 90,
+        });
+    });
+
+    it('clearing removes the key rather than storing undefined', () => {
+        const step = applyDraftAction(values, { kind: 'setStepTimer', index: 0 }).steps[0];
+
+        expect(step).toEqual({ instruction: 'One' });
+        expect(step !== undefined && 'timerSeconds' in step).toBe(false);
+    });
+
+    it('leaves the other steps as they are', () => {
+        expect(applyDraftAction(values, { kind: 'setStepTimer', index: 1, seconds: 5 }).steps[0]).toBe(values.steps[0]);
+    });
+});
+
+/** The chip input's comma rule: values before the last comma are finished; the rest is still being typed. */
+describe('splitAtCommas / addChips', () => {
+    it.each<[string, readonly string[], string]>([
+        ['easy', [], 'easy'],
+        ['easy,', ['easy'], ''],
+        ['a, b, c', ['a', ' b'], ' c'],
+        [',', [''], ''],
+    ])('splits "%s"', (text, finished, rest) => {
+        expect(splitAtCommas(text)).toEqual({ finished, rest });
+    });
+
+    it('adds each value in turn, trimmed, dropping blanks and duplicates in any case', () => {
+        expect(addChips(['Quick'], [' a ', '', 'QUICK', 'b', 'A'])).toEqual(['Quick', 'a', 'b']);
+    });
+});
+
+/** The "Who can see it" rule: Private without the plan asks for the upsell and never changes the value. */
+describe('visibilityChoice', () => {
+    it.each([
+        ['public', 'private', true, { visibility: 'private' }],
+        ['private', 'public', true, { visibility: 'public' }],
+        ['private', 'public', false, { visibility: 'public' }],
+        ['public', 'private', false, 'premiumRequired'],
+        ['public', 'public', false, undefined],
+        ['private', 'private', false, undefined],
+        ['private', 'private', true, undefined],
+    ] as const)('from %s, choosing %s (can go private: %s) gives %o', (current, chosen, canGoPrivate, expected) => {
+        expect(visibilityChoice(current, chosen, canGoPrivate)).toEqual(expected);
     });
 });

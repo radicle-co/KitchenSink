@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 import { signInWithTicket } from './utils/auth';
-import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Curated U15 on the recipe form row (`docs/design/ingredientSpecialization.md` §S1, F3), through the real web app
@@ -59,9 +59,7 @@ test.describe('a variant-bound line in the editor shows its dotted line (curated
             ],
         });
 
-        await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
-        await page.getByRole('button', { name: /Ingredients:/ }).click();
-        await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 2 of 4');
+        await openRecipeEditor(page, RECIPE_ID);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
         const rows = ingredients.getByRole('listitem');
 

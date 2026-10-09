@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 
 import { appDocument } from '@/app/appDocument';
+import { SIDEBAR_COOKIE, sidebarCollapsedFrom } from '@/components/home/chrome/sidebarPreference';
 import { getDictionary } from '@/i18n/getDictionary';
 import { ROUTABLE_LOCALES, isRoutableLocale } from '@/lib/i18n';
 
@@ -21,7 +23,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
  * Root layout for the localized app. Every route lives under `/[locale]`, so this segment IS the root layout — the
  * standard Next.js App Router i18n shape. It rejects an unsupported locale and renders the app's document,
  * {@link appDocument}, which also frames the global 404 page (`global-not-found.tsx`); the provider chain, the Clerk URL
- * props and the analytics mount are documented there.
+ * props and the analytics mount are documented there. It reads one cookie, the sidebar's collapse preference.
  */
 export default async function LocaleLayout({
     children,
@@ -36,5 +38,8 @@ export default async function LocaleLayout({
         notFound();
     }
 
-    return appDocument({ locale, children });
+    // The sidebar's width is read here, on the server, so the first paint has it: no hydration mismatch, no shift.
+    const sidebarCollapsed = sidebarCollapsedFrom((await cookies()).get(SIDEBAR_COOKIE)?.value);
+
+    return appDocument({ locale, children, sidebarCollapsed });
 }

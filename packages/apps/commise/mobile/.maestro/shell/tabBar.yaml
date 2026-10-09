@@ -1,0 +1,90 @@
+appId: io.commise.mobile
+---
+# The native shell (slice 3 of the UI overhaul; ADR-0056; `docs/design/uiOverhaul/buildSpec.md` §3.1, §3.5, §3.7), on
+# a device, where React Navigation's own back handling runs (jsdom cannot see it). It replaces `appTabBar.yaml`.
+#
+# - The three tabs — Home, Recipes, Discover — each reachable, and no "Soon" tab.
+# - Recipes → Home and back through the app's tabs, with each tab keeping its own stack.
+# - A second tap on the active tab pops a pushed recipe back to the tab's root.
+# - Android Back from the Recipes root goes Home (`backBehavior="initialRoute"`).
+# - The avatar pushes Profile onto the current tab.
+#
+# Signs in through the shared login, which lands on Home and then opens Recipes from "See all recipes".
+- runFlow: ../auth/signin.yaml
+
+# Recipes, with the tab bar under it.
+- assertVisible: 'My recipes'
+- assertVisible: 'Discover'
+- assertNotVisible: '.*[Ss]oon.*'
+
+# Home through the app's tab, then back to Recipes.
+- runFlow: goHome.yaml
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+
+# Discover is a tab of its own.
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover'
+      timeout: 20000
+
+# A pushed recipe on the Recipes tab keeps the tab bar (level 3), and survives a switch away and back.
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+- extendedWaitUntil:
+      notVisible: 'My recipes'
+      timeout: 20000
+- assertVisible: 'Discover'
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover'
+      timeout: 20000
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_LAMB}'
+      timeout: 20000
+- assertNotVisible: 'My recipes'
+
+# The second tap on the active tab pops the recipe back to the tab's root.
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+
+# Android Back from the Recipes root goes Home rather than leaving the app.
+- back
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
+      timeout: 20000
+
+# The avatar ("Profile, {name}", or "Profile" with no name) pushes Profile onto the Home tab, under the same tab bar.
+- scrollUntilVisible:
+      element: 'Profile.*'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Profile.*'
+- extendedWaitUntil:
+      visible: 'Display name'
+      timeout: 20000
+- assertVisible: 'Discover'
+
+# Back from Profile returns to Home.
+- back
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
+      timeout: 20000

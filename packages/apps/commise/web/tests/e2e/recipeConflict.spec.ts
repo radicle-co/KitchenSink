@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { IngredientVariant, RecipeDetail } from '@kitchensink/recipe-core';
 
-import { route } from './utils/basePath';
 import {
     E2E_INGREDIENT_IDS,
     makeRecipeDetail,
@@ -11,6 +10,7 @@ import {
     type EnrichedConflictSeed,
 } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Concurrent-edit conflict resolution (FR-007c / T070 / W7 rebuild), driven end to end through the real web
@@ -21,8 +21,8 @@ import { signInWithTicket } from './utils/auth';
  * three A/B/C option cards, and — for Option C — a per-element merge panel gated on an explicit selection.
  * This is the W7 REWRITE of the pre-rebuild spec: the old "Merge field by field" / "Save merged version" flow
  * asserted a 2-way `mine`/`theirs` model and stale button copy; this rewrite asserts the CURRENT
- * `versions/messages.ts` copy verbatim and exercises Options B and C against the new UI (`RecipeEditContainer`
- * → `useRecipeEditor` → `RecipeConflictView`). Owner actions gate on the Clerk `external_id` claim, so every
+ * `versions/messages.ts` copy verbatim and exercises Options B and C against the new UI (`RecipeEditorContainer`
+ * → `useRecipeEditor` → `RecipeConflictView`). The seed is PUBLISHED, so the losing write is Save changes (slice 7, D1). Owner actions gate on the Clerk `external_id` claim, so every
  * seed is owned by the live viewer. Selectors are role/label only (repo policy); the conflict view is a plain
  * in-page section (not a modal), so no dialog scoping is needed.
  *
@@ -57,13 +57,10 @@ async function enterConflict(
         enrichedConflicts: { rec_conflict: conflictSeed },
     });
 
-    await page.goto(route('/recipes/rec_conflict/edit'));
+    await openRecipeEditor(page, 'rec_conflict');
     await page.getByLabel('Title').fill('My Merged Title');
-    // Publish is the action bar's FINAL-step primary. The seed is fully valid, so jump to Review (step 4) via
-    // the rail — forward navigation is ungated even with the unsaved title edit — and publish to lose the race.
-    await page.getByRole('button', { name: /Review:/ }).click();
-    await expect(page.getByText('Step 4 of 4')).toBeVisible();
-    await page.getByRole('button', { name: 'Publish' }).click();
+    // The seed is published, so its one write is the action bar's Save changes (D1); saving loses the race.
+    await page.getByRole('button', { name: 'Save changes' }).click();
 
     await expect(page.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeVisible();
 
@@ -91,7 +88,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         const detailRead = (request: { method(): string; url(): string }): boolean =>
             request.method() === 'GET' && /\/api\/v1\/recipes\/rec_conflict(?:\?|$)/u.test(request.url());
 
-        await page.goto(route('/recipes/rec_conflict/edit'));
+        await openRecipeEditor(page, 'rec_conflict');
         await page.getByLabel('Title').fill('My Edit');
 
         // The other device saves: servings 8, version 2.
@@ -107,8 +104,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
             (request) =>
                 request.method() === 'PATCH' && /\/api\/v1\/recipes\/rec_conflict(?:\?|$)/u.test(request.url()),
         );
-        await page.getByRole('button', { name: /Review:/ }).click();
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Save changes' }).click();
 
         expect((await save).postDataJSON()).toMatchObject({ expectedVersion: 1 });
         // The refusal reached the cook as the conflict view. Without it, a mock that answered a bare 409 with no

@@ -12,7 +12,7 @@
  * platforms cannot drift on what a doubted line looks like (§14).
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render as renderUnscoped, screen } from '@testing-library/react';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { utilityContrast } from '@commise/test-utils';
 
@@ -20,6 +20,12 @@ import { makeIngredientView, makeNutrition, makeRecipeDetail, idleUnreachableRet
 import { RecipeDetailView } from '../RecipeDetailView.js';
 import { resetServingScale } from '../servingScale.js';
 import { recipeMessages } from '../../messages.js';
+import type { ReactElement } from 'react';
+import { DetailTestScope } from '../../__fixtures__/detailScope.js';
+
+/** Every detail renders inside its page's scroll host and the session’s cook-marks scope, as the app mounts them. */
+const render = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
+    renderUnscoped(ui, { wrapper: DetailTestScope });
 
 const en = recipeMessages.en.detail;
 

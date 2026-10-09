@@ -64,11 +64,18 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
         ...(line.groupLabel === undefined || line.groupLabel.trim() === ''
             ? {}
             : { groupLabel: line.groupLabel.trim() }),
+        // Blueprint A5 — CREATE-ONLY: what a pasted line was read from. `toUpdateRecipeInput` strips both.
+        ...(line.sourceLine === undefined ? {} : { sourceLine: line.sourceLine }),
+        ...(line.sourcePhrase === undefined ? {} : { sourcePhrase: line.sourcePhrase }),
     })),
-    steps: values.steps.map((step) => ({
-        instruction: step.instruction,
-        ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
-    })),
+    // A step with no text carries nothing and the wire refuses it (`.min(1)`); a draft checkpoint must not be refused
+    // for the step the cook has just added and not typed into. Publish never reaches here with one (`stepsRequired`).
+    steps: values.steps
+        .filter((step) => step.instruction.trim() !== '')
+        .map((step) => ({
+            instruction: step.instruction,
+            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+        })),
     servings: values.servings,
     prepTimeMinutes: values.prepTimeMinutes,
     cookTimeMinutes: values.cookTimeMinutes,
@@ -110,10 +117,14 @@ export const toUpdateRecipeInput = (
 ): Omit<UpdateRecipeRequest, 'expectedVersion'> => {
     // Destructured out, not `delete`d: the key must be ABSENT from the returned object, and a spread of the
     // create projection would otherwise reintroduce it past the type system's excess-property check.
-    const { visibility: _visibility, ...rest } = toCreateRecipeInput(values, status);
+    const { visibility: _visibility, ingredients, ...rest } = toCreateRecipeInput(values, status);
 
     return {
         ...rest,
+        // ⛔ A pasted line's source is CREATE-ONLY (ADR-0023's shape, blueprint A5): a PATCH that re-asserted it could
+        // steer the cross-user memo, and the strict update contract refuses the keys outright, so every save after a
+        // paste would 400. Destructured out for the same reason `visibility` is: a spread skips the excess check.
+        ingredients: ingredients.map(({ sourceLine: _sourceLine, sourcePhrase: _sourcePhrase, ...line }) => line),
         // Present → set that value; absent → explicit null CLEAR (the crux: omit could never clear a set value).
         difficulty: values.difficulty ?? null,
         // Identical three-state rule for meal type (U34) — see `difficulty` directly above.

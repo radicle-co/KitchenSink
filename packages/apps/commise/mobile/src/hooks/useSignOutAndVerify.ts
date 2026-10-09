@@ -9,8 +9,8 @@
  * Web's `useSignOutAndLeave` issues the same core, so the two platforms cannot drift on what "signed out"
  * means.
  *
- * Pattern: **Command** behind a **headless hook** — every mobile control that ends the session (the account
- * hub's SIGN OUT, the danger zone's CLOSE and ERASE exits) issues this one command and owns only its own UI
+ * Pattern: **Command** behind a **headless hook** — every mobile control that ends the session (the Profile page's
+ * SIGN OUT row, the danger zone's CLOSE and ERASE exits) issues this one command and owns only its own UI
  * state (busy, error). Calling `signOut` directly re-opens the hole: a fire-and-forget `void signOut()` has
  * no failure path at all, so a viewer left signed in is told nothing.
  *
@@ -29,6 +29,8 @@
 import { useAuth, useClerk } from '@clerk/expo';
 import { signOutAndVerify } from '@commise/features-account';
 
+import { endDeviceSession } from '../storage/deviceSession.js';
+
 /** The mobile app's sign-out command. */
 export interface SignOutAndVerify {
     /**
@@ -46,7 +48,8 @@ export interface SignOutAndVerify {
 export function useSignOutAndVerify(): SignOutAndVerify {
     const clerk = useClerk();
     // ⚠️ DELIBERATE — ADR-0009. `useAuth().signOut` awaits clerk-js; `useClerk().signOut` silently queues.
-    const { signOut } = useAuth();
+    const { signOut, userId } = useAuth();
 
-    return { signOutAndVerify: () => signOutAndVerify(clerk, signOut) };
+    // ADR-0057: the cook's editor drafts and outbox end with the session, once it is proven ended.
+    return { signOutAndVerify: () => signOutAndVerify(clerk, signOut, () => endDeviceSession(userId ?? undefined)) };
 }

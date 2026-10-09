@@ -1,53 +1,42 @@
 /**
- * @module @commise/features-recipes — native discovery LOAD ERROR body (presentational).
+ * @module @commise/features-recipes — native discovery LOAD ERROR body (presentational; slice 5 of the UI overhaul).
  *
- * The React Native twin of `RecipeDiscoveryLoadError`: a card with the surface's only Try again, at the 44pt floor every
- * other control on the surface carries, when a search failed with nothing loaded for it. The message is an assertive
- * `LiveRegion` — `accessibilityRole="alert"` alone is silent on iOS — and the card matches the web body's treatment.
+ * The React Native twin of `RecipeDiscoveryLoadError`: "We couldn't search right now." and a Try again under the field,
+ * for any cause, with the results that were on screen before the failure kept under it (`previous`). The message is an
+ * assertive `LiveRegion` — `accessibilityRole="alert"` alone is silent on iOS. Colour is read from the theme at render (D15).
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { discoveryMessages } from './messages.js';
 import type { RecipeDiscoveryLoadErrorProps } from './model.js';
 
-export const RecipeDiscoveryLoadError: FC<RecipeDiscoveryLoadErrorProps> = ({ onRetry }) => {
+export const RecipeDiscoveryLoadError: FC<RecipeDiscoveryLoadErrorProps> = ({ onRetry, previous }) => {
     const discovery = useMessages(discoveryMessages);
+    const { colors } = useTheme();
 
     return (
-        <View style={styles.card}>
-            <LiveRegion politeness="assertive" style={styles.title}>
-                {discovery.errorTitle}
-            </LiveRegion>
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={discovery.retry}
-                onPress={onRetry}
-                style={styles.retry}
-            >
-                <Text style={styles.retryLabel}>{discovery.retry}</Text>
-            </Pressable>
+        <View style={styles.stack}>
+            <View style={styles.row}>
+                <LiveRegion politeness="assertive" style={[styles.title, { color: colors.ink }]}>
+                    {discovery.errorTitle}
+                </LiveRegion>
+                <Button variant="secondary" size="sm" icon="rotateCcw" onPress={onRetry}>
+                    {discovery.retry}
+                </Button>
+            </View>
+            {previous}
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    card: {
-        backgroundColor: palette.white,
-        borderRadius: nativeTokens.radius.lg,
-        padding: nativeTokens.spacing[5],
-        gap: nativeTokens.spacing[2],
-    },
-    title: { fontSize: nativeTokens.fontSize.bodyMd, fontWeight: '500', color: palette.charcoal },
-    retry: {
-        minHeight: 44,
-        justifyContent: 'center',
-        alignSelf: 'flex-start',
-        paddingHorizontal: nativeTokens.spacing[4],
-    },
-    retryLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette['ocean-dark'] },
+    stack: { flex: 1, gap: nativeTokens.spacing[4] },
+    row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[3] },
+    title: { ...nativeTokens.type.body },
 });

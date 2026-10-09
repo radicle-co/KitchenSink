@@ -28,23 +28,21 @@ appId: io.commise.mobile
 
 # SEED the eventual PAGE-2 row FIRST, while it is still the caller's only collection.
 #
-# WAITING ON THE FORM TO CLOSE (`notVisible: 'Collection name'`) BEFORE asserting the row is not belt-and-
-# braces — it is what makes these waits mean anything. The name was just TYPED INTO the form's own name input,
-# so `visible: 'Maestro pagination …'` is already satisfied BY THE FORM ITSELF, whether or not the collection
-# was ever created: a self-fulfilling assertion that proves nothing. Worse, it let the loop race the form's
-# dismissal — the next iteration's `tapOn: 'New collection'` then matched the still-open FORM's own region
-# label (accessibility label "New collection") and tapped inert space inside it, and by the time the following
-# `assertVisible: 'Collection name'` ran the create had landed and the form had closed, so it failed. That is
-# exactly how this flow died on filler #6 of 20. Gating on the form being GONE first makes each iteration
-# observe the real post-create state, and keeps the row assertion a genuine assertion about the LIST.
+# The new-collection sheet (slice 4) opens the created collection's DETAIL, so each create waits on that detail's own
+# control (`More actions for …`), which only a created collection has, then goes back to the list. Waiting on the detail
+# rather than on the typed name keeps every wait a claim about the server: the typed name is already on screen in the
+# sheet's own field, which made the old `visible: 'Maestro pagination …'` wait self-fulfilling.
 - tapOn: 'New collection'
-- assertVisible: 'Collection name'
-- tapOn: 'Collection name'
-- inputText: 'Maestro pagination target'
-- tapOn: 'Create'
 - extendedWaitUntil:
-      notVisible: 'Collection name'
+      visible: 'Description \(optional\)'
+      timeout: 20000
+- tapOn: 'Name'
+- inputText: 'Maestro pagination target'
+- pressKey: Enter
+- extendedWaitUntil:
+      visible: 'More actions for Maestro pagination target'
       timeout: 40000
+- tapOn: 'Back to Collections'
 - extendedWaitUntil:
       visible: 'Maestro pagination target'
       timeout: 40000
@@ -54,13 +52,16 @@ appId: io.commise.mobile
       times: 20
       commands:
           - tapOn: 'New collection'
-          - assertVisible: 'Collection name'
-          - tapOn: 'Collection name'
-          - inputText: 'Maestro pagination filler'
-          - tapOn: 'Create'
           - extendedWaitUntil:
-                notVisible: 'Collection name'
+                visible: 'Description \(optional\)'
+                timeout: 20000
+          - tapOn: 'Name'
+          - inputText: 'Maestro pagination filler'
+          - pressKey: Enter
+          - extendedWaitUntil:
+                visible: 'More actions for Maestro pagination filler'
                 timeout: 40000
+          - tapOn: 'Back to Collections'
           - extendedWaitUntil:
                 visible: 'Maestro pagination filler'
                 timeout: 40000
@@ -77,10 +78,11 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Load more'
 
-# The one row that was NEVER on page 1 is now visible — proof the second page actually loaded, not merely
-# that the button was pressed.
-- extendedWaitUntil:
-      visible: 'Maestro pagination target'
+# The one row that was NEVER on page 1 is now in the list — proof the second page actually loaded, not merely
+# that the button was pressed. It lands as the grid's last card, below the fold, so it is scrolled to.
+- scrollUntilVisible:
+      element: 'Maestro pagination target'
+      direction: DOWN
       timeout: 40000
 
 # Row 21 was the last; the control disappears once there is no further page.
@@ -88,10 +90,12 @@ appId: io.commise.mobile
 
 # CLEANUP (hermetic). Delete the target first (already on screen), then drain the 20 identically-named
 # fillers: each is deleted from the TOP of the (newest-first) list, which — unlike the load-more control — is
-# always on screen without scrolling, so removing the topmost match repeatedly surfaces the next one.
+# always on screen without scrolling, so removing the topmost match repeatedly surfaces the next one. A delete is the
+# detail's ⋯ menu, then the confirmation, and lands back on the list.
 - tapOn: 'Maestro pagination target'
-- assertVisible: 'Rename'
-- tapOn: 'Delete'
+- tapOn: 'More actions for Maestro pagination target'
+- tapOn: 'Delete collection'
+- tapOn: 'Delete collection'
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000
@@ -101,8 +105,9 @@ appId: io.commise.mobile
           visible: 'Maestro pagination filler'
       commands:
           - tapOn: 'Maestro pagination filler'
-          - assertVisible: 'Rename'
-          - tapOn: 'Delete'
+          - tapOn: 'More actions for Maestro pagination filler'
+          - tapOn: 'Delete collection'
+          - tapOn: 'Delete collection'
           - extendedWaitUntil:
                 visible: 'New collection'
                 timeout: 40000

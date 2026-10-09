@@ -1,4 +1,10 @@
 /**
+ * ⚠️ REWRITTEN for slice 5 of the UI overhaul, with the web leaf's test (`docs/design/uiOverhaul/buildSpec.md` §4.4,
+ * §4.5): the filters arrive as a discriminated union (a tablet panel, or a trigger + applied chips + sheet), the search is
+ * the design-system `SearchField`, the sort is a sheet menu, and the count is one visible line that is also the polite live
+ * region. The palette-based contrast assertions are deleted: the frame reads colour from roles, and the role pairs'
+ * contrast is held by the token tests. The compact-height, recent-search, back-to-browse and N1-naming assertions are kept.
+ *
  * Native component tests for the discovery FRAME (react-native-web under jsdom) — the chrome that renders outside the
  * discovery suspense boundary. Mirrors `RecipeDiscoveryFrame.test.tsx`.
  *
@@ -13,12 +19,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo, Text, type ScrollView as ScrollViewType } from 'react-native';
 import { createElement, type ComponentProps } from 'react';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-
-import { computedContrast, placeholderContrast } from '@commise/test-utils';
-import { palette } from '@commise/ui';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDiscoveryFrame } from '../RecipeDiscoveryFrame.native.js';
@@ -59,8 +62,19 @@ afterEach(() => {
 
 const noop = () => undefined;
 
+const SHEET_FILTERS: NonNullable<RecipeDiscoveryFrameProps['filters']> = {
+    presentation: 'sheet',
+    trigger: <Text>FILTERS TRIGGER</Text>,
+    applied: <Text>APPLIED CHIPS</Text>,
+    sheet: <Text>FILTER SHEET</Text>,
+};
+
+const PANEL_FILTERS: NonNullable<RecipeDiscoveryFrameProps['filters']> = {
+    presentation: 'panel',
+    panel: <Text>FILTER PANEL</Text>,
+};
+
 /** The source switcher's destinations. Native ignores them (no URLs) — see the control's JSDoc. */
-const HREF = { mine: '/en/recipes', community: '/en/discover' } as const;
 
 function frame(overrides: Partial<RecipeDiscoveryFrameProps> = {}) {
     return (
@@ -69,6 +83,7 @@ function frame(overrides: Partial<RecipeDiscoveryFrameProps> = {}) {
             onSearchChange={noop}
             searching={false}
             headingFocusSignal={0}
+            filters={SHEET_FILTERS}
             {...overrides}
         >
             {overrides.children ?? <Text>boundary content</Text>}
@@ -84,8 +99,8 @@ describe('RecipeDiscoveryFrame (native) — chrome', () => {
     it('renders the heading, the search field and whatever the boundary below it renders', () => {
         renderFrame();
 
-        expect(screen.getByRole('heading', { name: 'Discover recipes' })).toBeTruthy();
-        expect(screen.getByLabelText('Search public recipes')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Discover' })).toBeTruthy();
+        expect(screen.getByRole('textbox', { name: 'Search recipes' })).toBeTruthy();
         expect(screen.getByText('boundary content')).toBeTruthy();
     });
 
@@ -93,86 +108,97 @@ describe('RecipeDiscoveryFrame (native) — chrome', () => {
         const onSearchChange = vi.fn();
         renderFrame({ onSearchChange });
 
-        fireEvent.change(screen.getByLabelText('Search public recipes'), { target: { value: 'lamb' } });
+        fireEvent.change(screen.getByRole('textbox', { name: 'Search recipes' }), { target: { value: 'lamb' } });
 
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
     });
 
-    it('renders the filter slot', () => {
-        renderFrame({ filterSlot: <Text>FILTER BAR</Text> });
+    it('clears the field from its own clear control', () => {
+        const onSearchChange = vi.fn();
+        renderFrame({ searchValue: 'risotto', onSearchChange });
 
-        expect(screen.getByText('FILTER BAR')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+
+        expect(onSearchChange).toHaveBeenCalledWith('');
     });
 });
 
-describe('RecipeDiscoveryFrame (native) — source switcher (L5)', () => {
-    // Parity with the web leaf: a host composing this surface without a shell tab bar must still offer the way back.
-    // Mobile's recipe shell owns its own switcher, so the app passes no `tab` — hence the first case.
-    it('renders no source switcher when no tab prop is given (the shell owns it on mobile)', () => {
+describe('RecipeDiscoveryFrame (native) — filters', () => {
+    it('in the sheet presentation: the trigger, the applied chips and the sheet — and no panel', () => {
+        renderFrame({ filters: SHEET_FILTERS });
+
+        expect(screen.getByText('FILTERS TRIGGER')).toBeTruthy();
+        expect(screen.getByText('APPLIED CHIPS')).toBeTruthy();
+        expect(screen.getByText('FILTER SHEET')).toBeTruthy();
+        expect(screen.queryByText('FILTER PANEL')).toBeNull();
+    });
+
+    it('in the panel presentation: the panel beside the results — and no trigger, no applied chips, no sheet', () => {
+        renderFrame({ filters: PANEL_FILTERS });
+
+        expect(screen.getByText('FILTER PANEL')).toBeTruthy();
+        expect(screen.queryByText('FILTERS TRIGGER')).toBeNull();
+        expect(screen.queryByText('APPLIED CHIPS')).toBeNull();
+        expect(screen.queryByText('FILTER SHEET')).toBeNull();
+    });
+
+    it('draws no filters when none are given', () => {
+        renderFrame({ filters: undefined });
+
+        expect(screen.queryByText(/FILTER/u)).toBeNull();
+    });
+
+    it('the panel sits beside the results: the search field is in the results column, not above the panel', () => {
+        renderFrame({ filters: PANEL_FILTERS });
+        const panel = screen.getByText('FILTER PANEL');
+        const search = screen.getByRole('textbox', { name: 'Search recipes' });
+        const results = screen.getByText('boundary content');
+
+        expect(panel.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(search.compareDocumentPosition(results) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+});
+
+/** Slice 3: Discover is a tab of its own — no source switcher — and its heading is the large title with the avatar. */
+describe('RecipeDiscoveryFrame (native) — the large title', () => {
+    it('draws no source switcher', () => {
         renderFrame();
 
         expect(screen.queryByLabelText('Recipe source')).toBeNull();
     });
 
-    it('offers a way BACK to My Recipes, with Community marked as the current source', () => {
-        const onChange = vi.fn();
-        renderFrame({ tab: { active: 'community', href: HREF, onChange } });
+    it('renders the heading as the large title, with the avatar the route supplies', () => {
+        renderFrame({
+            headerAction: {
+                kind: 'avatar',
+                avatar: (
+                    <Text accessibilityRole="button" accessibilityLabel="Profile">
+                        P
+                    </Text>
+                ),
+            },
+        });
 
-        expect(screen.getByRole('tab', { name: 'Community' }).getAttribute('aria-selected')).toBe('true');
-        fireEvent.click(screen.getByRole('tab', { name: 'My Recipes' }));
-
-        expect(onChange).toHaveBeenCalledWith('mine');
+        expect(screen.getAllByRole('heading')).toHaveLength(1);
+        expect(screen.getByRole('button', { name: 'Profile' })).toBeTruthy();
     });
 });
 
 describe('RecipeDiscoveryFrame (native) — sort (S3)', () => {
-    it('renders the sort options and reports a change', () => {
+    it('renders the sort with the sort in use on its button and reports a change', () => {
         const onChange = vi.fn();
         renderFrame({ searching: true, sort: { active: RecipeSearchSortBy.RELEVANCE, onChange } });
 
-        expect(screen.getByText('Relevance')).toBeTruthy();
-        fireEvent.click(screen.getByText('Quickest'));
+        fireEvent.click(screen.getByRole('button', { name: 'Sort: Relevance' }));
+        fireEvent.click(screen.getByRole('radio', { name: 'Quickest' }));
 
         expect(onChange).toHaveBeenCalledWith('quickest');
     });
 
-    it('renders no sort control when no sort prop is given (the container omits it while browsing)', () => {
+    it('renders no sort when none is given (the container omits it while browsing)', () => {
         renderFrame();
 
-        expect(screen.queryByRole('radiogroup', { name: 'Sort by' })).toBeNull();
-    });
-
-    /**
-     * The selected sort has to reach assistive tech on the mobile-WEB build too, and `accessibilityState={{ checked }}`
-     * alone does not get there (#123): react-native-web forwards literal `aria-*` props but projects
-     * `accessibilityState` for nothing, so every chip rendered as a stateless radio and the active sort was carried by
-     * colour alone. `aria-checked` is `role="radio"`'s own attribute; `accessibilityState` stays for the device trait.
-     */
-    it('marks the ACTIVE sort option checked and every other one unchecked (present-and-false)', () => {
-        renderFrame({ searching: true, sort: { active: RecipeSearchSortBy.MOST_CLONED, onChange: noop } });
-
-        const states = within(screen.getByRole('radiogroup', { name: 'Sort by' }))
-            .getAllByRole('radio')
-            .map((radio) => [radio.textContent, radio.getAttribute('aria-checked')]);
-
-        expect(states).toEqual([
-            ['Relevance', 'false'],
-            ['Newest', 'false'],
-            ['Most cloned', 'true'],
-            ['Quickest', 'false'],
-        ]);
-    });
-
-    it('moves the checked state when a different sort becomes active', () => {
-        // Mutation guard: a hard-coded `aria-checked`, or one wired to the wrong option, cannot satisfy both cases.
-        renderFrame({ searching: true, sort: { active: RecipeSearchSortBy.QUICKEST, onChange: noop } });
-
-        const checked = within(screen.getByRole('radiogroup', { name: 'Sort by' }))
-            .getAllByRole('radio')
-            .filter((radio) => radio.getAttribute('aria-checked') === 'true')
-            .map((radio) => radio.textContent);
-
-        expect(checked).toEqual(['Quickest']);
+        expect(screen.queryByRole('button', { name: /^Sort:/u })).toBeNull();
     });
 });
 
@@ -208,7 +234,7 @@ describe('RecipeDiscoveryFrame (native) — recent searches (U7)', () => {
      * event, so a bare `focus` event never reaches its listener.
      */
     function focusSearch(): void {
-        fireEvent.focusIn(screen.getByLabelText('Search public recipes'));
+        fireEvent.focusIn(screen.getByRole('textbox', { name: 'Search recipes' }));
     }
 
     it('renders nothing when the surface wires no recent-search memory', () => {
@@ -289,40 +315,40 @@ describe('RecipeDiscoveryFrame (native) — recent searches (U7)', () => {
         focusSearch();
         expect(screen.getByRole('heading', { name: 'Recent searches' })).toBeTruthy();
 
-        fireEvent.focusOut(screen.getByLabelText('Search public recipes'));
+        fireEvent.focusOut(screen.getByRole('textbox', { name: 'Search recipes' }));
 
         expect(screen.queryByRole('heading', { name: 'Recent searches' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Search for “risotto”' })).toBeNull();
     });
 });
 
-describe('RecipeDiscoveryFrame (native) — announcing settled results', () => {
+describe('RecipeDiscoveryFrame (native) — the count line, which is also the live region', () => {
     /** The frame's polite live region — mounted empty, before any result exists. */
-    function announcementRegion(container: HTMLElement): Element {
+    function countLine(container: HTMLElement): Element {
         const regions = container.querySelectorAll('[aria-live="polite"]');
-        expect(regions, 'exactly one polite announcement region').toHaveLength(1);
+        expect(regions, 'exactly one polite count line').toHaveLength(1);
 
         return regions[0] as Element;
     }
 
-    it('mounts the region empty while no results have settled', () => {
+    it('mounts empty while no results have settled', () => {
         const { container } = renderFrame();
 
-        expect(announcementRegion(container).textContent).toBe('');
+        expect(countLine(container).textContent).toBe('');
     });
 
-    it('announces the settled results header, naming the query they belong to', () => {
+    it('says the count in words, naming the query the results belong to', () => {
         const { container, rerender } = renderFrame();
 
-        rerender(frame({ resultsSummary: { count: 9, query: 'pasta', searching: true } }));
+        rerender(frame({ resultsSummary: { count: 12, query: 'lamb', kind: 'query' } }));
 
-        expect(announcementRegion(container).textContent).toBe('Showing 9 recipes for “pasta”');
+        expect(countLine(container).textContent).toBe('12 recipes for “lamb”');
     });
 
-    it('announces a search that settled with nothing as a no-match', () => {
-        const { container } = renderFrame({ resultsSummary: { count: 0, query: 'tiramisu', searching: true } });
+    it('says the no-result heading when a search settled on nothing', () => {
+        const { container } = renderFrame({ resultsSummary: { count: 0, query: 'tiramisu', kind: 'query' } });
 
-        expect(announcementRegion(container).textContent).toBe('No matching recipes');
+        expect(countLine(container).textContent).toBe('No recipes for “tiramisu”');
     });
 });
 
@@ -333,7 +359,7 @@ describe('RecipeDiscoveryFrame (native) — heading focus', () => {
         rerender(frame({ headingFocusSignal: 1 }));
 
         expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
-            screen.getByRole('heading', { name: 'Discover recipes' }),
+            screen.getByRole('heading', { name: 'Discover' }),
             'focus',
         );
     });
@@ -345,37 +371,7 @@ describe('RecipeDiscoveryFrame (native) — heading focus', () => {
     });
 });
 
-describe('RecipeDiscoveryFrame (native) — text contrast (WCAG 2.1 AA)', () => {
-    /**
-     * `seafoam` as a FOREGROUND misses the 4.5:1 these labels owe — 4.02:1 on the recent-search panel's white card,
-     * 3.73:1 on the screen's `sand` — and the palette JSDoc in `@commise/ui`'s `tokens/colors.ts` says where
-     * `ocean-dark` takes over. `computedContrast` reads the colour react-native-web compiled, so a re-themed token fails.
-     */
-    it('keeps the clear-recent-searches label legible on the recent-search panel', () => {
-        renderFrame({ recentSearches: { queries: ['risotto'], onSelect: noop, onClear: noop } });
-        fireEvent.focusIn(screen.getByLabelText('Search public recipes'));
-
-        const label = within(screen.getByRole('button', { name: 'Clear recent searches' })).getByText('Clear');
-        expect(computedContrast(label, { surface: palette.white })).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('keeps the back-to-browse label legible on the screen background', () => {
-        renderFrame({ onExitToBrowse: noop });
-
-        const label = within(screen.getByRole('button', { name: 'Back to browse' })).getByText('Back to browse');
-        expect(computedContrast(label, { surface: palette.sand })).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('keeps the search field’s PLACEHOLDER text legible on the field', () => {
-        renderFrame();
-
-        // `placeholderContrast` reads the colour react-native-web actually paints, so this fails if the token drifts
-        // AND if the prop stops being passed (`palette.mist` measured 1.90:1).
-        expect(
-            placeholderContrast(screen.getByLabelText('Search public recipes'), { surface: palette.sand }),
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
+describe('RecipeDiscoveryFrame (native) — touch targets', () => {
     it('gives the back-to-browse action the 44pt touch floor', () => {
         renderFrame({ onExitToBrowse: noop });
 
@@ -396,7 +392,7 @@ describe('RecipeDiscoveryFrame (native) — text contrast (WCAG 2.1 AA)', () => 
  */
 describe('RecipeDiscoveryFrame (native) — compact height', () => {
     const controls = {
-        filterSlot: <Text>FILTER BAR</Text>,
+        filters: { ...SHEET_FILTERS, trigger: <Text>FILTER BAR</Text> },
         onExitToBrowse: noop,
         sort: { active: RecipeSearchSortBy.RELEVANCE, onChange: noop },
     } satisfies Partial<RecipeDiscoveryFrameProps>;
@@ -405,10 +401,11 @@ describe('RecipeDiscoveryFrame (native) — compact height', () => {
         layout.compact = true;
         renderFrame();
 
-        const field = screen.getByLabelText('Search public recipes');
+        const field = screen.getByRole('textbox', { name: 'Search recipes' });
+        const row = screen.getByRole('heading', { name: 'Discover' }).parentElement as Element;
 
-        expect(field.parentElement).toBe(screen.getByRole('heading', { name: 'Discover recipes' }).parentElement);
-        expect(getComputedStyle(field.parentElement as Element).flexDirection).toBe('row');
+        expect(row.contains(field)).toBe(true);
+        expect(getComputedStyle(row).flexDirection).toBe('row');
     });
 
     it('puts the filter trigger, back to browse and the sort in one wrapping row, in reading order', () => {
@@ -420,7 +417,7 @@ describe('RecipeDiscoveryFrame (native) — compact height', () => {
         expect(getComputedStyle(row).flexDirection).toBe('row');
         expect(getComputedStyle(row).flexWrap).toBe('wrap');
         expect(row.contains(screen.getByRole('button', { name: 'Back to browse' }))).toBe(true);
-        expect(row.contains(screen.getByRole('radiogroup', { name: 'Sort by' }))).toBe(true);
+        expect(row.contains(screen.getByRole('button', { name: 'Sort: Relevance' }))).toBe(true);
     });
 
     // ⛔ Collapsed needs the keyboard to be the FIELD's: the filter sheet's own ingredient search raises a keyboard too,
@@ -433,30 +430,30 @@ describe('RecipeDiscoveryFrame (native) — compact height', () => {
 
         expect(screen.getByText('FILTER BAR')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Back to browse' })).toBeTruthy();
-        expect(screen.getByRole('radiogroup', { name: 'Sort by' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Sort: Relevance' })).toBeTruthy();
     });
 
     it('steps the filter controls aside while collapsed with the frame’s own field focused, keeping the heading, the field and the announcer', () => {
         layout.compact = true;
         layout.collapsed = true;
         renderFrame({ ...controls, resultsSummary: undefined });
-        fireEvent.focusIn(screen.getByLabelText('Search public recipes'));
+        fireEvent.focusIn(screen.getByRole('textbox', { name: 'Search recipes' }));
 
         expect(screen.queryByText('FILTER BAR')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Back to browse' })).toBeNull();
-        expect(screen.queryByRole('radiogroup', { name: 'Sort by' })).toBeNull();
-        expect(screen.getByRole('heading', { name: 'Discover recipes' })).toBeTruthy();
-        expect(screen.getByLabelText('Search public recipes')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Sort: Relevance' })).toBeNull();
+        expect(screen.getByRole('heading', { name: 'Discover' })).toBeTruthy();
+        expect(screen.getByRole('textbox', { name: 'Search recipes' })).toBeTruthy();
         expect(document.querySelector('[aria-live="polite"]')).not.toBeNull();
 
-        fireEvent.focusOut(screen.getByLabelText('Search public recipes'));
+        fireEvent.focusOut(screen.getByRole('textbox', { name: 'Search recipes' }));
 
         expect(screen.getByText('FILTER BAR')).toBeTruthy();
     });
 
     it('keeps the same field node, focused, through regular, compact and collapsed', () => {
         const { rerender } = renderFrame(controls);
-        const field = screen.getByLabelText('Search public recipes') as HTMLInputElement;
+        const field = screen.getByRole('textbox', { name: 'Search recipes' }) as HTMLInputElement;
 
         field.focus();
 
@@ -469,7 +466,7 @@ describe('RecipeDiscoveryFrame (native) — compact height', () => {
             layout.collapsed = next.collapsed;
             rerender(frame({ ...controls, searchValue: `${String(next.compact)}${String(next.collapsed)}` }));
 
-            expect(screen.getByLabelText('Search public recipes')).toBe(field);
+            expect(screen.getByRole('textbox', { name: 'Search recipes' })).toBe(field);
             expect(document.activeElement).toBe(field);
         }
     });
@@ -478,7 +475,7 @@ describe('RecipeDiscoveryFrame (native) — compact height', () => {
     // first tap on a query must run it rather than only close the keyboard.
     it('scrolls the recent searches, and lets the first tap with the keyboard up land on a query', () => {
         renderFrame({ recentSearches: { queries: ['risotto', 'pasta'], onSelect: noop, onClear: noop } });
-        fireEvent.focusIn(screen.getByLabelText('Search public recipes'));
+        fireEvent.focusIn(screen.getByRole('textbox', { name: 'Search recipes' }));
 
         const query = screen.getByRole('button', { name: 'Search for “risotto”' });
 
@@ -499,14 +496,14 @@ describe('RecipeDiscoveryFrame (native) — N1: each name is said once, by its h
         layout.compact = compact;
         renderFrame();
 
-        expect(screen.getAllByRole('heading', { name: 'Discover recipes' })).toHaveLength(1);
-        expect(screen.queryAllByLabelText('Discover recipes')).toEqual([]);
+        expect(screen.getAllByRole('heading', { name: 'Discover' })).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Discover')).toEqual([]);
     });
 
     it('says "Recent searches" through one header once the panel shows, and no node is labelled with it', () => {
         renderFrame({ recentSearches: { queries: ['risotto', 'pasta'], onSelect: noop, onClear: noop } });
 
-        fireEvent.focusIn(screen.getByLabelText('Search public recipes'));
+        fireEvent.focusIn(screen.getByRole('textbox', { name: 'Search recipes' }));
 
         expect(screen.getAllByRole('heading', { name: 'Recent searches' })).toHaveLength(1);
         expect(screen.queryAllByLabelText('Recent searches')).toEqual([]);

@@ -9,6 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { makeIngredientEntry } from '../../__fixtures__/index.js';
+import { editorMessages } from '../../editor/messages.js';
 import { makeCatalogFoodOption, progressiveFoodView } from '../../__fixtures__/foodSearchViews.js';
 import { COMPLETE_FRAME, catalogResult, databaseFrame } from '../../__fixtures__/progressiveFrames.js';
 import type { LineCommitTarget } from '../../hooks/lineCommit.js';
@@ -24,6 +25,7 @@ const form = recipeFormMessages.en;
 const shared = recipeMessages.en;
 const COPY: TrailingEntryFieldCopy = {
     form,
+    add: editorMessages.en.ingredients,
     search: shared.ingredientSearch,
     pickerSearch: shared.ingredientPickerSearch,
     remote: shared.ingredientRemoteSearch,
@@ -57,6 +59,7 @@ const input = (over: Partial<TrailingEntryFieldInput> = {}): TrailingEntryFieldI
     onFocusRequestHandled: () => undefined,
     onTextChange: () => undefined,
     onCreateOwnFood: () => undefined,
+    onSubmitWithoutChoice: () => undefined,
     naming: {
         sourceName: () => undefined,
         formatTime: () => '3:05 PM',
@@ -72,9 +75,17 @@ describe('trailingEntryFieldOf', () => {
             label: 'Add an ingredient',
             placeholder: 'Add an ingredient',
             listLabel: 'Food suggestions for ingredient 4',
-            hint: form.ingredientNameEditableHint,
+            hint: 'Type the amount first, then pick the food. For example: 2 tbsp olive oil.',
             value: '  kale ',
         });
+    });
+
+    it('Enter with no option chosen reaches the host, which says to pick a food (build spec §7.5.3)', () => {
+        const onSubmitWithoutChoice = vi.fn();
+
+        trailingEntryFieldOf(input({ onSubmitWithoutChoice }), COPY).onSubmitWithoutChoice?.();
+
+        expect(onSubmitWithoutChoice).toHaveBeenCalledTimes(1);
     });
 
     it('typing sets the trailing field’s text on the entry, and tells the host', () => {

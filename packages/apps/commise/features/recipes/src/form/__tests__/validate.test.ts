@@ -5,9 +5,10 @@ import { describe, expect, it } from 'vitest';
 
 import { makeFilledRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
 import { MAX_RECIPE_TITLE_LENGTH, recipeIngredientQuantitySchema } from '@kitchensink/recipe-core';
+import { TITLE_MAX_LENGTH } from '../limits.js';
 import { mintedLineKey } from '../lineKey.js';
 import { applyDraftAction } from '../props.js';
-import { validateRecipeForm } from '../validate.js';
+import { draftFloorErrors, validateRecipeForm } from '../validate.js';
 import type { RecipeFormValues } from '../values.js';
 import { toCreateRecipeInput } from '../wire.js';
 
@@ -18,6 +19,16 @@ describe('validateRecipeForm', () => {
 
     it('requires a title (returns the locale-agnostic code, not English copy)', () => {
         expect(validateRecipeForm(makeFilledRecipeFormValues({ title: '   ' }), '').title).toBe('titleRequired');
+    });
+
+    it('the 120 title limit is a publish rule over the trimmed title: 120 passes, 121 is too long', () => {
+        expect(validateRecipeForm(makeFilledRecipeFormValues({ title: 'a'.repeat(TITLE_MAX_LENGTH) }), '')).toEqual({});
+        expect(
+            validateRecipeForm(makeFilledRecipeFormValues({ title: ` ${'a'.repeat(TITLE_MAX_LENGTH)}  ` }), ''),
+        ).toEqual({});
+        expect(
+            validateRecipeForm(makeFilledRecipeFormValues({ title: 'a'.repeat(TITLE_MAX_LENGTH + 1) }), '').title,
+        ).toBe('titleTooLong');
     });
 
     it('requires at least one ingredient and one step', () => {
@@ -243,13 +254,13 @@ describe('validateRecipeForm', () => {
 });
 
 describe('the form validators ARE the published wire schemas, so the two cannot drift', () => {
-    it('composes the create schema`s own title field', () => {
-        // Identity, not equivalence: `validateRecipeForm` reads `createRecipeRequestSchema.shape.title`, so a
-        // change to the server`s title rule reaches the editor with no second edit.
+    it('composes the create schema`s own title field: a title the wire refuses can never be published', () => {
+        // REWRITTEN for the 120 publish rule (blueprint Part C slice 7): a title past the wire's 200 is past the 120
+        // publish limit too, so it now reports `titleTooLong` rather than the `titleRequired` it used to borrow.
         expect(
             validateRecipeForm(makeFilledRecipeFormValues({ title: 'a'.repeat(MAX_RECIPE_TITLE_LENGTH + 1) }), '')
                 .title,
-        ).toBe('titleRequired');
+        ).toBe('titleTooLong');
     });
 
     it('rejects an ingredient quantity the wire would reject, instead of round-tripping to a 400', () => {
@@ -327,6 +338,36 @@ describe('validateRecipeForm — the pending entry text (§4b)', () => {
         expect(validateRecipeForm(makeFilledRecipeFormValues({ title: '' }), 'flour')).toEqual({
             title: 'titleRequired',
             ingredients: 'ingredientsPendingText',
+        });
+    });
+});
+
+/**
+ * The floor a server checkpoint checks (blueprint A4, Part C slice 7): only what the wire refuses outright, so a draft
+ * whose title is past the 120 publish limit still saves, and one past the wire's 200 never asks for a 400.
+ */
+describe('draftFloorErrors', () => {
+    it('needs a title, and nothing a draft may still lack', () => {
+        const empty = makeFilledRecipeFormValues({ title: '', ingredients: [], steps: [] });
+
+        expect(draftFloorErrors(empty)).toEqual({ title: 'titleRequired' });
+        expect(draftFloorErrors(makeFilledRecipeFormValues({ ingredients: [], steps: [] }))).toEqual({});
+    });
+
+    it('lets a title past the publish limit save, and refuses one past the wire`s bound', () => {
+        expect(draftFloorErrors(makeFilledRecipeFormValues({ title: 'a'.repeat(TITLE_MAX_LENGTH + 1) }))).toEqual({});
+        expect(draftFloorErrors(makeFilledRecipeFormValues({ title: 'a'.repeat(MAX_RECIPE_TITLE_LENGTH) }))).toEqual(
+            {},
+        );
+        expect(
+            draftFloorErrors(makeFilledRecipeFormValues({ title: 'a'.repeat(MAX_RECIPE_TITLE_LENGTH + 1) })),
+        ).toEqual({ title: 'titleTooLongToSave' });
+    });
+
+    it('refuses the numbers the wire refuses', () => {
+        expect(draftFloorErrors(makeFilledRecipeFormValues({ servings: 0, prepTimeMinutes: -1 }))).toEqual({
+            servings: 'servingsPositive',
+            times: 'timesNonNegative',
         });
     });
 });

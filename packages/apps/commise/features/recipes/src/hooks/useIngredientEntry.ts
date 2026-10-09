@@ -33,7 +33,9 @@ import type { IngredientLineKey } from '../form/lineKey.js';
 import {
     EMPTY_ENTRY,
     activeTargetOf,
+    commitTargetOf,
     isPendingAt,
+    searchTextOf,
     changingOf,
     entryTextOf,
     pendingEntryOf,
@@ -151,7 +153,8 @@ export function useIngredientEntry(options: UseIngredientEntryOptions): Ingredie
     const [state, setState] = useState<EntryState>(EMPTY_ENTRY);
     const active = activeTargetOf(state, lines);
     const activeKey = keyOf(active);
-    const trimmed = active === undefined ? '' : entryTextOf(state, active, lines).trim();
+    // The trailing row asks for the food alone, after the measure typed in front of it (blueprint A1).
+    const trimmed = active === undefined ? '' : searchTextOf(active, entryTextOf(state, active, lines));
 
     // ONE debounce, of the text AND the field it belongs to: a settle for the field the cook just left must not be
     // searched, or observed, as the new field's.
@@ -260,7 +263,8 @@ export function useIngredientEntry(options: UseIngredientEntryOptions): Ingredie
         const target = active;
         const pickedText = entryTextOf(state, target, lines);
 
-        void commit(pick, target).then((outcome) => {
+        // The trailing row's line is committed with the measure read from the text it was picked on (A1, A2).
+        void commit(pick, commitTargetOf(target, pickedText)).then((outcome) => {
             if (outcome.kind === 'committed') {
                 setState((current) => withEntryCommitted(current, target, pickedText));
             }

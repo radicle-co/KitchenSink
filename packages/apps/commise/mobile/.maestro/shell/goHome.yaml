@@ -1,0 +1,12 @@
+appId: io.commise.mobile
+---
+# Go Home through the APP's tab bar. ⛔ ANCHORED, not bare: under three-button navigation Android publishes a system node
+# named exactly `Home` (`maestroBackCollidesWithSystemNav` memory), so a bare `tapOn: 'Home'` may press the SYSTEM Home
+# and leave the app. A position anchor does not help either: Maestro picks the match NEAREST the anchor, and the system
+# Home sits right under the middle tab (measured: `leftOf: 'Recipes'` pressed it). So the selector is structural: the
+# `Home` tab INSIDE the app's tab bar, the `tablist` named "Main" (`HomeTabBar`). (The old anchor, the "Meal Plan,
+# coming soon" tab, is gone: navigation shows no "Soon" item.)
+- tapOn:
+      text: 'Home'
+      childOf:
+          text: 'Main'

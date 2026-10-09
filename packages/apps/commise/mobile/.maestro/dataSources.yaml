@@ -1,5 +1,6 @@
-# The Data sources sheet (curated plan R55, U25; design §S16): a signed-in cook opens it from account settings, finds
-# USDA and Ciqual with their licence links, and closes it back to where they were.
+# The Profile walk and the Data sources sheet (curated plan R55, U25; design §S16): a signed-in cook opens the Display
+# name sheet and closes it unsaved, then opens Data sources from Profile, finds USDA and Ciqual with their licence links,
+# and closes it back to where they were.
 #
 # The sheet reads `GET /api/v1/foods/sources` from food-service directly (plan 002 S5, `EXPO_PUBLIC_FOOD_API_URL`).
 #
@@ -11,29 +12,33 @@ appId: io.commise.mobile
 # Sign in (idempotent) and land on the Home widget surface.
 - runFlow: auth/signinHome.yaml
 
-# Into the account hub, where "Food data" sits before the danger zone.
-- tapOn: 'Profile'
+# Into the Profile page, where the "Food data sources" row sits under Preferences, above the danger zone.
+- tapOn: 'Profile.*'
+
+# The Display name row opens its sheet on the saved name and closes without writing anything. The save itself is not
+# driven here: it would rename the shared test user for every later run (the component tier owns that path).
+- tapOn: 'Display name'
+- assertVisible: 'What should we call you?'
+- tapOn: 'Close'
+- assertNotVisible: 'What should we call you?'
 - scrollUntilVisible:
-      element: 'Account settings'
+      element: 'Food data sources'
       direction: DOWN
-- tapOn: 'Account settings'
-- scrollUntilVisible:
-      element: 'Food data'
-      direction: DOWN
-- tapOn: 'Data sources'
+- tapOn: 'Food data sources'
 
 # The sheet: its title, both intro sentences, and the sources a stored value cites.
 - assertVisible: 'Data sources'
 - assertVisible: 'The nutrition figures in this app come from these public food databases.'
+# Each card is headed by its PUBLISHER (§9.2), whose wording is the service's, so the flow finds a card by its licence link.
 - scrollUntilVisible:
-      element: 'USDA'
+      element: 'CC0 1.0 Universal, license for USDA'
       direction: DOWN
 - assertVisible: 'CC0 1.0 Universal, license for USDA'
 - scrollUntilVisible:
-      element: 'Ciqual'
+      element: 'Licence Ouverte / Open Licence 2.0, license for Ciqual'
       direction: DOWN
 - assertVisible: 'Licence Ouverte / Open Licence 2.0, license for Ciqual'
 
-# Close returns the cook to account settings.
+# Close returns the cook to Profile.
 - tapOn: 'Close data sources'
-- assertVisible: 'Food data'
+- assertVisible: 'Food data sources'

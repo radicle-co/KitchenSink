@@ -13,14 +13,28 @@
  * cards are hidden from assistive tech. They are INERT — no animation, hence no reduced-motion gate — which
  * is the choice both native surfaces already made and which this leaf preserves.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import { formatRgb } from 'culori';
+
+import { role, roleDark } from '@commise/ui/colors';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCardGridSkeleton } from '../RecipeCardGridSkeleton.native.js';
 import { RECIPE_CARD_SKELETON_COUNT } from '../model.js';
 
-afterEach(cleanup);
+/** The system colour scheme the next render sees. */
+const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
+
+vi.mock('react-native', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('react-native')>()),
+    useColorScheme: () => scheme.current,
+}));
+
+afterEach(() => {
+    cleanup();
+    scheme.current = null;
+});
 
 describe('RecipeCardGridSkeleton (native)', () => {
     it('names the loading region with its localized label', () => {
@@ -49,6 +63,28 @@ describe('RecipeCardGridSkeleton (native)', () => {
         for (const card of container.querySelectorAll('[aria-hidden="true"]')) {
             expect(card.getAttribute('aria-label')).toBeNull();
             expect(card.textContent).toBe('');
+        }
+    });
+
+    // Slice 4 (`buildSpec.md` §4.1): the skeleton is the variant's own shape, in the surface-muted role of the scheme.
+    it.each([
+        ['grid', 'light'],
+        ['row', 'dark'],
+        ['compact', 'light'],
+    ] as const)('draws a %s skeleton in the %s surface-muted role', (variant, name) => {
+        scheme.current = name;
+        const { container } = render(<RecipeCardGridSkeleton label="L" variant={variant} count={1} />);
+        const card = container.querySelector('[aria-hidden="true"]');
+
+        expect(card?.getAttribute('data-skeleton-variant')).toBe(variant);
+
+        const bars = card?.querySelectorAll('[data-skeleton-bar]') ?? [];
+        expect(bars.length).toBeGreaterThan(0);
+
+        for (const bar of bars) {
+            expect(getComputedStyle(bar).backgroundColor).toBe(
+                formatRgb((name === 'dark' ? roleDark : role).surfaceMuted),
+            );
         }
     });
 });

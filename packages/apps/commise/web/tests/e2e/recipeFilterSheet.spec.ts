@@ -5,9 +5,10 @@ import { E2E_RECIPE_IDS, makeRecipeDetail, mockRecipeApi, readViewerAppId } from
 import { signInWithTicket } from './utils/auth';
 
 /**
- * Curated U15 — the recipe filter bar on the Sheet below the inline window (`docs/design/ingredientSpecialization.md`
- * §S8.1a "Web below 640 px", E2 I9). The bar is inline only in a window at least 640 px wide and 480 px tall; anywhere
- * else the seven facet groups sit in the design-system Sheet behind a `Filters` trigger, the native anatomy.
+ * Curated U15, re-aimed by slice 5 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.4): Discover's facets live
+ * in ONE place. At a 960 container in a window that is not short they are a sticky PANEL (an `aside` named "Filters")
+ * beside the results; anywhere else they are the design-system Sheet behind a `Filters` button, with the applied filters
+ * as chips under it. The groups never exist twice. (This replaces the inline bar of `ingredientSpecialization.md` §S8.1a.)
  *
  * What only this tier can prove: the layout follows the real window, a facet tap writes the URL without closing the
  * Sheet (a remounted bar would close it on every tap), the results behind the Sheet follow, focus comes back to the
@@ -15,6 +16,12 @@ import { signInWithTicket } from './utils/auth';
  */
 
 const PHONE = { width: 320, height: 640 };
+
+/** A window the panel fits in: a 960 container, and not short. */
+const WIDE = { width: 1440, height: 900 };
+
+/** The Sheet's apply button: "Show 3 recipes", "Show 1 recipe", or "Show recipes" while the count is unknown. */
+const SHOW = /^Show (?:\d+ )?recipes?$/u;
 
 /** One vegan and one non-vegan public recipe, both matching the query `e`, so a facet visibly narrows the list. */
 async function seed(page: Page): Promise<void> {
@@ -57,33 +64,33 @@ test.describe('recipe filters on the Sheet, on a phone (curated U15)', () => {
 
         const trigger = page.getByRole('button', { name: 'Filters' });
         await expect(trigger).toBeVisible();
-        // The groups no longer sit above the results.
-        await expect(page.getByRole('group', { name: 'Filter recipes' })).toHaveCount(0);
+        // The groups sit nowhere on the page until the Sheet opens: no panel at this width.
+        await expect(page.getByRole('complementary', { name: 'Filters' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toBeVisible();
         await expectNoSidewaysScroll(page);
 
         await trigger.click();
 
-        const sheet = page.getByRole('dialog', { name: 'Filter recipes' });
+        const sheet = page.getByRole('dialog', { name: 'Filters' });
         await expect(sheet).toBeVisible();
-        await expect(sheet.getByRole('heading', { name: 'Filter recipes' })).toBeFocused();
+        await expect(sheet.getByRole('heading', { name: 'Filters' })).toBeFocused();
         await expectNoSidewaysScroll(page);
 
         // A facet applies at once: the URL takes it, and the Sheet stays open for the next one.
-        const vegan = sheet.getByRole('button', { name: 'vegan, 1 recipe' });
+        const vegan = sheet.getByRole('button', { name: 'vegan 1' });
         await vegan.click();
         await expect(page).toHaveURL(/dietaryFlags=vegan/u);
         await expect(vegan).toHaveAttribute('aria-pressed', 'true');
         await expect(sheet).toBeVisible();
 
-        // Done fills the footer (R9, `docs/design/rowEditorOpenDecisions.md`). The footer is a block box, not a flex
-        // column, so only a real layout shows the wrapper stretching. A content-width Done measured 84 px of 320.
-        const done = sheet.getByRole('button', { name: 'Done' });
+        // The apply button fills the footer (R9, `docs/design/rowEditorOpenDecisions.md`) and says what it will show. The
+        // footer is a block box, not a flex column, so only a real layout shows the wrapper stretching.
+        const done = sheet.getByRole('button', { name: SHOW });
         const sheetWidth = (await sheet.boundingBox())?.width ?? 0;
 
         // Positive control: the sheet spans the phone, so the ratio below is not taken against a collapsed box.
         expect(sheetWidth).toBeGreaterThan(300);
-        expect((await done.boundingBox())?.width ?? 0, 'Done does not fill the footer').toBeGreaterThan(
+        expect((await done.boundingBox())?.width ?? 0, 'the apply button does not fill the footer').toBeGreaterThan(
             sheetWidth * 0.75,
         );
 
@@ -91,6 +98,8 @@ test.describe('recipe filters on the Sheet, on a phone (curated U15)', () => {
 
         await expect(sheet).toBeHidden();
         await expect(page.getByRole('button', { name: 'Filters, 1 active' })).toBeFocused();
+        // The applied filter is a chip under the button, removable without reopening the Sheet.
+        await expect(page.getByRole('button', { name: 'Remove vegan filter' })).toBeVisible();
         await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' })).toBeVisible();
     });
@@ -99,7 +108,7 @@ test.describe('recipe filters on the Sheet, on a phone (curated U15)', () => {
         await seed(page);
         await page.goto(route('/discover?query=e'));
         const trigger = page.getByRole('button', { name: 'Filters' });
-        const sheet = page.getByRole('dialog', { name: 'Filter recipes' });
+        const sheet = page.getByRole('dialog', { name: 'Filters' });
 
         await trigger.click();
         await sheet.getByRole('button', { name: 'Close filters' }).click();
@@ -113,33 +122,47 @@ test.describe('recipe filters on the Sheet, on a phone (curated U15)', () => {
         await expect(trigger).toBeFocused();
     });
 
-    test('closes the sheet when the window widens, and focus goes to the inline bar', async ({ page }) => {
+    test('closes the sheet when the window widens, and the panel takes its place', async ({ page }) => {
         await seed(page);
         await page.goto(route('/discover?query=e'));
 
         await page.getByRole('button', { name: 'Filters' }).click();
-        await expect(page.getByRole('dialog', { name: 'Filter recipes' })).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible();
 
-        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.setViewportSize(WIDE);
 
-        await expect(page.getByRole('dialog', { name: 'Filter recipes' })).toHaveCount(0);
-        const inline = page.getByRole('group', { name: 'Filter recipes' });
-        await expect(inline).toBeVisible();
-        await expect(inline.getByRole('button').first()).toBeFocused();
+        await expect(page.getByRole('dialog', { name: 'Filters' })).toHaveCount(0);
+        const panel = page.getByRole('complementary', { name: 'Filters' });
+        await expect(panel).toBeVisible();
+        await expect(panel.getByRole('group', { name: 'Dietary' })).toBeVisible();
+        // One home for the facets: the button is gone with the Sheet.
+        await expect(page.getByRole('button', { name: /^Filters/u })).toHaveCount(0);
     });
 });
 
-test.describe('recipe filters, inline (curated U15)', () => {
-    test.use({ viewport: { width: 1280, height: 800 } });
+test.describe('recipe filters, in the panel (slice 5)', () => {
+    test.use({ viewport: WIDE });
 
-    test('keeps the inline bar on a laptop, with no trigger', async ({ page }) => {
+    test('keeps the panel beside the results on a laptop, with no button, and a facet narrows them', async ({
+        page,
+    }) => {
         await seed(page);
         await page.goto(route('/discover?query=e'));
 
-        const inline = page.getByRole('group', { name: 'Filter recipes' });
-        await expect(inline).toBeVisible();
-        await expect(inline.getByRole('group', { name: 'Dietary' })).toBeVisible();
+        const panel = page.getByRole('complementary', { name: 'Filters' });
+        await expect(panel).toBeVisible();
+        await expect(panel.getByRole('group', { name: 'Dietary' })).toBeVisible();
         await expect(page.getByRole('button', { name: /^Filters/u })).toHaveCount(0);
+        await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toBeVisible();
+
+        await panel.getByRole('button', { name: 'vegan 1' }).click();
+
+        await expect(page).toHaveURL(/dietaryFlags=vegan/u);
+        await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toHaveCount(0);
+        await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' })).toBeVisible();
+        // The panel's Clear all brings the other recipe back.
+        await panel.getByRole('button', { name: 'Clear all' }).click();
+        await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toBeVisible();
     });
 });
 
@@ -152,17 +175,17 @@ test.describe('recipe filters, a phone turned sideways (curated U15)', () => {
         await page.goto(route('/discover?query=e'));
 
         await expect(page.getByRole('button', { name: 'Filters' })).toBeVisible();
-        await expect(page.getByRole('group', { name: 'Filter recipes' })).toHaveCount(0);
+        await expect(page.getByRole('complementary', { name: 'Filters' })).toHaveCount(0);
 
         await page.getByRole('button', { name: 'Filters' }).click();
-        await expect(page.getByRole('dialog', { name: 'Filter recipes' })).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible();
         await expectNoSidewaysScroll(page);
     });
 });
 
 /**
  * The pinned-footer limit on the filter Sheet (`docs/design/compactHeightLayout.md` §3, item B; `isFooterUnpinned` in
- * `@commise/ui/layout`): Done stays pinned while the title row and the footer take at most half the Sheet. Past that it
+ * `@commise/ui/layout`): the apply button ("Show n recipes", still called `done` below) stays pinned while the title row and the footer take at most half the Sheet. Past that it
  * scrolls with the facets, and Close stays pinned in the title row.
  *
  * 640 × 360 is a phone held sideways. From 640 px the Sheet is the centred dialog, capped at 85% of the window's height,
@@ -244,14 +267,14 @@ test.describe('the filter Sheet’s Done at 640 × 360 (compactHeightLayout.md �
         await page.goto(route('/discover?query=e'));
         await page.addStyleTag({ content: `html { font-size: ${String(scale * 100)}% !important; }` });
         await page.getByRole('button', { name: 'Filters' }).click();
-        const sheet = page.getByRole('dialog', { name: 'Filter recipes' });
-        const done = sheet.getByRole('button', { name: 'Done' });
+        const sheet = page.getByRole('dialog', { name: 'Filters' });
+        const done = sheet.getByRole('button', { name: SHOW });
         const close = sheet.getByRole('button', { name: 'Close filters' });
 
         await expect(sheet).toBeVisible();
         // The facets come from the search the browser settles after the page is up, so the Dietary group can arrive
         // after the Sheet opens and grow it. Nothing is measured until it has.
-        await expect(sheet.getByRole('button', { name: 'vegan, 1 recipe' })).toBeVisible();
+        await expect(sheet.getByRole('button', { name: 'vegan 1' })).toBeVisible();
         // The facets overflow, so whether Done moves when they scroll tells a pinned footer from one that is not.
         await expect
             .poll(async () => (await chromeOf(done, close)).overflow, 'the facets fit the Sheet')

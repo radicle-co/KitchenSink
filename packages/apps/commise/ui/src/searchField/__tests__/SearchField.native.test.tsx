@@ -67,6 +67,14 @@ describe('SearchField (native)', () => {
         expect(screen.getByText('Search recipes')).toBeTruthy();
     });
 
+    it('focuses the field when its visible label is pressed', () => {
+        render(<Search />);
+
+        fireEvent.click(screen.getByText('Search recipes'));
+
+        expect(document.activeElement).toBe(field());
+    });
+
     it('keeps a hidden label as the field’s name, drawing no label', () => {
         render(<Search labelVisibility="hidden" />);
 
@@ -135,5 +143,20 @@ describe('SearchField (native)', () => {
         fireEvent.keyDown(field(), { key: 'Enter' });
 
         expect(onSubmit).toHaveBeenCalledOnce();
+    });
+
+    it('reports focus entering and leaving the field, so a screen can show an idle-state panel only while it is focused', () => {
+        const onFocus = vi.fn();
+        const onBlur = vi.fn();
+        render(<Search onFocus={onFocus} onBlur={onBlur} />);
+
+        // `focusIn`, not `focus`: React delegates `onFocus` to the bubbling `focusin` event.
+        fireEvent.focusIn(field());
+
+        expect(onFocus).toHaveBeenCalledOnce();
+
+        fireEvent.focusOut(field());
+
+        expect(onBlur).toHaveBeenCalledOnce();
     });
 });

@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import type { UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 
-import { recipeServiceKeys } from '../queries.js';
 import { useRecipeServiceClient } from './recipeServiceProvider.js';
+import { applyRecipeUpdated } from './recipeWriteCache.js';
 
 /**
  * `PATCH /api/v1/recipes/{id}` — update a recipe (optimistic concurrency).
@@ -22,16 +22,7 @@ export function useUpdateRecipe() {
 
     return useMutation({
         mutationFn: (vars: { id: string; input: UpdateRecipeRequest }) => client.updateRecipe(vars.id, vars.input),
-        onSuccess: async (data, vars) => {
-            // Cancel any in-flight `recipe(id)` GET before writing through, so a detail fetch that started
-            // stale (>staleTime) and settles AFTER this mutation cannot clobber the fresh response with
-            // pre-update data (symmetric with the rating hooks' optimistic cancel).
-            await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
-            queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), data);
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeVersions(vars.id) });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
-        },
+        // One statement of what an update does to the cache, shared with the offline write port (`recipeWriteCache.ts`).
+        onSuccess: (data) => applyRecipeUpdated(queryClient, data),
     });
 }

@@ -1,5 +1,7 @@
 import type { Route } from 'next';
+import { VIEW_MODE_KEY, viewModeFrom } from '@commise/features-recipes';
 import { auth } from '@clerk/nextjs/server';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { AppShell } from '@/components/app/AppShell';
@@ -27,9 +29,16 @@ export default async function CollectionDetailPage({
         redirect(`/${locale}/sign-in` as Route);
     }
 
+    // The cook's list/grid choice (shared with My recipes), so the server renders it and hydration does not flip the view.
+    const storedViewMode = viewModeFrom((await cookies()).get(VIEW_MODE_KEY)?.value);
+
     return (
         <AppShell activeId="recipes" titleId="collectionDetail">
-            <CollectionDetailContainer id={id} locale={locale} />
+            <CollectionDetailContainer
+                id={id}
+                locale={locale}
+                {...(storedViewMode === undefined ? {} : { storedViewMode })}
+            />
         </AppShell>
     );
 }

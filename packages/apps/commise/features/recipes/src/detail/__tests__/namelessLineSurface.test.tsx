@@ -13,7 +13,7 @@
  *   and the recovery is announced; a partial recovery leaves the button, and focus stays on it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render as renderUnscoped, screen, within } from '@testing-library/react';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 
@@ -21,6 +21,12 @@ import { makeIngredientView, makeRecipeDetail, idleUnreachableRetry } from '../.
 import { RecipeDetailView } from '../RecipeDetailView.js';
 import { resetServingScale } from '../servingScale.js';
 import { recipeMessages } from '../../messages.js';
+import type { ReactElement } from 'react';
+import { DetailTestScope } from '../../__fixtures__/detailScope.js';
+
+/** Every detail renders inside its page's scroll host and the session’s cook-marks scope, as the app mounts them. */
+const render = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
+    renderUnscoped(ui, { wrapper: DetailTestScope });
 
 const en = recipeMessages.en.detail;
 const standIns = recipeMessages.en.ingredientLineName;

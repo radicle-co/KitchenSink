@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId, type MockRecipeApiOptions } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Plan 002 US5, through the real web app with the recipe-service contract intercepted: a matched ingredient in the
@@ -42,9 +42,7 @@ const seedEditor = async (page: Page, foodNutrition: MockRecipeApiOptions['foodN
         ],
     });
 
-    await page.goto(route('/recipes/rec_nutrition/edit'));
-    await page.getByRole('button', { name: /Ingredients:/ }).click();
-    await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 2 of 4');
+    await openRecipeEditor(page, 'rec_nutrition');
 };
 
 test.describe('a matched ingredient shows its nutrition in the editor (plan 002 US5)', () => {
@@ -56,7 +54,7 @@ test.describe('a matched ingredient shows its nutrition in the editor (plan 002 
         await expect(ingredients.getByRole('list')).not.toContainText('390 cal');
         await expect(ingredients.getByRole('button', { name: 'About Arborio rice' })).toHaveAccessibleDescription('');
         // The total comes from the background read: 300 g at 130 kcal / 100 g, one serving.
-        await expect(ingredients).toContainText('Total nutrition (per serving): 390 cal');
+        await expect(ingredients).toContainText('390 cal per serving · 1 of 1 counted');
 
         await ingredients.getByRole('button', { name: 'About Arborio rice' }).click();
         const panel = page.getByRole('dialog', { name: 'Arborio rice' });

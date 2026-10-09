@@ -43,6 +43,25 @@ describe('globals.css', () => {
             .toEqual([]);
     });
 
+    /**
+     * Clerk's own styles are unlayered emotion CSS, which out-ranks a Tailwind utility whatever its specificity. The
+     * appearance puts them in the `clerk` layer (`CLERK_CSS_LAYER`); this statement is what ranks that layer BELOW
+     * `utilities`, so the role classes on Clerk's elements win. Declared before the theme import, because the FIRST
+     * ordering statement of a layer name fixes its place and Tailwind's own `@layer theme, base, components, utilities`
+     * (inside the import) would otherwise leave `clerk` last, above everything.
+     */
+    it('orders the clerk layer between base and components, before Tailwind declares its own order', () => {
+        const statement = /@layer\s+([^;{]+);/.exec(globalsCss);
+        const themeImport = globalsCss.indexOf("@import '@commise/ui/theme.css'");
+        const layers = (statement?.[1] ?? '').split(',').map((name) => name.trim());
+
+        expect(statement, 'a bare @layer ordering statement').not.toBeNull();
+        expect(statement?.index ?? Number.POSITIVE_INFINITY).toBeLessThan(themeImport);
+        expect(layers.indexOf('clerk')).toBeGreaterThan(layers.indexOf('base'));
+        expect(layers.indexOf('clerk')).toBeLessThan(layers.indexOf('utilities'));
+        expect(layers.indexOf('clerk')).toBeLessThan(layers.indexOf('components'));
+    });
+
     it('still imports the brand webfont families', () => {
         // Guards against "fixing" the ordering by deleting the import outright. If these ever move to
         // `next/font`, delete this test in the same commit that adds the replacement.

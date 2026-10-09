@@ -26,7 +26,7 @@ import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 import { makeCollectionMemberRecipe, makeRecipe, makeRecipeListItem } from '../../__fixtures__/index.js';
 import { toRecipeCardModel } from '../../card/model.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
-import { CollectionDetail } from '../../collections/CollectionDetail.native.js';
+import { CollectionMembers } from '../../collections/CollectionMembers.native.js';
 import { RecentRecipeGrid } from '../../components/RecentRecipeGrid.native.js';
 import { RecipeBrowseRailResults } from '../../discovery/RecipeBrowseRailResults.native.js';
 import { RecipeDiscoveryResults } from '../../discovery/RecipeDiscoveryResults.native.js';
@@ -79,7 +79,15 @@ const SURFACES: readonly (readonly [string, (render: RenderRecipeNutrition) => R
         (renderNutrition) => (
             <RecipeListResults
                 recipes={[makeRecipeListItem({ id: RECIPE_ID, title: 'Weeknight Pasta' })]}
-                narrowed={false}
+                state="results"
+                searchValue=""
+                onClearSearch={noop}
+                onClearFilters={noop}
+                variant="row"
+                chipOverflow="scroll"
+                facets={{ facets: [], onToggle: noop, onClear: noop }}
+                view={{ mode: 'list', onChange: noop }}
+                sort={{ value: 'updatedAt', onChange: noop }}
                 onSelectRecipe={noop}
                 onCreateRecipe={noop}
                 renderNutrition={renderNutrition}
@@ -92,10 +100,12 @@ const SURFACES: readonly (readonly [string, (render: RenderRecipeNutrition) => R
             <RecipeDiscoveryResults
                 results={[{ recipe }]}
                 query="pasta"
-                searching
+                kind="query"
                 stale={false}
+                cardVariant="grid"
+                saveCopy={{ stateOf: () => ({ kind: 'idle' }), save: noop }}
                 onSelectRecipe={noop}
-                onClone={noop}
+                noResult={{ onClearSearch: noop, onClearFilters: noop, tryTags: [], onPickTag: noop }}
                 renderNutrition={renderNutrition}
             />
         ),
@@ -105,8 +115,8 @@ const SURFACES: readonly (readonly [string, (render: RenderRecipeNutrition) => R
         (renderNutrition) => (
             <RecipeBrowseRailResults
                 results={[{ recipe }]}
+                saveCopy={{ stateOf: () => ({ kind: 'idle' }), save: noop }}
                 onSelectRecipe={noop}
-                onClone={noop}
                 renderNutrition={renderNutrition}
             />
         ),
@@ -114,25 +124,20 @@ const SURFACES: readonly (readonly [string, (render: RenderRecipeNutrition) => R
     [
         'RecentRecipeGrid (native — the Home widget)',
         (renderNutrition) => (
-            <RecentRecipeGrid recipes={[toRecipeCardModel(recipe)]} renderNutrition={renderNutrition} />
+            <RecentRecipeGrid recipes={[toRecipeCardModel(recipe)]} variant="grid" renderNutrition={renderNutrition} />
         ),
     ],
     [
-        'CollectionDetail (native)',
+        'CollectionMembers (native)',
         (renderNutrition) => (
-            <CollectionDetail
-                collection={{
-                    id: 'col_1',
-                    ownerId: 'usr_1',
-                    name: 'Weeknights',
-                    visibility: 'private',
-                    createdAt: '2026-04-18T12:00:00.000Z',
-                    updatedAt: '2026-04-18T12:00:00.000Z',
-                    recipes: [makeCollectionMemberRecipe({ id: RECIPE_ID, title: 'Weeknight Pasta' })],
-                }}
+            <CollectionMembers
+                members={[makeCollectionMemberRecipe({ id: RECIPE_ID, title: 'Weeknight Pasta' })]}
+                viewMode="grid"
+                onViewModeChange={noop}
+                variant="grid"
                 onSelectRecipe={noop}
                 onRemoveRecipe={noop}
-                onAddRecipe={noop}
+                onAddRecipes={noop}
                 renderNutrition={renderNutrition}
             />
         ),

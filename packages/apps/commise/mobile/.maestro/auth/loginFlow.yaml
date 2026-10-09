@@ -46,7 +46,7 @@ appId: io.commise.mobile
 # to own, so it is asserted in both directions rather than assumed (web's `routeProtection.spec.ts` asserts the
 # same property via the sign-up link Clerk renders from `signUpUrl` — cross-platform parity). Copy comes from
 # mobile i18n `auth.signUpLink` / `createHeading` / `createAccountAction` / `haveAccountPrompt`.
-- tapOn: 'Sign up'
+- tapOn: 'Create an account'
 - assertVisible: 'Create your account'
 - assertVisible: 'Create account'
 - assertVisible: 'Already have an account?'

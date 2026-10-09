@@ -105,6 +105,8 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #   - `recipes/servingScale` sits next to `listDetail`: same populated seed, and read-only in the strongest
 #     sense — the serving scale it drives is session-only display state that never reaches the service, so it
 #     cannot perturb any later flow's fixture.
+#   - `recipes/detailCooking` follows `servingScale`: the same populated seed, and it writes nothing the service keeps —
+#     its checks, current step and Screen on are in-memory session state that the next flow's relaunch drops.
 #   - `recipes/deferredCalories` sits next to `listDetail`: same populated seed, read-only, and it crosses
 #     into Discover at the end, so it wants the same settled library. It is in the `recipes` vertical rather
 #     than `discovery` because its subject is the CARD's deferred figure, which every card surface shares.
@@ -116,8 +118,13 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #   - `recipes/discoverIngredientCap` (curated U9) sits with them for the same reason: the filter is screen state, so
 #     it writes nothing. It filters on six foods the seed authors as the signer (`E2E_CAP_FOOD_PREFIX`), because the
 #     filter's search returns only foods the caller has a binding for.
-#   - `recipes/ingredientUnmatched` (plan 002 US1) sits immediately after `addIngredientLoop`: it shares the
-#     create wizard's freeform prelude, and it DISCARDS its draft, so it leaves the library as it found it.
+#   - `recipes/addIngredientLine` (slice 8) sits immediately after `addIngredientLoop`: the quantity-first add field,
+#     and the device proof that Hermes runs the leading-measure reader's Unicode property escapes (blueprint A1). It
+#     picks the probe food `Flour` and discards its draft.
+#   - `recipes/pasteList` (slice 8, which replaced the paste-and-review flow) follows `create`: Paste a list in the
+#     editor's Ingredients section, polled to completion by the parse worker. It discards its draft.
+#   - `recipes/ingredientUnmatched` (plan 002 US1) sits immediately after `addIngredientLine`: it shares the
+#     create editor's freeform prelude, and it DISCARDS its draft, so it leaves the library as it found it.
 #   - `recipes/ingredientNutritionPanel` (plan 002 US5) follows it for the same reasons; it picks the seeded probe
 #     food `Flour` rather than creating one.
 #   - `recipes/ingredientRemove` (plan 002 US6) follows them: the same freeform prelude, twice, and a discard.
@@ -131,27 +138,27 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #     by-name line and a remote pick from its glyph's list; it saves one draft, which the next flow's reset deletes.
 #   - `recipes/ingredientRemoteFoods` (plan 002 S7.8, which replaced `ingredientUsdaSearch`) follows them: remote
 #     foods flowing into the add row's list and Change food's, two remote picks, and a publish the next reset deletes.
-#   - `recipes/privateFoodStandIn` sits right after `discoverClone`: it reaches the co-author's recipe the same
-#     way and clones it, so it leaves one clone in the signer's library, which the next flow's reset deletes. It is
-#     labelled `recipes`, not `discovery`, because what it tests — the nameless line and the clone banner — lives
+#   - `recipes/privateFoodStandIn` sits right after `discoverDetailSaveCopy`: it reaches the co-author's recipe the same
+#     way and saves a copy, so it leaves one copy in the signer's library, which the next flow's reset deletes. It is
+#     labelled `recipes`, not `discovery`, because what it tests — the nameless line and the copy banner — lives
 #     in `features/recipes/src/detail/**`, which the `recipes` path filter owns.
-#   - `recipes/quantityRange` sits with the other CREATE-wizard flows and immediately after `create`: it
+#   - `recipes/quantityRange` sits with the other CREATE-editor flows and immediately after `create`: it
 #     publishes (twice), so it mutates the library, and it shares `create`'s "as written" prelude.
 #   - `recipes/preparationGroups` (U26/U27) sits immediately after `quantityRange`, for the same three
 #     reasons: it publishes (so it mutates the library and belongs in the mutating cluster), it shares
 #     `create`'s "as written" prelude, and — like `quantityRange` — its subject is a per-LINE field on
-#     the create wizard, so the two want the same fixture and the same position. It needs NO food service:
+#     the create editor, so the two want the same fixture and the same position. It needs NO food service:
 #     the line is declared "as written", exactly as `create` and `quantityRange` do.
 #   - `recipes/addIngredientLoop` (U28) sits immediately after `preparationGroups`, for the same
 #     three reasons again: it publishes, it shares `create`'s "as written" prelude, and its subject
-#     is the create wizard's step 2. It needs NO food service. It is deliberately its own flow rather
+#     is the create editor's step 2. It needs NO food service. It is deliberately its own flow rather
 #     than three more steps inside `create`: its FIRST assertions are that an empty recipe has NO row and
 #     that typed text is refused rather than appended (B8), and folding those into a flow whose job is to
 #     reach a published recipe would bury the checkpoint that distinguishes typed text from a line.
-#   - `dataSources` just before `accountDangerZone`, in the `auth` vertical: the same walk, Profile → Account settings,
-#     and it only reads (curated U25). `flows_auth` lists both its entry point and its feature folder. It needs a stage
+#   - `dataSources` just before `accountDangerZone`, in the `auth` vertical: the same walk, avatar → Profile (the one
+#     page that replaced the Account settings hub), and it only reads (curated U25). `flows_auth` lists both its entry point and its feature folder. It needs a stage
 #     whose catalog seed has run and cites USDA and Ciqual (ADR-0051).
-#   - `accountDangerZone` late but BEFORE `delete`: it walks Profile → Account settings and CANCELS both
+#   - `accountDangerZone` late but BEFORE `delete`: it walks avatar → Profile and CANCELS both
 #     destructive actions (it deliberately never confirms), so it must not run against a state a later flow
 #     assumes, and it must not be stranded after the delete flow's mutations.
 #   - `recipes/delete` next (its own "run me last" note — it is now last but one).
@@ -162,18 +169,18 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #     leases solely to be erased, which owns nothing and which no other flow signs in as. Nothing may
 #     follow it: it ends a Clerk session and leaves the app signed out, and the next flow would pay for
 #     that.
-#   - `recipes/speedDial` (U34) sits immediately BEFORE `create`, as the first of the CREATE-wizard block:
-#     it is the shortest flow that enters the wizard, it mutates nothing (it dismisses the dial once and
-#     leaves the wizard via back without saving), and putting it first means a broken create DIAL fails on a
-#     30-second flow rather than four minutes into `create`. It is a separate file from `create.yaml` because
-#     the behaviour it owns — opening the dial and DISMISSING it without creating — is unreachable from a
-#     flow whose next step is always the destination.
+#   - `recipes/createEntry` (slice 8, which replaced the SpeedDial flow) sits immediately BEFORE `create`, as the first
+#     of the CREATE-editor block: it is the shortest flow that enters the editor, it mutates nothing (one tap in, ×
+#     out, having typed nothing), and putting it first means a broken create entry fails on a 30-second flow rather
+#     than four minutes into `create`.
 #   - `recipes/emptyLibrary` sits next to `listDetail` (its populated sibling). It is the ONE flow that
 #     runs against an EMPTY library — see EMPTY_LIBRARY_FLOWS below — and it mutates nothing, so the next
 #     iteration's normal reset restores the seed for everything after it.
-#   - `recipes/systemBackGuard` sits between `speedDial` and `create`, at the head of the CREATE-wizard block,
-#     for the reasons `speedDial` is there: it enters the wizard, and it MUTATES NOTHING — every leg ends by
-#     discarding or by leaving a clean wizard, so no recipe is created and the seeded library is untouched.
+#   - `recipes/systemBackGuard` sits between `createEntry` and `create`, at the head of the CREATE-editor block,
+#     for the reasons `createEntry` is there: it enters the editor, and it LEAVES THE LIBRARY AS FOUND — the draft
+#     its Back creates is discarded through the editor, and the edit leg's device changes are discarded too.
+#   - `recipes/editorSections` (slice 7) follows it: read-only (it types nothing, so nothing is saved), it proves
+#     the one-page editor's sections and the phone's section-index bar on a real layout.
 #     It is the only tier that can raise a real `KEYCODE_BACK`: `react-native-web`'s `BackHandler` is an inert
 #     stub, so the component tiers can only drive a fake dispatcher, and NOTHING but a device can observe that
 #     an open RN `Modal` consumes the key itself before any `BackHandler` subscription is reached.
@@ -195,9 +202,10 @@ FLOW_PLAN="spine:auth/loginFlow
 home:home
 recipes:recipes/rating
 recipes:recipes/listDetail
-recipes:appTabBar
+recipes:shell/tabBar
 recipes:recipes/landscape
 recipes:recipes/servingScale
+recipes:recipes/detailCooking
 recipes:recipes/deferredCalories
 recipes:recipes/emptyLibrary
 recipes:recipes/searchNavigation
@@ -207,21 +215,26 @@ recipes:recipes/visibility
 discovery:recipes/discoverBrowse
 discovery:recipes/discoverRecentSearches
 discovery:recipes/discoverIngredientCap
-discovery:recipes/discoverClone
+discovery:recipes/discoverSaveCopy
+discovery:recipes/discoverDetailSaveCopy
 recipes:recipes/privateFoodStandIn
 recipes:recipes/conflictMerge
 collections:recipes/collections
+collections:recipes/collectionAddRemoveUndo
 collections:recipes/collectionsPagination
 collections:recipes/collectionsVisibility
-collections:recipes/collectionsClone
+collections:recipes/collectionsSaveCopy
 collections:recipes/collectionsPull
-recipes:recipes/speedDial
+collections:recipes/newCollectionSheet
+recipes:recipes/createEntry
 recipes:recipes/systemBackGuard
+recipes:recipes/editorSections
 recipes:recipes/create
-recipes:recipes/parseIngredients
+recipes:recipes/pasteList
 recipes:recipes/quantityRange
 recipes:recipes/preparationGroups
 recipes:recipes/addIngredientLoop
+recipes:recipes/addIngredientLine
 recipes:recipes/ingredientUnmatched
 recipes:recipes/ingredientNutritionPanel
 recipes:recipes/ingredientRemove
@@ -258,23 +271,19 @@ MAESTRO_PLATFORMS='android ios'
 # set from the YAML; this table must equal it. The CLASS is the honest part:
 #
 #   - `android-behaviour` — the flow's SUBJECT is Android system-back behaviour; iOS has nothing to test.
-#   - `coverage-gap` — the subject is cross-platform and the back key is INCIDENTAL. These are real iOS gaps,
-#     and six of them share one cause: `recipes/common/raiseDiscardGuard.yaml` raises the discard dialog with
-#     the system back key. Raising it from the header control on iOS (a platform-conditional `runFlow` in that
-#     sub-flow) would recover all six; that change needs a watched iOS run and is NOT made here.
+#   - `coverage-gap` — the subject is cross-platform and the back key is INCIDENTAL. These are real iOS gaps.
+#     Six ingredient-story flows used to share one cause (`recipes/common/raiseDiscardGuard.yaml` raised the
+#     editor's discard dialog with the system back key). Slice 7 retired that dialog: those flows now discard
+#     their scratch draft through `recipes/common/discardDraft.yaml`, the editor's header menu, which both
+#     platforms render, so they left this table.
 #
 # ⛔ Never add an entry to get an iOS run green. A flow that fails on iOS for any other reason is a finding
 # about the app or the flow, and this table is not where it goes; the guard refuses an entry with no
 # Android-only command behind it.
 MAESTRO_PLATFORM_EXCLUSIONS="ios|recipes/discoverBrowse|coverage-gap|closes the filter sheet with Maestro's 'back', which is Android only; Discover browse is untested on iOS until the flow closes the sheet through a control both platforms render
-ios|recipes/speedDial|coverage-gap|uses Maestro's 'back' (Android only): its section 3 is Android hardware BACK dismissing the dial, and section 4 leaves the wizard with it; opening, dismissing and taking the dial are untested on iOS
-ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM back key (KEYCODE_BACK) reaching an open Modal before any BackHandler; iOS has no system back key, so there is nothing to test
-ios|recipes/ingredientUnmatched|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the unmatched-line story is untested on iOS
-ios|recipes/ingredientNutritionPanel|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the nutrition panel story is untested on iOS
-ios|recipes/ingredientRemove|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the remove-line story is untested on iOS
-ios|recipes/ingredientAddDetails|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the add-details story is untested on iOS
-ios|recipes/ingredientVariantSearch|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the variant-search story is untested on iOS
-ios|recipes/ingredientRowVariant|coverage-gap|raises the discard dialog through common/raiseDiscardGuard.yaml, which presses the Android system back key; the row-variant story is untested on iOS"
+ios|shell/tabBar|coverage-gap|its Android Back leg presses Maestro's 'back' (Android only) to prove Back from the Recipes root goes Home; the iOS path is the edge swipe, in shell/iosSwipeBack
+ios|recipes/privateFoodStandIn|coverage-gap|leaves the copy's untouched editor with Maestro's 'back' (Android only) to reach the copy's detail and its private-food banner; the stand-in and the copy banner are untested on iOS until the flow leaves the editor through a control both platforms render
+ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM back key (KEYCODE_BACK) reaching an open Modal before any BackHandler; iOS has no system back key, so there is nothing to test"
 
 # Maestro's iOS XCUITest runner, as Maestro names it (`LocalXCTestInstaller.UI_TEST_RUNNER_APP_BUNDLE_ID`, read
 # at the pinned tag `cli-2.6.1`). Maestro reinstalls it at the start of every session, so removing it between
@@ -330,13 +339,14 @@ recipes/versions=146
 recipes/visibility=44
 recipes/discoverBrowse=62
 recipes/discoverRecentSearches=86
-recipes/discoverClone=44
+recipes/discoverDetailSaveCopy=44
 recipes/conflictMerge=94
 recipes/collections=74
 recipes/collectionsPagination=432
 recipes/collectionsVisibility=54
-recipes/collectionsClone=58
+recipes/collectionsSaveCopy=58
 recipes/collectionsPull=108
+recipes/newCollectionSheet=45
 recipes/create=79
 recipes/photos=68
 recipes/accessibility=36
@@ -958,7 +968,7 @@ maestro_prepare_device() {
             # warned and dropped it, and the comment that used to stand here claimed the soft keyboard could never
             # appear. It appears. Every green run on record was produced with it appearing. The spurious-BACK hazard the old
             # comment described is live in either case: `hideKeyboard` is a BACK event, and with the keyboard down it reaches
-            # the app (`recipes/pinnedActionBar.yaml` records where it opened the wizard's discard dialog).
+            # the app (the wizard it once opened a discard dialog over is retired; on the one-page editor a BACK leaves it).
             #
             # It is KEPT rather than deleted because it is one half of a pair: the day the hardware keyboard is
             # deliberately enabled — a separate change, watched on a real emulator, see the note on the missing input

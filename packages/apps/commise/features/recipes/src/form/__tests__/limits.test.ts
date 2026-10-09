@@ -9,7 +9,7 @@ import {
     recipeTitleSchema,
 } from '@kitchensink/recipe-core';
 import { createRecipeRequestSchema } from '@kitchensink/schema-recipe';
-import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from '../limits.js';
+import { DESCRIPTION_MAX_LENGTH, TITLE_COUNTER_FROM, TITLE_MAX_LENGTH } from '../limits.js';
 
 describe('the editor INHERITS the wire bound rather than restating it (owner ruling)', () => {
     // The bounds live in `@kitchensink/recipe-core`, and `recipe-service`'s `recipes.schema.ts` composes the
@@ -36,14 +36,19 @@ describe('the editor INHERITS the wire bound rather than restating it (owner rul
 });
 
 describe('the editor may be STRICTER than the wire, never LOOSER (§15.2)', () => {
-    // The editor caps `title` at 64 and `description` at 256 (w3/e6) with a hard `maxLength` on the input and
-    // a live "N/64" counter, while the SERVER accepts 200 and 5000. A tighter editor is a legitimate product
+    // The editor's title limit is 120, a SOFT publish rule with no `maxLength` (owner, `ownerDecisions.md`), and
+    // `description` is capped at 256 (w3/e6), while the SERVER accepts 200 and 5000. A tighter editor is a legitimate product
     // choice — a title has to fit a card. A LOOSER one is a bug: the user types something the input accepts
     // and the API then rejects on submit, which is the failure mode centralizing the zod exists to end.
     //
     // ⚠️ The 3× / 20× gap between the two numbers is real and was NOT set deliberately — the pair were
     // authored independently. Which number is right for the product is an open question; this test only fixes
     // the DIRECTION, so the question can be answered later without a regression in the meantime.
+
+    it('the title limit is the owner`s 120, and its counter shows from 100 (build spec §7.4)', () => {
+        expect(TITLE_MAX_LENGTH).toBe(120);
+        expect(TITLE_COUNTER_FROM).toBe(100);
+    });
 
     it('the title display cap does not exceed the wire cap', () => {
         expect(TITLE_MAX_LENGTH).toBeLessThanOrEqual(MAX_RECIPE_TITLE_LENGTH);

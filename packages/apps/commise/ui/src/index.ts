@@ -30,4 +30,4 @@ export type {
 } from './tokens/gradients.js';
 export { nativeTokens } from './tokens/native.js';
 export type { NativeShadow, NativeTokens } from './tokens/native.js';
-export { clerkAppearance } from './clerk.js';
+export { CLERK_CSS_LAYER, clerkAppearanceFor } from './clerk.js';

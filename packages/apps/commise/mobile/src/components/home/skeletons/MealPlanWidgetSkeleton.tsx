@@ -27,7 +27,13 @@ export function MealPlanWidgetSkeleton(): JSX.Element {
 
     return (
         <PlaceholderWidgetCard title={home.roadmap.titles['meal-plan']} comingSoonLabel={home.roadmap.comingSoon}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
+            <ScrollView
+                horizontal
+                // One `scrollsToTop` per screen: Home's own scroller keeps the iOS status-bar tap.
+                scrollsToTop={false}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.strip}
+            >
                 {weekdayLabels(locale).map((day) => (
                     <View key={day} style={styles.tile}>
                         {/* The weekday name is REAL data — exposed, not hidden. The shell used to wrap every

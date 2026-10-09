@@ -29,22 +29,18 @@
  *     one transition so a closed account can never be left holding a live session.
  */
 import { useState, useTransition } from 'react';
+import { useAuth } from '@clerk/nextjs';
 import { useMessages } from '@commise/i18n/react';
 import { accountDangerMessages } from '@commise/features-account/danger';
+import { ProfileRow } from '@commise/features-account/profile';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
-import { Button } from '@commise/ui/button';
 
 import { createProfileServiceClient } from '@/lib/identityServiceClient';
-import { errorText } from '@/components/auth/authChrome';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 
-interface AccountCloseFormProps {
-    /** The signed-in viewer's Clerk session token, used to authenticate the closure request. */
-    readonly accessToken: string;
-}
-
-export function AccountCloseForm({ accessToken }: AccountCloseFormProps) {
+export function AccountCloseForm() {
     const { close } = useMessages(accountDangerMessages);
+    const { getToken } = useAuth();
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
@@ -54,15 +50,11 @@ export function AccountCloseForm({ accessToken }: AccountCloseFormProps) {
         setOpen(false);
         setError(null);
 
-        if (!accessToken) {
-            setError(close.error);
-
-            return;
-        }
-
         startTransition(async () => {
             try {
-                await createProfileServiceClient(accessToken).deleteMe();
+                // The token is minted when the request is sent: a session token lives about a minute, so one
+                // captured at render would be stale for a cook who read the page first.
+                await createProfileServiceClient(async () => (await getToken()) ?? '').deleteMe();
                 await signOutAndLeave();
             } catch {
                 // B17 — never fail silently: surface the failure instead of leaving the viewer signed in with
@@ -74,11 +66,16 @@ export function AccountCloseForm({ accessToken }: AccountCloseFormProps) {
 
     return (
         <>
-            <Button variant="destructive" icon="triangleAlert" onPress={() => setOpen(true)} busy={isPending}>
-                {isPending ? close.busyLabel : close.trigger}
-            </Button>
+            <ProfileRow
+                label={isPending ? close.busyLabel : close.trigger}
+                hint={close.rowHint}
+                tone="danger"
+                chevron
+                busy={isPending}
+                onPress={() => setOpen(true)}
+            />
             {error && (
-                <p role="alert" className={errorText}>
+                <p role="alert" className="px-4 pb-3 text-meta text-danger-text">
                     {error}
                 </p>
             )}

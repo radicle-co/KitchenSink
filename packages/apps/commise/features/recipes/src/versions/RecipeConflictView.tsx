@@ -51,6 +51,7 @@ import {
     type SideValueProps,
     type StaleBaseWarningProps,
     type VersionSideCardProps,
+    conflictCopyOf,
     formatMergeSummary,
     formatServerBanner,
     formatServerCardHeading,
@@ -189,10 +190,11 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     onOverwrite,
     onMerge,
     onDiscardAndClose,
+    neverPublished = false,
 }) => {
-    const { conflict } = useMessages(recipeVersionMessages);
+    const conflict = conflictCopyOf(useMessages(recipeVersionMessages).conflict, neverPublished);
     const locale = useLocale();
-    const view = useConflictView({ server, base, versionsBehind, selections, onSelectionsChange });
+    const view = useConflictView({ server, base, versionsBehind, neverPublished, selections, onSelectionsChange });
 
     // Reading the clock is THIS component's own side effect (mirrors `HomeGreeting`'s split of "the caller
     // reads `new Date()`, the pure formatter only maps an instant to a string") — `formatServerBanner`/

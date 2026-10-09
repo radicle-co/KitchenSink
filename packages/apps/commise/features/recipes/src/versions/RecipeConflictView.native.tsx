@@ -34,6 +34,7 @@ import {
     type SideValueProps,
     type StaleBaseWarningProps,
     type VersionSideCardProps,
+    conflictCopyOf,
     formatMergeSummary,
     formatServerBanner,
     formatServerCardHeading,
@@ -169,10 +170,11 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     onOverwrite,
     onMerge,
     onDiscardAndClose,
+    neverPublished = false,
 }) => {
-    const { conflict } = useMessages(recipeVersionMessages);
+    const conflict = conflictCopyOf(useMessages(recipeVersionMessages).conflict, neverPublished);
     const locale = useLocale();
-    const view = useConflictView({ server, base, versionsBehind, selections, onSelectionsChange });
+    const view = useConflictView({ server, base, versionsBehind, neverPublished, selections, onSelectionsChange });
 
     // Reading the clock is THIS component's own side effect — see the web leaf's own note.
     const now = new Date();

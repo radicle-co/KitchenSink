@@ -8,6 +8,7 @@
 import type { ReactNode } from 'react';
 
 import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
+import type { CardVariant } from '../card/cardVariant.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
 
 /**
@@ -33,38 +34,38 @@ export const toRecipeSummary = toRecipeCardModel;
 /**
  * Props for the widget card shell (title + body slot).
  */
+/** The heading row's "See all": where it leads (web) and what a press does. */
+export interface RecipeWidgetSeeAll {
+    /** My recipes' URL, which makes it a real link on web. Native ignores it. */
+    readonly href?: string;
+    /** Go to My recipes. Web: a plain click. Native: the only navigation. */
+    readonly onPress: () => void;
+}
+
+/** The first run's three ways in (`docs/design/uiOverhaul/buildSpec.md` §4.2 First run). */
+export interface RecipeWidgetFirstRun {
+    readonly onCreateRecipe: () => void;
+    /** Absent → no paste action (a host with nowhere to paste). */
+    readonly onPasteIngredients?: () => void;
+    readonly onFindOnDiscover: () => void;
+    /** Discover's URL, which makes "Or find one on Discover" a real link on web. Native ignores it. */
+    readonly discoverHref?: string;
+}
+
 export interface RecipeWidgetCardProps {
-    title: string;
-    children?: ReactNode;
+    readonly title: string;
+    /** "See all" at the end of the heading row. Absent → none (the first run, the fallbacks). */
+    readonly seeAll?: RecipeWidgetSeeAll;
+    readonly children?: ReactNode;
 }
 
-/**
- * Props for a single recent-recipe card.
- *
- * `onSelect` is the NAVIGATION seam: the card itself performs no routing (a presentational leaf owns no
- * navigation), it only reports which recipe was activated. The composing host — the app's Home widget slot,
- * which is the only layer that knows the platform's router — turns that id into a route. ABSENT `onSelect`
- * renders an inert card rather than a dead button, so a surface that has no destination never presents a
- * control that does nothing.
- */
-export interface RecentRecipeItemProps {
-    recipe: RecipeSummary;
-    readonly onSelect?: (id: string) => void;
-    /**
-     * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
-     * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
-     */
-    readonly nutrition?: ReactNode;
-}
-
-/**
- * Props for the recent-recipes card grid — the mockup's `screenHome` "Recent Recipes" layout (2-up on
- * phones, 4-up from `md`). Carries the same `onSelectRecipe` navigation seam as {@link RecentRecipeItemProps},
- * threaded to every cell.
- */
 export interface RecentRecipeGridProps {
     readonly recipes: readonly RecipeSummary[];
+    /** The card variant the host decided (`cardVariantOf(…, 'home')`). */
+    readonly variant: CardVariant;
     readonly onSelectRecipe?: (id: string) => void;
+    /** Where a recipe lives, which makes each card a real link on web. Native ignores it. */
+    readonly hrefOf?: (id: string) => string;
     /**
      * How to render one card's deferred calorie figure — called once per visible card with its recipe id
      * (see {@link RenderRecipeNutrition}). The host closes over the page's ONE batch promise, so N cards are
@@ -73,17 +74,21 @@ export interface RecentRecipeGridProps {
     readonly renderNutrition?: RenderRecipeNutrition;
 }
 
-/**
- * Props for the loading skeleton.
- */
-export interface RecipeWidgetSkeletonProps {
-    itemCount?: number;
+export interface RecipeWidgetEmptyStateProps {
+    /** The ways in. Absent → the line alone. */
+    readonly firstRun?: RecipeWidgetFirstRun;
 }
 
-/**
- * Props for the empty state (a **live** widget with no data — never used for an
- * absent/gated widget).
- */
-export interface RecipeWidgetEmptyStateProps {
-    message?: string;
+export interface RecipeWidgetLoadingCardProps {
+    /** The variant the cards will use, so nothing moves when they land. */
+    readonly variant: CardVariant;
+    /** "See all", kept while the block waits, so the route to My recipes never waits on the content. */
+    readonly seeAll?: RecipeWidgetSeeAll;
+}
+
+export interface RecipeWidgetLoadErrorProps {
+    /** Retry the read. Absent → no button, never a dead one. */
+    readonly onRetry?: () => void;
+    /** "See all", kept on a failure so the route to My recipes never fails with the content. */
+    readonly seeAll?: RecipeWidgetSeeAll;
 }

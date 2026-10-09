@@ -10,6 +10,8 @@
  *   method, the reveal's scroll and an injected drag can blur a focused field mid-search, and the field comes back
  *   focused with its answerable list gone. A close the field chose — a pick — and a focus no list ever followed stay
  *   shut.
+ * - A drag on the page closes the list unless it began on the list (`ScrollerDragContext`): with no scroller of its
+ *   own, the list scrolls with the page under the finger.
  * - Each time the list goes from hidden to shown, the leaf asks the scroller's host to show the field and three option
  *   rows below it (`FieldRevealContext`, E1). The leaf holds no geometry, and the host decides. Closing the list or
  *   unmounting releases the request.
@@ -36,6 +38,7 @@ import { useContext, useEffect, useEffectEvent, useRef, useState, type FC, type 
 import { Pressable, StyleSheet, Text, View, type TextInput as NativeTextInput } from 'react-native';
 
 import { FieldRevealContext } from '../fieldReveal/fieldRevealContext.js';
+import { ScrollerDragContext } from '../fieldReveal/scrollerDrag.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
@@ -88,6 +91,7 @@ export const Combobox: FC<ComboboxProps> = ({
     trailingStatus = [],
     loadingIcon,
     onSelect,
+    onSubmitWithoutChoice,
     countAnnouncement,
     alertAnnouncement = '',
     onFocus,
@@ -95,6 +99,7 @@ export const Combobox: FC<ComboboxProps> = ({
     clear,
     leadingIcon,
     hint,
+    belowField,
     invalid = false,
     focusRequested = false,
     onFocusRequestHandled,
@@ -148,6 +153,19 @@ export const Combobox: FC<ComboboxProps> = ({
     );
 
     useEffect(() => (popupShown ? requestReveal() : undefined), [popupShown]);
+
+    // A drag on the page closes the open list unless it began inside it: the list has no scroller of its own (item 7),
+    // so a drag that begins on it scrolls the page under the finger and keeps it open. Whether the touch began inside is
+    // tracked from the list's own touch events, in state.
+    const subscribeDrag = useContext(ScrollerDragContext);
+    const [touchInList, setTouchInList] = useState(false);
+    const onPageDrag = useEffectEvent((): void => {
+        if (!touchInList) {
+            setOpen(false);
+        }
+    });
+
+    useEffect(() => (popupShown ? subscribeDrag(() => onPageDrag()) : undefined), [popupShown, subscribeDrag]);
 
     const choose = (option: ComboboxOption): void => {
         if (option.busy === true) {
@@ -220,6 +238,11 @@ export const Combobox: FC<ComboboxProps> = ({
                         closedByBlur.current = open;
                         setOpen(false);
                     }}
+                    // The submit key chooses nothing: the keyboard and the list stay up, and the host says why.
+                    submitBehavior="submit"
+                    onSubmitEditing={() => {
+                        onSubmitWithoutChoice?.();
+                    }}
                     style={[styles.field, { borderBottomColor: colors.inkMuted, color: colors.ink }]}
                 />
                 {clear !== undefined && value !== '' && (
@@ -245,6 +268,7 @@ export const Combobox: FC<ComboboxProps> = ({
                     </Pressable>
                 )}
             </View>
+            {belowField}
             <LiveRegion politeness="polite" visuallyHidden>
                 {popupShown ? countAnnouncement : ''}
             </LiveRegion>
@@ -255,6 +279,9 @@ export const Combobox: FC<ComboboxProps> = ({
                 <View
                     collapsable={false}
                     accessibilityLabel={listLabel}
+                    onTouchStart={() => setTouchInList(true)}
+                    onTouchEnd={() => setTouchInList(false)}
+                    onTouchCancel={() => setTouchInList(false)}
                     style={[styles.list, { backgroundColor: colors.paperOverlay }]}
                 >
                     {status !== undefined && <StatusLine line={status} loadingIcon={loadingIcon} />}

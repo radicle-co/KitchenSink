@@ -122,11 +122,11 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
 
         await page.goto(route('/recipes/rec_ambiguous_public'));
         await expect(page.getByRole('heading', { name: 'Someone Else’s Probe' })).toBeVisible();
-        await expect(page.getByRole('button', { name: /Clone/u })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Save a copy' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Review ingredient matches' })).toHaveCount(0);
     });
 
-    test('a private-food line reads as a private ingredient, and its clone says so once (plan 002)', async ({
+    test('a private-food line reads as a private ingredient, and its copy says so once (plan 002)', async ({
         page,
     }) => {
         await signInWithTicket(page);
@@ -155,9 +155,13 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
         await expect(page.getByRole('checkbox', { name: '1 cup Private ingredient' })).toBeVisible();
         await expect(page.getByText('Details unavailable')).toHaveCount(0);
 
-        await page.getByRole('button', { name: /Clone/u }).click();
+        // Save a copy (slice 6). A copy opens in the editor first (FR-005b); leaving it untouched lands on the copy's
+        // page, where the one-time banner lives.
+        await page.getByRole('button', { name: 'Save a copy' }).click();
+        await expect(page).toHaveURL(/\/recipes\/rec_clone_[^/]+\/edit/);
+        await page.getByRole('button', { name: 'Close editor' }).click();
 
-        // The clone KEEPS the binding, so the banner says the line uses the original cook's private food.
+        // The copy KEEPS the binding, so the banner says the line uses the original cook's private food.
         const banner = page.getByText(
             'One ingredient uses the original cook’s private food, so you can’t see its name or nutrition. Its amount is kept.',
         );

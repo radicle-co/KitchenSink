@@ -192,11 +192,79 @@ describe('useLineCommit — the draft strategy (create form, and lines the edit 
         const [action] = dispatch.mock.calls[0] ?? [];
         expect(action).toMatchObject({
             kind: 'appendResolvedIngredient',
-            line: { ingredientId: CHICKPEAS.id, name: 'Chickpeas', foodId: 'food_chickpea', quantity: 1 },
+            // F5: an appended pick states no amount until the cook types one (never an invented 1).
+            line: { ingredientId: CHICKPEAS.id, name: 'Chickpeas', foodId: 'food_chickpea', quantity: Number.NaN },
         });
         const key = action?.kind === 'appendResolvedIngredient' ? action.key : undefined;
         expect(key !== undefined && isIngredientLineKey(key) && key.startsWith('n:')).toBe(true);
         expect(outcome).toEqual({ kind: 'committed', key, binding: bindingOf(CHICKPEAS) });
+    });
+
+    it.each([
+        {
+            why: 'a stated amount, unit and preparation',
+            measure: { quantity: { kind: 'exact', value: 2 }, unit: 'tablespoon', preparation: 'for frying' },
+            expected: { quantity: 2, unit: 'tablespoon', preparation: 'for frying' },
+        },
+        {
+            why: 'a range keeps its upper bound',
+            measure: { quantity: { kind: 'range', low: 2, high: 3 }, unit: 'cup', preparation: '' },
+            expected: { quantity: 2, quantityHigh: 3, unit: 'cup' },
+        },
+        {
+            why: 'no amount stays absent (F5), and an empty unit or preparation is omitted rather than sent as ""',
+            measure: { quantity: { kind: 'absent' }, unit: '', preparation: '' },
+            expected: { quantity: Number.NaN },
+        },
+    ] as const)(
+        'the trailing row appends the line WITH the measure the cook typed in front of the food: $why',
+        async ({ measure, expected }) => {
+            mocks.byFood.mockResolvedValue(CHICKPEAS);
+            const dispatch = vi.fn<(action: DraftAction) => void>();
+            const { result } = render({ kind: 'createForm', dispatch });
+
+            await commitThrough(
+                result,
+                { kind: 'catalogFood', foodId: 'food_chickpea', name: 'Chickpeas' },
+                { kind: 'newLine', measure },
+            );
+
+            const [action] = dispatch.mock.calls[0] ?? [];
+            const line = action?.kind === 'appendResolvedIngredient' ? action.line : undefined;
+            expect(line).toMatchObject({ ingredientId: CHICKPEAS.id, ...expected });
+
+            // A2: a typed-then-picked line is an AUTHORED line. Its typed text is not kept, and no key it could not
+            // carry is set (the omit-never-undefined convention).
+            for (const absent of ['quantityHigh', 'unit', 'preparation'] as const) {
+                if (!(absent in expected)) {
+                    expect(line).not.toHaveProperty(absent);
+                }
+            }
+
+            expect(line).not.toHaveProperty('sourceLine');
+            expect(line).not.toHaveProperty('sourcePhrase');
+        },
+    );
+
+    it('a REMOTE pick on the trailing row carries the measure through its adopt', async () => {
+        mocks.adopt.mockResolvedValue({ id: 'food_chickpea' });
+        mocks.byFood.mockResolvedValue(CHICKPEAS);
+        const dispatch = vi.fn<(action: DraftAction) => void>();
+        const { result } = render({ kind: 'createForm', dispatch });
+
+        await commitThrough(
+            result,
+            { kind: 'remoteFood', reference: 'ref-1', name: 'Chickpeas', source: 'usda' },
+            {
+                kind: 'newLine',
+                measure: { quantity: { kind: 'exact', value: 400 }, unit: 'g', preparation: 'drained' },
+            },
+        );
+
+        expect(dispatch.mock.calls[0]?.[0]).toMatchObject({
+            kind: 'appendResolvedIngredient',
+            line: { ingredientId: CHICKPEAS.id, quantity: 400, unit: 'g', preparation: 'drained' },
+        });
     });
 
     it('an UNRESOLVED admission is committed as it is: the row offers the choice later', async () => {

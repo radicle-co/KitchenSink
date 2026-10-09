@@ -21,11 +21,16 @@
 import { classifyFailure, type SyncFailure } from './itemStatus.js';
 import { drainOrder, markSending, settle, type OutboxLog, type Settlement } from './outboxLog.js';
 import { substituteRefs } from './references.js';
-import type { OutboxRecord } from './record.js';
+import type { IntentKind, OutboxRecord, SyncEntity } from './record.js';
 
-/** What a send attempt produced. */
-export type SendResult =
-    | { readonly outcome: 'ok'; readonly serverId: string }
+/**
+ * What a send attempt produced.
+ *
+ * `answer` is the sender's own reading of the response — the recipe an update returned, a 409's two sides — opaque to
+ * this package and handed to {@link DrainOptions.onSettled}. It is never stored.
+ */
+export type SendResult<A = unknown> =
+    | { readonly outcome: 'ok'; readonly serverId: string; readonly answer?: A }
     | {
           readonly outcome: 'failed';
           readonly status?: number;
@@ -34,10 +39,30 @@ export type SendResult =
            * sender, which owns the header). A floor under the backoff, never a replacement for it.
            */
           readonly retryAfterSeconds?: number;
+          readonly answer?: A;
       };
 
 /** Sends one record. Injected, so the domain never learns which client or which transport. */
-export type Sender = (record: OutboxRecord) => Promise<SendResult>;
+export type Sender<A = unknown> = (record: OutboxRecord) => Promise<SendResult<A>>;
+
+/**
+ * One record's settlement, as the drain reports it to whoever queued it (slice 7: the editor learns the version its
+ * update produced, or a 409's sides, by the record's sequence number).
+ *
+ * ⛔ IN MEMORY ONLY, NEVER PART OF THE LOG. The durable facts an answer carries are already stored where they belong —
+ * a created id in the log's resolutions, a version in the editor's draft — and a second stored copy would drift.
+ */
+export interface SettlementEvent<A = unknown> {
+    readonly seq: number;
+    readonly entity: SyncEntity;
+    readonly localId: string;
+    readonly intentKind: IntentKind;
+    readonly outcome: 'synced' | 'parked';
+    readonly serverId?: string;
+    /** The HTTP status a parked record was refused with; absent for an unknown outcome. */
+    readonly status?: number;
+    readonly answer?: A;
+}
 
 /**
  * Where the drain writes down each step AS IT HAPPENS. The outbox mutator implements it; a test may record it.
@@ -56,8 +81,13 @@ export interface DrainJournal {
 }
 
 /** The clock and the coin, injected so the backoff is testable without waiting. */
-export interface DrainOptions {
+export interface DrainOptions<A = unknown> {
     readonly journal?: DrainJournal;
+    /**
+     * Told about each record that synced or parked, AFTER the journal wrote it, so a listener that reads the store
+     * finds the settlement already there. A record skipped, blocked or deferred is not reported.
+     */
+    readonly onSettled?: (event: SettlementEvent<A>) => void;
     /** Resolves after `ms`. Defaults to `setTimeout`. */
     readonly sleep?: (ms: number) => Promise<void>;
     /** A uniform draw in [0, 1). Defaults to `Math.random` — the jitter needs no cryptographic strength. */
@@ -147,6 +177,16 @@ function backoffMs(attempt: number, retryAfterSeconds: number | undefined, rando
     return Math.max(jittered, stated);
 }
 
+/** A record's identity, as a settlement event names it. Pure. */
+function identityOf(record: OutboxRecord): Pick<SettlementEvent, 'seq' | 'entity' | 'localId' | 'intentKind'> {
+    return { seq: record.seq, entity: record.entity, localId: record.localId, intentKind: record.intentKind };
+}
+
+/** A sender's answer as an optional property. Pure. */
+function answerOf<A>(result: SendResult<A>): { readonly answer?: A } {
+    return result.answer === undefined ? {} : { answer: result.answer };
+}
+
 /** The default sleep. @sideEffect Arms a timer. */
 const sleepFor = async (ms: number): Promise<void> =>
     new Promise((resolve) => {
@@ -169,7 +209,11 @@ const sleepFor = async (ms: number): Promise<void> =>
  * @param options - The journal, the clock and the coin.
  * @returns The resulting log plus what synced and what failed. @sideEffect Calls `send`, the journal and `sleep`.
  */
-export async function drain(log: OutboxLog, send: Sender, options: DrainOptions = {}): Promise<DrainReport> {
+export async function drain<A = unknown>(
+    log: OutboxLog,
+    send: Sender<A>,
+    options: DrainOptions<A> = {},
+): Promise<DrainReport> {
     const sleep = options.sleep ?? sleepFor;
     const random = options.random ?? Math.random;
     const now = options.now ?? Date.now;
@@ -216,7 +260,7 @@ export async function drain(log: OutboxLog, send: Sender, options: DrainOptions 
 
         current = markSending(current, queued.seq);
 
-        let result: SendResult | undefined;
+        let result: SendResult<A> | undefined;
         let deferMs: number | undefined;
 
         for (let attempt = 1; attempt <= MAX_TRANSIENT_ATTEMPTS; attempt += 1) {
@@ -255,6 +299,12 @@ export async function drain(log: OutboxLog, send: Sender, options: DrainOptions 
                 serverId: result.serverId,
                 ...(queued.produces === undefined ? {} : { produces: queued.produces }),
             });
+            options.onSettled?.({
+                ...identityOf(queued),
+                outcome: 'synced',
+                serverId: result.serverId,
+                ...answerOf(result),
+            });
 
             continue;
         }
@@ -268,6 +318,12 @@ export async function drain(log: OutboxLog, send: Sender, options: DrainOptions 
             ...statusOf(status),
         });
         await record({ seq: queued.seq, outcome: 'parked', ...statusOf(status) });
+        options.onSettled?.({
+            ...identityOf(queued),
+            outcome: 'parked',
+            ...statusOf(status),
+            ...(result === undefined ? {} : answerOf(result)),
+        });
 
         if (queued.produces !== undefined) {
             parkedRefs.add(queued.produces);

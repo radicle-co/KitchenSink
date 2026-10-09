@@ -18,15 +18,12 @@
  * @pattern Adapter over `@radix-ui/react-radio-group` for the view form
  */
 import * as RadioGroup from '@radix-ui/react-radio-group';
-import type { FC, MouseEvent } from 'react';
+import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
+import { isModifiedClick } from '../routeLink/isModifiedClick.js';
 import type { RouteSegmentedControlProps, SegmentedControlProps } from './props.js';
 import { segmentClass, TRACK_CLASS } from './segmentClass.js';
-
-/** Whether a click asks the browser for something other than this page: a new tab or window, or a download. Pure. */
-const isModified = (event: MouseEvent): boolean =>
-    event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
 
 /** A route control: places, as links. */
 const RouteControl: FC<RouteSegmentedControlProps> = ({ label, segments, current, onSelect }) => (
@@ -52,7 +49,7 @@ const RouteControl: FC<RouteSegmentedControlProps> = ({ label, segments, current
                         href={segment.href}
                         {...state}
                         onClick={(event) => {
-                            if (isModified(event)) {
+                            if (isModifiedClick(event)) {
                                 return;
                             }
 
@@ -90,7 +87,11 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                             className={segmentClass(segment.id === props.value)}
                         >
                             {segment.icon === undefined ? null : <Icon name={segment.icon} size={20} />}
-                            {segment.label}
+                            {props.labelVisibility === 'hidden' ? (
+                                <span className="sr-only">{segment.label}</span>
+                            ) : (
+                                segment.label
+                            )}
                         </RadioGroup.Item>
                     ))}
                 </RadioGroup.Root>

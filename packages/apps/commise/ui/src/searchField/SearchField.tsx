@@ -44,6 +44,8 @@ export const SearchField: FC<SearchFieldProps> = ({
     onChangeText,
     onSubmit,
     placeholder,
+    onFocus,
+    onBlur,
 }) => {
     const [clears, setClears] = useState(0);
     const field = useFocusOnSignal<HTMLInputElement>(clears);
@@ -69,6 +71,8 @@ export const SearchField: FC<SearchFieldProps> = ({
                     autoComplete="off"
                     value={value}
                     placeholder={placeholder}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
                     onChange={(event) => onChangeText(event.target.value)}
                     onKeyDown={(event) => {
                         if (event.key === 'Enter' && onSubmit !== undefined) {

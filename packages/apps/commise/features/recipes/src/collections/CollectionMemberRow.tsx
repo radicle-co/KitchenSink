@@ -1,77 +1,83 @@
 'use client';
 
 /**
- * @module @commise/features-recipes/collections — web collection member row (W5 Task 9, C3).
+ * @module @commise/features-recipes/collections — web collection member row (W5 Task 9, C3; slice 5 of the UI overhaul).
  *
- * One member recipe in a collection's detail view, COMPOSED from the shared {@link RecipeCard} compound
- * parts (P7 — the collection row is another `RecipeCard` surface) rather than a bespoke row: `RecipeCard.Title`
- * / `.Meta` / `.Badges` already render the title, calories, the version badge past v1, and the
- * visibility/draft badge — this row adds ONLY what the card does not: a read-only source-indicator
- * (owner-added/protected vs from-source/will-sync, from `member.addedVia`) and the `by @handle` attribution.
+ * One member recipe of a collection (`docs/design/uiOverhaul/buildSpec.md` §5.2): the shared {@link RecipeCard}, as a list
+ * row or a grid card, with its source label — "Added by you" or "From the original collection" — on the last line, and a
+ * trailing ⋯ menu named for the recipe: Open recipe, Remove from collection. The card is one link; the menu sits beside
+ * it, lifted above its hit area and never inside it, so one press cannot do both.
  *
- * `RecipeCard` is rendered WITHOUT `onSelect` (a non-interactive `<article>`), and the select target and the
- * Remove control are composed as SIBLING buttons inside it — never nested — so activating Remove can never
- * also fire `onSelect` (the double-fire guard). This mirrors `RecipeDiscoveryCard`,
- * the sibling surface that already established the "card without onSelect + custom sibling actions" pattern
- * for a card with more than one action.
+ * Removing only ASKS (`onRemove`): the screen hides the row, offers Undo, and sends the request when the snackbar commits
+ * (`useMemberRemoval`). No dialog — removing does not delete the recipe (FR-012).
+ *
+ * @pattern Adapter over the shared `RecipeCard`, filling its note, trailing and footer slots
  */
 import { useMessages } from '@commise/i18n/react';
+import { ActionMenu } from '@commise/ui/action-menu';
 import { RecipeCollectionAddedVia } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { RecipeCard } from '../card/RecipeCard.js';
 import { toRecipeCardModel } from '../card/model.js';
 import { fillTemplate } from '../list/model.js';
+import type { CollectionMemberRowProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
-import type { CollectionMemberRowProps } from './model.js';
 
-/**
- * A single collection member row on web.
- *
- * @param props - The member recipe (with its `addedVia` provenance) and the select/remove callbacks.
- */
-export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSelect, onRemove, nutrition }) => {
-    const { detail } = useMessages(collectionMessages);
-    const cardModel = toRecipeCardModel(member);
+export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({
+    member,
+    variant,
+    href,
+    onSelect,
+    onRemove,
+    nutrition,
+}) => {
+    const { detail, member: copy, menu: menuCopy } = useMessages(collectionMessages);
+    const recipe = toRecipeCardModel(member);
     const sourceLabel =
         member.addedVia === RecipeCollectionAddedVia.MANUAL
             ? detail.sourceIndicatorOwned
             : detail.sourceIndicatorFromSource;
-    const removeLabel = fillTemplate(detail.removeRecipe, { title: member.title });
+    const menu = (
+        <ActionMenu
+            triggerLabel={fillTemplate(copy.moreActions, { title: member.title })}
+            title={member.title}
+            closeLabel={menuCopy.close}
+            items={[
+                { id: 'open', label: copy.open, onSelect: () => onSelect(member.id) },
+                { id: 'remove', label: copy.remove, onSelect: () => onRemove({ id: member.id, title: member.title }) },
+            ]}
+        />
+    );
+    const link = href === undefined ? {} : { href };
+
+    if (variant === 'row') {
+        return (
+            <RecipeCard
+                variant="row"
+                recipe={recipe}
+                onSelect={onSelect}
+                {...link}
+                nutrition={nutrition}
+                note={sourceLabel}
+                trailing={menu}
+            />
+        );
+    }
 
     return (
-        <RecipeCard recipe={cardModel} nutrition={nutrition}>
-            <div className="flex flex-col gap-2 p-4">
-                <div className="flex items-start justify-between gap-3">
-                    <button
-                        type="button"
-                        aria-label={member.title}
-                        onClick={() => onSelect(member.id)}
-                        className="flex-1 text-left"
-                    >
-                        <RecipeCard.Title />
-                    </button>
-                    <button
-                        type="button"
-                        aria-label={removeLabel}
-                        onClick={() => onRemove(member.id)}
-                        // The tint is the ERROR token, not coral — see `CollectionHeader.tsx`'s Delete for the
-                        // same web-only drift: `text-danger-text` (#B1442B) paired with a `bg-coral/10` (#E8917A)
-                        // hover put a brand accent in the destructive register.
-                        className="shrink-0 rounded-full px-3 py-1 text-body-sm font-medium text-danger-text transition hover:bg-danger/10"
-                    >
-                        {detail.removeCta}
-                    </button>
+        <RecipeCard
+            variant={variant}
+            recipe={recipe}
+            onSelect={onSelect}
+            {...link}
+            nutrition={nutrition}
+            footer={
+                <div className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-caption text-ink-muted">{sourceLabel}</span>
+                    {menu}
                 </div>
-                <span className="w-fit text-caption font-medium text-ink-muted">{sourceLabel}</span>
-                {member.authorHandle !== undefined && (
-                    <p className="text-body-sm text-ink-muted">
-                        {fillTemplate(detail.byAuthor, { handle: member.authorHandle })}
-                    </p>
-                )}
-                <RecipeCard.Meta />
-                <RecipeCard.Badges />
-            </div>
-        </RecipeCard>
+            }
+        />
     );
 };

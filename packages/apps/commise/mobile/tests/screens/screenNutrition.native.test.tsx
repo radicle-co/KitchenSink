@@ -26,6 +26,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import {
@@ -38,16 +39,8 @@ import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { recipeQueries, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
-import {
-    useCloneCollection,
-    useCloneRecipe,
-    useDeleteCollection,
-    usePreviewPull,
-    usePullCollectionFromSource,
-    useRemoveRecipeFromCollection,
-    useSearchIngredients,
-    useUpdateCollection,
-} from '@kitchensink/recipe-service-client/hooks';
+import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
+import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 
 import { RecipeWidgetSlot } from '../../src/components/home/RecipeWidgetSlot.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
@@ -62,6 +55,13 @@ import {
     makeSearchResponse,
 } from '../__fixtures__/recipes.js';
 
+// Home draws the calorie figure on the full card only (the compact card has no meta line), which it shows from a 960
+// container (owner ruling D8); jsdom has no window to measure, so the content is read as wide here.
+vi.mock('@commise/features-recipes', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes')>()),
+    useMainContainerClass: () => 'wide' as const,
+}));
+
 vi.mock('@react-native-async-storage/async-storage', () => ({
     default: { getItem: async () => null, setItem: async () => undefined },
 }));
@@ -72,25 +72,17 @@ const { getCollectionByIdMock, listRecipesMock, searchRecipesMock } = vi.hoisted
     searchRecipesMock: vi.fn(),
 }));
 
-vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests. The Home slot
-    // reads its recent recipes through this client's `listRecipes`, the collection screen its collection through
-    // `getCollectionById`, and discovery its searches through `searchRecipes`, all via the query cache.
-    useRecipeServiceClient: () => ({
-        emitAnalyticsEvents: async () => undefined,
-        getCollectionById: getCollectionByIdMock,
-        listRecipes: listRecipesMock,
-        searchRecipes: searchRecipesMock,
-    }),
-    useCloneRecipe: vi.fn(),
-    useSearchIngredients: vi.fn(),
-    useDeleteCollection: vi.fn(),
-    useRemoveRecipeFromCollection: vi.fn(),
-    useUpdateCollection: vi.fn(),
-    useCloneCollection: vi.fn(),
-    usePreviewPull: vi.fn(),
-    usePullCollectionFromSource: vi.fn(),
-}));
+/**
+ * The service every screen reads through: a network-guarded fake whose three reads these tests drive. The Home widget
+ * reads its recent recipes through `listRecipes`, the collection screen its collection through `getCollectionById`, and
+ * discovery its searches through `searchRecipes`, all via the query cache; analytics emission stays inert.
+ */
+const serviceClient = Object.assign(createFakeRecipeServiceClient(), {
+    emitAnalyticsEvents: async () => undefined,
+    getCollectionById: getCollectionByIdMock,
+    listRecipes: listRecipesMock,
+    searchRecipes: searchRecipesMock,
+});
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: vi.fn() }));
 
@@ -104,8 +96,6 @@ vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
     useRecipeNutritionBatches: vi.fn(),
 }));
 
-const useCloneRecipeMock = vi.mocked(useCloneRecipe);
-const useSearchIngredientsMock = vi.mocked(useSearchIngredients);
 const useUserProfileMock = vi.mocked(useUserProfile);
 const useNutritionMock = vi.mocked(useRecipeNutritionBatches);
 
@@ -125,23 +115,6 @@ const KNOWN_RESPONSE: RecipeNutritionResponse = {
         },
     },
 };
-
-/** A settled response that says nothing about this recipe — the "not for you" absence. */
-const OMITTING_RESPONSE: RecipeNutritionResponse = { nutrition: {} };
-
-const noop = (): void => undefined;
-
-function mutation<T>(overrides: Partial<T> = {}): T {
-    return {
-        mutate: vi.fn(),
-        mutateAsync: vi.fn(),
-        isPending: false,
-        error: null,
-        reset: vi.fn(),
-        variables: undefined,
-        ...overrides,
-    } as unknown as T;
-}
 
 /** Record the pages each screen batches, and hand every recipe the SAME controlled promise. */
 function nutritionLookup(batch: Promise<RecipeNutritionResponse> | null): void {
@@ -174,6 +147,11 @@ beforeAll(async () => {
     await recipeHomeWidgetDescriptor.load();
 });
 
+/** A settled response that says nothing about this recipe — the "not for you" absence. */
+const OMITTING_RESPONSE: RecipeNutritionResponse = { nutrition: {} };
+
+const noop = (): void => undefined;
+
 beforeEach(() => {
     vi.clearAllMocks();
     // React logs the caught render error from the rejected-batch case.
@@ -187,24 +165,9 @@ beforeEach(() => {
         makeSearchResponse([makeRecipeSearchResult({ id: RECIPE_ID, title: 'Weeknight Pasta' })]),
     );
 
-    useCloneRecipeMock.mockReturnValue(mutation<ReturnType<typeof useCloneRecipe>>());
-    useSearchIngredientsMock.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        isError: false,
-    } as unknown as ReturnType<typeof useSearchIngredients>);
-
     getCollectionByIdMock.mockResolvedValue(
         makeCollectionWithRecipes([makeRecipe({ id: RECIPE_ID, title: 'Weeknight Pasta' })]),
     );
-    vi.mocked(useDeleteCollection).mockReturnValue(mutation<ReturnType<typeof useDeleteCollection>>());
-    vi.mocked(useRemoveRecipeFromCollection).mockReturnValue(
-        mutation<ReturnType<typeof useRemoveRecipeFromCollection>>(),
-    );
-    vi.mocked(useUpdateCollection).mockReturnValue(mutation<ReturnType<typeof useUpdateCollection>>());
-    vi.mocked(useCloneCollection).mockReturnValue(mutation<ReturnType<typeof useCloneCollection>>());
-    vi.mocked(usePreviewPull).mockReturnValue(mutation<ReturnType<typeof usePreviewPull>>());
-    vi.mocked(usePullCollectionFromSource).mockReturnValue(mutation<ReturnType<typeof usePullCollectionFromSource>>());
     useUserProfileMock.mockReturnValue({
         data: { user: { id: 'usr_1' }, account: { subscriptionTier: 'premium' } },
         isLoading: false,
@@ -220,7 +183,13 @@ function withQueryClient(
     element: ReactElement,
     client: QueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
 ): ReactElement {
-    return <QueryClientProvider client={client}>{element}</QueryClientProvider>;
+    return (
+        <QueryClientProvider client={client}>
+            <RecipeServiceProvider client={serviceClient}>
+                <SnackbarHost>{element}</SnackbarHost>
+            </RecipeServiceProvider>
+        </QueryClientProvider>
+    );
 }
 
 /** Search query keys do not depend on the client instance, so any stand-in builds them. */
@@ -242,7 +211,14 @@ const SCREENS: readonly (readonly [string, () => ReactElement])[] = [
     // A preset filter puts discovery in RESULT-LIST mode (with no query or filter it browses).
     [
         'RecipeDiscoveryScreen',
-        () => withQueryClient(<RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={{ tags: ['grill'] }} />),
+        () =>
+            withQueryClient(
+                <RecipeDiscoveryScreen
+                    onEditRecipe={() => undefined}
+                    onSelectRecipe={noop}
+                    initialFilters={{ tags: ['grill'] }}
+                />,
+            ),
     ],
     [
         'CollectionDetailScreen',
@@ -251,8 +227,7 @@ const SCREENS: readonly (readonly [string, () => ReactElement])[] = [
                 <CollectionDetailScreen
                     collectionId="col_1"
                     onSelectRecipe={noop}
-                    onAddRecipe={noop}
-                    onRename={noop}
+                    onCreateRecipe={noop}
                     onDeleted={noop}
                     onCloned={noop}
                     onViewSource={noop}
@@ -349,10 +324,10 @@ describe('which ids each screen batches', () => {
         // a new promise, a new request, and every figure on screen dropping back to a skeleton mid-typing.
         useNutritionMock.mockClear();
         await act(async () => {
-            fireEvent.change(screen.getByLabelText('Search recipes'), { target: { value: 'Chana' } });
+            fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'Chana' } });
         });
 
-        expect(screen.queryByRole('button', { name: 'Weeknight Pasta' }), 'the row really was filtered out').toBeNull();
+        expect(screen.queryByRole('link', { name: 'Weeknight Pasta' }), 'the row really was filtered out').toBeNull();
 
         for (const call of useNutritionMock.mock.calls) {
             expect(call[0]).toEqual([[RECIPE_ID, OTHER_ID]]);
@@ -377,7 +352,11 @@ describe('which ids each screen batches', () => {
         await act(async () => {
             render(
                 withQueryClient(
-                    <RecipeDiscoveryScreen onSelectRecipe={noop} initialFilters={{ tags: ['grill'] }} />,
+                    <RecipeDiscoveryScreen
+                        onEditRecipe={() => undefined}
+                        onSelectRecipe={noop}
+                        initialFilters={{ tags: ['grill'] }}
+                    />,
                     seeded,
                 ),
             );
@@ -399,8 +378,7 @@ describe('which ids each screen batches', () => {
                     <CollectionDetailScreen
                         collectionId="col_1"
                         onSelectRecipe={noop}
-                        onAddRecipe={noop}
-                        onRename={noop}
+                        onCreateRecipe={noop}
                         onDeleted={noop}
                         onCloned={noop}
                         onViewSource={noop}
@@ -437,7 +415,9 @@ describe('which ids each screen batches', () => {
         }
 
         await act(async () => {
-            render(withQueryClient(<RecipeDiscoveryScreen onSelectRecipe={noop} />, seeded));
+            render(
+                withQueryClient(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />, seeded),
+            );
         });
 
         expect(screen.getAllByRole('img', { name: '420 cal' })).toHaveLength(3);

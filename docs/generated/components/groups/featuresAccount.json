@@ -4,16 +4,16 @@
     "packageName": "@commise/features-account",
     "layer": "feature",
     "coverage": {
-        "components": 1,
-        "implementations": 2,
-        "props": 24,
-        "documentedComponents": 1,
-        "implementationsWithModuleDoc": 2,
-        "implementationsWithComponentDoc": 0,
-        "documentedProps": 24,
-        "classifiedComponents": 1,
-        "componentsWithPatternTag": 1,
-        "crossPlatformComponents": 1
+        "components": 6,
+        "implementations": 12,
+        "props": 74,
+        "documentedComponents": 6,
+        "implementationsWithModuleDoc": 12,
+        "implementationsWithComponentDoc": 10,
+        "documentedProps": 54,
+        "classifiedComponents": 4,
+        "componentsWithPatternTag": 4,
+        "crossPlatformComponents": 6
     },
     "components": [
         {
@@ -321,6 +321,839 @@
                         "recipesError",
                         "recipesLoading"
                     ],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresAccount/profile/DisplayNameSheet",
+            "name": "DisplayNameSheet",
+            "group": "featuresAccount",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/profile",
+            "kind": "unclassified",
+            "patterns": [
+                "Adapter over the design-system `Sheet`, `Input` and `FieldLabel`",
+                "Adapter over the design-system `Sheet`, `Input` and `FieldLabel` — the caption and the failure are the\n    field's `describedBy`"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DisplayNameSheet",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/DisplayNameSheet.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/DisplayNameSheet — the display-name sheet (web): \"What should we call\nyou?\", one field and Save (`buildSpec.md` §9.1).\n\nThe name can show publicly as an author handle, so this sheet is the only place the app asks for it and it saves\nonly when Save is pressed (or Enter in the field) — never on close and never from the prefill alone. Controlled and\nstateless: the page owns the draft, the gate (`canSaveDisplayName`) and the write.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/DisplayNameSheet — the display-name sheet (web): \"What should we call"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet`, `Input` and `FieldLabel` — the caption and the failure are the\n    field's `describedBy`"
+                        }
+                    ],
+                    "description": "The display-name sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "canSave",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether Save may fire (`canSaveDisplayName`).",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "draft",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field's text.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The save failed.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onDraftChange",
+                            "type": "(text: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onOpenChange",
+                            "type": "(open: boolean) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onSave",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "saving",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "DisplayNameSheet",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/DisplayNameSheet.native.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/DisplayNameSheet — the display-name sheet (native): \"What should we call\nyou?\", one field and Save (`buildSpec.md` §9.1).\n\nThe name can show publicly as an author handle, so this sheet is the only place the app asks for it and it saves\nonly when Save is pressed (or Return in the field) — never on close and never from the prefill alone. Controlled and\nstateless: the page owns the draft, the gate (`canSaveDisplayName`) and the write.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/DisplayNameSheet — the display-name sheet (native): \"What should we call"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet`, `Input` and `FieldLabel`"
+                        }
+                    ],
+                    "description": "The display-name sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "canSave",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether Save may fire (`canSaveDisplayName`).",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "draft",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field's text.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "failed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The save failed.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onDraftChange",
+                            "type": "(text: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onOpenChange",
+                            "type": "(open: boolean) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onSave",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "saving",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresAccount/profile/ProfileGroup",
+            "name": "ProfileGroup",
+            "group": "featuresAccount",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/profile",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ProfileGroup",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileGroup.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileGroup — a grouped list of Profile rows (web): the settings-list\npattern (`docs/design/uiOverhaul/buildSpec.md` §9.1). A `region` named by its H2, or by `label` when it has no\nvisible heading, so a screen reader can jump between the groups.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileGroup — a grouped list of Profile rows (web): the settings-list"
+                        }
+                    ],
+                    "description": "A grouped list of rows.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The rows.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "heading",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The group's heading (\"Preferences\", \"Danger zone\"). Absent for the unlabelled middle group.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The accessible name of a group with no visible heading.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ProfileGroup",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileGroup.native.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileGroup — a grouped list of Profile rows (native): the settings-list\npattern (`docs/design/uiOverhaul/buildSpec.md` §9.1). The heading is a header-role `Text`; the card clips its rows to\nthe radius and draws a hairline between them. Colour comes from the theme at render.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileGroup — a grouped list of Profile rows (native): the settings-list"
+                        }
+                    ],
+                    "description": "A grouped list of rows.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The rows.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "heading",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The group's heading (\"Preferences\", \"Danger zone\"). Absent for the unlabelled middle group.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The accessible name of a group with no visible heading.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresAccount/profile/ProfileHeader",
+            "name": "ProfileHeader",
+            "group": "featuresAccount",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/profile",
+            "kind": "unclassified",
+            "patterns": [
+                "Visitor — an exhaustive switch over the profile read's three states"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ProfileHeader",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileHeader.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (web): a 72 px avatar\ndisc, the display name and the email (`buildSpec.md` §9.1, §3.8).\n\nThree states, never a blocked page: loading is a skeleton (the groups under it still render), ready is the name and\nemail, and failed shows the `user` glyph and says so with a Try again control. A cook with no name yet sees only the\nemail: the page never invents one.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (web): a 72 px avatar"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the profile read's three states"
+                        }
+                    ],
+                    "description": "The identity block.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "initials",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's initials, empty when there is no name.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Retry the read (the failed state).",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "read",
+                            "type": "ProfileRead",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ProfileHeader",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileHeader.native.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar\ndisc, the display name and the email (`buildSpec.md` §9.1, §3.8). The cook's photo (`AvatarField`) stays an app-level\nnative control; this block draws the disc.\n\nThree states, never a blocked page: loading is a skeleton, ready is the name and email, failed shows the `user`\nglyph and says so with a Try again control. Colour comes from the theme at render.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the profile read's three states"
+                        }
+                    ],
+                    "description": "The identity block.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "initials",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's initials, empty when there is no name.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Retry the read (the failed state).",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "read",
+                            "type": "ProfileRead",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresAccount/profile/ProfileRow",
+            "name": "ProfileRow",
+            "group": "featuresAccount",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/profile",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over React Native's accessibility focus API — the row takes the reading cursor back when the host's\n    `focusSignal` advances (`useScreenReaderFocusOnSignal`), because React Native cannot read where the cursor was",
+                "Visitor — an exhaustive pick of the element by whether the row has a destination"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ProfileRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileRow.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileRow — a pressable Profile row (web): 56 px, the label, its value\ntruncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).\n\nOne control: the whole row is the button (or the link, when it has a destination), and its hint is inside it, so the\nconsequence of Close account is read with the name. The danger tone changes the TEXT colour only. Sign out is `ink`:\nit is not destructive. While busy the row stays focusable and cancels the press (`aria-busy`), the same rule as the\ndesign-system `Button` (SC 2.4.3).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileRow — a pressable Profile row (web): 56 px, the label, its value"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive pick of the element by whether the row has a destination"
+                        }
+                    ],
+                    "description": "The pressable row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The row is mid-action: it cannot be pressed again and says so to assistive tech.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "chevron",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether a chevron says the row opens something.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native only: a count the host advances when the sheet this row opened closes. A change takes the screen-reader\ncursor back to the row (WCAG 2.4.3; `buildSpec.md` §10 \"Dialogs and sheets\"), because React Native cannot say\nwhere the cursor was. The first value moves nothing. Web ignores it: Radix returns focus to the opener itself.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "hint",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A caption under the label (the danger rows' consequence).",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "href",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: where a link row goes, so a modified click still works. Native ignores it.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "tone",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"ink\"",
+                                "\"danger\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "`ink` for ordinary rows. `danger` for the danger zone's text.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The current value, one line, truncated.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ProfileRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileRow.native.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileRow — a pressable Profile row (native): 56 pt, the label, its value\ntruncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).\n\nOne control: the whole row is the button, its hint inside it. The danger tone changes the TEXT colour only, and sign\nout is `ink`. Busy disables the row and exposes `busy` to a screen reader. Colour comes from the theme at render.\nThe web `href` is ignored: native has no URL for a row.\n\nPresentational: props → JSX, apart from one accessibility-focus adapter.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileRow — a pressable Profile row (native): 56 pt, the label, its value"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Native's accessibility focus API — the row takes the reading cursor back when the host's\n    `focusSignal` advances (`useScreenReaderFocusOnSignal`), because React Native cannot read where the cursor was"
+                        }
+                    ],
+                    "description": "The pressable row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The row is mid-action: it cannot be pressed again and says so to assistive tech.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "chevron",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether a chevron says the row opens something.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "Native only: a count the host advances when the sheet this row opened closes. A change takes the screen-reader\ncursor back to the row (WCAG 2.4.3; `buildSpec.md` §10 \"Dialogs and sheets\"), because React Native cannot say\nwhere the cursor was. The first value moves nothing. Web ignores it: Radix returns focus to the opener itself.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "hint",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A caption under the label (the danger rows' consequence).",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "href",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: where a link row goes, so a modified click still works. Native ignores it.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "tone",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"ink\"",
+                                "\"danger\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "`ink` for ordinary rows. `danger` for the danger zone's text.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The current value, one line, truncated.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresAccount/profile/ProfileValueRow",
+            "name": "ProfileValueRow",
+            "group": "featuresAccount",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/profile",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ProfileValueRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileValueRow.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileValueRow — a read-only Profile row (web): the label and the value\nthe cook cannot change here (their email). Not a control, so it is not focusable and not a button.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileValueRow — a read-only Profile row (web): the label and the value"
+                        }
+                    ],
+                    "description": "A read-only row. The value wraps anywhere: an email is one unbroken string at 320 px.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ProfileValueRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileValueRow.native.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileValueRow — a read-only Profile row (native): the label and the\nvalue the cook cannot change here. Not a control. Colour comes from the theme at render.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileValueRow — a read-only Profile row (native): the label and the"
+                        }
+                    ],
+                    "description": "A read-only row. The value wraps: an email is one unbroken string on a 320 pt screen.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false

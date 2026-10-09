@@ -6,7 +6,7 @@
  * - The commit port (`useLineCommit`) is the one route every pick takes: the entry's, the authored-food form's and the
  *   details dialog's. Each gets the port with its origin bound, and `useLineCommit` keeps the settled commit and the
  *   pick in flight, so the rows say and focus the right thing from one owner of commit state.
- * - The entry (`useIngredientEntry`) is hoisted here because the wizard renders only the current step.
+ * - The entry (`useIngredientEntry`) is hoisted here, above the section that renders it, so its text outlives a re-render of the section.
  * - The details dialog is open for at most one line. Its outcome becomes the pick decision 7 names: a variant, or
  *   Remove details as the line's root. The route (the rebind command for a stored line, the draft otherwise) is
  *   `commitRouteFor`'s, never this hook's.
@@ -26,8 +26,7 @@ import { useVariantDetailsDialog, type VariantDetailsDialogModel } from '../deta
 import type { IngredientLineKey } from '../form/lineKey.js';
 import type { SourceNaming } from '../form/progressiveNotes.js';
 import type { DraftAction } from '../form/draftAction.js';
-import { errorsInStep } from '../form/steps.js';
-import type { GateOutcome } from '../wizard/model.js';
+import type { GateOutcome } from '../editor/gate.js';
 import type { EntryLine } from './ingredientEntry.model.js';
 import {
     isPickRefusal,
@@ -125,7 +124,7 @@ export interface IngredientRowEditor {
     readonly pickInFlight: (target: LineCommitTarget) => IngredientPick | undefined;
     /**
      * A save or Next was refused for pending text, and the first pending field has not taken focus yet. A level, not
-     * an event: the refusal can move the wizard to step 2, whose field mounts after it
+     * an event: the refusal can scroll the editor to Ingredients, whose field may mount after it
      * (`rowEditorOpenDecisions.md` R7).
      */
     readonly pendingFocusRequested: boolean;
@@ -137,7 +136,7 @@ export interface IngredientRowEditor {
     readonly pendingRefused: boolean;
     /** How many refusals have pointed at a pending field: its alert says its sentence again at each one (R8). */
     readonly pendingRefusals: number;
-    /** A gate decided: a refusal for pending text, on the step that holds it, raises {@link pendingFocusRequested}. */
+    /** A gate decided: a refusal for pending text, landing on Ingredients, raises {@link pendingFocusRequested}. */
     readonly refused: (outcome: GateOutcome) => void;
     /** The pending field took focus: lowers {@link pendingFocusRequested}. */
     readonly pendingFocusHandled: () => void;
@@ -252,11 +251,11 @@ export function useIngredientRowEditor(options: UseIngredientRowEditorOptions): 
         pendingRefused,
         pendingRefusals: refusalCount,
         refused: (outcome) => {
-            // Only a refusal whose landing step holds the pending text points at the field (R7 item 2).
+            // Only a refusal that lands on Ingredients for the pending text points at the field (R7 item 2).
             if (
                 outcome.kind === 'refused' &&
-                outcome.step !== undefined &&
-                errorsInStep(outcome.errors, outcome.step).ingredients === 'ingredientsPendingText'
+                outcome.section === 'ingredients' &&
+                outcome.errors.ingredients === 'ingredientsPendingText'
             ) {
                 setRefusalCount((count) => count + 1);
                 setPendingRefused(true);

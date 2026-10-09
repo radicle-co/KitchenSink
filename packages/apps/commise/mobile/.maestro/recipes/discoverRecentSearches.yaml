@@ -13,11 +13,11 @@ appId: io.commise.mobile
 - assertVisible: 'Recipes'
 - tapOn: 'Discover'
 - extendedWaitUntil:
-      visible: 'Discover recipes'
+      visible: 'Discover'
       timeout: 40000
 
 # Start from a clean history: if an earlier run left entries, forget them so step 1 is meaningful.
-- tapOn: 'Search public recipes'
+- tapOn: 'Search recipes'
 - runFlow:
       when:
           visible: 'Recent searches'
@@ -26,14 +26,14 @@ appId: io.commise.mobile
 - assertNotVisible: 'Recent searches'
 
 # 1. Run a real search — the rails give way to the result list once the debounced query settles.
-- tapOn: 'Search public recipes'
+- tapOn: 'Search recipes'
 - inputText: 'Risotto'
 - extendedWaitUntil:
       visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000
 
 # 2. Back to the idle state: clearing the field (still focused) reveals the search that ran.
-- tapOn: 'Search public recipes'
+- tapOn: 'Search recipes'
 - eraseText
 - extendedWaitUntil:
       visible: 'Recent searches'
@@ -52,9 +52,9 @@ appId: io.commise.mobile
 - runFlow: ../auth/signin.yaml
 - tapOn: 'Discover'
 - extendedWaitUntil:
-      visible: 'Discover recipes'
+      visible: 'Discover'
       timeout: 40000
-- tapOn: 'Search public recipes'
+- tapOn: 'Search recipes'
 - extendedWaitUntil:
       visible: 'Recent searches'
       timeout: 40000

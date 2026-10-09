@@ -8,6 +8,8 @@ import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
 import { AppShell } from '@/components/app/AppShell';
+import { ShellBackToTop } from '@/components/app/ShellBackToTop';
+import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
 import { RecipeDiscoveryContainer } from '@/components/recipes/RecipeDiscoveryContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
@@ -85,15 +87,16 @@ export default async function DiscoverPage({
     // The container reads the search criteria from the URL via `useSearchParams()`, which requires a Suspense
     // boundary during pre-render.
     //
-    // L9: discovery renders inside the shared app nav shell. It is a recipe-domain surface, so `recipes` is the
-    // active destination (the shared nav model has no separate discovery entry). The shell sits OUTSIDE the
-    // Suspense boundary, so the chrome is present while the search results stream in — never a bare fallback.
+    // Discover is a tab of its own (slice 3). The shell sits OUTSIDE the Suspense boundary, so the chrome is present
+    // while the search results stream in — never a bare fallback.
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <AppShell activeId="recipes" titleId="discover">
+            <AppShell activeId="discover" titleId="discover">
                 <Suspense>
-                    <RecipeDiscoveryContainer locale={locale} />
+                    <RecipeDiscoveryContainer locale={locale} avatar={<ProfileAvatarEntry />} />
                 </Suspense>
+                {/* A long results list: "Back to top", last in DOM order (`buildSpec.md` §3.6). No floating button here. */}
+                <ShellBackToTop />
             </AppShell>
         </HydrationBoundary>
     );

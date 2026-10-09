@@ -46,12 +46,23 @@ export interface RecipeVersionListMessages {
     readonly preview: string;
     /** Accessible name of the Preview action, disambiguated per version (contains `{version}`). */
     readonly previewAction: string;
-    /** Visible label of the per-row Compare-selection checkbox (W6 Task 5). */
-    readonly compare: string;
-    /** Accessible name of the Compare-selection checkbox, disambiguated per version (contains `{version}`). */
-    readonly compareAction: string;
-    /** Visible label of the "back to the recipe" affordance (V6 — rendered by the web leaf only; native
-     *  screens, e.g. `RecipeVersionsScreen`, already compose their own back chrome). */
+    /** The row menu's compare entry: this version against the current one (§6.6). */
+    readonly compareWithCurrent: string;
+    /** The row menu's and the preview's restore entry. */
+    readonly restoreThis: string;
+    /** The name of a row's ⋯ menu (contains `{version}`). */
+    readonly rowActions: string;
+    /** A row's title line (contains `{version}` and `{time}`, the relative edit time). */
+    readonly rowTitle: string;
+    /** The snackbar after a restore (contains `{version}`). */
+    readonly restored: string;
+    /** The snackbar's action that restores the version that was current before. */
+    readonly undo: string;
+    /** The empty state's explanation under its heading. */
+    readonly emptyBody: string;
+    /** The loading state's name. */
+    readonly loading: string;
+    /** The "back to the recipe" affordance. */
     readonly backToRecipe: string;
 }
 
@@ -89,6 +100,17 @@ export interface RecipeConflictMessages {
      *  own RELATIVE "N minutes ago" (`formatRelativeTimeAgo`); the wireframe itself
      *  uses an absolute date for the card. */
     readonly versionCardSavedLabel: string;
+    /** A never-published draft's heading (ADR-0058: a draft records no versions, so nothing in its copy speaks of
+     *  version numbers or history). `conflictCopyOf` lays the `draft*` slots over their published-recipe twins. */
+    readonly draftHeading: string;
+    /** A never-published draft's explanation: the other writer is the same cook, in another tab or on another device. */
+    readonly draftExplanation: string;
+    /** A never-published draft's server banner (contains `{time}`, no `{version}`). */
+    readonly draftServerBanner: string;
+    /** A never-published draft's server card heading. */
+    readonly draftServerCardHeading: string;
+    /** A never-published draft's own card heading. */
+    readonly draftYourCardHeading: string;
     /** Shown when a save hit a version conflict this hook could NOT resolve into a side-by-side view (an
      *  un-enriched 409 body, or no cached recipe to project it onto) — `useRecipeEditor`'s
      *  `conflictDataUnavailable` flag. The save did NOT apply; this is the generic actionable fallback so the
@@ -269,34 +291,18 @@ export interface RecipeVersionPreviewMessages {
  *  field name or "Version {n}" label is one piece of knowledge regardless of which version surface renders
  *  it. */
 export interface RecipeVersionCompareMessages {
-    /** Panel/sheet heading template (contains `{versionA}` and `{versionB}`) — deliberately renders
-     *  `{versionB}` FIRST (`Compare v{versionB} vs v{versionA}`), matching the wireframe's example "Compare
-     *  v12 vs v8" for a caller comparing an older version A against a newer version B. */
+    /** Panel/sheet heading (contains `{version}`): one version against the current one (§6.6). */
     readonly title: string;
-    /** Accessible name of the close ("×") control. */
+    /** Accessible name of the close control. */
     readonly close: string;
-    /** Heading for the Diff Summary section. */
-    readonly diffSummaryHeading: string;
-    /** Localized "Added" count template (contains `{count}`); reused for BOTH the overall Diff Summary
-     *  rollup and (when `showFullDiff` is toggled on) a `steps`/`ingredients` row's own tally. */
-    readonly added: string;
-    /** Localized "Removed" count template (contains `{count}`); see {@link added}. */
-    readonly removed: string;
-    /** Localized "Modified" count template (contains `{count}`); see {@link added}. */
-    readonly modified: string;
-    /** Label of the control that reveals each `steps`/`ingredients` row's per-collection Added/Removed/
-     *  Modified tally (shown OFF by default so a same-count reorder never reads as a misleading per-line
-     *  explosion — see `buildCompareFieldRows`). */
-    readonly showFullDiff: string;
-    /** Label of the same control once the tally is showing. */
-    readonly hideFullDiff: string;
-    /** Message shown in place of the field rows when the two versions' snapshots are identical
-     *  (`diff.changedFields` is empty). */
+    /** The column naming what the version said (contains `{version}`). */
+    readonly wasLabel: string;
+    /** The column naming what the recipe says now. */
+    readonly nowLabel: string;
+    /** Shown in a column where the element does not exist on that side (added or removed). */
+    readonly noValue: string;
+    /** Shown in place of the rows when the version matches the current one. */
     readonly noChanges: string;
-    /** Message shown when the panel is open but fewer than two versions (and/or no `diff`) have been
-     *  supplied yet — the two-version SELECTION UI itself lives in the composing container (Task 5); this
-     *  view only reports that a selection is still needed. */
-    readonly selectTwoVersions: string;
 }
 
 /** The shape of the version surface's shared copy. */
@@ -315,7 +321,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
     en: {
         versionList: {
             heading: 'Version history',
-            empty: 'No earlier versions yet.',
+            empty: 'No earlier versions yet',
             versionLabel: 'Version {version}',
             currentBadge: 'Current version',
             restore: 'Restore',
@@ -333,9 +339,15 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             initialVersion: 'Initial version',
             preview: 'Preview',
             previewAction: 'Preview version {version}',
-            compare: 'Compare',
-            compareAction: 'Select version {version} to compare',
-            backToRecipe: 'Back to Recipe',
+            compareWithCurrent: 'Compare with current',
+            restoreThis: 'Restore this version',
+            rowActions: 'More actions for version {version}',
+            rowTitle: 'Version {version} · Edited {time}',
+            restored: 'Restored version {version}.',
+            undo: 'Undo',
+            emptyBody: 'Each time you save changes, the version before is kept here.',
+            loading: 'Loading the history',
+            backToRecipe: 'Back to recipe',
         },
         conflict: {
             discardAndClose: 'Discard and close',
@@ -347,6 +359,12 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             yourCardHeading: 'Your version (v{version})',
             yourCardHeadingUnknown: 'Your version',
             versionCardSavedLabel: 'Saved: {time}',
+            draftHeading: 'This draft changed somewhere else',
+            draftExplanation:
+                'You saved this draft in another tab or on another device while you were editing here. Choose which one to keep.',
+            draftServerBanner: 'Saved elsewhere {time}',
+            draftServerCardHeading: 'Saved elsewhere',
+            draftYourCardHeading: 'This screen',
             dataUnavailable: 'This recipe was changed elsewhere. Reload and try again.',
             changedFieldsHeading: 'Changed fields',
             wasValueLabel: 'Was: {value}',
@@ -418,16 +436,12 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             lineCannotRestore: '(can’t be restored)',
         },
         compare: {
-            title: 'Compare v{versionB} vs v{versionA}',
+            title: 'Version {version} and the current version',
             close: 'Close compare',
-            diffSummaryHeading: 'Diff Summary',
-            added: 'Added: {count}',
-            removed: 'Removed: {count}',
-            modified: 'Modified: {count}',
-            showFullDiff: 'Show full diff',
-            hideFullDiff: 'Hide full diff',
-            noChanges: 'No changes between these versions.',
-            selectTwoVersions: 'Select two versions to compare.',
+            wasLabel: 'Version {version}',
+            nowLabel: 'Current',
+            noValue: 'None',
+            noChanges: 'This version matches the current one.',
         },
     },
 };

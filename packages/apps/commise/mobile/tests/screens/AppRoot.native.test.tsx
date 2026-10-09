@@ -22,7 +22,8 @@ vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
 // stubs every other native screen test already applies: `react-native-safe-area-context` (its real module
 // does not parse under jsdom/react-native-web — see e.g. `HomeWidgetSurface.native.test.tsx`) and the app's
 // own `useUserProfile` hook (its real implementation imports `@clerk/expo`, likewise unparseable here).
-vi.mock('react-native-safe-area-context', () => ({
+vi.mock('react-native-safe-area-context', async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
     useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
     SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
 }));
@@ -88,7 +89,7 @@ afterEach(() => {
     vi.clearAllMocks();
 });
 
-describe('AppRoot root ErrorBoundary', () => {
+describe('AppRoot — each screen’s crash boundary (slice 3: per routed screen, so the tab bar survives)', () => {
     it('renders the recoverable fallback (not a white screen) and reports the crash via DA9', () => {
         renderWithProviders(<AppRoot />);
 

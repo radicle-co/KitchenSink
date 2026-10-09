@@ -52,6 +52,7 @@ import type { EntrySearchView } from '../../hooks/foodSuggestions.model.js';
 import { recipeMessages } from '../../messages.js';
 import type { IngredientRowEditor, SettledRowCommit } from '../../hooks/useIngredientRowEditor.js';
 import { recipeFormMessages } from '../messages.js';
+import { editorMessages } from '../../editor/messages.js';
 import { RecipeIngredientsFields } from '../RecipeIngredientsFields.native.js';
 import type { IngredientLineKey } from '../lineKey.js';
 import type { IngredientNutrition } from '../nutritionLookup.js';
@@ -196,7 +197,8 @@ const Harness: FC<{
     readonly over?: FakeRowEditorOverrides;
     readonly errors?: RecipeFormErrors;
     readonly nutrition?: IngredientNutrition;
-}> = ({ initial, over, errors, nutrition = NUTRITION }) => {
+    readonly onValues?: (values: RecipeFormValues) => void;
+}> = ({ initial, over, errors, nutrition = NUTRITION, onValues }) => {
     const [values, setValues] = useState(initial);
     // The host's draft transition, applied to this harness's own draft, as each host applies it to its own.
     const rowEditor = useFakeRowEditor(values.ingredients, {
@@ -209,7 +211,10 @@ const Harness: FC<{
             <RecipeIngredientsFields
                 values={values}
                 {...(errors === undefined ? {} : { errors })}
-                onChange={setValues}
+                onChange={(next) => {
+                    onValues?.(next);
+                    setValues(next);
+                }}
                 nutrition={nutrition}
                 lookupRetry={makeLookupRetry()}
                 rowEditor={rowEditor}
@@ -610,9 +615,47 @@ describe('every state of the food list, native (S5 list contract L1 to L4, §S13
     });
 });
 
+describe('the add field reads the amount first, native (build spec §7.5.3; blueprint A1)', () => {
+    const trailing = (): HTMLInputElement =>
+        screen.getByLabelText<HTMLInputElement>(editorMessages.en.ingredients.addLabel);
+
+    it('shows the live reading under the field, and says it politely once the cook pauses', () => {
+        vi.useFakeTimers();
+
+        try {
+            render(<Harness initial={valuesWith([])} />);
+            fireEvent.change(trailing(), { target: { value: '2 tbsp olive oil, for frying' } });
+
+            expect(screen.getByText('2 tbsp · olive oil · for frying')).toBeTruthy();
+            const spoken = 'Amount 2, unit tablespoon, food olive oil, preparation for frying.';
+            expect(screen.queryByText(spoken)).toBeNull();
+
+            act(() => {
+                vi.advanceTimersByTime(500);
+            });
+
+            expect(screen.getByText(spoken).getAttribute('aria-live')).toBe('polite');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('the keyboard’s submit with no option tapped stores nothing and says to pick a food', () => {
+        const onValues = vi.fn();
+        render(<Harness initial={valuesWith([])} onValues={onValues} />);
+        fireEvent.change(trailing(), { target: { value: '2 tbsp olive oil' } });
+
+        fireEvent.keyDown(trailing(), { key: 'Enter' });
+
+        expect(screen.getByText('Pick a food from the list.').getAttribute('aria-live')).toBe('polite');
+        expect(onValues).not.toHaveBeenCalled();
+    });
+});
+
 describe('the trailing add row, native (plan 002 V1 B8; §2d, §4b; items 1, 3 and 4)', () => {
     const TRAILING = { kind: 'newLine' } as const;
-    const trailing = (): HTMLInputElement => screen.getByLabelText<HTMLInputElement>(en.addIngredientRowLabel);
+    const trailing = (): HTMLInputElement =>
+        screen.getByLabelText<HTMLInputElement>(editorMessages.en.ingredients.addLabel);
     const NOTHING_FOUND = settledFoodView(answeredGroup(), answeredGroup());
 
     it('a pick it appended is said politely, and the cursor stays in the emptied field (F1)', () => {

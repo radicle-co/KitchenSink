@@ -15,40 +15,31 @@ appId: io.commise.mobile
 #      bounds. The failure this guards is silent narrowing: an editor that renders only the lower bound
 #      saves `2 cups` and still looks like it saved.
 #   3. An ABSENT amount is EDITABLE and SAVEABLE (R40). Before U9 the draft held `NaN` and validation
-#      refused it, so such a recipe could be opened and never saved — the Publish tap below is that
+#      refused it, so such a recipe could be opened and never saved — the Save changes tap below is that
 #      assertion.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
-- tapOn: 'Create from Scratch'
 
-# Step 1 of 4 (Basic). servings/prep/cook keep their valid defaults, as in `create.yaml`.
-- assertVisible: 'Step 1 of 4'
+# Details. servings/prep/cook keep their valid defaults, as in `create.yaml`.
+- assertVisible: 'Close editor'
 - assertVisible: 'Title'
 - tapOn: 'Title'
 - inputText: 'Maestro Range Loaf'
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
 
-# Step 2 of 4 (Ingredients). Declare a line "as written" from the trailing field (no food-service dependency in this
+# Ingredients, below Details. Declare a line "as written" from the trailing field (no food-service dependency in this
 # job — same rationale as `create.yaml`), then state a RANGE across its two bounds.
-- assertVisible: 'Step 2 of 4'
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
-- scrollUntilVisible:
-      element:
-          text: 'Use .*Tomato.* as written.*'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
 - tapOn:
       text: 'Use .*Tomato.* as written.*'
 # The trailing field empties only after the line is committed, so this disappearing IS the declaration landing
@@ -59,7 +50,8 @@ appId: io.commise.mobile
 
 - scrollUntilVisible:
       element: 'Ingredient 1 quantity'
-      direction: DOWN
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 30000
 - tapOn: 'Ingredient 1 quantity'
 - eraseText
@@ -69,28 +61,15 @@ appId: io.commise.mobile
 - tapOn: 'Ingredient 1 unit'
 - inputText: 'cups'
 
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
-
-# Step 3 of 4 (Instructions) — a fresh create has no steps, so this is `Step 1`.
-- assertVisible: 'Step 3 of 4'
+# Steps, below Ingredients — a fresh create has no steps, so this is `Step 1`.
 - scrollUntilVisible:
       element: 'Add step'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
-- inputText: 'Mix and bake.'
-- scrollUntilVisible:
-      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Review'
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Mix and bake.'
 
-- assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 
 # Landed on the new recipe's detail. The title regex tolerates this emulator's occasional last-character
@@ -115,13 +94,7 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
-- assertVisible: 'Step 1 of 4'
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-- assertVisible: 'Step 2 of 4'
+- assertVisible: 'Close editor'
 - scrollUntilVisible:
       element: 'Ingredient 1 maximum quantity'
       direction: DOWN
@@ -131,27 +104,20 @@ appId: io.commise.mobile
 - assertVisible:
       text: '3'
 
-# Now state that the source gave NO amount: clear both bounds, keep the prose in the unit field. Publishing
+# Now state that the source gave NO amount: clear both bounds, keep the prose in the unit field. Saving
 # from here is the assertion — before U9 this form could not be submitted at all.
 - tapOn: 'Ingredient 1 quantity'
 - eraseText
 - tapOn: 'Ingredient 1 maximum quantity'
 - eraseText
-- tapOn: 'Ingredient 1 unit'
-- eraseText
+# A tap puts the caret mid-word, so a backward erase leaves the tail of `cups` behind ("…an eggs"): select the word
+# with a double tap, and the text typed replaces it.
+- doubleTapOn: 'Ingredient 1 unit'
 - inputText: 'the size of an egg'
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
-- scrollUntilVisible:
-      element: 'Next: Review'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Review'
-- assertVisible: 'Step 4 of 4'
-- tapOn: 'Publish'
+- assertVisible:
+      text: '^the size of an egg$'
+# The recipe is published now, so its edits reach the server only at Save changes (owner decision D1).
+- tapOn: 'Save changes'
 
 - extendedWaitUntil:
       visible:
@@ -162,7 +128,8 @@ appId: io.commise.mobile
 - scrollUntilVisible:
       element:
           text: 'the size of an egg .*Tomato.*'
-      direction: DOWN
+      # Save changes goes BACK to the detail, which keeps the scroll it had: the line is above.
+      direction: UP
       timeout: 20000
 - assertNotVisible:
       text: '[0-9]+ the size of an egg.*'

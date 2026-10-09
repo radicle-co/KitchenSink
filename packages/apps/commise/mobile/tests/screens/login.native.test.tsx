@@ -17,6 +17,9 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 
 import { useClerk, useSignIn } from '@clerk/expo';
 
+import { role, roleDark } from '@commise/ui/colors';
+import { formatRgb } from 'culori';
+
 import { LoginScreen } from '../../src/screens/login.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 
@@ -36,6 +39,9 @@ vi.mock('react-native-safe-area-context', () => ({
         createElement('div', { 'aria-label': 'safe-area-root' }, children as never),
 }));
 
+/** The system colour scheme the next render sees. */
+const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
+
 // The platform is react-native-web's unless a test sets it, so a case can ask what the avoider does on Android.
 const platform = vi.hoisted(() => ({ os: undefined as 'android' | 'ios' | undefined }));
 vi.mock('react-native', async (importOriginal) => {
@@ -49,6 +55,7 @@ vi.mock('react-native', async (importOriginal) => {
                 return platform.os ?? actual.Platform.OS;
             },
         },
+        useColorScheme: () => scheme.current,
         KeyboardAvoidingView: ({ children, behavior }: { readonly children?: unknown; readonly behavior?: string }) =>
             createElement('div', { 'aria-label': 'keyboard-avoiding', 'data-behavior': behavior }, children as never),
     };
@@ -91,6 +98,7 @@ afterEach(() => {
     cleanup();
     vi.clearAllMocks();
     platform.os = undefined;
+    scheme.current = null;
 });
 
 describe('LoginScreen — chrome + design system', () => {
@@ -228,5 +236,162 @@ describe('LoginScreen — sign-in flow', () => {
         fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
 
         expect((await screen.findByRole('alert')).textContent).toContain(auth.signInFailed);
+    });
+});
+
+describe('LoginScreen — Section 8 native: order, copy and field hints', () => {
+    function setup(overrides: Record<string, unknown> = {}) {
+        const signIn = makeSignIn(overrides);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        useSignInMock.mockReturnValue({ signIn } as any);
+        renderLogin();
+
+        return signIn;
+    }
+
+    it('reads mark → H1 “Sign in to Commise” → the brand line → email → password → Sign in → the sign-up link', () => {
+        setup();
+
+        const ordered = [
+            screen.getByText(auth.brand),
+            screen.getByRole('heading', { name: auth.signInTitle, level: 1 }),
+            screen.getByText(auth.brandLine),
+            screen.getByLabelText(auth.emailLabel),
+            screen.getByLabelText(auth.passwordLabel),
+            screen.getByRole('button', { name: auth.signInAction }),
+            screen.getByText(auth.noAccountPrompt),
+            screen.getByRole('button', { name: auth.signUpLink }),
+        ];
+
+        ordered.slice(1).forEach((node, index) => {
+            const before = ordered[index] as HTMLElement;
+
+            expect(
+                before.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING,
+                auth.brandLine,
+            ).toBeTruthy();
+        });
+    });
+
+    it('uses the spec copy: the brand line, and “New to Commise? Create an account”', () => {
+        setup();
+
+        expect(auth.brandLine).toBe('Your recipes, in one place.');
+        expect(auth.noAccountPrompt).toBe('New to Commise?');
+        expect(auth.signUpLink).toBe('Create an account');
+    });
+
+    it('asks the OS for email, current-password autofill, and a numeric one-time-code', async () => {
+        const signIn = setup({ status: 'needs_first_factor' });
+
+        expect(screen.getByLabelText(auth.emailLabel).getAttribute('autocomplete')).toBe('email');
+        expect(screen.getByLabelText(auth.passwordLabel).getAttribute('autocomplete')).toBe('current-password');
+
+        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
+        const code = await screen.findByLabelText(auth.codeLabel);
+
+        expect(signIn.emailCode.sendCode).toHaveBeenCalled();
+        expect(code.getAttribute('autocomplete')).toBe('one-time-code');
+        expect(code.getAttribute('inputmode')).toBe('numeric');
+    });
+
+    it('locks the form while a sign-in is in flight', async () => {
+        setup({ create: vi.fn(() => new Promise<StepResult>(() => undefined)) });
+
+        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
+
+        await waitFor(() => expect(screen.getByLabelText(auth.emailLabel).hasAttribute('readonly')).toBe(true));
+        expect(screen.getByLabelText(auth.passwordLabel).hasAttribute('readonly')).toBe(true);
+    });
+});
+
+describe('LoginScreen — the network error (§8 “States”)', () => {
+    function setup(overrides: Record<string, unknown>) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        useSignInMock.mockReturnValue({ signIn: makeSignIn(overrides) } as any);
+        renderLogin();
+        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
+    }
+
+    it('names an unreachable service when the call THROWS a network failure', async () => {
+        setup({
+            create: vi.fn(async () => {
+                throw new TypeError('Network request failed');
+            }),
+        });
+
+        expect((await screen.findByRole('alert')).textContent).toBe(auth.networkError);
+    });
+
+    it('names an unreachable service when Clerk RETURNS a network_error', async () => {
+        setup({ create: vi.fn(async () => ({ error: { code: 'network_error', message: 'Browser is offline' } })) });
+
+        expect((await screen.findByRole('alert')).textContent).toBe(auth.networkError);
+    });
+
+    it('shows the alert above the primary action', async () => {
+        setup({
+            create: vi.fn(async () => {
+                throw new TypeError('Network request failed');
+            }),
+        });
+
+        const alert = await screen.findByRole('alert');
+
+        expect(
+            alert.compareDocumentPosition(screen.getByRole('button', { name: auth.signInAction })) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
+    it('does NOT blame the network for a wrong password', async () => {
+        setup({
+            password: vi.fn(async () => ({
+                error: { code: 'form_password_incorrect', message: 'Incorrect password' },
+            })),
+        });
+
+        const alert = await screen.findByRole('alert');
+
+        expect(alert.textContent).toBe('Incorrect password');
+        expect(screen.queryByText(auth.networkError)).toBeNull();
+    });
+
+    it('names an unreachable service when sending the new-device code fails on the network', async () => {
+        const signIn = makeSignIn({ status: 'needs_first_factor' });
+        signIn.emailCode.sendCode = vi.fn(async () => ({ error: { code: 'network_error', message: 'x' } }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        useSignInMock.mockReturnValue({ signIn } as any);
+        renderLogin();
+        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
+
+        expect((await screen.findByRole('alert')).textContent).toBe(auth.networkError);
+    });
+});
+
+describe.each([
+    ['light', role],
+    ['dark', roleDark],
+] as const)('LoginScreen — the %s theme reads colour from roles', (name, roles) => {
+    it('paints the mark and H1 in ink, the brand line and prompt in inkMuted, and the alert in dangerText', async () => {
+        scheme.current = name;
+        useSignInMock.mockReturnValue({
+            signIn: makeSignIn({ create: vi.fn(async () => ({ error: { message: 'No' } })) }),
+        } as unknown as ReturnType<typeof useSignIn>);
+        renderLogin();
+
+        const colour = (node: HTMLElement) => window.getComputedStyle(node).color;
+
+        expect(colour(screen.getByText(auth.brand))).toBe(formatRgb(roles.ink));
+        expect(colour(screen.getByRole('heading', { name: auth.signInTitle }))).toBe(formatRgb(roles.ink));
+        expect(colour(screen.getByText(auth.brandLine))).toBe(formatRgb(roles.inkMuted));
+        expect(colour(screen.getByText(auth.noAccountPrompt))).toBe(formatRgb(roles.inkMuted));
+
+        fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
+        expect(colour(await screen.findByRole('alert'))).toBe(formatRgb(roles.dangerText));
     });
 });

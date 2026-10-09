@@ -151,9 +151,8 @@ test.describe('control labels at 320 px in en-XA', () => {
             .getByRole('button', { name: pseudoString('More actions for {title}').replace('{title}', RECIPE_TITLE) })
             .click();
 
-        const control = page.getByRole('dialog', { name: pseudoString('More actions') }).getByRole('button', {
-            name: pseudoString('Delete recipe'),
-        });
+        // The ⋯ menu is the design system's `ActionMenu` (§6.4): its entries are menu items.
+        const control = page.getByRole('menu').getByRole('menuitem', { name: pseudoString('Delete recipe') });
         await expect(control).toBeVisible();
         expect((await labelLayout(control)).lines).toBe(1);
 
@@ -170,26 +169,22 @@ test.describe('control labels at 320 px in en-XA', () => {
         await seed(page, 'none');
         await page.goto(pseudoRoute('/recipes'));
 
-        await expect(page.getByRole('button', { name: pseudoString('Create your first recipe') })).toBeVisible();
+        await expect(page.getByRole('button', { name: pseudoString('Add your first recipe') })).toBeVisible();
         await expectNoSidewaysScroll(page);
     });
 
-    // ⛔ A KNOWN DEFECT, ASSERTED — not skipped. Measured: the label needs ~270 px on one line at +35% and the empty
-    // state gives the whole button 256 px at 320, so no layout change fixes it; the copy or the gutter is a design
-    // decision (raised to `staff-ux-engineer`). `test.fail` runs it and passes only WHILE it still wraps: the day the
-    // design lands, this turns red, and the annotation comes off.
+    // Was a known defect, asserted with `test.fail` while "Create your first recipe" wrapped at 320 px. Slice 4's copy
+    // ("Add your first recipe", `buildSpec.md` §4.3) fits one line there, so the expectation is now the plain one.
     test('the empty recipe list’s create label stays on one line', async ({ page }) => {
-        test.fail(true, '"Create your first recipe" wraps at 320 px in en-XA; awaiting a copy/gutter decision.');
-
         await seed(page, 'none');
         await page.goto(pseudoRoute('/recipes'));
 
         await expectOneLine({
-            'Create your first recipe': page.getByRole('button', { name: pseudoString('Create your first recipe') }),
+            'Add your first recipe': page.getByRole('button', { name: pseudoString('Add your first recipe') }),
         });
     });
 
-    test('recipe detail: the More-actions popover and the delete ConfirmDialog', async ({ page }) => {
+    test('recipe detail: the ⋯ menu and the delete ConfirmDialog', async ({ page }) => {
         await seed(page, 'one');
         await page.goto(pseudoRoute(`/recipes/${RECIPE_ID}`));
         await expect(page.getByRole('heading', { level: 1, name: RECIPE_TITLE })).toBeVisible();
@@ -198,13 +193,13 @@ test.describe('control labels at 320 px in en-XA', () => {
         await page
             .getByRole('button', { name: pseudoString('More actions for {title}').replace('{title}', RECIPE_TITLE) })
             .click();
-        const menu = page.getByRole('dialog', { name: pseudoString('More actions') });
+        const menu = page.getByRole('menu');
         await expectOneLine({
-            'Delete recipe (menu)': menu.getByRole('button', { name: pseudoString('Delete recipe') }),
+            'Delete recipe (menu)': menu.getByRole('menuitem', { name: pseudoString('Delete recipe') }),
         });
         await expectNoSidewaysScroll(page);
 
-        await menu.getByRole('button', { name: pseudoString('Delete recipe') }).click();
+        await menu.getByRole('menuitem', { name: pseudoString('Delete recipe') }).click();
         const dialog = page.getByRole('alertdialog', { name: pseudoString('Delete this recipe?') });
         await expectOneLine({
             'Keep recipe': dialog.getByRole('button', { name: pseudoString('Keep recipe') }),
@@ -221,12 +216,17 @@ test.describe('control labels at 320 px in en-XA', () => {
         await expectNoSidewaysScroll(page);
 
         await page.goto(pseudoRoute('/collections/col_labels'));
-        await expectOneLine({ 'Add a recipe': page.getByRole('button', { name: pseudoString('Add a recipe') }) });
+        // Slice 4: the collection's add control is "Add recipes" (it opens the member picker).
+        await expectOneLine({
+            'Add recipes': page.getByRole('button', { name: pseudoString('Add recipes') }).first(),
+        });
         await expectNoSidewaysScroll(page);
 
-        await page.goto(pseudoRoute('/collections/new'));
+        // Slice 4: the `/collections/new` page is deleted; the form is the new-collection sheet over the list.
+        await page.goto(pseudoRoute('/collections'));
+        await page.getByRole('button', { name: pseudoString('New collection') }).click();
         await expectOneLine({
-            Create: page.getByRole('button', { name: pseudoString('Create'), exact: true }),
+            'Create collection': page.getByRole('button', { name: pseudoString('Create collection'), exact: true }),
             Cancel: page.getByRole('button', { name: pseudoString('Cancel'), exact: true }),
         });
         await expectNoSidewaysScroll(page);

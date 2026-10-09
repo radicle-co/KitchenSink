@@ -68,6 +68,8 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
             {box !== null && (
                 <ScrollView
                     horizontal
+                    // One `scrollsToTop` per screen: the detail's own scroller keeps the iOS status-bar tap.
+                    scrollsToTop={false}
                     pagingEnabled
                     showsHorizontalScrollIndicator={false}
                     style={[styles.strip, { width: box.width }]}

@@ -25,12 +25,12 @@ appId: io.commise.mobile
 - runFlow: ../auth/signin.yaml
 
 # --- 1. Accessible name != visible text ------------------------------------------------------------------
-# The recipe-list search field is labelled "Search recipes" while its PLACEHOLDER reads "Search recipes...".
-# Anchoring (`^…$`) forces the match onto the accessible name: the placeholder cannot satisfy an anchored
-# match. Falsifiable — drop the TextInput's accessibilityLabel and only the hint remains, so this fails.
+# The recipe-list search field is NOT asserted here any more. Its accessible name and its placeholder both read
+# "Search your recipes" (slice 5), so Maestro, which matches a node's text OR its name, would pass on the placeholder
+# alone with the name removed — the unfalsifiable kind of check this flow refuses. The name is pinned where it can
+# fail: `SearchField.native.test.tsx` ("keeps a hidden label as the field's name"). Section 3 is this flow's
+# name-differs-from-text check.
 - assertVisible: 'Recipes'
-- assertVisible:
-      text: '^Search recipes$'
 
 # --- 2. Tab bar exposes SELECTED state to assistive tech -------------------------------------------------
 # The tabs render selection with an underline + colour. Colour/position alone is not an accessible state, so
@@ -46,20 +46,22 @@ appId: io.commise.mobile
 # Selection state must FOLLOW the interaction, not be hardcoded.
 - tapOn: 'Discover'
 - extendedWaitUntil:
-      visible: 'Discover recipes'
+      visible: 'Discover'
       timeout: 40000
 - assertVisible:
       text: '^Discover$'
       selected: true
+# The other tabs report themselves unselected (My recipes is a segment inside the Recipes tab, so it is not on this
+# screen; Home is the tab bar's own neighbour).
 - assertVisible:
-      text: '^My recipes$'
+      text: '^Home$'
       selected: false
 
 # --- 3. Icon/short-label controls carry a distinguishing accessible name ---------------------------------
-# Each discovery result's clone button VISIBLY reads just "Clone" — ambiguous to a screen-reader user paging
-# through a feed of identical buttons — so its accessible name is "Clone {title}". That full string exists
-# ONLY as the accessibilityLabel, so this is the strongest falsifiable naming assertion on the surface:
-# remove the label and the node's text is "Clone", which cannot match. Guarded on the seeded public recipe.
+# Each discovery card's Save a copy button is an icon — ambiguous to a screen-reader user paging through a feed of
+# identical buttons — so its accessible name is "Save a copy of {title}". That full string exists ONLY as the
+# accessibilityLabel, so this is the strongest falsifiable naming assertion on the surface: remove the label and the
+# node has no name to match. Guarded on the seeded public recipe.
 #
 # ⛔ REACH THE FIXTURE BY SEARCH, not by its place in a browse rail. Discover's default surface is the U7
 # rails (Trending/New/Quick), and a rail is one horizontally-scrolled page whose order depends on the whole
@@ -67,7 +69,7 @@ appId: io.commise.mobile
 # behind the signer's public rows. Typing the title's base switches to the deterministic result list, while
 # the run-scoped title keeps the selector unique to this run. This still proves the a11y label on a discovery
 # result — the behavior this block owns — without coupling it to rail placement.
-- tapOn: 'Search public recipes'
+- tapOn: 'Search recipes'
 - inputText: 'Risotto'
 - scrollUntilVisible:
       element:
@@ -78,12 +80,12 @@ appId: io.commise.mobile
       when:
           visible: '${E2E_RECIPE_RISOTTO}'
       commands:
-          - assertVisible: 'Clone ${E2E_RECIPE_RISOTTO}'
+          - assertVisible: 'Save a copy of ${E2E_RECIPE_RISOTTO}'
           # The row title is a separate, correctly-named control (anchored so it selects the title button and
-          # not the clone button whose name contains the same title).
+          # not the Save a copy button whose name contains the same title).
           - assertVisible:
                 text: '^${E2E_RECIPE_RISOTTO}$'
 
 # --- 4. The discovery search field is labelled independently of its placeholder --------------------------
 - assertVisible:
-      text: '^Search public recipes$'
+      text: '^Search recipes$'

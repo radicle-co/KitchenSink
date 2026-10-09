@@ -22,15 +22,18 @@ import {
     CollectionListLoadError,
     CollectionListLoading,
     CollectionListResults,
+    CollectionSheet,
+    narrowCollections,
 } from '@commise/features-recipes';
+import { useLibraryEmpty } from '@commise/features-recipes/hooks';
 import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import { collectionQueries } from '@kitchensink/recipe-service-client';
-import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
-import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
+import { collectionQueries, recipeQueries } from '@kitchensink/recipe-service-client';
+import { useCreateCollection, useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
+import { useQuery, useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import type { FC } from 'react';
+import { useState, type FC, type ReactNode } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 
@@ -38,6 +41,11 @@ import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 export interface CollectionListContainerProps {
     /** The active route locale, used to build locale-prefixed navigation targets. */
     readonly locale: string;
+    /**
+     * The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays
+     * where data enters the chrome and this container does not depend on the auth session.
+     */
+    readonly avatar?: ReactNode;
 }
 
 /** The collections read the page prefetches and the results render. */
@@ -49,19 +57,61 @@ type CollectionListRead = ReturnType<ReturnType<typeof collectionQueries>['listI
  * @param props - The active locale.
  * @returns The frame around the read boundary.
  */
-export const CollectionListContainer: FC<CollectionListContainerProps> = ({ locale }) => {
+export const CollectionListContainer: FC<CollectionListContainerProps> = ({ locale, avatar }) => {
     const router = useRouter();
     const client = useRecipeServiceClient();
     // Built ONCE and handed to both sides, so the key the boundary checks for a prefetch and the read it gates can never
     // drift apart.
     const read = collectionQueries(client).listInfinite();
     const recovery = useRecoverySignal();
+    const [searchValue, setSearchValue] = useState('');
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const createCollection = useCreateCollection();
+    // Whether the cook has any recipe to group (§5.1 first run). One recipe is enough to know; while it is unknown the
+    // first run offers New collection, the common case.
+    const anyRecipe = useQuery(recipeQueries(client).list({ pageSize: 1 }));
+    const hasRecipes = (anyRecipe.data?.total ?? 1) > 0;
+    // The first run (no collection at all) draws its own start buttons in place of the floating one (§3.4). A cache-only
+    // read of the list's own key: it fetches nothing, and is false until the read has settled empty.
+    const firstRun = useLibraryEmpty(read.queryKey);
+
+    const openSheet = () => {
+        createCollection.reset();
+        setSheetOpen(true);
+    };
 
     return (
         <CollectionListFrame
-            onCreate={() => router.push(`/${locale}/collections/new` as Route)}
+            {...(avatar === undefined ? {} : { headerAction: { kind: 'avatar', avatar } })}
+            onCreate={openSheet}
+            firstRun={firstRun}
+            segments={{
+                current: 'collections',
+                href: { mine: `/${locale}/recipes`, collections: `/${locale}/collections` },
+                onSelect: (segment) => {
+                    if (segment === 'mine') {
+                        router.push(`/${locale}/recipes` as Route);
+                    }
+                },
+            }}
             headingFocusSignal={recovery.signal}
         >
+            {/* The new-collection sheet replaces the deleted `/collections/new` page (§5.1). A created collection
+                closes the sheet and opens its detail, whose empty state offers Add recipes. */}
+            <CollectionSheet
+                open={sheetOpen}
+                onOpenChange={setSheetOpen}
+                submitting={createCollection.isPending}
+                failed={createCollection.isError}
+                onCreate={(request) =>
+                    createCollection.mutate(request, {
+                        onSuccess: (created) => {
+                            setSheetOpen(false);
+                            router.push(`/${locale}/collections/${created.id}` as Route);
+                        },
+                    })
+                }
+            />
             <ClientQueryBoundary
                 prefetchedKeys={[read.queryKey]}
                 loading={<CollectionListLoading />}
@@ -69,6 +119,12 @@ export const CollectionListContainer: FC<CollectionListContainerProps> = ({ loca
             >
                 <SettledCollectionList
                     read={read}
+                    locale={locale}
+                    searchValue={searchValue}
+                    onSearchChange={setSearchValue}
+                    hasRecipes={hasRecipes}
+                    onCreate={openSheet}
+                    onAddRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
                     onSelect={(id) => router.push(`/${locale}/collections/${id}` as Route)}
                     onRecovered={recovery.onRecovered}
                 />
@@ -81,6 +137,12 @@ export const CollectionListContainer: FC<CollectionListContainerProps> = ({ loca
 interface SettledCollectionListProps {
     /** The collections read the boundary gates — the same options object whose key it checked. */
     readonly read: CollectionListRead;
+    readonly locale: string;
+    readonly searchValue: string;
+    readonly onSearchChange: (value: string) => void;
+    readonly hasRecipes: boolean;
+    readonly onCreate: () => void;
+    readonly onAddRecipe: () => void;
     /** Invoked with a collection id when a row is activated. */
     readonly onSelect: (id: string) => void;
     /** Reports a retry from the refresh notice that succeeded, for the frame's heading. */
@@ -93,16 +155,31 @@ interface SettledCollectionListProps {
  * @param props - The read, the selection handler and the recovery report.
  * @returns The results over the loaded pages.
  */
-const SettledCollectionList: FC<SettledCollectionListProps> = ({ read, onSelect, onRecovered }) => {
+const SettledCollectionList: FC<SettledCollectionListProps> = ({
+    read,
+    locale,
+    searchValue,
+    onSearchChange,
+    hasRecipes,
+    onCreate,
+    onAddRecipe,
+    onSelect,
+    onRecovered,
+}) => {
     const query = useSuspenseInfiniteQuery(read);
     // A failed refresh of the rows on screen is the notice's, and a failed NEXT page is the load-more control's; a
     // suspense read throws into the boundary only when it has no data at all.
     const refreshNotice = useRefreshNotice(query, { onRecovered });
+    const loaded = query.data.pages.flatMap((page) => page.data);
 
     return (
         <CollectionListResults
-            // Each fetched page appends to `data.pages`, so flatten them; the empty state is the view's own split.
-            collections={query.data.pages.flatMap((page) => page.data)}
+            // Each fetched page appends to `data.pages`, so flatten them; the search narrows what is loaded.
+            collections={narrowCollections(loaded, searchValue)}
+            total={loaded.length}
+            search={{ value: searchValue, onChange: onSearchChange }}
+            firstRun={{ hasRecipes, onCreate, onAddRecipe }}
+            hrefOf={(id) => `/${locale}/collections/${id}`}
             onSelect={onSelect}
             refreshNotice={refreshNotice}
             loadMore={{

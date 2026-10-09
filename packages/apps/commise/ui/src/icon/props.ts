@@ -66,6 +66,9 @@ export const ICON_NAMES = [
     'chartColumn',
     'bell',
     'menu',
+    // The library's list/grid switch (slice 4, `buildSpec.md` §4.3).
+    'list',
+    'layoutGrid',
 ] as const;
 
 /** A meaning the Registry can draw. */

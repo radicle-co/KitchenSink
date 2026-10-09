@@ -57,8 +57,6 @@ export interface WebMessages {
             readonly label: string;
             readonly recipes: string;
             readonly profile: string;
-            readonly settings: string;
-            readonly account: string;
         };
         /**
          * Copy for the Home chrome (sidebar, top bar, mobile tab bar) — US-000 / FR-046. Keyed by the SHARED
@@ -85,29 +83,26 @@ export interface WebMessages {
              * cannot), so they are separate knowledge, not duplication.
              */
             readonly pageTitles: Readonly<Record<ShellSurfaceId, string>>;
-            /** Accessible name of the control that opens navigation on small screens. */
-            readonly openNav: string;
-            /** Accessible name of the control that closes navigation on small screens. */
-            readonly closeNav: string;
-            /** Accessible name of the sidebar collapse control. */
+            /** The sidebar's collapse control: its visible label and, expanded, its name. */
             readonly collapseNav: string;
-            /** Accessible name of the sidebar expand control (when collapsed). */
+            /** The collapsed sidebar's expand control's name (the glyph alone shows). */
             readonly expandNav: string;
-            /** Accessible name of the search entry point. */
-            readonly search: string;
-            /** Accessible name of the notifications control. */
-            readonly notifications: string;
-            /** Accessible name of the avatar / account entry point. */
-            readonly account: string;
-            /** Fallback avatar name when the viewer has no display name yet. */
-            readonly accountNoName: string;
-            /** Suffix appended to an unreachable destination's accessible name (never a dead link). */
-            readonly comingSoonSuffix: string;
+            /** The avatar's and the profile row's name, with the cook's name in `{name}` (`buildSpec.md` §3.3). */
+            readonly profileButton: string;
+            /** The same name when the cook has none yet. */
+            readonly profileButtonNoName: string;
+            /** Web's "Back to top" on a long list (§3.6). */
+            readonly backToTop: string;
             /** Label of each navigation destination, keyed by the shared nav model's id. */
             readonly destinations: Readonly<Record<HomeNavItemId, string>>;
         };
-        /** Greeting copy, one per time-of-day bucket. Keyed by the shared {@link GreetingBucket} union. */
+        /**
+         * Home's H1 when the cook has no name yet, one per time-of-day bucket (`buildSpec.md` §4.2). Keyed by the shared
+         * {@link GreetingBucket} union.
+         */
         readonly greetings: Readonly<Record<GreetingBucket, string>>;
+        /** Home's H1 with the cook's name in `{name}`: "Good afternoon, Eliza". */
+        readonly greetingsNamed: Readonly<Record<GreetingBucket, string>>;
         /**
          * Copy for the roadmap skeleton placeholders (FR-046 / R6 as amended by CR-001). Titles are the REAL
          * widget headings from the mockup — the placeholder shows what is coming, never invented data.
@@ -167,18 +162,6 @@ export interface WebMessages {
          * The shared building blocks localize their own copy; these are the app-owned strings — the delete
          * trigger that opens the shared dialog, and the premium gate reason for the visibility toggle.
          */
-        readonly actions: {
-            /** Label of the in-app back control on the detail header, back to the recipe list (C1). */
-            readonly backAction: string;
-            /** Label of the owner-only link to the recipe editor (W2/D1 — restores the web detail entry point). */
-            readonly editAction: string;
-            /** Label of the owner-only link to the recipe's version history (W2/D1). */
-            readonly versionHistory: string;
-            /** Label of the owner-only control that opens the delete-confirmation dialog. */
-            readonly deleteAction: string;
-            /** Reason shown when the private visibility option is gated off (no premium signal available). */
-            readonly premiumRequired: string;
-        };
         /**
          * Web-only fetch-state affordances the version-history route owns. The shared `RecipeVersionList`
          * building block localizes its own list/empty content via `@commise/features-recipes`; the
@@ -240,7 +223,7 @@ export interface WebMessages {
         };
     };
     /**
-     * Web-only collection copy — the fetch-state affordances the detail/form routes own (the shared
+     * Web-only collection copy — the fetch-state affordances the detail route owns (the shared
      * collection building blocks localize their own content via `@commise/features-recipes`).
      */
     readonly collections: {
@@ -254,14 +237,6 @@ export interface WebMessages {
             /** Label of the retry action in the error state. */
             readonly retry: string;
         };
-        readonly form: {
-            /** Accessible label for the rename form's seed-loading state. */
-            readonly loadingLabel: string;
-            /** Validation message shown when the name is empty. */
-            readonly nameRequired: string;
-            /** Message shown when a create/rename submission fails. */
-            readonly submitError: string;
-        };
     };
     /**
      * A route's document metadata, read by its `generateMetadata`: the browser tab's title, and the description a
@@ -270,8 +245,6 @@ export interface WebMessages {
     readonly pageMetadata: {
         readonly dataSources: PageMetadataMessages;
         readonly profile: PageMetadataMessages;
-        readonly account: PageMetadataMessages;
-        readonly settings: PageMetadataMessages;
     };
 }
 
@@ -301,8 +274,6 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 label: 'Account',
                 recipes: 'Recipes',
                 profile: 'Profile',
-                settings: 'Settings',
-                account: 'Account',
             },
             chrome: {
                 wordmark: 'Commise',
@@ -316,47 +287,37 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                     recipeDetail: 'Recipe',
                     recipeEdit: 'Edit recipe',
                     recipeVersions: 'Version history',
-                    // Two titles, not one. The first draft shared a single id across both parse routes on
-                    // the reasoning that pasting and reviewing are one act — `appShellRoutes.test.tsx`
-                    // rejected it, and the guard was right: they are two PAGES, a cook can be on either,
-                    // and the bar naming the step is the whole point of a per-surface title.
-                    recipeParse: 'Paste ingredients',
-                    recipeParseReview: 'Review ingredients',
                     discover: 'Discover',
                     collections: 'Collections',
-                    collectionNew: 'New collection',
                     collectionDetail: 'Collection',
-                    collectionAddRecipes: 'Add recipes',
-                    collectionRename: 'Rename collection',
                     profile: 'Profile',
-                    account: 'Account',
-                    settings: 'Settings',
                     dataSources: 'Data sources',
                     notFound: 'Page not found',
                 },
-                openNav: 'Open navigation',
-                closeNav: 'Close navigation',
-                collapseNav: 'Collapse navigation',
-                expandNav: 'Expand navigation',
-                search: 'Search',
-                notifications: 'Notifications',
-                account: 'Account',
-                accountNoName: 'Your account',
-                comingSoonSuffix: 'coming soon',
+                collapseNav: 'Collapse',
+                expandNav: 'Expand sidebar',
+                profileButton: 'Profile, {name}',
+                profileButtonNoName: 'Profile',
+                backToTop: 'Back to top',
                 destinations: {
                     home: 'Home',
                     recipes: 'Recipes',
-                    'meal-plan': 'Meal Plan',
-                    grocery: 'Grocery',
-                    nutrition: 'Nutrition',
-                    profile: 'Profile',
+                    discover: 'Discover',
+                    'meal-plan': 'Plan',
+                    grocery: 'Shop',
                 },
             },
             greetings: {
-                morning: 'Good morning, Chef!',
-                afternoon: 'Good afternoon, Chef!',
-                evening: 'Good evening, Chef!',
-                night: 'Still up, Chef?',
+                morning: 'Good morning',
+                afternoon: 'Good afternoon',
+                evening: 'Good evening',
+                night: 'Still up?',
+            },
+            greetingsNamed: {
+                morning: 'Good morning, {name}',
+                afternoon: 'Good afternoon, {name}',
+                evening: 'Good evening, {name}',
+                night: 'Still up, {name}?',
             },
             roadmap: {
                 comingSoon: 'Coming soon',
@@ -385,13 +346,6 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 notFoundTitle: 'We couldn’t find that recipe.',
                 retry: 'Try again',
             },
-            actions: {
-                backAction: 'Back',
-                editAction: 'Edit recipe',
-                versionHistory: 'Version history',
-                deleteAction: 'Delete recipe',
-                premiumRequired: 'Upgrade to premium to make a recipe private.',
-            },
             versions: {
                 loadingLabel: 'Loading version history',
                 errorTitle: 'We couldn’t load the version history.',
@@ -419,11 +373,6 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 notFoundTitle: 'We couldn’t find that collection.',
                 retry: 'Try again',
             },
-            form: {
-                loadingLabel: 'Loading collection',
-                nameRequired: 'Enter a name for your collection.',
-                submitError: 'We couldn’t save your collection. Please try again.',
-            },
         },
         pageMetadata: {
             dataSources: {
@@ -431,8 +380,6 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 description: 'The food databases behind the nutrition figures, and their licenses',
             },
             profile: { title: 'Profile | Commise', description: 'Your user profile' },
-            account: { title: 'Account Settings | Commise', description: 'Manage your account settings' },
-            settings: { title: 'Settings | Commise', description: 'Account security and settings' },
         },
     },
 };

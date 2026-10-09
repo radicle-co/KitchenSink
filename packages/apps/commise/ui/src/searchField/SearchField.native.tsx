@@ -40,6 +40,8 @@ export const SearchField: FC<SearchFieldProps> = ({
     onChangeText,
     onSubmit,
     placeholder,
+    onFocus,
+    onBlur,
 }) => {
     const { colors } = useTheme();
     const [clears, setClears] = useState(0);
@@ -60,6 +62,8 @@ export const SearchField: FC<SearchFieldProps> = ({
                     onChangeText={onChangeText}
                     onSubmitEditing={onSubmit}
                     placeholder={placeholder}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
                     placeholderTextColor={colors.inkMuted}
                     enterKeyHint="search"
                     clearButtonMode="never"

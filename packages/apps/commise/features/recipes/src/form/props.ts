@@ -15,6 +15,7 @@ import {
     UNIT_VOCABULARY,
     type FoodResolutionStatus,
     type RecipeMealType,
+    type RecipeVisibility,
 } from '@kitchensink/recipe-core';
 
 import { lineDisplayName } from '../detail/lineName.js';
@@ -51,6 +52,47 @@ export interface RecipeFormSectionProps {
 }
 
 /**
+ * Props for a one-page editor section leaf (`RecipeBasicsFields`, `RecipeInstructionsFields`): the section's slice,
+ * plus the editor's `fieldBlur` checkpoint.
+ */
+export interface RecipeEditorSectionProps extends RecipeFormSectionProps {
+    /** Called when one of the section's text or number fields loses focus: the editor's `fieldBlur` checkpoint. */
+    readonly onFieldBlur?: () => void;
+}
+
+/**
+ * Props for the "Who can see it" field (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2): the draft's slice, and
+ * whether this cook's plan includes private recipes.
+ */
+export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps, 'errors'> {
+    /** Whether the cook may make a recipe private. When not, Private carries the Premium badge. */
+    readonly canGoPrivate: boolean;
+    /** Choosing Private without {@link canGoPrivate}: open the upsell. The value never changes for it. */
+    readonly onPremiumRequired?: () => void;
+}
+
+/**
+ * The visibility a choice in the "Who can see it" field leads to, or `undefined` when it changes nothing — the choice
+ * already made, or Private for a cook whose plan does not include it, which asks for the upsell instead. Pure.
+ *
+ * @param current - The draft's visibility.
+ * @param chosen - The choice the cook made.
+ * @param canGoPrivate - Whether the cook may make a recipe private.
+ * @returns `{ visibility }` to apply, `'premiumRequired'`, or `undefined`.
+ */
+export const visibilityChoice = (
+    current: RecipeVisibility,
+    chosen: RecipeVisibility,
+    canGoPrivate: boolean,
+): { readonly visibility: RecipeVisibility } | 'premiumRequired' | undefined => {
+    if (chosen === current) {
+        return undefined;
+    }
+
+    return chosen === 'private' && !canGoPrivate ? 'premiumRequired' : { visibility: chosen };
+};
+
+/**
  * Props for the ingredients field group — {@link RecipeFormSectionProps} plus the editor's own controllers. The
  * trailing add row is the group's own (plan 002 V1 B8): it commits through the row editor, so no host answers a
  * request to add.
@@ -69,6 +111,28 @@ export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
      * whose fields and actions commit nowhere.
      */
     readonly rowEditor: IngredientRowEditor;
+    /** Paste a list, while the editor offers it (`usePasteIntoIngredients`): its rows and the empty section's button. */
+    readonly paste?: IngredientsPasteView;
+}
+
+/** A pasted line not in the recipe yet (`usePasteIntoIngredients`). */
+export interface PasteReadingRow {
+    readonly key: string;
+    readonly sourceLine: string;
+    /** Its lookup failed: the row says so and offers Try again. */
+    readonly failed: boolean;
+}
+
+/** What the field group draws of a paste (build spec §7.5.1 "Reading", §7.5.4). */
+export interface IngredientsPasteView {
+    /** The pasted lines not in the recipe yet, in paste order: rows after the list's own. */
+    readonly reading: readonly PasteReadingRow[];
+    /** Ask again for the line whose lookup failed. */
+    readonly onRetry: () => void;
+    /** How many ingredients the last finished paste added, said politely once per paste. */
+    readonly added: { readonly count: number; readonly occurrence: number } | undefined;
+    /** The empty section's Paste a list, beside the add field; `undefined` when paste is not offered. */
+    readonly onOpen: (() => void) | undefined;
 }
 
 /** A blank instruction step: empty instruction, no timer. */
@@ -159,6 +223,32 @@ export const applyDraftAction = (values: RecipeFormValues, action: DraftAction):
         case 'addStep':
             return { ...values, steps: [...values.steps, blankStep()] };
 
+        case 'moveStep':
+            return moveStep(values, action.from, action.to);
+
+        case 'setStepTimer':
+            return {
+                ...values,
+                steps: values.steps.map((step, i) => {
+                    if (i !== action.index) {
+                        return step;
+                    }
+
+                    // The omit-the-key rule, as `setDifficulty`'s: a cleared timer is no `timerSeconds` key at all.
+                    const { timerSeconds: _cleared, ...rest } = step;
+
+                    return action.seconds === undefined ? rest : { ...rest, timerSeconds: action.seconds };
+                }),
+            };
+
+        case 'appendSteps':
+            return action.instructions.length === 0
+                ? values
+                : {
+                      ...values,
+                      steps: [...values.steps, ...action.instructions.map((instruction) => ({ instruction }))],
+                  };
+
         case 'setDifficulty': {
             // The omit-the-key rule: an explicit `undefined` is not the absence the schema means.
             //
@@ -183,6 +273,28 @@ export const applyDraftAction = (values: RecipeFormValues, action: DraftAction):
             // falling through and silently dropping a user's edit.
             return action satisfies never;
     }
+};
+
+/**
+ * Move the step at `from` to `to`, the others keeping their order. Module-private: {@link applyDraftAction}'s
+ * `moveStep` is its one caller. Pure.
+ *
+ * @param values - The current draft.
+ * @param from - The step's index.
+ * @param to - The index it moves to.
+ * @returns The next draft, or `values` itself when either index is out of range or they are equal.
+ */
+const moveStep = (values: RecipeFormValues, from: number, to: number): RecipeFormValues => {
+    const { steps } = values;
+    const moving = steps[from];
+
+    if (moving === undefined || from === to || to < 0 || to >= steps.length) {
+        return values;
+    }
+
+    const rest = steps.filter((_, i) => i !== from);
+
+    return { ...values, steps: [...rest.slice(0, to), moving, ...rest.slice(to)] };
 };
 
 /**
@@ -397,6 +509,47 @@ export const difficultyOptions = (messages: RecipeFormMessages): DifficultyOptio
     { label: messages.difficultyNotStated },
 ];
 
+/** A difficulty or meal-type option that STATES a value: the choice rows' options, which have no "not stated" chip. */
+export interface StatedOption<T extends string> {
+    readonly value: T;
+    readonly label: string;
+}
+
+/**
+ * The difficulty choice row's options: {@link difficultyOptions} without its "not stated" option, because nothing
+ * chosen IS "not stated" and pressing the chosen one clears it (build spec §7.4). Pure.
+ *
+ * @param messages - The resolved form messages for the active locale.
+ * @returns Easy, Medium, Hard.
+ */
+export const statedDifficultyOptions = (messages: RecipeFormMessages): StatedOption<RecipeDifficulty>[] =>
+    difficultyOptions(messages).flatMap((option) =>
+        option.value === undefined ? [] : [{ value: option.value, label: option.label }],
+    );
+
+/**
+ * The meal-type choice row's options: {@link mealTypeOptions} without its "not stated" option. Pure.
+ *
+ * @param messages - The resolved form messages for the active locale.
+ * @returns The meal types, in day order.
+ */
+export const statedMealTypeOptions = (messages: RecipeFormMessages): StatedOption<RecipeMealType>[] =>
+    mealTypeOptions(messages).flatMap((option) =>
+        option.value === undefined ? [] : [{ value: option.value, label: option.label }],
+    );
+
+/**
+ * The option a choice row reported, typed back from its string, or `undefined` for a cleared choice. Pure.
+ *
+ * @param options - The row's options.
+ * @param value - What the row reported: an option's value, or `null` when the chosen one was pressed again.
+ * @returns The stated value, or `undefined` when nothing is chosen.
+ */
+export const statedChoice = <T extends string>(
+    options: readonly StatedOption<T>[],
+    value: string | null,
+): T | undefined => options.find((option) => option.value === value)?.value;
+
 /** One selectable cuisine choice in the dropdown/picker. `''` is the explicit "no cuisine stated" choice. */
 export interface CuisineOption {
     /** The wire value this option sets (`''` clears the field). */
@@ -473,6 +626,28 @@ export const addChip = (list: readonly string[], token: string): string[] => {
 
     return [...list, trimmed];
 };
+
+/**
+ * Split typed text at its commas: the finished values before the last comma, and the text still being typed. Pure.
+ *
+ * @param text - The field's text.
+ * @returns The finished values and the rest.
+ */
+export const splitAtCommas = (text: string): { readonly finished: readonly string[]; readonly rest: string } => {
+    const parts = text.split(',');
+
+    return { finished: parts.slice(0, -1), rest: parts.at(-1) ?? '' };
+};
+
+/**
+ * Add each of `tokens` to `values` in turn. Pure.
+ *
+ * @param values - The current values.
+ * @param tokens - The typed values.
+ * @returns The next values.
+ */
+export const addChips = (values: readonly string[], tokens: readonly string[]): string[] =>
+    tokens.reduce<string[]>((list, token) => addChip(list, token), [...values]);
 
 /**
  * Remove the chip at `index` from a chip `list`. Out-of-range indices are a no-op copy. Pure — the

@@ -166,7 +166,6 @@ describe('two retried bindings on a host that sets by value (integration)', () =
             <RecipeIngredientsFields
                 values={values}
                 onChange={setValues}
-
                 nutrition={nutrition}
                 lookupRetry={lookupRetry}
                 rowEditor={ROW_EDITOR}
@@ -251,7 +250,6 @@ describe('Try again that resolves under another binding (integration)', () => {
             <RecipeIngredientsFields
                 values={values}
                 onChange={setValues}
-
                 nutrition={nutrition}
                 lookupRetry={lookupRetry}
                 rowEditor={ROW_EDITOR}
@@ -277,12 +275,15 @@ describe('Try again that resolves under another binding (integration)', () => {
         );
     };
 
-    /** The polite region the settled retry speaks through: the first status region in the Ingredients section. */
+    /**
+     * The polite region the settled retry speaks through: the ingredient list's first status region. The leaf renders
+     * alone here; the editor's frame owns the section and its heading (slice 7), so the leaf is the whole page.
+     */
     const announcement = (): HTMLElement => {
-        const [region] = within(screen.getByRole('region', { name: en.ingredientsHeading })).getAllByRole('status');
+        const [region] = screen.getAllByRole('status');
 
         if (region === undefined) {
-            throw new Error('the Ingredients section has no status region');
+            throw new Error('the ingredient list has no status region');
         }
 
         return region;
@@ -335,10 +336,8 @@ describe('Try again that resolves under another binding (integration)', () => {
         await tryAgain(user);
 
         // 10 g at 310 kcal / 100 g, one serving — and nothing left uncounted.
-        await waitFor(() =>
-            expect(screen.getByText((text) => text.startsWith('Total nutrition')).textContent).toContain('31 cal'),
-        );
-        expect(screen.queryByText(en.nutritionPartialNotice)).toBeNull();
+        // Build spec §7.5.6: the one line names the total and that every line is counted.
+        await waitFor(() => expect(screen.getByText('31 cal per serving · 1 of 1 counted')).toBeTruthy());
         expect(nutritionAsked).toEqual([{ refs: [{ kind: 'root', id: 'food_saffron' }] }]);
         expect(announcement().textContent).toBe(en.statusResolvedConfirmation.replace('{food}', 'Saffron'));
 

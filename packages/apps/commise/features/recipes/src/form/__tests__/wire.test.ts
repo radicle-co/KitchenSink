@@ -107,6 +107,34 @@ describe('toCreateRecipeInput', () => {
     });
 });
 
+/**
+ * A step with no text carries nothing, and the wire refuses it (`steps[].instruction` is `.min(1)`). The editor saves a
+ * DRAFT at checkpoints (ADR-0057), and a cook who has pressed Add step and not typed yet must not have that draft
+ * refused with a `400` at every checkpoint. Publish never sees one: `validateRecipeForm` refuses a blank step first.
+ */
+describe('a blank step is not sent (slice 7 checkpoints)', () => {
+    const values = makeFilledRecipeFormValues({
+        steps: [{ instruction: 'Boil.' }, { instruction: '   ' }, { instruction: 'Drain.', timerSeconds: 60 }],
+    });
+
+    it('leaves it out of the create and the update, keeping the rest in order', () => {
+        expect(toCreateRecipeInput(values, RecipeStatus.DRAFT).steps).toEqual([
+            { instruction: 'Boil.' },
+            { instruction: 'Drain.', timerSeconds: 60 },
+        ]);
+        expect(toUpdateRecipeInput(values, RecipeStatus.DRAFT).steps).toEqual([
+            { instruction: 'Boil.' },
+            { instruction: 'Drain.', timerSeconds: 60 },
+        ]);
+    });
+
+    it('so a draft with only a blank step is a body the wire accepts', () => {
+        const blank = makeFilledRecipeFormValues({ steps: [{ instruction: '' }] });
+
+        expect(createRecipeRequestSchema.safeParse(toCreateRecipeInput(blank, RecipeStatus.DRAFT)).success).toBe(true);
+    });
+});
+
 describe('toUpdateRecipeInput (three-state difficulty)', () => {
     it('carries a stated difficulty (set on an update)', () => {
         expect(
@@ -238,6 +266,59 @@ describe('the form projections satisfy their published request contracts', () =>
 
         expect(parsed.success).toBe(false);
         expect(parsed.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['ingredients', 'steps']);
+    });
+});
+
+/**
+ * Blueprint A5 — a line pasted into a recipe that has no server row yet carries what the parse read it from, and the
+ * CREATE sends it; a PATCH never can (ADR-0023's create-only shape: a re-asserted source could steer the cross-user memo).
+ */
+describe('a pasted line’s source rides the create, and never an update (blueprint A5)', () => {
+    const pasted = (): RecipeFormValues => {
+        const values = makeFilledRecipeFormValues();
+        const [first, ...rest] = values.ingredients;
+
+        if (first === undefined) {
+            throw new Error('the fixture has no line');
+        }
+
+        return {
+            ...values,
+            ingredients: [
+                { ...first, sourceLine: '300 g arborio rice, rinsed', sourcePhrase: 'arborio rice' },
+                ...rest,
+            ],
+        };
+    };
+
+    it('the create carries sourceLine and sourcePhrase, and its contract accepts them', () => {
+        const body = toCreateRecipeInput(pasted());
+
+        expect(body.ingredients[0]).toMatchObject({
+            sourceLine: '300 g arborio rice, rinsed',
+            sourcePhrase: 'arborio rice',
+        });
+        expect(createRecipeRequestSchema.safeParse(body).success).toBe(true);
+    });
+
+    it('⛔ the update sends neither, and its STRICT contract accepts what it sends', () => {
+        const body = { ...toUpdateRecipeInput(pasted()), expectedVersion: 1 };
+
+        for (const line of body.ingredients ?? []) {
+            expect(line).not.toHaveProperty('sourceLine');
+            expect(line).not.toHaveProperty('sourcePhrase');
+        }
+
+        expect(updateRecipeRequestSchema.safeParse(body).error?.issues ?? []).toEqual([]);
+    });
+
+    it('a typed line carries no source on either (blueprint A2)', () => {
+        const body = toCreateRecipeInput(makeFilledRecipeFormValues());
+
+        for (const line of body.ingredients) {
+            expect(line).not.toHaveProperty('sourceLine');
+            expect(line).not.toHaveProperty('sourcePhrase');
+        }
     });
 });
 

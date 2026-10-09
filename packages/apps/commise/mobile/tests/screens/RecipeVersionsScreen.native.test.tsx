@@ -17,6 +17,8 @@ import { cleanup, fireEvent, screen } from '@testing-library/react';
 
 import { recipeVersionMessages } from '@commise/features-recipes';
 import { renderWithRecipeClient } from '@commise/test-utils';
+import { SnackbarHost } from '@commise/ui/snackbar';
+import type { ReactElement } from 'react';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 import {
     VersionConflictError,
@@ -69,9 +71,20 @@ function readyClient(snapshots?: readonly [RecipeSnapshot, RecipeSnapshot]): Rec
     return client;
 }
 
+/** The screen under the snackbar host the app root mounts (a restore says so, with Undo). */
+function renderVersions(ui: ReactElement, client: RecipeServiceClient): ReturnType<typeof renderWithRecipeClient> {
+    return renderWithRecipeClient(<SnackbarHost>{ui}</SnackbarHost>, client);
+}
+
+/** Choose an entry from a version row's ⋯ menu (a bottom sheet of menu items). */
+function chooseRowAction(version: number, label: string): void {
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for version ' + String(version) }));
+    fireEvent.click(screen.getByRole('menuitem', { name: label }));
+}
+
 /** Render the screen and wait for the settled history. */
 async function renderReady(client: RecipeServiceClient, onBack = vi.fn()): Promise<void> {
-    renderWithRecipeClient(<RecipeVersionsScreen recipeId="rec_1" onBack={onBack} />, client);
+    renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={onBack} />, client);
     await screen.findByText('Current version');
 }
 
@@ -85,7 +98,7 @@ describe('RecipeVersionsScreen — loading and error', () => {
     }
 
     it('announces WHAT is loading and captions it visibly (no bare spinner)', () => {
-        renderWithRecipeClient(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, pendingClient());
+        renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, pendingClient());
 
         expect(screen.getByRole('progressbar', { name: t.versionsLoading })).toBeTruthy();
         expect(screen.getByText(t.versionsLoading)).toBeTruthy();
@@ -93,7 +106,7 @@ describe('RecipeVersionsScreen — loading and error', () => {
 
     it('keeps Back while loading, so the wait is never a one-way street', () => {
         const onBack = vi.fn();
-        renderWithRecipeClient(<RecipeVersionsScreen recipeId="rec_1" onBack={onBack} />, pendingClient());
+        renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={onBack} />, pendingClient());
 
         fireEvent.click(screen.getByRole('button', { name: t.back }));
 
@@ -106,7 +119,7 @@ describe('RecipeVersionsScreen — loading and error', () => {
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail());
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-        renderWithRecipeClient(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
+        renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
 
         expect(await screen.findByRole('alert')).toBeTruthy();
         expect(screen.getByRole('button', { name: t.back })).toBeTruthy();
@@ -122,7 +135,7 @@ describe('RecipeVersionsScreen — loading and error', () => {
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 2 }));
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-        renderWithRecipeClient(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
+        renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
         fireEvent.click(await screen.findByRole('button', { name: t.versionsRetry }));
 
         expect(await screen.findByText('Current version')).toBeTruthy();
@@ -135,7 +148,7 @@ describe('RecipeVersionsScreen — loading and error', () => {
         const recipeSpy = vi.spyOn(client, 'getRecipeById');
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-        renderWithRecipeClient(<RecipeVersionsScreen recipeId="" onBack={vi.fn()} />, client);
+        renderVersions(<RecipeVersionsScreen recipeId="" onBack={vi.fn()} />, client);
 
         expect(screen.getByRole('alert')).toBeTruthy();
         expect(screen.queryByRole('progressbar', { name: t.versionsLoading })).toBeNull();
@@ -148,8 +161,9 @@ describe('RecipeVersionsScreen — populated', () => {
     it('marks the current version and offers restore for earlier ones', async () => {
         await renderReady(readyClient());
 
-        expect(screen.getByRole('button', { name: 'Restore version 1' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Restore version 2' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'More actions for version 1' })).toBeTruthy();
+        // The current version (2) has nothing to restore or compare, so no menu.
+        expect(screen.queryByRole('button', { name: 'More actions for version 2' })).toBeNull();
     });
 
     it('restores the selected earlier version', async () => {
@@ -157,7 +171,7 @@ describe('RecipeVersionsScreen — populated', () => {
         const restoreSpy = vi.spyOn(client, 'restoreRecipeVersion').mockReturnValue(new Promise(() => {}));
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Restore version 1' }));
+        chooseRowAction(1, 'Restore this version');
 
         await vi.waitFor(() => expect(restoreSpy).toHaveBeenCalledWith('rec_1', 1));
     });
@@ -178,7 +192,7 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
         vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionConflictError(3, 1));
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Restore version 1' }));
+        chooseRowAction(1, 'Restore this version');
 
         expect(
             await screen.findByText(
@@ -192,7 +206,7 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
         vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionLineUnrestorableError([0, 1]));
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Restore version 1' }));
+        chooseRowAction(1, 'Restore this version');
 
         expect(
             await screen.findByText(
@@ -216,7 +230,7 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
         vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionLineUnrestorableError([0]));
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+        chooseRowAction(1, 'Preview');
         fireEvent.click(screen.getByRole('button', { name: 'Restore this version' }));
 
         expect(
@@ -233,7 +247,7 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
         vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new Error('network down'));
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Restore version 1' }));
+        chooseRowAction(1, 'Restore this version');
 
         expect(await screen.findByText('We couldn’t restore that version. Please try again.')).toBeTruthy();
     });
@@ -243,7 +257,7 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
         vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionConflictError(3, 1));
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Restore version 1' }));
+        chooseRowAction(1, 'Restore this version');
 
         // Initial mount = 1 call each; the conflict-triggered refetch adds a second.
         await vi.waitFor(() => expect(client.listRecipeVersions).toHaveBeenCalledTimes(2));
@@ -255,7 +269,7 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
         vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new Error('network down'));
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Restore version 1' }));
+        chooseRowAction(1, 'Restore this version');
 
         await screen.findByText('We couldn’t restore that version. Please try again.');
         expect(client.listRecipeVersions).toHaveBeenCalledTimes(1);
@@ -267,7 +281,7 @@ describe('RecipeVersionsScreen — preview (W6 Task 5)', () => {
     it("opens the preview with the row's version and the changed-from-current summary", async () => {
         await renderReady(readyClient([priorSnapshot, revisedSnapshot]));
 
-        fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+        chooseRowAction(1, 'Preview');
 
         expect(screen.getByText('Version 1 Preview: Weeknight Pasta')).toBeTruthy();
         // v1 (previewed) vs v2 (current): 0 ingredient changes, 1 step (instruction) changed — singular
@@ -280,7 +294,7 @@ describe('RecipeVersionsScreen — preview (W6 Task 5)', () => {
         const restoreSpy = vi.spyOn(client, 'restoreRecipeVersion');
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+        chooseRowAction(1, 'Preview');
         fireEvent.click(screen.getByRole('button', { name: 'Keep current version' }));
 
         expect(screen.queryByText('Version 1 Preview: Weeknight Pasta')).toBeNull();
@@ -294,7 +308,7 @@ describe('RecipeVersionsScreen — preview (W6 Task 5)', () => {
             .mockResolvedValue({ recipe: makeRecipeDetail({ currentVersion: 3 }) } as never);
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+        chooseRowAction(1, 'Preview');
         fireEvent.click(screen.getByRole('button', { name: 'Restore this version' }));
 
         await vi.waitFor(() => expect(restoreSpy).toHaveBeenCalledWith('rec_1', 1));
@@ -306,7 +320,7 @@ describe('RecipeVersionsScreen — preview (W6 Task 5)', () => {
         vi.spyOn(client, 'restoreRecipeVersion').mockReturnValue(new Promise(() => {}));
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+        chooseRowAction(1, 'Preview');
         fireEvent.click(screen.getByRole('button', { name: 'Restore this version' }));
 
         expect(await screen.findByRole('button', { name: 'Restoring…' })).toBeTruthy();
@@ -334,7 +348,7 @@ describe('RecipeVersionsScreen — preview (W6 Task 5)', () => {
             vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionConflictError(3, 1));
             await renderReady(client);
 
-            fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+            chooseRowAction(1, 'Preview');
             fireEvent.click(screen.getByRole('button', { name: 'Restore this version' }));
             await screen.findByText(recipeVersionMessages.en.preview.error);
         }
@@ -363,56 +377,43 @@ describe('RecipeVersionsScreen — preview (W6 Task 5)', () => {
     });
 });
 
-describe('RecipeVersionsScreen — compare (W6 Task 5)', () => {
-    it('opens the compare view once exactly two versions are selected, ordered older/newer', async () => {
+describe('RecipeVersionsScreen — compare with current (§6.6)', () => {
+    it('opens the compare sheet for one version against the current one, through the row menu', async () => {
         await renderReady(readyClient([priorSnapshot, revisedSnapshot]));
 
-        // Select newer (2) first, then older (1) — the sheet must still read "v2 vs v1" (newer vs older).
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 1 to compare' }));
+        chooseRowAction(1, 'Compare with current');
 
-        expect(screen.getByText('Compare v2 vs v1')).toBeTruthy();
-        // title changed (1 scalar) + steps modified (1) = 2 modified; no adds/removes.
-        expect(screen.getByText('Modified: 2')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Version 1 and the current version' })).toBeTruthy();
+        // What version 1 said, and what the recipe says now (the page subtitle also shows the recipe's title).
+        expect(screen.getByText('Boil water.')).toBeTruthy();
+        expect(screen.getByText('Boil salted water.')).toBeTruthy();
     });
 
-    it('deselecting a version before a second pick keeps the compare sheet closed', async () => {
+    it('closing the sheet closes it', async () => {
         await renderReady(readyClient([priorSnapshot, revisedSnapshot]));
 
-        const versionOneCheckbox = screen.getByRole('checkbox', { name: 'Select version 1 to compare' });
-        fireEvent.click(versionOneCheckbox);
-        fireEvent.click(versionOneCheckbox);
-
-        expect(screen.queryByText('Compare v2 vs v1')).toBeNull();
-    });
-
-    it('closing the compare sheet clears the selection (both checkboxes uncheck)', async () => {
-        // react-native-web renders role="checkbox" but not `aria-checked` — assert the checked glyph
-        // (mirrors `RecipeDetailView.native.test.tsx`'s ingredient-checkbox convention).
-        await renderReady(readyClient([priorSnapshot, revisedSnapshot]));
-
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 1 to compare' }));
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
+        chooseRowAction(1, 'Compare with current');
         fireEvent.click(screen.getByRole('button', { name: 'Close compare' }));
 
-        expect(screen.getByRole('checkbox', { name: 'Select version 1 to compare' }).textContent).toContain('☐');
-        expect(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }).textContent).toContain('☐');
+        expect(screen.queryByRole('heading', { name: 'Version 1 and the current version' })).toBeNull();
     });
+});
 
-    it('caps selection at two — a third checkbox does not fire onToggleCompare once two are chosen', async () => {
-        const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'listRecipeVersions').mockResolvedValue([
-            makeRecipeVersion({ id: 'ver_1', versionNumber: 1 }),
-            makeRecipeVersion({ id: 'ver_2', versionNumber: 2 }),
-            makeRecipeVersion({ id: 'ver_3', versionNumber: 3 }),
-        ]);
-        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 2 }));
+describe('RecipeVersionsScreen — restore says so, with Undo (§6.6)', () => {
+    it('shows "Restored version 1." after a restore, and Undo restores the version that was current', async () => {
+        const client = readyClient();
+        const restoreSpy = vi.spyOn(client, 'restoreRecipeVersion').mockResolvedValue({
+            recipe: makeRecipeDetail({ currentVersion: 3 }),
+            restoredFromVersion: 1,
+            currentVersion: 3,
+        });
         await renderReady(client);
 
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 1 to compare' }));
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 3 to compare' }));
+        chooseRowAction(1, 'Restore this version');
 
-        expect(screen.getByRole('checkbox', { name: 'Select version 3 to compare' }).textContent).toContain('☐');
+        expect(await screen.findByText('Restored version 1.')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+        await vi.waitFor(() => expect(restoreSpy).toHaveBeenLastCalledWith('rec_1', 2));
     });
 });

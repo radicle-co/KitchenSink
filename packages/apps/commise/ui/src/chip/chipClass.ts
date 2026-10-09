@@ -3,19 +3,24 @@
  * `button/surfaceClass.ts`), shared by `Chip` and the options `ChipRow` draws in choice mode.
  *
  * The chip (spec §1.6/§1.10): a 36 px pill (`rounded-full`: a chip is pressable, so it is a pill), hit at 44 px on a
- * coarse pointer by a transparent `::before` overlay. At rest `paper`, a 1 px `lineControl` edge and an `ink` label;
- * `pearl` on hover and press. Selected: the `selectedFill` tint, a 1.5 px `selectedEdge` and an `actionText` label
- * (5.18:1 on the tint) — the check glyph the leaf draws is what keeps selection from resting on colour alone.
+ * coarse pointer by a transparent `::before` overlay. The overlay reaches 6 px past the padding box, not 4: it is
+ * placed from inside the edge, and a selected chip's 1.5 px edge left a 4 px reach one pixel short (measured: a 43 px
+ * band). At rest `paper`, a 1 px `lineControl` edge and an `ink` label; `pearl` on hover and press. Selected: the
+ * `selectedFill` tint, a 1.5 px `selectedEdge` and an `actionText` label (5.18:1 on the tint) — the check glyph the
+ * leaf draws is what keeps selection from resting on colour alone.
  *
  * The row: one line that scrolls inside itself with proximity snapping, 16 px of trailing room and a 24 px fade at the
- * trailing edge, or wrapped lines. ⚠️ The fade is a static mask, so it also shows when the row is scrolled to its end;
- * a fade that tracks "more exists" needs a scroll-driven animation, which the theme does not emit yet.
+ * trailing edge, or wrapped lines. A row that scrolls sideways clips vertically too, which cut each chip's
+ * coarse-pointer overlay back to its 36 px pill (measured: a 37 px tap band); on a coarse pointer the scrolling row
+ * therefore keeps 6 px of room above and below for it, cancelled by a negative margin so the layout does not move.
+ * ⚠️ The fade is a static mask, so it also shows when the row is scrolled to its end; a fade that tracks "more exists"
+ * needs a scroll-driven animation, which the theme does not emit yet.
  */
 import type { ChipRowOverflow } from './props.js';
 
 /** Tier-independent chip geometry and states. */
 const CHIP_BASE =
-    "relative inline-flex min-h-9 shrink-0 snap-start items-center gap-1 rounded-full px-3 text-label transition before:absolute before:inset-x-0 before:content-[''] pointer-coarse:before:-inset-y-1 " +
+    "relative inline-flex min-h-9 shrink-0 snap-start items-center gap-1 rounded-full px-3 text-label transition before:absolute before:inset-x-0 before:content-[''] pointer-coarse:before:-inset-y-1.5 " +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 ' +
     'disabled:cursor-not-allowed disabled:opacity-40';
 
@@ -37,6 +42,7 @@ export function chipClass(selected: boolean): string {
 const ROW: Readonly<Record<ChipRowOverflow, string>> = {
     scroll:
         'flex flex-nowrap gap-2 overflow-x-auto snap-x snap-proximity pe-4 ' +
+        'pointer-coarse:-my-1.5 pointer-coarse:py-1.5 ' +
         '[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] ' +
         'rtl:[mask-image:linear-gradient(to_left,black_calc(100%-24px),transparent)]',
     wrap: 'flex flex-wrap gap-2',

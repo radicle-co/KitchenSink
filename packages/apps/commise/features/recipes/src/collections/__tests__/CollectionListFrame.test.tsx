@@ -7,7 +7,7 @@
  * frame's `headingFocusSignal` because the notice sits inside the boundary and the heading outside it).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { CollectionListFrame } from '../CollectionListFrame.js';
@@ -25,9 +25,22 @@ describe('CollectionListFrame (web)', () => {
             </CollectionListFrame>,
         );
 
-        expect(screen.getByRole('heading', { name: 'Collections' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'New collection' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
+        // Slice 3: the wide screen's secondary Button beside the title, and the narrow screen's floating button. CSS
+        // shows one at a time (`nav:` breakpoint); jsdom applies no media query, so both are in the tree.
+        expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(2);
         expect(screen.getByText('boundary content')).toBeTruthy();
+    });
+
+    it('hides the floating button during the first run, whose own start buttons take its place (buildSpec §3.4)', () => {
+        render(
+            <CollectionListFrame onCreate={noop} headingFocusSignal={0} firstRun>
+                <p>boundary content</p>
+            </CollectionListFrame>,
+        );
+
+        // The wide screen's header Button stays: from 840 there is no floating button to hide.
+        expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(1);
     });
 
     it('reports create requests upward', async () => {
@@ -39,7 +52,7 @@ describe('CollectionListFrame (web)', () => {
             </CollectionListFrame>,
         );
 
-        await user.click(screen.getByRole('button', { name: 'New collection' }));
+        await user.click(screen.getAllByRole('button', { name: 'New collection' })[0] as HTMLElement);
 
         expect(onCreate).toHaveBeenCalledTimes(1);
     });
@@ -51,7 +64,7 @@ describe('CollectionListFrame (web)', () => {
             </CollectionListFrame>,
         );
 
-        expect(document.activeElement).not.toBe(screen.getByRole('heading', { name: 'Collections' }));
+        expect(document.activeElement).not.toBe(screen.getByRole('heading', { name: 'Recipes' }));
 
         rerender(
             <CollectionListFrame onCreate={noop} headingFocusSignal={1}>
@@ -59,18 +72,48 @@ describe('CollectionListFrame (web)', () => {
             </CollectionListFrame>,
         );
 
-        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Collections' }));
+        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Recipes' }));
     });
 });
 
-describe('CollectionListFrame (web) — the design-system Button (UI overhaul slice 2)', () => {
-    it('creates through a primary plus Button', () => {
+describe('CollectionListFrame (web) — the header action (slice 4, `buildSpec.md` §5.1)', () => {
+    // The first run's own New collection is the view's one primary; the header's is the secondary beside the title.
+    it('creates through a secondary plus Button', () => {
         render(
             <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
                 <p>boundary content</p>
             </CollectionListFrame>,
         );
 
-        expectDesignSystemButton(screen.getByRole('button', { name: 'New collection' }), 'primary', 'plus');
+        expectDesignSystemButton(
+            screen.getAllByRole('button', { name: 'New collection' })[0] as HTMLElement,
+            'secondary',
+            'plus',
+        );
+    });
+});
+
+describe('CollectionListFrame (web) — the segments', () => {
+    it('renders My recipes · Collections with Collections current, handing a plain click over', () => {
+        const onSelect = vi.fn();
+        render(
+            <CollectionListFrame
+                onCreate={noop}
+                headingFocusSignal={0}
+                segments={{
+                    current: 'collections',
+                    href: { mine: '/en/recipes', collections: '/en/collections' },
+                    onSelect,
+                }}
+            >
+                <p>boundary content</p>
+            </CollectionListFrame>,
+        );
+
+        expect(screen.getByRole('link', { name: 'Collections' }).getAttribute('aria-current')).toBe('page');
+
+        fireEvent.click(screen.getByRole('link', { name: 'My recipes' }), { button: 0 });
+
+        expect(onSelect).toHaveBeenCalledWith('mine');
     });
 });

@@ -143,8 +143,8 @@ test.describe('recipe list — deferred calorie figures', () => {
         await page.goto(route('/recipes'));
 
         // ── The promise of the design: the cards are on screen while the figures are still in flight.
-        await expect(page.getByRole('button', { name: 'Weeknight Pasta' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Sunday Roast' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Weeknight Pasta' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Sunday Roast' })).toBeVisible();
         await expect(page.getByText('Loading calories').first()).toBeAttached();
         await expect(page.getByRole('img', { name: '420 cal', exact: true })).toHaveCount(0);
 
@@ -191,9 +191,9 @@ test.describe('recipe list — deferred calorie figures', () => {
 
         await page.goto(route('/recipes'));
 
-        const pasta = page.getByRole('button', { name: 'Weeknight Pasta' });
-        const roast = page.getByRole('button', { name: 'Sunday Roast' });
-        const soup = page.getByRole('button', { name: 'Tomato Soup' });
+        const pasta = page.getByRole('article', { name: 'Weeknight Pasta' });
+        const roast = page.getByRole('article', { name: 'Sunday Roast' });
+        const soup = page.getByRole('article', { name: 'Tomato Soup' });
 
         // All three cards are whole and present — without this, "no chip" would also be satisfied by a card
         // that crashed its boundary and rendered nothing at all.
@@ -280,7 +280,7 @@ test.describe('recipe list — deferred calorie figures', () => {
 
         await page.goto(route('/recipes'));
 
-        await expect(page.getByRole('button', { name: 'Weeknight Pasta' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Weeknight Pasta' })).toBeVisible();
         // The read seam retries once behind ~1s of backoff (`NUTRITION_BATCH_RETRIES`), so the skeleton
         // legitimately outlives the first failure; `toHaveCount(0)` retries until the terminal answer lands,
         // without a banned fixed sleep.
@@ -323,7 +323,7 @@ test.describe('home widget — deferred calorie figures', () => {
 
         const widget = page.getByRole('region', { name: 'Recent recipes' });
         await expect(widget).toBeVisible();
-        await expect(widget.getByRole('button', { name: 'Weeknight Pasta' })).toBeVisible();
+        await expect(widget.getByRole('article', { name: 'Weeknight Pasta' })).toBeVisible();
 
         await expect(widget.getByRole('img', { name: '420 cal', exact: true })).toBeVisible();
         await expect(widget.getByRole('img', { name: '615 cal', exact: true })).toBeVisible();

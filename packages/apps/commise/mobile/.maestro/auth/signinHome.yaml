@@ -14,7 +14,7 @@
 # in" and "navigate to a feature" stay separate concerns.
 #
 # The login form lives in mobile/src/screens/login.tsx; the completed session renders HomeScreen (a
-# time-of-day greeting ending in "Chef" — "Good morning, Chef!" etc.).
+# large title: the greeting, with the avatar "Profile, {name}" as its action).
 #
 # ⛔ THE CREDENTIALS ARE PARAMETERS, not literals, and that is a correctness property rather than tidiness.
 # This flow used to type a FIXED address, so every concurrent run signed in as the same Clerk user and
@@ -40,7 +40,7 @@ appId: io.commise.mobile
 # label's absence: after `clearState` the label is also absent before the gate has rendered anything at all, so
 # a `notVisible` wait passed at once and the guard below read an empty screen.
 - extendedWaitUntil:
-      visible: 'you@example\.com|.*Chef.*'
+      visible: 'you@example\.com|Profile.*'
       timeout: 30000
 
 # Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
@@ -71,10 +71,11 @@ appId: io.commise.mobile
           - inputText: '424242'
           - tapOn: 'Verify'
 
-# The authenticated landing: HomeScreen renders the time-of-day greeting header (always ending in "Chef").
-# The match is greeting-agnostic (the exact bucket depends on the wall clock at run time). The wait is
+# The authenticated landing: Home's large title carries the avatar, named "Profile, {name}" (or "Profile" with no
+# name). It is keyed on THAT, not on the greeting: the greeting changes with the wall clock and with the cook's name
+# (slice 3 of the UI overhaul), while the avatar's name is the header's guarantee. The wait is
 # generous because completing sign-in (Clerk `setActive`) re-renders through the auth gate before Home
 # paints — a chain that is slow under the Metro dev bundler on first paint.
 - extendedWaitUntil:
-      visible: '.*Chef.*'
+      visible: 'Profile.*'
       timeout: 40000

@@ -26,7 +26,9 @@
 import { useAuth, useClerk } from '@clerk/expo';
 import { subjectBoundToken } from '@commise/features-account';
 import { recipeSender } from '@commise/query/recipe-sender';
+import { CookMarksProvider } from '@commise/features-recipes';
 import { useQuerySessionScope } from '@commise/query/session-scope';
+import { RecipeWriteCacheObserver } from '@commise/query/recipe-write-cache';
 import { SyncProvider } from '@commise/query/sync';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
@@ -38,10 +40,8 @@ import { useMemo } from 'react';
 
 import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
 import { env } from '../config/env.js';
-import { createNativeOutboxStore } from '../storage/outboxStore.js';
-
-/** The device-backed outbox, built once — mobile is the platform that persists. */
-const nativeOutboxStore = createNativeOutboxStore();
+import { EditorDraftAnswers } from '../components/EditorDraftAnswers.js';
+import { nativeOutboxStore } from '../storage/deviceSession.js';
 
 /**
  * Mount the recipe-service client provider for the subtree.
@@ -102,7 +102,13 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
         <RecipeServiceProvider client={clients.recipe}>
             <FoodServiceProvider client={clients.food} subject={userId ?? undefined}>
                 <SyncProvider subject={userId ?? undefined} send={send} store={nativeOutboxStore}>
-                    {children}
+                    {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
+                        not the editor that queued them is still open. */}
+                    <RecipeWriteCacheObserver />
+                    <EditorDraftAnswers subject={userId ?? undefined} />
+                    {/* Blueprint A13: the cook's checks and current step, kept in memory for the cook who made them and
+                        removed at the end of their session — the ADR-0054 rule, applied to marks. */}
+                    <CookMarksProvider subject={userId ?? undefined}>{children}</CookMarksProvider>
                 </SyncProvider>
             </FoodServiceProvider>
         </RecipeServiceProvider>

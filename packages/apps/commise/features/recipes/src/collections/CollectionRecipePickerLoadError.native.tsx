@@ -1,32 +1,38 @@
 /**
- * @module @commise/features-recipes — the native recipe-picker body when the caller's candidate recipes failed to
- * load, rendered inside the `CollectionRecipePicker` frame by the composing app's read boundary.
+ * @module @commise/features-recipes — the native add-recipes picker body when the caller's recipes failed to load, the
+ * twin of the web leaf: the failure and a Try again, with the frame (the search field, Done) still around it. The message
+ * is an assertive `LiveRegion` — `accessibilityRole="alert"` alone is silent on iOS. Colour is read from the theme (D15).
+ *
+ * Presentational: it sends nothing; the host retries.
  */
 import { useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
+import { LiveRegion } from '@commise/ui/live-region';
+import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { styles } from './collectionRecipePickerStyles.native.js';
 import { collectionMessages } from './messages.js';
 import type { CollectionRecipePickerLoadErrorProps } from './model.js';
 
-/** The presentational picker body when the candidates failed to load. */
 export const CollectionRecipePickerLoadError: FC<CollectionRecipePickerLoadErrorProps> = ({ onRetry }) => {
     const { picker } = useMessages(collectionMessages);
+    const { colors } = useTheme();
 
     return (
-        <ScrollView>
-            <View collapsable={false} accessibilityRole="alert" style={styles.stateCard}>
-                <Text style={styles.stateTitle}>{picker.errorTitle}</Text>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={picker.retry}
-                    onPress={onRetry}
-                    style={styles.textButton}
-                >
-                    <Text style={styles.linkLabel}>{picker.retry}</Text>
-                </Pressable>
-            </View>
-        </ScrollView>
+        <View style={styles.stack}>
+            <LiveRegion politeness="assertive" style={[styles.title, { color: colors.ink }]}>
+                {picker.errorTitle}
+            </LiveRegion>
+            <Button variant="secondary" icon="rotateCcw" onPress={onRetry}>
+                {picker.retry}
+            </Button>
+        </View>
     );
 };
+
+const styles = StyleSheet.create({
+    stack: { alignItems: 'flex-start', gap: nativeTokens.spacing[3], paddingVertical: nativeTokens.spacing[6] },
+    title: { ...nativeTokens.type.body },
+});

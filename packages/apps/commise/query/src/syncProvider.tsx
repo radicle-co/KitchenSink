@@ -15,6 +15,7 @@
  */
 import {
     EMPTY_OUTBOX,
+    appendExclusive,
     appendIntent,
     claimForSending,
     createMemoryOutboxStore,
@@ -22,11 +23,14 @@ import {
     outboxMutatorFor,
     settle,
     supersede,
+    withdraw as withdrawRecord,
     type DrainJournal,
     type Intent,
+    type LocalRef,
     type OutboxLog,
     type OutboxStore,
     type Sender,
+    type SettlementEvent,
     type SyncFailure,
 } from '@kitchensink/sync';
 import { onlineManager } from '@tanstack/react-query';
@@ -42,23 +46,90 @@ import {
     type ReactNode,
 } from 'react';
 
+import type { SyncAnswer } from './syncAnswer.js';
+
+/** One record's settlement, with a recipe write's answer. In memory only (`@kitchensink/sync`'s `SettlementEvent`). */
+export type SyncSettlement = SettlementEvent<SyncAnswer>;
+
+/** A parked write, with the sequence number that addresses it (`SyncQueue.withdraw`). */
+export interface ParkedFailure extends SyncFailure {
+    readonly seq: number;
+}
+
+/** What {@link SyncQueue.submitExclusive} did: queued, or which record of the same entity stood in the way. */
+export type ExclusiveSubmit =
+    | { readonly kind: 'queued'; readonly seq: number }
+    | { readonly kind: 'inFlight'; readonly seq: number }
+    | { readonly kind: 'parked'; readonly seq: number; readonly status?: number };
+
 /** What a surface can see and do with the queue. */
 export interface SyncQueue {
     /** Queue a write. Resolves whether or not the network is there. */
     readonly submit: (intent: Intent) => Promise<{ readonly queued: true }>;
+    /**
+     * Queue a write only while no other write of the same entity is on the wire or parked — the editor's one server
+     * write per recipe (slice 7). A pending one of the same kind is replaced (whole drafts, so losslessly). Decided
+     * inside the serialized mutation, so it cannot race the drain's claim. Resolves whether or not the network is there.
+     */
+    readonly submitExclusive: (intent: Intent) => Promise<ExclusiveSubmit>;
+    /** Remove a parked write: the cook decided what happens to it. Rejects for a record that is not parked. */
+    readonly withdraw: (seq: number) => Promise<void>;
+    /**
+     * Hear each record's settlement as the drain writes it. Returns the unsubscribe. ⛔ Events are not replayed: a
+     * listener learns only what settles while it is subscribed, and the durable facts live in the stores.
+     */
+    readonly subscribe: (listener: (event: SyncSettlement) => void) => () => void;
+    /** The server id a local ref resolved to, once its create synced. */
+    readonly resolutionOf: (ref: LocalRef) => string | undefined;
     /** How many writes have not reached the server yet — the figure the notice reports. */
     readonly pendingCount: number;
     /** Failures, each carrying the item it belongs to so the UI can render it in place. */
-    readonly failures: readonly SyncFailure[];
+    readonly failures: readonly ParkedFailure[];
 }
 
+const refuseUnmounted = async (): Promise<never> => {
+    throw new Error('sync: submit called with no SyncProvider mounted');
+};
+
 const NOT_MOUNTED: SyncQueue = {
-    submit: async () => {
-        throw new Error('sync: submit called with no SyncProvider mounted');
-    },
+    submit: refuseUnmounted,
+    submitExclusive: refuseUnmounted,
+    withdraw: refuseUnmounted,
+    subscribe: () => () => undefined,
+    resolutionOf: () => undefined,
     pendingCount: 0,
     failures: [],
 };
+
+/** A set of listeners to the drain's settlements. */
+interface SettlementBus {
+    readonly subscribe: (listener: (event: SyncSettlement) => void) => () => void;
+    readonly publish: (event: SyncSettlement) => void;
+}
+
+/**
+ * The provider's one settlement bus. Pure construction; the returned functions mutate the listener set.
+ *
+ * @returns A bus.
+ */
+function createSettlementBus(): SettlementBus {
+    const listeners = new Set<(event: SyncSettlement) => void>();
+
+    return {
+        subscribe: (listener) => {
+            listeners.add(listener);
+
+            return () => {
+                listeners.delete(listener);
+            };
+        },
+        publish: (event) => {
+            for (const listener of [...listeners]) {
+                listener(event);
+            }
+        },
+    };
+}
 
 const SyncQueueContext = createContext<SyncQueue>(NOT_MOUNTED);
 
@@ -80,7 +151,7 @@ export interface SyncProviderProps {
      */
     readonly subject: string | undefined;
     /** Sends one record. Injected, so this file never learns which client or transport. */
-    readonly send: Sender;
+    readonly send: Sender<SyncAnswer>;
     /** The platform storage adapter. Defaults to the volatile web one. */
     readonly store?: OutboxStore;
     readonly children: ReactNode;
@@ -92,10 +163,11 @@ export interface SyncProviderProps {
  * ⛔ A PROJECTION OF THE STORED LOG, NOT A SECOND STATE. Failures used to be whatever the LAST drain reported, so a
  * write parked before a relaunch was invisible after it until something re-sent it.
  */
-export function failuresOf(log: OutboxLog): readonly SyncFailure[] {
+export function failuresOf(log: OutboxLog): readonly ParkedFailure[] {
     return log.records
         .filter((record) => record.state === 'parked')
         .map((record) => ({
+            seq: record.seq,
             entity: record.entity,
             intentKind: record.intentKind,
             localId: record.localId,
@@ -117,6 +189,8 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
     // Set when a drain is requested while one is already running; consumed by that drain as it finishes.
     const needsDrain = useRef(false);
     const flushRef = useRef<() => Promise<void>>(async () => undefined);
+    // One bus for the provider's life: created once by the initializer, never re-created by a render.
+    const [bus] = useState(createSettlementBus);
 
     useEffect(() => {
         if (subject === undefined) {
@@ -205,7 +279,7 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
                     break;
                 }
 
-                const report = await drain(current, send, { journal });
+                const report = await drain(current, send, { journal, onSettled: bus.publish });
 
                 // ⛔ A STATED WAIT ENDS THIS FLUSH. The pause is stored with the log, so a drain started before it is
                 // over sends nothing; the timer below drains again when it is.
@@ -232,7 +306,7 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
         } finally {
             draining.current = false;
         }
-    }, [send, subject]);
+    }, [bus, send, subject]);
 
     // ⛔ ASSIGNED IN AN EFFECT, NEVER IN THE RENDER BODY. A ref written during render is advanced by a
     // DISCARDED pass too, so the committed tree can end up holding a handle from a render that never
@@ -295,9 +369,64 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
         [flush, subject],
     );
 
+    const submitExclusive = useCallback(
+        async (intent: Intent): Promise<ExclusiveSubmit> => {
+            if (subject === undefined) {
+                throw new Error('sync: submit called with no signed-in subject');
+            }
+
+            let outcome: ExclusiveSubmit | undefined;
+
+            // ⛔ The check and the append are ONE mutation, so they cannot interleave with the drain's claim.
+            await outboxMutatorFor(storeRef.current, subject).mutate((current) => {
+                const result = appendExclusive(current, intent);
+
+                if (result.kind === 'queued') {
+                    outcome = { kind: 'queued', seq: result.seq };
+
+                    return result.log;
+                }
+
+                outcome = result;
+
+                return current;
+            });
+
+            if (outcome === undefined) {
+                throw new Error('sync: the outbox mutation did not run');
+            }
+
+            if (outcome.kind === 'queued') {
+                void flush();
+            }
+
+            return outcome;
+        },
+        [flush, subject],
+    );
+
+    const withdraw = useCallback(
+        async (seq: number): Promise<void> => {
+            if (subject === undefined) {
+                throw new Error('sync: withdraw called with no signed-in subject');
+            }
+
+            await outboxMutatorFor(storeRef.current, subject).mutate((current) => withdrawRecord(current, seq));
+        },
+        [subject],
+    );
+
     const value = useMemo<SyncQueue>(
-        () => ({ submit, pendingCount: log.records.length, failures: failuresOf(log) }),
-        [log, submit],
+        () => ({
+            submit,
+            submitExclusive,
+            withdraw,
+            subscribe: bus.subscribe,
+            resolutionOf: (ref) => log.resolutions[ref],
+            pendingCount: log.records.length,
+            failures: failuresOf(log),
+        }),
+        [bus, log, submit, submitExclusive, withdraw],
     );
 
     return <SyncQueueContext.Provider value={value}>{children}</SyncQueueContext.Provider>;

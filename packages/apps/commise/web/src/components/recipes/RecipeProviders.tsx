@@ -27,6 +27,7 @@
  */
 import { useAuth, useClerk } from '@clerk/nextjs';
 import { subjectBoundToken } from '@commise/features-account';
+import { CookMarksProvider } from '@commise/features-recipes';
 import { createAppQueryClient } from '@commise/query';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
@@ -40,11 +41,14 @@ import { OfflineReadNoticeProvider } from '@commise/query/offline';
 import { SyncNoticeHost } from '@commise/query/sync-notice-host';
 import { recipeSender } from '@commise/query/recipe-sender';
 import { useQuerySessionScope } from '@commise/query/session-scope';
+import { RecipeWriteCacheObserver } from '@commise/query/recipe-write-cache';
 import { SyncProvider } from '@commise/query/sync';
 import { OfflineReadSlot } from '@commise/ui/offline-notice';
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
+import { webOutboxStore } from '@/components/recipes/deviceSession';
+import { EditorDraftAnswers } from '@/components/recipes/EditorDraftAnswers';
 import { FOOD_SERVICE_BASE_URL } from '@/lib/foodServiceConfig';
 import { RecipeAuthNotReadyError } from '@/lib/recipeAuthNotReady';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
@@ -152,11 +156,17 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
                     pages are readable signed out, so a signed-out visitor must still get the first half.
                     Hoisting it ABOVE the provider would hand everyone the NOT_MOUNTED default's
                     `pendingCount: 0` and silently kill the syncing body for signed-in cooks. */}
-                <SyncProvider subject={userId ?? undefined} send={send}>
+                <SyncProvider subject={userId ?? undefined} send={send} store={webOutboxStore}>
                     <SyncNoticeHost copy={offline} />
+                    {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
+                        not the editor that queued them is still open. */}
+                    <RecipeWriteCacheObserver />
+                    <EditorDraftAnswers subject={userId ?? undefined} />
                     <RecipeServiceProvider client={clients.recipe}>
                         <FoodServiceProvider client={clients.food} subject={userId ?? undefined}>
-                            {children}
+                            {/* Blueprint A13: the cook's checks and current step, kept for the cook who made them
+                                and removed at the end of their session — the ADR-0054 rule, applied to marks. */}
+                            <CookMarksProvider subject={userId ?? undefined}>{children}</CookMarksProvider>
                         </FoodServiceProvider>
                     </RecipeServiceProvider>
                 </SyncProvider>

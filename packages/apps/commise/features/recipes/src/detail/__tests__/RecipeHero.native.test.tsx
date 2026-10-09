@@ -15,6 +15,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
+import { Text } from 'react-native';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import { gradient, palette } from '@commise/ui';
@@ -172,5 +173,56 @@ describe('RecipeHero (native) — cover absent (the deliberate fallback)', () =>
         // A scrim here would darken a placeholder that has no photo to darken — and would drag the label's
         // contrast down with it.
         expect(gradientLayers(container, SCRIM_FIRST_COLOR)).toHaveLength(0);
+    });
+});
+
+/**
+ * Slice 3's seam for slice 6 (D12): the back and ⋯ controls sit ON the photo. The native hero lays the `overlay` over
+ * its top edge in either state, first in the reading order, and lets touches between the controls reach the photos.
+ */
+describe('RecipeHero (native) — the overlay over the photo', () => {
+    const photos = [makePhoto({ id: 'pho_0', url: 'https://cdn/p0.jpg' })];
+    const overlay = (
+        <>
+            <Text accessibilityRole="button">Back</Text>
+            <Text accessibilityRole="button">More actions</Text>
+        </>
+    );
+
+    it.each([
+        ['photos present', photos],
+        ['no photo', []],
+    ])('draws the overlay absolutely over the top of the hero (%s)', (_state, list) => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeHero title="Herb Risotto" photos={list} overlay={overlay} />
+            </LocaleProvider>,
+        );
+
+        const layer = screen.getByRole('button', { name: 'Back' }).parentElement as HTMLElement;
+        const style = getComputedStyle(layer);
+
+        expect(style.position).toBe('absolute');
+        expect(style.top).toBe('0px');
+        // react-native-web draws `box-none` as `none` on the layer and `auto` on each child.
+        expect(style.pointerEvents).toBe('none');
+        expect(screen.getByRole('button', { name: 'More actions' }).parentElement).toBe(layer);
+    });
+
+    it('puts the overlay before the photos in the reading order', () => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeHero title="Herb Risotto" photos={photos} overlay={overlay} />
+            </LocaleProvider>,
+        );
+
+        const back = screen.getByRole('button', { name: 'Back' });
+        const [photo] = screen.getAllByLabelText('Recipe photos');
+
+        if (photo === undefined) {
+            throw new Error('no carousel');
+        }
+
+        expect(back.compareDocumentPosition(photo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });

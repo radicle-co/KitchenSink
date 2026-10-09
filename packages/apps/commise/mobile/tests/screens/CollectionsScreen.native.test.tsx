@@ -10,7 +10,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo } from 'react-native';
-import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 
@@ -62,14 +62,14 @@ describe('CollectionsScreen — a failed refresh of the rows on screen', () => {
             .mockRejectedValueOnce(new Error('network down'))
             .mockResolvedValue(makeCollectionPage([makeCollection({ id: 'col_1', name: 'Weeknight dinners' })]));
 
-        render(<CollectionsScreen onSelect={vi.fn()} onCreate={vi.fn()} />);
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
         await act(async () => {
             await queryClient.refetchQueries({ queryKey: collectionQueries(client).listInfinite().queryKey });
         });
 
         // TanStack batches observer notifications onto a later tick, so the notice is awaited, not read synchronously.
         expect((await screen.findAllByText('We couldn’t refresh your collections.')).length).toBeGreaterThan(0);
-        expect(screen.getByRole('button', { name: 'Weeknight dinners' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Weeknight dinners, Private' })).toBeTruthy();
         expect(screen.queryByText('We couldn’t load your collections.')).toBeNull();
 
         await act(async () => {
@@ -85,7 +85,7 @@ describe('CollectionsScreen — a failed refresh of the rows on screen', () => {
             .mockRejectedValueOnce(new Error('network down'))
             .mockResolvedValue(makeCollectionPage([makeCollection({ id: 'col_1', name: 'Weeknight dinners' })]));
 
-        render(<CollectionsScreen onSelect={vi.fn()} onCreate={vi.fn()} />);
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
         await act(async () => {
             await queryClient.refetchQueries({ queryKey: collectionQueries(client).listInfinite().queryKey });
         });
@@ -98,7 +98,7 @@ describe('CollectionsScreen — a failed refresh of the rows on screen', () => {
 
         await vi.waitFor(() =>
             expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
-                screen.getByRole('heading', { name: 'Collections' }),
+                screen.getByRole('heading', { name: 'Recipes' }),
                 'focus',
             ),
         );
@@ -106,11 +106,12 @@ describe('CollectionsScreen — a failed refresh of the rows on screen', () => {
 });
 
 describe('CollectionsScreen — loading, error, empty', () => {
+    // Slice 3: the heading is the Recipes screen's large title, and "New collection" floats (`buildSpec.md` §5.1).
     it('shows the loading indicator while collections load, under the heading and create action', () => {
-        render(<CollectionsScreen onSelect={vi.fn()} onCreate={vi.fn()} />);
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
 
         expect(screen.getByLabelText('Loading collections')).toBeTruthy();
-        expect(screen.getByRole('heading', { name: 'Collections' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'New collection' })).toBeTruthy();
     });
 
@@ -121,23 +122,31 @@ describe('CollectionsScreen — loading, error, empty', () => {
             .mockRejectedValueOnce(new Error('network down'))
             .mockResolvedValue(makeCollectionPage([makeCollection({ id: 'col_1', name: 'Weeknight dinners' })]));
 
-        render(<CollectionsScreen onSelect={vi.fn()} onCreate={vi.fn()} />);
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
 
         expect(await screen.findByRole('alert')).toBeTruthy();
         await act(async () => {
             fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         });
 
-        expect(await screen.findByRole('button', { name: 'Weeknight dinners' })).toBeTruthy();
+        expect(await screen.findByRole('link', { name: 'Weeknight dinners, Private' })).toBeTruthy();
         expect(list).toHaveBeenCalledTimes(2);
     });
 
     it('shows the empty state when a successful load returns no collections', () => {
         seedPages(makeCollectionPage([]));
 
-        render(<CollectionsScreen onSelect={vi.fn()} onCreate={vi.fn()} />);
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
 
-        expect(screen.getByText('No collections yet')).toBeTruthy();
+        expect(screen.getByText('Group recipes your way')).toBeTruthy();
+    });
+
+    it("hides the floating New collection on the first run: the first run's own button is the one way to create", () => {
+        seedPages(makeCollectionPage([]));
+
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+
+        expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(1);
     });
 });
 
@@ -149,19 +158,24 @@ describe('CollectionsScreen — populated', () => {
     it('forwards the selected collection id upward', () => {
         const onSelect = vi.fn();
 
-        render(<CollectionsScreen onSelect={onSelect} onCreate={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Weeknight favourites' }));
+        render(<CollectionsScreen onSelect={onSelect} onCreateRecipe={vi.fn()} />);
+        fireEvent.click(screen.getByRole('link', { name: 'Weeknight favourites, Private' }));
 
         expect(onSelect).toHaveBeenCalledWith('col_1');
     });
 
-    it('forwards create requests upward', () => {
-        const onCreate = vi.fn();
+    // Slice 4 (`buildSpec.md` §5.1): New collection opens the sheet in place of the deleted `collectionCreate` screen,
+    // and a created collection opens its detail.
+    it('creates a collection from the sheet and opens it', async () => {
+        const onSelect = vi.fn();
+        vi.spyOn(client, 'createCollection').mockResolvedValue(makeCollection({ id: 'col_new', name: 'Picnics' }));
 
-        render(<CollectionsScreen onSelect={vi.fn()} onCreate={onCreate} />);
+        render(<CollectionsScreen onSelect={onSelect} onCreateRecipe={vi.fn()} />);
         fireEvent.click(screen.getByRole('button', { name: 'New collection' }));
+        fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Picnics' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Create collection' }));
 
-        expect(onCreate).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(onSelect).toHaveBeenCalledWith('col_new'));
     });
 });
 
@@ -174,13 +188,13 @@ describe('CollectionsScreen — server-paged load-more (W5/C7)', () => {
             .spyOn(client, 'listCollections')
             .mockResolvedValue(makeCollectionPage([makeCollection({ id: 'col_2', name: 'Holiday baking' })]));
 
-        render(<CollectionsScreen onSelect={vi.fn()} onCreate={vi.fn()} />);
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
         await act(async () => {
             fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
         });
 
-        expect(await screen.findByRole('button', { name: 'Holiday baking' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Weeknight favourites' })).toBeTruthy();
+        expect(await screen.findByRole('link', { name: 'Holiday baking, Private' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Weeknight favourites, Private' })).toBeTruthy();
         expect(list).toHaveBeenCalledWith(expect.objectContaining({ page: 2 }));
     });
 });
@@ -190,7 +204,7 @@ describe('CollectionsScreen — a failed next page', () => {
         seedPages(makeCollectionPage([makeCollection({ id: 'col_1', name: 'Weeknight Dinners' })], { hasMore: true }));
         const list = vi.spyOn(client, 'listCollections').mockRejectedValue(new Error('network down'));
 
-        render(<CollectionsScreen onSelect={vi.fn()} onCreate={vi.fn()} />);
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
         await act(async () => {
             fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
         });

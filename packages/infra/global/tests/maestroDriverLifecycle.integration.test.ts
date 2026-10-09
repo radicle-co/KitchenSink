@@ -115,7 +115,7 @@ beforeAll(() => {
 
     // Run ONE flow through the real loop. `run-one` keeps the harness honest: the loop under test is the
     // same one CI runs, not a reimplementation.
-    const result = spawnSync('bash', [SCRIPT, 'run-one', 'recipes/discoverClone'], {
+    const result = spawnSync('bash', [SCRIPT, 'run-one', 'recipes/discoverDetailSaveCopy'], {
         encoding: 'utf8',
         env: {
             ...process.env,
@@ -190,7 +190,7 @@ describe('maestro driver lifecycle', () => {
             ...manifestToEnvLines(manifest, ERASURE_SUBJECT).flatMap((pair) => ['-e', pair]),
             '--driver-host-port',
             port,
-            'packages/apps/commise/mobile/.maestro/recipes/discoverClone.yaml',
+            'packages/apps/commise/mobile/.maestro/recipes/discoverDetailSaveCopy.yaml',
         ]);
     });
 

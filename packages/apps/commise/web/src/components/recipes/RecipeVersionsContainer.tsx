@@ -45,13 +45,14 @@ import {
     RecipeVersionList,
     VersionCompareView,
     VersionPreviewModal,
-    diffSnapshots,
+    compareWithCurrent,
+    recipeMessages,
     recipeVersionMessages,
     classifyRestoreError,
     resolveVersionPreview,
 } from '@commise/features-recipes';
+import { useSnackbar } from '@commise/ui/snackbar';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import type { RecipeVersion } from '@kitchensink/recipe-core';
 import { isVersionConflictError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQueries } from '@tanstack/react-query';
@@ -163,6 +164,7 @@ const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: (
     }
 
     const activeLocale = useLocale();
+    const { locale } = useParams<{ locale: string }>();
     const client = useRecipeServiceClient();
     const [versionsQuery, recipeQuery] = useSuspenseQueries({
         queries: [recipeQueries(client).versions(recipeId), recipeQueries(client).detail(recipeId)],
@@ -171,9 +173,13 @@ const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: (
 
     // W6 Task 5 — Preview: which version (by number) is being previewed, or `null` when the modal is closed.
     const [previewTarget, setPreviewTarget] = useState<number | null>(null);
-    // W6 Task 5 — Compare: the 0/1/2 version numbers currently selected for the compare view, in the order
-    // they were picked (see `toggleCompare` for the cap-at-two UX this order feeds).
-    const [compareSelection, setCompareSelection] = useState<readonly number[]>([]);
+    // §6.6 — Compare is per row, against the current version: which version (by number) is open, or `null`.
+    const [compareTarget, setCompareTarget] = useState<number | null>(null);
+    // "Edited 2 days ago" is measured from the moment the history was read, held so the render stays pure.
+    const [now] = useState(() => new Date().toISOString());
+    const snackbar = useSnackbar();
+    const { versionList } = useMessages(recipeVersionMessages);
+    const { ingredientLineName } = useMessages(recipeMessages);
 
     const versions = versionsQuery.data;
     const recipe = recipeQuery.data;
@@ -186,12 +192,21 @@ const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: (
 
     /** Shared restore trigger for BOTH the list's row action and the preview modal's Restore action — same
      *  mutation, same B17 conflict-refetch; `onRestored` (only supplied from the preview modal) additionally
-     *  closes the modal once the restore actually lands. */
+     *  closes the modal once the restore actually lands. A restore makes a NEW version, so it asks no confirmation:
+     *  the snackbar's Undo restores the version that was current before, which makes another (§6.6). */
     const restoreVersion = (versionNumber: number, onRestored?: () => void): void => {
+        const wasCurrent = recipe.currentVersion;
+
         restore.mutate(
             { id: recipeId, versionNumber },
             {
-                onSuccess: onRestored,
+                onSuccess: () => {
+                    onRestored?.();
+                    snackbar.show({
+                        message: fillVersion(versionList.restored, versionNumber),
+                        action: { label: versionList.undo, onAction: () => restoreVersion(wasCurrent) },
+                    });
+                },
                 onError: (error) => {
                     if (isVersionConflictError(error)) {
                         void versionsQuery.refetch();
@@ -212,32 +227,14 @@ const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: (
         restoringVersion,
     });
 
-    // W6 Task 5 — Compare: both selected versions come from the same already-loaded list data (no fetch).
-    const compareVersions = compareSelection
-        .map((versionNumber) => versions.find((v) => v.versionNumber === versionNumber))
-        .filter((version): version is RecipeVersion => version !== undefined);
-    const [olderCompareVersion, newerCompareVersion] =
-        compareVersions.length === 2
-            ? [...compareVersions].sort((a, b) => a.versionNumber - b.versionNumber)
-            : [undefined, undefined];
+    // §6.6 — Compare: both snapshots come from the already-loaded list (no fetch); the current version is by
+    // construction the newest one there (see the module note on Preview).
+    const compareVersion = versions.find((version) => version.versionNumber === compareTarget);
+    const currentEntry = versions.find((version) => version.versionNumber === recipe.currentVersion);
     const compareDiff =
-        olderCompareVersion !== undefined && newerCompareVersion !== undefined
-            ? diffSnapshots(olderCompareVersion.snapshot, newerCompareVersion.snapshot)
+        compareVersion !== undefined && currentEntry !== undefined
+            ? compareWithCurrent(compareVersion, currentEntry, activeLocale, ingredientLineName)
             : undefined;
-
-    // Cap-at-two (W6 Task 5): once two versions are selected, `RecipeVersionList` disables every OTHER row's
-    // checkbox (an explicit "deselect one first" UX) rather than silently evicting the oldest pick. This
-    // handler's own `current.length >= 2` guard is the defensive second half of that contract — a disabled
-    // control shouldn't be reachable, but a direct call is a no-op rather than a surprise eviction.
-    const toggleCompare = (versionNumber: number): void => {
-        setCompareSelection((current) => {
-            if (current.includes(versionNumber)) {
-                return current.filter((selected) => selected !== versionNumber);
-            }
-
-            return current.length >= 2 ? current : [...current, versionNumber];
-        });
-    };
 
     return (
         <>
@@ -246,11 +243,15 @@ const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: (
                 currentVersion={recipe.currentVersion}
                 restoringVersion={restoringVersion}
                 restoreError={restoreError}
-                selectedForCompare={compareSelection}
+                now={now}
+                recipeTitle={recipe.title}
                 onBack={onBack}
+                backHref={`/${locale}/recipes/${recipeId}`}
                 onRestore={(versionNumber) => restoreVersion(versionNumber)}
                 onPreview={(versionNumber) => setPreviewTarget(versionNumber)}
-                onToggleCompare={toggleCompare}
+                {...(currentEntry === undefined
+                    ? {}
+                    : { onCompare: (versionNumber: number) => setCompareTarget(versionNumber) })}
             />
             <VersionPreviewModal
                 {...preview}
@@ -260,13 +261,16 @@ const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: (
                 onRestore={(versionNumber) => restoreVersion(versionNumber, () => setPreviewTarget(null))}
             />
             <VersionCompareView
-                open={compareSelection.length === 2}
-                versionA={olderCompareVersion}
-                versionB={newerCompareVersion}
-                diff={compareDiff}
-                locale={activeLocale}
-                onClose={() => setCompareSelection([])}
+                open={compareDiff !== undefined}
+                {...(compareVersion === undefined ? {} : { version: compareVersion })}
+                {...(compareDiff === undefined ? {} : { diff: compareDiff })}
+                onClose={() => setCompareTarget(null)}
             />
         </>
     );
 };
+
+/** A version template with its number filled in. Pure. */
+function fillVersion(template: string, version: number): string {
+    return template.replace('{version}', String(version));
+}

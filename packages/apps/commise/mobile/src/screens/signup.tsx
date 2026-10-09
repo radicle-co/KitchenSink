@@ -17,14 +17,16 @@ import { useClerk, useSignUp } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { authFailureMessage } from '../auth/authFailureMessage.js';
+import { AuthHeader } from '../components/auth/AuthHeader.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 export interface SignUpScreenProps {
@@ -33,12 +35,15 @@ export interface SignUpScreenProps {
 
 export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
+    const { colors } = useTheme();
     const { setActive } = useClerk();
     const { signUp } = useSignUp();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+
+    const failureCopy = { networkError: t.networkError, fallback: t.signUpFailed };
 
     async function handleSignUp() {
         if (!signUp) {
@@ -52,11 +57,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
             const createResult = await signUp.create({ emailAddress: email });
 
             if (createResult.error) {
-                setError(
-                    typeof createResult.error === 'string'
-                        ? createResult.error
-                        : (createResult.error.message ?? t.signUpFailed),
-                );
+                setError(authFailureMessage(createResult.error, failureCopy));
 
                 return;
             }
@@ -64,9 +65,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
             const pwResult = await signUp.password({ password });
 
             if (pwResult.error) {
-                setError(
-                    typeof pwResult.error === 'string' ? pwResult.error : (pwResult.error.message ?? t.signUpFailed),
-                );
+                setError(authFailureMessage(pwResult.error, failureCopy));
 
                 return;
             }
@@ -77,7 +76,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                 setError(t.additionalVerification);
             }
         } catch (e) {
-            setError(e instanceof Error && e.message ? e.message : t.signUpFailed);
+            setError(authFailureMessage(e, failureCopy));
         } finally {
             setBusy(false);
         }
@@ -87,8 +86,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
         <SafeAreaView style={styles.safe}>
             <KeyboardAvoider style={styles.flex}>
                 <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-                    <Text style={styles.brand}>{t.brand}</Text>
-                    <Text style={styles.heading}>{t.createHeading}</Text>
+                    <AuthHeader title={t.createHeading} />
 
                     <View style={styles.fields}>
                         <View style={styles.field}>
@@ -102,6 +100,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                                 autoCapitalize="none"
                                 autoComplete="email"
                                 enterKeyHint="next"
+                                disabled={busy}
                             />
                         </View>
                         <View style={styles.field}>
@@ -114,13 +113,14 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                                 secret
                                 autoComplete="new-password"
                                 enterKeyHint="go"
+                                disabled={busy}
                                 onSubmit={() => void handleSignUp()}
                             />
                         </View>
                     </View>
 
                     {error ? (
-                        <Text role="alert" style={styles.error}>
+                        <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
                             {error}
                         </Text>
                     ) : null}
@@ -130,7 +130,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                     </Button>
 
                     <View style={styles.toggle}>
-                        <Text style={styles.togglePrompt}>{t.haveAccountPrompt}</Text>
+                        <Text style={[nativeTokens.type.meta, { color: colors.inkMuted }]}>{t.haveAccountPrompt}</Text>
                         <Button variant="secondary" icon="logIn" onPress={onBack}>
                             {t.signInLink}
                         </Button>
@@ -150,29 +150,11 @@ const styles = StyleSheet.create({
     flex: { flex: 1 },
     container: {
         flexGrow: 1,
-        justifyContent: 'center',
-        gap: nativeTokens.spacing[4],
+        gap: nativeTokens.spacing[5],
         paddingHorizontal: nativeTokens.spacing[5],
         paddingVertical: nativeTokens.spacing[6],
     },
-    brand: {
-        fontSize: nativeTokens.fontSize.displayLg,
-        fontWeight: '700',
-        color: palette.charcoal,
-        textAlign: 'center',
-    },
-    heading: {
-        fontSize: nativeTokens.fontSize.bodyMd,
-        color: palette.slate,
-        textAlign: 'center',
-        marginBottom: nativeTokens.spacing[2],
-    },
     fields: { gap: nativeTokens.spacing[3] },
-    error: {
-        fontSize: nativeTokens.fontSize.bodySm,
-        color: palette['error-dark'],
-        textAlign: 'center',
-    },
-    toggle: { alignItems: 'center', gap: nativeTokens.spacing[2] },
-    togglePrompt: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+    error: { ...nativeTokens.type.meta },
+    toggle: { alignItems: 'flex-start', gap: nativeTokens.spacing[2] },
 });

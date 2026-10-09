@@ -15,16 +15,25 @@
  * is deliberately insulated from the widget body: an inner `Suspense` keeps it mounted while the chunk
  * resolves, and an inner `ErrorBoundary` keeps it mounted when the chunk (or the widget) FAILS — see the
  * boundary's own comment for why the host's per-widget boundary is not sufficient on its own.
+ *
+ * Slice 4 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.2, owner ruling D8): the slot decides the card
+ * variant from the container class (compact below 960, full from 960), puts "See all" in the block's heading row —
+ * and keeps it on a failure — offers the first run's three ways in when the host wires them, and a failed READ shows
+ * Try again, which refetches.
  */
 import {
     RecipeNutritionSlot,
+    RecipeWidgetLoadError,
     RecipeWidgetLoadingCard,
+    cardVariantOf,
     recipeHomeWidgetDescriptor,
+    useMainContainerClass,
+    type CardVariant,
+    type RecipeWidgetFirstRun,
+    type RecipeWidgetSeeAll,
     type RenderRecipeNutrition,
 } from '@commise/features-recipes';
 import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
-import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import type { Recipe } from '@kitchensink/recipe-core';
 import { QueryBoundary } from '@commise/query/boundary';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
@@ -32,98 +41,83 @@ import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Suspense, lazy, type ComponentType, type JSX } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { mobileMessages } from '../../i18n/messages.js';
-import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
-
-/**
- * The recipe widget's data prop contract (native): the recent recipes (see the module doc), plus the deferred
- * calorie renderer.
- *
- * ⚠️ This is a hand-copied THIRD declaration of a contract that also exists on both widget leaves
- * (`widget/RecipeHomeWidget{,.native}.tsx`) — it exists because the descriptor's loader is deliberately typed
- * `{ default: unknown }` for cross-feature decoupling, so the type has to be re-stated at this boundary. It is
- * the copy most likely to drift; keeping it in step is a known cost, recorded rather than hidden.
- */
+/** The widget's props, as the slot passes them (the module itself is loaded through the descriptor). */
 interface RecipeHomeWidgetProps {
-    recipes?: readonly Recipe[];
-    onSelectRecipe?: (id: string) => void;
-    renderNutrition?: RenderRecipeNutrition;
+    readonly recipes?: readonly Recipe[];
+    readonly variant: CardVariant;
+    readonly onSelectRecipe?: (id: string) => void;
+    readonly seeAll?: RecipeWidgetSeeAll;
+    readonly firstRun?: RecipeWidgetFirstRun;
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
-/** How many recent recipes the widget shows (the widget itself also caps to its own max). */
-const RECENT_RECIPE_LIMIT = 4;
+/** Up to four recent recipes (FR-046). Home reads the same page to know its first run. */
+export const RECENT_RECIPE_LIMIT = 4;
 
-/**
- * The recipe widget, code-split through the descriptor's loader seam with `React.lazy`. The loader's
- * `default` is the widget component; it is typed here at the boundary (the contract's loader is intentionally
- * `{ default: unknown }` for cross-feature decoupling).
- */
 const RecipeHomeWidget = lazy<ComponentType<RecipeHomeWidgetProps>>(() =>
     recipeHomeWidgetDescriptor
         .load()
         .then((module) => ({ default: module.default as ComponentType<RecipeHomeWidgetProps> })),
 );
 
-/** Props for {@link RecipeWidgetSlot}. */
 export interface RecipeWidgetSlotProps {
-    /** Invoked when the "see all recipes" entry point is activated (the host wires it to navigation). */
+    /** Invoked when "See all" is activated (the host wires it to navigation). */
     readonly onSeeAllRecipes: () => void;
     /**
      * Invoked with the activated recipe's id when a "Recent recipes" CARD is tapped (the host wires it to
-     * navigation). Required, not optional: the shared card leaves render inert without it, and an optional
-     * seam here is exactly how the cards silently shipped dead — nothing failed, they just did nothing.
+     * navigation). Required, not optional: an optional seam here is exactly how the cards silently shipped dead.
      */
     readonly onSelectRecipe: (id: string) => void;
+    /** First run: open an empty editor. With {@link onFindOnDiscover}, the first run offers its ways in. */
+    readonly onCreateRecipe?: () => void;
+    /** First run: paste an ingredient list. Absent → no paste action. */
+    readonly onPasteIngredients?: () => void;
+    /** First run: go to Discover. */
+    readonly onFindOnDiscover?: () => void;
     /**
-     * Invoked when the WIDGET BODY fails to render (see the boundary in the component). Optional only so the
-     * happy-path tests need not supply it; the host always does, so a failure is never swallowed (B23/DA9).
-     *
-     * Takes `unknown`, matching the appShell `ErrorReporter` seam the host wires this to — a throw is not
-     * guaranteed to be an `Error`, and narrowing here would force the host to lie about that.
+     * Invoked when the WIDGET BODY fails to render. Optional only so the happy-path tests need not supply it; the host
+     * always does, so a failure is never swallowed (B23/DA9). Takes `unknown`: a throw is not guaranteed to be an Error.
      */
     readonly onWidgetError?: (error: unknown) => void;
 }
 
 /**
- * The recipe Home-widget slot: reads the viewer's recent recipes and renders the widget plus its "see all"
- * entry into the recipes surface.
+ * The first run's ways in, when the host wired both the editor and Discover. Pure.
  *
- * @param props - The `onSeeAllRecipes` and `onSelectRecipe` navigation callbacks.
- * @returns The recipe widget with its navigation affordances.
+ * @param props - The slot's callbacks.
+ * @returns The first run, or `undefined` for none.
  */
-export function RecipeWidgetSlot({
-    onSeeAllRecipes,
-    onSelectRecipe,
-    onWidgetError,
-}: RecipeWidgetSlotProps): JSX.Element {
-    const { home } = useMessages(mobileMessages);
+function firstRunOf({
+    onCreateRecipe,
+    onPasteIngredients,
+    onFindOnDiscover,
+}: Pick<RecipeWidgetSlotProps, 'onCreateRecipe' | 'onPasteIngredients' | 'onFindOnDiscover'>):
+    RecipeWidgetFirstRun | undefined {
+    if (onCreateRecipe === undefined || onFindOnDiscover === undefined) {
+        return undefined;
+    }
+
+    return { onCreateRecipe, onFindOnDiscover, ...(onPasteIngredients === undefined ? {} : { onPasteIngredients }) };
+}
+
+export function RecipeWidgetSlot(props: RecipeWidgetSlotProps): JSX.Element {
+    const { onSeeAllRecipes, onWidgetError } = props;
+    const variant = cardVariantOf(useMainContainerClass(), 'grid', 'home');
+    const seeAll: RecipeWidgetSeeAll = { onPress: onSeeAllRecipes };
 
     return (
-        <View style={styles.slot}>
-            {/* Scoped to the WIDGET BODY, and deliberately INSIDE this slot rather than left to the host's
-                per-widget boundary: the host wraps the whole slot in `<ErrorBoundary fallback={null}>`, so a
-                failure that escaped to it would erase the "see all recipes" entry too — the viewer's route out of
-                Home would vanish along with the content that failed. Losing the widget's content is acceptable;
-                losing the navigation is not. The fallbacks are the shared loading card and failure notice, so the
-                wait and the failure look the same as on web (§14). */}
-            <QueryBoundary
-                loading={<RecipeWidgetLoadingCard />}
-                renderError={() => <HomeWidgetErrorNotice />}
-                onError={(error) => onWidgetError?.(error)}
-            >
-                <RecentRecipesWidget onSelectRecipe={onSelectRecipe} onWidgetError={onWidgetError} />
-            </QueryBoundary>
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={home.seeAllRecipes}
-                onPress={onSeeAllRecipes}
-                style={styles.seeAll}
-            >
-                <Text style={styles.seeAllLabel}>{home.seeAllRecipes}</Text>
-            </Pressable>
-        </View>
+        // The read's boundary: a failed READ shows Try again (its reset refetches), and keeps "See all", so the route
+        // off Home never fails with the content. The widget CHUNK has its own boundary below, with no retry.
+        <QueryBoundary
+            loading={<RecipeWidgetLoadingCard variant={variant} seeAll={seeAll} />}
+            renderError={({ resetErrorBoundary }) => (
+                <RecipeWidgetLoadError onRetry={resetErrorBoundary} seeAll={seeAll} />
+            )}
+            onError={(error) => onWidgetError?.(error)}
+        >
+            <RecentRecipesWidget {...props} variant={variant} seeAll={seeAll} />
+        </QueryBoundary>
     );
 }
 
@@ -131,34 +125,35 @@ export function RecipeWidgetSlot({
  * Reads the recent recipes and renders the code-split widget over them. A separate component so the READ suspends
  * inside the slot's {@link QueryBoundary}, while the widget CHUNK keeps a boundary of its own below it.
  *
- * @param props - The card activation and failure-report callbacks.
+ * @param props - The slot's callbacks, the decided variant and the "See all".
  * @returns The widget over the viewer's recent recipes.
  */
 function RecentRecipesWidget({
     onSelectRecipe,
     onWidgetError,
-}: Pick<RecipeWidgetSlotProps, 'onSelectRecipe' | 'onWidgetError'>): JSX.Element {
+    variant,
+    seeAll,
+    ...firstRun
+}: RecipeWidgetSlotProps & { readonly variant: CardVariant; readonly seeAll: RecipeWidgetSeeAll }): JSX.Element {
     const client = useRecipeServiceClient();
     const { data: page } = useSuspenseQuery(recipeQueries(client).list({ pageSize: RECENT_RECIPE_LIMIT }));
     const recipes = page.data;
-    // The deferred calorie lookup (ADR-0021 §6) for the recent recipes, started during render so the widget's cards
-    // paint over an in-flight request rather than starting one after the first paint.
+    // The deferred calorie lookup (ADR-0021 §6), started during render so the cards paint over an in-flight request.
     const nutritionFor = useRecipeNutritionBatches([recipes.map((recipe) => recipe.id)]);
+    const ways = firstRunOf(firstRun);
 
     return (
-        // ⛔ THE CHUNK'S OWN BOUNDARY, separate from the read's. `React.lazy` CACHES a rejected loader — a rejection
-        // parks the payload and every later render re-throws the cached result without re-invoking the loader — so
-        // a retry could only re-throw. This boundary therefore carries the notice and no retry, while a failed READ
-        // is caught above, where a retry would refetch.
-        <ErrorBoundary fallback={<HomeWidgetErrorNotice />} onError={(error) => onWidgetError?.(error)}>
-            <Suspense fallback={<RecipeWidgetLoadingCard />}>
-                {/* The slot owns navigation, not the widget: the presentational card grid reports WHICH recipe was
-                    activated, and this layer — the only one with the navigation intent — routes. */}
+        // ⛔ THE CHUNK'S OWN BOUNDARY. `React.lazy` CACHES a rejected loader, so a retry could only re-throw: this
+        // boundary carries the notice and no retry, while a failed READ is caught above, where a retry refetches.
+        <ErrorBoundary fallback={<RecipeWidgetLoadError seeAll={seeAll} />} onError={(error) => onWidgetError?.(error)}>
+            <Suspense fallback={<RecipeWidgetLoadingCard variant={variant} seeAll={seeAll} />}>
                 <RecipeHomeWidget
                     recipes={recipes}
+                    variant={variant}
                     onSelectRecipe={onSelectRecipe}
-                    // ONE promise, N slots. `null` ⇒ no batch covers this recipe: render nothing rather than a
-                    // boundary with nothing to settle.
+                    seeAll={seeAll}
+                    {...(ways === undefined ? {} : { firstRun: ways })}
+                    // ONE promise, N slots. `null` ⇒ no batch covers this recipe: render nothing.
                     renderNutrition={(recipeId) => {
                         const batch = nutritionFor(recipeId);
 
@@ -171,10 +166,3 @@ function RecentRecipesWidget({
         </ErrorBoundary>
     );
 }
-
-const styles = StyleSheet.create({
-    slot: { gap: 8 },
-    seeAll: { alignSelf: 'flex-end', paddingVertical: 4 },
-    // `ocean-dark`, not `seafoam`: this is text a reader reads (see the palette JSDoc in `@commise/ui`).
-    seeAllLabel: { fontSize: 14, fontWeight: '600', color: palette['ocean-dark'] },
-});

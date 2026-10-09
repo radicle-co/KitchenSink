@@ -55,7 +55,9 @@ function coalesces(existing: OutboxRecord, incoming: Intent): boolean {
 
     // ⛔ A RECORD ON THE WIRE IS NEVER REPLACED. Its answer would be filed against the newer body, and a create
     // coalesced while in flight would be sent a second time.
-    if (existing.state === 'sending') {
+    // ⛔ NOR IS A PARKED ONE. It is work the cook was told about and has not decided on: a create parked with an unknown
+    // outcome may exist on the server, and replacing its body would send a second create. It leaves only by `withdraw`.
+    if (existing.state === 'sending' || existing.state === 'parked') {
         return false;
     }
 
@@ -104,6 +106,71 @@ export function appendIntent(log: OutboxLog, incoming: Intent): OutboxLog {
     // ⚠️ The replacement takes a NEW sequence number: it is a different body, and the old number may still be
     // referenced by a drain that has not reported back.
     return { ...log, records: log.records.map((existing, at) => (at === index ? record : existing)), nextSeq };
+}
+
+/** What {@link appendExclusive} did. */
+export type ExclusiveAppend =
+    | { readonly kind: 'queued'; readonly seq: number; readonly log: OutboxLog }
+    /** A record of the same entity is on the wire; nothing was queued. */
+    | { readonly kind: 'inFlight'; readonly seq: number }
+    /** A record of the same entity is parked and waits for the cook; nothing was queued. */
+    | { readonly kind: 'parked'; readonly seq: number; readonly status?: number };
+
+/**
+ * Queue an intent only when no other record of the same entity is on the wire or parked: the editor's one server write
+ * per recipe (slice 7). A pending record of the same kind is replaced, losslessly, because the editor sends whole drafts.
+ *
+ * ⛔ DECIDED INSIDE THE SERIALIZED MUTATION, never by the caller reading the log first: a caller's check races the
+ * drain's claim, and the second write would then 409 against the cook's own first one.
+ *
+ * @param log - The current log.
+ * @param incoming - The intent to queue.
+ * @returns The new log and the record's number, or which record stood in the way. Pure.
+ */
+export function appendExclusive(log: OutboxLog, incoming: Intent): ExclusiveAppend {
+    const blocking = log.records.find(
+        (record) =>
+            record.entity === incoming.entity &&
+            record.localId === incoming.localId &&
+            (record.state === 'sending' || record.state === 'parked'),
+    );
+
+    if (blocking?.state === 'sending') {
+        return { kind: 'inFlight', seq: blocking.seq };
+    }
+
+    if (blocking !== undefined) {
+        return {
+            kind: 'parked',
+            seq: blocking.seq,
+            ...(blocking.lastStatus === undefined ? {} : { status: blocking.lastStatus }),
+        };
+    }
+
+    return { kind: 'queued', seq: log.nextSeq, log: appendIntent(log, incoming) };
+}
+
+/**
+ * Remove a PARKED record: the cook (or the editor acting on the cook's choice in a conflict) has decided what happens
+ * to it. The only way a parked record leaves the log.
+ *
+ * @param log - The current log.
+ * @param seq - The parked record's number.
+ * @returns A new log; the same log when no record has that number. Pure.
+ * @throws If the record is not parked — a pending one belongs to the drain, a sending one is on the wire.
+ */
+export function withdraw(log: OutboxLog, seq: number): OutboxLog {
+    const record = log.records.find((candidate) => candidate.seq === seq);
+
+    if (record === undefined) {
+        return log;
+    }
+
+    if (record.state !== 'parked') {
+        throw new Error(`outbox: refusing to withdraw record ${String(seq)}, which is ${record.state}, not parked`);
+    }
+
+    return { ...log, records: log.records.filter((candidate) => candidate.seq !== seq) };
 }
 
 /**

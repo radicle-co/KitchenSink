@@ -2650,7 +2650,6 @@ jobs:
                           - 'packages/apps/commise/mobile/src/screens/login.tsx'
                           - 'packages/apps/commise/mobile/src/screens/signup.tsx'
                           - 'packages/apps/commise/mobile/src/screens/profile.tsx'
-                          - 'packages/apps/commise/mobile/src/screens/AccountSettings.tsx'
                           - 'packages/apps/commise/mobile/.maestro/auth/loginFlow.yaml'
                           - 'packages/apps/commise/mobile/.maestro/accountDangerZone.yaml'
                           - 'packages/apps/commise/mobile/.maestro/accountErasure.yaml'

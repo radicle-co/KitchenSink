@@ -1,21 +1,19 @@
 /**
- * Native component tests for the four recipe field groups, rendered via react-native-web under jsdom as the wizard's
- * steps hold them. Mirrors the web file (`recipeFieldGroups.test.tsx`) across every branch: all Basics fields, the
- * READ-ONLY computed total, dynamic ingredient/step add/remove/change, every resolution-status badge, each validation
- * error and the visibility toggle, so the two platform renders cannot drift.
+ * Native component tests for the ingredients field group, rendered via react-native-web under jsdom. Mirrors the web
+ * file (`recipeFieldGroups.test.tsx`), so the two platform renders cannot drift. The Details, Steps and visibility
+ * leaves' tests moved to their own files when slice 7 rebuilt them (`RecipeBasicsFields.native.test.tsx` and its
+ * siblings).
  *
  * These were `RecipeForm.native`'s tests. It rendered nothing but these groups in a `ScrollView` with a heading and
  * Submit/Cancel, and nothing outside tests rendered it, so it was deleted; its heading and Submit/Cancel tests went
  * with it. The wizard's own chrome is covered by `wizard/__tests__/Wizard.native.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import type { FC } from 'react';
 import { fireEvent } from '@testing-library/dom';
 
-import { compositeOver, computedContrast, contrastRatio, placeholderContrast } from '@commise/test-utils';
-import { palette } from '@commise/ui';
-import { CUISINES, FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 // react-native-web does not implement `sendAccessibilityEvent`, which the ingredient rows call to move the
 // screen-reader cursor after a Remove (`@commise/ui/popover`'s focus request, V1 sign-off item 11).
@@ -26,11 +24,7 @@ vi.mock('react-native', async (importOriginal) => {
 });
 
 // Explicit `.native.js` — tsc and the native config's resolver both map each to its `.native.tsx` leaf.
-import { RecipeBasicsFields } from '../RecipeBasicsFields.native.js';
 import { RecipeIngredientsFields } from '../RecipeIngredientsFields.native.js';
-import { RecipeInstructionsFields } from '../RecipeInstructionsFields.native.js';
-import { RecipeVisibilityField } from '../RecipeVisibilityField.native.js';
-import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from '../limits.js';
 import { type RecipeFormValues, defaultRecipeFormValues } from '../values.js';
 import type { DraftAction } from '../draftAction.js';
 import { resolutionStatusLabel, type RecipeFormSectionProps } from '../props.js';
@@ -56,7 +50,10 @@ interface FieldGroupsProps extends RecipeFormSectionProps {
     readonly ingredientRowEditor: IngredientRowEditor;
 }
 
-/** The four field groups in step order, with no chrome: what these tests render. */
+/**
+ * The ingredients field group, as the editor holds it. The other three leaves have their own suites
+ * (`RecipeBasicsFields.native.test.tsx` and its siblings).
+ */
 const FieldGroups: FC<FieldGroupsProps> = ({
     values,
     errors,
@@ -65,35 +62,17 @@ const FieldGroups: FC<FieldGroupsProps> = ({
     ingredientLookupRetry,
     ingredientRowEditor,
 }) => (
-    <>
-        <RecipeBasicsFields values={values} errors={errors} onChange={onChange} />
-        <RecipeIngredientsFields
-            values={values}
-            errors={errors}
-            onChange={onChange}
-            nutrition={ingredientNutrition}
-            lookupRetry={ingredientLookupRetry}
-            rowEditor={ingredientRowEditor}
-        />
-        <RecipeInstructionsFields values={values} errors={errors} onChange={onChange} />
-        <RecipeVisibilityField values={values} onChange={onChange} />
-    </>
+    <RecipeIngredientsFields
+        values={values}
+        errors={errors}
+        onChange={onChange}
+        nutrition={ingredientNutrition}
+        lookupRetry={ingredientLookupRetry}
+        rowEditor={ingredientRowEditor}
+    />
 );
-afterEach(cleanup);
-/**
- * The DISTINCT colours every glyph named `name` on screen is drawn in, in document order. A glyph's colour arrives as a
- * PROP, not a style, so it is read off the icon Registry's test stand-in (`lucideNativeStub`, which publishes the Lucide
- * name and colour it was drawn with). Distinct-and-whole rather than "the first one": several chips draw the same
- * glyph, so `toEqual([token])` proves that EVERY one of them carries the token (and that at least one rendered).
- */
-const glyphColors = (root: ParentNode, name: string): readonly string[] => [
-    ...new Set(
-        [...root.querySelectorAll<HTMLElement>(`[data-commise-stub="icon"][data-icon-name="${name}"]`)].map(
-            (glyph) => glyph.dataset['iconColor'] ?? '',
-        ),
-    ),
-];
 
+afterEach(cleanup);
 const noop = () => undefined;
 /** The editor's nutrition read as these tests need it: a food named `cal-N` publishes N kcal per 100 g. */
 const CATALOG_NUTRITION = makeIngredientNutrition({
@@ -136,266 +115,7 @@ function renderForm(overrides: Partial<FieldGroupsProps> = {}) {
 
 const inputValue = (label: string): string => screen.getByLabelText<HTMLInputElement>(label).value;
 
-describe('the recipe field groups (native) — basics fields', () => {
-    it('renders every basics field bound to the given values', () => {
-        renderForm();
-
-        expect(inputValue('Title')).toBe('Herb Risotto');
-        expect(inputValue('Description')).toBe('Creamy and quick.');
-        // U6: cuisine is a Select/dropdown (button trigger showing the current value), not a radio cloud.
-        expect(screen.getByRole('button', { name: 'Cuisine' })).toBeTruthy();
-        expect(screen.getByText('Italian')).toBeTruthy();
-        // U6: tags + dietary flags are CHIP inputs — committed values render as removable chips; drafts empty.
-        expect(screen.getByRole('button', { name: 'Remove quick' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Remove dinner' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Remove vegetarian' })).toBeTruthy();
-        expect(inputValue('Tags')).toBe('');
-        expect(inputValue('Dietary flags')).toBe('');
-        expect(inputValue('Servings')).toBe('4');
-        expect(inputValue('Prep time (minutes)')).toBe('10');
-        expect(inputValue('Cook time (minutes)')).toBe('25');
-    });
-
-    it('shows the computed total time as read-only text', () => {
-        renderForm({ values: filledValues({ prepTimeMinutes: 10, cookTimeMinutes: 25 }) });
-
-        expect(screen.getByText('Total time 35 min')).toBeTruthy();
-    });
-
-    it('reports a title edit upward', () => {
-        const onChange = vi.fn();
-        renderForm({ onChange });
-
-        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Lemon Risotto' } });
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ title: 'Lemon Risotto' }));
-    });
-
-    it('parses a numeric field to a number', () => {
-        const onChange = vi.fn();
-        renderForm({ onChange });
-
-        fireEvent.change(screen.getByLabelText('Servings'), { target: { value: '6' } });
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ servings: 6 }));
-    });
-
-    it('adds a tag chip when the draft is submitted (no comma parsing; U6) — appended to existing chips', () => {
-        const onChange = vi.fn();
-        renderForm({ onChange });
-
-        const draft = screen.getByLabelText('Tags');
-        fireEvent.change(draft, { target: { value: 'easy' } });
-        // react-native-web maps a single-line TextInput's onSubmitEditing to Enter keydown.
-        fireEvent.keyDown(draft, { key: 'Enter' });
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['quick', 'dinner', 'easy'] }));
-    });
-
-    it('adds a tag chip via the explicit Add control (U6)', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues({ tags: [] }), onChange });
-
-        fireEvent.change(screen.getByLabelText('Tags'), { target: { value: 'gluten free' } });
-        fireEvent.click(screen.getByRole('button', { name: 'Add Tags' }));
-
-        // The whole phrase becomes ONE chip — a space (or comma) is never a separator.
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['gluten free'] }));
-    });
-
-    it('removes a tag chip when its remove control is pressed (U6)', () => {
-        const onChange = vi.fn();
-        renderForm({ onChange });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Remove quick' }));
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['dinner'] }));
-    });
-});
-
-/**
- * Cross-platform mirror of the web file's `the recipe field groups (web) — tinted chip + badge text is WCAG-AA legible`.
- * EDITED for plan 002 V1 B5: the per-row calories badge and its contrast test are gone (plan 002 R30).
- * Every surface is read off the DOM (the tint from the element that paints it, the text colour from the leaf
- * that carries it) so a re-theme of the palette moves the measurement instead of quietly invalidating it —
- * which an `expect(color).toBe(token)` equality check cannot do. Which seafoam sites are accents (3:1) and
- * which are text (4.5:1) is stated once, in `@commise/ui`'s palette JSDoc.
- */
-describe('the recipe field groups (native) — tinted chip + badge text is WCAG-AA legible', () => {
-    /** The opaque colour a chip's contents actually sit on: the chip's OWN tint, flattened onto the field. */
-    function chipSurface(value: string): string {
-        const chip = screen.getByRole('button', { name: `Remove ${value}` }).parentElement;
-
-        if (chip === null) {
-            throw new Error(`Expected the "Remove ${value}" control to sit inside its chip.`);
-        }
-
-        return compositeOver(window.getComputedStyle(chip).backgroundColor, palette.white);
-    }
-
-    it('makes the tag chip LABEL legible over the chip’s own tint', () => {
-        renderForm({ values: filledValues({ tags: ['quick'] }) });
-
-        expect(
-            computedContrast(screen.getByText('quick'), { surface: chipSurface('quick') }),
-            'tag chip label',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('draws the chip’s × remove glyph in the same legible tone as the label beside it', () => {
-        renderForm({ values: filledValues({ tags: ['quick'], dietaryFlags: [] }) });
-
-        // The form's Cancel button draws an `x` of its own (charcoal), so the read is scoped to the chip itself.
-        const chip = screen.getByRole('button', { name: /quick/u });
-
-        // The glyph's colour is a PROP, so there is no computed style to read — assert the token AND the ratio
-        // it buys, so the number stays load-bearing rather than the spelling. Leaving the × seafoam while the
-        // label moves would also render one chip in two greens.
-        expect(glyphColors(chip, 'x'), 'chip remove glyph colour').toEqual([palette['ocean-dark']]);
-        expect(
-            contrastRatio(palette['ocean-dark'], chipSurface('quick')),
-            'chip remove glyph over the chip tint',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('makes the SELECTED cuisine option — label AND check — legible on its highlight', () => {
-        renderForm({ values: filledValues({ cuisine: 'Italian' }) });
-
-        // The submit button draws a `check` glyph of its own (white, on its filled background), so the read is
-        // scoped to the selected row.
-        fireEvent.click(screen.getByRole('button', { name: 'Cuisine' }));
-
-        // The selected row paints its own pearl highlight, so that (not white) is what its label sits on.
-        const option = screen.getByRole('menuitem', { name: 'Italian' });
-        const surface = compositeOver(window.getComputedStyle(option).backgroundColor, palette.white);
-
-        expect(
-            computedContrast(within(option).getByText('Italian'), { surface }),
-            'selected cuisine label',
-        ).toBeGreaterThanOrEqual(4.5);
-        expect(glyphColors(option, 'check'), 'selected cuisine check colour').toEqual([palette['ocean-dark']]);
-        expect(
-            contrastRatio(palette['ocean-dark'], surface),
-            'selected cuisine check over its highlight',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-});
-
-describe('the recipe field groups (native) — cuisine dropdown (w3/e5; U6 Select, not a radio cloud)', () => {
-    /** Open the collapsed dropdown so its options render. */
-    const openMenu = (): void => {
-        fireEvent.click(screen.getByRole('button', { name: 'Cuisine' }));
-    };
-
-    it('renders a collapsed Select trigger showing the current cuisine (no radio cloud)', () => {
-        renderForm({ values: filledValues({ cuisine: 'Italian' }) });
-
-        expect(screen.getByRole('button', { name: 'Cuisine' })).toBeTruthy();
-        expect(screen.getByText('Italian')).toBeTruthy();
-        // The options are collapsed until opened — no radio group.
-        expect(screen.queryByRole('radiogroup', { name: 'Cuisine' })).toBeNull();
-        expect(screen.queryByRole('menuitem', { name: 'Thai' })).toBeNull();
-    });
-
-    it('lists every curated CUISINES option plus the explicit "no cuisine" choice when opened', () => {
-        renderForm({ values: filledValues({ cuisine: '' }) });
-
-        openMenu();
-
-        for (const cuisine of CUISINES) {
-            expect(screen.getByRole('menuitem', { name: cuisine })).toBeTruthy();
-        }
-
-        expect(screen.getByRole('menuitem', { name: 'No cuisine' })).toBeTruthy();
-    });
-
-    it('keeps a preselected CUSTOM cuisine (not in CUISINES) visible + selected, never lost', () => {
-        renderForm({ values: filledValues({ cuisine: 'Grandma’s Secret Blend' }) });
-
-        // Visible on the collapsed trigger…
-        expect(screen.getByText('Grandma’s Secret Blend')).toBeTruthy();
-        // …and present as a selected option once opened.
-        openMenu();
-        expect(screen.getByRole('menuitem', { name: 'Grandma’s Secret Blend' }).getAttribute('aria-selected')).toBe(
-            'true',
-        );
-    });
-
-    it('reports a cuisine selection upward, preserving the free-text wire contract', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues({ cuisine: 'Italian' }), onChange });
-
-        openMenu();
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Thai' }));
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cuisine: 'Thai' }));
-    });
-
-    it('reports the explicit clear ("No cuisine") selection upward', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues({ cuisine: 'Italian' }), onChange });
-
-        openMenu();
-        fireEvent.click(screen.getByRole('menuitem', { name: 'No cuisine' }));
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cuisine: '' }));
-    });
-});
-
-describe('the recipe field groups (native) — title/description char counters (w3/e6)', () => {
-    it('shows a live "N/64" counter for the title and caps input at 64', () => {
-        renderForm({ values: filledValues({ title: 'Herb Risotto' }) });
-
-        expect(screen.getByText(`${'Herb Risotto'.length}/${TITLE_MAX_LENGTH}`)).toBeTruthy();
-        expect(screen.getByLabelText<HTMLInputElement>('Title').maxLength).toBe(TITLE_MAX_LENGTH);
-    });
-
-    it('shows a live "N/256" counter for the description and caps input at 256', () => {
-        renderForm({ values: filledValues({ description: 'Creamy and quick.' }) });
-
-        expect(screen.getByText(`${'Creamy and quick.'.length}/${DESCRIPTION_MAX_LENGTH}`)).toBeTruthy();
-        expect(screen.getByLabelText<HTMLInputElement>('Description').maxLength).toBe(DESCRIPTION_MAX_LENGTH);
-    });
-});
-
 describe('the recipe field groups (native) — B8 error accessibility wiring (aria-invalid + aria-describedby)', () => {
-    it('wires the title field to its alert when invalid, and clears the wiring when valid', () => {
-        renderForm({ errors: { title: 'titleRequired' } });
-
-        const title = screen.getByLabelText('Title');
-        const alert = screen.getByRole('alert');
-        expect(title.getAttribute('aria-invalid')).toBe('true');
-        expect(title.getAttribute('aria-describedby')).toBe(alert.id);
-        expect(alert.id).toBeTruthy();
-
-        cleanup();
-        renderForm();
-        expect(screen.getByLabelText('Title').getAttribute('aria-invalid')).toBeNull();
-        expect(screen.getByLabelText('Title').getAttribute('aria-describedby')).toBeNull();
-    });
-
-    it('wires the servings field to its alert when invalid', () => {
-        renderForm({ errors: { servings: 'servingsPositive' } });
-
-        const servings = screen.getByLabelText('Servings');
-        const alert = screen.getByRole('alert');
-        expect(servings.getAttribute('aria-invalid')).toBe('true');
-        expect(servings.getAttribute('aria-describedby')).toBe(alert.id);
-    });
-
-    it('wires BOTH prep and cook time fields to the shared times alert when invalid', () => {
-        renderForm({ errors: { times: 'timesNonNegative' } });
-
-        const alert = screen.getByRole('alert');
-        const prep = screen.getByLabelText('Prep time (minutes)');
-        const cook = screen.getByLabelText('Cook time (minutes)');
-
-        expect(prep.getAttribute('aria-invalid')).toBe('true');
-        expect(prep.getAttribute('aria-describedby')).toBe(alert.id);
-        expect(cook.getAttribute('aria-invalid')).toBe('true');
-        expect(cook.getAttribute('aria-describedby')).toBe(alert.id);
-    });
-
     /** REWRITTEN + SPLIT for U9 — see the web suite for the rationale. One test per error code. */
     it('wires only the UNRESOLVED lines to an ingredientsUnresolved alert (WCAG 3.3.1)', () => {
         renderForm({
@@ -449,21 +169,6 @@ describe('the recipe field groups (native) — B8 error accessibility wiring (ar
 
         expect(screen.getByRole('alert')).toBeTruthy();
         expect(screen.queryByLabelText('Ingredient 1 name')).toBeNull();
-    });
-
-    it('wires only the offending step(s) to the steps alert, per field', () => {
-        renderForm({
-            values: filledValues({
-                steps: [{ instruction: '' }, { instruction: 'Toast the rice.' }],
-            }),
-            errors: { steps: 'stepsRequired' },
-        });
-
-        const alert = screen.getByRole('alert');
-
-        expect(screen.getByLabelText('Step 1 instruction').getAttribute('aria-invalid')).toBe('true');
-        expect(screen.getByLabelText('Step 1 instruction').getAttribute('aria-describedby')).toBe(alert.id);
-        expect(screen.getByLabelText('Step 2 instruction').getAttribute('aria-invalid')).toBeNull();
     });
 });
 
@@ -700,8 +405,9 @@ describe('the recipe field groups (native) — per-row + running-total nutrition
             }),
         });
 
-        expect(screen.getByText('Total nutrition (per serving): 420 cal | 0g P | 0g C | 0g F')).toBeTruthy();
-        expect(screen.queryByText('Partial — some ingredients aren’t counted yet')).toBeNull();
+        expect(screen.getByText(/^420 cal per serving · /u)).toBeTruthy();
+        // Build spec §7.5.6: every line counts.
+        expect(screen.getByText(/ · 2 of 2 counted$/u)).toBeTruthy();
     });
 
     it('updates the running total when an ingredient is added', () => {
@@ -727,7 +433,7 @@ describe('the recipe field groups (native) — per-row + running-total nutrition
             />,
         );
 
-        expect(screen.getByText('Total nutrition (per serving): 100 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+        expect(screen.getByText(/^100 cal per serving · /u)).toBeTruthy();
 
         rerender(
             <FieldGroups
@@ -759,7 +465,7 @@ describe('the recipe field groups (native) — per-row + running-total nutrition
             />,
         );
 
-        expect(screen.getByText('Total nutrition (per serving): 150 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+        expect(screen.getByText(/^150 cal per serving · /u)).toBeTruthy();
     });
 
     it('updates the running total when an ingredient’s quantity changes', () => {
@@ -785,7 +491,7 @@ describe('the recipe field groups (native) — per-row + running-total nutrition
             />,
         );
 
-        expect(screen.getByText('Total nutrition (per serving): 100 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+        expect(screen.getByText(/^100 cal per serving · /u)).toBeTruthy();
 
         rerender(
             <FieldGroups
@@ -809,7 +515,7 @@ describe('the recipe field groups (native) — per-row + running-total nutrition
             />,
         );
 
-        expect(screen.getByText('Total nutrition (per serving): 200 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+        expect(screen.getByText(/^200 cal per serving · /u)).toBeTruthy();
     });
 
     it('updates the running total when an ingredient is removed', () => {
@@ -843,7 +549,7 @@ describe('the recipe field groups (native) — per-row + running-total nutrition
             />,
         );
 
-        expect(screen.getByText('Total nutrition (per serving): 150 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+        expect(screen.getByText(/^150 cal per serving · /u)).toBeTruthy();
 
         rerender(
             <FieldGroups
@@ -867,7 +573,7 @@ describe('the recipe field groups (native) — per-row + running-total nutrition
             />,
         );
 
-        expect(screen.getByText('Total nutrition (per serving): 100 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+        expect(screen.getByText(/^100 cal per serving · /u)).toBeTruthy();
     });
 
     it('shows the honest partial affordance (never a fake total) when a line cannot be accounted for', () => {
@@ -895,163 +601,24 @@ describe('the recipe field groups (native) — per-row + running-total nutrition
             }),
         });
 
-        expect(screen.getByText('Total nutrition (per serving): 100 cal | 0g P | 0g C | 0g F')).toBeTruthy();
-        expect(screen.getByText('Partial — some ingredients aren’t counted yet')).toBeTruthy();
-    });
-});
-
-describe('the recipe field groups (native) — instructions', () => {
-    it('shows the empty state when there are no steps', () => {
-        renderForm({ values: filledValues({ steps: [] }) });
-
-        expect(screen.getByText('No steps yet. Add your first step.')).toBeTruthy();
-    });
-
-    it('renders each step instruction and timer', () => {
-        renderForm();
-
-        expect(inputValue('Step 1 instruction')).toBe('Toast the rice.');
-        // F1: 120 seconds is shown as 2 minutes, with the hours box left empty rather than "0".
-        expect(inputValue('Step 1 timer, hours')).toBe('');
-        expect(inputValue('Step 1 timer, minutes')).toBe('2');
-    });
-
-    /** F1/I3 — mirrors the web leaf: hours and minutes in, seconds stored. */
-    it('takes a step timer in hours and minutes and stores it in seconds', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues({ steps: [{ instruction: 'Roast', timerSeconds: 1800 }] }), onChange });
-
-        fireEvent.change(screen.getByLabelText('Step 1 timer, hours'), { target: { value: '4' } });
-
-        expect(onChange).toHaveBeenLastCalledWith(
-            expect.objectContaining({ steps: [{ instruction: 'Roast', timerSeconds: 16200 }] }),
-        );
-    });
-
-    it('appends a blank step on add', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues({ steps: [] }), onChange });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ steps: [{ instruction: '' }] }));
-    });
-
-    it('removes the targeted step', () => {
-        const onChange = vi.fn();
-        renderForm({
-            values: filledValues({ steps: [{ instruction: 'First' }, { instruction: 'Second' }] }),
-            onChange,
-        });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Remove step 2' }));
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ steps: [{ instruction: 'First' }] }));
-    });
-
-    it('clears a step timer to undefined when the field is emptied', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues({ steps: [{ instruction: 'Toast', timerSeconds: 60 }] }), onChange });
-
-        fireEvent.change(screen.getByLabelText('Step 1 timer, minutes'), { target: { value: '' } });
-
-        expect(onChange).toHaveBeenCalledWith(
-            expect.objectContaining({ steps: [{ instruction: 'Toast', timerSeconds: undefined }] }),
-        );
+        expect(screen.getByText(/^100 cal per serving · /u)).toBeTruthy();
+        // Build spec §7.5.6: the line says one is not counted, never a total that looks whole.
+        expect(screen.getByText(/ · 1 of 2 counted$/u)).toBeTruthy();
     });
 });
 
 describe('the recipe field groups (native) — validation errors', () => {
-    it('surfaces every provided field error', () => {
-        renderForm({
-            errors: {
-                title: 'titleRequired',
-                ingredients: 'ingredientsEmpty',
-                steps: 'stepsRequired',
-                servings: 'servingsPositive',
-                times: 'timesNonNegative',
-            },
-        });
+    // The other sections' messages are their own leaves' (`RecipeBasicsFields.native.test.tsx` and its siblings).
+    it('surfaces the ingredients error', () => {
+        renderForm({ errors: { ingredients: 'ingredientsEmpty' } });
 
-        const alerts = screen.getAllByRole('alert').map((node) => node.textContent);
-        expect(alerts).toContain('A title is required.');
-        expect(alerts).toContain('Add at least one ingredient.');
-        expect(alerts).toContain('Add at least one instruction step.');
-        expect(alerts).toContain('Servings must be greater than zero.');
-        expect(alerts).toContain('Times cannot be negative.');
+        expect(screen.getAllByRole('alert').map((node) => node.textContent)).toContain('Add at least one ingredient.');
     });
 
     it('renders no alerts when there are no errors', () => {
         renderForm();
 
         expect(screen.queryAllByRole('alert')).toHaveLength(0);
-    });
-});
-
-describe('the recipe field groups (native) — difficulty picker', () => {
-    const isChecked = (label: string): boolean =>
-        screen.getByRole('radio', { name: label }).getAttribute('aria-checked') === 'true';
-
-    it('renders a radiogroup with Easy/Medium/Hard and an explicit Not stated option', () => {
-        renderForm();
-
-        expect(screen.getByRole('radiogroup', { name: 'Difficulty' })).toBeTruthy();
-        expect(screen.getByRole('radio', { name: 'Easy' })).toBeTruthy();
-        expect(screen.getByRole('radio', { name: 'Medium' })).toBeTruthy();
-        expect(screen.getByRole('radio', { name: 'Hard' })).toBeTruthy();
-        expect(screen.getByRole('radio', { name: 'Not stated' })).toBeTruthy();
-    });
-
-    it('checks Not stated (and nothing else) when no difficulty is set', () => {
-        renderForm({ values: filledValues() });
-
-        expect(isChecked('Not stated')).toBe(true);
-        expect(isChecked('Easy')).toBe(false);
-        expect(isChecked('Medium')).toBe(false);
-        expect(isChecked('Hard')).toBe(false);
-    });
-
-    it.each([
-        ['Easy', 'easy'],
-        ['Medium', 'medium'],
-        ['Hard', 'hard'],
-    ])('checks the %s radio when that difficulty is selected', (label, value) => {
-        renderForm({ values: filledValues({ difficulty: value as 'easy' | 'medium' | 'hard' }) });
-
-        expect(isChecked(label)).toBe(true);
-        expect(isChecked('Not stated')).toBe(false);
-    });
-
-    it('reports a difficulty selection upward', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues(), onChange });
-
-        fireEvent.click(screen.getByRole('radio', { name: 'Medium' }));
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ difficulty: 'medium' }));
-    });
-
-    it('clears the difficulty (removing the field) when Not stated is chosen', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues({ difficulty: 'hard' }), onChange });
-
-        fireEvent.click(screen.getByRole('radio', { name: 'Not stated' }));
-
-        expect(onChange).toHaveBeenCalledTimes(1);
-        const next = onChange.mock.calls[0]?.[0] as RecipeFormValues;
-        expect(next.difficulty).toBeUndefined();
-        expect('difficulty' in next).toBe(false);
-    });
-});
-
-describe('the recipe field groups (native) — visibility', () => {
-    it('reports a visibility change upward', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues({ visibility: 'public' }), onChange });
-
-        fireEvent.click(screen.getByLabelText('Private recipe'));
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }));
     });
 });
 
@@ -1088,63 +655,13 @@ function appliedStyle(element: Element, property: string): string | undefined {
 }
 
 /**
- * Regression (Maestro CI view-hierarchy dump): the instruction row is
- * `[number][instruction input][timer input][Remove step N]` on ONE non-wrapping line, and React Native
- * defaults `flexShrink` to 0 — so its ~28 + 178 + 88 + ~160dp of children could not fit the ~296dp a 360dp
- * phone leaves inside the screen's and the card's paddings. On-device the remove button was laid out at
- * x=999..1080 on a 1080px-wide display: half of it past the screen edge, so the only way to delete an
- * instruction was untappable. Same family as `CollectionHeader.native.tsx`'s clipped Rename/absent Delete.
- *
- * The fix is the treatment this file's INGREDIENT row already carries (and the web leaf's `min-w-0 flex-1`
- * field + wrapping row): the row WRAPS, the flexible field yields width, and the destructive action never
- * shrinks. Note that shrinking ALONE would not do — with all four children on one line the instruction field
- * would be squeezed to a few dp — which is why the wrap is the load-bearing half. jsdom has no layout engine,
- * so this pins the flex CONTRACT that makes the off-screen action unrepresentable.
+ * Regression (Maestro CI view-hierarchy dump, first seen on the instruction row): React Native defaults `flexShrink` to
+ * 0, so a row of fixed children pushed its destructive action off a 360 dp screen. The ingredient row WRAPS and its
+ * action never shrinks. jsdom has no layout engine, so this pins the flex CONTRACT. The Steps row is
+ * `RecipeInstructionsFields.native`'s, whose actions now sit behind its ⋯ menu.
  */
-describe('the recipe field groups (native) — an instruction row cannot push its remove action off the screen edge', () => {
-    /** The instruction row itself — the `stepRow` View laying out marker + inputs + Remove. */
-    const stepRow = (): HTMLElement => screen.getByLabelText('Step 1 instruction').parentElement as HTMLElement;
-
-    /** The row-level slot holding the remove control (the child of the row that the button lives inside). */
-    const removeSlot = (): HTMLElement => {
-        const row = stepRow();
-        let node = screen.getByRole('button', { name: 'Remove step 1' });
-
-        while (node.parentElement !== null && node.parentElement !== row) {
-            node = node.parentElement;
-        }
-
-        return node;
-    };
-
-    it('wraps the row, so a child that does not fit moves to the next line instead of off the screen', () => {
-        renderForm();
-
-        expect(appliedStyle(stepRow(), 'flex-wrap')).toBe('wrap');
-    });
-
-    it('lets the instruction field yield width rather than claim its full intrinsic size', () => {
-        renderForm();
-
-        expect(appliedStyle(screen.getByLabelText('Step 1 instruction'), 'flex-shrink')).toBe('1');
-    });
-
-    it('never shrinks the remove action itself, so its label and touch target are never clipped', () => {
-        renderForm();
-
-        expect(appliedStyle(removeSlot(), 'flex-shrink')).toBe('0');
-    });
-
-    it('keeps the remove control at the 44pt touch floor', () => {
-        renderForm();
-
-        // The row treatment must not squeeze the pill below the comfortable touch target `Button` guarantees.
-        const button = screen.getByRole('button', { name: 'Remove step 1' });
-
-        expect(appliedStyle(button.firstElementChild as Element, 'min-height')).toBe('44px');
-    });
-
-    it('applies the same non-shrinking treatment to the ingredient row action (one row contract, both rows)', () => {
+describe('the recipe field groups (native) — an ingredient row cannot push its remove action off the screen edge', () => {
+    it('wraps the ingredient row and never shrinks its action', () => {
         // B7: Remove is a direct control only on a row with one action (§3a), so this row is still looking up its food.
         renderForm({
             values: filledValues({
@@ -1173,53 +690,11 @@ describe('the recipe field groups (native) — an instruction row cannot push it
     });
 });
 
-/**
- * Same regression sweep, two more rows in this form whose variable text is USER-SUPPLIED:
- *
- *  - the cuisine Select's trigger and its option rows are `[label][chevron|check]` at
- *    `justifyContent: 'space-between'` — and a non-curated CUSTOM cuisine value is deliberately preserved and
- *    shown (see `CuisineSelect.native.tsx`), so a long one pushed the chevron (the only affordance that opens
- *    the menu) and the selected-state check off the field's right edge;
- *  - a tag/dietary-flag chip is `[tag][×]`, so a long tag pushed its OWN remove control out — and that control
- *    is the field's only removal path, making the tag unremovable.
- *
- * The contract is the same one `CollectionHeader.native.tsx` documents: user text shrinks, chrome does not.
- */
-describe('the recipe field groups (native) — user-supplied values cannot push a row control off the field edge', () => {
-    const longCuisine = 'Coastal Ligurian home cooking with a Provençal accent';
-    const longTag = 'weeknight-dinner-for-a-crowd-of-hungry-teenagers';
-
-    it('lets the cuisine trigger label shrink, keeping the disclosure chevron on the field', () => {
-        renderForm({ values: filledValues({ cuisine: longCuisine }) });
-
-        expect(appliedStyle(screen.getByText(longCuisine), 'flex-shrink')).toBe('1');
-    });
-
-    it('lets a cuisine option label shrink, keeping its selected-state check visible', () => {
-        renderForm({ values: filledValues({ cuisine: longCuisine }) });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Cuisine' }));
-
-        const option = screen.getByRole('menuitem', { name: longCuisine });
-
-        expect(appliedStyle(within(option).getByText(longCuisine), 'flex-shrink')).toBe('1');
-    });
-
-    it('lets a chip label shrink but never its remove control, so a long tag stays removable', () => {
-        renderForm({ values: filledValues({ tags: [longTag] }) });
-
-        const remove = screen.getByRole('button', { name: `Remove ${longTag}` });
-
-        expect(appliedStyle(screen.getByText(longTag), 'flex-shrink')).toBe('1');
-        expect(appliedStyle(remove, 'flex-shrink')).toBe('0');
-    });
-});
-
 describe('the recipe field groups (native) — every action button carries a decorative icon (mockup parity)', () => {
     // Mirrors the web leaf: each action button keeps its exact accessible name (so Maestro's visible-text
     // taps and the create/edit contracts are unchanged) and renders its icon inside an accessibility-hidden
     // wrapper (the shared Button primitive), so the label alone is the accessible name.
-    const actionButtonNames = ['Add step', 'Remove ingredient 1', 'Remove step 1'] as const;
+    const actionButtonNames = ['Remove ingredient 1'] as const;
 
     // B7: Remove is a direct control only on a row with one action (§3a), so this row is still looking up its food.
     const pendingValues = () =>
@@ -1243,36 +718,6 @@ describe('the recipe field groups (native) — every action button carries a dec
         // The Button wraps the caller's icon in an `aria-hidden` element, so the glyph never contributes to
         // the accessible name — present here regardless of what Feather draws.
         expect(button.querySelector('[aria-hidden="true"]')).not.toBeNull();
-    });
-});
-
-describe('the recipe field groups (native) — PLACEHOLDER text clears the AA body-text floor', () => {
-    /**
-     * Placeholder copy is TEXT a reader reads — it is a field's only visible instruction before they type — so
-     * it owes the 4.5:1 of SC 1.4.3, not the 3:1 an accent owes. Both of this form's field leaves passed
-     * `placeholderTextColor={palette.mist}` (1.90:1 on their white fields), which the palette JSDoc in
-     * `@commise/ui`'s `tokens/colors.ts` names as a hairline tone that is never a text tone.
-     *
-     * `placeholderContrast` reads the colour react-native-web actually paints (it lands as the
-     * `--placeholderTextColor` custom property that the compiled `::placeholder` rule resolves), so this fails
-     * both if the token drifts and if the prop stops being passed at all.
-     */
-    it('gives the basics fields (RecipeBasicsFields) a legible placeholder', () => {
-        renderForm({ values: filledValues({ title: '' }) });
-
-        expect(
-            placeholderContrast(screen.getByLabelText('Title')),
-            'title-field placeholder on its white field',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('gives the tag/dietary ChipInput a legible placeholder', () => {
-        renderForm();
-
-        expect(
-            placeholderContrast(screen.getByLabelText('Tags')),
-            'ChipInput placeholder on its white field',
-        ).toBeGreaterThanOrEqual(4.5);
     });
 });
 
@@ -1888,80 +1333,16 @@ describe('the recipe field groups (native) — a section resplit does not remoun
     });
 });
 
-describe('the recipe field groups (native) — meal type (U34: the ONE closed axis)', () => {
-    const chip = (label: string): HTMLElement => within(screen.getByLabelText('Meal type')).getByLabelText(label);
-
-    it('renders a chip for every member of the vocabulary plus an explicit Not stated', () => {
-        renderForm();
-
-        for (const label of ['Breakfast', 'Brunch', 'Lunch', 'Dinner', 'Snack', 'Dessert', 'Drink', 'No meal type']) {
-            expect(chip(label)).toBeTruthy();
-        }
-    });
-
-    it('marks Not stated selected (and nothing else) when no meal type is set', () => {
-        renderForm({ values: filledValues() });
-
-        expect(chip('No meal type').getAttribute('aria-checked')).toBe('true');
-        expect(chip('Dinner').getAttribute('aria-checked')).toBe('false');
-    });
-
-    it('marks the chip matching a stated meal type', () => {
-        renderForm({ values: filledValues({ mealType: 'dessert' }) });
-
-        expect(chip('Dessert').getAttribute('aria-checked')).toBe('true');
-        expect(chip('No meal type').getAttribute('aria-checked')).toBe('false');
-    });
-
-    it('reports a selection upward', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues(), onChange });
-
-        fireEvent.click(chip('Lunch'));
-
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ mealType: 'lunch' }));
-    });
-
-    it('clears it (REMOVING the field) when Not stated is chosen', () => {
-        const onChange = vi.fn();
-        renderForm({ values: filledValues({ mealType: 'dinner' }), onChange });
-
-        fireEvent.click(chip('No meal type'));
-
-        const next = onChange.mock.calls[0]?.[0] as RecipeFormValues;
-
-        expect(next.mealType).toBeUndefined();
-        expect('mealType' in next).toBe(false);
-    });
-
-    it('gives every chip a 44pt touch target', () => {
-        renderForm();
-
-        for (const label of ['Breakfast', 'No meal type']) {
-            expect(Number.parseInt(getComputedStyle(chip(label)).minHeight, 10)).toBeGreaterThanOrEqual(44);
-        }
-    });
-
-    it('does not select a meal type merely because a TAG names one', () => {
-        renderForm({ values: filledValues({ tags: ['dinner'] }) });
-
-        expect(chip('Dinner').getAttribute('aria-checked')).toBe('false');
-        expect(chip('No meal type').getAttribute('aria-checked')).toBe('true');
-    });
-});
-
 /**
- * `docs/design/nativeContainerNames.md` N1 rule 2 and N2 (editor): each card's header says the card's name, so the card
- * carries none and the header is the one node that says it (N4).
+ * `docs/design/nativeContainerNames.md` N1 rule 2 and N2 (editor): a section's name is said once. REWRITTEN for slice 7:
+ * the one-page editor's section owns the heading ("Ingredients", `editor/EditorSection.native.tsx`), so this leaf — the
+ * section's body — says the name nowhere, as heading or label, or the screen would say it twice.
  */
-describe('the recipe field groups (native) — N1: each card’s name is said once, by its header', () => {
-    it.each(['Basics', 'Ingredients', 'Instructions'])(
-        'says "%s" through one header, and no node is labelled with it',
-        (name) => {
-            renderForm();
+describe('the recipe field groups (native) — N1: the section`s name is said once, by the editor`s section', () => {
+    it.each(['Ingredients'])('this body says "%s" neither as a heading nor as a label', (name) => {
+        renderForm();
 
-            expect(screen.getAllByRole('heading', { name })).toHaveLength(1);
-            expect(screen.queryAllByLabelText(name)).toEqual([]);
-        },
-    );
+        expect(screen.queryAllByRole('heading', { name })).toEqual([]);
+        expect(screen.queryAllByLabelText(name)).toEqual([]);
+    });
 });

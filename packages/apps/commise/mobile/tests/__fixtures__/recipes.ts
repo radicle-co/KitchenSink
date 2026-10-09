@@ -155,3 +155,20 @@ export function makeSearchResponse(
         ...overrides,
     };
 }
+
+/**
+ * The whole-library read's cached shape (`recipeQueries(client).library`): one chunk holding `recipes`. For a test that
+ * seeds a settled library into the query cache.
+ *
+ * @param recipes - The library.
+ * @returns The infinite-query data of one chunk.
+ */
+export function makeLibraryData(recipes: readonly Recipe[]): {
+    readonly pages: readonly { data: Recipe[]; total: number; hasMore: boolean; nextFirstPage: number }[];
+    readonly pageParams: readonly number[];
+} {
+    return {
+        pages: [{ data: [...recipes], total: recipes.length, hasMore: false, nextFirstPage: 2 }],
+        pageParams: [1],
+    };
+}

@@ -1,7 +1,7 @@
 appId: io.commise.mobile
 ---
 # Recipe visibility toggle, PREMIUM path (US2, T113/T074/C-004). The clone half of T113 is covered by
-# discoverClone.yaml; this closes the visibility half. Signs in, opens an OWNED private recipe, and drives a real
+# discoverDetailSaveCopy.yaml; this closes the visibility half. Signs in, opens an OWNED private recipe, and drives a real
 # Private -> Public -> Private round trip through the control's machine-checkable semantics.
 #
 # ⛔ WHY THIS NO LONGER ASSERTS THE FREE-TIER GATE, and why that is not a weakening. Read before "restoring" it.
@@ -55,49 +55,27 @@ appId: io.commise.mobile
       element: 'Edit recipe'
       direction: DOWN
       timeout: 20000
-# The visibility toggle is a secondary owner action, behind the ⋯ overflow menu (C4 wireframe parity).
+# The visibility change is a secondary owner action in the ⋯ menu (§6.4): "Make public" on a private recipe,
+# "Make private" on a public one. The recipe is seeded private.
 - scrollUntilVisible:
       element: 'More actions for .*'
       direction: DOWN
       timeout: 20000
 - tapOn: 'More actions for .*'
-# Scroll to the "Public" radio (a VISIBLE label) rather than the toggle's group label "Recipe visibility",
-# which is only an accessibility label on the radiogroup container and so isn't a matchable scroll target.
-- scrollUntilVisible:
-      element:
-          text: '^Public$'
-      direction: DOWN
-      timeout: 20000
-
-# The recipe is seeded private, so the private radio is the checked one.
-- assertVisible:
-      text: '^Private$'
-      checked: true
-
-# C-004 for a PREMIUM owner: the private option is NOT gated, and no upgrade reason renders. A gate that wrongly
-# blocked a premium account fails here.
-- assertNotVisible:
-      text: '^Private$'
-      enabled: false
-- assertNotVisible: 'Upgrade to premium to make a recipe private.'
-
-# Private -> Public, stored.
-- tapOn:
-      text: '^Public$'
+# C-004 for a PREMIUM owner nothing is gated; a private recipe offers the way to public.
+- tapOn: 'Make public'
 - extendedWaitUntil:
       visible:
           text: '^Public$'
-          checked: true
       timeout: 40000
 - assertNotVisible: 'We couldn.t change .*'
 
 # Public -> Private: the premium-only transition, and the restore this shared world depends on (see above).
-- tapOn:
-      text: '^Private$'
+- tapOn: 'More actions for .*'
+- tapOn: 'Make private'
 - extendedWaitUntil:
       visible:
           text: '^Private$'
-          checked: true
       timeout: 40000
 
 # Still on the owned detail (no navigation) — the owner action is now above the scrolled position, so scroll

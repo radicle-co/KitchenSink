@@ -2,28 +2,37 @@
  * @module @commise/features-recipes — native recipe-list LOAD-ERROR fallback (presentational): what the list's error
  * boundary renders when the read failed with nothing loaded. Its retry is the boundary's reset, which refetches.
  *
- * It keeps the create dial, because this body has no create CTA to replace it (see `shouldShowCreateDial`).
+ * It keeps the create button, because this body has no create CTA to replace it (see `shouldShowCreateButton`).
  */
 import { useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
+import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
-import { RecipeCreateDial } from './RecipeCreateDial.native.js';
+import { RecipeCreateButton } from './RecipeCreateButton.native.js';
 import type { RecipeListLoadErrorProps } from './model.js';
 
-export const RecipeListLoadError: FC<RecipeListLoadErrorProps> = ({ onRetry, onCreateRecipe, onPasteIngredients }) => {
+export const RecipeListLoadError: FC<RecipeListLoadErrorProps> = ({ onRetry, onCreateRecipe }) => {
     const { list } = useMessages(recipeMessages);
+    const { colors } = useTheme();
 
     return (
         <>
-            <View collapsable={false} accessibilityRole="alert">
-                <Text>{list.errorTitle}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel={list.retry} onPress={onRetry}>
-                    <Text>{list.retry}</Text>
-                </Pressable>
+            <View collapsable={false} accessibilityRole="alert" style={styles.alert}>
+                <Text style={[styles.body, { color: colors.ink }]}>{list.errorTitle}</Text>
+                <Button variant="secondary" icon="rotateCcw" onPress={onRetry}>
+                    {list.retry}
+                </Button>
             </View>
-            <RecipeCreateDial onCreateRecipe={onCreateRecipe} onPasteIngredients={onPasteIngredients} />
+            <RecipeCreateButton onCreateRecipe={onCreateRecipe} />
         </>
     );
 };
+
+const styles = StyleSheet.create({
+    alert: { alignItems: 'flex-start', gap: nativeTokens.spacing[3], paddingVertical: nativeTokens.spacing[6] },
+    body: { ...nativeTokens.type.body },
+});

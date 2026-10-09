@@ -1,0 +1,53 @@
+appId: io.commise.mobile
+---
+# Paste a list in the editor's Ingredients section (build spec §7.5.4; blueprint A5; owner decision D10; UI overhaul
+# slice 8). Mobile mirror of the web Playwright `ingredientPasteList.spec.ts`. REPLACES `parseIngredients.yaml`: the
+# paste and review screens are retired, and the flow ends inside the recipe.
+#
+# What only this tier proves: on a device the pasted lines go to the parse job, each line is a row reading at once, and
+# the POLL advances them into the recipe while the app is foregrounded (the parse worker answers; nothing is tapped
+# between). The field's own system paste menu is the native paste (Settled 34), so the flow types the lines.
+#
+# It discards its draft, so it leaves the library as it found it. It needs the parse worker running (the local
+# runner starts `recipe-workers`).
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+
+# ⚠️ Paste FIRST: D10 offers paste only while the recipe has no server row, and the editor creates that row at the first
+# checkpoint after a title is typed. The empty section offers Paste a list beside its add field.
+# Jump there through the section index, so the button is on screen rather than swiped past.
+- tapOn:
+      text: 'Sections\. Current: .*'
+- extendedWaitUntil:
+      visible: 'Close sections'
+      timeout: 20000
+- tapOn: 'Ingredients'
+- extendedWaitUntil:
+      visible: 'Paste a list'
+      timeout: 20000
+- tapOn: 'Paste a list'
+- assertVisible: 'Ingredient lines'
+- tapOn: 'Ingredient lines'
+# Maestro's inputText drops a newline, so each line is typed and Enter starts the next (the field is multiline).
+- inputText: '2 cups flour'
+- pressKey: Enter
+- inputText: '1 tsp salt'
+- assertVisible: '2 lines'
+- tapOn: 'Add 2 ingredients'
+
+# The sheet closes once the job is accepted, and the poll advances the rows on its own.
+- extendedWaitUntil:
+      notVisible: 'Ingredient lines'
+      timeout: 30000
+# Past the paste's stall bound (3 minutes) too: where the job cannot finish (a local stage whose queue refuses the
+# messages), the lines must still join, through the add field's reader, and never read for good.
+- extendedWaitUntil:
+      notVisible: 'Reading…'
+      timeout: 240000
+      label: 'both pasted lines joined the recipe (settled by the parse job, or past the stall bound by the reader)'
+- assertVisible: 'Ingredient 2 unit'
+
+- runFlow: common/discardDraft.yaml

@@ -3,26 +3,26 @@ appId: io.commise.mobile
 # A line bound to ANOTHER cook's private food, read across the real boundary (plan 002 R9). The signer opens the
 # co-author's public recipe, whose one line (2 tbsp) is bound to the co-author's PRIVATE food. The recipe service
 # sends that line with no name and the status RESOLVED_UNAVAILABLE, and the app shows the stand-in "Private
-# ingredient" in the name's place. The signer then clones it: the clone keeps the binding and the amount, and shows
+# ingredient" in the name's place. The signer then saves a copy: the copy keeps the binding and the amount, and shows
 # a one-time banner saying so.
 #
 # Why a device flow: the Playwright spec mocks the API, so no other tier sees the deployed service decide who may
 # see a food's name. The fixture comes from `e2e-seed provision` (`ensurePrivateFoodRecipe`), which creates the
 # food and the recipe together, as the co-author.
 #
-# Mutates the signer's library (the clone). The next flow's reset deletes it: its title is not in the manifest.
+# Mutates the signer's library (the copy). The next flow's reset deletes it: its title is not in the manifest.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
 - tapOn: 'Discover'
 - extendedWaitUntil:
-      visible: 'Discover recipes'
+      visible: 'Discover'
       timeout: 40000
 
-# Reach the recipe by search, as `discoverClone` and `rating` do: a rail's order is data about the whole sandbox.
+# Reach the recipe by search, as `discoverDetailSaveCopy` and `rating` do: a rail's order is data about the whole sandbox.
 # 'Crostini' is a word of the fixture's base title (`PRIVATE_FOOD_RECIPE` in e2e-seed). Anchored (`^…$`) so the tap selects the row's title, not the
-# per-row "Clone …" button whose label also contains it. The run key in the title keeps other runs' rows out.
-- tapOn: 'Search public recipes'
+# card's "Save a copy of …" button whose label also contains it. The run key in the title keeps other runs' rows out.
+- tapOn: 'Search recipes'
 - inputText: 'Crostini'
 - scrollUntilVisible:
       element:
@@ -48,14 +48,19 @@ appId: io.commise.mobile
 - assertNotVisible:
       text: '.*${E2E_PRIVATE_FOOD_NAME}.*'
 
-# Clone it. The clone control sits in the detail's footer row, as in `discoverClone`.
+# Save a copy from the page, as in `discoverDetailSaveCopy`. The copy opens in the editor (FR-005b) over its own
+# detail; leaving the untouched editor lands on that detail. The editor landmark is its own × ('Close editor').
 - scrollUntilVisible:
-      element: 'Clone'
-      direction: DOWN
+      element: 'Save a copy'
+      direction: UP
       timeout: 20000
-- tapOn: 'Clone'
+- tapOn: 'Save a copy'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 40000
+- back
 
-# FIRST on the copy: the one-time banner. The count behind it rides only on the clone response, which the app
+# FIRST on the copy: the one-time banner. The count behind it rides only on the copy response, which the app
 # writes into its cache; the detail stays fresh for 30 s (`RECIPE_STANDARD_STALE_TIME_MS`), so it is asserted before
 # anything else. The sentence is `detail.clonePrivateFoodsBannerOne`, byte for byte (curly apostrophes).
 - scrollUntilVisible:
@@ -70,7 +75,7 @@ appId: io.commise.mobile
           text: '^2 tbsp Private ingredient$'
       direction: UP
       timeout: 20000
-# And it is the signer's own copy: the owner-only Edit action proves the clone landed, as in `discoverClone`.
+# And it is the signer's own copy: the owner-only Edit action proves the copy landed.
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: UP

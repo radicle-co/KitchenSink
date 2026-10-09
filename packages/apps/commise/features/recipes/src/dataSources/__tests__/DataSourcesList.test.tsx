@@ -18,9 +18,9 @@ describe('DataSourcesList (web)', () => {
         render(<DataSourcesList sources={[makeDataSource(), SWISS_SOURCE, CIQUAL_SOURCE]} />);
 
         expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
-            'USDA',
-            'Swiss Food Composition Database',
-            'Ciqual',
+            makeDataSource().publisher,
+            SWISS_SOURCE.publisher,
+            CIQUAL_SOURCE.publisher,
         ]);
     });
 

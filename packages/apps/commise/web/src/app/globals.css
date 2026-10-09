@@ -8,6 +8,11 @@
    theme import does NOT fix that, which a real `next build` shows and the file-shape guard alone cannot.
    Guarded by `tests/globalsCss.test.ts`; verified by grepping `.next/static/css` after a production build. */
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+/* Clerk's own styles live in the `clerk` layer (`CLERK_CSS_LAYER`) so that the role classes on its elements win: the
+   statement ranks the layer between `base` and `components`, below `utilities`. It must come BEFORE the theme import,
+   whose Tailwind import declares its own order, because the first ordering statement of a layer name fixes its place.
+   A bare `@layer` statement may precede an `@import`; any block rule may not. */
+@layer theme, base, clerk, components, utilities;
 @import '@commise/ui/theme.css';
 
 /* Tailwind v4 auto-scans THIS app's files but not workspace packages. The recipe UI (list, detail, form,
@@ -21,6 +26,21 @@
 @source "../../../ui/src/**/*.{ts,tsx}";
 
 @layer base {
+    /* The document is the scroller, so the reservation under the tab bar and the floating create button (88 px) is its
+       `scroll-padding-bottom`: a focused control scrolled into view is never left under them (WCAG 2.2 SC 2.4.11).
+       Keyed on the bar being in the page, so a page without it (sign-in, a focused task) reserves nothing; the bar is
+       `display: none` from 840, where `:has` still matches, so the value is reset there. Same numbers as `<main>`'s foot
+       in `HomeChrome.tsx`. */
+    html:has([data-tab-bar]) {
+        scroll-padding-bottom: calc(4rem + env(safe-area-inset-bottom) + 6.5rem);
+    }
+
+    @media (width >= 52.5rem) {
+        html:has([data-tab-bar]) {
+            scroll-padding-bottom: 0;
+        }
+    }
+
     body {
         font-family: var(--font-body);
         /* The brand beach-glow canvas (issue #145). All nine wireframes paint their `body` with the SAME named

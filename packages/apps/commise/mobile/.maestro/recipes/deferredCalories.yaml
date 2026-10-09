@@ -88,10 +88,10 @@ appId: io.commise.mobile
 # with its own batch per rail, and the one a viewer meets first.
 - tapOn: 'Discover'
 - extendedWaitUntil:
-      visible: 'Discover recipes'
+      visible: 'Discover'
       timeout: 40000
 
-# ⛔ THE RAILS MUST HAVE RENDERED before "no placeholder" means anything here. 'Discover recipes' is the
+# ⛔ THE RAILS MUST HAVE RENDERED before "no placeholder" means anything here. 'Discover' is the
 # screen's title and renders in the LOADING state too (see `discoverBrowse.yaml`), so waiting on it alone
 # would have let the placeholder assertion below pass over a screen holding zero cards — the same vacuity the
 # list half avoids by anchoring on a seeded row. 'Trending' is the first rail's static heading, rendered only

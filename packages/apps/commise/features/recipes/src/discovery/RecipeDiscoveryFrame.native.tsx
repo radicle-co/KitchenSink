@@ -1,16 +1,16 @@
 /**
- * @module @commise/features-recipes — native discovery FRAME (presentational, T076 / US2).
+ * @module @commise/features-recipes — native discovery FRAME (presentational, T076 / US2; slice 5 of the UI overhaul).
  *
  * The React Native twin of `RecipeDiscoveryFrame`: the same chrome, pinned above the discovery suspense boundary that
- * arrives as `children`, so a pending or failed search never unmounts the field a viewer is typing in.
+ * arrives as `children`, so a pending or failed search never unmounts the field a viewer is typing in
+ * (`docs/design/uiOverhaul/buildSpec.md` §3.3, §4.4, §4.5). The filters arrive in the ONE presentation the container
+ * decided — a 256 pt panel beside the results on a tablet held wide, otherwise a Filters button with the sort, the
+ * applied-filter chips and the sheet — and the count line is one visible element that is also the polite live region,
+ * mounted empty with the frame so it outlives every body the boundary swaps in. Colour is read from the theme at render (D15).
  *
- * Back-to-browse lives HERE, pinned under the filters, rather than in the result grid's scrolling header where it used
- * to sit: in the grid it existed only while results rendered, so a "see all" whose list was still loading or had
- * failed left no way back to the rails. It shows only after a "see all", so it costs the pinned area one 44pt row only
- * in the state that needs it.
- *
- * The settled-results announcement is a polite, visually hidden `LiveRegion`, mounted empty with the frame so it
- * outlives every body the boundary swaps in.
+ * Back-to-browse lives HERE, rather than in the result grid's scrolling header, where it existed only while results
+ * rendered: a "see all" whose list was still loading or had failed would have left no way back to the rails. It shows only
+ * after a "see all", so it costs the pinned area one 44pt row only in the state that needs it.
  *
  * Like its web twin it owns one piece of local UI state — `searchFocused` — gating the recent-search panel (U7) to the
  * idle state. The heading takes the screen-reader cursor when `headingFocusSignal` advances.
@@ -21,27 +21,31 @@
  * (`useCompactHeight`) the heading shares a wrapping row with the field, and the filter trigger, back to browse and the
  * sort share one wrapping row, in the same reading order. While compact AND a keyboard is open (`useFrameCollapsed`)
  * AND the frame's own field has focus, that controls row steps aside; a keyboard raised by the filter sheet's search
- * leaves it alone, because the row holds the filter bar and the sheet it keeps open. ⛔ Two groups hold the chrome in EVERY layout, the field the header group's last child,
- * so the field never changes parent or index: a remounted field would lose focus and its keyboard. The recent-search
- * rows scroll in every layout, and the first tap with the keyboard up lands on a query.
+ * leaves it alone, because the row holds the trigger and the sheet it keeps open. ⛔ Two groups hold the chrome in EVERY
+ * layout, the field the header group's last child, so the field never changes parent or index: a remounted field would
+ * lose focus and its keyboard. The recent-search rows scroll in every layout, and the first tap with the keyboard up lands
+ * on a query. A compact window is never wide enough for the panel (`filterPresentationOf`), so the sheet presentation is
+ * the only one it sees.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
-import { LiveRegion } from '@commise/ui/live-region';
+import { Button } from '@commise/ui/button';
+import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { useCompactHeight, useFrameCollapsed } from '@commise/ui/layout';
+import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
-import { TextInput } from '@commise/ui/text-input';
+import { SearchField } from '@commise/ui/search-field';
+import { useTheme } from '@commise/ui/theme';
 import { useState } from 'react';
-import type { FC } from 'react';
+import type { FC, ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
-import { RecipeSourceTabs } from '../list/RecipeSourceTabs.native.js';
+import { DiscoverySortMenu } from './DiscoverySortMenu.native.js';
 import { discoveryMessages } from './messages.js';
 import {
-    DISCOVERY_SORTS,
-    discoverySortLabel,
+    DISCOVER_SEARCH_ID,
+    DISCOVER_TITLE_ID,
     formatDiscoveryResultsSummary,
     type RecipeDiscoveryFrameProps,
 } from './model.js';
@@ -52,15 +56,16 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
     searching,
     headingFocusSignal,
     resultsSummary,
-    tab,
+    headerAction,
     recentSearches,
-    filterSlot,
+    filters,
     sort,
     onExitToBrowse,
     children,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
+    const { colors } = useTheme();
     const headingRef = useScreenReaderFocusOnSignal<Text>(headingFocusSignal);
 
     // Local UI state ONLY: whether the keyword field holds focus. The recent searches appear on focus and vanish on
@@ -72,49 +77,88 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
         recentSearches !== undefined && recentSearches.queries.length > 0 && searchFocused && !searching;
     const compact = useCompactHeight();
     // ⛔ The keyboard must be the FIELD's: the filter sheet's own ingredient search raises one too, and stepping the
-    // controls aside then would unmount the filter bar and the sheet it holds open, a change of context on focus
+    // controls aside then would unmount the trigger and the sheet it holds open, a change of context on focus
     // (SC 3.2.1). A collapse never unmounts a slot that holds state or a modal.
     const collapsed = useFrameCollapsed() && searchFocused;
-    const hasControls = filterSlot !== undefined || onExitToBrowse !== undefined || sort !== undefined;
+    const sheet = filters?.presentation === 'sheet' ? filters : undefined;
+    const panel = filters?.presentation === 'panel' ? filters : undefined;
+    const sortControl = sort === undefined ? null : <DiscoverySortMenu active={sort.active} onChange={sort.onChange} />;
+    const hasControls = sheet !== undefined || onExitToBrowse !== undefined || sortControl !== null;
 
-    return (
-        <View style={[styles.container, compact && styles.containerCompact]}>
-            {/* ONE header group in every layout, the field its last child, so the field never remounts. */}
-            <View style={compact ? styles.rowGroup : styles.headerGroup}>
-                <Text ref={headingRef} accessibilityRole="header" style={styles.heading}>
-                    {discovery.heading}
-                </Text>
-                {/* L5 — the source switcher; mobile's recipe shell owns its own, so the app passes no `tab`. */}
-                {tab !== undefined && <RecipeSourceTabs tab={tab} />}
-                <TextInput
-                    accessibilityLabel={discovery.searchLabel}
-                    placeholder={discovery.searchPlaceholder}
-                    // Placeholder text is TEXT, so it takes `slate`, never the `mist` hairline tone — see the palette
-                    // JSDoc in `@commise/ui`'s `tokens/colors.ts`.
-                    placeholderTextColor={palette.slate}
-                    value={searchValue}
-                    onChangeText={onSearchChange}
-                    onFocus={() => setSearchFocused(true)}
-                    onBlur={() => setSearchFocused(false)}
-                    style={[styles.search, compact && styles.searchCompact]}
-                />
+    const search: ReactNode = (
+        <SearchField
+            id={DISCOVER_SEARCH_ID}
+            label={discovery.searchLabel}
+            labelVisibility="hidden"
+            clearLabel={discovery.clearSearch}
+            placeholder={discovery.searchPlaceholder}
+            value={searchValue}
+            onChangeText={onSearchChange}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+        />
+    );
+
+    const backToBrowse =
+        onExitToBrowse === undefined ? null : (
+            <View style={styles.start}>
+                <Button variant="ghost" size="sm" icon="chevronLeft" onPress={onExitToBrowse}>
+                    {discovery.backToBrowse}
+                </Button>
             </View>
+        );
+
+    // Mounted empty and never unmounted by a body swap: this is the live region.
+    const count = (
+        <LiveRegion politeness="polite" style={[styles.count, { color: colors.inkMuted }]}>
+            {resultsSummary === undefined ? '' : formatDiscoveryResultsSummary(resultsSummary, discovery, locale)}
+        </LiveRegion>
+    );
+
+    const body = (
+        <View style={panel === undefined ? styles.fill : styles.resultsColumn}>
+            {/* ONE header group in every layout, the field its last child, so the field never remounts. */}
+            {panel === undefined ? (
+                <View style={compact ? styles.rowGroup : styles.headerGroup}>
+                    {/* The large title (slice 3, `buildSpec.md` §3.3) with the avatar; in compact height — a phone held
+                        sideways — the plain heading shares its row with the field, so the results keep their room. */}
+                    {compact ? (
+                        <Text
+                            ref={headingRef}
+                            accessibilityRole="header"
+                            style={[styles.heading, { color: colors.ink }]}
+                        >
+                            {discovery.heading}
+                        </Text>
+                    ) : (
+                        <LargeTitleHeader
+                            headingId={DISCOVER_TITLE_ID}
+                            title={discovery.heading}
+                            focusSignal={headingFocusSignal}
+                            {...(headerAction === undefined ? {} : { action: headerAction })}
+                        />
+                    )}
+                    <View style={compact ? styles.searchCompact : null}>{search}</View>
+                </View>
+            ) : (
+                search
+            )}
             {/* Recent searches (U7): pressing one does NOT blur the field on RN, so the panel survives the tap; it goes
                 once the container sets the chosen query. */}
             {showRecentSearches && (
-                <View style={styles.recentPanel}>
+                <View style={[styles.recentPanel, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
                     <View style={styles.recentHeader}>
-                        <Text accessibilityRole="header" style={styles.recentTitle}>
+                        <Text accessibilityRole="header" style={[styles.overline, { color: colors.inkMuted }]}>
                             {discovery.recentSearchesLabel}
                         </Text>
-                        <Pressable
-                            accessibilityRole="button"
+                        <Button
+                            variant="ghost"
+                            size="sm"
                             accessibilityLabel={discovery.clearRecentSearchesLabel}
                             onPress={recentSearches.onClear}
-                            style={styles.recentClear}
                         >
-                            <Text style={styles.recentClearLabel}>{discovery.clearRecentSearches}</Text>
-                        </Pressable>
+                            {discovery.clearRecentSearches}
+                        </Button>
                     </View>
                     {/* The rows scroll: under a keyboard the panel can outgrow the room left. `handled`, so the first
                         tap with the keyboard up runs the query instead of only closing the keyboard. */}
@@ -127,7 +171,7 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                                 onPress={() => recentSearches.onSelect(query)}
                                 style={styles.recentRow}
                             >
-                                <Text style={styles.recentRowLabel}>{query}</Text>
+                                <Text style={[styles.body, { color: colors.ink }]}>{query}</Text>
                             </Pressable>
                         ))}
                     </ScrollView>
@@ -135,57 +179,60 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
             )}
             {/* ONE controls group in every layout; while collapsed it steps aside for the keyboard. With no control to
                 hold it is not drawn either, so an empty group opens no gap in the frame. */}
-            {collapsed || !hasControls ? null : (
-                <View style={compact ? styles.controlsRow : styles.controlsColumn}>
-                    {filterSlot}
-                    {onExitToBrowse !== undefined && (
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={discovery.backToBrowse}
-                            onPress={onExitToBrowse}
-                            style={styles.backToBrowse}
-                        >
-                            <Text style={styles.backToBrowseText}>{discovery.backToBrowse}</Text>
-                        </Pressable>
-                    )}
-                    {sort !== undefined && (
-                        <View
-                            collapsable={false}
-                            accessibilityRole="radiogroup"
-                            accessibilityLabel={discovery.sortLabel}
-                            style={styles.sortRow}
-                        >
-                            {DISCOVERY_SORTS.map((option) => {
-                                const checked = sort.active === option;
-
-                                return (
-                                    <Pressable
-                                        key={option}
-                                        accessibilityRole="radio"
-                                        // Both state forms are load-bearing (#123). `accessibilityState.checked` is the
-                                        // DEVICE trait; `aria-checked` is the only one react-native-web forwards to the
-                                        // DOM, so without it the web build announced four stateless radios. RN
-                                        // reverse-maps `aria-checked` into `accessibilityState.checked`, so dropping
-                                        // the object form silences the device.
-                                        accessibilityState={{ checked }}
-                                        aria-checked={checked}
-                                        onPress={() => sort.onChange(option)}
-                                        style={[styles.sortChip, checked && styles.sortChipActive]}
-                                    >
-                                        <Text style={checked ? styles.sortLabelActive : styles.sortLabelText}>
-                                            {discoverySortLabel(option, discovery)}
-                                        </Text>
-                                    </Pressable>
-                                );
-                            })}
+            {collapsed || !hasControls ? null : compact ? (
+                <View style={styles.controlsRow}>
+                    {sheet?.trigger}
+                    {sortControl}
+                    {backToBrowse}
+                    {sheet?.applied}
+                </View>
+            ) : (
+                <View style={styles.controlsColumn}>
+                    {sheet === undefined ? (
+                        sortControl
+                    ) : (
+                        <View style={styles.spread}>
+                            {sheet.trigger}
+                            {sortControl}
                         </View>
                     )}
+                    {sheet?.applied}
+                    {backToBrowse}
                 </View>
             )}
-            <LiveRegion politeness="polite" visuallyHidden>
-                {resultsSummary === undefined ? '' : formatDiscoveryResultsSummary(resultsSummary, discovery, locale)}
-            </LiveRegion>
+            {panel === undefined ? (
+                count
+            ) : (
+                <View style={styles.spread}>
+                    {count}
+                    {sortControl}
+                </View>
+            )}
             {children}
+            {sheet?.sheet}
+        </View>
+    );
+
+    return (
+        <View style={[styles.container, compact && styles.containerCompact]}>
+            {panel === undefined ? (
+                body
+            ) : (
+                <>
+                    {compact ? null : (
+                        <LargeTitleHeader
+                            headingId={DISCOVER_TITLE_ID}
+                            title={discovery.heading}
+                            focusSignal={headingFocusSignal}
+                            {...(headerAction === undefined ? {} : { action: headerAction })}
+                        />
+                    )}
+                    <View style={styles.panelRow}>
+                        {panel.panel}
+                        {body}
+                    </View>
+                </>
+            )}
         </View>
     );
 };
@@ -198,57 +245,34 @@ const styles = StyleSheet.create({
         paddingTop: nativeTokens.spacing[2],
     },
     containerCompact: { gap: nativeTokens.spacing[2] },
+    fill: { flex: 1, gap: nativeTokens.spacing[4] },
+    resultsColumn: { flex: 1, minWidth: 0, gap: nativeTokens.spacing[4] },
+    panelRow: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: nativeTokens.spacing[6] },
     headerGroup: { gap: nativeTokens.spacing[4] },
     // Compact height: the heading and the field share a row, and wrap onto two at a large text size or a narrow window.
     rowGroup: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[3] },
-    controlsColumn: { gap: nativeTokens.spacing[4] },
-    controlsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    heading: { fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', color: palette.charcoal },
-    search: {
-        backgroundColor: palette.white,
-        borderRadius: nativeTokens.radius.full,
-        borderWidth: 1,
-        borderColor: nativeTokens.borderSubtle,
-        paddingVertical: nativeTokens.spacing[3],
-        paddingHorizontal: nativeTokens.spacing[4],
-        fontSize: nativeTokens.fontSize.bodyMd,
-        color: palette.charcoal,
-    },
     searchCompact: { flexGrow: 1, flexBasis: 240, minWidth: 0 },
-    sortRow: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
-    sortChip: {
-        borderRadius: nativeTokens.radius.full,
-        paddingHorizontal: nativeTokens.spacing[3],
-        paddingVertical: 6,
-        minHeight: 44,
-        justifyContent: 'center',
-        backgroundColor: palette.pearl,
+    controlsColumn: { gap: nativeTokens.spacing[3] },
+    controlsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
+    spread: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: nativeTokens.spacing[3],
     },
-    sortChipActive: { backgroundColor: palette.charcoal },
-    sortLabelText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.slate },
-    sortLabelActive: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.white },
+    start: { alignSelf: 'flex-start' },
+    heading: { ...nativeTokens.type.largeTitle.narrow },
+    count: { ...nativeTokens.type.meta, fontVariant: ['tabular-nums', 'lining-nums'] },
+    overline: { ...nativeTokens.type.overline },
+    body: { ...nativeTokens.type.body },
     // Recent searches (U7): a card of 44pt-tall rows under the keyword field.
     recentPanel: {
         flexShrink: 1,
-        backgroundColor: palette.white,
-        borderRadius: nativeTokens.radius.lg,
-        borderWidth: 1,
-        borderColor: nativeTokens.borderSubtle,
+        borderRadius: nativeTokens.radius.md,
+        borderWidth: StyleSheet.hairlineWidth,
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
     },
     recentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    recentTitle: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600', color: palette.slate },
-    recentClear: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[1] },
-    recentClearLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette['ocean-dark'] },
     recentRow: { minHeight: 44, justifyContent: 'center' },
-    recentRowLabel: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.charcoal },
-    backToBrowse: {
-        alignSelf: 'flex-start',
-        paddingVertical: 6,
-        paddingHorizontal: nativeTokens.spacing[1],
-        minHeight: 44,
-        justifyContent: 'center',
-    },
-    backToBrowseText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette['ocean-dark'] },
 });

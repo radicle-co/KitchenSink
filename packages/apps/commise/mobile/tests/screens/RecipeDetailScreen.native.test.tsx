@@ -7,6 +7,7 @@
  * Covers EVERY UI path: loading, error, ready, the back affordance, owner-only actions, the tier-gated
  * visibility option, the delete flow, and the clone action for a public recipe the viewer does not own.
  */
+import { CookMarksProvider, recipeActionMessages } from '@commise/features-recipes';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
@@ -79,7 +80,11 @@ function seedRecipe(recipe: RecipeDetail, id = 'rec_1'): void {
 
 /** Render over this test's client and cache — the providers a real app root mounts, the food client's included. */
 function render(ui: ReactElement) {
-    return renderWithRecipeClient(withFoodClient(ui), client, { queryClient });
+    return renderWithRecipeClient(
+        withFoodClient(<CookMarksProvider subject="user_test">{ui}</CookMarksProvider>),
+        client,
+        { queryClient },
+    );
 }
 
 function mutation<T>(overrides: Partial<T> = {}): T {
@@ -371,61 +376,43 @@ describe('RecipeDetailScreen — owner actions', () => {
         useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
     });
 
-    it('opens the editor (primary) and version history (behind More) from the owner actions', () => {
+    it('opens the editor (primary) and version history (in the ⋯ menu) from the owner actions', () => {
         const onEdit = vi.fn();
         const onViewVersions = vi.fn();
 
         render(<RecipeDetailScreen recipeId="rec_1" onEdit={onEdit} onViewVersions={onViewVersions} />);
         fireEvent.click(screen.getByRole('button', { name: 'Edit recipe' }));
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
-        fireEvent.click(screen.getByRole('button', { name: 'Version history' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Version history' }));
 
         expect(onEdit).toHaveBeenCalledWith('rec_1');
         expect(onViewVersions).toHaveBeenCalledWith('rec_1');
     });
 
     /**
-     * ⛔ THE NATIVE HALF OF THE SAME RULE, and it needs its own test rather than trusting the web one: the
-     * slot is an OPTIONAL `ReactNode` on a shared props interface, so a leaf that never renders it
-     * typechecks perfectly and drops the controls silently. That is exactly the §14 class where parity of
-     * EXISTENCE passes and parity of QUALITY does not.
-     *
-     * ⚠️ The mobile suite renders through DOM stubs (`@testing-library/react`, not the native renderer), so
-     * `compareDocumentPosition` reads the real stubbed tree here just as it does on web — the ordering is
-     * the one a `ScrollView` traverses. The screen's own comment used to justify the foot-of-screen position
-     * by saying the ScrollView made those controls reachable; a scroll is what makes them REACHABLE AT ALL,
-     * not what makes them reachable WELL.
+     * ⛔ THE NATIVE HALF OF THE SAME RULE: the slot is an OPTIONAL `ReactNode` on a shared props interface, so a leaf
+     * that never renders it typechecks and drops the controls silently. The ordering is the one a `ScrollView`
+     * traverses: the owner's primary must not sit at the foot of an unbounded scroll.
      */
-    it('⛔ puts Edit ABOVE the recipe body, not at the foot of an unbounded scroll', () => {
+    it('⛔ puts Edit and the ⋯ trigger ABOVE the recipe body', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         const edit = screen.getByRole('button', { name: 'Edit recipe' });
         const ingredients = screen.getByText('Ingredients');
+        const more = screen.getByRole('button', { name: /^More actions for /u });
 
         expect(edit.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-        const more = screen.getByRole('button', { name: /^More actions for /u });
         expect(more.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('invokes onFilterByTag when a tag chip is tapped (D6)', () => {
-        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private', tags: ['grill'] }));
-        const onFilterByTag = vi.fn();
-
-        render(<RecipeDetailScreen recipeId="rec_1" onFilterByTag={onFilterByTag} />);
-        fireEvent.click(screen.getByLabelText('Find recipes tagged grill'));
-
-        expect(onFilterByTag).toHaveBeenCalledWith('grill');
-    });
-
-    it('confirms and runs a delete, then navigates away', () => {
+    it('confirms and runs a delete from the menu’s destructive action, then navigates away', () => {
         const mutate = vi.fn((_id: string, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
         useDeleteRecipeMock.mockReturnValue(mutation<ReturnType<typeof useDeleteRecipe>>({ mutate: mutate as never }));
         const onDeleted = vi.fn();
 
         render(<RecipeDetailScreen recipeId="rec_1" onDeleted={onDeleted} />);
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
-        fireEvent.click(screen.getByRole('button', { name: 'Delete recipe' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
         // The dialog's confirm repeats the trigger's verb (spec §6.5); it is the one inside the alert.
         fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Delete recipe' }));
 
@@ -433,7 +420,7 @@ describe('RecipeDetailScreen — owner actions', () => {
         expect(onDeleted).toHaveBeenCalledTimes(1);
     });
 
-    it('changes visibility for a premium owner', () => {
+    it('makes the owner’s private recipe public from the menu', () => {
         const mutate = vi.fn();
         useSetRecipeVisibilityMock.mockReturnValue(
             mutation<ReturnType<typeof useSetRecipeVisibility>>({ mutate: mutate as never }),
@@ -441,7 +428,7 @@ describe('RecipeDetailScreen — owner actions', () => {
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
-        fireEvent.click(screen.getByRole('radio', { name: 'Public' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
         expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'public' });
     });
@@ -453,20 +440,32 @@ describe('RecipeDetailScreen — owner actions', () => {
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
-        fireEvent.click(screen.getByRole('button', { name: 'Delete recipe' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
 
         expect(screen.getByText('We couldn’t delete this recipe. Try again.')).toBeTruthy();
     });
 
-    it('surfaces a failed visibility change on the toggle (B17: no silent snap-back)', () => {
+    it('surfaces a failed visibility change on the screen (B17: no silent snap-back)', () => {
         useSetRecipeVisibilityMock.mockReturnValue(
             mutation<ReturnType<typeof useSetRecipeVisibility>>({ error: new Error('network down') as never }),
         );
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
         expect(screen.getByText('We couldn’t change who can see this recipe. Please try again.')).toBeTruthy();
+    });
+
+    it('offers Clear checks once a row is checked, and it clears them', () => {
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        const row = screen.getAllByRole('checkbox')[0] as HTMLElement;
+        fireEvent.click(row);
+        expect(row.getAttribute('aria-checked')).toBe('true');
+
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Clear checks' }));
+
+        expect(screen.getAllByRole('checkbox')[0]?.getAttribute('aria-checked')).toBe('false');
     });
 });
 
@@ -507,56 +506,27 @@ describe('RecipeDetailScreen — the ambiguity review is the owner’s alone', (
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        expect(screen.getByRole('button', { name: 'Clone' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Save a copy' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Review ingredient matches' })).toBeNull();
     });
 });
 
-describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', () => {
+describe('RecipeDetailScreen — owner actions are design-system controls (U8)', () => {
     beforeEach(() => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
     });
 
-    /** The DS `Button`'s visible pill — the element inside the accessible button that paints the surface. */
-    const pillOf = (name: string): HTMLElement => {
-        const button = screen.getByRole('button', { name });
-        const pill = button.firstElementChild;
-        expect(pill).not.toBeNull();
-
-        return pill as HTMLElement;
-    };
-
     /**
-     * ⛔ THE CONFIRMATION MUST BE AN OVERLAY, NOT A BLOCK IN THE SCROLL — and this guards a defect that
-     * actually shipped in this diff before review caught it. `RecipeDeleteDialog.native` used to be an inline
-     * block: it rendered wherever it sat in this screen's tree. When the owner actions moved into the detail's
-     * title band, the Delete trigger went with them and the card stayed the LAST CHILD of the ScrollView — so
-     * tapping Delete opened a confirmation below the hero, every ingredient, every step and the rating block.
-     * Off-screen. No visible response to a destructive action.
-     *
-     * ⚠️ The web leaf never had this failure, because Radix portals its `AlertDialog`. That asymmetry is the
-     * trap: a `.native.tsx` can be a faithful 1:1 port of the web markup, pass every §14 parity check, and
-     * still be broken — which is precisely the web→mobile translation gap §3.6 exists for.
-     *
-     * ⚠️ This asserts the SCRIM, not a margin. An earlier fix gave the card `marginHorizontal` to restore the
-     * inset a deleted wrapper had been supplying; that treated the symptom (the card touched the screen edges)
-     * and left the cause (it was in the scroll at all). The backdrop supersedes it — the inset now comes from
-     * the overlay's own padding, which cannot be stranded by deleting a wrapper. Only an overlay paints a
-     * scrim, so the background colour is the load-bearing half of this assertion and the padding is the half
-     * that pins the gutter.
-     *
-     * ⚠️ REWRITTEN for `docs/design/compactHeightLayout.md` §9: the dialog now sits on the design system's
-     * `DialogFrame`, so the scrim is the charcoal token (it was a near-charcoal `rgba(44, 62, 80, 0.4)` of its own),
-     * it sits one keyboard-avoiding layer above the card rather than directly around it, and its padding is each
-     * edge's safe-area inset with the 16 dp gutter as the floor. The native suite's stub insets are 24 (top), 16
-     * (bottom) and 0 at the sides, so the sides show the floor and the top shows the inset. The claim is unchanged:
-     * only an overlay paints a scrim around the card.
+     * ⛔ THE CONFIRMATION MUST BE AN OVERLAY, NOT A BLOCK IN THE SCROLL: an inline card at the end of the ScrollView
+     * once opened below every step, off-screen, with no visible response to a destructive action. Only an overlay
+     * paints the scrim, so the scrim colour is the load-bearing half and the padding pins the gutter (the native
+     * suite's stub insets are 24 top, 0 at the sides, so the sides show the 16 dp floor).
      */
     it('⛔ renders the delete confirmation as an overlay, not a block at the foot of the scroll', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
-        fireEvent.click(screen.getByRole('button', { name: mobileMessages.en.recipes.deleteAction }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
 
         const scrimColour = tint(palette.charcoal, 0.4).replace(/\s/gu, '');
         let scrim: Element | null = screen.getByRole('alert').parentElement;
@@ -565,34 +535,30 @@ describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', 
             scrim = scrim.parentElement;
         }
 
-        // The scrim: only an overlay paints one. An inline card in the scroll has no such ancestor.
         expect(scrim).not.toBeNull();
 
         const style = window.getComputedStyle(scrim as Element);
 
-        // The screen's 16 dp content gutter where no inset is deeper, the inset where one is.
         expect(style.paddingLeft).toBe('16px');
         expect(style.paddingRight).toBe('16px');
         expect(style.paddingTop).toBe('24px');
     });
 
-    it('labels every owner action from the localized dictionary (no literals)', () => {
+    it('labels every owner action from the shared action dictionary (no literals)', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        // Resolved from `mobileMessages.en.recipes`, so a dropped key fails here rather than shipping a blank
-        // or English-only control.
-        const t = mobileMessages.en.recipes;
-        expect(screen.getByRole('button', { name: t.editAction })).toBeTruthy();
+        const t = recipeActionMessages.en.detailActions;
+        expect(screen.getByRole('button', { name: t.editRecipe })).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
-        expect(screen.getByRole('button', { name: t.versionsAction })).toBeTruthy();
-        expect(screen.getByRole('button', { name: t.deleteAction })).toBeTruthy();
+        expect(screen.getByRole('menuitem', { name: t.versionHistory })).toBeTruthy();
+        expect(screen.getByRole('menuitem', { name: t.deleteRecipe })).toBeTruthy();
     });
 
     // REWRITTEN in UI-overhaul slice 2: the DS primary tier is ONE flat `action` fill (the gradient was removed).
     it('paints the primary Edit action with the DS primary tier’s flat action fill', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        const edit = screen.getByRole('button', { name: mobileMessages.en.recipes.editAction });
+        const edit = screen.getByRole('button', { name: recipeActionMessages.en.detailActions.editRecipe });
         const painted = [edit, ...Array.from(edit.querySelectorAll<HTMLElement>('*'))].map(
             (element) => window.getComputedStyle(element).backgroundColor,
         );
@@ -601,48 +567,34 @@ describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', 
         expect(edit.querySelector('[data-commise-stub="linear-gradient"]')).toBeNull();
     });
 
-    it('paints the destructive Delete action as the DS destructive tier (a danger label, not a bare one)', () => {
+    it('gives Edit recipe a 44pt touch target', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
-        const pill = pillOf(mobileMessages.en.recipes.deleteAction);
-        const style = window.getComputedStyle(pill);
-        // ⚠️ REWRITTEN in UI-overhaul slice 2: the inline destructive tier is a `dangerText` label on the neutral
-        // surface (`paper`, a `lineControl` edge). Read from the TOKENS, so a palette move is not a regression here.
-        expect(style.borderTopColor).toBe(rgb(role.lineControl));
-        expect(style.backgroundColor).toBe(rgb(role.paper));
-        expect(window.getComputedStyle(screen.getByText(mobileMessages.en.recipes.deleteAction)).color).toBe(
-            rgb(role.dangerText),
-        );
-        // Not the gradient tier.
-        expect(
-            screen
-                .getByRole('button', { name: mobileMessages.en.recipes.deleteAction })
-                .querySelector('[data-commise-stub="linear-gradient"]'),
-        ).toBeNull();
-    });
+        const edit = screen.getByRole('button', { name: recipeActionMessages.en.detailActions.editRecipe });
 
-    it('gives every owner action a 44pt touch target', () => {
-        render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
-
-        const t = mobileMessages.en.recipes;
-
-        for (const name of [t.editAction, t.versionsAction, t.deleteAction]) {
-            expect(window.getComputedStyle(pillOf(name)).minHeight).toBe('44px');
-        }
+        expect(window.getComputedStyle(edit.firstElementChild as Element).minHeight).toBe('44px');
     });
 });
 
-describe('RecipeDetailScreen — visibility gating', () => {
-    it('shows the upgrade reason for a free-tier owner', () => {
-        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1' }));
+describe('RecipeDetailScreen — visibility gating (C-004)', () => {
+    it('offers a free-tier owner no Make private', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'free'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
-        expect(screen.getByText('Upgrade to premium to make a recipe private.')).toBeTruthy();
+        expect(screen.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
+    });
+
+    it('offers a premium owner Make private', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public' }));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+
+        expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeTruthy();
     });
 });
 
@@ -683,7 +635,13 @@ describe('RecipeDetailScreen — rating error does not leak across a recipeId ch
         expect(screen.getByText('Saving your rating…')).toBeTruthy();
 
         // Reuse the screen for recipe B WITHOUT placing a new rating (deep-link/replace path).
-        rerender(withFoodClient(<RecipeDetailScreen recipeId="rec_2" />));
+        rerender(
+            withFoodClient(
+                <CookMarksProvider subject="user_test">
+                    <RecipeDetailScreen recipeId="rec_2" />
+                </CookMarksProvider>,
+            ),
+        );
 
         expect(deleteRatingInstances).toBe(2);
         expect(screen.queryByRole('alert')).toBeNull();
@@ -692,20 +650,20 @@ describe('RecipeDetailScreen — rating error does not leak across a recipeId ch
     });
 });
 
-describe('RecipeDetailScreen — clone', () => {
-    it('groups the Clone action with the version + visibility badges in ONE footer row (C3)', () => {
-        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public', currentVersion: 2 }));
+describe('RecipeDetailScreen — Save a copy', () => {
+    it('gives another cook of a public recipe Save a copy as the primary, before the recipe body', () => {
+        seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public' }));
         useUserProfileMock.mockReturnValue(profile('usr_viewer'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        const footer = screen.getByLabelText('Recipe status');
-        expect(within(footer).getByRole('button', { name: 'Clone' })).toBeTruthy();
-        expect(within(footer).getByText('v2')).toBeTruthy();
-        expect(within(footer).getByText('Public')).toBeTruthy();
+        const copy = screen.getByRole('button', { name: 'Save a copy' });
+        expect(
+            copy.compareDocumentPosition(screen.getByText('Ingredients')) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
     });
 
-    it('clones a public recipe the viewer does not own and reports the new id', () => {
+    it('saves a copy of a public recipe the viewer does not own and reports the new id', () => {
         const cloned = makeRecipeDetail({ id: 'rec_clone' });
         seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public' }));
         useUserProfileMock.mockReturnValue(profile('usr_viewer'));
@@ -716,28 +674,20 @@ describe('RecipeDetailScreen — clone', () => {
         const onCloned = vi.fn();
 
         render(<RecipeDetailScreen recipeId="rec_1" onCloned={onCloned} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Clone' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Save a copy' }));
 
         expect(mutate).toHaveBeenCalledWith('rec_1', expect.objectContaining({ onSuccess: expect.any(Function) }));
         expect(onCloned).toHaveBeenCalledWith('rec_clone');
     });
 
-    it('does NOT render Clone for the viewer’s OWN public recipe (D7 parity — matches web)', () => {
-        // D7: the shared `canClone` predicate excludes the owner even on a PUBLIC recipe. Regression guard for
-        // the drift this task fixes — web previously ignored ownership here while mobile checked it; now both
-        // platforms read the SAME predicate, so an inverted/dropped ownership check fails this test.
+    it('does NOT render Save a copy for the viewer’s OWN public recipe (D7 parity — matches web)', () => {
         seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', visibility: 'public' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        expect(screen.queryByRole('button', { name: 'Clone' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Save a copy' })).toBeNull();
     });
 });
 
 /** A design-token hex (`#RRGGBB`) as the `rgb(r, g, b)` string a resolved computed style reports. */
-function rgb(hex: string): string {
-    const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
-
-    return `rgb(${channels.join(', ')})`;
-}

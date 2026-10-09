@@ -1,41 +1,36 @@
 'use client';
 
 /**
- * @module components/app/AppShell — the app-wide navigation shell (web; W1/L9, FR-044/FR-046).
+ * @module components/app/AppShell — the app-wide navigation shell (web; `docs/design/uiOverhaul/buildSpec.md` §3).
  *
- * Wraps an authenticated surface in the shared {@link HomeChrome}: the desktop left sidebar, the sticky top
- * bar, and — below the `lg` breakpoint — the bottom tab bar + hamburger drawer. Every authenticated route
- * (Home, the recipe list, …) renders inside this ONE shell so the navigation is consistent across the app
- * instead of living only on Home; each surface passes its own `activeId` for the active destination.
+ * Wraps an authenticated page in {@link HomeChrome} — the sidebar from `nav` (840), the bottom tab bar below it — and
+ * in the page's one `ScrollHost`, so the tab bar's second tap, the floating create button and "Back to top" read one
+ * scroll. Each page passes its `activeId`.
  *
- * `liveCapabilities` is the set of deployed backend capabilities — an app-wide fact, not a per-page one — so
- * it is owned here once and reused by every surface (and by Home's widget curation). The responsive cutover
- * is the shared `lg` token (see HomeSidebar / HomeTabBar): sidebar at desktop widths, bottom nav at tablet +
- * mobile widths.
+ * `titleId` names the page in the document title, "{page} · Commise". Routes pass an id rather than a string because
+ * they are SERVER components with no locale context, while this shell is a client component that has it; an id-keyed
+ * copy record makes a page without a title a compile error.
  *
- * **The top bar names the SURFACE, resolved here from a `titleId`.** It used to render one hard-coded 'Home'
- * for all 15 shell-hosted routes. A route passes a {@link ShellSurfaceId} rather than a resolved string
- * because those routes are SERVER components with no locale context while this shell (a client component)
- * already has it — and an id-keyed copy record makes a surface without a title a COMPILE error instead of a
- * blank bar. `titleId` is optional and defaults to Home, so a caller that says nothing behaves exactly as
- * before. See `components/app/shellSurfaces.ts` for why surfaces are a separate axis from nav destinations.
- *
- * ⚠️ It is ORCHESTRATION, and exactly ONE line makes it so: `useUserProfile()`, the read that puts the
- * signed-in cook's name in the top bar. Everything else here is layout, so the component reads as a wrapper
- * and the split between it and {@link HomeChrome} — which owns no data at all — is invisible unless stated.
- * The rule the pair encodes: data enters the chrome HERE, and never below.
+ * ⚠️ ORCHESTRATION, through exactly three reads: the signed-in profile (`useUserProfile`, for the sidebar's profile
+ * row), the router (the sidebar's New recipe opens the editor or the paste page) and the locale. `HomeChrome` below it
+ * owns no data at all: data enters the chrome HERE, and never below.
  *
  * @pattern Composition root binding the signed-in profile read and the app-wide capability set to the pure
  *     `HomeChrome` shell — the one place chrome learns who is signed in and what is deployed.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
+import { RECIPE_HOME_WIDGET_CAPABILITY, RecipeCreateButton } from '@commise/features-recipes';
 import type { HomeNavItemId } from '@commise/features-core';
+import { ScrollHost } from '@commise/ui/scroll-host';
 import { SnackbarHost } from '@commise/ui/snackbar';
-import type { FC, ReactNode } from 'react';
+import type { Route } from 'next';
+import { useRouter } from 'next/navigation';
+import { useEffect, type FC, type ReactNode } from 'react';
 
 import { DEFAULT_SHELL_SURFACE_ID, type ShellSurfaceId } from '@/components/app/shellSurfaces';
+import { useSearchShortcut } from '@/components/app/useSearchShortcut';
 import { HomeChrome } from '@/components/home/chrome/HomeChrome';
+import { profileEntryOf } from '@commise/features-core';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 
@@ -53,10 +48,7 @@ export interface AppShellProps {
      * of them (the 404 page). Required, so a surface states it rather than inheriting one.
      */
     readonly activeId: HomeNavItemId | null;
-    /**
-     * Which surface the top bar names. Defaults to `'home'` — the value the bar hard-coded before it became
-     * per-surface — so an un-migrated caller renders exactly what it did before.
-     */
+    /** Which page the document title names. Defaults to `'home'`. */
     readonly titleId?: ShellSurfaceId;
     /**
      * Whether this surface owns the bottom edge — see `HomeChromeProps.focusedTask`. Set by the recipe
@@ -69,11 +61,10 @@ export interface AppShellProps {
 }
 
 /**
- * The authenticated app shell. Resolves the chrome copy, the surface title, the active locale, and the viewer
- * name, then renders {@link HomeChrome} around `children`.
+ * The authenticated app shell.
  *
- * @param props - The active destination id, the surface title id, and the surface content.
- * @returns The surface wrapped in the shared navigation chrome.
+ * @param props - The active destination id, the page title id, whether the page is a focused task, and the page.
+ * @returns The page in the shared navigation chrome and its scroll host.
  */
 export const AppShell: FC<AppShellProps> = ({
     activeId,
@@ -83,20 +74,38 @@ export const AppShell: FC<AppShellProps> = ({
 }) => {
     const { home } = useMessages(webMessages);
     const locale = useLocale();
-    const displayName = useUserProfile().data?.user.displayName;
+    const router = useRouter();
+    const profile = profileEntryOf(useUserProfile());
+    const pageTitle = home.chrome.pageTitles[titleId];
+
+    // `/` focuses the page's search field, unless the cook is typing or has turned it off (A18, WCAG 2.1.4).
+    useSearchShortcut();
+
+    // @sideEffect The document title names the page: "{page} · Commise" (`buildSpec.md` §3.3).
+    useEffect(() => {
+        document.title = `${pageTitle} · ${home.chrome.wordmark}`;
+    }, [home.chrome.wordmark, pageTitle]);
 
     return (
-        <HomeChrome
-            chrome={home.chrome}
-            pageTitle={home.chrome.pageTitles[titleId]}
-            locale={locale}
-            liveCapabilities={LIVE_CAPABILITIES}
-            activeId={activeId}
-            displayName={displayName}
-            focusedTask={focusedTask}
-        >
-            {/* The app's one snackbar host, inside the shell's popup insets so a snackbar sits above the tab bar. */}
-            <SnackbarHost>{children}</SnackbarHost>
-        </HomeChrome>
+        <ScrollHost>
+            <HomeChrome
+                chrome={home.chrome}
+                locale={locale}
+                liveCapabilities={LIVE_CAPABILITIES}
+                activeId={activeId}
+                profile={profile}
+                focusedTask={focusedTask}
+                // The sidebar's New recipe opens the empty editor in one tap (`buildSpec.md` §3.4, slice 8).
+                newRecipe={(collapsed) => (
+                    <RecipeCreateButton
+                        appearance={collapsed ? 'rail' : 'sidebar'}
+                        onCreateRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
+                    />
+                )}
+            >
+                {/* The app's one snackbar host, inside the shell's popup insets so a snackbar sits above the tab bar. */}
+                <SnackbarHost>{children}</SnackbarHost>
+            </HomeChrome>
+        </ScrollHost>
     );
 };

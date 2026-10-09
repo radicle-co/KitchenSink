@@ -336,6 +336,13 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-cover-warning: #FDEFD9;
               --color-pro-fill: #D4A574;
               --color-pro-ink: #2D3436;
+              --color-difficulty-easy-fill: rgba(76, 175, 124, 0.15);
+              --color-difficulty-easy-ink: #2A6B65;
+              --color-difficulty-medium-fill: rgba(245, 176, 65, 0.15);
+              --color-difficulty-medium-ink: #8C5A00;
+              --color-difficulty-hard-fill: rgba(232, 145, 122, 0.15);
+              --color-difficulty-hard-ink: #2D3436;
+              --color-bar: rgba(255, 255, 255, 0.92);
           }
 
           @media (prefers-color-scheme: dark) {
@@ -373,9 +380,16 @@ describe('web tokens — generated theme.css artifact', () => {
                   --color-cover-premium: #46392C;
                   --color-cover-success: #283C2E;
                   --color-cover-warning: #4D3C21;
+                  --color-difficulty-easy-fill: rgba(76, 175, 124, 0.18);
+                  --color-difficulty-easy-ink: #7DC7C0;
+                  --color-difficulty-medium-fill: rgba(245, 176, 65, 0.18);
+                  --color-difficulty-medium-ink: #EFBA64;
+                  --color-difficulty-hard-fill: rgba(232, 145, 122, 0.18);
+                  --color-difficulty-hard-ink: #EDE9E4;
                   --color-glass-card-edge: rgba(255, 255, 255, 0.12);
                   --color-glass-subtle-edge: rgba(255, 255, 255, 0.12);
                   --background-image-hero: linear-gradient(135deg, #141210 0%, #101714 50%, #0F181A 100%);
+                  --color-bar: rgba(39, 35, 32, 0.94);
               }
           }
 

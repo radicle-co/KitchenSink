@@ -164,6 +164,52 @@ describe('FieldLabel (native)', () => {
     });
 });
 
+describe('FieldLabel → field focus (native)', () => {
+    // A web `<label for>` focuses its field when pressed; React Native has no label element, so the native label
+    // asks the field it names to take focus. Maestro's `tapOn: 'Name'` is that press (the new-collection sheet's
+    // Name field never took focus from it, so the flow typed into nothing and its Back closed the sheet).
+    it('focuses the Input it names when the label is pressed', () => {
+        render(<LabelledInput />);
+
+        fireEvent.click(screen.getByText('Email'));
+
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Email' }));
+    });
+
+    it('focuses the TextArea it names when the label is pressed', () => {
+        render(
+            <>
+                <FieldLabel forId="notes" label="Notes" />
+                <TextArea id="notes" value="" onChangeText={vi.fn()} minRows={2} />
+                <FieldLabel forId="other" label="Other" />
+                <Input id="other" value="" onChangeText={vi.fn()} />
+            </>,
+        );
+
+        fireEvent.click(screen.getByText('Notes'));
+
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Notes' }));
+        expect(document.activeElement).not.toBe(screen.getByRole('textbox', { name: 'Other' }));
+    });
+
+    it('focuses the field again after it remounts, and nothing once it has gone', () => {
+        const { rerender } = render(<LabelledInput key="first" />);
+        rerender(<LabelledInput key="second" />);
+
+        fireEvent.click(screen.getByText('Email'));
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Email' }));
+
+        rerender(<FieldLabel forId="email" label="Email" />);
+        expect(() => fireEvent.click(screen.getByText('Email'))).not.toThrow();
+    });
+
+    it('adds no control of its own: the label is text, not a button', () => {
+        render(<LabelledInput />);
+
+        expect(screen.queryByRole('button')).toBeNull();
+    });
+});
+
 describe('TextArea (native)', () => {
     /**
      * Type into the field with the content standing at `height`. react-native-web measures a multi-line field's content

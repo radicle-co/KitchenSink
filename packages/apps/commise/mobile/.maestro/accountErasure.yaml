@@ -56,8 +56,7 @@
 # landing assertion rather than where the mistake is.
 #
 # Both non-bare selector forms used below are already exercised green by this suite, so neither is a new bet:
-# `enabled: false` on `assertVisible` by `recipes/collectionsVisibility.yaml` (a disabled 'Save changes')
-# and `recipes/conflictMerge.yaml`, and relative-position anchoring by `recipes/rating.yaml`'s
+# `enabled: false` on `assertVisible` by `recipes/conflictMerge.yaml`, and relative-position anchoring by `recipes/rating.yaml`'s
 # `above: 'New'`.
 
 appId: io.commise.mobile
@@ -75,12 +74,11 @@ appId: io.commise.mobile
       env:
           E2E_SIGNIN_EMAIL: ${E2E_ERASURE_EMAIL}
 
-# Cross into the profile surface, then into the account hub that owns the danger zone.
-- tapOn: 'Profile'
+# Cross into the Profile page, whose last group is the danger zone (the "Account settings" hub is gone).
+- tapOn: 'Profile.*'
 - scrollUntilVisible:
-      element: 'Account settings'
+      element: 'Erase my data'
       direction: DOWN
-- tapOn: 'Account settings'
 
 - assertVisible: 'Erase my data'
 - tapOn: 'Erase my data'
@@ -120,4 +118,4 @@ appId: io.commise.mobile
 
 # Nothing authenticated survives: the danger zone the viewer was just standing in is gone, not merely covered.
 - assertNotVisible: 'Erase my data'
-- assertNotVisible: 'Account settings'
+- assertNotVisible: 'Danger zone'

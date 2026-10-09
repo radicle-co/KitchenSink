@@ -23,7 +23,7 @@ import {
     type SendResult,
 } from '@kitchensink/sync';
 
-import { SyncProvider, useSyncQueue } from '../syncProvider.js';
+import { SyncProvider, useSyncQueue, type SyncQueue } from '../syncProvider.js';
 
 /** Surfaces the queue's own state as text, so assertions read what a component would see. */
 function Probe(): ReactElement {
@@ -633,5 +633,163 @@ describe('SyncProvider — a wait the server asked for', () => {
         });
         await waitFor(() => expect(send).toHaveBeenCalledTimes(3));
         await waitFor(() => expect(screen.getByText('pending:0')).toBeTruthy());
+    });
+});
+
+/** Hands the test the queue a component would see. Assigned during render on purpose: a test-only window. */
+function captureQueue(): { readonly current: () => SyncQueue; readonly Capture: () => ReactElement } {
+    let queue: SyncQueue | undefined;
+
+    return {
+        current: () => {
+            if (queue === undefined) {
+                throw new Error('queue not captured');
+            }
+
+            return queue;
+        },
+        Capture: () => {
+            queue = useSyncQueue();
+
+            return <Probe />;
+        },
+    };
+}
+
+/**
+ * The editor's lane (slice 7): one server write per recipe at a time, the answer delivered to whoever queued it by the
+ * record's sequence number, and a parked record leaving only when the editor (on the cook's choice) withdraws it.
+ */
+describe('SyncProvider — the editor`s exclusive submit, replies and withdrawal', () => {
+    it('queues an exclusive write, and reports a record on the wire instead of queueing beside it', async () => {
+        let release: (() => void) | undefined;
+        const send = vi.fn(
+            async (): Promise<SendResult> =>
+                new Promise((resolve) => {
+                    release = () => resolve({ outcome: 'ok', serverId: 'r1' });
+                }),
+        );
+        const { current, Capture } = captureQueue();
+
+        render(
+            <SyncProvider subject="user_a" send={send as never}>
+                <Capture />
+            </SyncProvider>,
+        );
+
+        let first: unknown;
+        await act(async () => {
+            first = await current().submitExclusive(updateOf('r1'));
+        });
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+
+        let second: unknown;
+        await act(async () => {
+            second = await current().submitExclusive(updateOf('r1'));
+        });
+
+        expect(first).toStrictEqual({ kind: 'queued', seq: 1 });
+        expect(second).toStrictEqual({ kind: 'inFlight', seq: 1 });
+
+        await act(async () => {
+            release?.();
+        });
+        await waitFor(() => expect(screen.getByText('pending:0')).toBeTruthy());
+        expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('delivers each settlement, with the sender`s answer, to every subscriber until it unsubscribes', async () => {
+        const answer = { kind: 'recipeWritten', detail: { id: 'r1', currentVersion: 4 } };
+        const send = vi.fn(async (): Promise<SendResult> => ({ outcome: 'ok', serverId: 'r1', answer }));
+        const { current, Capture } = captureQueue();
+        const heard: unknown[] = [];
+
+        render(
+            <SyncProvider subject="user_a" send={send as never}>
+                <Capture />
+            </SyncProvider>,
+        );
+
+        const unsubscribe = current().subscribe((event) => heard.push(event));
+
+        await act(async () => {
+            await current().submitExclusive(updateOf('r1'));
+        });
+        await waitFor(() => expect(heard).toHaveLength(1));
+
+        expect(heard[0]).toStrictEqual({
+            seq: 1,
+            entity: 'recipe',
+            localId: 'r1',
+            intentKind: 'update',
+            outcome: 'synced',
+            serverId: 'r1',
+            answer,
+        });
+
+        unsubscribe();
+        await act(async () => {
+            await current().submitExclusive(updateOf('r1'));
+        });
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+        expect(heard).toHaveLength(1);
+    });
+
+    it('a parked write carries its sequence number, blocks the lane, and leaves when withdrawn', async () => {
+        const send = vi.fn(async (): Promise<SendResult> => ({ outcome: 'failed', status: 409 }));
+        const { current, Capture } = captureQueue();
+
+        render(
+            <SyncProvider subject="user_a" send={send as never}>
+                <Capture />
+            </SyncProvider>,
+        );
+
+        await act(async () => {
+            await current().submitExclusive(updateOf('r1'));
+        });
+        await waitFor(() => expect(screen.getByText('failed:1')).toBeTruthy());
+
+        expect(current().failures).toStrictEqual([
+            { seq: 1, entity: 'recipe', intentKind: 'update', localId: 'r1', status: 409 },
+        ]);
+
+        let blocked: unknown;
+        await act(async () => {
+            blocked = await current().submitExclusive(updateOf('r1'));
+        });
+        expect(blocked).toStrictEqual({ kind: 'parked', seq: 1, status: 409 });
+
+        await act(async () => {
+            await current().withdraw(1);
+        });
+        await waitFor(() => expect(screen.getByText('failed:0')).toBeTruthy());
+        expect(screen.getByText('pending:0')).toBeTruthy();
+    });
+
+    it('answers the server id a created ref resolved to', async () => {
+        const send = vi.fn(async (): Promise<SendResult> => ({ outcome: 'ok', serverId: 'srv-9' }));
+        const { current, Capture } = captureQueue();
+
+        render(
+            <SyncProvider subject="user_a" send={send as never}>
+                <Capture />
+            </SyncProvider>,
+        );
+
+        expect(current().resolutionOf('local:recipe:a')).toBeUndefined();
+
+        await act(async () => {
+            await current().submitExclusive({
+                entity: 'recipe',
+                intentKind: 'create',
+                localId: 'local:recipe:a',
+                produces: 'local:recipe:a',
+                dependsOn: [],
+                payload: {},
+            });
+        });
+
+        await waitFor(() => expect(current().resolutionOf('local:recipe:a')).toBe('srv-9'));
     });
 });

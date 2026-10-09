@@ -66,6 +66,7 @@ export default defineConfig({
         // Above `ASYNC_UTIL_TIMEOUT_MS` (`@commise/test-utils/async-util-budget`).
         testTimeout: 15_000,
         include: ['tests/**/*.native.test.tsx'],
+        server: { deps: { inline: [/@react-navigation\//, /react-native-screens/] } },
         exclude: ['node_modules', 'dist'],
 
         // `src/config/env.ts` validates the app's endpoints at MODULE LOAD and has no defaults, so any
@@ -102,6 +103,8 @@ export default defineConfig({
             // bridge to native views with no jsdom runtime — stub them; real gradient/blur is emulator-only.
             'expo-linear-gradient': path.resolve(import.meta.dirname, 'tests/stubs/expoLinearGradient.tsx'),
             'expo-blur': path.resolve(import.meta.dirname, 'tests/stubs/expoBlur.tsx'),
+            // `@commise/ui/keep-awake`'s native hold (Screen on) calls a native module with no jsdom runtime.
+            'expo-keep-awake': fileURLToPath(import.meta.resolve('@commise/ui/testing/expo-keep-awake')),
             // F1 — the analytics event-id minter's native leaf delegates to expo-crypto (Hermes has no
             // `crypto` global); the stub answers Node's own UUIDs so picker suites run un-networked.
             'expo-crypto': path.resolve(import.meta.dirname, 'tests/stubs/expoCrypto.ts'),

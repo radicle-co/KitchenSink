@@ -39,3 +39,4 @@ flows:
     - '*'
     - 'auth/loginFlow.yaml'
     - 'recipes/*'
+    - 'shell/tabBar.yaml'

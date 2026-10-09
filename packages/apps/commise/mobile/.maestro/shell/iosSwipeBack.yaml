@@ -1,0 +1,23 @@
+appId: io.commise.mobile
+---
+# iOS only (slice 3; ADR-0056; `buildSpec.md` §3.5): the interactive edge swipe pops a pushed screen, as the header's ‹
+# does. It needs the iOS Simulator, which does not run on the owner's Linux machine (blueprint Q4), so it is NOT under
+# `config.yaml`'s discovery and runs by name on a Mac: `maestro test .maestro/shell/iosSwipeBack.yaml`.
+- runFlow: ../auth/signin.yaml
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+- extendedWaitUntil:
+      notVisible: 'My recipes'
+      timeout: 20000
+
+# Swipe in from the left edge: the detail pops back to the list.
+- swipe:
+      start: 1%, 50%
+      end: 80%, 50%
+      duration: 400
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000

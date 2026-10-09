@@ -29,8 +29,8 @@ const RECIPE_IDS = {
  *
  * Requirement → test:
  * - FR-008 (create a collection) → "creates a collection and lands on it, then lists it"
- * - FR-009 (ADD a recipe to a collection) → "adds a recipe to a collection from the picker"
- * - FR-009 (remove a recipe from a collection) + FR-008 (delete a collection)
+ * - FR-009 (ADD a recipe to a collection) → `collectionPicker.spec.ts` (the add-recipes sheet)
+ * - FR-009 (remove a recipe from a collection, with Undo) + FR-008 (delete a collection)
  *   → "removes a recipe from a collection, then deletes the collection"
  * - The 404 read path (a collection that is absent or not the caller's) → "shows a not-found message …"
  * - FR-011 (clone a collection) → "clones a collection and lands on the new private clone …" (W5 Task 13)
@@ -43,10 +43,10 @@ const RECIPE_IDS = {
  * - A failed read recovers through the boundary's retry, on the detail, picker and rename routes →
  *   "recovering from a failed read"
  *
- * The ADD leg drives the REAL flow end-to-end: the detail view's "Add a recipe" control → the picker route
- * → the `useAddRecipeToCollection` mutation → `POST /api/v1/collections/{id}/recipes`. The mock models membership
- * as a join (see `utils/recipeApi`), so the add is observable: the picker row flips to the inert "in this
- * collection" marker and, on return, the recipe appears as a member of the collection.
+ * Slice 5 (`buildSpec.md` §5.2, §5.3): the detail screen has one primary (Add recipes) and one ⋯ menu named for the
+ * collection (Rename · Make private/public · Save a copy · Pull updates for a copy · Delete collection). Rename is a
+ * sheet, delete a confirmation, removing a member hides it and offers Undo, and Add recipes opens the picker sheet. The
+ * `/collections/{id}/add` and `/rename` routes are gone.
  */
 test.describe('collections (T109)', () => {
     test('creates a collection and lands on it, then lists it', async ({ page }) => {
@@ -56,28 +56,32 @@ test.describe('collections (T109)', () => {
 
         // A successful load with nothing in it is the EMPTY state, not an error.
         await page.goto(route('/collections'));
-        await expect(page.getByRole('heading', { name: 'Collections' })).toBeVisible();
-        await expect(page.getByText('No collections yet')).toBeVisible();
+        // Collections is a segment of the Recipes tab, so the large title is "Recipes" (slice 3).
+        await expect(page.getByRole('heading', { level: 1, name: 'Recipes' })).toBeVisible();
+        await expect(page.getByRole('heading', { level: 2, name: 'Group recipes your way' })).toBeVisible();
 
-        // CREATE — name it and submit; a successful create navigates to the new collection's detail.
-        await page.getByRole('button', { name: 'New collection' }).click();
-        await expect(page).toHaveURL(/\/collections\/new/);
+        // CREATE — slice 4 (`buildSpec.md` §5.1): the new-collection SHEET, over the list (the page is deleted). Name
+        // it and submit; a successful create closes the sheet and opens the new collection's detail.
+        await page.getByRole('button', { name: 'New collection' }).first().click();
+        const sheet = page.getByRole('dialog', { name: 'New collection' });
+        await expect(sheet).toBeVisible();
+        await expect(page).toHaveURL(/\/collections$/);
 
-        await page.getByLabel('Collection name').fill('Weeknight dinners');
-        await page.getByRole('button', { name: 'Create', exact: true }).click();
+        await sheet.getByRole('textbox', { name: 'Name' }).fill('Weeknight dinners');
+        await sheet.getByRole('button', { name: 'Create collection' }).click();
 
         // The detail renders the collection the server created — with no members yet.
         await expect(page).toHaveURL(/\/collections\/col_new_/);
         await expect(page.getByRole('heading', { name: 'Weeknight dinners' })).toBeVisible();
-        await expect(page.getByText('No recipes in this collection yet')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'No recipes here yet' })).toBeVisible();
 
         // …and it is now the caller's collection: the list shows it in place of the empty state.
         await page.goto(route('/collections'));
-        await expect(page.getByRole('button', { name: 'Weeknight dinners' })).toBeVisible();
-        await expect(page.getByText('No collections yet')).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'Weeknight dinners' })).toBeVisible();
+        await expect(page.getByText('Group recipes your way')).toHaveCount(0);
     });
 
-    test('adds a recipe to a collection from the picker', async ({ page }) => {
+    test('removes a recipe from a collection, with Undo, then deletes the collection', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
@@ -86,45 +90,6 @@ test.describe('collections (T109)', () => {
                 makeRecipeDetail({ id: RECIPE_IDS.pasta, ownerId: viewerId, title: 'Weeknight Pasta' }),
                 makeRecipeDetail({ id: RECIPE_IDS.soup, ownerId: viewerId, title: 'Lentil Soup' }),
             ],
-            // An EMPTY collection — the add flow is what puts a recipe in it.
-            collections: [makeCollection({ id: 'col_dinners', ownerId: viewerId, name: 'Weeknight dinners' })],
-        });
-
-        // The empty collection offers the add affordance.
-        await page.goto(route('/collections/col_dinners'));
-        await expect(page.getByText('No recipes in this collection yet')).toBeVisible();
-        await page.getByRole('button', { name: 'Add a recipe' }).click();
-
-        // The picker names the collection and lists the caller's own recipes as add candidates.
-        await expect(page).toHaveURL(/\/collections\/col_dinners\/add/);
-        await expect(page.getByRole('heading', { name: 'Add recipes to Weeknight dinners' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Add Lentil Soup' })).toBeVisible();
-
-        // ADD — the mutation hits the real endpoint; the row flips to the inert member marker (its add
-        // control is gone) and the success is announced. This is only observable because the mock persists
-        // the join, so the collection re-read returns the new member.
-        await page.getByRole('button', { name: 'Add Weeknight Pasta' }).click();
-        await expect(page.getByRole('button', { name: 'Weeknight Pasta is in this collection' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Add Weeknight Pasta' })).toHaveCount(0);
-        await expect(page.getByRole('status').filter({ hasText: 'Added Weeknight Pasta' })).toBeVisible();
-
-        // DONE — back on the detail view, the recipe is now a member of the collection.
-        await page.getByRole('button', { name: 'Done' }).click();
-        await expect(page).toHaveURL(/\/collections\/col_dinners(?:\?|$)/);
-        await expect(page.getByRole('button', { name: 'Weeknight Pasta', exact: true })).toBeVisible();
-        await expect(page.getByText('No recipes in this collection yet')).toHaveCount(0);
-    });
-
-    test('removes a recipe from a collection, then deletes the collection', async ({ page }) => {
-        await signInWithTicket(page);
-        const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, {
-            viewerId,
-            recipes: [
-                makeRecipeDetail({ id: RECIPE_IDS.pasta, ownerId: viewerId, title: 'Weeknight Pasta' }),
-                makeRecipeDetail({ id: RECIPE_IDS.soup, ownerId: viewerId, title: 'Lentil Soup' }),
-            ],
-            // Seeded membership — the app has no add-to-collection control (see the file header).
             collections: [
                 makeCollection({
                     id: 'col_dinners',
@@ -135,22 +100,84 @@ test.describe('collections (T109)', () => {
             ],
         });
 
-        // VIEW — the collection detail lists exactly its members. `exact` matters: each row's remove
-        // control is named "Remove <title>", which a substring match would also select.
+        // VIEW — the collection detail lists exactly its members, each card a link named by its recipe.
         await page.goto(route('/collections/col_dinners'));
-        await expect(page.getByRole('heading', { name: 'Weeknight dinners' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Weeknight Pasta', exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Lentil Soup', exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { level: 1, name: 'Weeknight dinners' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Weeknight Pasta', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Lentil Soup', exact: true })).toBeVisible();
 
-        // REMOVE — the removed member disappears; the other one is untouched.
-        await page.getByRole('button', { name: 'Remove Weeknight Pasta' }).click();
-        await expect(page.getByRole('button', { name: 'Weeknight Pasta', exact: true })).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Lentil Soup', exact: true })).toBeVisible();
+        // REMOVE — the row leaves at once and a snackbar offers Undo; nothing has been sent yet.
+        await page.getByRole('button', { name: 'More actions for Weeknight Pasta' }).click();
+        await page.getByRole('menuitem', { name: 'Remove from collection' }).click();
+        await expect(page.getByRole('link', { name: 'Weeknight Pasta', exact: true })).toHaveCount(0);
+        await expect(page.getByText('Removed Weeknight Pasta from Weeknight dinners.')).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Lentil Soup', exact: true })).toBeVisible();
 
-        // DELETE — the collection goes and the app lands back on the (now empty) list.
-        await page.getByRole('button', { name: 'Delete', exact: true }).click();
+        // UNDO — the row is back, and a reload proves the removal was never sent.
+        await page.getByRole('button', { name: 'Undo' }).click();
+        await expect(page.getByRole('link', { name: 'Weeknight Pasta', exact: true })).toBeVisible();
+        await page.reload();
+        await expect(page.getByRole('link', { name: 'Weeknight Pasta', exact: true })).toBeVisible();
+
+        // REMOVE again and let the snackbar run out: the removal is sent, and a reload proves it landed. The send
+        // follows the snackbar's timeout by a render, so the reload waits for the request itself: reloading the moment
+        // the text leaves raced it and could abort the removal before it went.
+        const removal = page.waitForResponse(
+            (response) =>
+                response.request().method() === 'DELETE' &&
+                /\/api\/v1\/collections\/col_dinners\/recipes\/[^/]+$/u.test(response.url()),
+            { timeout: 20_000 },
+        );
+        await page.getByRole('button', { name: 'More actions for Weeknight Pasta' }).click();
+        await page.getByRole('menuitem', { name: 'Remove from collection' }).click();
+        await expect(page.getByText('Removed Weeknight Pasta from Weeknight dinners.')).toHaveCount(0, {
+            timeout: 15_000,
+        });
+        expect((await removal).status()).toBe(204);
+        await page.reload();
+        await expect(page.getByRole('link', { name: 'Lentil Soup', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Weeknight Pasta', exact: true })).toHaveCount(0);
+
+        // DELETE — a confirmation names what stays; Keep leaves it alone, Delete goes and lands on the (empty) list.
+        await page.getByRole('button', { name: 'More actions for Weeknight dinners' }).click();
+        await page.getByRole('menuitem', { name: 'Delete collection' }).click();
+        const confirm = page.getByRole('alertdialog', { name: 'Delete Weeknight dinners?' });
+        await confirm.getByRole('button', { name: 'Keep collection' }).click();
+        await expect(confirm).toHaveCount(0);
+
+        await page.getByRole('button', { name: 'More actions for Weeknight dinners' }).click();
+        await page.getByRole('menuitem', { name: 'Delete collection' }).click();
+        await page
+            .getByRole('alertdialog', { name: 'Delete Weeknight dinners?' })
+            .getByRole('button', { name: 'Delete collection' })
+            .click();
         await expect(page).toHaveURL(/\/collections(?:\?|$)/);
-        await expect(page.getByText('No collections yet')).toBeVisible();
+        await expect(page.getByText('Group recipes your way')).toBeVisible();
+    });
+
+    test('renames a collection in the sheet, which opens filled in', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            collections: [makeCollection({ id: 'col_dinners', ownerId: viewerId, name: 'Weeknight dinners' })],
+        });
+
+        await page.goto(route('/collections/col_dinners'));
+        await page.getByRole('button', { name: 'More actions for Weeknight dinners' }).click();
+        await page.getByRole('menuitem', { name: 'Rename' }).click();
+
+        const sheet = page.getByRole('dialog', { name: 'Rename collection' });
+        const name = sheet.getByRole('textbox', { name: 'Name' });
+        await expect(name).toHaveValue('Weeknight dinners');
+        // No page of its own: the URL stays on the collection.
+        await expect(page).toHaveURL(/\/collections\/col_dinners$/);
+
+        await name.fill('Weeknights');
+        await sheet.getByRole('button', { name: 'Save name' }).click();
+
+        await expect(sheet).toHaveCount(0);
+        await expect(page.getByRole('heading', { level: 1, name: 'Weeknights' })).toBeVisible();
     });
 
     test('shows a not-found message for a collection that is not the caller’s', async ({ page }) => {
@@ -223,8 +250,8 @@ test.describe('collections (T109)', () => {
             outage.end();
             await page.getByRole('button', { name: 'Try again' }).click();
 
-            await expect(page.getByRole('heading', { name: 'Weeknight dinners' })).toBeVisible();
-            await expect(page.getByRole('button', { name: 'Weeknight Pasta', exact: true })).toBeVisible();
+            await expect(page.getByRole('heading', { level: 1, name: 'Weeknight dinners' })).toBeVisible();
+            await expect(page.getByRole('link', { name: 'Weeknight Pasta', exact: true })).toBeVisible();
             await expect(loadError).toHaveCount(0);
         });
 
@@ -236,56 +263,34 @@ test.describe('collections (T109)', () => {
                 recipes: [makeRecipeDetail({ id: RECIPE_IDS.soup, ownerId: viewerId, title: 'Lentil Soup' })],
                 collections: [makeCollection({ id: 'col_dinners', ownerId: viewerId, name: 'Weeknight dinners' })],
             });
-            // The CANDIDATES read fails, not the collection read: the heading's name comes from the collection
-            // read, so the frame staying named proves the frame sits outside the boundary.
+            await page.goto(route('/collections/col_dinners'));
+            await expect(page.getByRole('heading', { level: 1, name: 'Weeknight dinners' })).toBeVisible();
+
+            // The CANDIDATES read fails, not the collection read: the sheet's title names the collection, so the
+            // frame staying named proves the frame sits outside the boundary.
             const outage = await simulateOutage(page, /\/api\/v1\/recipes(?:\?|$)/);
-
-            await page.goto(route('/collections/col_dinners/add'));
-            await expect(page.getByRole('alert').filter({ hasText: /couldn.t load/i })).toBeVisible({
+            await page.getByRole('button', { name: 'Add recipes' }).first().click();
+            const sheet = page.getByRole('dialog', { name: 'Add to Weeknight dinners' });
+            await expect(sheet.getByRole('alert').filter({ hasText: /couldn.t load/i })).toBeVisible({
                 timeout: LOAD_ERROR_TIMEOUT,
             });
-            await expect(page.getByRole('heading', { name: 'Add recipes to Weeknight dinners' })).toBeVisible();
-            await expect(page.getByRole('button', { name: 'Done' })).toBeVisible();
+            await expect(sheet.getByRole('button', { name: 'Done' })).toBeVisible();
 
             outage.end();
-            await page.getByRole('button', { name: 'Try again' }).click();
+            await sheet.getByRole('button', { name: 'Try again' }).click();
 
-            await expect(page.getByRole('button', { name: 'Add Lentil Soup' })).toBeVisible();
-        });
-
-        test('rename never shows an empty form for a failed read, and seeds the name on Try again', async ({
-            page,
-        }) => {
-            await signInWithTicket(page);
-            const viewerId = await readViewerAppId(page);
-            await mockRecipeApi(page, {
-                viewerId,
-                collections: [makeCollection({ id: 'col_dinners', ownerId: viewerId, name: 'Weeknight dinners' })],
-            });
-            const outage = await simulateOutage(page, COLLECTION_READ);
-
-            await page.goto(route('/collections/col_dinners/rename'));
-            await expect(page.getByRole('alert').filter({ hasText: 'We couldn’t load this collection.' })).toBeVisible({
-                timeout: LOAD_ERROR_TIMEOUT,
-            });
-            // A failed seed used to render the form with an EMPTY name, one Save away from blanking it.
-            await expect(page.getByLabel('Collection name')).toHaveCount(0);
-
-            outage.end();
-            await page.getByRole('button', { name: 'Try again' }).click();
-
-            await expect(page.getByLabel('Collection name')).toHaveValue('Weeknight dinners');
+            await expect(sheet.getByRole('checkbox', { name: 'Lentil Soup' })).toBeVisible();
         });
     });
 
     /**
      * Clone (FR-011, W5 Task 13). There is no collection-DISCOVERY surface in this app (only `/discover` for
      * public recipes), so the reachable path the UI actually exposes is cloning a collection the caller
-     * already owns — the same self-clone reasoning the Maestro mirror (`collectionsClone.yaml`) documents.
+     * already owns — the same self-clone reasoning the Maestro mirror (`collectionsSaveCopy.yaml`) documents.
      * The service's own `cloneCollection` guard only blocks a NON-owned, NON-public source, so a self-owned
      * PUBLIC collection clones unconditionally and exercises the real endpoint/UI wiring end-to-end.
      */
-    test('clones a collection and lands on the new private clone with source attribution', async ({ page }) => {
+    test('saves a copy of a collection and lands on the new private copy with source attribution', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const recipe = makeRecipeDetail({
@@ -311,23 +316,26 @@ test.describe('collections (T109)', () => {
         await page.goto(route('/collections/col_source'));
         await expect(page.getByRole('heading', { name: 'Sunday Suppers' })).toBeVisible();
 
-        await page.getByRole('button', { name: 'Clone Collection' }).click();
+        await page.getByRole('button', { name: 'More actions for Sunday Suppers' }).click();
+        await page.getByRole('menuitem', { name: 'Save a copy' }).click();
 
-        // A successful clone navigates to the NEW clone's own detail.
+        // A successful copy navigates to the NEW copy's own detail.
         await expect(page).toHaveURL(/\/collections\/col_clone_/);
-        await expect(page.getByRole('heading', { name: 'Sunday Suppers' })).toBeVisible();
+        await expect(page.getByRole('heading', { level: 1, name: 'Sunday Suppers' })).toBeVisible();
 
-        // A clone always starts PRIVATE (FR-010), regardless of the source's own visibility.
-        await expect(page.getByRole('radio', { name: 'Private' })).toBeChecked();
+        // "Copied from …" renders ONLY for a real copy, with the source attribution FROZEN at copy time (W5 Task 2) —
+        // proving this is a genuine copy, not merely a same-named collection.
+        await expect(page.getByRole('button', { name: /^Copied from / })).toBeVisible();
 
-        // The Clone Info panel (C5) renders ONLY for a real clone, with the source attribution FROZEN at
-        // clone time (W5 Task 2) — proving this is a genuine clone, not merely a same-named collection.
-        const cloneInfo = page.getByRole('region', { name: 'Clone Info' });
-        await expect(cloneInfo).toBeVisible();
-        await expect(cloneInfo.getByText('@chef_e2e / "Sunday Suppers"')).toBeVisible();
+        // A copy always starts PRIVATE (FR-010), regardless of the source's own visibility: the meta line says so, and the
+        // menu offers the way back.
+        await expect(page.getByText('Private', { exact: true })).toBeVisible();
+        await page.getByRole('button', { name: 'More actions for Sunday Suppers' }).click();
+        await expect(page.getByRole('menuitem', { name: 'Make public' })).toBeVisible();
+        await page.keyboard.press('Escape');
 
         // The seeded member carried over as a `clone_seed` row.
-        await expect(page.getByRole('button', { name: 'Family Lasagna', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Family Lasagna', exact: true })).toBeVisible();
     });
 
     /**
@@ -383,16 +391,17 @@ test.describe('collections (T109)', () => {
         await mockRecipeApi(page, { viewerId, recipes: [risotto, duck, tart], collections: [source, clone] });
 
         await page.goto(route('/collections/col_clone'));
-        await expect(page.getByRole('heading', { name: 'Weekend Picks' })).toBeVisible();
+        await expect(page.getByRole('heading', { level: 1, name: 'Weekend Picks' })).toBeVisible();
 
-        await page.getByRole('button', { name: 'Pull Updates from Source' }).click();
+        await page.getByRole('button', { name: 'More actions for Weekend Picks' }).click();
+        await page.getByRole('menuitem', { name: 'Pull updates' }).click();
 
         // The preview dialog opens on the diff-driven counts — before anything is applied.
         await expect(page.getByRole('heading', { name: 'Pull Updates from Source Collection' })).toBeVisible();
         await expect(page.getByText('1 new public recipes will be added')).toBeVisible();
         await expect(page.getByText('0 recipes removed from source')).toBeVisible();
         await expect(page.getByText('2 already in this collection (no changes)')).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Lemon Tart', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'Lemon Tart', exact: true })).toHaveCount(0);
         // No "Last pulled" yet — this clone has never been pulled.
         await expect(page.getByText(/Last pulled:/)).toHaveCount(0);
 
@@ -401,23 +410,20 @@ test.describe('collections (T109)', () => {
         // The dialog closes; the pulled member is now a real row, and "Last pulled" renders in the header —
         // the two signals that prove the pull actually APPLIED, not merely that the dialog closed.
         await expect(page.getByRole('heading', { name: 'Pull Updates from Source Collection' })).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Lemon Tart', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Lemon Tart', exact: true })).toBeVisible();
         await expect(page.getByText(/Last pulled:/)).toBeVisible();
 
         // The pre-existing (clone_seed) members are untouched by the pull.
-        await expect(page.getByRole('button', { name: 'Herb Risotto', exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Pan-Seared Duck', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Herb Risotto', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Pan-Seared Duck', exact: true })).toBeVisible();
     });
 
     /**
-     * Visibility toggle, premium-gated (FR-010, C1, W5 Task 13). The mocked viewer profile defaults to
-     * `tier: 'premium'` (`utils/recipeApi`'s `mockRecipeApi`), stated explicitly here so the premium gate is
-     * OPEN; a free-tier gated case is covered end-to-end by the recipe-level `cloneVisibility.spec.ts` and,
-     * for THIS surface, by the component tests (`CollectionDetailContainer.test.tsx`) — the shared
-     * `canGoPrivate` predicate is identical across both surfaces, so re-proving the gate itself here would be
-     * redundant coverage, not new signal.
+     * Visibility, premium-gated (FR-010, C1; `buildSpec.md` §5.2). The menu's "Make private" changes the collection AT
+     * ONCE and says so in a snackbar with Undo, which changes it back; a free-tier cook gets the Premium sheet and
+     * nothing is sent. The mocked viewer profile defaults to `tier: 'premium'` (`utils/recipeApi`'s `mockRecipeApi`).
      */
-    test('a premium viewer toggles a collection from public to private and it persists', async ({ page }) => {
+    test('a premium viewer makes a collection private at once, and Undo changes it back', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const collection = makeCollection({
@@ -429,27 +435,51 @@ test.describe('collections (T109)', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium', collections: [collection] });
 
         await page.goto(route('/collections/col_dinners'));
-        await expect(page.getByRole('heading', { name: 'Weeknight dinners' })).toBeVisible();
+        await expect(page.getByRole('heading', { level: 1, name: 'Weeknight dinners' })).toBeVisible();
+        await expect(page.getByText('Public', { exact: true })).toBeVisible();
 
-        const privateOption = page.getByRole('radio', { name: 'Private' });
-        await expect(privateOption).toBeEnabled();
-        await expect(privateOption).not.toBeChecked();
+        await page.getByRole('button', { name: 'More actions for Weeknight dinners' }).click();
+        await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        const saveButton = page.getByRole('button', { name: 'Save changes' });
-        await expect(saveButton).toBeDisabled();
+        await expect(page.getByText('Collection is now private.')).toBeVisible();
+        await expect(page.getByText('Private', { exact: true })).toBeVisible();
 
-        // SELECT — a pending (unsaved) choice; nothing has been written yet.
-        await privateOption.click();
-        await expect(privateOption).toBeChecked();
-        await expect(saveButton).toBeEnabled();
+        await page.getByRole('button', { name: 'Undo' }).click();
+        await expect(page.getByText('Public', { exact: true })).toBeVisible();
 
-        // SAVE — the mutation fires; on success the collection detail is refetched.
-        await saveButton.click();
+        // PERSISTED — a reload reads the server's own answer, which only the compensating write can have restored.
+        await page.reload();
+        await expect(page.getByText('Public', { exact: true })).toBeVisible();
+    });
 
-        // PERSISTED — once the refetch resolves, the server-reported visibility matches the pending
-        // selection again, so Save goes back to disabled. That transition can only happen via a real 200
-        // from `PATCH /api/v1/collections/{id}` and a subsequent GET, not from local state alone.
-        await expect(saveButton).toBeDisabled();
+    test('a free-tier viewer meets the Premium sheet for Make private, and nothing is sent', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            tier: 'free',
+            collections: [
+                makeCollection({
+                    id: 'col_dinners',
+                    ownerId: viewerId,
+                    name: 'Weeknight dinners',
+                    visibility: 'public',
+                }),
+            ],
+        });
+
+        await page.goto(route('/collections/col_dinners'));
+        await page.getByRole('button', { name: 'More actions for Weeknight dinners' }).click();
+        await page.getByRole('menuitem', { name: 'Make private' }).click();
+
+        const sheet = page.getByRole('dialog', { name: 'Private collections are part of Premium.' });
+        await expect(sheet).toBeVisible();
+        await sheet.getByRole('button', { name: 'Not now' }).click();
+        await expect(sheet).toHaveCount(0);
+
+        // Still public: the sheet is the whole answer for a free-tier cook.
+        await page.reload();
+        await expect(page.getByText('Public', { exact: true })).toBeVisible();
     });
 
     /**
@@ -457,6 +487,29 @@ test.describe('collections (T109)', () => {
      * (mock-configured, small) page, so the control is guaranteed to render on the FIRST load, then asserts
      * the next page's row appears — and the control itself vanishes — once the last page has loaded.
      */
+    test('asks before discarding a typed name, and refuses an empty one', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, collections: [] });
+
+        await page.goto(route('/collections'));
+        await page.getByRole('button', { name: 'New collection' }).first().click();
+        const sheet = page.getByRole('dialog', { name: 'New collection' });
+
+        // An empty name is refused in place, with the reason under the field and focus on it (SC 3.3.1).
+        await sheet.getByRole('button', { name: 'Create collection' }).click();
+        await expect(sheet.getByText('Give your collection a name.')).toBeVisible();
+        await expect(sheet.getByRole('textbox', { name: 'Name' })).toBeFocused();
+
+        // A typed name is not lost to a stray close.
+        await sheet.getByRole('textbox', { name: 'Name' }).fill('Picnics');
+        await sheet.getByRole('button', { name: 'Cancel' }).click();
+        const confirm = page.getByRole('alertdialog', { name: 'Discard this collection?' });
+        await expect(confirm).toBeVisible();
+        await confirm.getByRole('button', { name: 'Discard' }).click();
+        await expect(page.getByRole('dialog', { name: 'New collection' })).toHaveCount(0);
+    });
+
     test('loads the next page of collections on demand', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
@@ -473,9 +526,9 @@ test.describe('collections (T109)', () => {
         await page.goto(route('/collections'));
 
         // FIRST PAGE — exactly the mocked page size; the third collection is not yet loaded.
-        await expect(page.getByRole('button', { name: 'Weeknight dinners' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Holiday baking' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Sunday brunch' })).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'Weeknight dinners' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Holiday baking' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Sunday brunch' })).toHaveCount(0);
 
         const loadMore = page.getByRole('button', { name: 'Load more' });
         await expect(loadMore).toBeVisible();
@@ -484,7 +537,7 @@ test.describe('collections (T109)', () => {
 
         // SECOND PAGE — appended (not replacing) the first; the control disappears once the last page,
         // which reports no further pages, has loaded.
-        await expect(page.getByRole('button', { name: 'Sunday brunch' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Sunday brunch' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Load more' })).toHaveCount(0);
     });
 });

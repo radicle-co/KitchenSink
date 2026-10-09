@@ -20,7 +20,7 @@ export interface CreateParseJobOptions {
 }
 
 /**
- * `POST /api/v1/recipe-parse-jobs` — submit a pasted ingredient block (`202`).
+ * `POST /api/v1/recipe-parse-jobs` — submit a pasted ingredient block (`202`). Offline it fails rather than pausing.
  *
  * The accepted view is written through to the NEW job's own key, so the poll `useParseJob` starts
  * against the server's first answer instead of an empty cache.
@@ -34,6 +34,10 @@ export function useCreateParseJob(options: CreateParseJobOptions = {}) {
 
     return useMutation({
         mutationFn: (input: CreateParseJobRequest) => client.createParseJob(input),
+        // ⛔ A NON-DEFERRABLE WRITE (UI overhaul blueprint A5). Every other write pauses offline and resumes on
+        // reconnect; this one is attempted at once and fails with the ordinary error, because the cook is waiting on
+        // its answer in the open editor and a paste that ran an hour later would land in a recipe they have left.
+        networkMode: 'always',
         onSuccess: (job) => {
             // The write-through happens FIRST, so a caller navigating to the review surface finds the
             // server's first view already in the cache rather than a spinner over data it holds.

@@ -48,8 +48,8 @@ describe('DataSourcesScreen (native)', () => {
         await waitFor(() =>
             expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
                 'Data sources',
-                'USDA',
-                'Ciqual',
+                USDA.publisher,
+                CIQUAL_SOURCE.publisher,
             ]),
         );
     });
@@ -64,7 +64,7 @@ describe('DataSourcesScreen (native)', () => {
         listSources.mockResolvedValueOnce({ sources: [USDA] });
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
-        expect(await screen.findByRole('heading', { name: 'USDA' })).toBeTruthy();
+        expect(await screen.findByRole('heading', { name: USDA.publisher })).toBeTruthy();
     });
 
     /**
@@ -123,7 +123,7 @@ describe('DataSourcesScreen (native)', () => {
         listSources.mockResolvedValueOnce({ sources: [USDA] });
         fireEvent.click(tryAgain);
 
-        expect(await screen.findByRole('heading', { name: 'USDA' })).toBeTruthy();
+        expect(await screen.findByRole('heading', { name: USDA.publisher })).toBeTruthy();
         expect(tryAgain.isConnected).toBe(false);
         expect(vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mock.calls).toEqual([
             [screen.getByRole('heading', { name: 'Data sources' }), 'focus'],

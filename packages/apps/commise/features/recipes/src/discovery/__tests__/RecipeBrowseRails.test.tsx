@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
 /**
+ * ⚠️ REWRITTEN for slice 5 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.4). The rails lose the teal
+ * accent bar under their heading, "See all" becomes a ghost button, a rail's track becomes a focusable region the arrow
+ * keys scroll, a fine pointer gets Previous and Next buttons, the cuisine shortcuts become a row of chips, and a card's
+ * Save a copy replaces its Clone. The accent-bar test is deleted with the accent; the heading-focus, refresh-notice and
+ * enter-motion assertions are kept.
+ *
  * Component tests for the web curated browse-rails block (U7, net-new). Covers the default browse surface shown when
  * discovery has no active query/filter: the three fixed-sort rails (Trending/New/Quick) with a per-rail "see all", each
  * rail's body, the cuisine shortcuts, the enter motion, and the ONE refresh notice — so the rails cannot silently
@@ -11,7 +17,7 @@
  * bodies here are the real results leaf, so selection still crosses the composition.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
 
@@ -19,6 +25,7 @@ import { utilityContrast } from '@commise/test-utils';
 import { semantic } from '@commise/ui';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
+import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.js';
 import { RecipeBrowseRails } from '../RecipeBrowseRails.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from '../model.js';
@@ -26,6 +33,9 @@ import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView }
 afterEach(cleanup);
 
 const noop = () => undefined;
+
+/** A save-a-copy surface where nothing has been copied. */
+const SAVE_COPY: SaveCopy = { stateOf: () => ({ kind: 'idle' }), save: noop };
 
 function result(recipe: Partial<Recipe> = {}): RecipeSearchResult {
     return { recipe: makeRecipe(recipe) };
@@ -43,7 +53,7 @@ function rail(
         id,
         onSeeAll: noop,
         headingFocusSignal: 0,
-        body: <RecipeBrowseRailResults results={results} onSelectRecipe={onSelectRecipe} onClone={noop} />,
+        body: <RecipeBrowseRailResults results={results} saveCopy={SAVE_COPY} onSelectRecipe={onSelectRecipe} />,
         ...view,
     };
 }
@@ -111,19 +121,6 @@ describe('RecipeBrowseRails (web) — rails', () => {
     });
 });
 
-describe('RecipeBrowseRails (web) — U8 rail header accent', () => {
-    it('paints a brand gradient accent under each rail section header', () => {
-        const { container } = render(<RecipeBrowseRails rails={threeRails()} cuisines={[]} />);
-
-        // Each rail header carries a decorative GradientSurface accent bar (an inline linear-gradient), so
-        // three rails ⇒ at least three gradient accents.
-        const accents = Array.from(container.querySelectorAll<HTMLElement>('*')).filter((el) =>
-            el.style.backgroundImage.startsWith('linear-gradient'),
-        );
-        expect(accents.length).toBeGreaterThanOrEqual(3);
-    });
-});
-
 describe('RecipeBrowseRails (web) — a rail’s own Try again', () => {
     it('⛔ moves focus to THAT rail’s heading when its retry signal changes, since the pressed button is gone', () => {
         const { rerender } = render(<RecipeBrowseRails rails={threeRails()} cuisines={[]} />);
@@ -151,34 +148,118 @@ describe('RecipeBrowseRails (web) — structure and touch targets', () => {
         expect(screen.getByRole('region', { name: 'Browse recipes' })).toBeTruthy();
     });
 
-    it('gives See all and every cuisine shortcut the 44px touch floor, reset for the mouse at md', () => {
-        renderRails({ cuisines: [{ value: 'Thai', onSelect: noop }] });
+    it('names each rail’s track a region ("Trending recipes") the keyboard can reach', () => {
+        renderRails();
+        const track = screen.getByRole('region', { name: 'Trending recipes' });
 
-        for (const control of [
-            screen.getByRole('button', { name: 'See all Trending' }),
-            screen.getByRole('button', { name: 'Browse Thai recipes' }),
-        ]) {
-            expect(control.className).toContain('min-h-11');
-            expect(control.className).toContain('md:min-h-0');
-        }
+        expect(track.getAttribute('tabindex')).toBe('0');
+        expect(within(track).getByRole('button', { name: 'Viral Pad Thai' })).toBeTruthy();
     });
 });
 
-describe('RecipeBrowseRails (web) — cuisine shortcuts', () => {
-    it('renders cuisine shortcuts and reports a selection', async () => {
+describe('RecipeBrowseRails (web) — browse by cuisine', () => {
+    it('draws the cuisines as a row of chips under “Browse by cuisine”, and reports a selection', async () => {
         const user = userEvent.setup();
         const onSelect = vi.fn();
         renderRails({ cuisines: [{ value: 'Thai', onSelect }] });
 
-        await user.click(screen.getByRole('button', { name: 'Browse Thai recipes' }));
+        expect(screen.getByRole('heading', { level: 2, name: 'Browse by cuisine' })).toBeTruthy();
+
+        await user.click(
+            within(screen.getByRole('group', { name: 'Browse by cuisine' })).getByRole('button', { name: 'Thai' }),
+        );
 
         expect(onSelect).toHaveBeenCalledTimes(1);
     });
 
-    it('omits the cuisine section when there are no shortcuts', () => {
+    it('omits the section when there are no shortcuts', () => {
         renderRails({ cuisines: [] });
 
         expect(screen.queryByRole('heading', { name: 'Browse by cuisine' })).toBeNull();
+    });
+});
+
+/**
+ * Previous and Next (`buildSpec.md` §4.4): two 36 px round ghost buttons for a fine pointer only (the swipe cue serves
+ * touch), at the end of the heading row before "See all". They scroll the track by one view less one card and disable at
+ * the ends. jsdom has no layout, so the track's geometry is stubbed.
+ */
+describe('RecipeBrowseRails (web) — Previous and Next', () => {
+    /** Give the Trending track a scroll width, a view width and a scroll position. */
+    function geometry(scrollLeft: number, { view = 600, content = 1400 } = {}): HTMLElement {
+        const track = screen.getByRole('region', { name: 'Trending recipes' });
+
+        Object.defineProperty(track, 'clientWidth', { configurable: true, value: view });
+        Object.defineProperty(track, 'scrollWidth', { configurable: true, value: content });
+        Object.defineProperty(track, 'scrollLeft', { configurable: true, writable: true, value: scrollLeft });
+        track.scrollBy = vi.fn();
+        fireEvent.scroll(track);
+
+        return track;
+    }
+
+    it('are drawn for a fine pointer only, named Previous and Next, in the Trending heading row', () => {
+        renderRails();
+        const next = screen.getAllByRole('button', { name: 'Next' })[0];
+
+        expect(next?.className).toContain('pointer-fine:inline-flex');
+        expect(next?.className).toContain('hidden');
+        expect(screen.getAllByRole('button', { name: 'Previous' })).toHaveLength(3);
+    });
+
+    it('disable Previous at the start and Next at the end', () => {
+        renderRails();
+        const track = geometry(0);
+        const row = track.closest('section') as HTMLElement;
+
+        expect(within(row).getByRole('button', { name: 'Previous' }).getAttribute('aria-disabled')).toBe('true');
+        expect(within(row).getByRole('button', { name: 'Next' }).getAttribute('aria-disabled')).toBe('false');
+
+        Object.defineProperty(track, 'scrollLeft', { configurable: true, writable: true, value: 800 });
+        fireEvent.scroll(track);
+
+        expect(within(row).getByRole('button', { name: 'Previous' }).getAttribute('aria-disabled')).toBe('false');
+        expect(within(row).getByRole('button', { name: 'Next' }).getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('scroll the track forward and back, and do nothing at an end', async () => {
+        const user = userEvent.setup();
+        renderRails();
+        const track = geometry(0);
+        const row = track.closest('section') as HTMLElement;
+
+        await user.click(within(row).getByRole('button', { name: 'Previous' }));
+
+        expect(track.scrollBy).not.toHaveBeenCalled();
+
+        await user.click(within(row).getByRole('button', { name: 'Next' }));
+
+        expect(track.scrollBy).toHaveBeenCalledOnce();
+        const [scrollOptions] = vi.mocked(track.scrollBy).mock.calls[0] ?? [];
+        expect(scrollOptions).toMatchObject({ left: expect.any(Number) as number });
+        expect((scrollOptions as ScrollToOptions).left).toBeGreaterThan(0);
+    });
+
+    it('both stay disabled when the rail fits without scrolling', () => {
+        renderRails();
+        const track = geometry(0, { view: 1000, content: 900 });
+        const row = track.closest('section') as HTMLElement;
+
+        expect(within(row).getByRole('button', { name: 'Previous' }).getAttribute('aria-disabled')).toBe('true');
+        expect(within(row).getByRole('button', { name: 'Next' }).getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('moves the track with the arrow keys, by one card a press', () => {
+        renderRails();
+        const track = geometry(0);
+
+        fireEvent.keyDown(track, { key: 'ArrowRight' });
+        fireEvent.keyDown(track, { key: 'ArrowLeft' });
+
+        const lefts = vi.mocked(track.scrollBy).mock.calls.map((call) => (call[0] as ScrollToOptions).left);
+
+        expect(lefts[0]).toBeGreaterThan(0);
+        expect(lefts[1]).toBeLessThan(0);
     });
 });
 

@@ -67,7 +67,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                                 // The hero box (`specRecipeAndWizard.md` S2.1): 4:3 on a phone, never taller than 40% of the
                                 // window, so the title stays on a sideways phone's first screen; 16:9 up to 480 px from
                                 // `md`. The photo crops (`object-cover`) rather than squeezing.
-                                className="aspect-[4/3] max-h-[40vh] w-full object-cover md:aspect-video md:max-h-[480px]"
+                                className="aspect-[4/3] max-h-[min(40vh,480px)] w-full object-cover md:aspect-video"
                             />
                         </button>
                     </li>

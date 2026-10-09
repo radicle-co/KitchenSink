@@ -134,4 +134,24 @@ describe('SearchField (web)', () => {
             expect.arrayContaining(['focus-visible:ring-2', 'focus-visible:ring-focus-ring']),
         );
     });
+
+    it('reports focus entering and leaving the field', async () => {
+        const user = userEvent.setup();
+        const onFocus = vi.fn();
+        const onBlur = vi.fn();
+        render(
+            <>
+                <Search onFocus={onFocus} onBlur={onBlur} />
+                <button type="button">elsewhere</button>
+            </>,
+        );
+
+        await user.click(screen.getByRole('searchbox'));
+
+        expect(onFocus).toHaveBeenCalledOnce();
+
+        await user.click(screen.getByRole('button', { name: 'elsewhere' }));
+
+        expect(onBlur).toHaveBeenCalledOnce();
+    });
 });

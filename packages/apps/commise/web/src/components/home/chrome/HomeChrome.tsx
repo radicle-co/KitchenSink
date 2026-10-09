@@ -1,21 +1,19 @@
 'use client';
 
 /**
- * @module home/chrome/HomeChrome — the Home app shell (web; US-000 / FR-046).
+ * @module home/chrome/HomeChrome — the web app shell's layout (`docs/design/uiOverhaul/buildSpec.md` §3.2): the
+ * {@link HomeSidebar} at `nav` (840) and wider, the bottom {@link HomeTabBar} below it, and the page in the `<main>`
+ * landmark between. There is no top bar and no drawer: each page's large title is its H1 (`LargeTitleHeader`).
  *
- * Assembles the four renderings of the Home navigation into the mockup's layout: the desktop
- * {@link HomeSidebar}, the sticky {@link HomeTopBar}, the mobile {@link HomeTabBar}, and the hamburger-driven
- * {@link HomeMobileNav} drawer — with the surface content (`children`) in the `<main>` landmark between them.
+ * `<main>` is the `main` container every page queries; its gutters are padding, so a query reads the content box. Below
+ * `nav` its foot reserves the tab bar plus the floating create button's 88 px, and the same reservation is the
+ * document's `scroll-padding-bottom` (`globals.css`, keyed on the bar), so a focused last card is never hidden (SC
+ * 2.4.11). `--bottom-chrome` — the tab bar's height, 0 from `nav` and on a focused task — is what the floating button,
+ * "Back to top" and the snackbar stand on.
  *
- * It owns only the two pieces of ephemeral chrome state — whether the desktop rail is collapsed and whether
- * the mobile drawer is open — because they are pure view state with no home for them elsewhere. Everything
- * that decides WHAT the nav shows (destinations, reachability, active id) is derived from props, so the shell
- * has no product knowledge of its own to drift.
+ * The sidebar's collapse comes from `useSidebarPreference`, which holds it above every page.
  *
- * ⚠️ That makes it PRESENTATIONAL, and it is worth saying because the pair above it splits the other way:
- * `AppShell` — one component up, same "shell" vocabulary — reads the signed-in profile and sits on the far
- * side of the line. That line is exactly the `useUserProfile()` call, which lives there and must not move
- * here.
+ * ⚠️ PRESENTATIONAL about data: the profile arrives from `AppShell`, which is where data enters the chrome.
  */
 import type { HomeNavItemId } from '@commise/features-core';
 import { PopupInsetsContext } from '@commise/ui/popup-insets';
@@ -23,118 +21,85 @@ import { useCallback, useState, type JSX, type ReactNode } from 'react';
 
 import type { WebMessages } from '@/i18n/messages';
 
-import { HomeMobileNav } from './HomeMobileNav';
 import { HomeSidebar } from './HomeSidebar';
 import { HomeTabBar } from './HomeTabBar';
-import { HomeTopBar } from './HomeTopBar';
+import type { ProfileEntry } from '@commise/features-core';
+import { useSidebarPreference } from './sidebarPreferenceContext';
 import { tabBarInsets } from './tabBarInsets';
 
 /** Props for {@link HomeChrome}. */
 export interface HomeChromeProps {
-    /** The chrome copy, resolved for the active locale. */
     readonly chrome: WebMessages['home']['chrome'];
-    /** The localized title of the surface in the shell, shown in the top bar (plain text, never a heading). */
-    readonly pageTitle: string;
-    /** The active locale segment. */
     readonly locale: string;
-    /** Capabilities whose backing service is live — the single fact that drives nav reachability. */
     readonly liveCapabilities: readonly string[];
-    /** The active destination for this surface. */
     readonly activeId: HomeNavItemId | null;
-    /** The viewer's display name, if known — the source of the avatar initials. */
-    readonly displayName: string | undefined;
-    /** The surface content rendered inside the `<main>` landmark. */
+    /** The profile read, for the sidebar's profile row. */
+    readonly profile: ProfileEntry;
+    /** The sidebar's New recipe control, for each of its two widths. */
+    readonly newRecipe: (collapsed: boolean) => ReactNode;
     /**
-     * Whether this surface OWNS the bottom edge — a focused task with its own pinned action bar.
-     *
-     * ⛔ THE TAB BAR AND A PINNED ACTION BAR CANNOT SHARE THE FOOT. Both are `fixed bottom-0`, so on the
-     * recipe wizard the tab bar painted over Prev, Save Draft and Next at every width below `lg` and create
-     * and edit could not be completed on phone or tablet web at all.
-     *
-     * ⚠️ SUPPRESSED RATHER THAN RESTACKED, and that is the product decision behind the z-index one: a
-     * destination change mid-creation discards unsaved work, so offering it from under the task's own
-     * controls is the wrong affordance even when it is reachable. The wizard's own `z-60` is the belt
-     * against a FUTURE pinned surface; this is the braces for the one that exists.
+     * Whether this page OWNS the bottom edge: a focused task with its own pinned action bar (the recipe wizard). The tab
+     * bar and a pinned action bar cannot share the foot, and leaving a task mid-way from under its own controls is the
+     * wrong affordance, so the bar is suppressed rather than restacked.
      */
     readonly focusedTask?: boolean;
-
     readonly children: ReactNode;
 }
 
 /**
- * The Home application shell.
+ * The web app shell.
  *
- * @param props - The chrome copy, the surface title, locale, live capabilities, active id, viewer display
- * name, and the main surface content.
- * @returns The full Home chrome with `children` in the main landmark.
+ * @param props - The copy, locale, capabilities, active destination, profile, New recipe and the page.
+ * @returns The sidebar, the page in `<main>`, and the tab bar.
  */
 export function HomeChrome({
     chrome,
-    pageTitle,
     locale,
     liveCapabilities,
     activeId,
-    displayName,
+    profile,
+    newRecipe,
     focusedTask = false,
     children,
 }: HomeChromeProps): JSX.Element {
-    const [collapsed, setCollapsed] = useState(false);
-    const [mobileNavOpen, setMobileNavOpen] = useState(false);
+    const { collapsed, toggle } = useSidebarPreference();
     // The laid-out tab bar, held as state by a callback ref, and the reader the design system's popups call as they
-    // place themselves (finding D2). A new reader only when the bar node changes.
+    // place themselves. A new reader only when the bar node changes.
     const [tabBar, setTabBar] = useState<HTMLElement | null>(null);
     const readInsets = useCallback(() => tabBarInsets(tabBar), [tabBar]);
 
+    // Transparent, so the `body` canvas wash shows through (issue #145): one canvas, defined in the token layer.
     return (
-        // The shell is TRANSPARENT so the `body` beach-glow canvas shows through (issue #145). It used to
-        // hand-spell its own three-stop `bg-gradient-to-br` ramp — a second definition of the canvas that had
-        // already drifted from `@commise/ui`'s `gradient.hero` (mid/end tints #F5F8FA and #EDF5F8 against the
-        // wireframes' own #F0F7F4 and #E8F4F8) and covered only shell-hosted routes, leaving auth flat. Do not
-        // reintroduce a background here: one canvas, one definition, in the token layer.
-        //
-        // Tailwind v4 scans this file as TEXT, comments included, so the replaced classes are DESCRIBED rather
-        // than written out — spelling one verbatim regenerates the utility it warns about.
-        <div className="flex min-h-screen">
+        <div
+            className={`flex min-h-dvh ${
+                focusedTask
+                    ? '[--bottom-chrome:0px]'
+                    : '[--bottom-chrome:calc(4rem+env(safe-area-inset-bottom))] nav:[--bottom-chrome:0px]'
+            }`}
+        >
             <HomeSidebar
                 chrome={chrome}
                 locale={locale}
                 liveCapabilities={liveCapabilities}
                 activeId={activeId}
+                profile={profile}
                 collapsed={collapsed}
-                onToggleCollapse={() => setCollapsed((value) => !value)}
+                onToggleCollapse={toggle}
+                newRecipe={newRecipe(collapsed)}
             />
 
-            <div className="flex min-w-0 flex-1 flex-col">
-                <HomeTopBar
-                    chrome={chrome}
-                    pageTitle={pageTitle}
-                    locale={locale}
-                    displayName={displayName}
-                    onOpenNav={() => setMobileNavOpen(true)}
-                />
+            <main
+                className={`@container/main min-w-0 flex-1 px-4 pt-6 medium:px-6 nav:px-8 nav:pb-8 ${
+                    focusedTask
+                        ? // The task's own bar owns the foot, so `main` clears that instead.
+                          'pb-[calc(6rem+env(safe-area-inset-bottom))]'
+                        : 'pb-[calc(var(--bottom-chrome)+6.5rem)]'
+                }`}
+            >
+                <PopupInsetsContext value={readInsets}>{children}</PopupInsetsContext>
+            </main>
 
-                {/* The foot clears the fixed bottom tab bar (`5rem`) PLUS the device safe-area inset, and
-                    collapses to `lg:pb-6` once the tab bar becomes a desktop sidebar at the shared
-                    desktop-vs-narrow cutover. `env(...)` is 0 in a normal viewport, so the base stays 5rem
-                    (identical to the former `pb-20`) and desktop is unchanged.
-                    `<main>` is the `main` CONTAINER every surface queries (`@regular/main:`, `@wide/main:`), and
-                    its gutters are padding so the query reads the content box (`docs/design/uiOverhaul/buildSpec.md`
-                    §1.2): 16 px, 24 px from the 600 px `medium` threshold, 32 px from the 840 px `nav` one — the
-                    numbers in `@commise/ui`'s `tokens/layout.ts`. */}
-                <main
-                    className={
-                        focusedTask
-                            ? // The task's own bar owns the foot, so `main` clears THAT instead — same
-                              // reservation, different owner. Without this the last field sits under it.
-                              '@container/main flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 medium:px-6 nav:px-8 lg:pb-6'
-                            : '@container/main flex-1 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-6 medium:px-6 nav:px-8 lg:pb-6'
-                    }
-                >
-                    <PopupInsetsContext value={readInsets}>{children}</PopupInsetsContext>
-                </main>
-            </div>
-
-            {!focusedTask && (
+            {focusedTask ? null : (
                 <HomeTabBar
                     ref={setTabBar}
                     chrome={chrome}
@@ -143,15 +108,6 @@ export function HomeChrome({
                     activeId={activeId}
                 />
             )}
-
-            <HomeMobileNav
-                open={mobileNavOpen}
-                onClose={() => setMobileNavOpen(false)}
-                chrome={chrome}
-                locale={locale}
-                liveCapabilities={liveCapabilities}
-                activeId={activeId}
-            />
         </div>
     );
 }

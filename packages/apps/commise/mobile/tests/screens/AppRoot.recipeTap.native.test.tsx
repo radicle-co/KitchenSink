@@ -26,7 +26,8 @@ import { makeRecipeDetail, makeRecipePage, makeRecipe } from '../__fixtures__/re
 
 vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
 
-vi.mock('react-native-safe-area-context', () => ({
+vi.mock('react-native-safe-area-context', async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
     useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
     SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
 }));
@@ -96,22 +97,25 @@ describe('Home → recipe detail (mobile, end to end)', () => {
         getRecipeByIdMock.mockImplementation(async (id: string) => makeRecipeDetail({ id, title: 'Weeknight Pasta' }));
 
         const { AppRoot } = await import('../../src/screens/AppRoot.js');
+        const { CookMarksProvider } = await import('@commise/features-recipes');
+        // The app's providers mount the cook-marks store above the root (`RecipeServiceGate`); so does this render.
         renderWithProviders(
             <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-                <AppRoot />
+                <CookMarksProvider subject="user_1">
+                    <AppRoot />
+                </CookMarksProvider>
             </QueryClientProvider>,
         );
 
         // The Home widget chunk loads lazily, so wait for the real card to appear.
-        const card = await screen.findByRole('button', { name: 'Weeknight Pasta' });
+        const card = await screen.findByRole('link', { name: 'Weeknight Pasta' });
         fireEvent.click(card);
 
         // The recipes surface opened on the TAPPED recipe — the id survived every hop.
         const readIds = () => getRecipeByIdMock.mock.calls.map(([id]: readonly unknown[]) => id);
         await vi.waitFor(() => expect(readIds()).toContain('rec_home_tap'));
         expect(readIds()).not.toContain('rec_other');
-        // And we really left Home: the greeting is gone, a recipe detail heading is present.
-        expect(screen.queryByText(/Chef/u)).toBeNull();
+        // And we really left Home for the detail, pushed onto the Home tab: a recipe detail heading is present.
         expect(await screen.findByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
         // 20s, not the 5s default. This is the heaviest test in the monorepo — the ONLY one that exceeds
         // 2s — because it deliberately renders the REAL `AppRoot` + REAL `HomeScreen`, waits for the

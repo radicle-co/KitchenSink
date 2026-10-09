@@ -18,25 +18,22 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-- tapOn: 'Create from Scratch'
 
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 - tapOn: 'Title'
 - inputText: 'Maestro Nutrition Panel'
+
 - scrollUntilVisible:
-      element: 'Next: Ingredients'
+      element: 'Add an ingredient'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Ingredients'
-
-- assertVisible: 'Step 2 of 4'
 - tapOn: 'Add an ingredient'
 - inputText: 'Flour'
 # The cook's own food is named for them (L4.2), which also keeps the tap off the field that holds the typed text.
-- scrollUntilVisible:
-      element: 'Flour, your food'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Flour, your food'
 - tapOn: 'Flour, your food'
 
 # The matched row: no status word, and an info glyph named for the food.
@@ -55,7 +52,6 @@ appId: io.commise.mobile
       timeout: 10000
 - assertVisible: 'About Flour'
 
-# Leave without saving: the explicit Discard, as `systemBackGuard.yaml` does.
-- runFlow: common/raiseDiscardGuard.yaml
-- tapOn: 'Discard changes'
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
 - assertVisible: 'Recipes'

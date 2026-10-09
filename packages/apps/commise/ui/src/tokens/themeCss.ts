@@ -35,8 +35,9 @@
  */
 import { palette, role, roleDark, semantic } from './colors.js';
 import { coverTint, coverTintDark } from './covers.js';
-import { proTone } from './tones.js';
+import { difficultyTone, difficultyToneDark, proTone, type Difficulty, type Tone } from './tones.js';
 import { kebab, pxToRemUnit } from './emit.js';
+import { barMaterial } from './barMaterial.js';
 import { glass, glassEdgeDark, gradient, gradientCss, heroDark } from './gradients.js';
 import { containerThreshold, contentWidth, viewportThreshold } from './layout.js';
 import { radius } from './radius.js';
@@ -141,6 +142,20 @@ function layoutDeclarations(): readonly string[] {
 }
 
 /**
+ * The difficulty badge's pairs as `--color-difficulty-{level}-fill` and `-ink` (`buildSpec.md` §1.4): the same tones
+ * native reads from `difficultyTone`/`difficultyToneDark`, so the two platforms cannot disagree on them. Pure.
+ *
+ * @param tones - The light or the dark tones.
+ * @returns One declaration per level and part.
+ */
+function difficultyDeclarations(tones: Readonly<Record<Difficulty, Tone>>): readonly string[] {
+    return Object.entries(tones).flatMap(([level, tone]) => [
+        `    --color-difficulty-${level}-fill: ${tone.fill};`,
+        `    --color-difficulty-${level}-ink: ${tone.text};`,
+    ]);
+}
+
+/**
  * The dark theme (`docs/design/uiOverhaul/darkTheme.md` §6): one `prefers-color-scheme: dark` override of the same
  * custom properties the `@theme` block declares — every role from `roleDark`, the cover tints, the glass edges and the
  * canvas wash — then `color-scheme: light dark` so form controls and scrollbars follow. Unlayered `:root` rules beat
@@ -154,8 +169,10 @@ function darkThemeLines(): readonly string[] {
         '    :root {',
         ...declarations('color', roleDark).map((line) => `    ${line}`),
         ...declarations('color-cover', coverTintDark).map((line) => `    ${line}`),
+        ...difficultyDeclarations(difficultyToneDark).map((line) => `    ${line}`),
         ...Object.keys(glass).map((tier) => `        --color-glass-${tier}-edge: ${glassEdgeDark};`),
         `        --background-image-hero: ${gradientCss(heroDark)};`,
+        `        --color-bar: ${barMaterial.dark};`,
         '    }',
         '}',
         '',
@@ -198,6 +215,9 @@ export function themeCss(): string {
         ...layoutDeclarations(),
         ...declarations('color-cover', coverTint),
         ...declarations('color-pro', { fill: proTone.fill, ink: proTone.text }),
+        ...difficultyDeclarations(difficultyTone),
+        // The level-2 bar material (slice 3), appended last for the same reason.
+        `    --color-bar: ${barMaterial.light};`,
         '}',
         ...darkThemeLines(),
     ];

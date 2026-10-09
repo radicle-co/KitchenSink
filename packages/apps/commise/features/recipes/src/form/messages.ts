@@ -70,10 +70,33 @@ export interface RecipeFormMessages {
     readonly dietaryFlagsLabel: string;
     /** Accessible label for the servings field. */
     readonly servingsLabel: string;
-    /** Accessible label for the prep-time field. */
+    /** The servings stepper's − button. */
+    readonly servingsDecrease: string;
+    /** The servings stepper's + button. */
+    readonly servingsIncrease: string;
+    /** Spoken after a servings step (contains `{count}`). */
+    readonly servingsAnnounce: string;
+    /** Visible label of the prep-time duration field; it names its hours and minutes boxes. */
     readonly prepTimeLabel: string;
-    /** Accessible label for the cook-time field. */
+    /** Visible label of the cook-time duration field. */
     readonly cookTimeLabel: string;
+    /** A duration field's hours box (contains `{field}`, the field's label). */
+    readonly durationHoursLabel: string;
+    /** A duration field's minutes box (contains `{field}`). */
+    readonly durationMinutesLabel: string;
+    /** The computed total under prep and cook (contains `{duration}`, already formatted). */
+    readonly totalTimeValue: string;
+    /** The Details section's group headings (H3, `docs/design/uiOverhaul/buildSpec.md` §7.4). */
+    readonly groups: {
+        readonly about: string;
+        readonly timeAndServings: string;
+        readonly kindOfDish: string;
+        readonly dietAndTags: string;
+    };
+    /** The badge on the Private choice for a cook whose plan does not include private recipes. */
+    readonly premiumBadge: string;
+    /** The Paste steps sheet's close control (house form "Close {thing}"); the sheet's other copy is `editorMessages.steps`. */
+    readonly pasteStepsClose: string;
     /** Label for the read-only computed total-time value. */
     readonly totalTimeLabel: string;
     /** Total-time unit template (contains `{minutes}`). */
@@ -219,23 +242,24 @@ export interface RecipeFormMessages {
      * when Next is pressed: that one says the recipe cannot advance, this one says WHICH row and why.
      */
     readonly ingredientNoFoodNote: string;
-    /**
-     * The trailing add row's accessible name, and its visible placeholder (`docs/design/rowEditorOpenDecisions.md` item
-     * 3). Not "Search ingredients": the recipe filter bar's field already has that name.
-     */
-    readonly addIngredientRowLabel: string;
     /** Remove-ingredient action label template (contains `{number}`). */
     readonly removeIngredient: string;
     /** Empty-state copy shown when there are no ingredient lines yet. */
     readonly noIngredients: string;
-    /**
-     * The running per-serving nutrition total template (w3/e3, FR-007; contains `{calories}`, `{protein}`,
-     * `{carbs}`, `{fat}`) — mirrors the wireframe's `Total nutrition (per serving): 420 cal | 18g P | 62g C |
-     * 12g F` line verbatim.
-     */
-    readonly nutritionTotalTemplate: string;
-    /** Honest affordance shown alongside the total when it is partial (FR-007 — some lines aren't counted yet). */
-    readonly nutritionPartialNotice: string;
+    /** Paste a list: a pasted line over the parse job's bound. Holds `{line}` (1-based) and `{max}`. */
+    readonly pasteRefusalLineTooLong: string;
+    /** Paste a list: more lines than one job takes. Holds `{max}`. */
+    readonly pasteRefusalTooManyLines: string;
+    /** A row's second line while a pasted line is read (build spec §7.5.1, `rowState.reading`). */
+    readonly rowStateReading: string;
+    /** A row's second line when its lookup failed (build spec §7.5.1, `rowState.lookupFailed`). */
+    readonly rowStateLookupFailed: string;
+    /** The Paste a list sheet's close control, as `pasteStepsClose` names Paste steps'. */
+    readonly pasteListClose: string;
+    /** The running total (build spec §7.5.6): "{cal} cal per serving · {counted} of {total} counted". */
+    readonly nutritionCounted: string;
+    /** The running total while no line is counted: never "0 cal" (F7). */
+    readonly nutritionEmpty: string;
     /**
      * Disclosure shown alongside the running total when a line states a RANGE and the figure was computed
      * from its LOWER bound (R38). A whole sentence per bound — see `rangeDerivedNotice`.
@@ -476,8 +500,6 @@ export interface RecipeFormMessages {
     readonly stepsHeading: string;
     /** Step-instruction field label template (contains `{number}`). */
     readonly stepInstructionLabel: string;
-    /** Visible label above a step's timer boxes; it names their group. */
-    readonly timerLabel: string;
     /** Accessible name of a step timer's hours box (contains `{number}`). */
     readonly stepTimerHoursLabel: string;
     /** Accessible name of a step timer's minutes box (contains `{number}`). */
@@ -499,6 +521,8 @@ export interface RecipeFormMessages {
     /** Localized copy for each `RecipeFormErrorCode` validation error (B20). */
     readonly errors: {
         readonly titleRequired: string;
+        readonly titleTooLong: string;
+        readonly titleTooLongToSave: string;
         readonly ingredientsPendingText: string;
         readonly ingredientsEmpty: string;
         readonly ingredientsUnresolved: string;
@@ -540,8 +564,22 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         addChipLabel: 'Add {field}',
         dietaryFlagsLabel: 'Dietary flags',
         servingsLabel: 'Servings',
-        prepTimeLabel: 'Prep time (minutes)',
-        cookTimeLabel: 'Cook time (minutes)',
+        servingsDecrease: 'Fewer servings',
+        servingsIncrease: 'More servings',
+        servingsAnnounce: 'Serves {count}',
+        prepTimeLabel: 'Prep time',
+        cookTimeLabel: 'Cook time',
+        durationHoursLabel: '{field}, hours',
+        durationMinutesLabel: '{field}, minutes',
+        totalTimeValue: 'Total {duration}',
+        groups: {
+            about: 'About the recipe',
+            timeAndServings: 'Time and servings',
+            kindOfDish: 'Kind of dish',
+            dietAndTags: 'Diet and tags',
+        },
+        premiumBadge: 'Premium',
+        pasteStepsClose: 'Close paste steps',
         totalTimeLabel: 'Total time',
         durationMinutes: '{minutes} min',
 
@@ -582,11 +620,15 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         ingredientStatusPanelTriggerLabel: 'About {food}',
         ingredientStatusPanelCloseLabel: 'Close details for {food}',
         ingredientNoFoodNote: 'No food chosen — this line won’t be saved. Remove it and add it from the search above.',
-        addIngredientRowLabel: 'Add an ingredient',
         removeIngredient: 'Remove ingredient {number}',
         noIngredients: 'No ingredients yet. Add your first ingredient.',
-        nutritionTotalTemplate: 'Total nutrition (per serving): {calories} cal | {protein}g P | {carbs}g C | {fat}g F',
-        nutritionPartialNotice: 'Partial — some ingredients aren’t counted yet',
+        pasteRefusalLineTooLong: 'Line {line} is longer than {max} characters. Shorten it and try again.',
+        pasteRefusalTooManyLines: 'That’s more than {max} lines. Paste them in smaller batches.',
+        rowStateReading: 'Reading…',
+        rowStateLookupFailed: 'Couldn’t look up',
+        pasteListClose: 'Close paste a list',
+        nutritionCounted: '{cal} cal per serving · {counted} of {total} counted',
+        nutritionEmpty: 'Nutrition appears as you match ingredients.',
         nutritionRangeDerivedLow: 'Estimated from the lower amount of each stated range',
         nutritionRangeDerivedHigh: 'Estimated from the upper amount of each stated range',
 
@@ -691,7 +733,6 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
 
         stepsHeading: 'Instructions',
         stepInstructionLabel: 'Step {number} instruction',
-        timerLabel: 'Timer (optional)',
         stepTimerHoursLabel: 'Step {number} timer, hours',
         stepTimerMinutesLabel: 'Step {number} timer, minutes',
         timerHoursUnit: 'h',
@@ -704,6 +745,8 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
 
         errors: {
             titleRequired: 'A title is required.',
+            titleTooLong: 'Shorten the title to 120 characters or fewer.',
+            titleTooLongToSave: 'Shorten the title to 200 characters or fewer to save it.',
             ingredientsPendingText:
                 'An ingredient you typed isn’t in the recipe yet. Choose a food for it, or delete what you typed.',
             ingredientsEmpty: 'Add at least one ingredient.',

@@ -35,7 +35,7 @@ test.describe('recipe list — a failed refresh keeps the rows', () => {
         });
 
         await page.goto(route('/recipes'));
-        const recipe = page.getByRole('button', { name: 'Weeknight Pasta' });
+        const recipe = page.getByRole('article', { name: 'Weeknight Pasta' });
         await expect(recipe).toBeVisible();
 
         // Only the list read fails; `nutrition-batch` shares the prefix but not the path.

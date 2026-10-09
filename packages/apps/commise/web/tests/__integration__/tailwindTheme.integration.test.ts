@@ -72,6 +72,10 @@ const PROBES = [
     'text-ink-muted',
     'border-line-control',
     'bg-selected-fill',
+    'bg-bar',
+    'size-18',
+    '@regular:w-30',
+    'min-[480px]:bg-paper',
 ] as const;
 
 /**
@@ -107,6 +111,42 @@ function ruleFor(css: string, utility: string): string | undefined {
 
     return match?.[1].replace(/\s+/g, '').replace(/;$/, '');
 }
+
+/** The slice-9 classes the Profile page and the Clerk appearance lean on, and the layer order Clerk's styles need. */
+describe('the sign-in and Profile classes, compiled', () => {
+    const cssPromise = compileAppCss();
+
+    // Clerk's own styles are unlayered emotion CSS, which beats any utility; they are moved into the `clerk` layer, and
+    // THIS statement ranks that layer below `utilities`. The first ordering statement of a layer name fixes its place,
+    // so it must come before Tailwind's own `@layer theme, base, components, utilities`.
+    it('ranks the clerk layer between base and components, BEFORE Tailwind declares its own order', async () => {
+        const css = await cssPromise;
+        const statements = [...css.matchAll(/^@layer\s+([^;{]+);/gmu)].map((match) => ({
+            at: match.index ?? -1,
+            layers: (match[1] ?? '').split(',').map((name) => name.trim()),
+        }));
+        const clerk = statements.find(({ layers }) => layers.includes('clerk'));
+        const tailwind = statements.find(({ layers }) => !layers.includes('clerk') && layers.includes('components'));
+
+        expect(clerk?.layers).toEqual(['theme', 'base', 'clerk', 'components', 'utilities']);
+        expect(clerk?.at ?? Number.POSITIVE_INFINITY).toBeLessThan(tailwind?.at ?? -1);
+    });
+
+    it('keeps the font import ahead of every layer rule, where CSS still honours it', async () => {
+        const css = await cssPromise;
+
+        expect(css.indexOf('@import url(')).toBeGreaterThan(-1);
+        expect(css.indexOf('@import url(')).toBeLessThan(css.indexOf('@layer'));
+    });
+
+    it('generates the 72 px avatar, the 600 px two-column term and the 480 px card utilities', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'size-18')).toBe('width:calc(var(--spacing)*18);height:calc(var(--spacing)*18)');
+        expect(css).toMatch(/@container[^{]*\(width\s*>=\s*(?:600px|37\.5rem)\)/);
+        expect(css).toMatch(/@media[^{]*\(width\s*>=\s*(?:480px|30rem)\)/);
+    });
+});
 
 describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
     // One compile shared by every assertion: the scan is the expensive part, and each `it` reads a different
@@ -360,6 +400,15 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
 
     it('queries <main> at 960 px for @wide — not at the 1440 px page width', async () => {
         expect(preludeOf(await cssPromise, '.\\@wide\\/main\\:grid-cols-3')).toBe('@container main (width >= 60rem)');
+    });
+
+    // Slice 3: the floating layer's bar material (`tokens/barMaterial.ts`) is a variable the dark block overrides, so the
+    // web tab bar re-themes with no `dark:` variant.
+    it('compiles bg-bar to its variable, overridden in the dark block', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'bg-bar')).toBe('background-color:var(--color-bar)');
+        expect(css).toMatch(/prefers-color-scheme:\s*dark[\s\S]*--color-bar:\s*rgba\(39, 35, 32, 0\.94\)/u);
     });
 
     it('caps a page at 90rem and a reading column at 40rem', async () => {

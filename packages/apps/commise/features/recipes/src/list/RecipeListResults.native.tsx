@@ -1,140 +1,237 @@
 /**
- * @module @commise/features-recipes — native recipe-list RESULTS (presentational): what renders inside the list's
- * suspense boundary once the library has settled.
+ * @module @commise/features-recipes — the native My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3), the
+ * twin of the web leaf: the facet chips with their counts and the result bar (count, sort sheet, list/grid switch),
+ * the refresh notice, then the body the host's `LibraryState` names — the first run, a no-match, or the cards in the
+ * decided variant in a virtualised list — then "Load more" past 500 recipes, and the create button wherever
+ * `shouldShowCreateButton` keeps it.
  *
- * The React Native leaf of `RecipeListResults`: the quick-filter chips, the refresh notice, then the empty, no-match
- * or populated body, and the create dial wherever {@link shouldShowCreateDial} keeps it. U4: the populated rows are
- * virtualized with FlashList v2 (cell recycling; v2 auto-measures, so NO `estimatedItemSize`) and pull-to-refresh is
- * wired through the recycler.
- *
- * While the screen frame is collapsed — a window compact in height with a keyboard open (`useFrameCollapsed`,
- * `docs/design/compactHeightLayout.md` §5) — the chips and the create dial step aside so the results keep their room;
- * they come back with the keyboard. It reads only that device state, the precedent `BottomSheetPanel` sets.
+ * While the frame is collapsed (a short screen with the keyboard open) the chips and the button step aside so the field
+ * and the first results stay in view. Pure `props → JSX`: the host reads, narrows and decides.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
+import { Chip, ChipRow } from '@commise/ui/chip';
+import { contentWidthOf } from '@commise/ui/container-class';
 import { useFrameCollapsed } from '@commise/ui/layout';
+import { LoadMoreControl } from '@commise/ui/load-more';
 import { nativeTokens } from '@commise/ui/native';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
+import { SegmentedControl } from '@commise/ui/segmented-control';
+import { useTheme } from '@commise/ui/theme';
 import { FlashList } from '@shopify/flash-list';
 import type { FC, ReactElement } from 'react';
-import { Pressable, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
+import { GRID_GAP, libraryGridColumnsOf } from '../card/cardGridLayout.js';
+import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
+import { RecipeCard } from '../card/RecipeCard.native.js';
 import { recipeMessages } from '../messages.js';
-import { RecipeCreateDial } from './RecipeCreateDial.native.js';
-import { RecipeListCard } from './RecipeListCard.native.js';
-import { recipeGridColumns } from '../layout/tabletColumns.js';
-import { filterChipLabel, formatRecipeCount, shouldShowCreateDial, type RecipeListResultsProps } from './model.js';
+import { LibrarySortMenu } from './LibrarySortMenu.native.js';
+import { RecipeCreateButton } from './RecipeCreateButton.native.js';
+import { fillTemplate, formatRecipeCount, shouldShowCreateButton, type RecipeListResultsProps } from './model.js';
 
-/** The inter-card gap, hoisted so the FlashList separator and the header spacer share one value. */
-const CARD_GAP = nativeTokens.spacing[3];
+/** The first run: the two ways to start. */
+const FirstRun: FC<Pick<RecipeListResultsProps, 'onCreateRecipe' | 'onPasteIngredients'>> = ({
+    onCreateRecipe,
+    onPasteIngredients,
+}) => {
+    const { list } = useMessages(recipeMessages);
+    const { colors } = useTheme();
+
+    return (
+        <View style={styles.firstRun}>
+            <Text role="heading" aria-level={2} style={[styles.sectionTitle, { color: colors.ink }]}>
+                {list.emptyTitle}
+            </Text>
+            <Text style={[styles.body, styles.centred, { color: colors.inkMuted }]}>{list.emptyBody}</Text>
+            <Button icon="pencilLine" size="lg" width="fill" onPress={onCreateRecipe}>
+                {list.emptyCreateCta}
+            </Button>
+            {onPasteIngredients === undefined ? null : (
+                <Button variant="secondary" icon="clipboardPaste" size="lg" width="fill" onPress={onPasteIngredients}>
+                    {list.pasteIngredients}
+                </Button>
+            )}
+        </View>
+    );
+};
+
+/** A no-match: what narrowed the rows, and the action that clears it. */
+const NoMatch: FC<Pick<RecipeListResultsProps, 'state' | 'searchValue' | 'onClearSearch' | 'onClearFilters'>> = ({
+    state,
+    searchValue,
+    onClearSearch,
+    onClearFilters,
+}) => {
+    const { list } = useMessages(recipeMessages);
+    const { colors } = useTheme();
+    const searched = state === 'noMatchQuery' || state === 'noMatchBoth';
+    const filtered = state === 'noMatchFilters' || state === 'noMatchBoth';
+
+    return (
+        <View collapsable={false} accessibilityLiveRegion="polite" role="status" style={styles.noMatch}>
+            <Text role="heading" aria-level={2} style={[styles.sectionTitle, { color: colors.ink }]}>
+                {list.noMatchTitle}
+            </Text>
+            {searched ? (
+                <Text style={[styles.body, { color: colors.inkMuted }]}>
+                    {fillTemplate(list.noMatchQuery, { query: searchValue.trim() })}
+                </Text>
+            ) : null}
+            {filtered ? <Text style={[styles.body, { color: colors.inkMuted }]}>{list.noMatchFilters}</Text> : null}
+            <View style={styles.actions}>
+                {filtered ? (
+                    <Button variant="secondary" icon="x" onPress={onClearFilters}>
+                        {list.clearFilters}
+                    </Button>
+                ) : null}
+                {searched ? (
+                    <Button variant="secondary" icon="x" onPress={onClearSearch}>
+                        {list.clearSearch}
+                    </Button>
+                ) : null}
+            </View>
+        </View>
+    );
+};
 
 export const RecipeListResults: FC<RecipeListResultsProps> = ({
     recipes,
-    narrowed,
+    state,
+    searchValue,
+    onClearSearch,
+    onClearFilters,
     onSelectRecipe,
+    variant,
+    chipOverflow,
+    facets,
+    view,
+    sort,
+    loadMore,
     onCreateRecipe,
     onPasteIngredients,
-    filters,
     refresh,
     refreshNotice,
     renderNutrition,
+    scrollBind,
 }) => {
     const { width } = useWindowDimensions();
     const collapsed = useFrameCollapsed();
-    const columns = recipeGridColumns(width, { phone: 1, tablet: 2 });
-
     const { list } = useMessages(recipeMessages);
+    const { colors } = useTheme();
     const locale = useLocale();
+
+    if (state === 'firstRun') {
+        return <FirstRun onCreateRecipe={onCreateRecipe} onPasteIngredients={onPasteIngredients} />;
+    }
+
+    const columns = variant === 'grid' ? libraryGridColumnsOf(contentWidthOf(width)) : 1;
+    const count = formatRecipeCount(recipes.length, { one: list.countOne, other: list.countOther }, locale);
+    const loadMoreControl =
+        loadMore === undefined ? null : (
+            <LoadMoreControl
+                {...loadMore}
+                labels={{
+                    loadMore: list.loadMore,
+                    loadingMore: list.loadingMore,
+                    retry: list.retry,
+                    failed: list.loadMoreError,
+                }}
+            />
+        );
 
     let body: ReactElement;
 
-    if (recipes.length === 0) {
+    if (state === 'results') {
         body = (
-            <View style={styles.emptyBody}>
-                <Text>{narrowed ? list.noMatchTitle : list.emptyTitle}</Text>
-                <Text>{narrowed ? list.noMatchBody : list.emptyBody}</Text>
-                {!narrowed && (
-                    <Button icon="plus" onPress={onCreateRecipe}>
-                        {list.emptyCreateCta}
-                    </Button>
-                )}
-            </View>
-        );
-    } else {
-        const count = formatRecipeCount(recipes.length, { one: list.countOne, other: list.countOther }, locale);
-        body = (
-            // ⛔ WIDTH-DERIVED. This was a single column at every width, so an iPad showed one full-width card
-            // per row — the stretched-phone shape `supportsTablet: true` promised a layout for and did not
-            // deliver. Two columns on a tablet keeps a card at a size its content was designed for.
             <FlashList
+                // A new column count is a new layout: keying on it makes FlashList measure afresh.
+                key={columns}
+                {...scrollBind}
                 data={recipes}
                 numColumns={columns}
                 keyExtractor={(recipe) => recipe.id}
                 renderItem={({ item }) => (
-                    <RecipeListCard recipe={item} onSelect={onSelectRecipe} nutrition={renderNutrition?.(item.id)} />
+                    <View style={columns > 1 ? styles.gridCell : null}>
+                        <RecipeCard
+                            variant={variant}
+                            recipe={item}
+                            onSelect={onSelectRecipe}
+                            nutrition={renderNutrition?.(item.id)}
+                        />
+                    </View>
                 )}
-                ListHeaderComponent={<Text style={styles.count}>{count}</Text>}
-                ItemSeparatorComponent={CardSeparator}
+                ItemSeparatorComponent={variant === 'row' ? RowSeparator : GridSeparator}
+                ListFooterComponent={loadMoreControl}
                 style={styles.cardsScroll}
                 contentContainerStyle={styles.cards}
                 keyboardShouldPersistTaps="handled"
                 refreshControl={
-                    refresh !== undefined ? (
+                    refresh === undefined ? undefined : (
                         <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
-                    ) : undefined
+                    )
                 }
+            />
+        );
+    } else {
+        body = (
+            <NoMatch
+                state={state}
+                searchValue={searchValue}
+                onClearSearch={onClearSearch}
+                onClearFilters={onClearFilters}
             />
         );
     }
 
     return (
         <>
-            {!collapsed && filters !== undefined && filters.available.length > 0 && (
-                <View collapsable={false} accessibilityLabel={list.filtersLabel} style={styles.chips}>
-                    {/* Leading "All" chip (mockup L4) resets every quick-filter; active when nothing is selected.
-                        Both state forms are deliberate, and neither is redundant (#114): `accessibilityState`
-                        is the DEVICE channel (React Native has no `pressed` state, so `selected` is the trait
-                        VoiceOver/TalkBack read for a selected chip), while `aria-pressed` is the only one that
-                        reaches the DOM — react-native-web forwards literal `aria-*` props and projects
-                        `accessibilityState` for NOTHING, so the object form alone left the selected state
-                        unannounced on the web build and unassertable everywhere. `aria-pressed` rather than
-                        `aria-selected` because these are `role="button"` toggles, which is also exactly what
-                        the web leaf and the sibling `RecipeFilterBar.native` chips render. Do not "simplify"
-                        by dropping either: RN maps `aria-selected`/`checked`/`busy`/`expanded`/`disabled` into
-                        `accessibilityState` but NOT `aria-pressed`, so the object form is load-bearing. */}
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: filters.active.length === 0 }}
-                        aria-pressed={filters.active.length === 0}
-                        onPress={filters.onClear}
-                        style={[styles.chip, filters.active.length === 0 && styles.chipActive]}
-                    >
-                        <Text style={filters.active.length === 0 ? styles.chipLabelActive : styles.chipLabel}>
-                            {list.filterAll}
-                        </Text>
-                    </Pressable>
-                    {filters.available.map((value) => {
-                        const active = filters.active.includes(value);
-
-                        return (
-                            <Pressable
-                                key={value}
-                                accessibilityRole="button"
-                                accessibilityState={{ selected: active }}
-                                aria-pressed={active}
-                                onPress={() => filters.onToggle(value)}
-                                style={[styles.chip, active && styles.chipActive]}
-                            >
-                                <Text style={active ? styles.chipLabelActive : styles.chipLabel}>
-                                    {filterChipLabel(value, list.filterQuick)}
-                                </Text>
-                            </Pressable>
-                        );
-                    })}
-                </View>
+            {!collapsed && facets.facets.length > 0 && (
+                <ChipRow mode="filter" label={list.filtersLabel} overflow={chipOverflow}>
+                    <Chip
+                        kind="filter"
+                        label={list.filterAll}
+                        selected={facets.facets.every((facet) => !facet.selected)}
+                        onPress={facets.onClear}
+                    />
+                    {facets.facets.map((facet) => (
+                        <Chip
+                            key={facet.value}
+                            kind="filter"
+                            label={facet.label}
+                            count={facet.count}
+                            selected={facet.selected}
+                            onPress={() => facets.onToggle(facet.value)}
+                        />
+                    ))}
+                </ChipRow>
             )}
+
+            <View style={styles.resultBar}>
+                <Text style={[styles.count, { color: colors.ink }]}>{count}</Text>
+                <View style={styles.resultControls}>
+                    <LibrarySortMenu value={sort.value} onChange={sort.onChange} />
+                    {/* A fixed width: icon-only segments grow to fill their track, and a row gives them no bound. */}
+                    <View style={styles.viewSwitch}>
+                        <SegmentedControl
+                            form="view"
+                            label={list.viewLabel}
+                            labelVisibility="hidden"
+                            value={view.mode}
+                            onChange={(mode) => {
+                                if (isListViewMode(mode)) {
+                                    view.onChange(mode);
+                                }
+                            }}
+                            segments={LIST_VIEW_MODES.map((mode) => ({
+                                id: mode,
+                                label: mode === 'list' ? list.viewList : list.viewGrid,
+                                icon: mode === 'list' ? 'list' : 'layoutGrid',
+                            }))}
+                        />
+                    </View>
+                </View>
+            </View>
 
             {refreshNotice !== undefined && (
                 <RefreshNotice
@@ -147,30 +244,44 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
 
             {body}
 
-            {!collapsed && shouldShowCreateDial({ recipeCount: recipes.length, narrowed }) && (
-                <RecipeCreateDial onCreateRecipe={onCreateRecipe} onPasteIngredients={onPasteIngredients} />
+            {!collapsed && shouldShowCreateButton({ recipeCount: recipes.length, narrowed: true }) && (
+                <RecipeCreateButton onCreateRecipe={onCreateRecipe} />
             )}
         </>
     );
 };
 
-/** The inter-card spacer for the virtualized list (FlashList lays cells out itself, so gap is a separator). */
-const CardSeparator: FC = () => <View style={styles.cardSeparator} />;
+const RowSeparator: FC = () => <View style={styles.rowSeparator} />;
+const GridSeparator: FC = () => <View style={styles.gridSeparator} />;
 
 const styles = StyleSheet.create({
-    emptyBody: { gap: nativeTokens.spacing[3], alignItems: 'flex-start' },
-    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
-    chip: {
-        borderRadius: nativeTokens.radius.full,
-        paddingHorizontal: nativeTokens.spacing[3],
-        paddingVertical: 6,
-        backgroundColor: palette.pearl,
+    firstRun: {
+        alignItems: 'center',
+        alignSelf: 'center',
+        width: '100%',
+        maxWidth: 448,
+        gap: nativeTokens.spacing[3],
+        paddingVertical: nativeTokens.spacing[8],
     },
-    chipActive: { backgroundColor: palette.seafoam },
-    chipLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.slate },
-    chipLabelActive: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.white },
-    count: { fontSize: 13, fontWeight: '500', color: palette.slate, marginBottom: CARD_GAP },
+    noMatch: { gap: nativeTokens.spacing[3], alignItems: 'flex-start', paddingVertical: nativeTokens.spacing[6] },
+    actions: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[3] },
+    sectionTitle: { ...nativeTokens.type.sectionTitle },
+    body: { ...nativeTokens.type.body },
+    centred: { textAlign: 'center' },
+    resultBar: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        columnGap: nativeTokens.spacing[3],
+        rowGap: nativeTokens.spacing[2],
+    },
+    resultControls: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
+    viewSwitch: { width: 112 },
+    count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
     cards: { paddingBottom: nativeTokens.spacing[5] },
-    cardSeparator: { height: CARD_GAP },
+    gridCell: { flex: 1, paddingHorizontal: GRID_GAP / 2 },
+    rowSeparator: { height: nativeTokens.spacing[2] },
+    gridSeparator: { height: GRID_GAP },
 });

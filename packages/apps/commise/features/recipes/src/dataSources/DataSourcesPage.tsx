@@ -5,15 +5,15 @@
  *
  * The page's heading and its two intro sentences, rendered OUTSIDE the read's boundary, which the composing route
  * passes as `children`. So a loading, failed or offline read swaps only what is under the intro, and the page never
- * loses its title. One column, at most 40rem wide and centred, at every width. The heading takes focus when
+ * loses its title. One column, the `reading` width, at every width; Back goes to Profile (`buildSpec.md` §9.2). The heading takes focus when
  * `headingFocusSignal` advances: a retry that took Try again away.
  */
 import { useMessages } from '@commise/i18n/react';
-import { useFocusOnSignal } from '@commise/ui/dialog-focus';
-import type { FC } from 'react';
+import { LargeTitleHeader } from '@commise/ui/large-title-header';
+import { useId, type FC } from 'react';
 
 import { dataSourcesMessages } from './messages.js';
-import type { DataSourcesPageProps } from './model.js';
+import type { DataSourcesPageWebProps } from './model.js';
 
 /**
  * The page frame: its heading and two intro sentences, then the read's state.
@@ -21,18 +21,21 @@ import type { DataSourcesPageProps } from './model.js';
  * @param props - The read's state, rendered below the intro, and when the heading takes focus.
  * @returns The page frame.
  */
-export const DataSourcesPage: FC<DataSourcesPageProps> = ({ children, headingFocusSignal }) => {
+export const DataSourcesPage: FC<DataSourcesPageWebProps> = ({ children, headingFocusSignal, back }) => {
     const messages = useMessages(dataSourcesMessages);
-    const headingRef = useFocusOnSignal<HTMLHeadingElement>(headingFocusSignal);
+    const headingId = useId();
 
     return (
-        <div className="mx-auto flex w-full max-w-[40rem] flex-col gap-4 px-4 py-8">
+        <div className="mx-auto flex w-full max-w-reading flex-col gap-4 pb-10">
+            <LargeTitleHeader
+                headingId={headingId}
+                title={messages.title}
+                focusSignal={headingFocusSignal}
+                {...(back === undefined ? {} : { back })}
+            />
             <div className="flex flex-col gap-2">
-                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-ink">
-                    {messages.title}
-                </h1>
-                <p className="text-body-md text-ink">{messages.intro}</p>
-                <p className="text-body-md text-ink-muted">{messages.closeMatchNote}</p>
+                <p className="text-body text-ink">{messages.intro}</p>
+                <p className="text-body text-ink-muted">{messages.closeMatchNote}</p>
             </div>
             {children}
         </div>

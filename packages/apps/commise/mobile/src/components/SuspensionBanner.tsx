@@ -5,7 +5,6 @@
  * check lives here so no caller has to remember it.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import type { UserStatus } from '@kitchensink/schema-identity';
 import type { JSX } from 'react';
 
@@ -31,5 +30,5 @@ export function SuspensionBanner({ status }: SuspensionBannerProps): JSX.Element
         return null;
     }
 
-    return <AlertBanner accent={palette.error} title={suspension.title} body={suspension.message} />;
+    return <AlertBanner accent="danger" title={suspension.title} body={suspension.message} />;
 }

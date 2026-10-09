@@ -4,6 +4,7 @@
  * "a failed refresh"). Its "never busies the New collection action" guard is now structural: the create action lives
  * in the frame, which never receives the load-more state at all.
  */
+import { LocaleProvider } from '@commise/i18n/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
@@ -20,18 +21,25 @@ const noop = () => undefined;
 function renderList(overrides: Partial<CollectionListResultsProps> = {}) {
     const props: CollectionListResultsProps = {
         collections: [],
+        total: overrides.collections?.length ?? 0,
         onSelect: noop,
+        search: { value: '', onChange: noop },
+        firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop },
         ...overrides,
     };
-    render(<CollectionListResults {...props} />);
+    render(
+        <LocaleProvider locale="en">
+            <CollectionListResults {...props} />
+        </LocaleProvider>,
+    );
 
     return props;
 }
 
 const threeCollections = [
-    makeCollection({ id: 'col_1', name: 'Weeknight Dinners' }),
-    makeCollection({ id: 'col_2', name: 'Holiday Baking' }),
-    makeCollection({ id: 'col_3', name: 'Meal Prep', description: 'Batch-cook staples.' }),
+    makeCollection({ id: 'col_1', name: 'Weeknight Dinners', visibility: 'private' }),
+    makeCollection({ id: 'col_2', name: 'Holiday Baking', visibility: 'private' }),
+    makeCollection({ id: 'col_3', name: 'Meal Prep', visibility: 'private' }),
 ];
 
 describe('CollectionListResults (native) — pull-to-refresh (U4/L8)', () => {
@@ -43,33 +51,52 @@ describe('CollectionListResults (native) — pull-to-refresh (U4/L8)', () => {
             refresh: { refreshing: true, onRefresh: noop },
         });
 
-        expect(screen.getByRole('button', { name: 'Weeknight Dinners' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Weeknight Dinners, Private' })).toBeTruthy();
     });
 });
 
-describe('CollectionListResults (native) — empty state', () => {
-    it('shows the empty message when a successful load returns no collections', () => {
-        renderList({ collections: [] });
+describe('CollectionListResults (native) — the first run (slice 4, `buildSpec.md` §5.1)', () => {
+    it('invites the first collection, with New collection', () => {
+        const onCreate = vi.fn();
+        renderList({ firstRun: { hasRecipes: true, onCreate, onAddRecipe: noop } });
 
-        expect(screen.getByText('No collections yet')).toBeTruthy();
+        expect(screen.getByText('Group recipes your way')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'New collection' }));
+
+        expect(onCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('with no recipes yet, offers Add a recipe instead', () => {
+        const onAddRecipe = vi.fn();
+        renderList({ firstRun: { hasRecipes: false, onCreate: noop, onAddRecipe } });
+
+        expect(screen.getByText('Add a few recipes first.')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
+
+        expect(onAddRecipe).toHaveBeenCalledTimes(1);
     });
 });
 
 describe('CollectionListResults (native) — populated state', () => {
-    it('renders one button per collection and reports selection upward', () => {
+    it('says the count, and draws one link per collection named by its name and visibility', () => {
         const onSelect = vi.fn();
         renderList({ collections: threeCollections, onSelect });
 
-        expect(screen.getByRole('button', { name: 'Weeknight Dinners' })).toBeTruthy();
+        expect(screen.getByText('3 collections')).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Holiday Baking' }));
+        fireEvent.click(screen.getByRole('link', { name: 'Holiday Baking, Private' }));
         expect(onSelect).toHaveBeenCalledWith('col_2');
     });
 
-    it('renders a collection description when present', () => {
-        renderList({ collections: threeCollections });
+    it('credits a copy, and shows the search from six collections', () => {
+        const six = Array.from({ length: 6 }, (_unused, index) => ({
+            ...makeCollection({ id: `c${index}`, name: `C ${index}` }),
+            sourceOwnerHandle: 'clara',
+        }));
+        renderList({ collections: six });
 
-        expect(screen.getByText('Batch-cook staples.')).toBeTruthy();
+        expect(screen.getAllByText('Copied from @clara')).toHaveLength(6);
+        expect(screen.getByLabelText('Search your collections')).toBeTruthy();
     });
 });
 
@@ -173,7 +200,16 @@ describe('CollectionListResults (native) — a failed refresh of the rows on scr
     });
 
     function viewWith(refreshNotice: CollectionListResultsProps['refreshNotice']) {
-        return <CollectionListResults collections={threeCollections} onSelect={noop} refreshNotice={refreshNotice} />;
+        return (
+            <CollectionListResults
+                collections={threeCollections}
+                total={threeCollections.length}
+                onSelect={noop}
+                search={{ value: '', onChange: noop }}
+                firstRun={{ hasRecipes: true, onCreate: noop, onAddRecipe: noop }}
+                refreshNotice={refreshNotice}
+            />
+        );
     }
 
     it('shows no notice while nothing has failed', () => {
@@ -190,5 +226,36 @@ describe('CollectionListResults (native) — a failed refresh of the rows on scr
         expect(screen.getAllByText('We couldn’t refresh your collections.').length).toBeGreaterThan(0);
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+});
+
+/** A scroll host's bind that records what its scroller does with it. */
+function recordingBind() {
+    return { ref: vi.fn(), onScroll: vi.fn(), onScrollBeginDrag: vi.fn(), scrollEventThrottle: 16 as const };
+}
+
+/** The node the bind's ref was last handed. */
+function boundScroller(bind: ReturnType<typeof recordingBind>): Element {
+    const node: unknown = bind.ref.mock.calls.at(-1)?.[0];
+
+    if (!(node instanceof Element)) {
+        throw new Error('the scroller never took the bind');
+    }
+
+    return node;
+}
+
+/**
+ * The screen's ONE vertical scroller takes its scroll host's bind (blueprint A7), so the host reads the scroll — the
+ * floating create button shrinks as the cook scrolls down, and a second tap on the tab returns to the top.
+ */
+describe("CollectionListResults (native) — the scroll host's bind", () => {
+    it("binds its scroller to the screen's scroll host, and reports each scroll to it", () => {
+        const bind = recordingBind();
+        renderList({ collections: threeCollections, total: 3, scrollBind: bind });
+
+        fireEvent.scroll(boundScroller(bind), { target: { scrollTop: 240 } });
+
+        expect(bind.onScroll).toHaveBeenCalled();
     });
 });

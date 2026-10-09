@@ -46,18 +46,43 @@ export interface RouteSegmentedControlProps {
     readonly onSelect: (id: string) => void;
 }
 
-/** Segments that are presentations of one view. */
-export interface ViewSegmentedControlProps {
+/** A presentation segment whose glyph stands alone, its label kept as its name. */
+export interface IconViewSegment extends ViewSegment {
+    readonly icon: IconName;
+}
+
+/** What every view control takes. */
+interface ViewSegmentedControlBase {
     readonly form: 'view';
     /** The control's accessible name (the `radiogroup`). */
     readonly label: string;
-    /** The presentations, in order. */
-    readonly segments: readonly ViewSegment[];
     /** The id of the presentation in use. */
     readonly value: string;
     /** Switch presentation. */
     readonly onChange: (id: string) => void;
 }
+
+/** Segments that are presentations of one view, with their labels drawn. */
+interface LabelledViewSegmentedControlProps extends ViewSegmentedControlBase {
+    /** Draw each label (the default). */
+    readonly labelVisibility?: 'visible';
+    /** The presentations, in order. */
+    readonly segments: readonly ViewSegment[];
+}
+
+/**
+ * Segments that are presentations of one view, drawn as glyphs alone (the library's list/grid switch, `buildSpec.md`
+ * §4.3). Every segment must carry a glyph, so an icon-only segment with nothing to draw cannot be written.
+ */
+interface IconOnlyViewSegmentedControlProps extends ViewSegmentedControlBase {
+    /** Keep each label as the segment's name only. */
+    readonly labelVisibility: 'hidden';
+    /** The presentations, in order, each with its glyph. */
+    readonly segments: readonly IconViewSegment[];
+}
+
+/** Segments that are presentations of one view. */
+export type ViewSegmentedControlProps = LabelledViewSegmentedControlProps | IconOnlyViewSegmentedControlProps;
 
 /** The cross-platform `SegmentedControl` contract. */
 export type SegmentedControlProps = RouteSegmentedControlProps | ViewSegmentedControlProps;

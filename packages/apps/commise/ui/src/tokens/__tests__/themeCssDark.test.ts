@@ -11,7 +11,7 @@ import { COVER_TINT_NAMES, coverTint, coverTintDark } from '../covers.js';
 import { glass, glassEdgeDark, gradientCss, heroDark } from '../gradients.js';
 import { kebab } from '../emit.js';
 import { themeCss } from '../themeCss.js';
-import { proTone } from '../tones.js';
+import { difficultyTone, difficultyToneDark, proTone } from '../tones.js';
 
 const css = themeCss();
 
@@ -55,6 +55,17 @@ describe('themeCss — the dark block', () => {
         }
 
         expect(darkBlock()).toContain(`--background-image-hero: ${gradientCss(heroDark)};`);
+    });
+
+    // Slice 4 (`buildSpec.md` §1.4 "Difficulty"; `darkTheme.md` §2): the difficulty badge's tint and its word re-theme,
+    // so a web card can draw them from a role-like variable instead of a palette class.
+    it('declares the difficulty pairs in @theme (light) and overrides them in the dark block', () => {
+        for (const level of ['easy', 'medium', 'hard'] as const) {
+            expect(css).toContain(`--color-difficulty-${level}-fill: ${difficultyTone[level].fill};`);
+            expect(css).toContain(`--color-difficulty-${level}-ink: ${difficultyTone[level].text};`);
+            expect(darkBlock()).toContain(`--color-difficulty-${level}-fill: ${difficultyToneDark[level].fill};`);
+            expect(darkBlock()).toContain(`--color-difficulty-${level}-ink: ${difficultyToneDark[level].text};`);
+        }
     });
 
     it('emits the PRO pair once, in @theme, and never re-themes it (darkTheme.md §2: fixed in both themes)', () => {

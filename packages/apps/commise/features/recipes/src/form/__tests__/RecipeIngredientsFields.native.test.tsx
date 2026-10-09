@@ -62,6 +62,7 @@ import type { RecipeFormErrors } from '../validate.js';
 import { type RecipeFormValues, defaultRecipeFormValues } from '../values.js';
 import { ingredientNoFoodNoteId, ingredientsErrorId } from '../fieldErrorIds.js';
 import { recipeFormMessages } from '../messages.js';
+import { editorMessages } from '../../editor/messages.js';
 import { recipeMessages } from '../../messages.js';
 import {
     makeIngredientNutrition,
@@ -74,7 +75,7 @@ import type { LookupRetry } from '../ingredientStatus.js';
 import { seedLineKey } from '../lineKey.js';
 import type { IngredientNutrition } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
-import { applyDraftAction } from '../props.js';
+import { applyDraftAction, type IngredientsPasteView } from '../props.js';
 import type { IngredientRowEditor } from '../../hooks/useIngredientRowEditor.js';
 
 const ROW_EDITOR = makeIngredientRowEditor();
@@ -112,6 +113,7 @@ interface LeafOverrides {
     readonly nutrition?: IngredientNutrition;
     readonly lookupRetry?: LookupRetry;
     readonly rowEditor?: IngredientRowEditor;
+    readonly paste?: IngredientsPasteView;
 }
 
 const leafElement = (over: LeafOverrides = {}) => (
@@ -122,6 +124,7 @@ const leafElement = (over: LeafOverrides = {}) => (
         nutrition={over.nutrition ?? NUTRITION}
         lookupRetry={over.lookupRetry ?? LOOKUP_RETRY}
         rowEditor={over.rowEditor ?? ROW_EDITOR}
+        {...(over.paste === undefined ? {} : { paste: over.paste })}
     />
 );
 
@@ -137,7 +140,7 @@ describe('RecipeIngredientsFields (native) — the states', () => {
         renderLeaf({ values: valuesWith([]) });
 
         expect(screen.getByText(en.noIngredients)).toBeTruthy();
-        expect(screen.getByLabelText(en.addIngredientRowLabel).getAttribute('role')).toBe('combobox');
+        expect(screen.getByLabelText(editorMessages.en.ingredients.addLabel).getAttribute('role')).toBe('combobox');
     });
 
     it('POPULATED: renders one row per line, bound to its values', () => {
@@ -255,10 +258,10 @@ describe('RecipeIngredientsFields (native) — an unresolved row surfaces its re
 describe('RecipeIngredientsFields (native) — the trailing add row (B8)', () => {
     it('is a combo box named “Add an ingredient”, with that as its placeholder', () => {
         renderLeaf({ values: valuesWith([]) });
-        const field = screen.getByLabelText<HTMLInputElement>(en.addIngredientRowLabel);
+        const field = screen.getByLabelText<HTMLInputElement>(editorMessages.en.ingredients.addLabel);
 
         expect(field.getAttribute('role')).toBe('combobox');
-        expect(field.placeholder).toBe(en.addIngredientRowLabel);
+        expect(field.placeholder).toBe(editorMessages.en.ingredients.addLabel);
     });
 
     it('⛔ typing in it goes to the entry for the trailing row and adds no line (U28)', () => {
@@ -270,7 +273,7 @@ describe('RecipeIngredientsFields (native) — the trailing add row (B8)', () =>
             rowEditor: makeIngredientRowEditor({ entry: makeIngredientEntry({ setText }) }),
         });
 
-        fireEvent.change(screen.getByLabelText(en.addIngredientRowLabel), { target: { value: 'kale' } });
+        fireEvent.change(screen.getByLabelText(editorMessages.en.ingredients.addLabel), { target: { value: 'kale' } });
 
         expect(setText).toHaveBeenCalledWith({ kind: 'newLine' }, 'kale');
         expect(onChange).not.toHaveBeenCalled();
@@ -837,10 +840,19 @@ describe('RecipeIngredientsFields (native) — plan 002 V1 row states', () => {
                 }),
             });
 
-            expect(
-                screen.getByText((content) => content.startsWith(en.nutritionTotalTemplate.split('{')[0])).textContent,
-            ).toContain('390');
+            // Build spec §7.5.6: one line, the calories and how many lines count.
+            expect(screen.getByText('390 cal per serving · 1 of 1 counted')).toBeTruthy();
             expect(screen.queryByText(/\d+ cal$/)).toBeNull();
+        });
+
+        it('⛔ with no line counted it never says "0 cal": nutrition appears as the cook matches lines (F7)', () => {
+            renderLeaf({
+                values: { ...valuesWith(withLineKeys([riceLine])), servings: 1 },
+                nutrition: makeIngredientNutrition({ lookup: () => ({ state: 'pending' }) }),
+            });
+
+            expect(screen.getByText(en.nutritionEmpty)).toBeTruthy();
+            expect(screen.queryByText(/0 cal/u)).toBeNull();
         });
 
         it('says LOADING while the read has not answered, and FAILED with a Try again when it failed', () => {
@@ -858,9 +870,7 @@ describe('RecipeIngredientsFields (native) — plan 002 V1 row states', () => {
             });
             expect(screen.getByText(en.nutritionLoadFailed)).toBeTruthy();
             // REVIEW F3: no figure stands beside the failure.
-            expect(
-                screen.queryByText((content) => content.startsWith(en.nutritionTotalTemplate.split('{')[0])),
-            ).toBeNull();
+            expect(screen.queryByText(/cal per serving/u)).toBeNull();
             fireEvent.click(screen.getByRole('button', { name: en.statusActionRetry }));
             expect(retry).toHaveBeenCalledTimes(1);
         });
@@ -1003,7 +1013,9 @@ describe('RecipeIngredientsFields (native) — focus after Remove (V1 sign-off i
 
         const addMoves = vi
             .mocked(AccessibilityInfo.sendAccessibilityEvent)
-            .mock.calls.filter(([node]) => (node as unknown) === screen.getByLabelText(en.addIngredientRowLabel));
+            .mock.calls.filter(
+                ([node]) => (node as unknown) === screen.getByLabelText(editorMessages.en.ingredients.addLabel),
+            );
 
         expect(addMoves).toHaveLength(1);
     });
@@ -1101,5 +1113,50 @@ describe('RecipeIngredientsFields (native) — a matched name is text (§3b)', (
         const text = within(screen.getByRole('group', { name: 'Ingredient 1 name' })).getByText('Arborio rice');
 
         expect(getComputedStyle(text).getPropertyValue('-webkit-line-clamp')).toBe('2');
+    });
+});
+
+describe('RecipeIngredientsFields (native) — pasted lines (build spec §7.5.1 "Reading", §7.5.4)', () => {
+    const PASTE: IngredientsPasteView = {
+        reading: [
+            { key: 'j:0', sourceLine: '2 cups flour', failed: false },
+            { key: 'j:1', sourceLine: '1 tsp salt', failed: true },
+        ],
+        onRetry: noop,
+        added: undefined,
+        onOpen: undefined,
+    };
+
+    it('each line not in the recipe yet shows its own text and its state, in place of the empty line', () => {
+        renderLeaf({ values: valuesWith([]), paste: PASTE });
+
+        expect(screen.getByText('2 cups flour')).toBeTruthy();
+        expect(screen.getByText(en.rowStateReading)).toBeTruthy();
+        expect(screen.getByText(en.rowStateLookupFailed)).toBeTruthy();
+        expect(screen.queryByText(en.noIngredients)).toBeNull();
+    });
+
+    it('a line whose lookup failed offers Try again, named for its line', () => {
+        const onRetry = vi.fn();
+        renderLeaf({ values: valuesWith([]), paste: { ...PASTE, onRetry } });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again for 1 tsp salt' }));
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('says politely how many ingredients a finished paste added', () => {
+        renderLeaf({ paste: { ...PASTE, reading: [], added: { count: 2, occurrence: 1 } } });
+
+        expect(screen.getByText('Added 2 ingredients.').getAttribute('aria-live')).toBe('polite');
+    });
+
+    it('the empty section offers Paste a list beside the add field', () => {
+        const onOpen = vi.fn();
+        renderLeaf({ values: valuesWith([]), paste: { ...PASTE, reading: [], onOpen } });
+
+        fireEvent.click(screen.getByRole('button', { name: editorMessages.en.ingredients.pasteList }));
+
+        expect(onOpen).toHaveBeenCalledTimes(1);
     });
 });

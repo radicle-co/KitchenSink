@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     EMPTY_OUTBOX,
+    appendExclusive,
     appendIntent,
     claimForSending,
     drainOrder,
@@ -28,6 +29,7 @@ import {
     recoverInterrupted,
     settle,
     supersede,
+    withdraw,
     type OutboxLog,
 } from '../outboxLog.js';
 import { type Intent, type OutboxRecord } from '../record.js';
@@ -426,5 +428,107 @@ describe('claimForSending', () => {
         );
 
         expect(claimForSending(sending, 1)).toBeUndefined();
+    });
+});
+
+/**
+ * ⛔ A PARKED RECORD IS NEVER COALESCED (slice 7 blueprint, amending ADR-0057 §3). It is work the cook was told about and
+ * has not decided on: a create parked with an unknown outcome may exist on the server, and replacing it with a newer
+ * body sends a second create — a duplicate recipe. It leaves the log only by an explicit {@link withdraw}.
+ */
+describe('appendIntent — a parked record is never replaced', () => {
+    it.each(['create', 'update'] as const)('appends a %s beside a parked one of the same entity', (kind) => {
+        const parked = settle(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: kind, localId: 'r1', payload: { v: 1 } })),
+            { seq: 1, outcome: 'parked' },
+        );
+        const next = appendIntent(
+            parked,
+            intent({ entity: 'recipe', intentKind: kind, localId: 'r1', payload: { v: 2 } }),
+        );
+
+        expect(next.records.map((record) => [record.seq, record.state, record.payload])).toStrictEqual([
+            [1, 'parked', { v: 1 }],
+            [2, 'pending', { v: 2 }],
+        ]);
+    });
+});
+
+/**
+ * The editor's submit (slice 7): one server write per recipe at a time, decided INSIDE the serialized mutation, so the
+ * check cannot race the drain's claim. A pending record is replaced losslessly (the editor sends whole drafts); a
+ * record on the wire or parked is reported, never joined.
+ */
+describe('appendExclusive', () => {
+    const edit = (v: number): Intent =>
+        intent({ entity: 'recipe', intentKind: 'update', localId: 'r1', payload: { v } });
+
+    it('queues into an empty slot, answering the new sequence number', () => {
+        const result = appendExclusive(EMPTY, edit(1));
+
+        expect(result).toStrictEqual({ kind: 'queued', seq: 1, log: appendIntent(EMPTY, edit(1)) });
+    });
+
+    it('replaces a pending record of the same entity and kind, keeping one record', () => {
+        const pendingCreate = appendIntent(
+            EMPTY,
+            intent({ entity: 'recipe', intentKind: 'create', localId: 'local:recipe:a', payload: { v: 1 } }),
+        );
+        const result = appendExclusive(
+            pendingCreate,
+            intent({ entity: 'recipe', intentKind: 'create', localId: 'local:recipe:a', payload: { v: 2 } }),
+        );
+
+        expect(result.kind).toBe('queued');
+        expect(result.kind === 'queued' ? result.log.records.map((record) => record.payload) : []).toStrictEqual([
+            { v: 2 },
+        ]);
+    });
+
+    it('reports a record on the wire and changes nothing', () => {
+        const sending = markSending(appendIntent(EMPTY, edit(1)), 1);
+
+        expect(appendExclusive(sending, edit(2))).toStrictEqual({ kind: 'inFlight', seq: 1 });
+    });
+
+    it('reports a parked record, with its status, and changes nothing', () => {
+        const parked = settle(appendIntent(EMPTY, edit(1)), { seq: 1, outcome: 'parked', status: 409 });
+
+        expect(appendExclusive(parked, edit(2))).toStrictEqual({ kind: 'parked', seq: 1, status: 409 });
+        expect(
+            appendExclusive(settle(appendIntent(EMPTY, edit(1)), { seq: 1, outcome: 'parked' }), edit(2)),
+        ).toStrictEqual({ kind: 'parked', seq: 1 });
+    });
+
+    it('ignores other entities and other recipes', () => {
+        const other = markSending(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r2' })),
+            1,
+        );
+
+        expect(appendExclusive(other, edit(1)).kind).toBe('queued');
+    });
+});
+
+describe('withdraw', () => {
+    it('removes a parked record by its sequence number', () => {
+        const parked = settle(appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' })), {
+            seq: 1,
+            outcome: 'parked',
+            status: 409,
+        });
+
+        expect(withdraw(parked, 1).records).toStrictEqual([]);
+    });
+
+    it('⛔ refuses a record that is not parked: a pending one is the drain`s, a sending one is on the wire', () => {
+        const pending = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' }));
+
+        expect(() => withdraw(pending, 1)).toThrow(/not parked/);
+        expect(() => withdraw(markSending(pending, 1), 1)).toThrow(/not parked/);
+    });
+
+    it('is a no-op for a record that is already gone', () => {
+        expect(withdraw(EMPTY, 7)).toBe(EMPTY);
     });
 });

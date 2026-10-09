@@ -51,25 +51,6 @@ export interface RecipeVisibilityToggleProps {
 }
 
 /**
- * Props for the clone action (T075) — a clone button. `canClone` gates the action off (e.g. the viewer
- * cannot clone this recipe) and `cloning` reflects the in-flight clone mutation; either disables the button.
- *
- * ⛔ There is deliberately NO `sourceAttribution` here any more. This control used to render the recipe's
- * provenance, which meant "where this recipe came from" was told ONLY to a viewer who could clone — never to
- * the recipe's own owner, and never including `sourceUrl`. Provenance is a property of the RECIPE, not of
- * who is looking, so it now has one authoritative representation: `detail/RecipeSourceLine`, rendered by the
- * detail view for every viewer. Re-adding it here would put two source lines on one screen.
- */
-export interface RecipeCloneActionProps {
-    /** Whether the viewer may clone this recipe — gates the action off when false. */
-    readonly canClone: boolean;
-    /** Whether the clone mutation is in flight — disables and marks the action busy. */
-    readonly cloning?: boolean;
-    /** Invoked when the user requests a clone. */
-    readonly onClone: () => void;
-}
-
-/**
  * Props for the "More" overflow menu (C4 wireframe parity) that groups the detail header's SECONDARY owner
  * actions — version history, delete, visibility — behind one disclosure, leaving Edit as the sole primary
  * control (`[Edit] [More]`). A pure Composite/slot shell: `children` is whatever secondary actions the

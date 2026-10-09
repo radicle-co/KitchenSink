@@ -8,7 +8,8 @@
     "exports": {
         ".": "./src/index.ts",
         "./danger": "./src/danger/index.ts",
-        "./testing": "./src/__fixtures__/index.ts"
+        "./testing": "./src/__fixtures__/index.ts",
+        "./profile": "./src/profile/index.ts"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",

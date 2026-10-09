@@ -20,7 +20,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { act, screen, waitFor, within } from '@testing-library/react';
@@ -34,11 +34,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buttonSurfaceClass } from '@commise/ui/button';
 
-import { renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
+import { CookMarksProvider } from '@commise/features-recipes';
+import { renderWithRecipeClient, withFoodClient as withFoodClientOnly } from '@commise/test-utils';
 
 import { RecipeDetailContainer } from '@/components/recipes/RecipeDetailContainer';
 
 import { makeRecipeDetail } from './__fixtures__/recipeFixtures';
+
+/**
+ * The container under the providers each app root mounts around it: the food client and the session's cook-marks
+ * scope (blueprint A13). The marks are kept in the tab's `sessionStorage`, which is cleared after every test.
+ */
+const withFoodClient = (ui: ReactElement): ReactElement =>
+    withFoodClientOnly(<CookMarksProvider subject="user_test">{ui}</CookMarksProvider>);
 
 const { useAuthMock, useUserProfileMock, pushMock, setRatingMutateMock, deleteRatingMutateMock } = vi.hoisted(() => ({
     useAuthMock: vi.fn(),
@@ -226,6 +234,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    sessionStorage.clear();
     vi.restoreAllMocks();
     vi.clearAllMocks();
 });
@@ -510,18 +519,20 @@ describe('RecipeDetailContainer', () => {
         });
     });
 
-    describe('back (C1 wireframe parity)', () => {
-        it('renders a Back link to the recipe list', async () => {
+    describe('back (§6.1)', () => {
+        it('renders a back link to the recipe list on the ghost DS surface', async () => {
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ id: 'rec_1' }));
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            expect(await screen.findByRole('link', { name: 'Back' })).toHaveAttribute('href', '/en/recipes');
+            const back = await screen.findByRole('link', { name: 'My recipes' });
+            expect(back).toHaveAttribute('href', '/en/recipes');
+            expect(back.className).toContain(buttonSurfaceClass('ghost', 'sm'));
         });
     });
 
-    describe('delete (T068) — owner only, behind the More menu (C4)', () => {
+    describe('delete (T068) — owner only, the ⋯ menu’s destructive action', () => {
         it('opens the confirmation dialog, confirms, deletes, and navigates to the recipe list', async () => {
             const user = userEvent.setup();
             const client = createFakeRecipeServiceClient();
@@ -532,35 +543,18 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            // The dialog is closed until the owner triggers it.
             expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
 
             await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
-            await user.click(screen.getByRole('button', { name: 'Delete recipe' }));
-
-            const dialog = screen.getByRole('alertdialog');
-            expect(dialog).toBeInTheDocument();
+            await user.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
 
             // The dialog's confirm repeats the trigger's verb (spec §6.5), so it is found inside the dialog.
-            await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete recipe' }));
+            await user.click(
+                within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete recipe' }),
+            );
 
             expect(deleteSpy).toHaveBeenCalledWith('rec_1');
             await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes'));
-        });
-
-        it('does not render the delete control (or the More menu) for a non-owner viewer', async () => {
-            const client = createFakeRecipeServiceClient();
-            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
-            );
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
-            // Wait for the ready (non-owner) render before asserting the owner-only controls are absent.
-            await screen.findByRole('button', { name: 'Clone' });
-            expect(screen.queryByRole('button', { name: /^More actions for /u })).not.toBeInTheDocument();
-            expect(screen.queryByRole('button', { name: 'Delete recipe' })).not.toBeInTheDocument();
         });
 
         it('surfaces a failed delete inside the dialog, not a silent stop (B17)', async () => {
@@ -573,50 +567,17 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
             await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
-            await user.click(screen.getByRole('button', { name: 'Delete recipe' }));
-            // The dialog's confirm repeats the trigger's verb (spec §6.5), so it is found inside the dialog.
-            await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete recipe' }));
+            await user.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
+            await user.click(
+                within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete recipe' }),
+            );
 
             expect(await screen.findByText('We couldn’t delete this recipe. Try again.')).toBeInTheDocument();
         });
     });
 
-    describe('visibility (T074) — change error (B17: no silent snap-back)', () => {
-        it('surfaces a failed visibility change on the toggle', async () => {
-            const user = userEvent.setup();
-            const client = createFakeRecipeServiceClient();
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PRIVATE }),
-            );
-            vi.spyOn(client, 'setRecipeVisibility').mockRejectedValue(new Error('network down'));
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
-            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
-            await user.click(screen.getByRole('radio', { name: 'Public' }));
-
-            expect(
-                await screen.findByText('We couldn’t change who can see this recipe. Please try again.'),
-            ).toBeInTheDocument();
-        });
-    });
-
-    describe('interactivity wiring (W2/D4/D5/D6)', () => {
-        it('deep-links a tapped tag to the visibility-scoped discover search (D6)', async () => {
-            const user = userEvent.setup();
-            const client = createFakeRecipeServiceClient();
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, tags: ['grill'] }),
-            );
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
-            await user.click(await screen.findByRole('button', { name: 'Find recipes tagged grill' }));
-
-            expect(pushMock).toHaveBeenCalledWith('/en/discover?tags=grill');
-        });
-
-        it('connects the cooking-progress hook to the view so an ingredient checkbox toggles (D5)', async () => {
+    describe('tap-to-check wiring (§6.3)', () => {
+        it('binds the cook’s marks so an ingredient row toggles (§6.3)', async () => {
             const user = userEvent.setup();
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'getRecipeById').mockResolvedValue(
@@ -629,7 +590,7 @@ describe('RecipeDetailContainer', () => {
             const before = box?.getAttribute('aria-checked');
             await user.click(box as HTMLElement);
 
-            // The container passes the store-backed toggle through; the checkbox reflects the flipped state.
+            // The view binds the session's cook marks itself; the row reflects the flipped state.
             expect(box?.getAttribute('aria-checked')).not.toBe(before);
         });
     });
@@ -673,321 +634,176 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            await screen.findByRole('button', { name: 'Clone' });
+            await screen.findByRole('button', { name: 'Save a copy' });
             expect(screen.queryByRole('button', { name: 'Review ingredient matches' })).not.toBeInTheDocument();
         });
     });
 
-    describe('detail entry points (W2/D1 dead-end + D7 clone gating)', () => {
-        it('gives the OWNER Edit + Version-history (behind More) and NO Clone control', async () => {
-            const user = userEvent.setup();
+    describe('the action row and the ⋯ menu (build spec §6.1, §6.4)', () => {
+        /** Renders the detail for the OWNER of a recipe. */
+        const renderOwnerDetail = (visibility: RecipeVisibility = RecipeVisibility.PUBLIC) => {
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility }),
             );
-
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            // D1: the web detail was a dead end — the owner could not reach the editor or the version history.
-            // C4: Edit stays a primary, always-visible control; Version history moves behind "More".
-            expect(await screen.findByRole('link', { name: 'Edit recipe' })).toHaveAttribute(
-                'href',
-                '/en/recipes/rec_1/edit',
-            );
-            await user.click(screen.getByRole('button', { name: /^More actions for /u }));
-            expect(screen.getByRole('link', { name: 'Version history' })).toHaveAttribute(
-                'href',
-                '/en/recipes/rec_1/versions',
-            );
-            // D7: an owner never clones their own recipe — the control is ABSENT, not merely disabled.
-            expect(screen.queryByRole('button', { name: 'Clone' })).not.toBeInTheDocument();
-        });
+            return client;
+        };
 
-        /**
-         * ⛔ THE ASSERTION IS DOM ORDER, NOT CONTAINMENT, and that is the honest statement of what is
-         * protected. "Edit is in the header" can be satisfied by any element that happens to be called a
-         * header; what the viewer actually suffers is REACH — the owner's primary action sat below the
-         * hero, the badges, the stats, the ingredients, every step and the rating block, at the foot of a
-         * scroll with no upper bound (a 30-step recipe has no shorter path to its own Edit button). Ordering
-         * reds if someone moves it back down; a `closest('header')` check would stay green if the whole
-         * header moved to the bottom, which is the failure it is supposed to catch.
-         *
-         * ⚠️ `getByRole('banner')` is NOT the query here. The detail's own `<header>` is a DESCENDANT of the
-         * `<article>` at `RecipeDetailBody.tsx:97`, which maps it to `generic` rather than `banner` — and on
-         * a full page render `banner` would match the app shell's header instead and pass for the wrong
-         * reason.
-         *
-         * ⚠️ The DIALOG deliberately does not move with the controls. Both platforms' comments record that
-         * it must survive the menu closing, so it stays a sibling of the slot rather than content inside it.
-         */
-        it('⛔ puts Edit ABOVE the recipe body, not at the foot of an unbounded scroll', async () => {
-            const client = createFakeRecipeServiceClient();
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
-            );
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
-            const edit = await screen.findByRole('link', { name: 'Edit recipe' });
-            const ingredients = screen.getByRole('region', { name: 'Ingredients' });
-
-            // `compareDocumentPosition` reads the tree, not the styling: FOLLOWING means the ingredients
-            // section comes AFTER Edit in document order, which is the order a screen reader and a scroll
-            // both traverse.
-            expect(edit.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-            // ...and the More trigger travels WITH it, so the C4 `[Edit] [More]` pair is not split in half.
-            const more = screen.getByRole('button', { name: /^More actions for /u });
-            expect(more.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        });
-
-        it('gives a NON-OWNER viewer of a public recipe Clone, and NO Edit/History links (D7 parity)', async () => {
+        /** Renders the detail for ANOTHER cook viewing a recipe. */
+        const renderOthersDetail = (visibility: RecipeVisibility = RecipeVisibility.PUBLIC) => {
             const client = createFakeRecipeServiceClient();
             useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
             vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
-            );
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
-            expect(await screen.findByRole('button', { name: 'Clone' })).toBeInTheDocument();
-            expect(screen.queryByRole('link', { name: 'Edit recipe' })).not.toBeInTheDocument();
-            expect(screen.queryByRole('link', { name: 'Version history' })).not.toBeInTheDocument();
-        });
-    });
-
-    describe('owner action controls wear the design system (no hand-rolled surfaces)', () => {
-        /** Renders the detail for the OWNER of a public recipe — the state that shows every owner control. */
-        const renderOwnerDetail = () => {
-            const client = createFakeRecipeServiceClient();
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility }),
             );
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+
+            return client;
         };
 
-        it('gives Edit the DS PRIMARY surface while keeping it a real link (role, href, touch floor)', async () => {
+        it('gives the OWNER Edit recipe as a real DS link, and Version history in the ⋯ menu', async () => {
+            const user = userEvent.setup();
             renderOwnerDetail();
-            const edit = await screen.findByRole('link', { name: 'Edit recipe' });
 
-            // Still a LINK — the DS migration must not downgrade a navigation to a <button> (that would lose
-            // the link role, ⌘-click, and open-in-new-tab).
+            const edit = await screen.findByRole('link', { name: 'Edit recipe' });
             expect(edit).toHaveAttribute('href', '/en/recipes/rec_1/edit');
             expect(edit.className).toBe(buttonSurfaceClass('primary'));
+
+            await user.click(screen.getByRole('button', { name: /^More actions for /u }));
+            await user.click(screen.getByRole('menuitem', { name: 'Version history' }));
+
+            await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1/versions'));
+            // An owner never copies their own recipe — the control is ABSENT, not merely disabled.
+            expect(screen.queryByRole('button', { name: 'Save a copy' })).not.toBeInTheDocument();
         });
 
-        it('gives Version history the DS SECONDARY surface, still as a link', async () => {
-            const user = userEvent.setup();
+        it('links the footer’s Version history for the owner', async () => {
             renderOwnerDetail();
 
-            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
-            const history = screen.getByRole('link', { name: 'Version history' });
-
-            expect(history).toHaveAttribute('href', '/en/recipes/rec_1/versions');
-            expect(history.className).toBe(buttonSurfaceClass('secondary'));
-        });
-
-        it('gives Back the DS SECONDARY surface, still as a link to the recipe list', async () => {
-            renderOwnerDetail();
-            const back = await screen.findByRole('link', { name: 'Back' });
-
-            expect(back).toHaveAttribute('href', '/en/recipes');
-            expect(back.className).toBe(buttonSurfaceClass('secondary'));
-        });
-
-        it('renders the delete trigger as the DS DESTRUCTIVE Button (danger label + touch floor)', async () => {
-            const user = userEvent.setup();
-            renderOwnerDetail();
-
-            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
-            const trigger = screen.getByRole('button', { name: 'Delete recipe' });
-
-            expect(trigger.className).toContain('min-h-11');
-            // UI-overhaul slice 2: the inline destructive tier is the `dangerText` role on the neutral surface.
-            expect(trigger.className).toContain('text-danger-text');
-            // The dialog contract is preserved: the trigger still announces that it opens one.
-            expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
-        });
-
-        it('leaves NO owner control on a bare, surface-less element', async () => {
-            const user = userEvent.setup();
-            renderOwnerDetail();
-
-            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
-
-            // Every owner control carries the DS pill geometry. A control with an empty/near-empty className is
-            // exactly the "reads as plain text" failure the design system exists to prevent. The radius is read
-            // from the DS recipe itself (E2 I2 made it half the touch floor, not `rounded-full`), so this cites the
-            // one authority instead of restating its value.
-            const dsRadius = buttonSurfaceClass()
-                .split(/\s+/u)
-                .find((utility) => utility.startsWith('rounded-'));
-
-            expect(dsRadius).toBeDefined();
-
-            for (const control of [
-                screen.getByRole('link', { name: 'Edit recipe' }),
-                screen.getByRole('link', { name: 'Version history' }),
-                screen.getByRole('link', { name: 'Back' }),
-                screen.getByRole('button', { name: 'Delete recipe' }),
-            ]) {
-                expect(control.className.split(/\s+/u)).toContain(dsRadius);
-                expect(control.className).toContain('min-h-11');
-            }
-        });
-    });
-
-    describe('visibility (T074) — owner only, premium-gated, behind the More menu (C4)', () => {
-        it('sets visibility to public when the owner selects the public option', async () => {
-            const user = userEvent.setup();
-            const client = createFakeRecipeServiceClient();
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PRIVATE }),
+            expect(await screen.findByRole('link', { name: 'Version history' })).toHaveAttribute(
+                'href',
+                '/en/recipes/rec_1/versions',
             );
+        });
+
+        /**
+         * ⛔ THE ASSERTION IS DOM ORDER: what the viewer suffers is REACH. The owner's primary once sat at the foot of
+         * an unbounded scroll; ordering reds if someone moves it back down.
+         */
+        it('⛔ puts Edit and the ⋯ trigger ABOVE the recipe body', async () => {
+            renderOwnerDetail();
+
+            const edit = await screen.findByRole('link', { name: 'Edit recipe' });
+            const ingredients = screen.getByRole('region', { name: 'Ingredients' });
+            const more = screen.getByRole('button', { name: /^More actions for /u });
+
+            expect(edit.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(more.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        });
+
+        it('gives ANOTHER cook Save a copy and no Edit, Version history or Delete', async () => {
+            renderOthersDetail();
+
+            expect(await screen.findByRole('button', { name: 'Save a copy' })).toBeInTheDocument();
+            expect(screen.queryByRole('link', { name: 'Edit recipe' })).not.toBeInTheDocument();
+            expect(screen.queryByRole('link', { name: 'Version history' })).not.toBeInTheDocument();
+            // With no mark set, another cook's menu has nothing to offer, so there is no ⋯ at all.
+            expect(screen.queryByRole('button', { name: /^More actions for /u })).not.toBeInTheDocument();
+        });
+
+        it('offers no Save a copy of a recipe that is not public', async () => {
+            renderOthersDetail(RecipeVisibility.PRIVATE);
+
+            await screen.findByRole('heading', { level: 1 });
+            expect(screen.queryByRole('button', { name: 'Save a copy' })).not.toBeInTheDocument();
+        });
+
+        it('saves a copy and opens it in the editor, because a copy needs an edit before it is published', async () => {
+            const user = userEvent.setup();
+            const client = renderOthersDetail();
+            vi.spyOn(client, 'cloneRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_clone' }));
+
+            await user.click(await screen.findByRole('button', { name: 'Save a copy' }));
+
+            await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_clone/edit'));
+        });
+
+        it('marks Save a copy busy, and still focusable, while the copy is being made', async () => {
+            const user = userEvent.setup();
+            const client = renderOthersDetail();
+            vi.spyOn(client, 'cloneRecipe').mockReturnValue(new Promise(() => {}));
+
+            await user.click(await screen.findByRole('button', { name: 'Save a copy' }));
+
+            expect(screen.getByRole('button', { name: 'Save a copy' })).toHaveAttribute('aria-disabled', 'true');
+            expect(screen.getByRole('button', { name: 'Save a copy' })).not.toBeDisabled();
+        });
+
+        it('offers Clear checks while a check is set, and it clears them', async () => {
+            const user = userEvent.setup();
+            renderOthersDetail();
+
+            const row = (await screen.findAllByRole('checkbox'))[0] as HTMLElement;
+            await user.click(row);
+            expect(row).toHaveAttribute('aria-checked', 'true');
+
+            await user.click(screen.getByRole('button', { name: /^More actions for /u }));
+            await user.click(screen.getByRole('menuitem', { name: 'Clear checks' }));
+
+            await vi.waitFor(() => expect(row).toHaveAttribute('aria-checked', 'false'));
+        });
+
+        it('makes the owner’s private recipe public from the menu', async () => {
+            const user = userEvent.setup();
+            const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
             const setVisibilitySpy = vi
                 .spyOn(client, 'setRecipeVisibility')
                 .mockResolvedValue(
                     makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
                 );
 
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
             await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
-            await user.click(screen.getByRole('radio', { name: 'Public' }));
+            await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
         });
 
-        it('gates the private option off for a free-tier owner and explains why', async () => {
+        it('surfaces a failed visibility change rather than snapping back silently (B17)', async () => {
             const user = userEvent.setup();
-            const client = createFakeRecipeServiceClient();
-            useUserProfileMock.mockReturnValue(profileWithTier('free'));
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
-            );
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+            const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
+            vi.spyOn(client, 'setRecipeVisibility').mockRejectedValue(new Error('network down'));
 
             await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
-            expect(screen.getByRole('radio', { name: 'Private' })).toBeDisabled();
-            expect(screen.getByText(/premium/i)).toBeInTheDocument();
+            await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
+
+            expect(
+                await screen.findByText('We couldn’t change who can see this recipe. Please try again.'),
+            ).toBeInTheDocument();
         });
 
-        it('enables the private option for a premium-tier owner', async () => {
+        it.each([
+            { tier: 'premium', offered: true },
+            { tier: 'free', offered: false },
+        ] as const)('offers Make private to a $tier owner: $offered (C-004)', async ({ tier, offered }) => {
             const user = userEvent.setup();
-            const client = createFakeRecipeServiceClient();
-            useUserProfileMock.mockReturnValue(profileWithTier('premium'));
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
-            );
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+            useUserProfileMock.mockReturnValue(profileWithTier(tier));
+            renderOwnerDetail();
 
             await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
-            expect(screen.getByRole('radio', { name: 'Private' })).toBeEnabled();
+
+            expect(screen.queryByRole('menuitem', { name: 'Make private' }) !== null).toBe(offered);
         });
 
-        it('fails safe (private gated off) while the profile is still loading', async () => {
+        it('fails safe — no Make private — while the profile is still loading', async () => {
             const user = userEvent.setup();
-            const client = createFakeRecipeServiceClient();
             useUserProfileMock.mockReturnValue({ data: undefined });
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
-            );
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+            renderOwnerDetail();
 
             await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
-            expect(screen.getByRole('radio', { name: 'Private' })).toBeDisabled();
-        });
-    });
 
-    describe('clone (T075) — public recipes', () => {
-        it('groups the Clone action with the version + visibility badges in ONE footer row (C3)', async () => {
-            const client = createFakeRecipeServiceClient();
-            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({
-                    id: 'rec_1',
-                    ownerId: OWNER_ID,
-                    visibility: RecipeVisibility.PUBLIC,
-                    currentVersion: 2,
-                }),
-            );
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
-            const footer = await screen.findByRole('group', { name: 'Recipe status' });
-            expect(within(footer).getByRole('button', { name: 'Clone' })).toBeInTheDocument();
-            expect(within(footer).getByText('v2')).toBeInTheDocument();
-            expect(within(footer).getByText('Public')).toBeInTheDocument();
-        });
-
-        it('clones a public recipe and navigates to the new recipe', async () => {
-            const user = userEvent.setup();
-            const client = createFakeRecipeServiceClient();
-            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
-            );
-            vi.spyOn(client, 'cloneRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_clone' }));
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
-            const cloneButton = await screen.findByRole('button', { name: 'Clone' });
-            expect(cloneButton).toBeEnabled();
-
-            await user.click(cloneButton);
-
-            await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_clone'));
-        });
-
-        it('shows the source attribution when the recipe carries one', async () => {
-            const client = createFakeRecipeServiceClient();
-            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({
-                    ownerId: OWNER_ID,
-                    visibility: RecipeVisibility.PUBLIC,
-                    sourceAttribution: 'Grandma’s cookbook',
-                }),
-            );
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
-            expect(await screen.findByText(/Grandma’s cookbook/)).toBeInTheDocument();
-        });
-
-        it('disables the clone action for a non-public recipe', async () => {
-            // The clone control only renders for a non-owner (D7); a private source keeps it disabled.
-            const client = createFakeRecipeServiceClient();
-            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ ownerId: OWNER_ID, visibility: RecipeVisibility.PRIVATE }),
-            );
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
-            expect(await screen.findByRole('button', { name: 'Clone' })).toBeDisabled();
-        });
-
-        it('marks the clone action busy while the clone mutation is in flight', async () => {
-            const user = userEvent.setup();
-            const client = createFakeRecipeServiceClient();
-            useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
-            );
-            vi.spyOn(client, 'cloneRecipe').mockReturnValue(new Promise(() => {}));
-
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-
-            await user.click(await screen.findByRole('button', { name: 'Clone' }));
-
-            // REWRITTEN: busy is `aria-disabled` and stays focusable (native `disabled` drops focus in a real
-            // browser — WCAG 2.2 SC 2.4.3).
-            expect(screen.getByRole('button', { name: 'Clone' })).toHaveAttribute('aria-disabled', 'true');
-            expect(screen.getByRole('button', { name: 'Clone' })).not.toBeDisabled();
+            expect(screen.queryByRole('menuitem', { name: 'Make private' })).not.toBeInTheDocument();
         });
     });
 

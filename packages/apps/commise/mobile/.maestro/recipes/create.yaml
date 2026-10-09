@@ -1,36 +1,29 @@
 appId: io.commise.mobile
 ---
-# Recipe create happy path (US1, T067; rewritten w3/e8 for the 4-step SCREEN-PER-STEP wizard). Assumes an
-# authenticated session (the auth login flow runs first in CI ordering) and the app pointed at a seeded
-# recipe API (EXPO_PUBLIC_RECIPE_API_URL). Drives the recipe list -> new-recipe wizard, walks all 4 steps via the
-# `Next: …` footer nav, states a difficulty, declares an ingredient as written, adds a step,
-# and Publishes — landing on the new recipe's detail. Mobile mirror of the web Playwright `recipeCrud.spec.ts`
-# create path.
+# Recipe create happy path (US1, T067). REWRITTEN for slice 7: the four-step wizard is retired, and the recipe is
+# made on the ONE scrolling editor page (build spec §7, owner decisions D1/D2). Assumes an authenticated session (the
+# auth login flow runs first in CI ordering) and the app pointed at a seeded recipe API (EXPO_PUBLIC_RECIPE_API_URL).
+# Drives the recipe list -> the editor, states a title, a difficulty and a meal type in Details, declares an
+# ingredient as written, adds a step with a timer, checks the draft in Preview, and Publishes from the pinned action
+# bar — landing on the new recipe's detail. Mobile mirror of the web Playwright `recipeCrud.spec.ts` create path.
 #
-# w3 replaced the old single tall Basics form with `Wizard.Step`s that each fill the viewport as their own
-# "screen". U6 then moved the chrome to ONE contextual footer primary: `Next: …` on steps 1-3 and `Publish`
-# on step 4 (U32: Save Draft is a first-class control in the pinned action bar; Cancel is the header's
-# back arrow; there is no overflow menu and no Preview).
-# So this flow walks the FOOTER `Next: …` nav to step 4, then taps the footer `Publish`. servings/prep/cook keep their
-# valid defaults (1 / 0 / 0 — see `defaultRecipeFormValues` + `validateRecipeForm`), so this flow deliberately
-# does NOT touch them, exactly as before.
+# Every section is on the same page, so the flow reaches each by scrolling to its first control. servings/prep/cook
+# keep their valid defaults (1 / 0 / 0 — see `defaultRecipeFormValues` + `validateRecipeForm`), so this flow
+# deliberately does NOT touch them.
 - runFlow: ../auth/signin.yaml
 
-# Recipe list surface, then into the create wizard.
+# Recipe list surface, then into the editor.
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
-- tapOn: 'Create from Scratch'
 
-# Step 1 of 4 (Basic). The wizard opens here — no page heading of its own (that copy belonged to the retired
-# flat `RecipeForm`), so the step-progress label is the entry checkpoint instead.
-- assertVisible: 'Step 1 of 4'
+# Details. The editor's × is its own control ('New recipe' would also match the FAB), so it is the entry checkpoint.
+- assertVisible: 'Close editor'
 - assertVisible: 'Title'
 - tapOn: 'Title'
 - inputText: 'Maestro Weeknight Soup'
 
-# State a difficulty (FR-001b): the picker is a radiogroup further down Basic (w3/e5 added a taller cuisine
-# picker above it), so scroll defensively rather than assume it is already on screen.
+# State a difficulty (FR-001b): the chip row sits further down Details, so scroll defensively rather than assume it
+# is already on screen.
 - scrollUntilVisible:
       element: 'Difficulty'
       direction: DOWN
@@ -46,17 +39,10 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Dinner'
 
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-
-# Step 2 of 4 (Ingredients). Since plan 002 V1 B8 the entry is the trailing "Add an ingredient" field after the last
-# line; with no lines yet it sits right below the rail. Type a name and declare it "as written": that path mints a
+# Ingredients. Since plan 002 V1 B8 the entry is the trailing "Add an ingredient" field after the last line; with no
+# lines yet it is the section's first control. Type a name and declare it "as written": that path mints a
 # real binding through POST /api/v1/ingredients, which is what Publish validation requires, and needs no food
 # service.
-- assertVisible: 'Step 2 of 4'
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
@@ -75,11 +61,10 @@ appId: io.commise.mobile
 - assertVisible: 'Keep typing.*3 characters or more.*'
 - inputText: 'mato'
 - assertNotVisible: 'Keep typing.*'
-- scrollUntilVisible:
-      element:
-          text: 'Use .*Tomato.* as written.*'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
 - tapOn:
       text: 'Use .*Tomato.* as written.*'
 
@@ -90,52 +75,42 @@ appId: io.commise.mobile
       element: 'Ingredient 1 name'
       direction: UP
       timeout: 30000
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
 
-# Step 3 of 4 (Instructions). "Add step" sits at the top of this step's body.
-- assertVisible: 'Step 3 of 4'
+# Steps, below Ingredients. A new recipe has no steps, so this is `Step 1`.
 - scrollUntilVisible:
       element: 'Add step'
-      direction: UP
+      direction: DOWN
       timeout: 20000
 - tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
+- tapOn: 'Step 1'
 - inputText: 'Combine everything and simmer.'
 # F1 (`docs/design/uiOverhaul/evaluateRecipeAndWizard.md`): the timer is entered in hours and minutes, no longer
-# in seconds. Read back on the detail below.
+# in seconds. The boxes appear once the step's 'Add a timer' is pressed. Read back on the detail below.
+- scrollUntilVisible:
+      element: 'Add a timer'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add a timer'
 - scrollUntilVisible:
       element: 'Step 1 timer, hours'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Step 1 timer, hours'
 - inputText: '3'
-- scrollUntilVisible:
-      element: 'Next: Review'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Review'
 
-# Step 4 of 4 is REVIEW now (U33) — the read-only last look that REPLACED the deleted Preview overlay. Photos
-# moved to step 1 with the rest of Details, so this step is no longer a guidance notice standing in for a
-# control. Publish is the action bar's primary here.
-- assertVisible: 'Step 4 of 4'
-- assertVisible: 'Review'
-# The draft, read back on the surface a cook actually checks before publishing — including the meal type
-# chosen on step 1, which proves the closed axis round-trips through the form.
-- assertVisible: 'Maestro Weeknight Soup'
-- scrollUntilVisible:
-      element: 'Meal type'
-      direction: DOWN
+# Preview (build spec §7.7 item 4) REPLACES the wizard's Review step: the real detail page, drawn from the draft, read
+# back on the surface a cook checks before publishing. ⚠️ The wizard's Review also read back the MEAL TYPE; the
+# detail page does not show one, so no surface on this flow can prove that axis round-trips any more (a recorded gap,
+# not an omission here).
+- tapOn: 'Preview'
+- extendedWaitUntil:
+      visible: 'Preview. This is how it looks to others.'
       timeout: 20000
-- assertVisible: 'Dinner'
-- scrollUntilVisible:
-      element: 'Publish'
-      direction: DOWN
-      timeout: 20000
+- assertVisible:
+      text: 'Maestro Weeknight Soup.*'
+- tapOn: 'Close preview'
+
+# Publish is the pinned action bar's primary, on screen wherever the page is scrolled.
 - tapOn: 'Publish'
 
 # Landed on the new recipe's detail. The title assertion is a `…Soup.*` regex because Maestro's inputText

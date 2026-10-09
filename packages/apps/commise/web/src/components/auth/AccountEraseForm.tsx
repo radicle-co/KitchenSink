@@ -37,13 +37,12 @@
  */
 import { useState } from 'react';
 import { useMessages } from '@commise/i18n/react';
-import { Button } from '@commise/ui/button';
+import { ProfileRow } from '@commise/features-account/profile';
 import { selectDonatableRecipes } from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 
 import { authMessages } from '@/components/auth/messages';
-import { errorText } from '@/components/auth/authChrome';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 import { useEraseAccount } from '@/components/auth/useEraseAccount';
@@ -153,13 +152,17 @@ export function AccountEraseForm() {
 
     return (
         <>
-            <Button variant="destructive" icon="trash" onPress={() => setOpen(true)}>
-                {erase.trigger}
-            </Button>
+            <ProfileRow
+                label={erase.trigger}
+                hint={erase.rowHint}
+                tone="danger"
+                chevron
+                onPress={() => setOpen(true)}
+            />
             {open && <AccountEraseFlow onClose={() => setOpen(false)} onExitFailed={handleExitFailed} />}
             {exitFailed && (
                 <>
-                    <p role="alert" className={errorText}>
+                    <p role="alert" className="px-4 pb-3 text-meta text-danger-text">
                         {session.eraseSignOutFailed}
                     </p>
                     <LogoutButton />

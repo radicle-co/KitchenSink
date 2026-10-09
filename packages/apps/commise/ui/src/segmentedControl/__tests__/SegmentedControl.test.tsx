@@ -150,4 +150,25 @@ describe('SegmentedControl (web) — view', () => {
         );
         expect(tokensOf(screen.getByRole('radio', { name: 'Grid view' }))).toContain('text-ink-muted');
     });
+
+    // Slice 4 (`buildSpec.md` §4.3, the library's list/grid switch): icon-only segments keep their names.
+    it('hides the labels of an icon-only switch from sight, never from the accessible name', () => {
+        render(
+            <SegmentedControl
+                form="view"
+                label="View"
+                labelVisibility="hidden"
+                value="list"
+                onChange={() => undefined}
+                segments={[
+                    { id: 'list', label: 'List view', icon: 'list' },
+                    { id: 'grid', label: 'Grid view', icon: 'layoutGrid' },
+                ]}
+            />,
+        );
+        const list = screen.getByRole('radio', { name: 'List view' });
+
+        expect(list.querySelector('svg')).not.toBeNull();
+        expect(screen.getByText('List view').className).toContain('sr-only');
+    });
 });

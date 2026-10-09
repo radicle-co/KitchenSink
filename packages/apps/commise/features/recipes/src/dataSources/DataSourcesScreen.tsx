@@ -19,14 +19,15 @@ import { DataSourcesList } from './DataSourcesList.js';
 import { DataSourcesLoadError } from './DataSourcesLoadError.js';
 import { DataSourcesPage } from './DataSourcesPage.js';
 import { DataSourcesSkeleton } from './DataSourcesSkeleton.js';
+import type { DataSourcesScreenProps } from './model.js';
 import { useDataSourcesView } from './useDataSourcesView.js';
 
-export const DataSourcesScreen: FC = () => {
+export const DataSourcesScreen: FC<DataSourcesScreenProps> = ({ back }) => {
     const { view, failures, recoveries, onRetry } = useDataSourcesView();
     const { readOffline } = useMessages(offlineNoticeMessages);
 
     return (
-        <DataSourcesPage headingFocusSignal={recoveries}>
+        <DataSourcesPage headingFocusSignal={recoveries} {...(back === undefined ? {} : { back })}>
             {view.kind === 'loading' && <DataSourcesSkeleton />}
             {view.kind === 'offline' && <OfflineReadSlot message={readOffline} />}
             {view.kind === 'error' && (

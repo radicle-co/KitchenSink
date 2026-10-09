@@ -8,6 +8,9 @@
  * edit form moves through `POST …/ingredients/{position}/rebind` and never through a save (ADR-0045, lines 265-269);
  * the editor sends it only after a save in flight settles, at the version that save produced; a line the server does
  * not store goes through an admission and a draft transition, and nothing else.
+ *
+ * Slice 7: the editor's saves go through the outbox now, so the composition carries a REAL outbox (`./outboxPort.ts`,
+ * the domain package's mutator and drain) in front of the same client. A save is Save changes on a published recipe.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
@@ -28,6 +31,8 @@ import type { LineCommitOutcome, LineCommitPort } from '../../src/hooks/lineComm
 import { useLineCommit, type LineCommit } from '../../src/hooks/useLineCommit.js';
 import { useRecipeEditor } from '../../src/hooks/useRecipeEditor.js';
 import { useSourceLimit } from '../../src/hooks/useSourceLimit.js';
+import type { DraftStore } from '../../src/editor/draftStore.js';
+import { makeOutboxPort } from './outboxPort.js';
 
 afterEach(cleanup);
 
@@ -136,9 +141,21 @@ function oneSurface(lineCommit: LineCommit<'row'>): { readonly commit: LineCommi
     return { commit: (pick, target) => lineCommit.commit(pick, target, 'row') };
 }
 
-/** The edit form's composition: the editor and the commit hook on its two ports. */
-function useEditForm(recipe: RecipeDetail) {
-    const editor = useRecipeEditor(recipe, { onSaved: () => undefined, locale: 'en' });
+/** A device draft store that keeps nothing: this suite is about the wire. */
+const NO_DRAFTS: DraftStore = {
+    load: async () => undefined,
+    save: async () => undefined,
+    discard: async () => undefined,
+    adopt: async () => undefined,
+    clear: async () => undefined,
+};
+
+/** The edit form's composition: the editor (over a real outbox) and the commit hook on its two ports. */
+function useEditForm(recipe: RecipeDetail, port: ReturnType<typeof makeOutboxPort>['port']) {
+    const editor = useRecipeEditor(
+        { recipe },
+        { locale: 'en', port, drafts: NO_DRAFTS, keep: 'disk', onExit: () => undefined },
+    );
     const lineCommit = oneSurface(
         useLineCommit<'row'>(
             { kind: 'editForm', dispatch: editor.dispatch, command: editor.lineCommand },
@@ -183,7 +200,8 @@ describe('useLineCommit on the edit form (integration)', () => {
         const { client, requests } = stubbedRecipes(async (method, path) =>
             method === 'POST' && path === REBIND_PATH ? json(flatAt(4)) : json(recipeAt(5)),
         );
-        const { result } = renderHook(() => useEditForm(recipeAt(3)), {
+        const { port } = makeOutboxPort(client);
+        const { result } = renderHook(() => useEditForm(recipeAt(3), port), {
             wrapper: providers(client, new QueryClient(), adoptingFood({ id: 'food_stewed' }, adopts)),
         });
         const key = result.current.editor.values.ingredients[1]!.key;
@@ -209,7 +227,8 @@ describe('useLineCommit on the edit form (integration)', () => {
         const { client, requests } = stubbedRecipes(async (method, path) =>
             method === 'POST' && path === REBIND_PATH ? json(flatAt(4)) : json(recipeAt(5)),
         );
-        const { result } = renderHook(() => useEditForm(recipeAt(3)), { wrapper: providers(client) });
+        const { port } = makeOutboxPort(client);
+        const { result } = renderHook(() => useEditForm(recipeAt(3), port), { wrapper: providers(client) });
         const key = result.current.editor.values.ingredients[1]!.key;
         const outcome = await commitAndWait(() =>
             result.current.lineCommit.commit(
@@ -236,8 +255,11 @@ describe('useLineCommit on the edit form (integration)', () => {
             variant: FLAT,
         });
 
-        await act(async () => {
-            result.current.editor.submit('');
+        act(() => {
+            result.current.editor.setField('description', 'Edited.');
+        });
+        act(() => {
+            result.current.editor.saveChanges('');
         });
         await waitFor(() => expect(requests).toHaveLength(2));
         expect(requests[1]).toMatchObject({ method: 'PATCH', body: { expectedVersion: 4 } });
@@ -254,12 +276,16 @@ describe('useLineCommit on the edit form (integration)', () => {
 
             return Promise.resolve(method === 'POST' && path === REBIND_PATH ? json(flatAt(5)) : json(recipeAt(9)));
         });
-        const { result } = renderHook(() => useEditForm(recipeAt(3)), { wrapper: providers(client) });
+        const { port } = makeOutboxPort(client);
+        const { result } = renderHook(() => useEditForm(recipeAt(3), port), { wrapper: providers(client) });
         const key = result.current.editor.values.ingredients[1]!.key;
         let committed: Promise<LineCommitOutcome> | undefined;
 
-        await act(async () => {
-            result.current.editor.submit('');
+        act(() => {
+            result.current.editor.setField('description', 'Edited.');
+        });
+        act(() => {
+            result.current.editor.saveChanges('');
         });
         await waitFor(() => expect(requests.map((r) => r.method)).toEqual(['PATCH']));
         await act(async () => {
@@ -274,8 +300,13 @@ describe('useLineCommit on the edit form (integration)', () => {
 
         expect(requests.map((r) => r.method)).toEqual(['PATCH']);
 
+        // ⚠️ Answered in one `act` and awaited in the next: the command goes out from an effect that the save's answer
+        // enables, and `act` flushes effects only once its callback settles.
         await act(async () => {
             answerSave?.(json(recipeAt(4)));
+        });
+        await waitFor(() => expect(requests.map((r) => r.method)).toEqual(['PATCH', 'POST']));
+        await act(async () => {
             await committed;
         });
 
@@ -311,7 +342,8 @@ describe('useLineCommit on the edit form (integration)', () => {
                 409,
             ),
         );
-        const { result } = renderHook(() => useEditForm(recipeAt(3)), { wrapper: providers(client) });
+        const { port } = makeOutboxPort(client);
+        const { result } = renderHook(() => useEditForm(recipeAt(3), port), { wrapper: providers(client) });
         const outcome = await commitAndWait(() =>
             result.current.lineCommit.commit(
                 { kind: 'catalogVariant', foodVariantId: 'var_flat' },
@@ -335,7 +367,8 @@ describe('useLineCommit on the edit form (integration)', () => {
             createdAt: '2026-10-02T09:00:00.000Z',
         };
         const { client, requests } = stubbedRecipes(async () => json(admitted));
-        const { result } = renderHook(() => useEditForm(recipeAt(3)), { wrapper: providers(client) });
+        const { port } = makeOutboxPort(client);
+        const { result } = renderHook(() => useEditForm(recipeAt(3), port), { wrapper: providers(client) });
 
         await act(async () => {
             await result.current.lineCommit.commit(

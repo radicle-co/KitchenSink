@@ -6,7 +6,7 @@
 
 appId: io.commise.mobile
 ---
-# Sign in and land on the Home widget surface (the login core waits on the time-of-day "…Chef" greeting).
+# Sign in and land on the Home widget surface (the login core waits on the large title's avatar, "Profile…").
 - runFlow: auth/signinHome.yaml
 
 # The recipe (recent-recipes) widget renders on Home. The card title comes from the recipe feature's

@@ -51,9 +51,12 @@ export interface ConflictViewModel {
  * @sideEffect Resets its own state during render when a new conflict arrives.
  */
 export function useConflictView(
-    props: Pick<RecipeConflictViewProps, 'server' | 'base' | 'versionsBehind' | 'selections' | 'onSelectionsChange'>,
+    props: Pick<
+        RecipeConflictViewProps,
+        'server' | 'base' | 'versionsBehind' | 'neverPublished' | 'selections' | 'onSelectionsChange'
+    >,
 ): ConflictViewModel {
-    const { server, base, versionsBehind, selections, onSelectionsChange } = props;
+    const { server, base, versionsBehind, neverPublished = false, selections, onSelectionsChange } = props;
     const [merging, setMerging] = useState(false);
     const [staleConfirmed, setStaleConfirmed] = useState(false);
     const [conflictVersion, setConflictVersion] = useState(server.versionNumber);
@@ -64,7 +67,7 @@ export function useConflictView(
         setMerging(false);
     }
 
-    const isStale = isConflictBaseStale(base, versionsBehind);
+    const isStale = isConflictBaseStale(base, versionsBehind, neverPublished);
     const hasSelection = Object.keys(selections).length > 0;
     const staleUnconfirmed = isStale && !staleConfirmed;
 

@@ -1,23 +1,24 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web discovery FRAME — the chrome that renders outside the discovery suspense boundary:
- * heading, source switcher, search field with its recent-search panel, filter slot, back-to-browse, sort, and the
- * region that announces settled results. Whatever the boundary renders below it arrives as `children`.
+ * The web discovery FRAME — the chrome that renders outside the discovery suspense boundary
+ * (`docs/design/uiOverhaul/buildSpec.md` §3.3, §4.4, §4.5): the large title, the search field with its recent-search
+ * panel, the filters (a sticky panel beside the results at a 960 container, otherwise a Filters button, the applied-filter
+ * chips and the sheet), the sort, back-to-browse, and the ONE line that is both the visible result count and the polite
+ * live region. Whatever the boundary renders below it arrives as `children`.
  *
- * Moved from the retired `RecipeDiscoveryList.test.tsx` ("chrome", "source switcher (L5)", "recent searches (U7)", the
- * sort and back-to-browse cases of "populated state" and "browse slot (U7)", their touch-floor and contrast cases, the
- * focus ring, and the refresh notice's focus hand-off — which now arrives as `headingFocusSignal`). The frame no longer
- * decides whether sort and back-to-browse show while browsing: the container passes them only when they apply, which
- * `RecipeDiscoveryContainer.test.tsx` covers. "Keeps the switcher in every body state" is now structural — the body is
- * `children` — and is asserted as that.
+ * ⚠️ REWRITTEN for slice 5. The frame used to take a `filterSlot` and draw sort as a row of radio chips, kept the count in
+ * a visually hidden region and had a raw `<input>`. It now takes the filters as a discriminated union (a panel, or a
+ * trigger + applied chips + sheet — never both), draws the design-system `SearchField`, shows the count line that is also
+ * the live region, and its sort is a menu. The placeholder-contrast, focus-ring and touch-floor-by-class assertions are
+ * deleted with the raw `<input>` and bespoke buttons they measured: those are the design system's own tests' now. The
+ * heading, recent-searches, back-to-browse and announcement assertions are kept.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ringContrast, utilityContrast } from '@commise/test-utils';
-import { semantic } from '@commise/ui';
+import { LocaleProvider } from '@commise/i18n/react';
 
 import { RecipeDiscoveryFrame } from '../RecipeDiscoveryFrame.js';
 import type { RecipeDiscoveryFrameProps } from '../model.js';
@@ -26,20 +27,32 @@ afterEach(cleanup);
 
 const noop = () => undefined;
 
-/** The source switcher's destinations — the web app's real `/{locale}/…` pair. */
-const HREF = { mine: '/en/recipes', community: '/en/discover' } as const;
+const SHEET_FILTERS: NonNullable<RecipeDiscoveryFrameProps['filters']> = {
+    presentation: 'sheet',
+    trigger: <button type="button">FILTERS TRIGGER</button>,
+    applied: <p>APPLIED CHIPS</p>,
+    sheet: <p>FILTER SHEET</p>,
+};
+
+const PANEL_FILTERS: NonNullable<RecipeDiscoveryFrameProps['filters']> = {
+    presentation: 'panel',
+    panel: <aside aria-label="Filters">FILTER PANEL</aside>,
+};
 
 function frame(overrides: Partial<RecipeDiscoveryFrameProps> = {}) {
     return (
-        <RecipeDiscoveryFrame
-            searchValue=""
-            onSearchChange={noop}
-            searching={false}
-            headingFocusSignal={0}
-            {...overrides}
-        >
-            {overrides.children ?? <button type="button">boundary content</button>}
-        </RecipeDiscoveryFrame>
+        <LocaleProvider locale="en">
+            <RecipeDiscoveryFrame
+                searchValue=""
+                onSearchChange={noop}
+                searching={false}
+                headingFocusSignal={0}
+                filters={SHEET_FILTERS}
+                {...overrides}
+            >
+                {overrides.children ?? <button type="button">boundary content</button>}
+            </RecipeDiscoveryFrame>
+        </LocaleProvider>
     );
 }
 
@@ -47,91 +60,154 @@ function renderFrame(overrides: Partial<RecipeDiscoveryFrameProps> = {}) {
     return render(frame(overrides));
 }
 
+const before = (earlier: HTMLElement, later: HTMLElement): boolean =>
+    (earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
 describe('RecipeDiscoveryFrame (web) — chrome', () => {
-    it('renders the heading, the search box and whatever the boundary below it renders', () => {
+    it('renders the heading “Discover”, the search field and whatever the boundary renders below it', () => {
         renderFrame();
 
-        expect(screen.getByRole('heading', { name: 'Discover recipes' })).toBeTruthy();
-        expect(screen.getByRole('searchbox', { name: 'Search public recipes' })).toBeTruthy();
+        expect(screen.getByRole('heading', { level: 1, name: 'Discover' })).toBeTruthy();
+        expect(screen.getByRole('searchbox', { name: 'Search recipes' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'boundary content' })).toBeTruthy();
     });
 
-    it('reflects the controlled search value', () => {
-        renderFrame({ searchValue: 'risotto' });
-
-        expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('risotto');
-    });
-
-    it('reports search input changes upward', async () => {
+    it('reflects the controlled search value, and reports changes upward', async () => {
         const user = userEvent.setup();
         const onSearchChange = vi.fn();
-        renderFrame({ onSearchChange });
+        renderFrame({ searchValue: 'risotto', onSearchChange });
 
-        // `user.paste`, not `user.type`: the input is controlled by an inert `vi.fn()`, so React resets the node to the
-        // unchanged prop after every keystroke and typing would report four one-letter values. A paste fires one input
-        // event with the whole value through the same `onChange`.
+        expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('risotto');
+
         await user.click(screen.getByRole('searchbox'));
         await user.paste('lamb');
 
-        expect(onSearchChange).toHaveBeenCalledWith('lamb');
+        expect(onSearchChange).toHaveBeenCalledWith('risottolamb');
     });
 
-    it('renders the filter slot under the search field, above the boundary', () => {
-        renderFrame({ filterSlot: <div>FILTER BAR</div> });
+    it('clears the field from its own clear control', async () => {
+        const user = userEvent.setup();
+        const onSearchChange = vi.fn();
+        renderFrame({ searchValue: 'risotto', onSearchChange });
 
-        const filters = screen.getByText('FILTER BAR');
-        const search = screen.getByRole('searchbox');
-        const boundary = screen.getByRole('button', { name: 'boundary content' });
+        await user.click(screen.getByRole('button', { name: 'Clear search' }));
 
-        expect(search.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(filters.compareDocumentPosition(boundary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(onSearchChange).toHaveBeenCalledWith('');
     });
-});
 
-describe('RecipeDiscoveryFrame (web) — source switcher (L5)', () => {
-    // THE regression this surface existed without: it rendered a heading and nothing else, so a viewer who chose
-    // "Community" on /recipes arrived here with no route back to their own library. The switcher's own contract lives
-    // in `../../list/__tests__/RecipeSourceTabs.test.tsx`; what belongs here is that this surface MOUNTS it.
-    it('renders no source switcher when no tab prop is given (a shell may own it)', () => {
+    it('is the page’s one H1 with the avatar the app supplies as its action, even over a failed body', () => {
+        renderFrame({
+            headerAction: { kind: 'avatar', avatar: <button type="button">Profile</button> },
+            children: <div role="alert">load failed</div>,
+        });
+
+        expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+        expect(screen.getByRole('heading', { level: 1 }).id).toBe('discover-title');
+        expect(screen.getByRole('button', { name: 'Profile' })).toBeTruthy();
+        expect(screen.getByRole('alert')).toBeTruthy();
+    });
+
+    it('draws no source switcher: Discover is a tab of its own', () => {
         renderFrame();
 
         expect(screen.queryByRole('navigation', { name: 'Recipe source' })).toBeNull();
     });
+});
 
-    it('offers a link BACK to My Recipes, with Community marked as the current source', () => {
-        renderFrame({ tab: { active: 'community', href: HREF } });
+describe('RecipeDiscoveryFrame (web) — filters', () => {
+    it('in the sheet presentation: the trigger, the applied chips and the sheet — and no panel', () => {
+        renderFrame({ filters: SHEET_FILTERS });
 
-        const nav = screen.getByRole('navigation', { name: 'Recipe source' });
-        expect(within(nav).getByRole('link', { name: 'My Recipes' }).getAttribute('href')).toBe('/en/recipes');
-        expect(within(nav).getByRole('link', { name: 'Community' }).getAttribute('aria-current')).toBe('page');
+        expect(screen.getByRole('button', { name: 'FILTERS TRIGGER' })).toBeTruthy();
+        expect(screen.getByText('APPLIED CHIPS')).toBeTruthy();
+        expect(screen.getByText('FILTER SHEET')).toBeTruthy();
+        expect(screen.queryByText('FILTER PANEL')).toBeNull();
     });
 
-    it('keeps the switcher above ANY body — the way back cannot depend on the search having succeeded', () => {
-        renderFrame({ tab: { active: 'community', href: HREF }, children: <div role="alert">load failed</div> });
+    it('in the panel presentation: the panel beside the results — and no trigger, no applied chips, no sheet', () => {
+        renderFrame({ filters: PANEL_FILTERS });
 
-        expect(screen.getByRole('link', { name: 'My Recipes' }).getAttribute('href')).toBe('/en/recipes');
-        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.getByRole('complementary', { name: 'Filters' })).toBeTruthy();
+        expect(screen.queryByText('FILTERS TRIGGER')).toBeNull();
+        expect(screen.queryByText('APPLIED CHIPS')).toBeNull();
+        expect(screen.queryByText('FILTER SHEET')).toBeNull();
+    });
+
+    it('draws the facets once whichever presentation it is in', () => {
+        const { rerender } = renderFrame({ filters: SHEET_FILTERS });
+        expect(screen.getAllByText(/FILTER (PANEL|SHEET)/u)).toHaveLength(1);
+
+        rerender(frame({ filters: PANEL_FILTERS }));
+        expect(screen.getAllByText(/FILTER (PANEL|SHEET)/u)).toHaveLength(1);
+    });
+
+    it('the sheet presentation reads: search, then the trigger, then the applied chips, then the results', () => {
+        renderFrame({ filters: SHEET_FILTERS });
+        const search = screen.getByRole('searchbox');
+        const trigger = screen.getByRole('button', { name: 'FILTERS TRIGGER' });
+        const applied = screen.getByText('APPLIED CHIPS');
+        const results = screen.getByRole('button', { name: 'boundary content' });
+
+        expect(before(search, trigger)).toBe(true);
+        expect(before(trigger, applied)).toBe(true);
+        expect(before(applied, results)).toBe(true);
+    });
+
+    it('the panel presentation puts the panel before the search field, which sits above the results beside it', () => {
+        renderFrame({ filters: PANEL_FILTERS });
+        const panel = screen.getByRole('complementary');
+        const search = screen.getByRole('searchbox');
+        const results = screen.getByRole('button', { name: 'boundary content' });
+
+        expect(before(panel, search)).toBe(true);
+        expect(before(search, results)).toBe(true);
+    });
+
+    it('draws no filters when none are given', () => {
+        renderFrame({ filters: undefined });
+
+        expect(screen.queryByText(/FILTER/u)).toBeNull();
     });
 });
 
 describe('RecipeDiscoveryFrame (web) — sort (S3)', () => {
-    it('renders the sort control with the active option checked and reports a change', async () => {
+    it('renders the sort menu with the sort in use on its button and reports a change', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
         renderFrame({ searching: true, sort: { active: RecipeSearchSortBy.RELEVANCE, onChange } });
 
-        const group = screen.getByRole('radiogroup', { name: 'Sort by' });
-        expect(within(group).getByRole('radio', { name: 'Relevance' }).getAttribute('aria-checked')).toBe('true');
-        expect(within(group).getByRole('radio', { name: 'Quickest' }).getAttribute('aria-checked')).toBe('false');
+        await user.click(screen.getByRole('button', { name: 'Sort: Relevance' }));
+        await user.click(await screen.findByRole('menuitemradio', { name: 'Quickest' }));
 
-        await user.click(within(group).getByRole('radio', { name: 'Quickest' }));
         expect(onChange).toHaveBeenCalledWith('quickest');
     });
 
-    it('renders no sort control when no sort prop is given (the container omits it while browsing)', () => {
+    it('renders no sort when none is given (the container omits it while browsing)', () => {
         renderFrame();
 
-        expect(screen.queryByRole('radiogroup', { name: 'Sort by' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Sort:/u })).toBeNull();
+    });
+
+    it('sits at the end of the Filters row in the sheet presentation, and at the end of the count line in the panel one', () => {
+        const sort = { active: RecipeSearchSortBy.RELEVANCE, onChange: noop };
+        const { rerender } = renderFrame({
+            filters: SHEET_FILTERS,
+            sort,
+            resultsSummary: { count: 9, query: '', kind: undefined },
+        });
+
+        expect(
+            before(
+                screen.getByRole('button', { name: 'FILTERS TRIGGER' }),
+                screen.getByRole('button', { name: 'Sort: Relevance' }),
+            ),
+        ).toBe(true);
+
+        rerender(frame({ filters: PANEL_FILTERS, sort, resultsSummary: { count: 9, query: '', kind: undefined } }));
+
+        expect(before(screen.getByText('9 recipes'), screen.getByRole('button', { name: 'Sort: Relevance' }))).toBe(
+            true,
+        );
     });
 });
 
@@ -158,7 +234,7 @@ describe('RecipeDiscoveryFrame (web) — recent searches (U7)', () => {
 
     /** Focus the search field — the panel is an idle-state affordance, not always-on chrome. */
     async function focusSearch(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-        await user.click(screen.getByRole('searchbox', { name: 'Search public recipes' }));
+        await user.click(screen.getByRole('searchbox', { name: 'Search recipes' }));
     }
 
     it('renders nothing when the surface wires no recent-search memory', async () => {
@@ -183,14 +259,13 @@ describe('RecipeDiscoveryFrame (web) — recent searches (U7)', () => {
         await focusSearch(user);
 
         const panel = screen.getByRole('region', { name: 'Recent searches' });
-        const options = within(panel).getAllByRole('button', { name: /^Search for/ });
+        const options = within(panel).getAllByRole('button', { name: /^Search for/u });
         expect(options.map((option) => option.textContent)).toEqual(['risotto', 'pasta']);
     });
 
     it('stays hidden while searching, even when focused — a typed query OR an active filter is the RESULT state', async () => {
         // `searching` is query OR filters. A filter applied from the sheet leaves the query blank, and gating on the
-        // query alone once left this idle-only panel drawn over the result list — on a phone it covered the middle of
-        // the screen, where a swipe to scroll the results lands.
+        // query alone once left this idle-only panel drawn over the result list.
         const user = userEvent.setup();
         renderFrame({ searchValue: '', searching: true, recentSearches: recent });
 
@@ -245,47 +320,53 @@ describe('RecipeDiscoveryFrame (web) — recent searches (U7)', () => {
     });
 });
 
-describe('RecipeDiscoveryFrame (web) — announcing settled results', () => {
+describe('RecipeDiscoveryFrame (web) — the count line, which is also the live region', () => {
     /**
      * The region is mounted EMPTY with the frame, outside the boundary, so it exists before any result does: a live
-     * region that mounts with its text already inside is not reliably announced, and the results body is swapped out
-     * for loading, error and no-match states. Its text is the settled header sentence, so identical results (a sort
-     * change with the same count) stay silent.
+     * region that mounts with its text already inside is not reliably announced, and the results body is swapped out for
+     * loading, error and no-result states. Its text is the visible count, so what is announced is what is seen.
      */
-    function announcementRegion(): HTMLElement {
-        const regions = screen.getAllByRole('status').filter((node) => node.classList.contains('sr-only'));
-        expect(regions, 'exactly one visually hidden announcement region').toHaveLength(1);
+    function countLine(): HTMLElement {
+        const regions = screen.getAllByRole('status');
+        expect(regions, 'exactly one count line').toHaveLength(1);
 
         return regions[0] as HTMLElement;
     }
 
-    it('mounts the region empty while no results have settled', () => {
+    it('mounts empty while no results have settled', () => {
         renderFrame();
 
-        expect(announcementRegion().textContent).toBe('');
+        expect(countLine().textContent).toBe('');
     });
 
-    it('announces the settled results header, naming the query they belong to', () => {
+    it('says the count in words, naming the query the results belong to, and it is visible', () => {
         const { rerender } = renderFrame();
 
-        rerender(frame({ resultsSummary: { count: 9, query: 'pasta', searching: true } }));
+        rerender(frame({ resultsSummary: { count: 12, query: 'lamb', kind: 'query' } }));
 
-        expect(announcementRegion().textContent).toBe('Showing 9 recipes for “pasta”');
+        expect(countLine().textContent).toBe('12 recipes for “lamb”');
+        expect(countLine().classList.contains('sr-only')).toBe(false);
     });
 
-    it('announces a search that settled with nothing as a no-match', () => {
-        renderFrame({ resultsSummary: { count: 0, query: 'tiramisu', searching: true } });
+    it('says the count alone when no term was searched', () => {
+        renderFrame({ resultsSummary: { count: 1, query: '', kind: 'filters' } });
 
-        expect(announcementRegion().textContent).toBe('No matching recipes');
+        expect(countLine().textContent).toBe('1 recipe');
     });
 
-    it('keeps the region outside the boundary’s body, so swapping the body never remounts it', () => {
-        const { rerender } = renderFrame({ resultsSummary: { count: 2, query: '', searching: false } });
-        const before = announcementRegion();
+    it('says the no-result heading when a search settled on nothing', () => {
+        renderFrame({ resultsSummary: { count: 0, query: 'tiramisu', kind: 'query' } });
 
-        rerender(frame({ resultsSummary: { count: 2, query: '', searching: false }, children: <p>loading</p> }));
+        expect(countLine().textContent).toBe('No recipes for “tiramisu”');
+    });
 
-        expect(announcementRegion()).toBe(before);
+    it('keeps the line outside the boundary’s body, so swapping the body never remounts it', () => {
+        const { rerender } = renderFrame({ resultsSummary: { count: 2, query: '', kind: undefined } });
+        const first = countLine();
+
+        rerender(frame({ resultsSummary: { count: 2, query: '', kind: undefined }, children: <p>loading</p> }));
+
+        expect(countLine()).toBe(first);
     });
 });
 
@@ -295,119 +376,12 @@ describe('RecipeDiscoveryFrame (web) — heading focus', () => {
 
         rerender(frame({ headingFocusSignal: 1 }));
 
-        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Discover recipes' }));
+        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Discover' }));
     });
 
     it('leaves focus alone on the first render', () => {
         renderFrame({ headingFocusSignal: 0 });
 
         expect(document.activeElement).toBe(document.body);
-    });
-});
-
-describe('RecipeDiscoveryFrame (web) — touch targets (44px floor)', () => {
-    /**
-     * Every interactive control on this surface clears the 44px floor the rest of the app was raised to (`min-h-11` at
-     * base, reset at `md:` for the mouse — the `@commise/ui` Button recipe's own treatment). The native leaf already
-     * carries `minHeight: 44` on its equivalents, so a web control without it is also a parity break.
-     */
-    function expectTouchFloor(control: HTMLElement, what: string): void {
-        expect(control.className, `${what} has no 44px touch floor`).toContain('min-h-11');
-        expect(control.className, `${what} does not reset the floor for the mouse`).toContain('md:min-h-0');
-    }
-
-    it('gives the back-to-browse action the floor', () => {
-        renderFrame({ onExitToBrowse: noop });
-
-        expectTouchFloor(screen.getByRole('button', { name: 'Back to browse' }), 'back to browse');
-    });
-
-    it('gives every sort option the floor', () => {
-        renderFrame({ searching: true, sort: { active: RecipeSearchSortBy.RELEVANCE, onChange: noop } });
-
-        for (const option of within(screen.getByRole('radiogroup', { name: 'Sort by' })).getAllByRole('radio')) {
-            expectTouchFloor(option, `sort option ${option.textContent ?? ''}`);
-        }
-    });
-
-    it('gives the clear control and every recent-search row the floor', async () => {
-        const user = userEvent.setup();
-        renderFrame({ recentSearches: { queries: ['risotto', 'pasta'], onSelect: noop, onClear: noop } });
-
-        await user.click(screen.getByRole('searchbox', { name: 'Search public recipes' }));
-
-        expectTouchFloor(screen.getByRole('button', { name: 'Clear recent searches' }), 'clear recent searches');
-
-        for (const option of screen.getAllByRole('button', { name: /^Search for/ })) {
-            expectTouchFloor(option, `recent search ${option.textContent ?? ''}`);
-        }
-    });
-});
-
-describe('RecipeDiscoveryFrame (web) — text contrast (WCAG 2.1 AA)', () => {
-    /**
-     * Every tertiary control here is TEXT a reader reads, so it owes the 4.5:1 SC 1.4.3 floor. The ratio is read from
-     * the class list the control actually rendered, and the HOVER state is measured as its own state, because a control
-     * that clears the floor at rest and drops under it under the cursor is still inaccessible.
-     */
-    const CARD = semantic.card;
-    const PAGE = semantic.background;
-
-    it('keeps the clear-recent-searches control legible at rest and under its mist hover tint', async () => {
-        const user = userEvent.setup();
-        renderFrame({ recentSearches: { queries: ['risotto'], onSelect: noop, onClear: noop } });
-        await user.click(screen.getByRole('searchbox', { name: 'Search public recipes' }));
-
-        const clear = screen.getByRole('button', { name: 'Clear recent searches' });
-        expect(utilityContrast(clear.className, { surface: CARD }), 'at rest on the panel').toBeGreaterThanOrEqual(4.5);
-        expect(
-            utilityContrast(clear.className, { surface: CARD, variant: 'hover' }),
-            'under its hover:bg-ink/6 tint',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('keeps the back-to-browse control legible at rest and under its mist hover tint', () => {
-        renderFrame({ onExitToBrowse: noop });
-
-        // It paints no card of its own, so it sits on the page background — darker than white, the stricter surface.
-        const back = screen.getByRole('button', { name: 'Back to browse' });
-        expect(utilityContrast(back.className, { surface: PAGE }), 'at rest on the page').toBeGreaterThanOrEqual(4.5);
-        expect(
-            utilityContrast(back.className, { surface: PAGE, variant: 'hover' }),
-            'under its hover:bg-ink/6 tint',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('keeps the search field’s PLACEHOLDER text legible on the field', () => {
-        renderFrame();
-
-        // The placeholder is the field's only visible instruction before typing, so it owes 4.5:1 like body copy; `mist`
-        // measured 1.90:1. The base `text-ink` is the value colour and would mask the defect, so the placeholder
-        // state is measured as its own state.
-        const search = screen.getByRole('searchbox', { name: 'Search public recipes' });
-
-        expect(
-            utilityContrast(search.className, { surface: CARD, variant: 'placeholder' }),
-            'placeholder on the card-white field',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
-    /**
-     * The frame is a `<section>` on the app background, which is what the search field's focus ring is drawn on (a
-     * Tailwind ring is a spread box-shadow outside the border box). It shipped as `ring-focus-ring` (2.58:1), under
-     * SC 1.4.11's 3:1 (#114), and with `outline-none` it is a keyboard viewer's only position cue.
-     */
-    it('rings the search box legibly against the page it sits on, out-measuring the `seafoam-light` it replaced', () => {
-        renderFrame();
-
-        const search = screen.getByRole('searchbox', { name: 'Search public recipes' });
-
-        expect(search.className, 'the browser outline is suppressed, so the ring is the whole indicator').toContain(
-            'outline-none',
-        );
-        expect(ringContrast(search.className, { surface: PAGE })).toBeGreaterThanOrEqual(3);
-        expect(ringContrast(search.className, { surface: PAGE })).toBeGreaterThan(
-            ringContrast('ring-2 ring-seafoam-light', { surface: PAGE }),
-        );
     });
 });

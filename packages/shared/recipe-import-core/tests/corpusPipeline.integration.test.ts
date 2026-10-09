@@ -334,8 +334,69 @@ describe('downstream contract — every resolved value is storable by recipe-cor
     });
 });
 
+/**
+ * The packages whose parsers must not ship in the Expo bundle: this package itself, and `parse-ingredient`, which an app
+ * could otherwise declare directly. The second closes UI-overhaul blueprint A1's rejection 2: the editor's add field
+ * reads its leading measure with `numeric-quantity` and recipe-core's ONE unit vocabulary, and `parse-ingredient` would
+ * bring a second vocabulary into the editor (the `T.`/`t.` disagreement `ingredientLine.ts` records).
+ */
+const BUNDLE_FORBIDDEN_PACKAGES: readonly string[] = ['@kitchensink/recipe-import-core', 'parse-ingredient'];
+
+/** The dependency fields a manifest can name a package in. */
+const DEPENDENCY_FIELDS: readonly string[] = [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+];
+
+/**
+ * The bundle-forbidden packages a manifest declares, in any dependency field. Pure.
+ *
+ * @param manifest - A parsed `package.json`.
+ * @returns The forbidden names it declares, in {@link BUNDLE_FORBIDDEN_PACKAGES}' order.
+ */
+function forbiddenDependenciesOf(manifest: unknown): readonly string[] {
+    const fields = manifest !== null && typeof manifest === 'object' ? (manifest as Record<string, unknown>) : {};
+    const declared = new Set(
+        DEPENDENCY_FIELDS.flatMap((field) => {
+            const value = fields[field];
+
+            return value !== null && typeof value === 'object' ? Object.keys(value) : [];
+        }),
+    );
+
+    return BUNDLE_FORBIDDEN_PACKAGES.filter((name) => declared.has(name));
+}
+
 describe('the bundle boundary is a control, not a comment', () => {
-    it('is depended on by no app package, because its parsers must not ship in the Expo bundle', () => {
+    it.each([
+        { why: 'a clean app', manifest: { dependencies: { 'numeric-quantity': '^3' } }, expected: [] },
+        {
+            why: 'this package as a dependency',
+            manifest: { dependencies: { '@kitchensink/recipe-import-core': '*' } },
+            expected: ['@kitchensink/recipe-import-core'],
+        },
+        {
+            why: 'parse-ingredient as a dependency (A1 rejection 2)',
+            manifest: { dependencies: { 'parse-ingredient': '^2' } },
+            expected: ['parse-ingredient'],
+        },
+        {
+            why: 'parse-ingredient as a dev or peer dependency',
+            manifest: { devDependencies: { 'parse-ingredient': '^2' }, peerDependencies: { 'parse-ingredient': '*' } },
+            expected: ['parse-ingredient'],
+        },
+        {
+            why: 'a name that merely mentions it is not a declaration',
+            manifest: { description: 'not parse-ingredient', dependencies: { 'parse-ingredient-lite': '1' } },
+            expected: [],
+        },
+    ])('reads what a manifest declares: $why', ({ manifest, expected }) => {
+        expect(forbiddenDependenciesOf(manifest)).toEqual(expected);
+    });
+
+    it('no app package declares a parser that must not ship in the Expo bundle', () => {
         const repoRoot = join(HERE, '..', '..', '..', '..');
         const appManifests = globSync('packages/apps/**/package.json', {
             cwd: repoRoot,
@@ -346,7 +407,7 @@ describe('the bundle boundary is a control, not a comment', () => {
 
         for (const relative of appManifests) {
             const manifest: unknown = JSON.parse(readFileSync(join(repoRoot, relative), 'utf8'));
-            expect(JSON.stringify(manifest)).not.toContain('@kitchensink/recipe-import-core');
+            expect({ relative, forbidden: forbiddenDependenciesOf(manifest) }).toEqual({ relative, forbidden: [] });
         }
     });
 });

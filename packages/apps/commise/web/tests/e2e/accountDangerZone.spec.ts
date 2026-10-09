@@ -13,7 +13,7 @@ import { signInWithTicket } from './utils/auth';
 const PRIVATE_RECIPE_ID = 'b1111111-1111-4111-8111-111111111111';
 
 /**
- * Account danger-zone happy path (CR-002 / U4b): the account page must present CLOSURE and ERASURE as two
+ * Account danger-zone happy path (CR-002 / U4b): the Profile page's danger zone must present CLOSURE and ERASURE as two
  * DISTINCT, non-conflatable actions — closure recoverable, erasure irreversible — and drive the
  * phrase-gated, donate-election erasure end to end. Driven through the real web UI (Next dev server + Clerk
  * session + client hooks + routing) with the recipe-service HTTP contract intercepted (`utils/recipeApi`) so
@@ -94,8 +94,8 @@ test.describe('account danger zone — closure vs erasure (CR-002/U4b)', () => {
             });
         });
 
-        await page.goto(route('/account'));
-        await expect(page.getByRole('heading', { name: 'Account Settings' })).toBeVisible();
+        await page.goto(route('/profile'));
+        await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible();
 
         // CLOSURE reads as recoverable — never "permanently deleted".
         await page.getByRole('button', { name: 'Close account' }).click();

@@ -15,17 +15,10 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-- tapOn: 'Create from Scratch'
 
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 - tapOn: 'Title'
 - inputText: 'Maestro Add Details'
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-- assertVisible: 'Step 2 of 4'
 
 # The root, from the food catalog, through the trailing field. A prefix, so the field's own text never matches the
 # option's name.
@@ -94,7 +87,6 @@ appId: io.commise.mobile
       timeout: 30000
 - assertNotVisible: 'Actions for boneless skinless chicken breasts, roasted'
 
-# Leave without saving: the explicit Discard, as `ingredientRemove.yaml` does.
-- runFlow: common/raiseDiscardGuard.yaml
-- tapOn: 'Discard changes'
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
 - assertVisible: 'Recipes'

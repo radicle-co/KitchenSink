@@ -18,13 +18,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 
 import { renderWithProviders } from '@commise/test-utils';
+import { act, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 
 vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
 
 // Zero insets by default; the landscape case sets distinct per-edge values, so one applied to the wrong edge fails.
 const safeArea = vi.hoisted(() => ({ insets: { top: 0, bottom: 0, left: 0, right: 0 } }));
 
-vi.mock('react-native-safe-area-context', () => ({
+vi.mock('react-native-safe-area-context', async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
     useSafeAreaInsets: () => safeArea.insets,
     SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
 }));
@@ -42,6 +46,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 }));
 
 const { HomeScreen } = await import('../../src/screens/HomeScreen.js');
+const { ScrollHost } = await import('@commise/ui/scroll-host');
+const { RECENT_RECIPE_LIMIT } = await import('../../src/components/home/RecipeWidgetSlot.js');
 
 afterEach(() => {
     cleanup();
@@ -51,36 +57,103 @@ afterEach(() => {
 
 const noop = (): void => undefined;
 
-describe('HomeScreen (mobile) — U8 brand adoption', () => {
-    it('renders the greeting on the canvas and the widget cards on frosted glass', async () => {
-        const { container } = renderWithProviders(
-            <HomeScreen onOpenRecipes={noop} onOpenRecipe={noop} onOpenProfile={noop} />,
-        );
+/** Render Home in its scroll host, as the Home tab's root does, handing back a way to scroll it. */
+function renderHome(
+    onOpenProfile = noop,
+    onCreateRecipe = noop,
+    queryClient = new QueryClient(),
+): { scroll: (y: number) => void } {
+    const seen: { scroll?: (y: number) => void } = {};
 
-        // The greeting (any time-of-day bucket says "Chef") is NOT wrapped in a gradient card: §1.6 deleted it, and
-        // the app canvas already carries the wash.
-        expect(screen.getByText(/Chef/u).closest('[data-commise-stub="linear-gradient"]')).toBeNull();
+    renderWithProviders(
+        <QueryClientProvider client={queryClient}>
+            <ScrollHost>
+                {(bind) => {
+                    seen.scroll = (y) =>
+                        bind.onScroll({
+                            nativeEvent: {
+                                contentOffset: { y },
+                                layoutMeasurement: { height: 800 },
+                                contentSize: { height: 3000 },
+                            },
+                        });
 
-        // The roadmap widget cards load lazily; once one is present, its glass surface (the `expo-blur`
-        // BlurView stub) must be on the screen — proving the frosted-glass adoption reaches the real screen.
-        expect(await screen.findByText("Today's Nutrition")).toBeTruthy();
-        expect(container.querySelector('[data-commise-stub="blur-view"]')).not.toBeNull();
-    });
-});
+                    return (
+                        <HomeScreen
+                            scrollBind={bind}
+                            onOpenRecipes={noop}
+                            onOpenRecipe={noop}
+                            onOpenProfile={onOpenProfile}
+                            onCreateRecipe={onCreateRecipe}
+                            onPasteIngredients={noop}
+                            onFindOnDiscover={noop}
+                        />
+                    );
+                }}
+            </ScrollHost>
+        </QueryClientProvider>,
+    );
+
+    return { scroll: (y) => act(() => seen.scroll?.(y)) };
+}
 
 /**
- * In landscape a camera cutout or Android's three-button navigation bar sits on a SIDE edge, drawn over content, so
- * the screen pads by the side insets as well as the top (staff-ux-engineer landscape EVALUATE, finding 2).
+ * Slice 3 (`buildSpec.md` §4.2, §3.3, §3.4): Home's large title is the greeting with the cook's name, its action the
+ * avatar (Profile, pushed); the floating "New recipe" sits over the screen's foot; the condensed bar shows only once the
+ * title scrolls under the top.
  */
-describe('HomeScreen (mobile) — landscape safe area', () => {
-    it('pads the screen by the top and both side insets', () => {
-        safeArea.insets = { top: 24, right: 48, bottom: 0, left: 59 };
-        renderWithProviders(<HomeScreen onOpenRecipes={noop} onOpenRecipe={noop} onOpenProfile={noop} />);
+describe('HomeScreen (mobile) — the large title, the avatar and the create button', () => {
+    it('greets the cook by name in the screen’s one header, on the canvas', () => {
+        renderHome();
 
-        const frame = screen.getByText(/Chef/u).closest<HTMLElement>('[style*="padding-left"]');
+        const heading = screen.getByRole('heading', { name: /, Jane Doe\??$/u });
 
-        expect(frame?.style.paddingLeft).toBe('59px');
-        expect(frame?.style.paddingRight).toBe('48px');
-        expect(frame?.style.paddingTop).toBe('24px');
+        expect(heading.closest('[data-commise-stub="linear-gradient"]')).toBeNull();
+    });
+
+    it('opens Profile from the avatar, named "Profile, Jane Doe"', () => {
+        const onOpenProfile = vi.fn();
+        renderHome(onOpenProfile);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Profile, Jane Doe' }));
+
+        expect(onOpenProfile).toHaveBeenCalledOnce();
+    });
+
+    it('floats the "New recipe" create button over the screen', () => {
+        renderHome();
+
+        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+    });
+
+    // §3.4: the first run's own start buttons (Add your first recipe, Paste ingredients) take the button's place.
+    it('hides the "New recipe" create button while the cook has no recipes', async () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData(recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT }), {
+            data: [],
+            total: 0,
+            page: 1,
+            pageSize: RECENT_RECIPE_LIMIT,
+            hasMore: false,
+        });
+
+        renderHome(noop, noop, queryClient);
+
+        await waitFor(() => expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull());
+    });
+
+    it('keeps the condensed title bar hidden at the top', () => {
+        renderHome();
+
+        const bar = screen.getAllByText(/, Jane Doe\??$/u).find((node) => node.getAttribute('aria-hidden') === 'true');
+
+        expect(bar?.closest('[aria-hidden="true"][style*="position"]') ?? bar).toBeTruthy();
+        expect(getComputedStyle(bar as Element).opacity).toBe('0');
+    });
+
+    it('still renders the roadmap placeholders under the recent recipes', async () => {
+        renderHome();
+
+        expect(await screen.findByText("Today's Nutrition")).toBeTruthy();
     });
 });

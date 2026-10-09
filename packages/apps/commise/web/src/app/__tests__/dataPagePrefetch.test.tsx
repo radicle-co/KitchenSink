@@ -34,6 +34,13 @@ import { recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
 import type { RecipeSearchResponse } from '@kitchensink/recipe-service-client';
 
 vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }));
+// The cookie jar `/recipes` reads its list/grid choice from (`recipes.viewMode`).
+const { cookieJar } = vi.hoisted(() => ({ cookieJar: new Map<string, string>() }));
+vi.mock('next/headers', () => ({
+    cookies: async () => ({
+        get: (name: string) => (cookieJar.has(name) ? { name, value: cookieJar.get(name) } : undefined),
+    }),
+}));
 vi.mock('next/navigation', () => ({
     redirect: vi.fn((url: string) => {
         // Mirrors Next's real `redirect()`: it never returns (typed `never`) — every page below relies on
@@ -47,6 +54,7 @@ const { auth } = await import('@clerk/nextjs/server');
 const mockedAuth = vi.mocked(auth);
 
 const { default: RecipesPage } = await import('../[locale]/recipes/page');
+const { RecipeListContainer } = await import('@/components/recipes/RecipeListContainer');
 const { default: RecipeDetailPage } = await import('../[locale]/recipes/[id]/page');
 const { default: DiscoverPage } = await import('../[locale]/discover/page');
 const { default: CollectionsPage } = await import('../[locale]/collections/page');
@@ -87,18 +95,50 @@ afterEach(() => {
 });
 
 describe('[locale]/recipes/page.tsx SSR prefetch', () => {
-    it('prefetches the caller’s recipe list on recipeQueries(client).list() and dehydrates it', async () => {
+    // Slice 4 (A11): `/recipes` reads the WHOLE library — its first chunk of up to 500, at the largest page size — so
+    // the chips and counts are right past the first page. It used to prefetch `list()`, one page of 20.
+    it('prefetches the first chunk of the library on recipeQueries(client).library() and dehydrates it', async () => {
         mockAuthed();
+        cookieJar.clear();
         const recipe = makeRecipe();
-        const response = { data: [recipe], page: 1, pageSize: 20, total: 1, hasMore: false };
-        vi.spyOn(RecipeServiceClient.prototype, 'listRecipes').mockResolvedValue(response);
+        const response = { data: [recipe], page: 1, pageSize: 100, total: 1, hasMore: false };
+        const listSpy = vi.spyOn(RecipeServiceClient.prototype, 'listRecipes').mockResolvedValue(response);
 
         const element = await RecipesPage({ params: Promise.resolve({ locale: 'en' }) });
         const queries = dehydratedQueries(element);
 
+        expect(listSpy).toHaveBeenCalledWith({ page: 1, pageSize: 100, sortBy: 'updatedAt' });
         expect(queries).toHaveLength(1);
-        expect(queries[0]?.queryKey).toEqual(recipeServiceKeys.recipeList());
-        expect(queries[0]?.state.data).toEqual(response);
+        expect(queries[0]?.queryKey).toEqual(recipeServiceKeys.recipeLibrary({ sortBy: 'updatedAt' }));
+        expect(queries[0]?.state.data).toEqual({
+            pages: [{ data: [recipe], total: 1, hasMore: false, nextFirstPage: 2 }],
+            pageParams: [1],
+        });
+    });
+
+    it.each([
+        ['grid', 'grid'],
+        ['tiles', undefined],
+    ])('hands a stored view cookie of %j to the container as %j', async (stored, expected) => {
+        mockAuthed();
+        cookieJar.set('recipes.viewMode', stored);
+        vi.spyOn(RecipeServiceClient.prototype, 'listRecipes').mockResolvedValue({
+            data: [],
+            page: 1,
+            pageSize: 100,
+            total: 0,
+            hasMore: false,
+        });
+
+        const element = await RecipesPage({ params: Promise.resolve({ locale: 'en' }) });
+        const shell = (element.props as { children: React.ReactElement }).children;
+        const children = [(shell.props as { children: React.ReactNode }).children].flat() as React.ReactElement[];
+        const container = children.find((child) => child.type === RecipeListContainer);
+
+        if (container === undefined) {
+            throw new Error('the page renders the list container');
+        }
+        expect((container.props as { storedViewMode?: string }).storedViewMode).toBe(expected);
     });
 
     it('dehydrates to an empty state (no throw) when the SSR prefetch fails', async () => {

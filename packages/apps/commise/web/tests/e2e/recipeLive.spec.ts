@@ -24,15 +24,15 @@ test.describe('recipe live backend (no mocks)', () => {
 
         // Seeded recipes owned by the caller — served live by recipe-local (dev-bypass owner == the test
         // user's app id). Cards expose the title as an actionable control's accessible name.
-        await expect(page.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Mediterranean Grilled Lamb' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Asparagus with Green Sauce' })).toBeVisible();
 
         // Open a detail: the owner-only Delete action renders ONLY when the live identity `/api/v1/users/me`
         // resolves the viewer id AND it matches the recipe's owner — the end-to-end owner-gating proof. It
-        // sits behind the "More" overflow menu (C4).
-        await page.getByRole('button', { name: 'Mediterranean Grilled Lamb' }).click();
+        // is the ⋯ menu's destructive action (§6.4).
+        await page.getByRole('link', { name: 'Mediterranean Grilled Lamb' }).click();
         await expect(page.getByRole('heading', { name: 'Mediterranean Grilled Lamb' })).toBeVisible();
         await page.getByRole('button', { name: /^More actions for /u }).click();
-        await expect(page.getByRole('button', { name: 'Delete recipe' })).toBeVisible();
+        await expect(page.getByRole('menuitem', { name: 'Delete recipe' })).toBeVisible();
     });
 });

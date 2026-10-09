@@ -4,28 +4,22 @@ appId: io.commise.mobile
 # `ingredientRowEditor.spec.ts`:
 #
 # - US7, Change food: the cook reopens a matched line's food and picks another, and the amount and unit stay.
-# - `docs/design/rowEditorOpenDecisions.md` R7: text a Change food row holds refuses Save Draft; the refusal lands on
-#   step 2 in that field, which says why, and choosing "Use … as written" lets the save go ahead.
+# - `docs/design/rowEditorOpenDecisions.md` R7: text a Change food row holds refuses Publish; the row says why, and
+#   choosing "Use … as written" lets Publish go ahead. REWRITTEN for slice 7: Save Draft is gone (the editor saves at
+#   checkpoints), so the refusal R7 describes now happens at Publish, the one gated write left.
 #
 # It runs against the PR's deployed sandbox (ADR-0032) on the create form, so each pick goes into the draft
 # (blueprint decision 7). The first food is the run's probe `Flour` (`e2e-seed provision`); the second is the KTD-16
-# root `boneless skinless chicken breasts` from the stage's catalog seed. Save Draft leaves one draft recipe, which the
-# next flow's reset deletes.
+# root `boneless skinless chicken breasts` from the stage's catalog seed. It publishes one recipe, which the next flow's
+# reset deletes.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-- tapOn: 'Create from Scratch'
 
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 - tapOn: 'Title'
 - inputText: 'Maestro Row Editor'
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-- assertVisible: 'Step 2 of 4'
 
 # The probe food, then an amount the cook chose.
 - scrollUntilVisible:
@@ -70,40 +64,41 @@ appId: io.commise.mobile
       below: 'Ingredient 1 name'
 - assertVisible: 'cups'
 
-# R7: Change food again, type, and leave the step by the rail, which is ungated (R6).
+# R7: Change food again and type, but choose nothing. A step first, so the only thing Publish can refuse is the
+# held text (a new recipe has no steps, and an empty Steps section would be refused too).
 - tapOn: 'Actions for boneless skinless chicken breasts'
 - tapOn: 'Change food'
 - eraseText: 40
 - inputText: 'smoked flour'
-# No `hideKeyboard` — why is at `pinnedActionBar.yaml`'s bottom-of-list assertion. With the keyboard up the list's
-# opening scrolls the field to the top (`docs/design/rowEditorOpenDecisions.md` E1), so the rail may be above the visible
-# area: scroll back to it with a swipe inside the scroller (`scrollUntilVisible` swipes from the centre, on the bar).
-- repeat:
-      while:
-          notVisible: 'Instructions: .*'
-      times: 8
-      commands:
-          - swipe:
-                start: 50%, 20%
-                end: 50%, 40%
-                duration: 400
-- tapOn: 'Instructions: .*'
-- assertVisible: 'Step 3 of 4'
-- tapOn: 'Save Draft'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Roast.'
+- tapOn: 'Publish'
 
-# The refusal lands on step 2, and the row says why.
-- assertVisible: 'Step 2 of 4'
-- assertVisible: '“smoked flour” isn’t in the recipe yet\. Choose a food for it, or press Cancel to keep boneless skinless chicken breasts\.'
+# The refusal says how many things there are to fix (the bar), and the row says why. Nothing was published: the editor
+# is still open.
+- assertVisible:
+      text: 'Fix 1 thing to publish'
+- scrollUntilVisible:
+      element: '“smoked flour” isn’t in the recipe yet\. Choose a food for it, or press Cancel to keep boneless skinless chicken breasts\.'
+      direction: UP
+      timeout: 20000
+- assertVisible: 'Close editor'
 
 # The list opened with the focus (R7 item 3), so the cook keeps the words without editing them. The way on is the list's
 # last option, after every food the words match, so how far down it sits depends on the stage's catalog.
-- scrollUntilVisible:
-      element: 'Use “smoked flour” as written, without nutrition'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use “smoked flour” as written, without nutrition'
 - tapOn: 'Use “smoked flour” as written, without nutrition'
-- tapOn: 'Save Draft'
+- tapOn: 'Publish'
 - extendedWaitUntil:
       visible:
           text: 'Maestro Row Editor.*'
       timeout: 40000
+- assertNotVisible: 'Close editor'

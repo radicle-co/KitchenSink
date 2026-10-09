@@ -5,7 +5,7 @@ import { route } from './utils/basePath';
 import { mockRecipeApi } from './utils/recipeApi';
 
 /**
- * Curated plan R55 (U25), through the real web app: a signed-in cook opens the Data sources page from settings, at
+ * Curated plan R55 (U25), through the real web app: a signed-in cook opens the Data sources page from Profile, at
  * `/{locale}/legal/sources`, and finds USDA and Ciqual with their licence links. The food-service read
  * (`GET /api/v1/foods/sources`) and the shell's reads (`mockRecipeApi`, which also files this spec in the mocked
  * tier) are intercepted, so this proves the page's wiring and states in a real browser, never a deploy.
@@ -48,28 +48,32 @@ const SOURCES = {
 };
 
 test.describe('the Data sources page (curated plan R55)', () => {
-    test('settings opens it, and it lists USDA and Ciqual with their licence links', async ({ page }) => {
+    test('Profile opens it, and it lists USDA and Ciqual with their licence links', async ({ page }) => {
         await signInWithTicket(page);
         // The shell's identity and recipe reads; the food route below is registered later, so it wins.
         await mockRecipeApi(page);
         await page.route('**/api/v1/foods/sources', (request) => request.fulfill({ json: SOURCES }));
 
-        await page.goto(route('/settings'));
-        await page.getByRole('region', { name: 'Food data' }).getByRole('link', { name: 'Data sources' }).click();
+        await page.goto(route('/profile'));
+        await page.getByRole('link', { name: /Food data sources/ }).click();
 
         await expect(page).toHaveURL(/\/legal\/sources$/u);
         await expect(page.getByRole('heading', { level: 1, name: 'Data sources' })).toBeVisible();
 
-        const usda = page.getByRole('region', { name: 'USDA' });
-        await expect(usda.getByRole('link', { name: 'CC0 1.0 Universal, license for USDA' })).toHaveAttribute(
-            'href',
-            'https://creativecommons.org/publicdomain/zero/1.0/',
-        );
+        // §9.2: each card is headed by its PUBLISHER.
+        const usda = page.getByRole('region', {
+            name: 'U.S. Department of Agriculture, Agricultural Research Service',
+        });
+        await expect(
+            usda.getByRole('link', { name: 'CC0 1.0 Universal, license for USDA (opens in a new tab)' }),
+        ).toHaveAttribute('href', 'https://creativecommons.org/publicdomain/zero/1.0/');
         await expect(usda).not.toContainText('We converted some of its values');
 
-        const ciqual = page.getByRole('region', { name: 'Ciqual' });
+        const ciqual = page.getByRole('region', { name: 'Anses' });
         await expect(
-            ciqual.getByRole('link', { name: 'Licence Ouverte / Open Licence 2.0, license for Ciqual' }),
+            ciqual.getByRole('link', {
+                name: 'Licence Ouverte / Open Licence 2.0, license for Ciqual (opens in a new tab)',
+            }),
         ).toHaveAttribute('href', 'https://www.etalab.gouv.fr/licence-ouverte-open-licence/');
         await expect(ciqual).toContainText('Anses. 2025. Table de composition nutritionnelle des aliments Ciqual.');
         await expect(ciqual).toContainText('We converted some of its values to the units this app uses.');
@@ -91,7 +95,7 @@ test.describe('the Data sources page (curated plan R55)', () => {
         );
 
         await page.goto(route('/legal/sources'));
-        await expect(page.getByRole('region', { name: 'Livsmedelsdatabasen' })).toBeVisible();
+        await expect(page.getByRole('region', { name: 'Anses' })).toBeVisible();
 
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
     });
@@ -115,7 +119,9 @@ test.describe('the Data sources page (curated plan R55)', () => {
         failing = false;
         await main.getByRole('button', { name: 'Try again' }).click();
 
-        await expect(main.getByRole('region', { name: 'USDA' })).toBeVisible();
+        await expect(
+            main.getByRole('region', { name: 'U.S. Department of Agriculture, Agricultural Research Service' }),
+        ).toBeVisible();
     });
 
     test('Try again keeps focus while it reads again, a second failure is announced again, and success focuses the heading', async ({
@@ -170,7 +176,9 @@ test.describe('the Data sources page (curated plan R55)', () => {
         await page.route('**/api/v1/foods/sources', (request) => request.fulfill({ json: SOURCES }));
         await page.keyboard.press('Enter');
 
-        await expect(main.getByRole('region', { name: 'USDA' })).toBeVisible();
+        await expect(
+            main.getByRole('region', { name: 'U.S. Department of Agriculture, Agricultural Research Service' }),
+        ).toBeVisible();
         await expect(main.getByRole('heading', { level: 1, name: 'Data sources' })).toBeFocused();
     });
 });

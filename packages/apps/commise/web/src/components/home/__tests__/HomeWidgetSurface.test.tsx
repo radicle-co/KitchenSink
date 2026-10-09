@@ -22,6 +22,8 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { renderWithProviders } from '@commise/test-utils';
+import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createContainer, type Container } from 'ditox';
 
 // The profile hook hits Clerk + the identity API; stub it to a controllable tier + display name.
@@ -35,6 +37,12 @@ const { profileRef } = vi.hoisted(() => ({
         },
     },
 }));
+// The shell's sidebar opens the editor through the router and its tab bar reads the route (slice 3).
+vi.mock('next/navigation', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('next/navigation')>()),
+    useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+    usePathname: () => '/en',
+}));
 vi.mock('@/hooks/useUserProfile', () => ({ useUserProfile: () => profileRef.current }));
 
 // `homeContainer` binds `errorReporterToken` to a real Sentry-backed reporter; mocked (never loaded for real)
@@ -44,6 +52,7 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 const { HomeWidgetSurface } = await import('../HomeWidgetSurface');
 const { useHomeNudge } = await import('../homeNudgeContext');
 const { homeContainer } = await import('../homeContainer');
+const { RECENT_RECIPE_LIMIT } = await import('../RecipeWidgetSlot');
 
 afterEach(() => {
     cleanup();
@@ -78,14 +87,22 @@ const containerWith = (...descriptors: readonly HomeWidgetDescriptor[]): Contain
     return container;
 };
 
-const renderSurface = (props: Parameters<typeof HomeWidgetSurface>[0]): void => {
-    renderWithProviders(<HomeWidgetSurface {...props} />);
+const renderSurface = (props: Parameters<typeof HomeWidgetSurface>[0], queryClient = new QueryClient()): void => {
+    renderWithProviders(
+        <QueryClientProvider client={queryClient}>
+            <HomeWidgetSurface {...props} />
+        </QueryClientProvider>,
+    );
 };
+
+/** The floating create button: the one the `nav:` breakpoint hides from 840, where the sidebar holds New recipe. */
+const floatingCreate = (): HTMLElement | undefined =>
+    screen.queryAllByRole('button', { name: 'New recipe' }).find((button) => button.className.includes('nav:hidden'));
 
 const FakeRecipeWidget: FC = () => <div>fake-recipe-widget</div>;
 
 describe('HomeWidgetSurface (web) — host composition', () => {
-    it('renders the accessible page title, the time-of-day greeting header, and the widget-surface region', () => {
+    it('renders the greeting as the page’s one H1, the avatar and the create button after it, and the region', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
@@ -94,29 +111,55 @@ describe('HomeWidgetSurface (web) — host composition', () => {
             renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
         });
 
-        // The page's top-level <h1> is the accessible title (visually hidden); the greeting is an <h2>
-        // beneath it. Asserting the level-1 heading pins the a11y landmark the auth E2E lands on.
-        expect(screen.getByRole('heading', { level: 1, name: 'Welcome to Commise' })).toBeTruthy();
-        expect(screen.getByRole('heading', { level: 2, name: 'Good afternoon, Chef!' })).toBeTruthy();
-        expect(screen.getByRole('region', { name: 'Home' })).toBeTruthy();
-        // And it is the page's ONLY h1 — the shell's top-bar title is plain banner text, not a second one.
+        // Slice 3 (`buildSpec.md` §4.2): the greeting IS the page's large title, its only H1; the avatar is the header's
+        // action and the floating create button comes right after it in DOM order (§3.4).
+        const heading = screen.getByRole('heading', { level: 1, name: /^Good afternoon/u });
+        const fab = screen
+            .getAllByRole('button', { name: 'New recipe' })
+            .find((button) => button.className.includes('nav:hidden'));
+
         expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+        expect(screen.getByRole('region', { name: 'Home' })).toBeTruthy();
+        // The header's avatar, and the sidebar's profile row (CSS shows one of them at a time).
+        expect(screen.getAllByRole('link', { name: /^Profile/u })).toHaveLength(2);
+        expect(fab).toBeDefined();
+        expect(heading.compareDocumentPosition(fab as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // §3.4: the first run's own start buttons (in the recent-recipes widget) take the floating button's place.
+    it('hides the floating create button while the cook has no recipes', async () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData(recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT }), {
+            data: [],
+            total: 0,
+            page: 1,
+            pageSize: RECENT_RECIPE_LIMIT,
+            hasMore: false,
+        });
+
+        renderSurface(
+            {
+                container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+                renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+            },
+            queryClient,
+        );
+
+        await waitFor(() => expect(floatingCreate()).toBeUndefined());
     });
 
     it('sits the greeting on the page canvas, not inside a gradient card', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
-        renderWithProviders(
-            <HomeWidgetSurface
-                container={containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID))}
-                renderers={{ [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget }}
-            />,
-        );
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
 
         // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): the greeting card is deleted. The page canvas
         // already carries the beach-glow wash, so the greeting sits on it rather than in a second gradient card.
-        let node: HTMLElement | null = screen.getByRole('heading', { level: 2, name: 'Good afternoon, Chef!' });
+        let node: HTMLElement | null = screen.getByRole('heading', { level: 1, name: /^Good afternoon/u });
 
         for (; node !== null; node = node.parentElement) {
             expect(node.style.backgroundImage, 'a gradient surface wraps the greeting').not.toContain(

@@ -2,85 +2,90 @@ appId: io.commise.mobile
 ---
 # ⛔ THE SYSTEM BACK BUTTON MUST NOT DESTROY UNSAVED WORK, ON ANY SURFACE THAT HOLDS SOME.
 #
-# The defect: `RecipesScreen`'s hardware-back handler called `nav.back()` unconditionally, so the wizard's own
-# header arrow asked before discarding and the phone's back button did not. Reproduced with
-# `adb shell input keyevent KEYCODE_BACK` from a dirty step-4 draft: straight to the detail screen, edits gone,
-# no dialog. It hit CREATE as well as EDIT.
+# REWRITTEN for slice 7 (legs 1-3). The recipe editor no longer GUARDS its work, it KEEPS it: ×, the system back key
+# and the edge swipe all do the same thing and leave at once (build spec §3.5 — "the editor and the picker leave at
+# once, because nothing is ever unsaved", §7.3). So the editor legs now prove the opposite of what they used to: Back
+# raises NO dialog, a titled new recipe is created as a draft on the way out (the exit checkpoint, which the screen
+# runs for a leave that is not ×), and a published recipe's edit stays on the device, offered back on the next open,
+# without reaching the server (owner decision D1). The sheet and paste-screen legs (5-8) still guard, and still
+# prove the guard.
+#
+# The original defect, kept as the record: `RecipesScreen`'s hardware-back handler called `nav.back()`
+# unconditionally, so the wizard's header arrow asked before discarding and the phone's back button did not.
 #
 # ⛔ WHAT THIS COVERS THAT THE COMPONENT TESTS CANNOT. `react-native` is aliased to `react-native-web` under
 # vitest, and that shim's `BackHandler` is an inert stub — a component test can only drive a FAKE dispatcher
-# (`@commise/ui/testing/hardware-back`). Only a real device raises a real `KEYCODE_BACK` through React Native's
-# own handler chain. It is also the ONLY tier that can observe the second half of the layering: an open RN
+# (`@commise/ui/testing/hardware-back`). Only a real device raises a real `KEYCODE_BACK` through React Navigation's
+# `beforeRemove`, which is where the editor hears it. It is also the ONLY tier that can observe that an open RN
 # `Modal` consumes back itself, on the dialog window, before any `BackHandler` subscription is reached.
 #
 # ⚠️ SELECTOR TRAP, AND IT HAS ALREADY COST A RED CI JOB. Maestro matches the WHOLE string, and under the
 # three-button navigation the CI `ci_pixel6` AVD uses, Android's own navigation bar publishes a node whose
-# accessible name is exactly `Back` — so `tapOn: 'Back'` can resolve to the SYSTEM bar instead of the wizard's
-# header arrow (see `collectionsPull.yaml`, which carries the measured evidence).
+# accessible name is exactly `Back` — so `tapOn: 'Back'` can resolve to the SYSTEM bar (see `collectionsPull.yaml`,
+# which carries the measured evidence). This flow NEVER taps a node named `Back`: it raises the system button with
+# `pressKey: Back`, a key event that resolves to no node at all — and that is also precisely the input under test.
 #
-# This flow sidesteps that entirely: it NEVER taps a node named `Back`. It raises the system button with
-# `pressKey: Back`, a key event that resolves to no node at all — and that is also precisely the input under
-# test. Every other selector here is a screen-owned string. If a leg ever does need the header arrow, anchor it
-# (`below: 'Step 1 of 4'`); do not add a bare `tapOn: 'Back'`.
+# ⚠️ ONE `pressKey: Back` IS NOT ENOUGH WITH A SOFT KEYBOARD UP. The CI AVD runs `hw.keyboard=no`, so a field just
+# typed into holds the soft keyboard, and Android hands the first BACK to the IME (run 37268858758). The editor legs
+# press once, let the screen settle, and press again only while the editor is still showing.
 #
-# ⚠️ IT MUTATES NOTHING. Every leg ends by discarding or by leaving a clean surface, so nothing is created and
-# the seeded library is left exactly as found. That is why it can sit next to the read-only create-wizard flows.
+# ⚠️ IT LEAVES THE LIBRARY AS FOUND. Leg 1's draft is discarded through the recipe's own editor, and leg 3's device
+# changes are discarded from the resume notice, so the seed is untouched.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
 
-# ── LEG 1: the CREATE wizard, dirty. A whole recipe typed from scratch is the larger of the two losses. ──
+# ── LEG 1: the CREATE editor, titled. Back leaves at once, and the recipe is kept as a draft. ──
 - tapOn: 'New recipe'
-- tapOn: 'Create from Scratch'
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 
 - tapOn: 'Title'
 - inputText: 'System Back Guard Draft'
-# ⛔ NO `hideKeyboard` HERE: on Android it is itself a BACK event, so with no keyboard up it raises the dialog and the
-# press below then DISMISSES it (every dialog here maps platform dismissal to cancel via `ConfirmDialog.native.tsx`'s
-# `onRequestClose`).
-#
-# ⚠️ BUT ONE `pressKey: Back` IS NOT ENOUGH ON CI, and an earlier version of this comment claimed it was. The CI AVD runs
-# `hw.keyboard=no`, so the field just typed into still holds the SOFT keyboard, and Android hands the first BACK to the
-# IME to hide it (run 37268858758: this flow ended on the same wizard with the keyboard gone and no dialog).
-# `common/raiseDiscardGuard.yaml` presses once, lets the screen settle, and presses again only if the dialog is still
-# absent, which is right with or without a keyboard up.
-#
-# THE PRESS UNDER TEST. Against the defect this popped the wizard and the next assertion went red.
-- runFlow: common/raiseDiscardGuard.yaml
-
-# "Keep editing" must keep BOTH the wizard and what was typed into it — asserting only that the dialog closed
-# would pass against a guard that discarded the draft behind it.
-- tapOn: 'Keep editing'
-- assertNotVisible: 'Discard unsaved changes?'
-- assertVisible: 'Step 1 of 4'
-- assertVisible: 'System Back Guard Draft'
-
-# ⛔ A SECOND PRESS WHILE THE DIALOG IS OPEN DISMISSES THE DIALOG — it does not exit the wizard. RN's `Modal`
-# catches the key on the dialog window and fires `onRequestClose`, which `ConfirmDialog` maps to cancel, so the
-# press never reaches the back-interceptor chain at all. Leaving a dirty editor therefore takes two DELIBERATE
-# acts, which is the more protective direction. Do NOT "fix" this flow by expecting back-back to exit.
-- runFlow: common/raiseDiscardGuard.yaml
+# ⛔ NO `hideKeyboard`: on Android it is itself a BACK event, which would leave the editor before the press under test.
+# THE PRESS UNDER TEST: the first may only close the keyboard, so a second follows while the editor still shows.
 - pressKey: Back
-- assertNotVisible: 'Discard unsaved changes?'
-- assertVisible: 'Step 1 of 4'
+- waitForAnimationToEnd:
+      timeout: 2000
+- runFlow:
+      when:
+          visible: 'Close editor'
+      commands:
+          - pressKey: Back
+# No dialog, and the editor is gone: Back did what × does.
+- assertNotVisible: 'Discard this draft?'
+- assertNotVisible: 'Close editor'
+- assertVisible: 'Recipes'
+# ⛔ KEPT, not lost: the exit checkpoint created the titled draft, and My recipes shows it. Against an editor that
+# skipped the checkpoint on a system Back, this wait goes red (the native new-recipe screen always opens blank, so
+# a draft never sent would be unrecoverable).
+# Sorted by recently edited, the new draft is the FIRST card, above where the list kept its scroll: so UP.
+- scrollUntilVisible:
+      element:
+          text: 'System Back Guard Draft.*'
+      direction: UP
+      timeout: 40000
 
-# Only an explicit Discard leaves, and it lands on the list — one pop, not two (two would have left the
-# recipes surface entirely and `Recipes` would not be visible).
-- runFlow: common/raiseDiscardGuard.yaml
-- tapOn: 'Discard changes'
+# Leave the library as found: open the draft and discard it through the editor's own header menu.
+- tapOn:
+      text: 'System Back Guard Draft.*'
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Close editor'
+- runFlow: common/discardDraft.yaml
 - assertVisible: 'Recipes'
 
-# ── LEG 2: a CLEAN wizard must not nag. A guard that always prompts is a nuisance, not a guard. ──
+# ── LEG 2: an UNTOUCHED new recipe leaves on one press and creates nothing. ──
 - tapOn: 'New recipe'
-- tapOn: 'Create from Scratch'
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 
 - pressKey: Back
-- assertNotVisible: 'Discard unsaved changes?'
+- assertNotVisible: 'Close editor'
 - assertVisible: 'Recipes'
 
-# ── LEG 3: the EDIT wizard. Same guard, the path the original bug report walked. ──
+# ── LEG 3: the EDIT editor on the PUBLISHED lamb. Back leaves at once; the edit stays on the device (D1). ──
 - scrollUntilVisible:
       element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
@@ -91,56 +96,88 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 
 - runFlow: common/clearTitle.yaml
 - inputText: 'System Back Guard Edit'
 
-# ⛔ NO `hideKeyboard` — see the create leg above. It is a back EVENT, so it would raise the dialog and the
-# press below would dismiss it, reddening this assertion against a working fix.
-- runFlow: common/raiseDiscardGuard.yaml
-- tapOn: 'Discard changes'
+# ⛔ NO `hideKeyboard` — see leg 1.
+- pressKey: Back
+- waitForAnimationToEnd:
+      timeout: 2000
+- runFlow:
+      when:
+          visible: 'Close editor'
+      commands:
+          - pressKey: Back
 
-# Back on the DETAIL (one pop), carrying its original title — the edit really was discarded rather than saved.
+# Back on the DETAIL (one pop), carrying its original title: a published recipe's changes reach the server only at
+# Save changes, so a leave never published them.
+- assertNotVisible: 'Discard your changes?'
 - extendedWaitUntil:
       visible: '${E2E_RECIPE_LAMB}'
       timeout: 20000
 - assertNotVisible: 'System Back Guard Edit'
 
+# ⛔ AND NOT LOST: the next open offers them back (the resume notice), and Discard there drops them, leaving the seed
+# as found. Against an editor that dropped the device draft on Back, the notice never appears.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- extendedWaitUntil:
+      visible:
+          text: 'You have changes from .* that aren.t saved to your recipe\.'
+      timeout: 20000
+- tapOn: 'Discard'
+# The notice's Discard asks first; its confirm drops the device changes.
+- assertVisible: 'Discard your changes\?'
+- tapOn:
+      text: 'Discard'
+      below: 'Discard your changes\?'
+# Discarding a published recipe's changes returns to the recipe, as it was: the edit never reached the server.
+- extendedWaitUntil:
+      visible: 'Edit recipe'
+      timeout: 20000
+- assertNotVisible: 'Close editor'
+- assertNotVisible:
+      text: 'System Back Guard Edit.*'
+
 # ── LEG 4: a pushed surface with nothing to lose still pops, and the guard did not break ordinary back. ──
 - pressKey: Back
 - assertVisible: 'Recipes'
 
-# ── LEG 5: the COLLECTION form, dirty. The typed name lives only in that screen's own state. ──
+# ── LEG 5: the NEW-COLLECTION SHEET, dirty (slice 4 replaced the form screen with a sheet). The typed name lives only
+# in the sheet's own state; Back asks before discarding it, in the sheet's own words. ──
 - tapOn: 'Collections'
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000
 - tapOn: 'New collection'
-- assertVisible: 'Collection name'
-- tapOn: 'Collection name'
+- assertVisible: 'Description \(optional\)'
+- tapOn: 'Name'
 - inputText: 'System Back Guard Collection'
 
-# ⛔ NO `hideKeyboard` — see the create leg above.
-- runFlow: common/raiseDiscardGuard.yaml
+- hideKeyboard
+- pressKey: Back
+- assertVisible: 'Discard this collection\?'
 - tapOn: 'Keep editing'
-- assertNotVisible: 'Discard unsaved changes?'
-# The NAME, not just the form: a guard that closed the dialog and cleared the field would pass on the form
-# alone.
+- assertNotVisible: 'Discard this collection\?'
+# The NAME, not just the sheet: a guard that closed the dialog and cleared the field would pass on the sheet alone.
 - assertVisible: 'System Back Guard Collection'
 
-# ⛔ LEAVING IS ASSERTED ON THE FIELD, NOT ON 'New collection'. That string is BOTH the list's create CTA and
-# this form's own title (see `collections.yaml`), so it is visible either way and proves nothing.
-- runFlow: common/raiseDiscardGuard.yaml
-- tapOn: 'Discard changes'
-- assertNotVisible: 'Collection name'
-
-# ── LEG 6: an UNTOUCHED collection form must not nag, and must still leave on one press. ──
-- tapOn: 'New collection'
-- assertVisible: 'Collection name'
 - pressKey: Back
-- assertNotVisible: 'Discard unsaved changes?'
-- assertNotVisible: 'Collection name'
+- assertVisible: 'Discard this collection\?'
+- tapOn: 'Discard'
+- assertNotVisible: 'Description \(optional\)'
+
+# ── LEG 6: an UNTOUCHED sheet must not nag, and must still close on one press. ──
+- tapOn: 'New collection'
+- assertVisible: 'Description \(optional\)'
+- pressKey: Back
+- assertNotVisible: 'Discard this collection\?'
+- assertNotVisible: 'Description \(optional\)'
 
 # ── LEG 7: the INGREDIENT PASTE screen. The largest loss of the three — a whole pasted list. ──
 - tapOn: 'My recipes'
@@ -151,7 +188,8 @@ appId: io.commise.mobile
 - tapOn: 'Ingredient lines'
 - inputText: '2 cups flour'
 
-# ⛔ NO `hideKeyboard` — see the create leg above.
+# ⛔ NO `hideKeyboard`: on Android it is itself a BACK event, so it would raise the dialog and the press in the
+# sub-flow would then dismiss it.
 - runFlow: common/raiseDiscardGuard.yaml
 - tapOn: 'Keep editing'
 - assertNotVisible: 'Discard unsaved changes?'

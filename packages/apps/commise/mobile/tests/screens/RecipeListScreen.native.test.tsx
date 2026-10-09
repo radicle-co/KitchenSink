@@ -8,6 +8,9 @@
  * (`renderWithRecipeClient`), with a settled page SEEDED into the query cache so it renders synchronously — where the
  * old file mocked `useRecipes` and fed the screen status flags a suspense read no longer exposes. The transport-level
  * chain (a real client over a fetch double, including a hung request) stays in `RecipeListScreen.liveSeam.native.test.tsx`.
+ *
+ * ⚠️ UPDATED for slice 4: the seed is the whole-library read (`library`), the copy is the overhaul's, and the cards are
+ * links. A facet past the first page is pinned at the component level by the web container test and here below.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo } from 'react-native';
@@ -21,7 +24,7 @@ import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 
 import { RecipeListScreen } from '../../src/screens/RecipeListScreen.js';
-import { makeRecipe, makeRecipePage } from '../__fixtures__/recipes.js';
+import { makeLibraryData, makeRecipe, makeRecipePage } from '../__fixtures__/recipes.js';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the heading hand-off is asserted as the call it makes.
 vi.mock('react-native', async (importOriginal) => {
@@ -43,7 +46,10 @@ let queryClient: QueryClient;
 
 /** Put a SETTLED library in the cache, so the suspense read renders it with no fetch. */
 function seedLibrary(recipes: readonly Recipe[]): void {
-    queryClient.setQueryData(recipeQueries(client).list().queryKey, makeRecipePage(recipes));
+    queryClient.setQueryData(
+        recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey,
+        makeLibraryData(recipes) as never,
+    );
 }
 
 function render(ui: ReactElement) {
@@ -67,7 +73,7 @@ describe('RecipeListScreen — while the library loads', () => {
         render(<RecipeListScreen onSelectRecipe={noop} />);
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
-        expect(screen.getByLabelText('Search recipes')).toBeTruthy();
+        expect(screen.getByLabelText('Search your recipes')).toBeTruthy();
         expect(screen.getByLabelText('Loading recipes')).toBeTruthy();
         expect(screen.queryByLabelText('Quick filters')).toBeNull();
     });
@@ -76,7 +82,7 @@ describe('RecipeListScreen — while the library loads', () => {
         render(<RecipeListScreen onSelectRecipe={noop} />);
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
     });
 });
 
@@ -98,21 +104,20 @@ describe('RecipeListScreen — a failed load', () => {
             fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         });
 
-        expect(await screen.findByRole('button', { name: 'Weeknight Pasta' })).toBeTruthy();
+        expect(await screen.findByRole('link', { name: 'Weeknight Pasta' })).toBeTruthy();
         expect(list).toHaveBeenCalledTimes(2);
     });
 
-    it('⛔ keeps the create dial, reaching the paste destination', async () => {
+    it('⛔ keeps the create button over a failed load: one tap opens the editor (slice 8)', async () => {
         vi.spyOn(client, 'listRecipes').mockRejectedValue(new Error('network down'));
-        const onPasteIngredients = vi.fn();
+        const onCreateRecipe = vi.fn();
 
-        render(<RecipeListScreen onSelectRecipe={noop} onPasteIngredients={onPasteIngredients} />);
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={onCreateRecipe} />);
         await screen.findByRole('alert');
 
         fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
 
-        expect(onPasteIngredients).toHaveBeenCalledTimes(1);
+        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
 
     it('⛔ keeps the typed search term across Try again — the term lives above the boundary', async () => {
@@ -127,15 +132,15 @@ describe('RecipeListScreen — a failed load', () => {
 
         render(<RecipeListScreen onSelectRecipe={noop} />);
         await screen.findByRole('alert');
-        fireEvent.change(screen.getByLabelText('Search recipes'), { target: { value: 'taco' } });
+        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'taco' } });
 
         await act(async () => {
             fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         });
 
-        expect(await screen.findByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
-        expect(screen.getByLabelText<HTMLInputElement>('Search recipes').value).toBe('taco');
-        expect(screen.queryByRole('button', { name: 'Weeknight Pasta' })).toBeNull();
+        expect(await screen.findByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
+        expect(screen.getByLabelText<HTMLInputElement>('Search your recipes').value).toBe('taco');
+        expect(screen.queryByRole('link', { name: 'Weeknight Pasta' })).toBeNull();
     });
 });
 
@@ -149,12 +154,14 @@ describe('RecipeListScreen — a failed refresh of the rows on screen', () => {
 
         render(<RecipeListScreen onSelectRecipe={noop} />);
         await act(async () => {
-            await queryClient.refetchQueries({ queryKey: recipeQueries(client).list().queryKey });
+            await queryClient.refetchQueries({
+                queryKey: recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey,
+            });
         });
 
         // TanStack batches observer notifications onto a later tick, so the notice is awaited, not read synchronously.
         expect((await screen.findAllByText('We couldn’t refresh your recipes.')).length).toBeGreaterThan(0);
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeTruthy();
         expect(screen.queryByText('We couldn’t load your recipes.')).toBeNull();
 
         await act(async () => {
@@ -172,7 +179,9 @@ describe('RecipeListScreen — a failed refresh of the rows on screen', () => {
 
         render(<RecipeListScreen onSelectRecipe={noop} />);
         await act(async () => {
-            await queryClient.refetchQueries({ queryKey: recipeQueries(client).list().queryKey });
+            await queryClient.refetchQueries({
+                queryKey: recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey,
+            });
         });
         await screen.findAllByText('We couldn’t refresh your recipes.');
 
@@ -197,8 +206,8 @@ describe('RecipeListScreen — an empty library', () => {
 
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={onCreateRecipe} />);
 
-        expect(screen.getByText('No recipes yet')).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: 'Create your first recipe' }));
+        expect(screen.getByText('Your recipe box is empty')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Add your first recipe' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
@@ -216,34 +225,34 @@ describe('RecipeListScreen — a populated library', () => {
         render(<RecipeListScreen onSelectRecipe={noop} />);
 
         expect(screen.getByText('2 recipes')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
     });
 
     it('forwards the selected recipe id upward', () => {
         const onSelectRecipe = vi.fn();
 
         render(<RecipeListScreen onSelectRecipe={onSelectRecipe} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Fish Tacos' }));
+        fireEvent.click(screen.getByRole('link', { name: 'Fish Tacos' }));
 
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_2');
     });
 
     it('filters the loaded recipes by title as the search value changes', () => {
         render(<RecipeListScreen onSelectRecipe={noop} />);
-        fireEvent.change(screen.getByLabelText('Search recipes'), { target: { value: 'taco' } });
+        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'taco' } });
 
-        expect(screen.getByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Weeknight Pasta' })).toBeNull();
+        expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
+        expect(screen.queryByRole('link', { name: 'Weeknight Pasta' })).toBeNull();
         expect(screen.getByText('1 recipe')).toBeTruthy();
     });
 
     it('says NO MATCH — not first-run copy — when the search filters every row out, and keeps the dial', () => {
         render(<RecipeListScreen onSelectRecipe={noop} />);
-        fireEvent.change(screen.getByLabelText('Search recipes'), { target: { value: 'zzz' } });
+        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'zzz' } });
 
-        expect(screen.getByText('No matching recipes')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+        expect(screen.getByText('No recipes match')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
         expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
     });
 });
@@ -258,8 +267,8 @@ describe('RecipeListScreen — quick-filter chips (L4)', () => {
         render(<RecipeListScreen onSelectRecipe={noop} />);
         fireEvent.click(screen.getByText('Vegetarian'));
 
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Sunday Roast' })).toBeNull();
+        expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeTruthy();
+        expect(screen.queryByRole('link', { name: 'Sunday Roast' })).toBeNull();
     });
 
     it('says NO MATCH when pressed CHIPS alone filter every row out', () => {
@@ -274,11 +283,11 @@ describe('RecipeListScreen — quick-filter chips (L4)', () => {
         fireEvent.click(screen.getByText('Vegetarian'));
         fireEvent.click(screen.getByText('Italian'));
 
-        expect(screen.getByText('No matching recipes')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+        expect(screen.getByText('No recipes match')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
     });
 
-    it('surfaces a "Quick (<30m)" chip that filters to recipes under the 30-minute threshold (#4)', () => {
+    it('surfaces an "Under 30 min" chip that filters to recipes under the 30-minute threshold (#4)', () => {
         seedLibrary([
             makeRecipe({ id: 'rec_1', title: 'Overnight Oats', totalTimeMinutes: 5 }),
             makeRecipe({ id: 'rec_2', title: "Grandma's Pasta", totalTimeMinutes: 45 }),
@@ -287,19 +296,35 @@ describe('RecipeListScreen — quick-filter chips (L4)', () => {
         render(<RecipeListScreen onSelectRecipe={noop} />);
 
         expect(screen.queryByText('quick')).toBeNull();
-        fireEvent.click(screen.getByText('Quick (<30m)'));
+        fireEvent.click(screen.getByText('Under 30 min'));
 
-        expect(screen.getByRole('button', { name: 'Overnight Oats' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: "Grandma's Pasta" })).toBeNull();
+        expect(screen.getByRole('link', { name: 'Overnight Oats' })).toBeTruthy();
+        expect(screen.queryByRole('link', { name: "Grandma's Pasta" })).toBeNull();
     });
 
-    it('omits the "Quick (<30m)" chip when no loaded recipe qualifies (other facets still render)', () => {
+    it('omits the "Under 30 min" chip when no loaded recipe qualifies (other facets still render)', () => {
         seedLibrary([makeRecipe({ id: 'rec_1', title: "Grandma's Pasta", totalTimeMinutes: 45, cuisine: 'Italian' })]);
 
         render(<RecipeListScreen onSelectRecipe={noop} />);
 
         const chips = screen.getByLabelText('Quick filters');
         expect(within(chips).getByText('Italian')).toBeTruthy();
-        expect(within(chips).queryByText('Quick (<30m)')).toBeNull();
+        expect(within(chips).queryByText('Under 30 min')).toBeNull();
+    });
+});
+
+describe('RecipeListScreen — the whole library (A11)', () => {
+    it('⛔ offers and counts a facet held only past the first server page', () => {
+        seedLibrary([
+            ...Array.from({ length: 120 }, (_unused, index) =>
+                makeRecipe({ id: `rec_${index}`, title: `Recipe ${index}`, cuisine: 'Thai' }),
+            ),
+            makeRecipe({ id: 'rec_late', title: 'Ceviche', cuisine: 'Peruvian' }),
+        ]);
+
+        render(<RecipeListScreen onSelectRecipe={noop} />);
+
+        expect(screen.getByText('121 recipes')).toBeTruthy();
+        expect(screen.getByRole('checkbox', { name: 'Peruvian 1' })).toBeTruthy();
     });
 });

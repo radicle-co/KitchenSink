@@ -49,7 +49,7 @@ async function openRecipe(page: Page): Promise<void> {
 async function openDeleteDialog(page: Page): Promise<Locator> {
     await openRecipe(page);
     await page.getByRole('button', { name: /^More actions for /u }).click();
-    await page.getByRole('dialog', { name: 'More actions' }).getByRole('button', { name: 'Delete recipe' }).click();
+    await page.getByRole('menuitem', { name: 'Delete recipe' }).click();
 
     const dialog = page.getByRole('alertdialog', { name: 'Delete this recipe?' });
     await expect(dialog).toBeVisible();

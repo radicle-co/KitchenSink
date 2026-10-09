@@ -1,19 +1,19 @@
 import { expect, test } from '@playwright/test';
 
-import { route } from './utils/basePath';
 import { E2E_CATALOG_FOOD, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
+import { addStep, openNewRecipe } from './utils/recipeEditor';
 
 /**
- * The ingredient search's user story since plan 002 S5, driven through the real create wizard (Next dev server + Clerk
+ * The ingredient search's user story since plan 002 S5, driven through the real one-page editor (Next dev server + Clerk
  * session + client hooks + routing) with the recipe contract and food's progressive search intercepted
  * (`utils/recipeApi`, `utils/foodApi`).
  *
  * Playwright IS this feature's UI integration test (repo testing policy), so what it proves is the part no component
  * test can: that food's `GET /api/v1/foods/search/progressive` → two groups → tap → recipe's `POST
  * /api/v1/ingredients/by-food` → resolved-line round trip holds through the live clients, the live query cache and the
- * real wizard — including that a catalog food (which has NO ingredient id of its own) ends up as a recipe line whose id
+ * real editor — including that a catalog food (which has NO ingredient id of its own) ends up as a recipe line whose id
  * came from the ADMIT response, and that the recipe then publishes with it.
  *
  * When part of the search cannot answer, `ingredientSearchDegraded.spec.ts` has the story (it took this file's F2
@@ -32,14 +32,11 @@ test.describe('the ingredient search — the cook’s foods and the catalog’s 
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
         await mockFoodApi(page, { authored: ownFoodLedger([MY_PEPPER]) });
 
-        await page.goto(route('/recipes/new'));
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
+        await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Peppered Broth');
         await page.getByRole('radio', { name: 'Easy' }).click();
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
 
-        // Step 2 (Ingredients).
-        await expect(page.getByText('Step 2 of 4')).toBeVisible();
+        // Ingredients.
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('pepper');
 
         // Both groups render, labelled, the cook's own foods first (L1), and an own food says it is theirs (L4.2).
@@ -72,12 +69,7 @@ test.describe('the ingredient search — the cook’s foods and the catalog’s 
 
         // …and it is a real catalog id, so the recipe publishes (Publish validation rejects a line whose
         // `ingredientId` does not resolve). This is the falsifiable end of the story.
-        await page.getByRole('button', { name: 'Next: Instructions' }).click();
-        await expect(page.getByText('Step 3 of 4')).toBeVisible();
-        await page.getByRole('button', { name: 'Add step' }).click();
-        await page.getByLabel('Step 1 instruction').fill('Simmer, then season generously.');
-        await page.getByRole('button', { name: 'Next: Review' }).click();
-        await expect(page.getByText('Step 4 of 4')).toBeVisible();
+        await addStep(page, 'Simmer, then season generously.');
         await page.getByRole('button', { name: 'Publish' }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Peppered Broth' })).toBeVisible();

@@ -30,11 +30,9 @@ test.describe('Home widget surface (T104)', () => {
         // The Home widget surface and its region render.
         await expect(page.getByRole('region', { name: 'Home' })).toBeVisible();
 
-        // The chrome renders: the sticky top bar (which NAMES this surface) and the primary nav landmark.
-        // The bar's title is plain banner text, not a heading — the page's own sr-only <h1> is the document's
-        // single level-1 heading, and a chrome heading duplicating a page title would be ambiguous.
-        await expect(page.getByRole('banner').getByText('Home')).toBeVisible();
-        await expect(page.getByRole('navigation', { name: 'Main' }).first()).toBeVisible();
+        // The chrome renders: no top bar since slice 3, and the one displayed primary nav landmark.
+        await expect(page.getByRole('banner')).toHaveCount(0);
+        await expect(page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })).toHaveCount(1);
 
         // The time-of-day greeting renders. Anchored to the four buckets EXACTLY (this used to be a bare
         // `/Chef/u`, which a truncated greeting or a leaked `home.greetings.morning` dictionary key would still
@@ -42,10 +40,11 @@ test.describe('Home widget surface (T104)', () => {
         // real wall clock, so WHICH bucket is the clock's business — the guarantee that the VIEWER's clock is
         // the one consulted (#144) is gated in `visualRegression.spec.ts`, where the browser clock is pinned to
         // an instant the Next server cannot know.
+        // Since slice 3 it IS the page's H1, naming the cook when there is a name (`buildSpec.md` §4.2).
         await expect(
             page.getByRole('heading', {
-                level: 2,
-                name: /^(Good (morning|afternoon|evening), Chef!|Still up, Chef\?)$/u,
+                level: 1,
+                name: /^(Good (morning|afternoon|evening)(, .+)?|Still up(, .+)?\?)$/u,
             }),
         ).toBeVisible();
         await expect(page.getByText(/^\w+day, \w+ \d{1,2}, \d{4}$/u)).toBeVisible();
@@ -72,7 +71,7 @@ test.describe('Home widget surface (T104)', () => {
         await page.getByRole('link', { name: 'See all recipes' }).click();
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
-        // …and the shell's top bar re-titles itself for the new surface rather than saying 'Home' everywhere.
-        await expect(page.getByRole('banner').getByText('Recipes')).toBeVisible();
+        // …and the document title names the new page (slice 3 deleted the top bar that used to).
+        await expect(page).toHaveTitle('Recipes · Commise');
     });
 });

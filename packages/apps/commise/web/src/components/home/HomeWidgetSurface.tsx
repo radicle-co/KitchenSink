@@ -29,10 +29,14 @@ import {
     type HomeWidgetCurationContext,
     type HomeWidgetId,
 } from '@commise/features-core';
-import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
-import { useMessages } from '@commise/i18n/react';
+import { RECIPE_HOME_WIDGET_ID, RecipeCreateButton } from '@commise/features-recipes';
+import { useLibraryEmpty } from '@commise/features-recipes/hooks';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { makeViewer, type Tier } from '@kitchensink/recipe-core';
+import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import type { Container } from 'ditox';
+import type { Route } from 'next';
+import { useRouter } from 'next/navigation';
 import { Suspense, useMemo, type ComponentType, type JSX } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
@@ -40,10 +44,12 @@ import { AppShell, LIVE_CAPABILITIES } from '@/components/app/AppShell';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 
+import { ProfileAvatarEntry } from './chrome/ProfileAvatarEntry';
+import { profileEntryOf } from '@commise/features-core';
 import { HomeGreeting } from './HomeGreeting';
 import { homeContainer } from './homeContainer';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice';
-import { RecipeWidgetSlot } from './RecipeWidgetSlot';
+import { RECENT_RECIPE_LIMIT, RecipeWidgetSlot } from './RecipeWidgetSlot';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot';
 import { HomeNudgeContext } from './homeNudgeContext';
 import { useOncePerSessionNudge } from './useOncePerSessionNudge';
@@ -84,6 +90,9 @@ export function HomeWidgetSurface({
 }: HomeWidgetSurfaceProps = {}): JSX.Element {
     const { home } = useMessages(webMessages);
     const profile = useUserProfile();
+    const locale = useLocale();
+    const router = useRouter();
+    const cookName = profileEntryOf(profile).name;
     const nudge = useOncePerSessionNudge();
 
     // P4: the shared Tier authority — an absent/unrecognized subscription tier fails closed to `'free'`.
@@ -92,6 +101,9 @@ export function HomeWidgetSurface({
     // B23/DA9 — a widget render throw must never be silent. Resolved from the injected `errorReporterToken`
     // (never a hard-coded Sentry import), mirroring the mobile host so both platforms share ONE seam.
     const reportWidgetError = resolveErrorReporter(container);
+
+    // The recent-recipes page the widget reads, from the cache: settled empty is Home's first run (§3.4).
+    const firstRun = useLibraryEmpty(recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT }));
 
     const curated = useMemo(() => {
         const ctx: HomeWidgetCurationContext = {
@@ -107,18 +119,20 @@ export function HomeWidgetSurface({
     return (
         <AppShell activeId="home" titleId="home">
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-                {/*
-                 * The authenticated Home's accessible page title (US-000 / FR-046). Visually hidden — the
-                 * mockup leads with the personalized time-of-day greeting, not an app-name banner — but
-                 * present so the page carries a proper top-level <h1> for assistive tech (the greeting is an
-                 * <h2> beneath it) and so "landed on Home" is a stable, non-temporal assertion for the auth
-                 * E2E (the greeting text is clock- and locale-dependent).
-                 */}
-                <h1 className="sr-only">{home.welcome}</h1>
-
-                {/* The greeting sits on the page canvas, which already carries the beach-glow wash: the gradient card it
-                    used to sit in was a box in a box (`docs/design/uiOverhaul/buildSpec.md` §1.6). */}
-                <HomeGreeting />
+                {/* The large title: the greeting is the page's H1 (`buildSpec.md` §4.2), the avatar its action below 840,
+                    and the floating create button right after it in DOM order — drawn at the bottom corner. One tap
+                    opens the empty editor (§3.4, slice 8). First run hides it (§3.4): the recent-recipes page the widget
+                    reads, settled empty. */}
+                <HomeGreeting
+                    {...(cookName === undefined ? {} : { name: cookName })}
+                    action={{ kind: 'avatar', avatar: <ProfileAvatarEntry /> }}
+                    afterTitle={
+                        <RecipeCreateButton
+                            firstRun={firstRun}
+                            onCreateRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
+                        />
+                    }
+                />
 
                 <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
                     <section role="region" aria-label={home.surface.regionLabel} className="flex flex-col gap-6">

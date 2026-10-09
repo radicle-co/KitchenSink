@@ -203,8 +203,8 @@ function applyUpdate(
         'cookTimeMinutes',
         'totalTimeMinutes',
         'visibility',
-        // Draft/publish (w3/e7): the wizard's Save Draft / Publish actions both PATCH an explicit `status`
-        // onto the update body (`toUpdateRecipeInput`'s optional second parameter) — apply it exactly like
+        // Draft/publish: the editor's Publish PATCHes an explicit `status` onto the update body
+        // (`toUpdateRecipeInput`'s optional second parameter), and a checkpoint omits it — apply it exactly like
         // any other provided scalar so a spec can observe the persisted status on the next read/list.
         'status',
     ] as const;
@@ -1761,8 +1761,8 @@ export async function mockRecipeApi(
                     ...(typeof input['difficulty'] === 'string'
                         ? { difficulty: input['difficulty'] as RecipeDifficulty }
                         : {}),
-                    // Draft/publish (w3/e7): the wizard's create-flow always sends an explicit `status`
-                    // (Save Draft → 'draft', Publish → 'published') — carry it so a spec can assert the
+                    // Draft/publish: the editor's create always sends an explicit `status` (a checkpoint's create
+                    // → 'draft', a Publish of a recipe not yet stored → 'published') — carry it so a spec can assert the
                     // created recipe's persisted status (e.g. the "Draft" card badge appearing in the list).
                     ...(typeof input['status'] === 'string' ? { status: input['status'] as RecipeStatus } : {}),
                 });

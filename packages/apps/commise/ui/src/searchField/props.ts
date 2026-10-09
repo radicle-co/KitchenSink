@@ -30,4 +30,8 @@ export interface SearchFieldProps {
     readonly onSubmit?: () => void;
     /** An example query, never a label. */
     readonly placeholder?: string;
+    /** Called when the field takes focus (a screen shows its idle-state panel, such as recent searches, only then). */
+    readonly onFocus?: () => void;
+    /** Called when the field loses focus. */
+    readonly onBlur?: () => void;
 }

@@ -1,143 +1,90 @@
 /**
- * Native component tests for the public-discovery result card (T076 / W4 S1), rendered via react-native-web
- * under jsdom. Mirrors the web leaf and is focused on the card's CLONE affordance: the list-level behaviour is
- * covered through `RecipeDiscoveryResults.native.test.tsx` and `RecipeBrowseRailResults.native.test.tsx`, which render this card in situ.
+ * The native Discover result card (`docs/design/uiOverhaul/buildSpec.md` §4.1): the shared `RecipeCard` in the variant the host
+ * decided, with the author and the Save a copy icon button in its footer. The card is one link named by the title; the
+ * Save a copy control sits beside it, never inside it, so a press on one cannot also open the other.
  *
- * The clone control used to hand-roll a coral OUTLINE here while `CollectionActions.native.tsx` hand-rolled a
- * SOLID coral fill — the same action, two platforms, three visual answers across the product. See the web
- * sibling's module comment for why coral was the wrong register for clone at all; these assertions prove the
- * native leaf now takes the shared DS `secondary` tier, and that the 44pt floor and busy semantics its
- * hand-rolled `StyleSheet` justified itself with now come from the design system instead.
+ * ⚠️ REWRITTEN for slice 5. The card used to be a bespoke arrangement with a text "Clone" button on the secondary tier,
+ * and this file pinned that button's tier and its row-unique name. "Clone" is retired by the glossary and the control is
+ * now an icon in the card's footer; the row-unique name is kept ("Save a copy of {title}").
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { palette, role } from '@commise/ui/colors';
+import { LocaleProvider } from '@commise/i18n/react';
 
-import { cssColor } from '../../__tests__/cssColor.js';
-import { pillOf } from '../../__tests__/dsPill.js';
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { toRecipeCardModel } from '../../card/model.js';
-// Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDiscoveryCard } from '../RecipeDiscoveryCard.native.js';
 import type { RecipeDiscoveryCardProps } from '../model.js';
 
 afterEach(cleanup);
 
-const noop = () => undefined;
-
-const RECIPE_TITLE = 'Mediterranean Grilled Lamb';
-
-/** The row's clone control, addressed the way the list and Maestro address it — by its unique name. */
-const cloneName = (title = RECIPE_TITLE) => `Clone ${title}`;
-
-function renderCard(overrides: Partial<RecipeDiscoveryCardProps> = {}) {
+function renderCard(over: Partial<RecipeDiscoveryCardProps> = {}) {
     const props: RecipeDiscoveryCardProps = {
-        recipe: toRecipeCardModel(makeRecipe({ id: 'rec_1', title: RECIPE_TITLE })),
-        isCloning: false,
-        onSelect: noop,
-        onClone: noop,
-        ...overrides,
+        recipe: toRecipeCardModel(makeRecipe({ id: 'rec_1', title: 'Lamb Shoulder' })),
+        variant: 'grid',
+        authorHandle: 'braise.club',
+        saveCopy: { kind: 'idle' },
+        onSelect: vi.fn(),
+        onSave: vi.fn(),
+        ...over,
     };
-    render(<RecipeDiscoveryCard {...props} />);
+
+    render(
+        <LocaleProvider locale="en">
+            <RecipeDiscoveryCard {...props} />
+        </LocaleProvider>,
+    );
 
     return props;
 }
 
-describe('RecipeDiscoveryCard (native) — clone contract', () => {
-    it('reports the cloned recipe id upward', () => {
-        const onClone = vi.fn();
-        renderCard({ onClone });
+describe('RecipeDiscoveryCard (native)', () => {
+    it.each(['grid', 'compact'] as const)(
+        'draws the %s card with the author and Save a copy in its footer',
+        (variant) => {
+            renderCard({ variant });
 
-        fireEvent.click(screen.getByRole('button', { name: cloneName() }));
+            expect(screen.getByText('@braise.club')).toBeTruthy();
+            expect(screen.getByRole('button', { name: 'Save a copy of Lamb Shoulder' })).toBeTruthy();
+        },
+    );
 
-        expect(onClone).toHaveBeenCalledWith('rec_1');
+    it('opens the recipe from its one link, and saves a copy from its own button without opening the recipe', () => {
+        const props = renderCard();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save a copy of Lamb Shoulder' }));
+
+        expect(props.onSave).toHaveBeenCalledExactlyOnceWith('rec_1');
+        expect(props.onSelect).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('link', { name: 'Lamb Shoulder' }));
+
+        expect(props.onSelect).toHaveBeenCalledExactlyOnceWith('rec_1');
     });
 
-    it('keeps the clone control a SIBLING of the select target, so cloning never also selects the row', () => {
-        const onClone = vi.fn();
-        const onSelect = vi.fn();
-        renderCard({ onClone, onSelect });
-
-        fireEvent.click(screen.getByRole('button', { name: cloneName() }));
-
-        expect(onClone).toHaveBeenCalledTimes(1);
-        expect(onSelect).not.toHaveBeenCalled();
-    });
-
-    it('names each row’s clone control by its recipe, so sibling rows are distinguishable', () => {
-        renderCard({ recipe: toRecipeCardModel(makeRecipe({ id: 'rec_9', title: 'Ribollita' })) });
-
-        expect(screen.getByRole('button', { name: cloneName('Ribollita') })).toBeTruthy();
-    });
-
-    it('disables the clone control and announces busy while THIS row’s clone is in flight', () => {
-        const onClone = vi.fn();
-        renderCard({ isCloning: true, onClone });
-
-        // While busy the row is named by the in-flight template, not the idle one.
-        const button = screen.getByRole('button', { name: `Cloning ${RECIPE_TITLE}` });
-        expect(button.getAttribute('aria-disabled')).toBe('true');
-        expect(button.getAttribute('aria-busy')).toBe('true');
-
-        fireEvent.click(button);
-        expect(onClone).not.toHaveBeenCalled();
-    });
-
-    it('reports NOT busy when idle', () => {
+    it('keeps the Save a copy control out of the card’s link', () => {
         renderCard();
 
-        expect(screen.getByRole('button', { name: cloneName() }).getAttribute('aria-busy')).not.toBe('true');
-    });
-});
-
-describe('RecipeDiscoveryCard (native) — the clone control is the DS secondary surface', () => {
-    it('meets the 44pt touch floor the DS Button guarantees', () => {
-        renderCard();
-
-        // `pillOf` throws when no 44pt surface exists, so reaching this line IS the assertion.
-        expect(pillOf(screen.getByRole('button', { name: cloneName() }))).toBeTruthy();
+        expect(
+            screen
+                .getByRole('link', { name: 'Lamb Shoulder' })
+                .contains(screen.getByRole('button', { name: 'Save a copy of Lamb Shoulder' })),
+        ).toBe(false);
     });
 
-    it('paints the DS secondary surface — neutral paper with a lineControl edge, never coral', () => {
-        renderCard();
-        const style = window.getComputedStyle(pillOf(screen.getByRole('button', { name: cloneName() })));
+    it('shows the copy’s state on the control: saved is named “Saved a copy of …” and a press sends nothing', () => {
+        const props = renderCard({ saveCopy: { kind: 'saved', copyId: 'copy_1' } });
 
-        // ⚠️ REWRITTEN in UI-overhaul slice 2: the owner overruled coral on every control, so the DS secondary tier is
-        // neutral — `paper`, a 1 pt `lineControl` edge, an `ink` label.
-        expect(style.backgroundColor).toBe(cssColor(role.paper));
-        // The coral edge is now the DESIGN SYSTEM's — the mockups' secondary button — at the DS width, so a
-        expect(style.borderTopColor).toBe(cssColor(role.lineControl));
-        expect(style.borderTopWidth).toBe('1px');
-        // The regression this replaces: a bespoke edge on a fully TRANSPARENT surface (no tier fill at all).
-        expect(style.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+        fireEvent.click(screen.getByRole('button', { name: 'Saved a copy of Lamb Shoulder' }));
+
+        expect(props.onSave).not.toHaveBeenCalled();
     });
 
-    it('labels in the tier foreground colour — ink on the neutral surface', () => {
-        renderCard();
+    it('says an imported recipe’s source when it has no author', () => {
+        renderCard({ authorHandle: undefined, sourceAttribution: 'Serious Eats' });
 
-        // Coral-as-text is 2.40:1; the DS tier labels in slate (5.24:1), matching the web leaf exactly.
-        expect(window.getComputedStyle(screen.getByText('Clone')).color).toBe(cssColor(role.ink));
-        expect(window.getComputedStyle(screen.getByText('Clone')).color).not.toBe(cssColor(palette.coral));
-    });
-
-    // E2 I2 — rewritten from "the radius scale's full pill": the DS Button now rounds to half its minimum height,
-    // so a label that wraps at a large font scale stays inside the curve. Read off the pill's own style.
-    it("rounds to the DS Button's half-height radius, not a magic 999", () => {
-        renderCard();
-
-        const pill = window.getComputedStyle(pillOf(screen.getByRole('button', { name: cloneName() })));
-
-        expect(Number.parseFloat(pill.borderTopLeftRadius)).toBe(Number.parseFloat(pill.minHeight) / 2);
-    });
-
-    it('keeps the row-unique accessible name as an explicit override of the generic visible label', () => {
-        renderCard();
-
-        // The visible label is the generic "Clone"; the row-unique name comes from `accessibilityLabel`, which
-        // Maestro and the list tests both select by. The DS Button supports exactly that override.
-        expect(screen.getByRole('button', { name: cloneName() }).getAttribute('aria-label')).toBe(cloneName());
-        expect(screen.getByText('Clone')).toBeTruthy();
+        expect(screen.getByText('From Serious Eats')).toBeTruthy();
     });
 });

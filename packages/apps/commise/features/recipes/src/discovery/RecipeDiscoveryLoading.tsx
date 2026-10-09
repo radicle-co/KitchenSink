@@ -16,5 +16,5 @@ import { discoveryMessages } from './messages.js';
 export const RecipeDiscoveryLoading: FC = () => {
     const discovery = useMessages(discoveryMessages);
 
-    return <RecipeCardGridSkeleton label={discovery.loadingLabel} />;
+    return <RecipeCardGridSkeleton label={discovery.loadingLabel} layout="discover" />;
 };

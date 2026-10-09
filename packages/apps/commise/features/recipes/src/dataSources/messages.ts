@@ -37,6 +37,8 @@ export interface DataSourcesMessages {
     readonly homepageLink: string;
     /** Accessible name of a source's website link (contains `{source}`). */
     readonly homepageLinkName: string;
+    /** Said after the name of a web link that opens a new tab (SC 3.2.5): "(opens in a new tab)". */
+    readonly opensInNewTab: string;
     /** The loading region's caption. */
     readonly loading: string;
     /** Shown when the sources could not be read. */
@@ -45,10 +47,6 @@ export interface DataSourcesMessages {
     readonly retry: string;
     /** Shown when no stored value cites any source. A deployed stage cannot reach it, so it is never blank. */
     readonly empty: string;
-    /** The settings section's heading, on both platforms. */
-    readonly settingsHeading: string;
-    /** The settings section's one-line summary. */
-    readonly settingsSummary: string;
 }
 
 export const dataSourcesMessages: LocalizedMessages<DataSourcesMessages> = {
@@ -64,11 +62,10 @@ export const dataSourcesMessages: LocalizedMessages<DataSourcesMessages> = {
         convertedNote: 'We converted some of its values to the units this app uses.',
         homepageLink: 'Source website',
         homepageLinkName: 'Source website, {source}',
+        opensInNewTab: '(opens in a new tab)',
         loading: 'Loading data sources…',
         loadFailed: 'We couldn’t load the data sources.',
         retry: 'Try again',
         empty: 'No data sources to show yet.',
-        settingsHeading: 'Food data',
-        settingsSummary: 'Where the nutrition figures come from, and the licenses they’re used under.',
     },
 };

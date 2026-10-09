@@ -1,61 +1,87 @@
 /**
- * @module @commise/features-recipes — native collection recipe-picker frame (the ADD half of T072 / FR-009).
+ * @module @commise/features-recipes/collections — the native add-recipes picker frame, the twin of the web leaf
+ * (`docs/design/uiOverhaul/buildSpec.md` §5.3): a full-height `Sheet` titled "Add to {name}" (a 640 pt form sheet on a
+ * tablet) with a sticky search field in the sheet's toolbar, the body the host's read boundary renders in the scroll
+ * region, and a pinned **Done** that says what changed ("Done · 2 added, 1 removed", a zero part left out). Each toggle
+ * saves at once, so × does what Done does.
  *
- * The React Native frame of `CollectionRecipePicker` — the same controlled, presentational contract: heading, Done
- * and the search field, fetching nothing, mounted around the body the composing app's read boundary renders (the
- * settled candidates, or the loading or load-error body). So Done — the screen's only way out — is reachable in every
- * state, and the search field keeps what was typed.
+ * It fetches nothing and holds no state, and stays mounted around whichever body arrives, so the field keeps its focus and
+ * Done stays reachable in every state. A polite live region, always mounted, says "Added {title}" and "Removed {title}".
+ *
+ * Presentational: the frame of the picker; the host supplies the body and runs every request.
+ *
+ * @pattern Adapter over the design-system `Sheet`
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
-import { TextInput } from '@commise/ui/text-input';
-import type { FC } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Button } from '@commise/ui/button';
+import { LiveRegion } from '@commise/ui/live-region';
+import { nativeTokens } from '@commise/ui/native';
+import { SearchField } from '@commise/ui/search-field';
+import { Sheet } from '@commise/ui/sheet';
+import { useTheme } from '@commise/ui/theme';
+import { useId, type FC } from 'react';
+import { StyleSheet, Text } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
-import { styles } from './collectionRecipePickerStyles.native.js';
+import type { CollectionRecipePickerProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
-import type { CollectionRecipePickerProps } from './model.js';
+import { doneLabelOf } from './pickerModel.js';
 
-/** The presentational picker frame: heading, Done and search, around the body the composing app renders. */
 export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
+    open,
+    onClose,
     collectionName,
     query,
     onQueryChange,
-    onDone,
+    summary,
+    announcement,
     children,
 }) => {
     const { picker } = useMessages(collectionMessages);
-    const heading = fillTemplate(picker.heading, { name: collectionName });
+    const { colors } = useTheme();
+    const searchId = useId();
 
     return (
-        <View style={styles.container}>
-            <View style={styles.headerRow}>
-                <Text accessibilityRole="header" style={styles.heading}>
-                    {heading}
-                </Text>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={picker.done}
-                    onPress={onDone}
-                    style={styles.textButton}
-                >
-                    <Text style={styles.linkLabel}>{picker.done}</Text>
-                </Pressable>
-            </View>
-
-            <TextInput
-                accessibilityLabel={picker.searchLabel}
-                placeholder={picker.searchPlaceholder}
-                // Placeholder text is TEXT, so it takes `slate`, never the `mist` hairline tone — see the
-                // palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
-                placeholderTextColor={palette.slate}
-                value={query}
-                onChangeText={onQueryChange}
-                style={styles.input}
-            />
-
+        <Sheet
+            open={open}
+            onOpenChange={(next) => {
+                if (!next) {
+                    onClose();
+                }
+            }}
+            title={fillTemplate(picker.title, { name: collectionName })}
+            closeLabel={picker.close}
+            size="full"
+            toolbar={{
+                heading: <Text style={[styles.overline, { color: colors.inkMuted }]}>{picker.toolbarHeading}</Text>,
+                controls: (
+                    <SearchField
+                        id={searchId}
+                        label={picker.searchLabel}
+                        labelVisibility="hidden"
+                        clearLabel={picker.clearSearch}
+                        placeholder={picker.searchPlaceholder}
+                        value={query}
+                        onChangeText={onQueryChange}
+                    />
+                ),
+            }}
+            footer={
+                <Button icon="check" size="lg" width="fill" onPress={onClose}>
+                    {doneLabelOf(summary, picker)}
+                </Button>
+            }
+        >
+            <LiveRegion
+                politeness="polite"
+                visuallyHidden
+                {...(announcement === undefined ? {} : { occurrence: announcement.occurrence })}
+            >
+                {announcement?.text ?? ''}
+            </LiveRegion>
             {children}
-        </View>
+        </Sheet>
     );
 };
+
+const styles = StyleSheet.create({ overline: { ...nativeTokens.type.overline } });

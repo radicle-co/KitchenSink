@@ -16,13 +16,13 @@ appId: io.commise.mobile
 #   REMOVES — restoring the caller's contribution to zero and leaving the shared aggregate net-unchanged for
 #   the next run. The exact recomputed aggregate (Sc6/Sc7) is verified end-to-end by the web spec.
 #
-# Uses "Herb Risotto" (the seeded public recipe owned by a DIFFERENT author that discoverClone.yaml relies
+# Uses "Herb Risotto" (the seeded public recipe owned by a DIFFERENT author that discoverDetailSaveCopy.yaml relies
 # on) — reached via the Discover tab, since the caller's own library never contains a recipe they can rate.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
 - tapOn: 'Discover'
-- assertVisible: 'Discover recipes'
+- assertVisible: 'Discover'
 
 # ⛔ REACH THE RECIPE BY SEARCH, NEVER BY ITS PLACE IN A RAIL. This flow used to wait for Herb Risotto in the
 # browse rails and tap the "Trending" card. A rail is ONE fixed-sort page (`RECIPE_BROWSE_RAILS`: Trending sorts
@@ -31,17 +31,17 @@ appId: io.commise.mobile
 # That makes Risotto the fourth card in both rails, off the right edge of the screen, behind every public row
 # other suites have left on the preview. Run 34863424203 failed there, with the rail showing Salad, then
 # Asparagus, then a premium card at x=1315. A rail's order is data about the whole sandbox, not about this flow.
-# Typing the title's base switches Discover to the deterministic result list, the same way `discoverClone.yaml`
+# Typing the title's base switches Discover to the deterministic result list, the same way `discoverDetailSaveCopy.yaml`
 # reaches the same recipe. The run key in the title means no other run's row can satisfy the anchored selector.
-- tapOn: 'Search public recipes'
+- tapOn: 'Search recipes'
 - inputText: 'Risotto'
 - scrollUntilVisible:
       element:
           text: '^${E2E_RECIPE_RISOTTO}$'
       direction: DOWN
       timeout: 30000
-# Open the detail. Anchored (`^…$`) so it selects the row's title, NOT the per-row "Clone Herb Risotto"
-# quick-clone button whose label also contains the title. The result list renders each recipe once, so the old
+# Open the detail. Anchored (`^…$`) so it selects the row's title, NOT the card's "Save a copy of Herb Risotto"
+# button whose label also contains the title. The result list renders each recipe once, so the old
 # `above: 'New'` rail disambiguation no longer has anything to disambiguate.
 - tapOn:
       text: '^${E2E_RECIPE_RISOTTO}$'

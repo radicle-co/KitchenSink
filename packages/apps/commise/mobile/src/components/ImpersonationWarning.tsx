@@ -5,7 +5,6 @@
  * being left at a dead end. Renders the shared {@link AlertBanner} in the caution tone.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import type { JSX } from 'react';
 
 import { mobileMessages } from '../i18n/messages';
@@ -31,5 +30,5 @@ export function ImpersonationWarning({ sessionId }: ImpersonationWarningProps): 
             ? impersonation.message
             : `${impersonation.message} ${impersonation.sessionLabel.replace('{sessionId}', sessionId)}`;
 
-    return <AlertBanner accent={palette.warning} title={impersonation.title} body={body} />;
+    return <AlertBanner accent="attention" title={impersonation.title} body={body} />;
 }

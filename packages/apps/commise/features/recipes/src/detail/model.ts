@@ -822,6 +822,11 @@ export interface RecipeHeroProps {
      * as well is how the cover came to be painted twice.
      */
     readonly photos: readonly RecipePhoto[];
+    /**
+     * The controls that sit ON the photo: back and ⋯ (D12), each a `PhotoControl` from `@commise/ui/photo-control`.
+     * The hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.
+     */
+    readonly overlay?: ReactNode;
 }
 
 /**
@@ -833,47 +838,25 @@ export interface RecipeHeroProps {
  * checkboxes read unchecked and the tag chips are inert — no crashes, no hidden state.
  */
 export interface RecipeDetailViewProps {
+    /** The recipe, as the detail read returns it. */
     readonly recipe: RecipeDetail;
-    /** Ingredient ids the cook has checked off (D5). Absent → all unchecked. */
-    readonly checkedIngredients?: ReadonlySet<string>;
-    /** Toggle an ingredient's gathered state (D5). */
-    readonly onToggleIngredient?: (ingredientId: string) => void;
-    /** 1-based step numbers the cook has marked done (D4). Absent → all unchecked. */
-    readonly checkedSteps?: ReadonlySet<number>;
-    /** Toggle a step's completed state (D4). */
-    readonly onToggleStep?: (stepNumber: number) => void;
-    /** Navigate to the visibility-scoped search filtered by `tag` (D6). */
-    readonly onFilterByTag?: (tag: string) => void;
     /**
-     * Caller-supplied content grouped into the ONE footer row alongside the version + visibility badges (C3
-     * wireframe parity) — e.g. the clone action for a non-owner viewer. Absent renders no slot (e.g. the
-     * owner viewing their own recipe, where the shared `canClone` gate excludes a clone control entirely).
-     */
-    readonly footerActions?: ReactNode;
-    /**
-     * Caller-supplied owner controls rendered in the detail's TITLE BAND, beside the recipe name — the C4
-     * wireframe's `[Edit] [More]` pair. Absent renders no slot (a non-owner viewer has no controls here).
+     * Caller-supplied controls for the action row under the stat strip (build spec §6.1): the primary — Edit recipe
+     * for the owner, Save a copy for another cook — and the ⋯ menu. Absent renders no row.
      *
-     * ⛔ THIS IS A SLOT, NOT A `canEdit` FLAG, for the reason {@link footerActions} is one: the ownership
-     * gate, the routes, and the overflow menu's contents are all orchestration concerns, and the body stays
-     * a pure `props → JSX` render that knows only WHERE the controls go. A boolean would drag the router,
-     * the locale and the premium tier into a presentational leaf.
+     * ⛔ THIS IS A SLOT, NOT A `canEdit` FLAG: the ownership gate, the routes and the menu's contents are orchestration
+     * concerns, and the body stays a pure `props → JSX` render that knows only WHERE the controls go. The leaf owns the
+     * row's layout (below 600 the first control fills it); the caller supplies bare children, and passes `undefined`
+     * for "no controls", never `null` or `false`.
      *
-     * ⛔ THE LEAF OWNS THE ROW, the caller supplies BARE CHILDREN. Direction, gap, alignment and `shrink-0`
-     * are the leaf's (`RecipeDetailBody.tsx` / `.native.tsx`), because the title band's layout is the thing
-     * the two platforms must agree on. A caller that wraps its controls in a second flex row writes that
-     * layout knowledge down twice and the copies drift — which had already happened between the two
-     * platforms on the first draft of this slot.
-     *
-     * ⚠️ A caller passes `undefined` for "no controls", never `null` or `false`. The leaf guards on
-     * `!== undefined` (the house form for an optional `ReactNode` slot); a `null` would render an empty row
-     * that still consumes the band's gap.
-     *
-     * ⚠️ The DELETE CONFIRMATION DIALOG does not belong in here. Both containers keep it a SIBLING so it
-     * survives the overflow menu closing (including the menu's own outside-click); nesting it inside the
-     * title band would couple its lifetime to the menu's and put a dialog inside a `<header>`.
+     * ⚠️ The DELETE CONFIRMATION DIALOG does not belong in here: both containers keep it a SIBLING so it survives the
+     * menu closing.
      */
     readonly headerActions?: ReactNode;
+    /** The back link above the meta line (web), e.g. "‹ My recipes". Absent draws none. */
+    readonly back?: ReactNode;
+    /** The rating block under the nutrition: the input for another cook, the read-only average for the owner. */
+    readonly rating?: ReactNode;
     /** Optional notice for a failed refresh of the recipe on screen — both platforms. Absent ⇒ no notice. */
     readonly refreshNotice?: RefreshNoticeControl;
     /**
@@ -884,35 +867,73 @@ export interface RecipeDetailViewProps {
      */
     readonly unreachableRetry: RetryControl;
     /**
-     * Web: the Data sources page's address, which the web app's router owns (`dataSourcesHref` in `@commise/web`), as
-     * it owns the settings link's. The nutrition note's link goes there, and with no address the link is not drawn,
-     * so the web host always passes it (`RecipeDetailContainer`; `recipeCrud.spec.ts` asserts the link). Native
-     * ignores it: its shell opens the Data sources sheet (`RecipeDetailBodyNativeProps.onOpenDataSources`). The
-     * list tabs' `href` follows the same split (`RecipeListTabControl`).
+     * Web: the Data sources page's address, which the web app's router owns (`dataSourcesHref` in `@commise/web`). The
+     * nutrition note's link goes there, and with no address the link is not drawn. Native ignores it: its shell opens
+     * the Data sources sheet (`RecipeDetailBodyNativeProps.onOpenDataSources`).
      */
     readonly dataSourcesHref?: string;
+    /** Web: the editor's address for this recipe; the owner's section Edit links and empty-state actions append `#section`. */
+    readonly editHref?: string;
+    /** Web: the version history's address; the footer's Version history link goes there. */
+    readonly versionsHref?: string;
+    /** Native: open the editor at a section (the owner's Edit links and empty-state actions). */
+    readonly onEditSection?: (section: DetailSection) => void;
+    /** Native: open the version history from the footer. */
+    readonly onViewVersions?: () => void;
+    /** The section the reader is in, from the screen's `ScrollHost` (blueprint A7); the section switch marks it. */
+    readonly currentSection?: string;
     /**
      * Whether the viewer owns this recipe (`isOwner`, which the container already evaluates for its owner controls).
-     * Only the owner is offered the ambiguity review's picks: a pick re-points a line through the rebind command, which
-     * answers `NOT_OWNER` to anyone else. Absent reads as not the owner, so nothing that could only fail is offered.
+     * It decides the meta line's author, the rating line's status, the section Edit links, and whether the ambiguity
+     * review offers picks. Absent reads as not the owner, so nothing that could only fail is offered.
      */
     readonly viewerIsOwner?: boolean;
 }
 
+/** The sections the recipe page links to and the owner's Edit links open. */
+export type DetailSection = 'ingredients' | 'steps' | 'nutrition';
+
+/** The native recipe page's layout at the window's width (`detailNativeLayoutOf`). */
+export interface DetailNativeLayout {
+    readonly columns: 'one' | 'two';
+    readonly statsPerRow: 2 | 4;
+}
+
+/** The cook's marks as the body draws them, and the commands over them (`useCookMarks`). */
+export interface DetailMarks {
+    readonly checkedLines: ReadonlySet<string>;
+    readonly currentStep: number | undefined;
+    readonly toggleLine: (line: string) => void;
+    readonly toggleStep: (step: number) => void;
+}
+
+/** The one "Screen on" state the shell holds, drawn by the body in up to two places. */
+export interface DetailScreenOn {
+    readonly on: boolean;
+    readonly onChange: (on: boolean) => void;
+}
+
 /**
- * Props for the PURE detail body — the whole `RecipeDetailView` contract plus the serving scale it renders
- * at. Split out so the body stays `props → JSX` while `RecipeDetailView` itself is a thin orchestration
- * shell that binds the session serving-scale store and computes the scaled projection.
+ * Props for the PURE detail body — the whole `RecipeDetailView` contract plus everything its shell binds: the serving
+ * scale, the cook's marks, Screen on and the description's disclosure.
  *
- * The scale is deliberately NOT on {@link RecipeDetailViewProps}: it is not something an app can forget to
- * wire, because there is nothing for an app to wire. That is the structural answer to the failure this
- * feature was added to fix — a capability that reaches the screen only if a container remembers to pass it.
+ * None of these is on {@link RecipeDetailViewProps}: an app cannot forget to wire them, because there is nothing for
+ * an app to wire. That is the structural answer to the failure the serving scale was added to fix — a capability
+ * that reaches the screen only if a container remembers to pass it.
  */
 export interface RecipeDetailBodyProps extends RecipeDetailViewProps {
     /** The serving count the body renders at (already clamped to the recipe's supported `servingsRange`). */
     readonly servings: number;
     /** Report a newly chosen serving count back to the shell. */
     readonly onServingsChange: (servings: number) => void;
+    /** The cook's checks and current step, and the commands over them. */
+    readonly marks: DetailMarks;
+    /** The one Screen on state, drawn in up to two places. */
+    readonly screenOn: DetailScreenOn;
+    /** Whether a clamped description is expanded (below 600). */
+    readonly descriptionExpanded: boolean;
+    /** Expand or clamp the description. */
+    readonly onToggleDescription: () => void;
 }
 
 /**
@@ -926,6 +947,12 @@ export interface RecipeDetailBodyNativeProps extends RecipeDetailBodyProps {
     readonly onOpenDataSources: () => void;
     /** Advances each time the sheet closes. */
     readonly dataSourcesReturnFocusSignal: number;
+    /**
+     * The page's layout at this width (§6.1): one column below a 720 pt body and two from it, and the stat strip two
+     * cells to a row below a 360 pt strip. The shell measures the window, because a pure leaf takes no dimension hook;
+     * the web leaf reads the same thresholds through container queries instead.
+     */
+    readonly layout: DetailNativeLayout;
 }
 
 /**

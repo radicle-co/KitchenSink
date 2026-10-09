@@ -1,62 +1,48 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web discovery LOAD ERROR body — what the discovery suspense boundary renders when a search
- * failed with nothing loaded for it. Moved from the retired `RecipeDiscoveryList.test.tsx` ("error state", and the
- * retry's touch-floor and contrast cases).
+ * The web discovery LOAD ERROR body (`docs/design/uiOverhaul/buildSpec.md` §4.6): when a search fails, for any cause
+ * (offline included — there is no connectivity branch), the message and a Try again sit under the field and the
+ * PREVIOUS results stay under them. A first load that fails has no previous results and shows the message alone.
+ *
+ * ⚠️ REWRITTEN for slice 5. The body used to be a card that replaced the results, and its tests pinned the card's surface
+ * classes and its contrast by class; the card is gone (the retry is the design system's `Button`, whose contrast and
+ * touch floor are its own tests'), and the "previous results stay" rule is new.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { utilityContrast } from '@commise/test-utils';
-import { semantic } from '@commise/ui';
+import { LocaleProvider } from '@commise/i18n/react';
 
 import { RecipeDiscoveryLoadError } from '../RecipeDiscoveryLoadError.js';
 
 afterEach(cleanup);
 
-const noop = () => undefined;
+const inLocale = (ui: React.ReactElement) => <LocaleProvider locale="en">{ui}</LocaleProvider>;
 
 describe('RecipeDiscoveryLoadError (web)', () => {
-    it('shows an alert with a retry action that reports upward', async () => {
+    it('says the search failed in an alert, with a Try again that reports upward', async () => {
         const user = userEvent.setup();
         const onRetry = vi.fn();
-        render(<RecipeDiscoveryLoadError onRetry={onRetry} />);
+        render(inLocale(<RecipeDiscoveryLoadError onRetry={onRetry} />));
 
-        expect(screen.getByRole('alert').textContent).toContain('We couldn’t load recipes.');
+        expect(screen.getByRole('alert').textContent).toContain('We couldn’t search right now.');
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
+
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it('renders the failure as a styled card surface, not bare unstyled text', () => {
-        render(<RecipeDiscoveryLoadError onRetry={noop} />);
+    it('keeps the previous results under the message, outside the alert, so they are not read as part of it', () => {
+        render(inLocale(<RecipeDiscoveryLoadError onRetry={vi.fn()} previous={<p>PREVIOUS RESULTS</p>} />));
 
-        const alert = screen.getByRole('alert');
-
-        for (const surfaceClass of ['rounded-2xl', 'bg-paper', 'shadow-sm']) {
-            expect(alert.classList.contains(surfaceClass)).toBe(true);
-        }
+        expect(screen.getByText('PREVIOUS RESULTS')).toBeTruthy();
+        expect(within(screen.getByRole('alert')).queryByText('PREVIOUS RESULTS')).toBeNull();
     });
 
-    it('gives the retry real control styling and the 44px touch floor, reset for the mouse at md', () => {
-        render(<RecipeDiscoveryLoadError onRetry={noop} />);
+    it('shows the message alone when there is nothing previous', () => {
+        render(inLocale(<RecipeDiscoveryLoadError onRetry={vi.fn()} />));
 
-        const retry = screen.getByRole('button', { name: 'Try again' });
-        expect(retry.classList.contains('rounded-full')).toBe(true);
-        expect(retry.classList.contains('font-semibold')).toBe(true);
-        expect(retry.className).toContain('min-h-11');
-        expect(retry.className).toContain('md:min-h-0');
-    });
-
-    it('keeps the retry legible at rest and under its seafoam hover tint (SC 1.4.3)', () => {
-        render(<RecipeDiscoveryLoadError onRetry={noop} />);
-
-        const retry = screen.getByRole('button', { name: 'Try again' });
-        expect(utilityContrast(retry.className, { surface: semantic.card }), 'at rest').toBeGreaterThanOrEqual(4.5);
-        expect(
-            utilityContrast(retry.className, { surface: semantic.card, variant: 'hover' }),
-            'under hover:bg-action/10',
-        ).toBeGreaterThanOrEqual(4.5);
+        expect(screen.queryByText('PREVIOUS RESULTS')).toBeNull();
     });
 });

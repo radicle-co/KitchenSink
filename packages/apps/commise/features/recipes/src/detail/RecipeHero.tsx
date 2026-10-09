@@ -41,7 +41,22 @@ export type { RecipeHeroProps };
 const HERO_BOX = 'h-64 w-full md:h-96';
 
 /** The recipe-detail hero: the photo carousel, or its deliberate no-photo fallback. */
-export const RecipeHero: FC<RecipeHeroProps> = ({ title, photos }) => {
+export const RecipeHero: FC<RecipeHeroProps> = ({ title, photos, overlay }) => {
+    if (overlay === undefined) {
+        return <HeroMedia title={title} photos={photos} />;
+    }
+
+    // The overlay comes FIRST in the DOM (Back is reached before the photos) and paints above them through `z-10`.
+    return (
+        <div className="relative">
+            <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-3">{overlay}</div>
+            <HeroMedia title={title} photos={photos} />
+        </div>
+    );
+};
+
+/** The hero's media: the carousel, or the deliberate no-photo placeholder. */
+const HeroMedia: FC<Pick<RecipeHeroProps, 'title' | 'photos'>> = ({ title, photos }) => {
     const { card } = useMessages(recipeMessages);
 
     if (photos.length === 0) {

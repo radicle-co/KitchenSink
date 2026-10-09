@@ -29,31 +29,33 @@
  * ignored ownership while mobile checked it). Free-tier owners see the private option disabled with a
  * localized upgrade reason; the tier read fails safe (gated OFF) while the profile is still loading or absent.
  *
- * Recipe-detail wireframe parity (C1/C3/C4): a Back control returns to the recipe list (C1, mirroring
- * mobile's `onBack`); the header keeps Edit as the sole primary owner control, with Version history, the
- * visibility toggle, and the delete trigger grouped behind a `MoreActionsMenu` (C4, `[Edit] [More]`); the
- * clone action is passed into `RecipeDetailView`'s `footerActions` slot so it renders alongside the version +
- * visibility badges in ONE grouped footer row (C3), instead of as a separate block.
+ * The recipe page (build spec §6): a back link to the list above the meta line; the action row's primary — Edit
+ * recipe for the owner, Save a copy for another cook who may clone — beside the ⋯ menu, whose entries come from the
+ * shared `detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); and the rating block in the
+ * view's `rating` slot, under the nutrition. The cook's marks, the serving scale and Screen on are bound by the view
+ * itself; this container reads the marks only to offer Clear checks.
  */
 import { useAuth } from '@clerk/nextjs';
 import {
-    MoreActionsMenu,
-    RecipeCloneAction,
     RecipeDeleteDialog,
     RecipeDetailView,
     RecipeRatingDisplay,
     RecipeRatingInput,
-    RecipeVisibilityToggle,
-    filtersToQueryString,
+    detailMenuOf,
     isUnreachableRecovery,
     ratingModeFor,
-    useCookingProgress,
+    recipeActionMessages,
+    useCookMarks,
+    type DetailMenuItem,
     type RecipeRatingError,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import { buttonSurfaceClass } from '@commise/ui/button';
-import { canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
+import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
+import { Button, buttonSurfaceClass } from '@commise/ui/button';
+import { Icon } from '@commise/ui/icon';
+import { ScrollHost, useScrollHost } from '@commise/ui/scroll-host';
+import { RecipeVisibility, canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
@@ -67,7 +69,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState, type FC } from 'react';
+import { useState, type ComponentProps, type FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { dataSourcesHref } from '@/components/app/dataSourcesHref';
@@ -142,6 +144,24 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
     );
 };
 
+/** The recipe page's sections, in page order: the ids of their headings. */
+const DETAIL_SECTIONS = ['ingredients', 'steps', 'nutrition'] as const;
+
+/** Where the scroll spy's activation line sits below the top of the window: under the sticky section switch. */
+const SECTION_ACTIVATION_PX = 112;
+
+/**
+ * The recipe view, told which section the reader is in by the page's `ScrollHost`.
+ *
+ * @param props - The view's props.
+ * @returns The view.
+ */
+const SectionAwareDetailView: FC<ComponentProps<typeof RecipeDetailView>> = (props) => {
+    const { current } = useScrollHost();
+
+    return <RecipeDetailView {...props} {...(current === undefined ? {} : { currentSection: current })} />;
+};
+
 /** Props for {@link SettledRecipeDetail}. */
 interface SettledRecipeDetailProps extends RecipeDetailContainerProps {
     /** The detail read the boundary gates — the same options object whose key it checked. */
@@ -161,7 +181,6 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
         throw new Error('A recipe detail needs a recipe id.');
     }
 
-    const { recipes } = useMessages(webMessages);
     const { locale } = useParams<{ locale: string }>();
     const router = useRouter();
     const { sessionClaims } = useAuth();
@@ -179,9 +198,9 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     const cloneRecipe = useCloneRecipe();
     const setRating = useSetRecipeRating();
     const deleteRating = useDeleteRecipeRating();
-    // D4/D5: session-scoped cooking progress lives in the orchestration layer (survives navigate-away-and-back);
-    // the presentational view receives the checked sets + toggles as props.
-    const cooking = useCookingProgress(id);
+    // The view binds the cook's marks itself; the ⋯ menu reads the same marks to offer Clear checks.
+    const marks = useCookMarks(id);
+    const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     const recipe = query.data;
@@ -218,119 +237,143 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     // to the pre-write value before the refetch lands). The community `averageRating` stays the displayed score.
     const selectedStars = recipe.viewerRating;
 
-    // ⛔ C4 WIREFRAME PARITY (`[Edit] [More]`) — and the POSITION is the point, not just the grouping. These
-    // controls used to render at the FOOT of the container, below the hero, the badges, the stats, every
-    // ingredient, every step and the rating block: the owner's primary action on their own recipe sat at the
-    // bottom of a scroll with no upper bound. `recipe-detail.md` puts them in the header and
-    // `2026-07-18-001-mockup-parity-reconciliation.md:291` (W2 step 3) said to build them there; this is that
-    // instruction, finally followed. They now travel into the detail's title band via `headerActions`.
+    // §6.1/§6.4: the action row is the primary — Edit recipe for the owner, Save a copy for another cook — and the ⋯
+    // menu, whose entries are decided once for both platforms (`detailMenuOf`). The two NAVIGATIONS stay real links: a
+    // `<button onClick={router.push}>` would lose the link role, ⌘-click and open-in-new-tab.
     //
-    // Edit stays the sole primary, always-visible owner control (W2/D1's restored entry point); Version
-    // history, visibility, and the delete trigger — the SECONDARY actions — sit behind the "More" overflow.
-    //
-    // ⛔ The delete CONFIRMATION DIALOG deliberately does NOT come with them: it stays a sibling below, so it
-    // survives the menu closing (e.g. the menu's own outside-click) while the dialog is open.
-    //
-    // DS surfaces: every control draws its palette, pill geometry, focus ring, and 44px touch floor from ONE
-    // source — `buttonSurfaceClass`, the same recipe the `Button` component renders — instead of the bare,
-    // surface-less elements these used to be. The two NAVIGATIONS stay real links on purpose: a
-    // `<button onClick={router.push}>` would lose the link role, ⌘-click, and open-in-new-tab.
-    const ownerHeaderActions = viewerIsOwner ? (
-        <>
-            <Link href={`/${locale}/recipes/${id}/edit` as Route} className={buttonSurfaceClass('primary')}>
-                {recipes.actions.editAction}
-            </Link>
-            <MoreActionsMenu
-                recipeTitle={recipe.title}
-                // The DS destructive surface on a plain `<button>` rather than the `Button` component, because this
-                // trigger MUST keep `aria-haspopup="dialog"` (it announces that activating it opens the confirmation)
-                // and the DS Button's contract carries no popup hint. It has no in-flight state of its own — the
-                // delete's busy spinner belongs to the dialog's confirm control, which IS a real DS `Button`.
-                destructive={
-                    <button
-                        type="button"
-                        aria-haspopup="dialog"
-                        onClick={() => setDeleteDialogOpen(true)}
-                        className={buttonSurfaceClass('destructive')}
-                    >
-                        {recipes.actions.deleteAction}
-                    </button>
-                }
-            >
-                <Link href={`/${locale}/recipes/${id}/versions` as Route} className={buttonSurfaceClass('secondary')}>
-                    {recipes.actions.versionHistory}
-                </Link>
-                <RecipeVisibilityToggle
-                    visibility={recipe.visibility}
-                    canGoPrivate={viewerCanGoPrivate}
-                    disabledReason={recipes.actions.premiumRequired}
-                    // B17 — a failed toggle snaps back to the query's value; surface an honest
-                    // reason so the change doesn't fail silently. Cleared on the next attempt (and
-                    // on recipe switch).
-                    error={setVisibility.error !== null}
-                    onChange={(visibility) => setVisibility.mutate({ id, visibility })}
-                />
-            </MoreActionsMenu>
-        </>
-    ) : undefined;
+    // ⛔ The delete CONFIRMATION DIALOG does NOT live in the menu: it stays a sibling below, so it survives the menu
+    // closing while the dialog is open.
+    const menu = detailMenuOf({
+        owner: viewerIsOwner,
+        isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
+        canGoPrivate: viewerCanGoPrivate,
+        hasMarks: marks.hasMarks,
+    });
+    const versionsHref = `/${locale}/recipes/${id}/versions`;
+
+    const menuItem = (item: DetailMenuItem): ActionMenuItem => {
+        switch (item) {
+            case 'versions':
+                return {
+                    id: item,
+                    label: detailActions.versionHistory,
+                    icon: 'clock',
+                    onSelect: () => router.push(versionsHref as Route),
+                };
+            case 'makePrivate':
+                return {
+                    id: item,
+                    label: detailActions.makePrivate,
+                    icon: 'lock',
+                    onSelect: () => setVisibility.mutate({ id, visibility: RecipeVisibility.PRIVATE }),
+                };
+            case 'makePublic':
+                return {
+                    id: item,
+                    label: detailActions.makePublic,
+                    icon: 'globe',
+                    onSelect: () => setVisibility.mutate({ id, visibility: RecipeVisibility.PUBLIC }),
+                };
+            case 'clearChecks':
+                return { id: item, label: detailActions.clearChecks, icon: 'rotateCcw', onSelect: marks.clear };
+        }
+    };
+
+    const moreActions =
+        menu.items.length > 0 || menu.destructive !== undefined ? (
+            <ActionMenu
+                triggerLabel={moreMenu.triggerFor.replace('{title}', recipe.title)}
+                title={moreMenu.title}
+                closeLabel={moreMenu.close}
+                items={menu.items.map(menuItem)}
+                {...(menu.destructive === undefined
+                    ? {}
+                    : {
+                          destructiveItem: {
+                              id: 'delete',
+                              label: detailActions.deleteRecipe,
+                              icon: 'trash',
+                              onSelect: () => setDeleteDialogOpen(true),
+                          },
+                      })}
+            />
+        ) : null;
+    const primary = viewerIsOwner ? (
+        <Link href={`/${locale}/recipes/${id}/edit` as Route} className={buttonSurfaceClass('primary')}>
+            <Icon name="pencilLine" size={20} />
+            {detailActions.editRecipe}
+        </Link>
+    ) : viewerCanClone ? (
+        <Button
+            icon="copyPlus"
+            busy={cloneRecipe.isPending}
+            onPress={() =>
+                // A copy needs a real edit before it can be published (FR-005b), so it opens in the editor.
+                cloneRecipe.mutate(id, {
+                    onSuccess: (created) => router.push(`/${locale}/recipes/${created.id}/edit` as Route),
+                })
+            }
+        >
+            {detailActions.saveCopy}
+        </Button>
+    ) : null;
+    const headerActions =
+        primary === null && moreActions === null ? undefined : (
+            <>
+                {primary}
+                {moreActions}
+            </>
+        );
 
     return (
         <>
-            {/* C1 wireframe parity: an explicit in-app back control on the detail header — mirrors mobile's
-                `onBack` (RecipeDetailScreen), which the web detail never had (it relied on browser back). */}
-            <Link href={`/${locale}/recipes` as Route} className={buttonSurfaceClass('secondary')}>
-                {recipes.actions.backAction}
-            </Link>
-            <RecipeDetailView
-                recipe={recipe}
-                dataSourcesHref={dataSourcesHref(locale)}
-                viewerIsOwner={viewerIsOwner}
-                refreshNotice={refreshNotice}
-                unreachableRetry={unreachableRetry}
-                headerActions={ownerHeaderActions}
-                checkedIngredients={cooking.checkedIngredients}
-                onToggleIngredient={cooking.toggleIngredient}
-                checkedSteps={cooking.checkedSteps}
-                onToggleStep={cooking.toggleStep}
-                onFilterByTag={(tag) =>
-                    // D6: deep-link to the SAME visibility-scoped search the discover page runs; reuse its
-                    // canonical query encoder so the tag round-trips exactly (no new unfiltered tag endpoint).
-                    router.push(`/${locale}/discover?${filtersToQueryString({ tags: [tag] }, '')}` as Route)
-                }
-                // C3 wireframe parity: the clone action lives IN the detail's grouped footer row, alongside
-                // the version + visibility badges, rather than as a loose block below every other control.
-                // W2/D7: an owner never clones their OWN recipe — the orchestration layer omits the slot
-                // entirely (absent, not a disabled button). `canClone` already excludes the owner (P4); this
-                // outer guard additionally hides the control for the owner rather than merely disabling it.
-                footerActions={
-                    !viewerIsOwner && (
-                        <RecipeCloneAction
-                            canClone={viewerCanClone}
-                            cloning={cloneRecipe.isPending}
-                            onClone={() =>
-                                cloneRecipe.mutate(id, {
-                                    onSuccess: (created) => router.push(`/${locale}/recipes/${created.id}` as Route),
-                                })
-                            }
-                        />
-                    )
-                }
-            />
-
-            {/* Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);
-                everyone else gets the interactive input. The own-recipe gate lives HERE, not in a mode prop. */}
-            {ratingMode === 'own' ? (
-                <RecipeRatingDisplay average={recipe.averageRating} ratingCount={recipe.ratingCount} />
-            ) : (
-                <RecipeRatingInput
-                    average={recipe.averageRating}
-                    ratingCount={recipe.ratingCount}
-                    selectedStars={selectedStars}
-                    pending={setRating.isPending || deleteRating.isPending}
-                    error={ratingErrorKind}
-                    onRate={(stars) => setRating.mutate({ id, input: { stars } })}
-                    onRemove={() => deleteRating.mutate(id)}
+            {/* Blueprint A7: the page's one scroll spy reads the section headings by id; the view marks the current
+                one in its section switch. The activation line sits under the sticky switch (the headings'
+                `scroll-mt-28`). */}
+            <ScrollHost sections={DETAIL_SECTIONS} activationOffset={SECTION_ACTIVATION_PX}>
+                <SectionAwareDetailView
+                    recipe={recipe}
+                    dataSourcesHref={dataSourcesHref(locale)}
+                    editHref={`/${locale}/recipes/${id}/edit`}
+                    versionsHref={viewerIsOwner ? versionsHref : undefined}
+                    viewerIsOwner={viewerIsOwner}
+                    refreshNotice={refreshNotice}
+                    unreachableRetry={unreachableRetry}
+                    headerActions={headerActions}
+                    back={
+                        <Link
+                            href={`/${locale}/recipes` as Route}
+                            className={`${buttonSurfaceClass('ghost', 'sm')} self-start`}
+                        >
+                            <Icon name="chevronLeft" size={16} />
+                            {detailActions.backToRecipes}
+                        </Link>
+                    }
+                    rating={
+                        // Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);
+                        // everyone else gets the interactive input. The own-recipe gate lives HERE, not in a mode prop.
+                        ratingMode === 'own' ? (
+                            <RecipeRatingDisplay average={recipe.averageRating} ratingCount={recipe.ratingCount} />
+                        ) : (
+                            <RecipeRatingInput
+                                average={recipe.averageRating}
+                                ratingCount={recipe.ratingCount}
+                                selectedStars={selectedStars}
+                                pending={setRating.isPending || deleteRating.isPending}
+                                error={ratingErrorKind}
+                                onRate={(stars) => setRating.mutate({ id, input: { stars } })}
+                                onRemove={() => deleteRating.mutate(id)}
+                            />
+                        )
+                    }
                 />
+            </ScrollHost>
+
+            {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently. */}
+            {setVisibility.error !== null && (
+                <p role="alert" className="mx-auto max-w-detail px-4 text-meta text-danger-text">
+                    {visibilityCopy.error}
+                </p>
             )}
 
             {viewerIsOwner && (

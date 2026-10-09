@@ -29,11 +29,11 @@ afterEach(() => {
 });
 
 /** Render the greeting with the clock frozen at a fixed LOCAL instant. */
-const renderAt = (year: number, monthIndex: number, day: number, hour: number, locale = 'en'): void => {
+const renderAt = (year: number, monthIndex: number, day: number, hour: number, locale = 'en', name?: string): void => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(year, monthIndex, day, hour, 0, 0));
 
-    renderWithProviders(<HomeGreeting />, { locale });
+    renderWithProviders(<HomeGreeting {...(name === undefined ? {} : { name })} />, { locale });
 };
 
 /** Every greeting string the dictionary can produce — used to assert that NO bucket leaks into the SSR pass. */
@@ -43,18 +43,42 @@ describe('HomeGreeting (web) — time-of-day bucket', () => {
     // Each row is [hour, expected greeting]. The boundary hours (5, 12, 17, 22) are chosen on purpose: they
     // are where the bucket flips, so an off-by-one in the shared bucketer is caught here.
     it.each([
-        [8, 'Good morning, Chef!'],
-        [5, 'Good morning, Chef!'],
-        [14, 'Good afternoon, Chef!'],
-        [12, 'Good afternoon, Chef!'],
-        [19, 'Good evening, Chef!'],
-        [17, 'Good evening, Chef!'],
-        [23, 'Still up, Chef?'],
-        [2, 'Still up, Chef?'],
+        [8, 'Good morning'],
+        [5, 'Good morning'],
+        [14, 'Good afternoon'],
+        [12, 'Good afternoon'],
+        [19, 'Good evening'],
+        [17, 'Good evening'],
+        [23, 'Still up?'],
+        [2, 'Still up?'],
     ])('at hour %i greets "%s"', (hour, expected) => {
         renderAt(2026, 4, 31, hour);
 
         expect(screen.getByRole('heading', { name: expected })).toBeTruthy();
+    });
+});
+
+/**
+ * Slice 3 of the overhaul (`buildSpec.md` §4.2): the greeting IS the page's H1, in the large title, and names the cook
+ * when there is a name — "Good afternoon, Eliza" — and plainly greets when there is none.
+ */
+describe('HomeGreeting (web) — the large title', () => {
+    it('is the one level-1 heading', () => {
+        renderAt(2026, 4, 31, 14);
+
+        expect(screen.getByRole('heading', { level: 1, name: 'Good afternoon' })).toBeTruthy();
+        expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    });
+
+    it.each([
+        [8, 'Good morning, Eliza'],
+        [14, 'Good afternoon, Eliza'],
+        [19, 'Good evening, Eliza'],
+        [2, 'Still up, Eliza?'],
+    ])('at hour %i greets the cook by name: "%s"', (hour, expected) => {
+        renderAt(2026, 4, 31, hour, 'en', 'Eliza');
+
+        expect(screen.getByRole('heading', { level: 1, name: expected })).toBeTruthy();
     });
 });
 
@@ -191,10 +215,10 @@ describe('HomeGreeting (web) — the viewer’s clock wins over the server’s (
     // [server hour, client hour, the greeting the CLIENT's hour must produce]. Every bucket appears as a
     // client hour, and each is paired with a server hour in a DIFFERENT bucket.
     it.each([
-        [14, 8, 'Good morning, Chef!'],
-        [2, 14, 'Good afternoon, Chef!'],
-        [8, 19, 'Good evening, Chef!'],
-        [14, 3, 'Still up, Chef?'],
+        [14, 8, 'Good morning'],
+        [2, 14, 'Good afternoon'],
+        [8, 19, 'Good evening'],
+        [14, 3, 'Still up?'],
     ])('server hour %i, client hour %i → greets "%s"', async (serverHour, clientHour, expected) => {
         const container = await hydrateAt(new Date(2026, 4, 31, serverHour, 0, 0), new Date(2026, 4, 31, clientHour));
 
@@ -204,8 +228,8 @@ describe('HomeGreeting (web) — the viewer’s clock wins over the server’s (
     it('shows only the client bucket — the server’s greeting is gone, not merely joined', async () => {
         const container = await hydrateAt(new Date(2026, 4, 31, 14, 0, 0), new Date(2026, 4, 31, 3, 0, 0));
 
-        expect(within(container).getByRole('heading', { name: 'Still up, Chef?' })).toBeTruthy();
-        expect(within(container).queryByText('Good afternoon, Chef!')).toBeNull();
+        expect(within(container).getByRole('heading', { name: 'Still up?' })).toBeTruthy();
+        expect(within(container).queryByText('Good afternoon')).toBeNull();
     });
 
     it('renders the CLIENT’s calendar day, not the server’s (a viewer past midnight is on tomorrow)', async () => {
@@ -225,12 +249,10 @@ describe('HomeGreeting (web) — the viewer’s clock wins over the server’s (
         expect(consoleError).not.toHaveBeenCalled();
     });
 
-    it('keeps the greeting an <h2> under the page’s <h1> after hydration', async () => {
+    it('makes the greeting the page’s one <h1> after hydration (slice 3: the large title IS the greeting)', async () => {
         const container = await hydrateAt(new Date(2026, 4, 31, 14, 0, 0), new Date(2026, 4, 31, 8, 0, 0));
 
-        // The heading LEVEL is load-bearing: Home's own <h1> is the sr-only page title, so the greeting must
-        // stay level 2 or the document outline breaks.
-        expect(within(container).getByRole('heading', { level: 2, name: 'Good morning, Chef!' })).toBeTruthy();
+        expect(within(container).getByRole('heading', { level: 1, name: 'Good morning' })).toBeTruthy();
     });
 
     it('drops the reserved placeholder once the greeting is rendered', async () => {
@@ -266,7 +288,7 @@ describe('HomeGreeting (web) — the viewer’s clock wins over the server’s (
         // asserted is the invariant that makes the heights equal: the placeholder line carries the real line's
         // typography utilities (`mb-1` and the type scale included) plus only its own bar shape. Drop the
         // shared class and this fails — which is exactly the drift that reintroduces the layout shift.
-        const greeting = within(container).getByRole('heading', { level: 2 }).getAttribute('class') ?? '';
+        const greeting = within(container).getByRole('heading', { level: 1 }).getAttribute('class') ?? '';
         const date = container.querySelector('p')?.getAttribute('class') ?? '';
 
         for (const utility of greeting.split(/\s+/)) {

@@ -25,9 +25,15 @@ import { isSessionSubjectChangedError } from '@commise/features-account';
 import {
     isInvalidRequestError,
     isRecipeServiceClientError,
+    isVersionConflictError,
     type RecipeServiceClient,
 } from '@kitchensink/recipe-service-client';
 import type { OutboxRecord, SendResult, Sender } from '@kitchensink/sync';
+
+import type { SyncAnswer } from './syncAnswer.js';
+
+/** What this sender reports: a send result whose answer is a recipe write's. */
+type RecipeSendResult = SendResult<SyncAnswer>;
 
 /** Resolves the client to send with, at the moment of sending. */
 export type ClientAccessor = () => RecipeServiceClient | undefined;
@@ -41,7 +47,7 @@ export type ClientAccessor = () => RecipeServiceClient | undefined;
  * `itemStatus.ts` defines as "may have been processed server-side", and that is the one thing this case
  * provably is not: nothing was sent at all.
  */
-const NOT_IMPLEMENTED: SendResult = { outcome: 'failed', status: 501 };
+const NOT_IMPLEMENTED: RecipeSendResult = { outcome: 'failed', status: 501 };
 
 /**
  * A refusal the client's token proxy produced, because the record's cook is no longer the signed-in one (ADR-0054).
@@ -51,7 +57,7 @@ const NOT_IMPLEMENTED: SendResult = { outcome: 'failed', status: 501 };
  * this record's cook. The record stays in its cook's outbox and drains when that cook signs in again, because a drain
  * re-sends parked records.
  */
-const SESSION_ENDED: SendResult = { outcome: 'failed', status: 401 };
+const SESSION_ENDED: RecipeSendResult = { outcome: 'failed', status: 401 };
 
 /**
  * Dispatch one record to the client call its entity and kind name.
@@ -64,7 +70,7 @@ const SESSION_ENDED: SendResult = { outcome: 'failed', status: 401 };
  * @returns The server id on success, or a refusal for a record this sender has no call for.
  * @sideEffect Makes an HTTP call.
  */
-async function dispatch(client: RecipeServiceClient, record: OutboxRecord): Promise<SendResult> {
+async function dispatch(client: RecipeServiceClient, record: OutboxRecord): Promise<RecipeSendResult> {
     const payload = record.payload as { readonly id?: string; readonly input?: Record<string, unknown> };
     const id = payload.id ?? record.localId;
 
@@ -76,13 +82,13 @@ async function dispatch(client: RecipeServiceClient, record: OutboxRecord): Prom
         case 'create': {
             const created = await client.createRecipe((payload.input ?? {}) as never);
 
-            return { outcome: 'ok', serverId: created.id };
+            return { outcome: 'ok', serverId: created.id, answer: { kind: 'recipeWritten', detail: created } };
         }
 
         case 'update': {
             const updated = await client.updateRecipe(id, (payload.input ?? {}) as never);
 
-            return { outcome: 'ok', serverId: updated.id };
+            return { outcome: 'ok', serverId: updated.id, answer: { kind: 'recipeWritten', detail: updated } };
         }
 
         case 'delete': {
@@ -125,7 +131,21 @@ async function dispatch(client: RecipeServiceClient, record: OutboxRecord): Prom
  * @param error - The rejection.
  * @returns The failure to report. Pure.
  */
-function failureFor(error: unknown): SendResult {
+function failureFor(error: unknown): RecipeSendResult {
+    // ⛔ A conflict's two sides travel as data: the queued write is the only thing that saw this response, and the
+    // conflict view is built from them. One with no server side is a plain 409 — nothing to build a view from.
+    if (isVersionConflictError(error) && error.server !== undefined) {
+        return {
+            outcome: 'failed',
+            status: 409,
+            answer: {
+                kind: 'recipeConflict',
+                server: error.server,
+                ...(error.base === undefined ? {} : { base: error.base }),
+            },
+        };
+    }
+
     if (isInvalidRequestError(error)) {
         return { outcome: 'failed', status: 400 };
     }
@@ -149,8 +169,8 @@ function failureFor(error: unknown): SendResult {
  * @param clientOf - Resolves the current authenticated client.
  * @returns A {@link Sender}. @sideEffect The returned function makes HTTP calls.
  */
-export function recipeSender(clientOf: ClientAccessor): Sender {
-    return async (record: OutboxRecord): Promise<SendResult> => {
+export function recipeSender(clientOf: ClientAccessor): Sender<SyncAnswer> {
+    return async (record: OutboxRecord): Promise<RecipeSendResult> => {
         const client = clientOf();
 
         if (client === undefined) {

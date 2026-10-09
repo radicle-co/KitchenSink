@@ -1,202 +1,273 @@
 'use client';
 
 /**
- * @module @commise/features-recipes — web recipe-detail view (T066 building block).
+ * @module @commise/features-recipes — web recipe-detail view (T066 building block; `docs/design/uiOverhaul/buildSpec.md`
+ * §6, the first slice of 008 FR-035).
  *
- * Read-only, presentational render of a loaded `RecipeDetail`: header (title, badges, description),
- * meta stats, photo gallery, ingredients, instructions, and per-serving nutrition (with the partial-
- * nutrition notice from FR-007). Fetch states (loading/error) belong to the composing app, not here.
+ * The PURE render half of the recipe page, in reading order: the hero, the back link, the meta line, the title, the
+ * rating line, the stat strip, the action row, the description and the tags as text; then the body — the section
+ * switch below a 720 px body, and from 720 two columns, ingredients (5/12, sticky with its own scroll) beside the steps
+ * (7/12), with the nutrition, the rating, the review surface and the footer facts under the steps.
  *
- * Styled to the Commise design language (docs/mockups/screens/screenRecipeDetail): Playfair display
- * title, seafoam/coral tag pills, a four-up stats strip, checklist ingredients, numbered seafoam step
- * markers, and a nutrition grid — all via `@commise/ui` design tokens exposed as Tailwind v4 utilities.
+ * Every width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the
+ * server render and the hydrated page are the same page. "Screen on" is therefore drawn in two places (the section
+ * switch below 720, the action row from 720) from ONE state its shell holds, and the toggle itself renders nothing
+ * where the browser cannot keep the screen awake.
  *
- * This is the PURE render half of the recipe detail. Its orchestration shell —
- * `RecipeDetailView.tsx`, which binds the session serving scale — is a separate file because a file
- * does ONE thing (CODING_STANDARDS §1) and a component per file is enforced.
+ * Its orchestration shell — `RecipeDetailView.tsx`, which binds the serving scale, the cook's marks, Screen on and
+ * the description's disclosure — is a separate file because a file does ONE thing (CODING_STANDARDS §1).
  *
  * @pattern Humble Object — the pure render half of the orchestration/render split whose shell is
  *     `RecipeDetailView.tsx`. It holds no fetch state and decides nothing.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { Button, buttonSurfaceClass } from '@commise/ui/button';
+import { DifficultyBadge } from '@commise/ui/difficulty-badge';
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
+import { Icon } from '@commise/ui/icon';
+import { KeepAwakeToggle } from '@commise/ui/keep-awake';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
-import { StandIn } from '@commise/ui/stand-in';
+import { SectionSwitch } from '@commise/ui/section-switch';
 import { StatusBadge } from '@commise/ui/status-badge';
-import { VariantPartsLine } from '@commise/ui/variant-parts-line';
-import { hasCatalogNutrition, hasUserEnteredIngredients, RecipeVisibility } from '@kitchensink/recipe-core';
+import { hasCatalogNutrition, hasUserEnteredIngredients } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import Link from 'next/link';
 import { useId, type ComponentProps, type FC } from 'react';
 
+import { fillTemplate } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { AmbiguityReview } from './AmbiguityReview.js';
-import { isStandInName, lineDisplayName, variantPartTexts } from './lineName.js';
-import { fillTemplate, formatDurationMinutes } from '../list/model.js';
-import { RecipeHero } from './RecipeHero.js';
-import { RecipeSourceLine } from './RecipeSourceLine.js';
-import { ServingScaleControl } from './ServingScaleControl.js';
+import { DetailEmptySection } from './DetailEmptySection.js';
+import { detailMetaItems, detailRatingLine, detailStatCells, isLongDescription } from './detailFacts.js';
+import { IngredientCheckRow } from './IngredientCheckRow.js';
+import { NutritionFigure } from './NutritionFigure.js';
 import {
-    formatQuantity,
-    isLineNeedsReview,
-    isLineAmbiguous,
-    isLineFoodRemoved,
     allLinesFoodRemoved,
-    ingredientCheckLabel,
-    removedFoodNotice,
     detailNoticeState,
     needsReviewNotice,
     rangeDerivedNotice,
+    removedFoodNotice,
     staleNutritionNotice,
-    stepTimerLabel,
     type RecipeDetailBodyProps,
 } from './model.js';
+import { RecipeHero } from './RecipeHero.js';
+import { RecipeSourceLine } from './RecipeSourceLine.js';
+import { ServingScaleControl } from './ServingScaleControl.js';
+import { StepRow } from './StepRow.js';
 
-const statCards = 'grid grid-cols-2 gap-4 rounded-2xl bg-paper p-6 shadow-sm sm:grid-cols-4';
-const statValue = 'font-display text-2xl font-bold text-ink';
-const statLabel = 'text-caption uppercase tracking-wide text-ink-muted';
+/** A Next.js link target from a plain address. */
+type Href = ComponentProps<typeof Link>['href'];
+
+/*
+ * The 720 px body breakpoint (§6.1) is the container variant `@min-[45rem]/detail:`. ⛔ Every class that uses it is
+ * written out IN FULL below: Tailwind generates only the class names it finds whole in the source, so a variant
+ * prefix concatenated at run time produces no CSS at all and the page silently stays one column.
+ */
+
+/** Screen on in the action row: from a 720 px body only (below it, it is in the section switch). */
+const ACTION_ROW_SCREEN_ON = 'hidden @min-[45rem]/detail:ms-auto @min-[45rem]/detail:inline-flex';
+
+/** The section switch: below a 720 px body only, where the two sections do not show side by side. */
+const SECTION_SWITCH_SLOT = '@min-[45rem]/detail:hidden';
+
+/** The body: one column, two from a 720 px body. */
+const BODY_GRID =
+    'flex flex-col gap-10 @min-[45rem]/detail:grid @min-[45rem]/detail:grid-cols-12 @min-[45rem]/detail:gap-8';
+
+/** The ingredients: 5/12 from a 720 px body, sticky under the chrome with a scroll of their own. */
+const INGREDIENTS_COLUMN =
+    'flex flex-col gap-3 @min-[45rem]/detail:sticky @min-[45rem]/detail:top-20 @min-[45rem]/detail:col-span-5 ' +
+    '@min-[45rem]/detail:max-h-[calc(100dvh-6rem)] @min-[45rem]/detail:self-start @min-[45rem]/detail:overflow-y-auto';
+
+/** The steps, nutrition, rating and footer facts: 7/12 from a 720 px body. */
+const STEPS_COLUMN = 'flex min-w-0 flex-col gap-10 @min-[45rem]/detail:col-span-7';
+
+/** A section heading: `sectionTitle`, focusable for a jump, and clear of the sticky switch when jumped to. */
+const SECTION_HEADING = 'scroll-mt-28 text-section-title text-ink focus:outline-none';
+
+/** The owner's ghost Edit link on a section heading, and the footer's Version history: the ghost button surface. */
+const EDIT_LINK = buttonSurfaceClass('ghost', 'sm');
 
 /**
- * The pure `props → JSX` detail render: one responsibility, no state, no fetching, no ref. Everything it
- * shows for a chosen serving count comes from `scaleRecipeForServings`, so what scales (and what
- * deliberately does not) is decided once, in the domain, for both platforms.
+ * The pure `props → JSX` detail render: no state, no fetching, no ref of its own. Everything it shows for a chosen
+ * serving count comes from `scaleRecipeForServings`, so what scales (and what deliberately does not) is decided once,
+ * in the domain, for both platforms.
  *
- * Exported for tests and for its shell; deliberately NOT on the package barrel — an app composes
- * `RecipeDetailView`, which cannot be shipped with the serving scale un-wired.
+ * Exported for tests and for its shell; deliberately NOT on the package barrel — an app composes `RecipeDetailView`.
  */
 export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     recipe,
-    checkedIngredients,
-    onToggleIngredient,
-    checkedSteps,
-    onToggleStep,
-    onFilterByTag,
-    footerActions,
     headerActions,
+    back,
+    rating,
     servings,
     onServingsChange,
     refreshNotice,
     unreachableRetry,
     dataSourcesHref,
+    editHref,
+    versionsHref,
     viewerIsOwner,
+    marks,
+    screenOn,
+    descriptionExpanded,
+    onToggleDescription,
+    currentSection,
 }) => {
-    const { list, detail, duration, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
+    const { detail, duration, card } = useMessages(recipeMessages);
+    const locale = useLocale();
+    const owner = viewerIsOwner === true;
     // A retry from the refresh notice that succeeds removes the button the viewer pressed, so focus goes to the title.
     const titleRef = useFocusOnSignal<HTMLHeadingElement>(refreshNotice?.recoveries ?? 0);
-    // Plan 002 R2 — ONE notice per recipe for the lines food could not be asked about, and which notice speaks
-    // (`detailNoticeState`). Read from the STORED lines, like every judgement below: which lines food answered for is
-    // a fact about the read, not the serving count.
+    // Plan 002 R2 — ONE notice per recipe for the lines food could not be asked about, read from the STORED lines.
     const { unreachable, pageRefreshFailed, saysRecovered } = detailNoticeState(
         recipe.ingredients,
         detail,
         refreshNotice,
         unreachableRetry,
     );
-    // `recoveries` counts only retries that loaded EVERY name (the app passes `isUnreachableRecovery`), so it moves
-    // only when the button the cook pressed is gone — never on a partial recovery or a background refetch. Focus then
-    // goes to the heading of the section the button was in.
+    // `recoveries` counts only retries that loaded EVERY name, so focus moves to this heading only when the button the
+    // cook pressed is gone.
     const ingredientsHeadingRef = useFocusOnSignal<HTMLHeadingElement>(unreachableRetry.recoveries);
-    // The recovery is said as the heading's DESCRIPTION, read when focus lands there — not in a live region, which
-    // would speak again on a background refetch the cook did not ask for.
     const recoveredDescriptionId = useId();
-    const locale = useLocale();
-    // Cuisine + dietary flags are descriptive pills; only `tags` are the search-filter chips (D6).
-    const staticBadges = [...(recipe.cuisine ? [recipe.cuisine] : []), ...recipe.dietaryFlags];
-    // R38 — read from the STORED figure, not the scaled projection: scaling multiplies both bounds, so which
-    // bound the total came from is a fact about the computation, not about the serving count on screen.
+    const descriptionId = useId();
+    // Facts about the READ, from the stored figure — not the serving count on screen.
     const rangeNotice = rangeDerivedNotice(recipe.nutrition, {
         low: detail.nutritionRangeDerivedLow,
         high: detail.nutritionRangeDerivedHigh,
     });
-    // KTD-3b — also a fact about the READ, not the serving count, so it too comes from the stored figure.
     const staleNotice = staleNutritionNotice(recipe.nutrition, detail.nutritionStale);
-    // ONE derivation of what the chosen serving count means — the same pure policy the native leaf reads,
-    // so the platforms cannot disagree about WHAT scales. Quantities and prep scale; cook time and the
-    // per-step timers below are rendered from the STORED recipe, on purpose (see `scaleRecipeForServings`).
-    const scaled = scaleRecipeForServings(recipe, servings);
-    // U14 — read from the STORED lines rather than the scaled projection, for the same reason `rangeNotice`
-    // is: which lines the gate doubted is a fact about the recipe, not about the serving count on screen.
     const reviewNotice = needsReviewNotice(recipe.ingredients, detail);
+    const removedNotice = removedFoodNotice(recipe.ingredients, detail);
+    const allRemoved = allLinesFoodRemoved(recipe.ingredients);
+    // ONE derivation of what the chosen serving count means; cook time and step timers stay as stored.
+    const scaled = scaleRecipeForServings(recipe, servings);
+    const stats = detailStatCells(scaled, recipe.difficulty, { detail, duration, card });
+    const meta = detailMetaItems(recipe, owner, detail);
+    const ratingLine = detailRatingLine(recipe, owner, locale, { detail, card });
+    const tags = [...recipe.dietaryFlags, ...recipe.tags];
+    const editSectionHref = (section: string): Href | undefined =>
+        owner && editHref !== undefined ? (`${editHref}#${section}` as Href) : undefined;
+    const ingredientsEdit = editSectionHref('ingredients');
+    const stepsEdit = editSectionHref('steps');
 
     return (
-        <article aria-label={recipe.title} className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
-            {/* The mockup LEADS the detail with its photos, before any type. The hero IS the carousel, so the cover
-                shows once (F2); a recipe with no photo gets its deliberate branded placeholder — see `RecipeHero`. */}
-            <RecipeHero title={recipe.title} photos={recipe.photos} />
-
-            {/* The header sits on the page canvas, which already carries the beach-glow wash: the gradient title band
-                it used to sit in was a box in a box (`docs/design/uiOverhaul/buildSpec.md` §1.6). */}
-            <header className="flex flex-col gap-4">
-                {/* ⛔ THE TITLE ROW STACKS BELOW `sm`, and that is not a stylistic preference. The owner
-                        controls are two pills whose labels are set by the locale, and the title is an
-                        unbounded, user-authored string: side by side at 320px the pair either wraps mid-label
-                        or squeezes the title to a two-character column. Beside the title from `sm` up (where
-                        the wireframe's one-line `[< Back] Title [Edit] [More]` header fits), stacked under it
-                        below — which still satisfies the thing this move is for, since both orders put the
-                        controls ABOVE the recipe body rather than past every step of it.
-                        `items-start` (not `center`) keeps the pills aligned to the title's FIRST line when the
-                        title wraps to three; `shrink-0` stops the row stealing width from them. */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                    {/* ⛔ `min-w-0 break-words` IS LOAD-BEARING, not defensive decoration — and the two
-                            utilities do DIFFERENT jobs at DIFFERENT widths, which is why neither can be
-                            deleted as redundant. A recipe title is user-authored and unbounded; `break-words`
-                            lets an over-long token break at all, and `min-w-0` lets this flex item shrink
-                            below that token's intrinsic width once the row goes `sm:flex-row` and shares
-                            space with the owner controls.
-                            ⚠️ The measured per-width proof — which utility binds at which viewport, and the
-                            overflow each removal reintroduces — is the mutation table in
-                            `web/tests/e2e/recipeHomeResponsive.spec.ts`'s long-title tests. It is NOT restated
-                            here: a third copy of those numbers is a third thing to go stale, and the copy a
-                            future reader would trust is the one next to the assertions that still run. */}
+        <article
+            aria-label={recipe.title}
+            className="@container/detail mx-auto flex w-full max-w-detail flex-col gap-6 px-4 pb-10"
+        >
+            <div className="flex flex-col gap-4 @min-[60rem]/detail:grid @min-[60rem]/detail:grid-cols-12 @min-[60rem]/detail:gap-x-8">
+                {/* The hero IS the carousel, so the cover shows once (F2). From a 960 body it sits at the END, 7/12. */}
+                <div className="@min-[60rem]/detail:col-span-7 @min-[60rem]/detail:col-start-6 @min-[60rem]/detail:row-start-1">
+                    <RecipeHero title={recipe.title} photos={recipe.photos} />
+                </div>
+                <header className="flex min-w-0 flex-col gap-3 @min-[60rem]/detail:col-span-5 @min-[60rem]/detail:col-start-1 @min-[60rem]/detail:row-start-1">
+                    {back}
+                    {meta.length > 0 && (
+                        <p className="flex flex-wrap gap-x-2 text-overline text-ink-muted">
+                            {meta.map((item, index) => (
+                                <span key={item}>
+                                    {index > 0 && <span aria-hidden="true">· </span>}
+                                    {item}
+                                </span>
+                            ))}
+                        </p>
+                    )}
+                    {/* `min-w-0 break-words`: a recipe title is user-authored and unbounded. */}
                     <h1
                         ref={titleRef}
                         tabIndex={-1}
-                        className="min-w-0 break-words font-display text-2xl font-bold leading-tight text-ink sm:text-4xl"
+                        className="line-clamp-3 min-w-0 break-words text-large-title text-ink focus:outline-none"
+                        title={recipe.title}
                     >
                         {recipe.title}
                     </h1>
-                    {headerActions !== undefined && (
-                        <div className="flex shrink-0 items-center gap-2">{headerActions}</div>
+                    {(ratingLine.rating !== undefined || ratingLine.status !== undefined) && (
+                        <p className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap text-meta text-ink">
+                            {ratingLine.rating !== undefined && (
+                                <span className="inline-flex items-center gap-1">
+                                    <Icon name="star" size={16} tone="rating" filled />
+                                    <span className="tabular-nums lining-nums">{ratingLine.rating.text}</span>
+                                </span>
+                            )}
+                            {ratingLine.rating !== undefined && ratingLine.status !== undefined && (
+                                <span aria-hidden="true" className="text-ink-muted">
+                                    ·
+                                </span>
+                            )}
+                            {ratingLine.status?.kind === 'draft' && (
+                                <StatusBadge status="draft">{ratingLine.status.text}</StatusBadge>
+                            )}
+                            {ratingLine.status?.kind === 'visibility' && (
+                                <span className="inline-flex items-center gap-1 text-ink-muted">
+                                    <Icon
+                                        name={ratingLine.status.visibility === 'public' ? 'globe' : 'lock'}
+                                        size={16}
+                                    />
+                                    {ratingLine.status.text}
+                                </span>
+                            )}
+                        </p>
                     )}
-                </div>
-                {(staticBadges.length > 0 || recipe.tags.length > 0) && (
-                    <ul aria-label={`${recipe.title} tags`} className="flex flex-wrap gap-2">
-                        {staticBadges.map((badge, index) => (
-                            <li
-                                key={badge}
-                                // Contrast (WCAG AA): a tint-on-tint badge labels itself in a DARKENED
-                                // relative of its own hue, never the hue itself — seafoam-on-seafoam was
-                                // 3.57:1 and coral-on-coral 2.06:1, both under the 4.5:1 body-text floor.
-                                // `ocean-dark` (5.51:1) keeps the seafoam badge's identity; the coral
-                                // badge takes slate (4.67:1), matching the native leaf and the card chip.
-                                className={`rounded-full px-3 py-1 text-body-sm font-medium ${
-                                    index % 2 === 0 ? 'bg-action/10 text-action-text' : 'bg-coral/15 text-ink-muted'
+                    {stats.length > 0 && (
+                        <div className="@container/stats">
+                            {/* A container query styles a container's DESCENDANTS, never the container itself, so the strip's width is
+                            read from this wrapper: 2 × 2 below a 360 px strip, one row of cells from it. */}
+                            <dl className="grid grid-cols-2 gap-x-2 gap-y-1 rounded-lg bg-paper px-1 py-1 shadow-sm @min-[22.5rem]/stats:auto-cols-fr @min-[22.5rem]/stats:grid-flow-col @min-[22.5rem]/stats:grid-cols-none">
+                                {stats.map((cell) => (
+                                    <div key={cell.id} className="flex flex-col-reverse gap-1 px-3 py-2">
+                                        <dt className="text-caption text-ink-muted">{cell.label}</dt>
+                                        <dd className="text-figure-stat text-ink">
+                                            {cell.id === 'difficulty' ? (
+                                                <DifficultyBadge level={cell.level}>{cell.value}</DifficultyBadge>
+                                            ) : (
+                                                cell.value
+                                            )}
+                                        </dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </div>
+                    )}
+                    {headerActions !== undefined && (
+                        <div className="flex items-center gap-2 [&>*:first-child]:flex-1 @min-[37.5rem]/detail:[&>*:first-child]:flex-none">
+                            {headerActions}
+                            <span className={ACTION_ROW_SCREEN_ON}>
+                                <KeepAwakeToggle
+                                    on={screenOn.on}
+                                    onChange={screenOn.onChange}
+                                    label={detail.screenOn}
+                                    display="labelled"
+                                />
+                            </span>
+                        </div>
+                    )}
+                    {recipe.description !== '' && (
+                        <div className="flex flex-col items-start gap-1">
+                            <p
+                                id={descriptionId}
+                                className={`max-w-[62ch] text-reading-body text-ink ${
+                                    descriptionExpanded ? '' : 'line-clamp-4 @min-[37.5rem]/detail:line-clamp-none'
                                 }`}
                             >
-                                {badge}
-                            </li>
-                        ))}
-                        {recipe.tags.map((tag) => (
-                            <li key={tag}>
+                                {recipe.description}
+                            </p>
+                            {isLongDescription(recipe.description) && (
                                 <button
                                     type="button"
-                                    aria-label={fillTemplate(detail.tagFilterLabel, { tag })}
-                                    onClick={() => onFilterByTag?.(tag)}
-                                    // Touch floor: the chip is an interactive filter, so it clears 44px at
-                                    // base; `md:min-h-0` restores the original desktop chip density.
-                                    // Contrast (WCAG AA): slate at rest (4.67:1); the hover tint deepens
-                                    // to `coral/25`, where slate would fall to 4.26:1 — so hover darkens
-                                    // the LABEL to charcoal (10.31:1) rather than leaving it behind.
-                                    className="inline-flex min-h-11 items-center rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-ink-muted transition hover:bg-coral/25 hover:text-ink md:min-h-0"
+                                    aria-expanded={descriptionExpanded}
+                                    aria-controls={descriptionId}
+                                    onClick={onToggleDescription}
+                                    className={`${buttonSurfaceClass('ghost')} @min-[37.5rem]/detail:hidden`}
                                 >
-                                    {tag}
+                                    {descriptionExpanded ? detail.descriptionLess : detail.descriptionMore}
                                 </button>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-                <p className="text-body-lg leading-relaxed text-ink-muted">{recipe.description}</p>
-            </header>
+                            )}
+                        </div>
+                    )}
+                    {tags.length > 0 && <p className="text-meta text-ink-muted">{tags.join(' · ')}</p>}
+                </header>
+            </div>
 
             {refreshNotice !== undefined && (
                 <RefreshNotice
@@ -207,423 +278,224 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                 />
             )}
 
-            {/* Provenance renders for EVERY viewer, owner or not — it is a property of the recipe, not of
-                who is looking. Absent source renders nothing at all. */}
-            <RecipeSourceLine
-                {...(recipe.sourceUrl === undefined ? {} : { sourceUrl: recipe.sourceUrl })}
-                {...(recipe.sourceAttribution === undefined ? {} : { sourceAttribution: recipe.sourceAttribution })}
-            />
-
-            {/* C2 wireframe parity: Serves leads the strip, then Prep, Cook, Total. */}
-            <dl className={statCards}>
-                <div className="flex flex-col items-center gap-1 text-center">
-                    <dt className={statLabel}>{detail.servingsLabel}</dt>
-                    <dd>
-                        <ServingScaleControl
-                            servings={servings}
-                            baseServings={recipe.servings}
-                            onServingsChange={onServingsChange}
+            {/* Below a 720 body: one column under the sticky section switch, which holds Screen on as its glyph. */}
+            <div className={SECTION_SWITCH_SLOT}>
+                <SectionSwitch
+                    label={detail.sectionsLabel}
+                    {...(currentSection === undefined ? {} : { currentId: currentSection })}
+                    sections={[
+                        { id: 'ingredients', label: detail.ingredientsHeading },
+                        { id: 'steps', label: detail.instructionsHeading },
+                        { id: 'nutrition', label: detail.nutritionLink },
+                    ]}
+                    trailing={
+                        <KeepAwakeToggle
+                            on={screenOn.on}
+                            onChange={screenOn.onChange}
+                            label={detail.screenOn}
+                            display="icon"
                         />
-                    </dd>
-                </div>
-                <div className="flex flex-col items-center gap-1 text-center">
-                    <dt className={statLabel}>{detail.prepLabel}</dt>
-                    <dd className={statValue}>{formatDurationMinutes(scaled.prepTimeMinutes, list.durationMinutes)}</dd>
-                </div>
-                <div className="flex flex-col items-center gap-1 text-center">
-                    <dt className={statLabel}>{detail.cookLabel}</dt>
-                    {/* NOT `scaled` by accident — `ScaledRecipe.cookTimeMinutes` IS the stored value. */}
-                    <dd className={statValue}>{formatDurationMinutes(scaled.cookTimeMinutes, list.durationMinutes)}</dd>
-                </div>
-                <div className="flex flex-col items-center gap-1 text-center">
-                    <dt className={statLabel}>{detail.totalLabel}</dt>
-                    <dd className={statValue}>
-                        {formatDurationMinutes(scaled.totalTimeMinutes, list.durationMinutes)}
-                    </dd>
-                </div>
-            </dl>
-
-            {/* The disclosure is part of the feature, not decoration: a cook reading doubled quantities must
-                be told, in the same breath, that the cook times beside them did NOT double. `role="status"`
-                so it is announced when it appears rather than discovered by sighted scanning alone. */}
-            {scaled.scaling.isScaled && (
-                <div role="status" className="flex flex-col gap-1 rounded-2xl bg-surface-muted px-4 py-3">
-                    <p className="text-body-sm text-ink">
-                        {fillTemplate(detail.scaledNotice, { original: recipe.servings })}
-                    </p>
-                    <p className="text-body-sm font-medium text-ink">{detail.scaledTimingCaveat}</p>
-                </div>
-            )}
-
-            <section aria-label={detail.ingredientsHeading} className="flex flex-col gap-3">
-                <h2
-                    ref={ingredientsHeadingRef}
-                    tabIndex={-1}
-                    aria-describedby={saysRecovered ? recoveredDescriptionId : undefined}
-                    className="font-display text-heading-lg font-semibold text-ink"
-                >
-                    {detail.ingredientsHeading}
-                </h2>
-                {/* Plan 002 R2 — lines food could not be asked about on this read. In the removed-food tile's slot,
-                    head of the section, because the fact is about these lines.
-
-                    ⛔ ALWAYS MOUNTED, hidden through `failed` and never by unmounting: a live region inserted with
-                    its content already inside is the unreliable case the tile below records. It takes precedence
-                    over the page-level notice (see `pageRefreshFailed`): both retry the same read, and the one the
-                    cook pressed must survive a failed retry so focus is not lost.
-
-                    ⛔ No automatic polling: during a food outage, polling from every open recipe adds load at the
-                    worst moment. The focus refetch stays. */}
-                <RefreshNotice
-                    failed={unreachable !== undefined}
-                    refreshing={unreachableRetry.refreshing}
-                    onRetry={unreachableRetry.onRetry}
-                    labels={{ failed: unreachable ?? '', retry: detail.refreshRetry }}
+                    }
                 />
-                {saysRecovered && (
-                    <p id={recoveredDescriptionId} hidden>
-                        {detail.unreachableResolved}
-                    </p>
-                )}
-                {/* The withdrawn-food tile (owner ruling 4). Placement is a decision, not a default:
-                    HEAD OF THIS SECTION — below the heading, above the list — because the fact is about
-                    ingredient lines and a reader looking at the list finds it in document order without
-                    scanning. ⛔ NOT page-top: a permanent data-quality caveat above the recipe title on
-                    every visit is crying wolf. ⛔ NOT the Nutrition section: the nutrition change is a
-                    CONSEQUENCE, and putting it there would explain the effect nowhere near the cause.
+            </div>
 
-                    ⛔ WARNING TONE, NEVER ERROR — nothing failed and the recipe still cooks. `charcoal` on
-                    a `warning` TINT, never `warning` as a text colour: `colors.ts` is explicit that
-                    #F5B041 is a light FILL taking a charcoal label, and as a foreground on near-white it
-                    is far under the 4.5:1 floor.
-
-                    ⛔ `role="note"`, NOT `role="status"`/`aria-live`, and the reasoning has one honest gap.
-                    SC 4.1.3 excludes content that arrives WITH a change of context, and a page load is
-                    one — so on first render a live region would either announce nothing or duplicate
-                    content already reached in document order.
-
-                    ⚠️ But "only on first render" is NOT true of this app: TanStack Query's
-                    `refetchOnWindowFocus` is at its default, so a cook who tabs away and back while the
-                    author withdraws the food gets this tile with NO change of context. That IS in 4.1.3's
-                    scope, and today it is silent. Recorded rather than papered over.
-
-                    ⛔ Do not "fix" it by swapping to `role="status"`. This tile is conditionally MOUNTED,
-                    and a live region inserted into the DOM with its content already inside it is the
-                    classic unreliable case — the region was never registered before the content arrived,
-                    so most AT announces nothing. That trades a known silence for one that LOOKS covered.
-                    The only shape that works is an always-mounted region with content swapped in; the
-                    condition here is permanent and re-encountered on the next load, so that machinery is
-                    not yet worth its weight.
-
-                    ⛔ No dismiss: the condition is permanent, and a dismiss control implies resolution. No
-                    inline re-link picker either — no shortlist exists for a withdrawn food, and it would
-                    duplicate the editor on a read surface. */}
-                {removedFoodNotice(recipe.ingredients, detail) !== undefined && (
-                    <p role="note" className="rounded-2xl bg-attention-tint px-4 py-3 text-body-sm text-ink">
-                        {removedFoodNotice(recipe.ingredients, detail)}
-                    </p>
-                )}
-                <ul className="flex flex-col divide-y divide-border rounded-2xl bg-paper p-2 shadow-sm">
-                    {scaled.ingredients.map((ingredient) => {
-                        const label = formatQuantity(ingredient.quantity, locale, ingredient.unit);
-                        const checked = checkedIngredients?.has(ingredient.ingredientId) ?? false;
-                        const parts = variantPartTexts(ingredient.variant?.parts);
-
-                        return (
-                            <li key={ingredient.ingredientId} className="flex items-start gap-3 px-3 py-3">
-                                {/* The interactive control is the 44px base touch target (`size-11`), collapsing
-                                    to the 24px box (`sm:size-6`) from sm up. The visible tick box is a nested
-                                    element (`size-8 sm:size-6` — 32px mobile, 24px desktop) so the mobile tap
-                                    area grows without enlarging the desktop glyph, and desktop stays a 24px box
-                                    in a 24px control.
-
-                                    The step indices moved (`size-6 sm:size-5` → `size-8 sm:size-6`) with NO
-                                    change in painted pixels: the DS used to redefine Tailwind's `--spacing-*`
-                                    scale, so the old classes resolved to these same 32/24px. Now that the
-                                    numeric utilities are back on Tailwind's own ramp, the same geometry needs
-                                    the true indices. See `@commise/ui/tokens/themeCss`. */}
-                                <button
-                                    type="button"
-                                    role="checkbox"
-                                    aria-checked={checked}
-                                    aria-label={ingredientCheckLabel(
-                                        ingredient,
-                                        locale,
-                                        ingredientLineName,
-                                        ingredientDetails.checkLabelWithDetails,
-                                    )}
-                                    onClick={() => onToggleIngredient?.(ingredient.ingredientId)}
-                                    className="flex size-11 shrink-0 items-center justify-center sm:size-6"
-                                >
-                                    <span
-                                        aria-hidden
-                                        className={`flex size-8 items-center justify-center rounded border-2 transition sm:size-6 ${
-                                            checked
-                                                ? 'border-selected-edge bg-action text-on-action'
-                                                : // Unchecked, the outline IS the affordance (no fill, no
-                                                  // glyph) — a UI component owing 3:1 under SC 1.4.11, where
-                                                  // `mist` was 1.90:1. Mirrors the native leaf's U4 fix.
-                                                  'border-line-control bg-transparent'
-                                        }`}
-                                    >
-                                        {checked && <span>✓</span>}
-                                    </span>
-                                </button>
-                                {/* ONE flowing text block for the quantity, the name, the preparation, the notes AND
-                                    the status badges (`namelessLineCopy.md` §2c, E2 I1). As separate flex items at
-                                    320px they squeezed each other until words broke mid-letter, and a trailing
-                                    `shrink-0` badge column left the name 37 px (0 px under 200% text). Inline,
-                                    everything breaks only at spaces and a badge wraps under the name. `min-w-0` lets
-                                    one long token break too. Parity with the native leaf's wrapping row.
-
-                                    The quantity leads the name's line (mockup frame 1). The row is top-aligned, and
-                                    `pt-2.5` centres that first 24 px line on the 44 px checkbox (`sm:pt-0`: both are
-                                    24 px from `sm`), so the checkbox stays by the first line however many follow. */}
-                                <span className="min-w-0 flex-1 break-words pt-2.5 text-ink sm:pt-0">
-                                    {label !== '' && (
-                                        <>
-                                            <span className="font-medium">{label}</span>{' '}
-                                        </>
-                                    )}
-                                    {/* A line with no name shows its stand-in AS the name (plan 002 R9), with no
-                                        separate status badge: the stand-in already says it. */}
-                                    {isStandInName(ingredient) ? (
-                                        <StandIn tone={isLineFoodRemoved(ingredient) ? 'caution' : 'neutral'}>
-                                            {lineDisplayName(ingredient, ingredientLineName)}
-                                        </StandIn>
-                                    ) : (
-                                        <span>{lineDisplayName(ingredient, ingredientLineName)}</span>
-                                    )}
-                                    {/* Curated U15 — a variant-bound line's dotted line, on a line of its own under
-                                        the name and before the cook's own words (§S5). A root-bound line has none
-                                        (R28). The parts come from the line's own binding, so a retired variant
-                                        still shows them (R29). */}
-                                    {parts !== undefined && (
-                                        <span className="mt-1 block">
-                                            <VariantPartsLine parts={parts} tone="secondary" />
-                                        </span>
-                                    )}
-                                    {/* U26 — the PREPARATION, rendered right after the name and NEVER
-                                        concatenated into it. Without this a cook could enter "finely chopped" in
-                                        the editor, save, and find it nowhere on the recipe they cook from. It
-                                        sits BEFORE `notes` because it is about this line's food, while `notes`
-                                        is a free-form display override the importer fills with the whole source
-                                        clause. */}
-                                    {ingredient.preparation !== undefined && ingredient.preparation.length > 0 && (
-                                        <>
-                                            {' '}
-                                            <span className="text-body-sm text-ink-muted">
-                                                {ingredient.preparation}
-                                            </span>
-                                        </>
-                                    )}
-                                    {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
-                                        <>
-                                            {' '}
-                                            <span className="text-body-sm text-ink-muted">{ingredient.notes}</span>
-                                        </>
-                                    )}
-                                    {ingredient.isUserEntered && (
-                                        <>
-                                            {' '}
-                                            <StatusBadge status="note">{detail.userEnteredBadge}</StatusBadge>
-                                        </>
-                                    )}
-                                    {/* U14 — the LINE the verification gate contradicted. The caution tone: this
-                                        is the one status a cook can act on. ⚠️ No ARIA role and no `aria-label`:
-                                        the badge's own TEXT is its content, and text inside the list item is
-                                        already announced with the line. A `role="note"` here would add a second
-                                        landmark per doubted line and (being a role that does not take its name
-                                        from content) would name none of them — the mistake
-                                        `RecipeCalorieChip`'s docstring describes. */}
-                                    {isLineNeedsReview(ingredient) && (
-                                        <>
-                                            {' '}
-                                            <StatusBadge status="attention">{detail.needsReviewBadge}</StatusBadge>
-                                        </>
-                                    )}
-                                    {/* U13 (D7/R9) — the gate ABSTAINED over materially-different candidates.
-                                        Actionable like needs-review (same caution tone), but the figure still
-                                        counts (R23): the batched review surface below is where the pick lives. */}
-                                    {isLineAmbiguous(ingredient) && (
-                                        <>
-                                            {' '}
-                                            <StatusBadge status="attention">{detail.ambiguousBadge}</StatusBadge>
-                                        </>
-                                    )}
-                                    {/* The removed-food badge, caution tone like needs-review — a cook can act on
-                                        it (re-match the line in the editor).
-
-                                        ⛔ SUPPRESSED when every line is removed: a badge on every row is
-                                        wallpaper, not signal, and the tile above already says so in words. And
-                                        suppressed on a line whose stand-in already says "removed". */}
-                                    {isLineFoodRemoved(ingredient) &&
-                                        !isStandInName(ingredient) &&
-                                        !allLinesFoodRemoved(recipe.ingredients) && (
-                                            <>
-                                                {' '}
-                                                <StatusBadge status="attention">{detail.removedFoodBadge}</StatusBadge>
-                                            </>
-                                        )}
-                                </span>
-                            </li>
-                        );
-                    })}
-                </ul>
-            </section>
-
-            <section aria-label={detail.instructionsHeading} className="flex flex-col gap-3">
-                <h2 className="font-display text-heading-lg font-semibold text-ink">{detail.instructionsHeading}</h2>
-                <ol className="flex flex-col gap-4">
-                    {recipe.steps.map((step) => {
-                        const done = checkedSteps?.has(step.stepNumber) ?? false;
-                        const timer = stepTimerLabel(step.timerSeconds, detail.stepTimer, duration);
-
-                        return (
-                            <li key={step.stepNumber} className="flex items-start gap-4">
-                                {/* Same idiom as the ingredient checkbox above: the interactive control is the
-                                    44px tap target (`size-11`) at base and collapses to the original 32px
-                                    marker box (`sm:size-8`) from sm up, while the VISIBLE numbered circle is a
-                                    nested `size-8` element — so the mobile tap area grows without enlarging the
-                                    desktop marker (desktop renders a 32px circle in a 32px control, unchanged). */}
-                                <button
-                                    type="button"
-                                    role="checkbox"
-                                    aria-checked={done}
-                                    aria-label={fillTemplate(detail.stepToggleLabel, { step: step.stepNumber })}
-                                    onClick={() => onToggleStep?.(step.stepNumber)}
-                                    className="flex size-11 shrink-0 items-center justify-center sm:size-8"
-                                >
-                                    {/* Contrast (WCAG 2.1 AA): in the not-done state the NUMERAL is the only
-                                        thing in the circle and a reader reads it, so it takes `ocean-dark`
-                                        (6.20:1) instead of seafoam (4.02:1). The `border-selected-edge` ring stays
-                                        seafoam — a boundary is a 3:1 graphic, which it clears. See
-                                        `@commise/ui`'s palette JSDoc for the one statement of that split. */}
-                                    <span
-                                        aria-hidden
-                                        className={`flex size-8 items-center justify-center rounded-full text-body-sm font-semibold transition ${
-                                            done
-                                                ? 'bg-action text-on-action'
-                                                : 'border-2 border-selected-edge text-action-text'
-                                        }`}
-                                    >
-                                        {done ? '✓' : step.stepNumber}
-                                    </span>
-                                </button>
-                                <div className="flex flex-col gap-1 pt-1">
-                                    <span
-                                        className={`leading-relaxed text-ink ${done ? 'line-through opacity-60' : ''}`}
-                                    >
-                                        {step.instruction}
-                                    </span>
-                                    {timer !== undefined && (
-                                        <span className="flex items-center gap-1">
-                                            {/* The duration alone does not say it is a timer; the glyph does, so it
-                                                carries that as its accessible name. */}
-                                            <span role="img" aria-label={detail.stepTimerIcon}>
-                                                ⏱
-                                            </span>
-                                            <span className="text-body-sm font-medium text-action-text">{timer}</span>
-                                        </span>
-                                    )}
-                                </div>
-                            </li>
-                        );
-                    })}
-                </ol>
-            </section>
-
-            <section aria-label={detail.nutritionHeading} className="flex flex-col gap-3">
-                <h2 className="font-display text-heading-lg font-semibold text-ink">{detail.nutritionHeading}</h2>
-                <dl className="grid grid-cols-2 gap-4 rounded-2xl bg-paper p-6 shadow-sm sm:grid-cols-4">
-                    <div className="flex flex-col items-center gap-1 text-center">
-                        <dd className={statValue}>{recipe.nutrition.calories}</dd>
-                        <dt className={statLabel}>{detail.caloriesLabel}</dt>
-                    </div>
-                    <div className="flex flex-col items-center gap-1 text-center">
-                        <dd className={statValue}>
-                            {fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.proteinG })}
-                        </dd>
-                        <dt className={statLabel}>{detail.proteinLabel}</dt>
-                    </div>
-                    <div className="flex flex-col items-center gap-1 text-center">
-                        <dd className={statValue}>
-                            {fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.carbsG })}
-                        </dd>
-                        <dt className={statLabel}>{detail.carbsLabel}</dt>
-                    </div>
-                    <div className="flex flex-col items-center gap-1 text-center">
-                        <dd className={statValue}>
-                            {fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.fatG })}
-                        </dd>
-                        <dt className={statLabel}>{detail.fatLabel}</dt>
-                    </div>
-                </dl>
-                {!recipe.nutrition.isComplete && (
-                    <p className="text-body-sm text-ink-muted">{detail.nutritionPartial}</p>
-                )}
-                {/* R38 — a DIFFERENT admission from the partial notice above: that one says some lines were
-                    left out, this one says a counted line was counted at one end of the amount the recipe
-                    actually states. Both can be true at once, so both render. */}
-                {rangeNotice !== undefined && <p className="text-body-sm text-ink-muted">{rangeNotice}</p>}
-                {/* KTD-3b — some figures came from saved food data because the food database could not be
-                    reached. Neutral, like the two above: it is a disclosure, not something the cook can act
-                    on. Present from first render with the data, so it is NOT a live region (WCAG 4.1.3). */}
-                {staleNotice !== undefined && <p className="text-body-sm text-ink-muted">{staleNotice}</p>}
-                {/* U14 — a THIRD admission, and the only one that is our own doubt rather than a gap in the
-                    data. The catalog HAD these lines' figures; the verification gate read them against the
-                    cook's own wording, disagreed, and we withheld them. `role="note"` so the sentence reaches
-                    a screen reader as a remark rather than as loose prose, and a warning tone because unlike
-                    the two above it is ACTIONABLE: re-pick the food. */}
-                {reviewNotice !== undefined && (
-                    <p role="note" className="text-body-sm font-medium text-ink">
-                        {reviewNotice}
-                    </p>
-                )}
-                {/* §S15: two sentences, each with its own condition. The link follows sentence 1 in the same line;
-                    it is a route in this app, so it opens in the same tab. */}
-                {hasCatalogNutrition(recipe.ingredients) && (
-                    <p className="text-caption text-ink-muted">
-                        {detail.nutritionSourceNote}
-                        {dataSourcesHref !== undefined && (
-                            <>
-                                {' '}
+            <div className={BODY_GRID}>
+                {/* From 720 the ingredients stay beside the steps, sticky, with their own scroll (§6.1). */}
+                <section aria-labelledby="ingredients" className={INGREDIENTS_COLUMN}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h2
+                            id="ingredients"
+                            ref={ingredientsHeadingRef}
+                            tabIndex={-1}
+                            aria-describedby={saysRecovered ? recoveredDescriptionId : undefined}
+                            className={SECTION_HEADING}
+                        >
+                            {detail.ingredientsHeading}
+                        </h2>
+                        <span className="me-auto text-meta text-ink-muted">
+                            {fillTemplate(detail.ingredientsFor, { count: servings })}
+                        </span>
+                        <div className="flex items-center gap-1">
+                            <ServingScaleControl
+                                servings={servings}
+                                baseServings={recipe.servings}
+                                onServingsChange={onServingsChange}
+                            />
+                            {ingredientsEdit !== undefined && recipe.ingredients.length > 0 && (
                                 <Link
-                                    href={dataSourcesHref as ComponentProps<typeof Link>['href']}
-                                    className="inline-block py-1 text-action-text underline underline-offset-2"
+                                    href={ingredientsEdit}
+                                    aria-label={detail.editIngredientsLabel}
+                                    className={EDIT_LINK}
                                 >
-                                    {detail.nutritionSourcesLink}
+                                    <Icon name="pencilLine" size={16} />
+                                    {detail.editSection}
                                 </Link>
-                            </>
+                            )}
+                        </div>
+                    </div>
+                    {/* The disclosure is part of the feature: a cook reading doubled amounts is told, in the same breath,
+                        that the cook times beside them did NOT double. */}
+                    {scaled.scaling.isScaled && (
+                        <div
+                            role="status"
+                            className="flex flex-col items-start gap-1 rounded-md bg-surface-muted px-3 py-2"
+                        >
+                            <p className="text-meta text-ink">
+                                {fillTemplate(detail.scaledFrom, { original: recipe.servings })}{' '}
+                                <Button variant="ghost" onPress={() => onServingsChange(recipe.servings)}>
+                                    {detail.resetScale}
+                                </Button>
+                            </p>
+                            <p className="text-meta font-medium text-ink">{detail.scaledTimingCaveat}</p>
+                        </div>
+                    )}
+                    {/* Plan 002 R2 — ALWAYS MOUNTED, hidden through `failed`: a live region inserted with its content
+                        already inside is unreliable. No automatic polling during a food outage. */}
+                    <RefreshNotice
+                        failed={unreachable !== undefined}
+                        refreshing={unreachableRetry.refreshing}
+                        onRetry={unreachableRetry.onRetry}
+                        labels={{ failed: unreachable ?? '', retry: detail.refreshRetry }}
+                    />
+                    {saysRecovered && (
+                        <p id={recoveredDescriptionId} hidden>
+                            {detail.unreachableResolved}
+                        </p>
+                    )}
+                    {/* The withdrawn-food tile (owner ruling 4): head of THIS section, warning tint, `role="note"`, no
+                        dismiss — the condition is permanent. */}
+                    {removedNotice !== undefined && (
+                        <p role="note" className="rounded-md bg-attention-tint px-4 py-3 text-meta text-ink">
+                            {removedNotice}
+                        </p>
+                    )}
+                    {recipe.ingredients.length === 0 ? (
+                        <DetailEmptySection
+                            text={detail.noIngredients}
+                            action={ingredientsEdit}
+                            actionLabel={detail.addIngredients}
+                        />
+                    ) : (
+                        <ul className="flex flex-col">
+                            {scaled.ingredients.map((ingredient) => (
+                                <IngredientCheckRow
+                                    key={ingredient.ingredientId}
+                                    ingredient={ingredient}
+                                    checked={marks.checkedLines.has(ingredient.ingredientId)}
+                                    allRemoved={allRemoved}
+                                    onToggle={marks.toggleLine}
+                                />
+                            ))}
+                        </ul>
+                    )}
+                </section>
+
+                <div className={STEPS_COLUMN}>
+                    <section aria-labelledby="steps" className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <h2 id="steps" tabIndex={-1} className={SECTION_HEADING}>
+                                {detail.instructionsHeading}
+                            </h2>
+                            {stepsEdit !== undefined && recipe.steps.length > 0 && (
+                                <Link href={stepsEdit} aria-label={detail.editStepsLabel} className={EDIT_LINK}>
+                                    <Icon name="pencilLine" size={16} />
+                                    {detail.editSection}
+                                </Link>
+                            )}
+                        </div>
+                        {recipe.steps.length === 0 ? (
+                            <DetailEmptySection
+                                text={detail.noSteps}
+                                action={stepsEdit}
+                                actionLabel={detail.addSteps}
+                            />
+                        ) : (
+                            <ol className="flex flex-col gap-6">
+                                {recipe.steps.map((step) => (
+                                    <StepRow
+                                        key={step.stepNumber}
+                                        step={step}
+                                        current={marks.currentStep === step.stepNumber}
+                                        onToggle={marks.toggleStep}
+                                    />
+                                ))}
+                            </ol>
                         )}
-                    </p>
-                )}
-                {hasUserEnteredIngredients(recipe.ingredients) && (
-                    <p className="text-caption text-ink-muted">{detail.nutritionCustomNote}</p>
-                )}
-            </section>
+                    </section>
 
-            {/* U13 — the ambiguity review surface + the one-time clone banner. STORED lines, like every judgement
-                surface above. */}
-            <AmbiguityReview recipe={recipe} viewerIsOwner={viewerIsOwner === true} />
+                    <section aria-labelledby="nutrition" className="@container/nutrition flex flex-col gap-3">
+                        <h2 id="nutrition" tabIndex={-1} className={SECTION_HEADING}>
+                            {detail.nutritionHeading}
+                        </h2>
+                        <dl className="grid grid-cols-2 gap-4 @min-[35rem]/nutrition:grid-cols-4">
+                            <NutritionFigure label={detail.caloriesLabel} value={String(recipe.nutrition.calories)} />
+                            <NutritionFigure
+                                label={detail.proteinLabel}
+                                value={fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.proteinG })}
+                            />
+                            <NutritionFigure
+                                label={detail.carbsLabel}
+                                value={fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.carbsG })}
+                            />
+                            <NutritionFigure
+                                label={detail.fatLabel}
+                                value={fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.fatG })}
+                            />
+                        </dl>
+                        <div className="flex flex-col gap-1 text-caption text-ink-muted">
+                            {!recipe.nutrition.isComplete && <p>{detail.nutritionPartial}</p>}
+                            {/* R38 and KTD-3b: two more admissions about the figures; both can be true at once. */}
+                            {rangeNotice !== undefined && <p>{rangeNotice}</p>}
+                            {staleNotice !== undefined && <p>{staleNotice}</p>}
+                            {/* U14 — our own doubt, and actionable: re-pick the food. */}
+                            {reviewNotice !== undefined && (
+                                <p role="note" className="font-medium text-ink">
+                                    {reviewNotice}
+                                </p>
+                            )}
+                            {hasCatalogNutrition(recipe.ingredients) && (
+                                <p>
+                                    {detail.nutritionSourceNote}
+                                    {dataSourcesHref !== undefined && (
+                                        <>
+                                            {' '}
+                                            <Link
+                                                href={dataSourcesHref as Href}
+                                                className="inline-block py-1 text-action-text underline underline-offset-2"
+                                            >
+                                                {detail.nutritionSourcesLink}
+                                            </Link>
+                                        </>
+                                    )}
+                                </p>
+                            )}
+                            {hasUserEnteredIngredients(recipe.ingredients) && <p>{detail.nutritionCustomNote}</p>}
+                        </div>
+                    </section>
 
-            {/* C3 wireframe parity: the clone action (caller-supplied) + version + visibility badges are ONE
-                grouped footer row — `[Clone to My Recipes] [v12] [Public]` — rather than three loose pieces. */}
-            <footer role="group" aria-label={detail.badgesLabel} className="flex flex-wrap items-center gap-2">
-                {footerActions}
-                {recipe.currentVersion > 1 && (
-                    <span
-                        aria-label={fillTemplate(detail.versionLabel, { version: recipe.currentVersion })}
-                        className="rounded-full bg-surface-muted px-3 py-1 text-caption font-medium text-ink-muted"
-                    >
-                        {fillTemplate(detail.versionBadge, { version: recipe.currentVersion })}
-                    </span>
-                )}
-                {/* Same tint-on-tint contrast contract as the hero badge row: seafoam tint, `ocean-dark` text. */}
-                <span className="rounded-full bg-action/10 px-3 py-1 text-caption font-medium text-action-text">
-                    {recipe.visibility === RecipeVisibility.PUBLIC ? detail.visibilityPublic : detail.visibilityPrivate}
-                </span>
-            </footer>
+                    {rating}
+
+                    {/* U13 — the ambiguity review surface + the one-time clone banner, from the STORED lines. */}
+                    <AmbiguityReview recipe={recipe} viewerIsOwner={owner} />
+
+                    <footer className="flex flex-col items-start gap-1 text-meta text-ink-muted">
+                        {/* Provenance renders for EVERY viewer: it is a property of the recipe. */}
+                        <RecipeSourceLine
+                            {...(recipe.sourceUrl === undefined ? {} : { sourceUrl: recipe.sourceUrl })}
+                            {...(recipe.sourceAttribution === undefined
+                                ? {}
+                                : { sourceAttribution: recipe.sourceAttribution })}
+                        />
+                        <p>{fillTemplate(detail.versionLabel, { version: recipe.currentVersion })}</p>
+                        {versionsHref !== undefined && (
+                            <Link href={versionsHref as Href} className={EDIT_LINK}>
+                                <Icon name="clock" size={16} />
+                                {detail.versionHistory}
+                            </Link>
+                        )}
+                    </footer>
+                </div>
+            </div>
         </article>
     );
 };

@@ -16,17 +16,10 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-- tapOn: 'Create from Scratch'
 
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 - tapOn: 'Title'
 - inputText: 'Maestro Variant Search'
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-- assertVisible: 'Step 2 of 4'
 
 # One variant named: the result is the root carrying it, its option named with the part after the food (§S2).
 - scrollUntilVisible:
@@ -79,8 +72,6 @@ appId: io.commise.mobile
       label: 'the line binds the root'
 - assertNotVisible: 'Actions for boneless skinless chicken breasts, fried'
 
-# Leave without saving: the explicit Discard, as `ingredientRemove.yaml` does — one Back, no `hideKeyboard` (why is
-# at `pinnedActionBar.yaml`'s bottom-of-list assertion).
-- runFlow: common/raiseDiscardGuard.yaml
-- tapOn: 'Discard changes'
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
 - assertVisible: 'Recipes'

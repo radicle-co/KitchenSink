@@ -47,7 +47,7 @@ describe('RecipeListScreen (live seam) — a successful load with zero recipes',
 
         renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
 
-        expect(await screen.findByText('No recipes yet')).toBeTruthy();
+        expect(await screen.findByText('Your recipe box is empty')).toBeTruthy();
         // Not merely "the empty copy appeared": the skeleton region must be GONE.
         expect(screen.queryByLabelText('Loading recipes')).toBeNull();
     });
@@ -57,7 +57,7 @@ describe('RecipeListScreen (live seam) — a successful load with zero recipes',
 
         renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
 
-        expect(await screen.findByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
+        expect(await screen.findByRole('button', { name: 'Add your first recipe' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
 });
@@ -84,8 +84,8 @@ describe('RecipeListScreen (live seam) — a populated load', () => {
 
         renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} />, client);
 
-        expect(await screen.findByRole('button', { name: 'Weeknight Pasta' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Fish Tacos' })).toBeTruthy();
+        expect(await screen.findByRole('link', { name: 'Weeknight Pasta' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
         expect(screen.getByText('2 recipes')).toBeTruthy();
     });
 });

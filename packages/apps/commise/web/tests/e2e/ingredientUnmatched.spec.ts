@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Plan 002 US1, through the real web app with the recipe-service contract intercepted: in the recipe editor an
@@ -61,9 +61,7 @@ const seedEditor = async (page: Page, ingredientStatuses: Readonly<Record<string
         ],
     });
 
-    await page.goto(route('/recipes/rec_unmatched/edit'));
-    await page.getByRole('button', { name: /Ingredients:/ }).click();
-    await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 2 of 4');
+    await openRecipeEditor(page, 'rec_unmatched');
 };
 
 const runUnmatchedStory = async (page: Page): Promise<void> => {

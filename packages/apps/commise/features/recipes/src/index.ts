@@ -23,8 +23,17 @@ export type { RecipeMessages } from './messages.js';
 
 export { RecipeCard } from './card/RecipeCard.js';
 export {
+    LIST_VIEW_MODES,
+    cardVariantOf,
+    defaultViewModeOf,
+    isListViewMode,
+    type CardSurface,
+    type CardVariant,
+    type ListViewMode,
+} from './card/cardVariant.js';
+export { HOME_COLUMNS, libraryGridColumnsOf } from './card/cardGridLayout.js';
+export {
     STAR_COUNT,
-    difficultyTone,
     formatAverageRating,
     formatRatingCount,
     formatRelativeTime,
@@ -32,7 +41,7 @@ export {
     toStarFills,
 } from './card/model.js';
 export type { RecipeCardProps } from './card/recipeCardContext.js';
-export type { DifficultyTone, RatingCountLabels, RecipeCardModel } from './card/model.js';
+export type { RatingCountLabels, RecipeCardModel } from './card/model.js';
 export { RecipeCalorieChip } from './nutrition/RecipeCalorieChip.js';
 export { RecipeCalorieSkeleton } from './nutrition/RecipeCalorieSkeleton.js';
 export { RecipeNutritionBoundary } from './nutrition/RecipeNutritionBoundary.js';
@@ -55,31 +64,44 @@ export type {
     RenderRecipeNutrition,
 } from './nutrition/model.js';
 export { RecentRecipeGrid } from './components/RecentRecipeGrid.js';
-export { RecentRecipeItem } from './components/RecentRecipeItem.js';
 export { RecipeWidgetCard } from './components/RecipeWidgetCard.js';
 export { RecipeWidgetEmptyState } from './components/RecipeWidgetEmptyState.js';
 export { RecipeWidgetLoadingCard } from './components/RecipeWidgetLoadingCard.js';
-export { RecipeWidgetSkeleton } from './components/RecipeWidgetSkeleton.js';
+export { RecipeWidgetLoadError } from './components/RecipeWidgetLoadError.js';
 export { MAX_RECENT_RECIPES, toRecipeSummary } from './components/props.js';
 export type {
     RecentRecipeGridProps,
-    RecentRecipeItemProps,
     RecipeSummary,
     RecipeWidgetCardProps,
     RecipeWidgetEmptyStateProps,
-    RecipeWidgetSkeletonProps,
+    RecipeWidgetFirstRun,
+    RecipeWidgetLoadErrorProps,
+    RecipeWidgetLoadingCardProps,
+    RecipeWidgetSeeAll,
 } from './components/props.js';
-export { RecipeCreateDial } from './list/RecipeCreateDial.js';
+export { RecipeCreateButton } from './list/RecipeCreateButton.js';
+export type { RecipeCreateButtonAppearance, RecipeCreateButtonProps } from './list/createButtonProps.js';
 export { RecipeListFrame } from './list/RecipeListFrame.js';
 export { RecipeListLoadError } from './list/RecipeListLoadError.js';
 export { RecipeListLoading } from './list/RecipeListLoading.js';
 export { RecipeListResults } from './list/RecipeListResults.js';
-export { RecipeListCard } from './list/RecipeListCard.js';
+export {
+    LIBRARY_SORTS,
+    availableFacetsOf,
+    libraryFacetsOf,
+    libraryStateOf,
+    narrowLibrary,
+    sortLabelOf,
+} from './list/library.js';
+export type { LibraryFacet, LibraryState } from './list/library.js';
+export { VIEW_MODE_KEY, viewModeCookieFor, viewModeFrom, viewModeOf } from './list/viewModePreference.js';
+export { useMainContainerClass } from './layout/useMainContainerClass.js';
 export { RecipeSourceTabs } from './list/RecipeSourceTabs.js';
 export {
     QUICK_TIME_FACET,
     QUICK_TIME_THRESHOLD_MINUTES,
     RECIPE_SOURCE_TABS,
+    RECIPES_SEGMENTS,
     fillTemplate,
     filterChipLabel,
     formatDurationMinutes,
@@ -94,8 +116,9 @@ export type { RecipeSourceTabsProps } from './list/RecipeSourceTabs.js';
 export type {
     RecipeCountLabels,
     RecipeFacetSource,
-    RecipeListCardProps,
     RecipeListItem,
+    RecipesSegment,
+    RecipesSegmentControl,
     RecipeCreateDestinations,
     RecipeListFrameProps,
     RecipeListLoadErrorProps,
@@ -108,7 +131,9 @@ export { RecipeSourceLine } from './detail/RecipeSourceLine.js';
 export { ServingScaleControl } from './detail/ServingScaleControl.js';
 export { formatQuantity, isUnreachableRecovery } from './detail/model.js';
 export { resetServingScale } from './detail/servingScale.js';
-export { useCookingProgress } from './detail/useCookingProgress.js';
+export { CookMarksProvider } from './detail/CookMarksProvider.js';
+export { detailMenuOf } from './detail/detailMenu.js';
+export { useCookMarks } from './detail/useCookMarks.js';
 export { useServingScale } from './detail/useServingScale.js';
 export type {
     RecipeDetailBodyProps,
@@ -117,7 +142,10 @@ export type {
     RecipeSourceLineProps,
     ServingScaleControlProps,
 } from './detail/model.js';
-export type { CookingProgressBinding } from './detail/useCookingProgress.js';
+export type { CookMarksProviderProps } from './detail/CookMarksProvider.js';
+export type { DetailMenu, DetailMenuInput, DetailMenuItem } from './detail/detailMenu.js';
+export type { DetailSection } from './detail/model.js';
+export type { CookMarksBinding } from './detail/useCookMarks.js';
 export type { ServingScaleBinding } from './detail/useServingScale.js';
 export { RecipeRatingDisplay } from './rating/RecipeRatingDisplay.js';
 export { RecipeRatingInput } from './rating/RecipeRatingInput.js';
@@ -136,7 +164,6 @@ export { ChipInput } from './form/ChipInput.js';
 export { RecipeBasicsFields } from './form/RecipeBasicsFields.js';
 export { RecipeIngredientsFields } from './form/RecipeIngredientsFields.js';
 export { RecipeInstructionsFields } from './form/RecipeInstructionsFields.js';
-export { RecipeReviewFields } from './form/RecipeReviewFields.js';
 export { RecipeVisibilityField } from './form/RecipeVisibilityField.js';
 export {
     pendingIngredientIds,
@@ -160,7 +187,6 @@ export {
     reviewIngredientLabel,
     reviewRows,
 } from './form/props.js';
-export { canAdvanceFromStep, draftFloorErrors, stepErrorsFor } from './form/steps.js';
 export { computeTotalTime } from './form/totalTime.js';
 export { validateRecipeForm } from './form/validate.js';
 export { defaultRecipeFormValues } from './form/values.js';
@@ -168,7 +194,6 @@ export { type IngredientLineKey } from './form/lineKey.js';
 export { mintLineKey } from './form/mintLineKey.js';
 export { toCreateRecipeInput, toRecipeFormValues, toUpdateRecipeInput } from './form/wire.js';
 export type { ChipInputProps } from './form/ChipInput.js';
-export type { RecipeReviewFieldsProps } from './form/RecipeReviewFields.js';
 export type { RecipeFormMessages } from './form/messages.js';
 export type { DraftAction, DraftListField, ResolvedRecipeFormIngredient } from './form/draftAction.js';
 export type {
@@ -179,33 +204,25 @@ export type {
     RecipeIngredientsFieldsProps,
     RecipeReviewRow,
 } from './form/props.js';
-export type { RecipeWizardStep } from './form/steps.js';
 export type { RecipeFormErrors } from './form/validate.js';
 export type { RecipeFormIngredient, RecipeFormPhoto, RecipeFormStep, RecipeFormValues } from './form/values.js';
 export { MoreActionsMenu } from './actions/MoreActionsMenu.js';
-export { RecipeCloneAction } from './actions/RecipeCloneAction.js';
 export { RecipeDeleteDialog } from './actions/RecipeDeleteDialog.js';
 export { RecipeVisibilityToggle } from './actions/RecipeVisibilityToggle.js';
 export { recipeActionMessages } from './actions/messages.js';
 export type {
     RecipeActionMessages,
-    RecipeCloneActionMessages,
     RecipeDeleteDialogMessages,
     RecipeMoreMenuMessages,
     RecipeVisibilityToggleMessages,
 } from './actions/messages.js';
-export type {
-    MoreActionsMenuProps,
-    RecipeCloneActionProps,
-    RecipeDeleteDialogProps,
-    RecipeVisibilityToggleProps,
-} from './actions/model.js';
+export type { MoreActionsMenuProps, RecipeDeleteDialogProps, RecipeVisibilityToggleProps } from './actions/model.js';
 export { RecipeConflictView } from './versions/RecipeConflictView.js';
 export { RecipeVersionList } from './versions/RecipeVersionList.js';
 export { VersionCompareView } from './versions/VersionCompareView.js';
 export { VersionPreviewModal } from './versions/VersionPreviewModal.js';
-export { buildCompareFieldRows, compareViewState, formatCollectionTally } from './versions/compare.js';
-export type { CompareFieldRow, VersionCompareState, VersionCompareViewProps } from './versions/compare.js';
+export { compareRowsOf, compareWithCurrent } from './versions/compare.js';
+export type { CompareRow, VersionCompareViewProps } from './versions/compare.js';
 export { computeConflictDiff } from './versions/conflictDiff.js';
 export type { ConflictDiff, ConflictFieldKind, ConflictFieldRow, ConflictMarker } from './versions/conflictDiff.js';
 export {
@@ -254,41 +271,53 @@ export type {
     VersionPreviewState,
 } from './versions/preview.js';
 export { formatRelativeTimeAgo, formatVersionTimestamp } from './versions/timeFormat.js';
-export { CloneInfoPanel } from './collections/CloneInfoPanel.js';
-export { CollectionActions } from './collections/CollectionActions.js';
-export { CollectionDetail } from './collections/CollectionDetail.js';
-export { CollectionForm } from './collections/CollectionForm.js';
+export { CollectionDeleteDialog } from './collections/CollectionDeleteDialog.js';
 export { CollectionHeader } from './collections/CollectionHeader.js';
 export { CollectionListFrame } from './collections/CollectionListFrame.js';
 export { CollectionListLoadError } from './collections/CollectionListLoadError.js';
 export { CollectionListLoading } from './collections/CollectionListLoading.js';
 export { CollectionListResults } from './collections/CollectionListResults.js';
 export { CollectionMemberRow } from './collections/CollectionMemberRow.js';
+export { CollectionMembers } from './collections/CollectionMembers.js';
+export { CollectionPickerRow } from './collections/CollectionPickerRow.js';
 export { CollectionRecipePicker } from './collections/CollectionRecipePicker.js';
 export { CollectionRecipePickerCandidates } from './collections/CollectionRecipePickerCandidates.js';
 export { CollectionRecipePickerLoadError } from './collections/CollectionRecipePickerLoadError.js';
 export { CollectionRecipePickerLoading } from './collections/CollectionRecipePickerLoading.js';
+export { CollectionSheet } from './collections/CollectionSheet.js';
+export { CollectionUpsellSheet } from './collections/CollectionUpsellSheet.js';
+export type {
+    CollectionCreateSheetProps,
+    CollectionRenameSheetProps,
+    CollectionSheetProps,
+} from './collections/sheetModel.js';
+export { COLLECTION_DESCRIPTION_MAX_LENGTH, COLLECTION_NAME_MAX_LENGTH } from './collections/limits.js';
 export { PullUpdatesDialog } from './collections/PullUpdatesDialog.js';
 export { collectionMessages } from './collections/messages.js';
-export { formatCollectionDate } from './collections/model.js';
-export type { CloneInfoPanelMessages, CollectionMessages, PullUpdatesDialogMessages } from './collections/messages.js';
+export { COLLECTION_SEARCH_FROM, formatCollectionDate, narrowCollections } from './collections/model.js';
+export { doneSummaryOf, narrowByTitle } from './collections/pickerModel.js';
+export { canUndoVisibilityChange, visibilityChangeNeedsPremium } from './collections/visibilityUndo.js';
+export { MEMBER_WINDOW_SIZE } from './collections/detailModel.js';
+export type { CollectionMessages, PullUpdatesDialogMessages } from './collections/messages.js';
 export type {
-    CloneInfoPanelProps,
-    CollectionActionsProps,
-    CollectionDetailError,
-    CollectionDetailViewProps,
-    CollectionFormMode,
-    CollectionFormProps,
-    CollectionHeaderViewProps,
+    CollectionActionsPlacement,
+    CollectionDeleteDialogProps,
+    CollectionHeaderProps,
+    CollectionMemberRowProps,
+    CollectionMembersProps,
+    CollectionPickerRowProps,
+    CollectionRecipePickerCandidatesProps,
+    CollectionRecipePickerProps,
+    CollectionUpsellSheetProps,
+} from './collections/detailModel.js';
+export type { PickerSummary } from './collections/pickerModel.js';
+export type {
     CollectionListFrameProps,
     CollectionListLoadErrorProps,
     CollectionListLoadMore,
     CollectionListResultsProps,
     CollectionMemberRecipe,
-    CollectionMemberRowProps,
-    CollectionRecipePickerCandidatesProps,
     CollectionRecipePickerLoadErrorProps,
-    CollectionRecipePickerProps,
     CollectionWithRecipes,
     PullUpdatesDialogProps,
 } from './collections/model.js';
@@ -301,8 +330,14 @@ export { RecipeDiscoveryFrame } from './discovery/RecipeDiscoveryFrame.js';
 export { RecipeDiscoveryLoadError } from './discovery/RecipeDiscoveryLoadError.js';
 export { RecipeDiscoveryLoading } from './discovery/RecipeDiscoveryLoading.js';
 export { RecipeDiscoveryResults } from './discovery/RecipeDiscoveryResults.js';
+export { DiscoveryFooter } from './discovery/DiscoveryFooter.js';
+export { DiscoverySortMenu } from './discovery/DiscoverySortMenu.js';
+export { noResultKindOf, showsCuisineShortcuts, tryTheseTagsOf } from './discovery/noResults.js';
+export type { NoResultKind } from './discovery/noResults.js';
 export { discoveryMessages } from './discovery/messages.js';
 export {
+    DISCOVER_SEARCH_ID,
+    DISCOVER_TITLE_ID,
     DISCOVERY_SEARCH_DEBOUNCE_MS,
     DISCOVERY_SORTS,
     RECIPE_BROWSE_RAILS,
@@ -332,6 +367,8 @@ export type {
     RecipeBrowseRailResultsProps,
     RecipeBrowseRailView,
     RecipeBrowseRailsProps,
+    DiscoveryFilterSlots,
+    DiscoveryNoResultControls,
     RecipeDiscoveryCardProps,
     RecipeDiscoveryCriteria,
     RecipeDiscoveryFrameProps,
@@ -354,7 +391,21 @@ export {
 export type { RecipePhotoAdmission } from './photos/model.js';
 export type { PhotoMessages } from './photos/messages.js';
 export type { RecipePhotoManagerProps } from './photos/model.js';
-export { RecipeFilterBar } from './filters/RecipeFilterBar.js';
+export { AppliedFilters } from './filters/AppliedFilters.js';
+export { FilterPanel } from './filters/FilterPanel.js';
+export { FilterSheet } from './filters/FilterSheet.js';
+export { FilterTrigger } from './filters/FilterTrigger.js';
+export { filterBarViewOf } from './filters/filterBarView.js';
+export { filterPresentationOf } from './filters/filterPresentation.js';
+export { useFilterPresentation } from './filters/useFilterPresentation.js';
+export type { FilterPresentation } from './filters/filterPresentation.js';
+export type { FilterBarView } from './filters/filterBarView.js';
+export type {
+    AppliedFiltersProps,
+    FilterPanelProps,
+    FilterSheetProps,
+    FilterTriggerProps,
+} from './filters/filtersModel.js';
 export { filterMessages } from './filters/messages.js';
 export {
     EMPTY_RECIPE_FILTERS,
@@ -378,56 +429,34 @@ export type {
     IngredientFilterSearchViewState,
     RecipeFacetChip,
     RecipeFacets,
-    RecipeFilterBarProps,
     RecipeFilterState,
     RecipeIngredientFilter,
     RecipeIngredientSearchState,
     TimeBoundField,
 } from './filters/model.js';
-export { Wizard } from './wizard/Wizard.js';
-export { wizardMessages } from './wizard/messages.js';
-export {
-    WIZARD_STEPS,
-    WIZARD_TOTAL_STEPS,
-    deriveRailStepState,
-    gateOutcomeOf,
-    recipeFormValuesEqual,
-    stepAfterGate,
-    type GateOutcome,
-} from './wizard/model.js';
-export { useDiscardGuard } from './wizard/useDiscardGuard.js';
-export type { WizardProps } from './wizard/useWizardNavigation.js';
-export type { WizardMessages } from './wizard/messages.js';
-export type { WizardRailStepState } from './wizard/model.js';
-export type { UseDiscardGuardOptions } from './wizard/useDiscardGuard.js';
-export { ParseJobReview } from './parse/ParseJobReview.js';
-export { ParsePasteForm } from './parse/ParsePasteForm.js';
-export { recipeParseMessages } from './parse/messages.js';
-export {
-    PARSE_JOB_STALL_BOUND_MS,
-    toParseJobProgress,
-    toParseJobViewState,
-    toParseLineModel,
-    toParseSubmissionModel,
-} from './parse/model.js';
-export type { ParseLineCountLabels, RecipeParseMessages } from './parse/messages.js';
-export type {
-    ParseJobProgress,
-    ParseJobViewState,
-    ParseJobViewStateInput,
-    ParseLineModel,
-    ParseLineTone,
-    ParseSubmissionModel,
-} from './parse/model.js';
-export type {
-    ParseJobReviewProps,
-    ParseLineCorrectionRenderer,
-    ParseLineEditControl,
-    ParseLineRowProps,
-    ParsePasteFormProps,
-    ParseRetryControl,
-} from './parse/props.js';
-// The Data sources page (plan R55, design §S16): the web screen, which reads food-service itself, and the settings
-// way in. The native entry is `./data-sources/mobile`, because its props differ.
-export { DataSourcesSettingsLink } from './dataSources/DataSourcesSettingsLink.js';
+// The Data sources page (plan R55, design §S16): the web screen, which reads food-service itself. Profile opens it. The
+// native entry is `./data-sources/mobile`, because its props differ.
 export { DataSourcesScreen } from './dataSources/DataSourcesScreen.js';
+// The one-page editor (UI overhaul slice 7): the web view (the native leaf resolves at bundle time), its section
+// Registry, the device draft store, and the observer that records the outbox's answers in it while the editor is closed.
+export { RecipeEditorView } from './editor/RecipeEditorView.js';
+export type { RecipeEditorViewProps } from './editor/frameProps.js';
+export { EDITOR_SECTIONS, isEditorSectionId, sectionFromHash } from './editor/sections.js';
+export type { EditorSectionId } from './editor/sections.js';
+export { draftStoreFor } from './editor/draftStore.js';
+export { visibilityFollowUp } from './editor/visibilityFollowUp.js';
+export type { DraftMemento, DraftStore } from './editor/draftStore.js';
+export { useDraftAnswers } from './editor/useDraftAnswers.js';
+export { editorMessages } from './editor/messages.js';
+export type { GateOutcome } from './editor/gate.js';
+export { RecipePreviewSheet } from './editor/RecipePreviewSheet.js';
+export type { RecipePreviewSheetProps } from './editor/previewSheetProps.js';
+export { previewRecipeOf } from './editor/previewRecipe.js';
+export { PasteStepsControl } from './form/PasteStepsControl.js';
+export type { PasteStepsControlProps } from './form/PasteStepsControl.js';
+export { PasteListSheet } from './form/PasteListSheet.js';
+export type { PasteListSheetProps } from './form/pasteListSheetProps.js';
+export { useIngredientsPaste } from './editor/useIngredientsPaste.js';
+export type { IngredientsPaste, UseIngredientsPasteOptions } from './editor/useIngredientsPaste.js';
+export { splitPastedSteps } from './form/pasteSteps.js';
+export type { RecipeEditorSectionProps, RecipeVisibilityFieldProps } from './form/props.js';

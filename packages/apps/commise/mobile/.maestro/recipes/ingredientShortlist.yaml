@@ -12,8 +12,8 @@ appId: io.commise.mobile
 #
 # ⚠️ The pick is a real write: on a saved line it is the rebind command (`docs/design/rowEditorBlueprint.md` decision 7),
 # which makes a new version of the fixture recipe and leaves that line no longer AMBIGUOUS. So the flow needs the
-# fixture seeded for each run, by the same seeding step `ambiguityReview.yaml` waits on. The discard at the end drops
-# only the unsaved draft.
+# fixture seeded for each run, by the same seeding step `ambiguityReview.yaml` waits on. It leaves with ×, never the
+# editor's Discard, which would delete the fixture.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
@@ -23,14 +23,12 @@ appId: io.commise.mobile
       timeout: 30000
 - tapOn: 'Edit recipe'
 - extendedWaitUntil:
-      visible: 'Step 1 of 4'
+      visible: 'Close editor'
       timeout: 30000
 - scrollUntilVisible:
-      element: 'Next: Ingredients'
+      element: 'Add an ingredient'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Ingredients'
-- assertVisible: 'Step 2 of 4'
 
 # The glyph, named for the line. The panel never opens by itself.
 - scrollUntilVisible:
@@ -59,10 +57,10 @@ appId: io.commise.mobile
       label: 'USDA answered the progressive search for "apple sauce" on this stage'
 # One pick, of a remote food: the panel adopts it and rebinds THAT line to the root (ADR-0055 point 10). The sheet
 # closes once the food is on the line.
-- scrollUntilVisible:
-      element: '.*, from USDA'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
 - tapOn:
       text: '.*, from USDA'
       index: 0
@@ -70,7 +68,10 @@ appId: io.commise.mobile
       notVisible: 'None of these — search for a different food'
       timeout: 30000
 
-# Leave without saving: the explicit Discard, as `systemBackGuard.yaml` does.
-- runFlow: common/raiseDiscardGuard.yaml
-- tapOn: 'Discard changes'
-- assertVisible: 'Recipes'
+# Leave with ×. The pick was the write; nothing else was typed, so × has nothing more to save. ⛔ NOT the header's
+# Discard: on this stored fixture it would delete the recipe the next run needs (a never-published draft), or not be
+# offered at all (a published one with no unsaved changes). × returns to the detail it was opened from.
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      visible: 'Edit recipe'
+      timeout: 20000

@@ -18,7 +18,7 @@ import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render as renderUnscoped, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -30,6 +30,12 @@ import { RecipeDetailView } from '../../src/detail/RecipeDetailView.js';
 import { recipeFormMessages } from '../../src/form/messages.js';
 import { recipeMessages } from '../../src/messages.js';
 import { HANG, foodProgressive, foodSearches, json, ndjson, twoOrigins, type RecordedRequest } from './twoOrigins.js';
+import type { ReactElement } from 'react';
+import { DetailTestScope } from '../../src/__fixtures__/detailScope.js';
+
+/** Every detail renders inside its page's scroll host and the session’s cook-marks scope, as the app mounts them. */
+const render = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
+    renderUnscoped(ui, { wrapper: DetailTestScope });
 
 afterEach(cleanup);
 

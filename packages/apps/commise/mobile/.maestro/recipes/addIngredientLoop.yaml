@@ -5,12 +5,14 @@ appId: io.commise.mobile
 # a fix applied to one is not applied to the other.
 #
 # ⛔ WHY THIS FLOW EXISTS. "+ Add ingredient" once appended a blank row with no `ingredientId`, which
-# `validateRecipeForm` refused and `toCreateRecipeInput` DROPPED on save, so `Next` went dead with no obvious cause.
+# `validateRecipeForm` refused and `toCreateRecipeInput` DROPPED on save, so the wizard's `Next` went dead with no
+# obvious cause.
 # Since plan 002 V1 B8 the trailing row IS the entry: an "Add an ingredient" field after the last line.
 #
 # Three facts, one emulator run, each worthless alone:
 #   1. An empty recipe shows the field and NO row, and nothing is refused.
-#   2. Text the field holds is not a line: `Next: Instructions` refuses it, and the field says why (R7).
+#   2. Text the field holds is not a line: Publish refuses it, and the field says why (R7). REWRITTEN for slice 7:
+#      the wizard's `Next: Instructions` was the gate; on the one-page editor Publish is the only gated action left.
 #   3. Declaring the text "as written" appends a real line, and the recipe publishes with it.
 #
 # It CREATES its own recipe rather than editing a seeded one, so `Ingredient 1 …` addresses the line this
@@ -22,21 +24,17 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
-- tapOn: 'Create from Scratch'
 
-# Step 1 of 4 (Basic). servings/prep/cook keep their valid defaults, as in `create.yaml`.
-- assertVisible: 'Step 1 of 4'
+# Details. servings/prep/cook keep their valid defaults, as in `create.yaml`.
+- assertVisible: 'Close editor'
 - assertVisible: 'Title'
 - tapOn: 'Title'
 - inputText: 'Maestro Add Loop'
+
 - scrollUntilVisible:
-      element: 'Next: Ingredients'
+      element: 'Add an ingredient'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Ingredients'
-
-- assertVisible: 'Step 2 of 4'
 # The empty state INVITES the first action rather than showing an empty table.
 - scrollUntilVisible:
       element:
@@ -44,15 +42,24 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 
-# ⛔ (1) No row, and the step is advanceable: no row means no UNRESOLVED row means no refusal.
+# ⛔ (1) No row, and nothing refused: no row means no UNRESOLVED row means no refusal.
 - assertNotVisible: 'Ingredient 1 name'
 - assertNotVisible:
       text: 'Every ingredient needs an item picked from the list.'
 
-# ⛔ (2) Typed text is not a line. `Next` refuses it, the cook stays on step 2, and the field says why.
+# A step FIRST, so the only thing Publish can refuse below is the typed text (a recipe with no steps is refused too).
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Slice and serve.'
+
+# ⛔ (2) Typed text is not a line. Publish refuses it, the editor stays open, and the field says why.
 - scrollUntilVisible:
       element: 'Add an ingredient'
-      direction: DOWN
+      direction: UP
       timeout: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
@@ -63,18 +70,14 @@ appId: io.commise.mobile
       visible:
           text: '(?i)tomato.*'
           below: 'Food catalog'
-          above: 'Next: Instructions'
+          above: 'Publish'
           index: 0
       timeout: 20000
-# No `hideKeyboard` — why is at `pinnedActionBar.yaml`'s bottom-of-list assertion.
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
-# Still on step 2: the pinned bar says so (`Prev: Details` is step 2's alone). Not `Step 2 of 4`, which heads the
-# content, so the reveal below scrolls it away on a short screen (E1: the field moves up to the top).
-- assertVisible: 'Prev: Details'
+# No `hideKeyboard`: on Android it is itself a BACK, which leaves the editor. The pinned bar stays above the keyboard.
+- tapOn: 'Publish'
+# Refused: the bar says how many things there are to fix, and the editor is still open.
+- assertVisible: 'Fix 1 thing to publish'
+- assertVisible: 'Close editor'
 - extendedWaitUntil:
       visible:
           text: '“Tomato.*” isn’t in the recipe yet\. Choose a food for it, or clear the box\.'
@@ -85,23 +88,16 @@ appId: io.commise.mobile
       visible:
           text: '(?i)tomato.*'
           below: 'Food catalog'
-          above: 'Next: Instructions'
+          above: 'Publish'
           index: 0
       timeout: 20000
 
 # The refusal opened the list with the focus (R7 item 3), so the cook keeps the words without editing them. The swipe
-# starts inside the scroller: `scrollUntilVisible` swipes from the screen's centre, which with the keyboard up is on the
-# pinned bar, so it never scrolled the list (`docs/design/rowEditorOpenDecisions.md` E1).
-- repeat:
-      while:
-          notVisible:
-              text: 'Use .*Tomato.* as written.*'
-      times: 12
-      commands:
-          - swipe:
-                start: 50%, 35%
-                end: 50%, 20%
-                duration: 400
+# starts inside the open list: a drag that starts outside it closes it (slice 8).
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
 - tapOn:
       text: 'Use .*Tomato.* as written.*'
 # The trailing field empties only after the line is committed, so this disappearing IS the declaration landing
@@ -113,36 +109,13 @@ appId: io.commise.mobile
 # ⛔ (3) NOW there is a row. A committed row wears no "no food chosen" note.
 - scrollUntilVisible:
       element: 'Ingredient 1 name'
-      direction: DOWN
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
       timeout: 30000
 - assertNotVisible:
       text: 'No food chosen.*'
 
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
-
-# Step 3 of 4 (Instructions) — a fresh create has no steps, so this is `Step 1`.
-- assertVisible: 'Step 3 of 4'
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
-- inputText: 'Slice and serve.'
-# Step 4 of 4 is REVIEW (U33) — photos moved into step 1's Details body, so there is no Photos step to
-# advance to. This flow was the one the U33 rename missed; its ten siblings already say `Next: Review`, and
-# `RecipeEditor.native.test.tsx`'s "no Photos step remains" asserts the label this used to name is gone.
-- scrollUntilVisible:
-      element: 'Next: Review'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Review'
-
-- assertVisible: 'Step 4 of 4'
+# With the line declared, nothing is left to fix: Publish goes through.
 - tapOn: 'Publish'
 
 # Landed on the new recipe's detail — the loop completed. The title regex tolerates this emulator's

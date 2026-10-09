@@ -25,7 +25,12 @@ import {
     isRequesterLimitReachedError,
     isSourceBusyError,
 } from '@kitchensink/food-service-client';
-import type { Ingredient, RecipeDetail } from '@kitchensink/recipe-core';
+import {
+    quantityLowerBound,
+    type Ingredient,
+    type IngredientQuantity,
+    type RecipeDetail,
+} from '@kitchensink/recipe-core';
 import type { RebindIngredientLineRequest } from '@kitchensink/schema-recipe';
 
 import type { LineBinding } from '../form/lineBinding.js';
@@ -62,9 +67,25 @@ export interface RemoteFoodPick {
 /** What the cook chose for a row. */
 export type IngredientPick = BoundPick | RemoteFoodPick;
 
-/** Which line a pick lands on: an existing row, by key, or the trailing add row. */
+/**
+ * The measure the cook typed in front of the food on the trailing add row (`../form/leadingMeasure.ts`, blueprint A1).
+ * The appended line is committed with it. It is the cook's own statement: nothing later overwrites it (A2).
+ */
+export interface LineMeasure {
+    readonly quantity: IngredientQuantity;
+    /** `normalizeUnit`'s spelling; `''` when none. */
+    readonly unit: string;
+    /** `''` when none. */
+    readonly preparation: string;
+}
+
+/**
+ * Which line a pick lands on: an existing row, by key, or the trailing add row. A trailing pick carries the measure read
+ * from the field's text when it was made; it is not part of the target's identity (one trailing row, one commit).
+ */
 export type LineCommitTarget =
-    { readonly kind: 'line'; readonly key: IngredientLineKey } | { readonly kind: 'newLine' };
+    | { readonly kind: 'line'; readonly key: IngredientLineKey }
+    | { readonly kind: 'newLine'; readonly measure?: LineMeasure };
 
 /** How one commit ended. */
 export type LineCommitOutcome =
@@ -219,7 +240,9 @@ export const commitRouteFor = (
 };
 
 /**
- * Project a catalog `Ingredient` onto a resolved form line (quantity defaults to 1; the form edits it).
+ * Project a catalog `Ingredient` onto a resolved form line STATING NO AMOUNT (build spec F5): a pick is a food, not a
+ * measure, so the line carries the draft's spelling of absent (`NaN`, the one `toRecipeFormValues` seeds an amount-less
+ * stored line with) until the cook types one. It used to invent a `1`, which then published as the cook's own figure.
  *
  * Carries the ingredient's food (its root and any variant), never its figures: the editor's one background nutrition
  * read supplies those (plan 002 V1 B5), so a fresh pick and a reopened recipe total the same way.
@@ -240,13 +263,42 @@ export function toIngredientLine(ingredient: Ingredient): ResolvedRecipeFormIngr
         // ⚠️ FORWARDED, never re-derived — the service owns what this flag means, and this adapter has no
         // view of the binding it is derived from.
         isUserEntered: ingredient.isUserEntered,
-        quantity: 1,
+        quantity: Number.NaN,
         ...(ingredient.foodResolutionStatus === undefined ? {} : { resolutionStatus: ingredient.foodResolutionStatus }),
         // Plan 002 V1 B5 / curated U9 — the food, never its figures: the editor's one background read supplies those
         // (blueprint Decision 3), so a fresh pick and a reopened recipe total the same way. A picked variant stays a
         // variant, so the line reads the variant's numbers (`foodRefOf`).
         ...(ingredient.foodId === undefined ? {} : { foodId: ingredient.foodId }),
         ...(ingredient.variant === undefined ? {} : { variant: ingredient.variant }),
+    };
+}
+
+/**
+ * A picked line with the measure the cook typed in front of its food (blueprint A2): the amount, its upper bound for a
+ * range, the unit and the preparation. ⛔ Nothing of the typed text itself: a typed-then-picked line is an AUTHORED line,
+ * so it carries no `sourceLine`, `sourcePhrase` or `statedMeasure` and never reaches the verification gate. Absent facts
+ * stay absent (an empty unit or preparation is omitted, never sent as `''`). Pure.
+ *
+ * @param line - The picked line (`toIngredientLine`), stating no amount.
+ * @param measure - What the cook typed in front of the food, if anything.
+ * @returns The line, measured.
+ */
+export function withLineMeasure(
+    line: ResolvedRecipeFormIngredient,
+    measure: LineMeasure | undefined,
+): ResolvedRecipeFormIngredient {
+    if (measure === undefined) {
+        return line;
+    }
+
+    const { quantity, unit, preparation } = measure;
+
+    return {
+        ...line,
+        quantity: quantityLowerBound(quantity) ?? Number.NaN,
+        ...(quantity.kind === 'range' ? { quantityHigh: quantity.high } : {}),
+        ...(unit === '' ? {} : { unit }),
+        ...(preparation === '' ? {} : { preparation }),
     };
 }
 

@@ -200,7 +200,8 @@ function discoverFlowFiles(): readonly string[] {
  *
  * Discovered rather than listed: `auth/signin.yaml` and `auth/signinHome.yaml` are the credential/landing
  * sub-flows every story composes, and a third one added tomorrow must not have to be registered here to
- * avoid tripping the inventory assertion.
+ * avoid tripping the inventory assertion. Both `runFlow:` forms count: the bare path, and the map form whose
+ * `file:` key a flow needs to pass `env:` (`recipes/common/scrollOpenList.yaml` is only ever reached that way).
  */
 function discoverSubFlows(files: readonly string[]): ReadonlySet<string> {
     const targets = new Set<string>();
@@ -209,7 +210,7 @@ function discoverSubFlows(files: readonly string[]): ReadonlySet<string> {
         const body = readFileSync(join(MAESTRO_DIR, `${flow}.yaml`), 'utf8');
         const directory = posix.dirname(flow);
 
-        for (const match of body.matchAll(/runFlow:\s*([^\s#]+\.yaml)/g)) {
+        for (const match of body.matchAll(/runFlow:\s*(?:file:\s*)?([^\s#]+\.yaml)/g)) {
             const target = match[1];
 
             if (target !== undefined) {
@@ -264,6 +265,9 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // sign in as them until the owner gives that lane one (`poolAdmin --apply`). Promote it to FLOW_PLAN then.
     'sessionHandoff',
     'homeRecentRecipeTap',
+    // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on
+    // a Mac until an iOS lane exists.
+    'shell/iosSwipeBack',
     'recipes/sourceTabs',
     // U13: the batched review story needs a recipe carrying a gate-AMBIGUOUS line, and that state is
     // produced by the verification worker over a stored inconclusive verdict + a spread shortlist — not
@@ -401,7 +405,7 @@ const VERTICAL_PROBES: Readonly<Record<string, readonly string[]>> = {
         'packages/apps/commise/mobile/.maestro/recipes/collectionsPagination.yaml',
     ],
     discovery: ['packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx'],
-    recipes: ['packages/apps/commise/mobile/src/screens/RecipeCreateScreen.tsx'],
+    recipes: ['packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx'],
 };
 
 /**
@@ -737,7 +741,7 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
         // CONFIRMS the erasure, where `accountDangerZone` deliberately cancels. Both must select together:
         // they are the same surface, and an auth-attributed change that ran only the cancelling half would
         // leave the destructive path unproven behind a green job. `dataSources` (curated U25) walks the same
-        // Profile → Account settings path to the Data sources sheet, so an account-surface change runs it too.
+        // avatar → Profile path to the Data sources sheet, so an account-surface change runs it too.
         expect(selection.flows).toEqual(['auth/loginFlow', 'dataSources', 'accountDangerZone', 'accountErasure']);
         // What did NOT run is reported, in full, so a narrowed run can never be mistaken for a complete one.
         expect(selection.skipped.length).toBe(ALL_FLOWS.length - selection.flows.length);
@@ -748,16 +752,20 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
         expect(select('full=false', 'home=true').flows).toEqual(['auth/loginFlow', 'home']);
     });
 
-    it('selects the spine plus the five collections flows — the 22%-of-flow-time cluster', () => {
+    // Slice 4 of the UI overhaul added `recipes/newCollectionSheet` to the collections vertical, and slice 5 added
+    // `recipes/collectionAddRemoveUndo` (seven flows now).
+    it('selects the spine plus the seven collections flows — the 22%-of-flow-time cluster', () => {
         const selection = select('full=false', 'collections=true');
 
         expect(selection.flows).toEqual([
             'auth/loginFlow',
             'recipes/collections',
+            'recipes/collectionAddRemoveUndo',
             'recipes/collectionsPagination',
             'recipes/collectionsVisibility',
-            'recipes/collectionsClone',
+            'recipes/collectionsSaveCopy',
             'recipes/collectionsPull',
+            'recipes/newCollectionSheet',
         ]);
     });
 
@@ -767,7 +775,8 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
             'recipes/discoverBrowse',
             'recipes/discoverRecentSearches',
             'recipes/discoverIngredientCap',
-            'recipes/discoverClone',
+            'recipes/discoverSaveCopy',
+            'recipes/discoverDetailSaveCopy',
         ]);
     });
 

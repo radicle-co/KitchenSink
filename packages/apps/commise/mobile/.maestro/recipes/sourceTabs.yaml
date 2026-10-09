@@ -19,7 +19,7 @@ appId: io.commise.mobile
 # --- outbound ------------------------------------------------------------------------------------------
 - tapOn: 'Discover'
 - extendedWaitUntil:
-      visible: 'Discover recipes'
+      visible: 'Discover'
       timeout: 40000
 
 # The switcher is STILL present on the far side — this is the assertion the web surface used to fail.

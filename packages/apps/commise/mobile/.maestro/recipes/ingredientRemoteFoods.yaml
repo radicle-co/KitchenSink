@@ -27,20 +27,12 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-- tapOn: 'Create from Scratch'
 
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 - tapOn: 'Title'
 - inputText: 'Maestro Remote Foods'
 
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-
-# Step 2 of 4 (Ingredients). With no lines yet, the trailing field sits right below the rail.
-- assertVisible: 'Step 2 of 4'
+# The Ingredients section, on the same page: with no lines yet, the trailing field is its first control.
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
@@ -58,24 +50,24 @@ appId: io.commise.mobile
 # ⛔ No press: the source's group arrives on its own. Maestro's text match ignores case, so `FROM USDA` matches. It is
 # scrolled to rather than waited for: on a stage whose catalog seed matches the words, the catalog group above it
 # starts the source's group below the fold.
-- scrollUntilVisible:
-      element:
-          text: 'From USDA'
-      direction: DOWN
-      timeout: 40000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'From USDA'
       label: 'USDA answered the progressive search for "flou" on this stage'
 - assertNotVisible: 'Search USDA for .*'
 # It appended: the cook's own food is still listed.
-- scrollUntilVisible:
-      element: 'Flour, your food'
-      direction: UP
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Flour, your food'
+          DIRECTION: UP
 
 # One remote pick. Its name ends in its source (`hitName`), which no database option's does.
-- scrollUntilVisible:
-      element: '.*, from USDA'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
 - tapOn:
       text: '.*, from USDA'
       index: 0
@@ -91,16 +83,15 @@ appId: io.commise.mobile
 - tapOn: 'Change food'
 - eraseText: 60
 - inputText: 'butter'
-- scrollUntilVisible:
-      element:
-          text: 'From USDA'
-      direction: DOWN
-      timeout: 40000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'From USDA'
       label: 'USDA answered the progressive search for "butter" on this stage'
-- scrollUntilVisible:
-      element: '.*, from USDA'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
 - tapOn:
       text: '.*, from USDA'
       index: 0
@@ -115,25 +106,12 @@ appId: io.commise.mobile
 
 # Finish the recipe, so the remote foods are proven usable.
 - scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
-- assertVisible: 'Step 3 of 4'
-- scrollUntilVisible:
       element: 'Add step'
-      # DOWN, not UP: advancing a step returns the scroller to the TOP (`useScrollResetOnChange`).
       direction: DOWN
       timeout: 20000
 - tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
+- tapOn: 'Step 1'
 - inputText: 'Whisk and rest.'
-- scrollUntilVisible:
-      element: 'Next: Review'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Review'
-- assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 
 - extendedWaitUntil:

@@ -8,8 +8,9 @@ import { signInWithTicket } from './utils/auth';
  * A long collection name is never squeezed into a column beside its actions (E3, WCAG 1.4.10).
  *
  * At 320 "Weeknight Dinners the Whole Family Will Actually Eat" rendered as "Wee / knig / ht / Dinn / ers …", nine
- * lines tall, because the name could shrink to one character beside Rename and Delete. The rule
- * (`specSharedSystem.md` §1, §6): on a narrow screen the name has the full row and the actions sit BELOW it. So this
+ * lines tall, because the name could shrink to one character beside the actions. The rule
+ * (`specSharedSystem.md` §1, §6): on a narrow screen the name has the full row and the actions (Add recipes and the ⋯ menu,
+ * slice 5) sit BELOW it. So this
  * asserts geometry in a real browser — the actions start under the name's last line, the name keeps most of the row,
  * and the page does not scroll sideways. jsdom has no layout to measure.
  *
@@ -33,7 +34,7 @@ for (const width of [320, 390] as const) {
         await page.goto(route('/collections/col_long'));
 
         const name = page.getByRole('heading', { level: 1, name: NAME });
-        const rename = page.getByRole('button', { name: 'Rename' });
+        const rename = page.getByRole('button', { name: 'Add recipes' }).first();
         await expect(name).toBeVisible();
         await expect(rename).toBeVisible();
 

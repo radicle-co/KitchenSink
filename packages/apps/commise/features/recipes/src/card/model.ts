@@ -105,28 +105,6 @@ export const toRecipeCardModel = (recipe: Recipe): RecipeCardModel => ({
     status: recipe.status,
 });
 
-/**
- * Semantic color tone for the difficulty pill. Maps to the `success`/`warning`/`error` design tokens; the
- * platform card leaf turns a tone into its Tailwind class (web) or palette color (native).
- */
-export type DifficultyTone = 'success' | 'warning' | 'error';
-
-const DIFFICULTY_TONE: Record<RecipeDifficulty, DifficultyTone> = {
-    [RecipeDifficulty.EASY]: 'success',
-    [RecipeDifficulty.MEDIUM]: 'warning',
-    [RecipeDifficulty.HARD]: 'error',
-};
-
-/**
- * The pill tone for a stated difficulty (Easy → success, Medium → warning, Hard → error) — the mockup's pill
- * colors. Total over the enum, so there is no "unknown difficulty" fallback: an ABSENT difficulty is handled
- * by the card rendering no pill at all, never by calling this with a substituted value. Pure.
- *
- * @param difficulty - A stated difficulty.
- * @returns Its semantic tone.
- */
-export const difficultyTone = (difficulty: RecipeDifficulty): DifficultyTone => DIFFICULTY_TONE[difficulty];
-
 /** The number of stars in the rating display. */
 export const STAR_COUNT = 5;
 

@@ -17,6 +17,8 @@ vi.mock('@clerk/nextjs', () => ({ useAuth: () => authState }));
 vi.mock('next/navigation', async (importOriginal) => ({
     ...(await importOriginal<typeof import('next/navigation')>()),
     useParams: () => ({ locale: 'en' }),
+    useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+    usePathname: () => '/en/nope',
 }));
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({ data: { user: { displayName: 'Ada' } } }),
@@ -40,7 +42,7 @@ describe('NotFoundSurface (E2)', () => {
         renderSurface(true);
 
         expect(screen.getAllByRole('navigation').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Page not found').length).toBeGreaterThan(0);
+        expect(document.title).toBe('Page not found · Commise');
         expect(screen.getByRole('heading', { level: 1, name: 'We couldn’t find that page.' })).toBeTruthy();
         expect(screen.getByRole('link', { name: 'Back to Home' }).getAttribute('href')).toBe('/en');
     });

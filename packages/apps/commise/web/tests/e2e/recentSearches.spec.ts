@@ -30,7 +30,7 @@ import { signInWithTicket } from './utils/auth';
  *    locator strict-fails while the rails are the body — and Playwright fails a strict-mode violation at once rather
  *    than retrying it. The old guard, `Weeknight Pasta` reaching `toHaveCount(0)`, is also true while the rails are
  *    still loading: it passed in 4 ms, before the rails' searches had even been answered, and the next assertion
- *    then met the rails. `Showing 1 recipe for “paella”` exists ONLY once the results for the term are on screen.
+ *    then met the rails. `1 recipe for “paella”` exists ONLY once the results for the term are on screen.
  */
 test.describe('discovery recent searches (U7)', () => {
     test('a search that ran is remembered, survives a reload, re-runs on tap, and can be cleared', async ({ page }) => {
@@ -44,16 +44,16 @@ test.describe('discovery recent searches (U7)', () => {
             ],
         });
 
-        const searchBox = page.getByRole('searchbox', { name: 'Search public recipes' });
+        const searchBox = page.getByRole('searchbox', { name: 'Search recipes' });
         const pastaCard = page.getByRole('article', { name: 'Weeknight Pasta' });
         const paellaCard = page.getByRole('article', { name: 'Seafood Paella' });
-        // Rendered twice by design — the visible results header and the frame's polite status region (see
-        // `search.spec.ts`'s `discoverySentence`) — so exactly two is both halves present.
-        const paellaResults = page.getByText('Showing 1 recipe for “paella”', { exact: true });
+        // One element by design: the frame's count line is both the visible sentence and the polite status region (see
+        // `search.spec.ts`'s `discoverySentence`).
+        const paellaResults = page.getByText('1 recipe for “paella”', { exact: true });
 
         /** Wait for discovery to hydrate, witnessed by the browser-fetched rails (see the file doc). */
         const waitForHydratedDiscovery = async (): Promise<void> => {
-            await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
+            await expect(page.getByRole('heading', { name: 'Discover', exact: true })).toBeVisible();
             await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
             await expect(pastaCard.first()).toBeVisible();
         };
@@ -68,7 +68,7 @@ test.describe('discovery recent searches (U7)', () => {
         // Run a real search. The results sentence FIRST (see the file doc): until it shows, the rails may still be the
         // body, where the match is three cards and the non-match is trivially present.
         await searchBox.fill('paella');
-        await expect(paellaResults).toHaveCount(2);
+        await expect(paellaResults).toHaveCount(1);
         await expect(pastaCard).toHaveCount(0);
         await expect(paellaCard).toBeVisible();
 
@@ -86,7 +86,7 @@ test.describe('discovery recent searches (U7)', () => {
         // which can only happen if `query=paella` reached the API again. The sentence first, for the rails reason above.
         await page.getByRole('button', { name: 'Search for “paella”' }).click();
         await expect(searchBox).toHaveValue('paella');
-        await expect(paellaResults).toHaveCount(2);
+        await expect(paellaResults).toHaveCount(1);
         await expect(pastaCard).toHaveCount(0);
         await expect(paellaCard).toBeVisible();
 

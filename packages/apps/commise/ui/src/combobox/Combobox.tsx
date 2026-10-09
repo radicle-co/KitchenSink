@@ -41,6 +41,8 @@
  *   option takes the `surfaceMuted` fill (linen since D11; it was pearl) and the `selectedEdge` ring the details
  *   dialog's active row takes (V3-4).
  * - The web field has no clear button: Escape on a closed list clears it, through the host.
+ * - A touch drag on the page outside the open list closes it; a drag inside it scrolls the list, whose card contains its
+ *   own scroll, so the page under it stays put.
  * - ⛔ No transition classes, so `prefers-reduced-motion` has nothing to suppress.
  *
  * A host's focus request needs the field's node, for `.focus()` and the caret, which have no declarative form. It is
@@ -85,6 +87,9 @@ import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
 
 /** The keys that move the caret: §3e gives Home and End to the field, and APG returns visual focus to it on all four. */
 const CARET_KEYS: ReadonlySet<string> = new Set(['Home', 'End', 'ArrowLeft', 'ArrowRight']);
+
+/** The key code a browser reports for a key the input method is handling. */
+const IME_KEY_CODE = 229;
 
 /** The space the list keeps from its field and from the viewport's edge, as `@commise/ui/popover` keeps. */
 const LIST_GAP_PX = 4;
@@ -289,6 +294,7 @@ export const Combobox: FC<ComboboxProps> = ({
     trailingStatus = [],
     loadingIcon,
     onSelect,
+    onSubmitWithoutChoice,
     countAnnouncement,
     alertAnnouncement = '',
     onFocus,
@@ -296,6 +302,7 @@ export const Combobox: FC<ComboboxProps> = ({
     cancel,
     leadingIcon,
     hint,
+    belowField,
     invalid = false,
     describedBy,
     focusRequested = false,
@@ -312,7 +319,7 @@ export const Combobox: FC<ComboboxProps> = ({
     const keyAt = (index: number): string | undefined =>
         index >= 0 && index < options.length ? options[index].key : undefined;
 
-    const { isOpen, getInputProps, getMenuProps, getItemProps, openMenu } = useCombobox<ComboboxOption>({
+    const { isOpen, getInputProps, getMenuProps, getItemProps, openMenu, closeMenu } = useCombobox<ComboboxOption>({
         items: options,
         itemToString: (option) => option?.label ?? '',
         inputValue: value,
@@ -368,6 +375,32 @@ export const Combobox: FC<ComboboxProps> = ({
     const popupHeightClass =
         keptPlacement === undefined ? HEIGHT_PROBE : keptPlacement.startsWith('top') ? HEIGHT_ABOVE : HEIGHT_BELOW;
 
+    const floatingNode = elements.floating;
+
+    // @sideEffect While the list shows, a touch drag on the page outside it and its field closes it: the popup is fixed,
+    // so it would float over content the cook has moved on to. A drag inside it scrolls the list, which keeps its scroll
+    // (`overscroll-contain`). downshift itself ignores a touch that moved, which is right for a tap and not for a drag.
+    useEffect(() => {
+        if (!popupShown) {
+            return undefined;
+        }
+
+        const onTouchMove = (event: TouchEvent): void => {
+            const target = event.target;
+            const inside =
+                target instanceof Node &&
+                ((floatingNode?.contains(target) ?? false) || (fieldNode?.contains(target) ?? false));
+
+            if (!inside) {
+                closeMenu();
+            }
+        };
+
+        document.addEventListener('touchmove', onTouchMove, { passive: true });
+
+        return () => document.removeEventListener('touchmove', onTouchMove);
+    }, [popupShown, floatingNode, fieldNode, closeMenu]);
+
     // Reads the host's callback and list request as they are when the request is taken; neither re-runs a request.
     const takeFocusRequest = useEffectEvent((node: HTMLInputElement) => {
         node.focus();
@@ -414,6 +447,12 @@ export const Combobox: FC<ComboboxProps> = ({
 
         if (event.key === 'Enter') {
             event.preventDefault();
+
+            // Safari reports the Enter that ends a composition as keyCode 229 after `compositionend`: the input
+            // method's, not a submit.
+            if ((activeIndex < 0 || !isOpen) && event.nativeEvent.keyCode !== IME_KEY_CODE) {
+                onSubmitWithoutChoice?.();
+            }
         }
     };
 
@@ -489,6 +528,7 @@ export const Combobox: FC<ComboboxProps> = ({
                     </button>
                 )}
             </div>
+            {belowField}
             {hint !== undefined && (
                 <span id={hintId} className="sr-only">
                     {hint}
@@ -504,7 +544,7 @@ export const Combobox: FC<ComboboxProps> = ({
                 <div
                     ref={setFloating}
                     style={floatingStyles}
-                    className={`z-50 flex ${popupHeightClass} ${POPUP_WIDTH} flex-col overflow-y-auto rounded-2xl bg-paper-overlay p-1 shadow-lg`}
+                    className={`z-50 flex ${popupHeightClass} ${POPUP_WIDTH} flex-col overflow-y-auto overscroll-contain rounded-2xl bg-paper-overlay p-1 shadow-lg`}
                 >
                     {status !== undefined && statusLine(status, loadingIcon)}
                     {listShown && (

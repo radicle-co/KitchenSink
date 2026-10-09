@@ -1,0 +1,46 @@
+appId: io.commise.mobile
+---
+# Save a copy from a recipe's page (US2, T075/T076; `docs/design/uiOverhaul/buildSpec.md` §6, slice 6 of the UI overhaul,
+# which renamed "Clone" to "Save a copy"). Signs in, switches to the Discover tab, opens a public recipe the caller does
+# NOT own, and presses the page's own "Save a copy" — the mobile mirror of the web Playwright `saveACopy.spec.ts`. A copy
+# is published only after an edit (FR-005b), so the COPY opens straight in the editor, with its own detail beneath it:
+# landing in the editor proves the copy is the caller's own, since only an owner can edit. The Discover card's own
+# button is `discoverSaveCopy.yaml`'s.
+#
+# The editor landmark is its own × ('Close editor'), which only the one-page editor draws.
+- runFlow: ../auth/signin.yaml
+
+# Recipe list is the initial top-level destination; switch to the Discover tab.
+- assertVisible: 'Recipes'
+- tapOn: 'Discover'
+
+# RecipeDiscoveryScreen chrome.
+- assertVisible: 'Discover'
+- assertVisible: 'Search recipes'
+# With no query the surface shows the curated browse rails (U7); type the recipe's name to switch to the
+# deterministic 2-col result list before reaching for the row.
+- tapOn: 'Search recipes'
+- inputText: 'Risotto'
+
+# Open the seeded PRO-owned public recipe. The seed is guaranteed present (the CI loop reseeds before
+# every flow), so scroll to it rather than a `when: visible` guard that would silently SKIP when the row is
+# below the fold (the Discover feed scrolls; only ~1 tall cover card fits at a time). Anchored (`^…$`) so it
+# selects the row's title, NOT the card's "Save a copy of Herb Risotto" button whose label also contains the title.
+- scrollUntilVisible:
+      element:
+          text: '^${E2E_RECIPE_RISOTTO}$'
+      direction: DOWN
+      timeout: 20000
+# Open the recipe's detail.
+- tapOn:
+      text: '^${E2E_RECIPE_RISOTTO}$'
+# The page of a public recipe the caller does not own offers Save a copy, in its action row under the title.
+- scrollUntilVisible:
+      element: 'Save a copy'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Save a copy'
+# The copy opens in the editor (FR-005b).
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 40000

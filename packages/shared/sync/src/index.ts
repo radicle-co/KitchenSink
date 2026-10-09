@@ -11,6 +11,7 @@ export {
     type DrainReport,
     type SendResult,
     type Sender,
+    type SettlementEvent,
 } from './drainer.js';
 export {
     classifyFailure,
@@ -23,6 +24,7 @@ export {
 } from './itemStatus.js';
 export {
     EMPTY_OUTBOX,
+    appendExclusive,
     appendIntent,
     claimForSending,
     drainOrder,
@@ -30,6 +32,8 @@ export {
     recoverInterrupted,
     settle,
     supersede,
+    withdraw,
+    type ExclusiveAppend,
     type OutboxLog,
     type Settlement,
 } from './outboxLog.js';

@@ -3,10 +3,10 @@ import type { CatalogSearchResultView } from '@kitchensink/food-service-client';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 
 import { signInWithTicket } from './utils/auth';
-import { route } from './utils/basePath';
 import { mockFoodApi } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Curated AE3 (`docs/brainstorms/2026-09-26-curated-food-catalog-requirements.md`; `docs/design/ingredientSpecialization.md`
@@ -64,8 +64,7 @@ const catalog = (query: string): readonly CatalogSearchResultView[] =>
 
 /** Open the saved recipe's ingredients and put the second line in Change food. */
 async function changeTheThighs(page: Page) {
-    await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
-    await page.getByRole('button', { name: /Ingredients:/ }).click();
+    await openRecipeEditor(page, RECIPE_ID);
     const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
     await ingredients.getByRole('button', { name: 'Actions for chicken thighs' }).click();

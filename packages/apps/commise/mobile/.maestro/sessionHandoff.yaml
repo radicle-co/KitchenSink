@@ -33,15 +33,11 @@ onFlowComplete:
 - back
 - back
 - extendedWaitUntil:
-      visible: '.*Chef.*'
+      visible: 'Profile.*'
       timeout: 20000
 
-# Cook A signs out through the account hub. The auth gate puts the sign-in form back.
-- tapOn: 'Profile'
-- scrollUntilVisible:
-      element: 'Account settings'
-      direction: DOWN
-- tapOn: 'Account settings'
+# Cook A signs out from the Profile page. The auth gate puts the sign-in form back.
+- tapOn: 'Profile.*'
 - scrollUntilVisible:
       element: 'Sign out'
       direction: DOWN

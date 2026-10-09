@@ -25,32 +25,21 @@ describe('RecipeListLoadError (native)', () => {
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it('⛔ keeps the create dial, since this body has no create CTA to replace it', () => {
+    it('⛔ keeps the create button, since this body has no create CTA to replace it: one tap opens the editor', () => {
+        // Rewritten for slice 8: the button no longer discloses a menu (Paste lives in the editor's Ingredients section).
         const onCreateRecipe = vi.fn();
-        const onPasteIngredients = vi.fn();
-        render(
-            <RecipeListLoadError
-                onRetry={noop}
-                onCreateRecipe={onCreateRecipe}
-                onPasteIngredients={onPasteIngredients}
-            />,
-        );
+        render(<RecipeListLoadError onRetry={noop} onCreateRecipe={onCreateRecipe} />);
 
         fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
-
-        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
-
-        expect(onPasteIngredients).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText('Create from Scratch')).toBeNull();
     });
 
     it('offers no first-run CTA — the library has not said it is empty', () => {
         render(<RecipeListLoadError onRetry={noop} onCreateRecipe={noop} />);
 
-        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
-        expect(screen.queryByText('No recipes yet')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+        expect(screen.queryByText('Your recipe box is empty')).toBeNull();
     });
 });

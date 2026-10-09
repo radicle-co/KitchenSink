@@ -9,6 +9,9 @@
  * hook (W5/C7 server-paged "Load more") over a real, network-guarded `RecipeServiceClient`
  * (`createFakeRecipeServiceClient`), stubbed per test with a type-checked `vi.spyOn(client, 'listCollections')`.
  * The Next router stays mocked — routing is not part of the recipe-service hooks seam this migration targets.
+ *
+ * ⚠️ UPDATED for slice 4 (`buildSpec.md` §5.1): New collection opens the sheet (the `/collections/new` page is deleted),
+ * a created collection opens its detail, cards are links, and the first run's copy is the overhaul's.
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { collectionQueries } from '@kitchensink/recipe-service-client';
@@ -16,7 +19,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RecipeServiceProvider, recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
@@ -60,8 +63,8 @@ describe('CollectionListContainer', () => {
 
         renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
 
-        expect(await screen.findByRole('button', { name: 'Weeknight dinners' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Holiday baking' })).toBeInTheDocument();
+        expect(await screen.findByRole('link', { name: 'Weeknight dinners' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Holiday baking' })).toBeInTheDocument();
     });
 
     it('renders the empty state when the load succeeds with no collections', async () => {
@@ -70,7 +73,17 @@ describe('CollectionListContainer', () => {
 
         renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
 
-        expect(await screen.findByText('No collections yet')).toBeInTheDocument();
+        expect(await screen.findByText('Group recipes your way')).toBeInTheDocument();
+    });
+
+    it("hides the floating New collection on the first run, leaving the first run's button and the wide header's", async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listCollections').mockResolvedValue(makeCollectionsPage([]));
+
+        renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
+
+        await screen.findByText('Group recipes your way');
+        expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(2);
     });
 
     it('renders the error state and retries on demand', async () => {
@@ -98,21 +111,52 @@ describe('CollectionListContainer', () => {
 
         renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'Weeknight dinners' }));
+        await user.click(await screen.findByRole('link', { name: 'Weeknight dinners' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/collections/col_42');
     });
 
-    it('navigates to the create route from the create call to action', async () => {
+    it('opens the new-collection sheet, creates, and opens the new collection', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'listCollections').mockResolvedValue(makeCollectionsPage([]));
+        vi.spyOn(client, 'listCollections').mockResolvedValue(makeCollectionsPage([makeCollection({ id: 'c1' })]));
+        const create = vi
+            .spyOn(client, 'createCollection')
+            .mockResolvedValue(makeCollection({ id: 'col_new', name: 'Picnics' }));
 
         renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'New collection' }));
+        // Slice 3: two controls open the sheet — the header's (shown from 840) and the floating one (below 840).
+        const [newCollection] = await screen.findAllByRole('button', { name: 'New collection' });
+        await user.click(newCollection as HTMLElement);
+        const dialog = await screen.findByRole('dialog', { name: 'New collection' });
+        await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Picnics');
+        await user.click(within(dialog).getByRole('button', { name: 'Create collection' }));
 
-        expect(pushMock).toHaveBeenCalledWith('/en/collections/new');
+        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/collections/col_new'));
+        expect(create).toHaveBeenCalledWith({ name: 'Picnics' });
+        expect(pushMock).not.toHaveBeenCalledWith('/en/collections/new');
+    });
+
+    it('keeps what was typed and says so when the create fails', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listCollections').mockResolvedValue(makeCollectionsPage([makeCollection({ id: 'c1' })]));
+        vi.spyOn(client, 'createCollection').mockRejectedValue(new Error('down'));
+
+        renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
+
+        // Slice 3: two controls open the sheet — the header's (shown from 840) and the floating one (below 840).
+        const [newCollection] = await screen.findAllByRole('button', { name: 'New collection' });
+        await user.click(newCollection as HTMLElement);
+        const dialog = await screen.findByRole('dialog', { name: 'New collection' });
+        await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Picnics');
+        await user.click(within(dialog).getByRole('button', { name: 'Create collection' }));
+
+        expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+            'We couldn’t create the collection. Try again.',
+        );
+        expect(within(dialog).getByRole('textbox', { name: 'Name' })).toHaveValue('Picnics');
     });
 
     it('advances the page and appends the next page when Load more is activated (W5/C7)', async () => {
@@ -135,10 +179,10 @@ describe('CollectionListContainer', () => {
 
         renderWithRecipeClient(<CollectionListContainer locale="en" />, client);
 
-        await screen.findByRole('button', { name: 'Weeknight dinners' });
+        await screen.findByRole('link', { name: 'Weeknight dinners' });
         await user.click(screen.getByRole('button', { name: 'Load more' }));
 
-        expect(await screen.findByRole('button', { name: 'Holiday baking' })).toBeInTheDocument();
+        expect(await screen.findByRole('link', { name: 'Holiday baking' })).toBeInTheDocument();
         expect(listSpy).toHaveBeenCalledTimes(2);
         expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
     });
@@ -171,13 +215,13 @@ describe('CollectionListContainer', () => {
         await user.click(await screen.findByRole('button', { name: 'Load more' }));
 
         expect(await screen.findByText('We couldn’t load more collections.')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Weeknight dinners' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Weeknight dinners' })).toBeInTheDocument();
         expect(screen.queryByText('We couldn’t load your collections.')).not.toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
 
-        expect(await screen.findByRole('button', { name: 'Holiday baking' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Weeknight dinners' })).toBeInTheDocument();
+        expect(await screen.findByRole('link', { name: 'Holiday baking' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Weeknight dinners' })).toBeInTheDocument();
     });
 });
 
@@ -194,21 +238,21 @@ describe('CollectionListContainer — a failed refresh of the rows on screen', (
             .mockResolvedValue(page);
 
         renderWithRecipeClient(<CollectionListContainer locale="en" />, client, { queryClient });
-        await screen.findByRole('button', { name: 'Weeknight dinners' });
+        await screen.findByRole('link', { name: 'Weeknight dinners' });
 
         await act(async () => {
             await queryClient.refetchQueries({ queryKey: recipeServiceKeys.collections });
         });
 
         expect(await screen.findAllByText('We couldn’t refresh your collections.')).not.toHaveLength(0);
-        expect(screen.getByRole('button', { name: 'Weeknight dinners' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Weeknight dinners' })).toBeInTheDocument();
         expect(screen.queryByText('We couldn’t load your collections.')).not.toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
 
         await waitFor(() => expect(screen.queryAllByText('We couldn’t refresh your collections.')).toHaveLength(0));
         expect(listCollections).toHaveBeenCalledTimes(3);
-        await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Collections' })));
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Recipes' })));
     });
 });
 

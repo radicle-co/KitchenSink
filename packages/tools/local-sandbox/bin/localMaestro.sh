@@ -493,6 +493,14 @@ local_maestro_reset_pool() {
     npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --shard 1
 }
 
+# Give the shard's pool users, in the LOCAL identity database, the app-user id their Clerk `external_id` names.
+# ⛔ The `external_id` names the SANDBOX identity database's row (its webhook wrote it), and recipe-service takes a
+# recipe's owner from it; the local identity would otherwise mint a fresh id on the device's first request, and the
+# app would hide every owner control on the cook's own recipes. Clerk is never written: CI's deployed tier shares it.
+local_maestro_align_identities() {
+    npx tsx packages/tools/local-sandbox/bin/alignIdentities.ts
+}
+
 local_maestro_main() {
     local command="${1-}"
     local flows=''
@@ -537,6 +545,10 @@ local_maestro_main() {
 
     echo 'local:maestro: resetting the pool slots and seeding the world (e2e-seed)' >&2
     local_maestro_reset_pool || return 1
+    local_maestro_align_identities || {
+        local_maestro_fail 'the local identity database could not be aligned with the Clerk external_ids'
+        return 1
+    }
     mkdir -p -- "${state}/e2e-seed"
     if ! npx tsx packages/tools/e2e-seed/src/provision.ts >"$MAESTRO_FIXTURE_ENV_FILE"; then
         local_maestro_fail 'e2e-seed provision failed — the local services did not accept the seeded world'

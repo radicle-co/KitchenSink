@@ -1,417 +1,110 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the Home application shell (US-000 / FR-046).
- *
- * The shell owns only ephemeral view state — the collapsed rail and the mobile drawer — so these exercise
- * that state: the surface content lands in the `<main>` landmark, the sidebar and tab bar are both present
- * (the two responsive renderings of the nav), the hamburger opens and the drawer dismisses, and the collapse
- * control flips. Selectors are role/label only.
+ * The web app shell (`buildSpec.md` §3.2; slice 3): no top bar and no drawer; the sidebar and the tab bar switch at
+ * `nav`; `<main>` is the `main` container and reserves the bar plus the floating button; `--bottom-chrome` is the bar's
+ * height below `nav` and 0 from it or on a focused task, where the tab bar is gone; and the collapse writes its cookie.
  */
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
-import { PopupInsetsContext } from '@commise/ui/popup-insets';
-import { useContext, useState, type JSX } from 'react';
+import { ScrollHost } from '@commise/ui/scroll-host';
 
 import { webMessages } from '@/i18n/messages';
 
 import { HomeChrome } from '../HomeChrome';
+import { SIDEBAR_COOKIE } from '../sidebarPreference';
+import { SidebarPreferenceProvider } from '../sidebarPreferenceContext';
 
-afterEach(cleanup);
+vi.mock('next/navigation', () => ({ usePathname: () => '/en' }));
 
 const chrome = webMessages.en.home.chrome;
 
-const renderChrome = (): void => {
+beforeEach(() => {
+    document.cookie = `${SIDEBAR_COOKIE}=; max-age=0; path=/`;
+});
+afterEach(cleanup);
+
+const renderChrome = ({
+    focusedTask = false,
+    collapsed = false,
+}: { focusedTask?: boolean; collapsed?: boolean } = {}) =>
     render(
-        <HomeChrome
-            chrome={chrome}
-            pageTitle={chrome.pageTitles.home}
-            locale="en"
-            liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
-            activeId="home"
-            displayName="Jane Doe"
-        >
-            <p>surface-content</p>
-        </HomeChrome>,
+        <SidebarPreferenceProvider collapsed={collapsed}>
+            <ScrollHost>
+                <HomeChrome
+                    chrome={chrome}
+                    locale="en"
+                    liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
+                    activeId="home"
+                    profile={{ status: 'ready', name: 'Eliza' }}
+                    focusedTask={focusedTask}
+                    newRecipe={(railed): ReactNode => <button type="button">{railed ? 'rail' : 'New recipe'}</button>}
+                >
+                    <h1>Page</h1>
+                </HomeChrome>
+            </ScrollHost>
+        </SidebarPreferenceProvider>,
     );
-};
 
-describe('HomeChrome', () => {
-    it('renders the surface content inside the main landmark', () => {
+describe('HomeChrome (web)', () => {
+    it('has no top bar, no hamburger and no drawer', () => {
         renderChrome();
 
-        expect(screen.getByRole('main').textContent).toContain('surface-content');
+        expect(screen.queryByRole('banner')).toBeNull();
+        expect(screen.queryByRole('button', { name: /navigation/i })).toBeNull();
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     });
 
-    it('renders both responsive nav renderings (sidebar + tab bar)', () => {
+    it('renders both navigations, which CSS switches at nav: the sidebar from 840, the tab bar below', () => {
         renderChrome();
 
-        // jsdom does not apply the responsive `hidden` classes, so both landmarks are in the tree; in a real
-        // viewport exactly one is display:none. Two named nav landmarks is the contract.
-        expect(screen.getAllByRole('navigation', { name: chrome.primaryNavLabel }).length).toBeGreaterThanOrEqual(1);
-        expect(screen.getByRole('banner')).toBeTruthy();
+        // Both landmarks are named "Main"; only one is ever displayed, because CSS switches them at `nav`.
+        const [sidebarNav, tabBar] = screen.getAllByRole('navigation');
+
+        expect(sidebarNav?.parentElement?.className).toContain('nav:flex');
+        expect(tabBar?.hasAttribute('data-tab-bar')).toBe(true);
+        expect(tabBar?.className).toContain('nav:hidden');
     });
 
-    it('opens the mobile nav drawer from the hamburger and dismisses it, returning focus to the hamburger', async () => {
-        const user = userEvent.setup();
+    it('makes <main> the main container, with the gutters as padding and the bar plus the button reserved at its foot', () => {
         renderChrome();
-
-        // Closed by default.
-        expect(screen.queryByRole('dialog', { name: chrome.primaryNavLabel })).toBeNull();
-
-        const hamburger = screen.getByRole('button', { name: chrome.openNav });
-        await user.click(hamburger);
-        const drawer = screen.getByRole('dialog', { name: chrome.primaryNavLabel });
-        expect(drawer).toBeTruthy();
-
-        // The close control inside the drawer dismisses it.
-        await user.click(within(drawer).getByRole('button', { name: chrome.closeNav }));
-        expect(screen.queryByRole('dialog', { name: chrome.primaryNavLabel })).toBeNull();
-
-        // Radix's FocusScope restores focus via an unmount-cleanup `setTimeout(0)` — a real macrotask, not a
-        // React state update — so this needs one real tick to elapse.
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        expect(document.activeElement).toBe(hamburger);
-    });
-
-    it('closes the mobile drawer on Escape and returns focus to the hamburger (Radix B6/CR-003)', async () => {
-        const user = userEvent.setup();
-        renderChrome();
-
-        const hamburger = screen.getByRole('button', { name: chrome.openNav });
-        await user.click(hamburger);
-        expect(screen.getByRole('dialog', { name: chrome.primaryNavLabel })).toBeTruthy();
-
-        await user.keyboard('{Escape}');
-        expect(screen.queryByRole('dialog', { name: chrome.primaryNavLabel })).toBeNull();
-
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        expect(document.activeElement).toBe(hamburger);
-    });
-
-    it('moves focus to the close control when the mobile drawer opens, and traps it while open', async () => {
-        const user = userEvent.setup();
-        renderChrome();
-
-        await user.click(screen.getByRole('button', { name: chrome.openNav }));
-        const drawer = screen.getByRole('dialog', { name: chrome.primaryNavLabel });
-        const closeControl = within(drawer).getByRole('button', { name: chrome.closeNav });
-
-        expect(document.activeElement).toBe(closeControl);
-
-        // Radix marks everything outside the drawer `aria-hidden` while trapped, so the collapse control is
-        // intentionally unreachable through `getByRole` while open — assert by the surviving accessible name.
-        expect(screen.queryByRole('button', { name: chrome.collapseNav })).toBeNull();
-
-        for (let index = 0; index < 8; index += 1) {
-            await user.tab();
-            expect(drawer.contains(document.activeElement)).toBe(true);
-        }
-    });
-
-    it('flips the collapse control between collapse and expand', async () => {
-        const user = userEvent.setup();
-        renderChrome();
-
-        await user.click(screen.getByRole('button', { name: chrome.collapseNav }));
-        expect(screen.getByRole('button', { name: chrome.expandNav })).toBeTruthy();
-
-        await user.click(screen.getByRole('button', { name: chrome.expandNav }));
-        expect(screen.getByRole('button', { name: chrome.collapseNav })).toBeTruthy();
-    });
-
-    it('clears the fixed tab bar AND the device safe-area inset below the main content (U5)', () => {
-        renderChrome();
-
-        // The main foot clears the 5rem-tall narrow-breakpoint tab bar PLUS the bottom safe-area inset, and
-        // collapses back to the base `lg:pb-6` once the bar becomes a desktop sidebar. `env(...)` is 0 in a
-        // normal viewport, so the base value stays 5rem and desktop is unchanged.
         const main = screen.getByRole('main');
-        expect(main.className).toContain('pb-[calc(5rem+env(safe-area-inset-bottom))]');
-        expect(main.className).toContain('lg:pb-6');
+
+        expect(main.className).toContain('@container/main');
+        expect(main.className).toContain('px-4');
+        expect(main.className).toContain('nav:px-8');
+        expect(main.className).toContain('pb-[calc(var(--bottom-chrome)+6.5rem)]');
     });
 
-    /**
-     * `<main>` is the container every surface queries (`docs/design/uiOverhaul/buildSpec.md` §1.2): content responds
-     * to the width it gets, never to the viewport, and the page gutters are PADDING on `<main>`, so the size query
-     * reads the content box. The gutters step 16 → 24 → 32 at the medium (600) and nav (840) viewport thresholds —
-     * `medium:`, not Tailwind's `md:` (768). jsdom checks the class contract; `tests/e2e/layoutContainers.spec.ts`
-     * measures the content box in a real engine.
-     */
-    it.each([
-        ['a browsing surface', false],
-        ['a focused task', true],
-    ] as const)('makes <main> the named `main` container with the spec gutters on %s', (_name, focusedTask) => {
-        render(
-            <HomeChrome
-                chrome={chrome}
-                pageTitle={chrome.pageTitles.home}
-                locale="en"
-                liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
-                activeId="home"
-                displayName="Jane Doe"
-                focusedTask={focusedTask}
-            >
-                <p>surface-content</p>
-            </HomeChrome>,
+    it('sets --bottom-chrome to the tab bar below nav and 0 from it', () => {
+        const { container } = renderChrome();
+
+        expect(container.firstElementChild?.className).toContain(
+            '[--bottom-chrome:calc(4rem+env(safe-area-inset-bottom))]',
         );
-
-        const tokens = screen.getByRole('main').className.split(/\s+/u);
-
-        expect(tokens).toContain('@container/main');
-        expect(tokens).toEqual(expect.arrayContaining(['px-4', 'medium:px-6', 'nav:px-8']));
-        expect(tokens).not.toContain('md:px-6');
-    });
-});
-
-/**
- * The desktop-vs-narrow navigation CUTOVER — the width at which the shell swaps one rendering of the nav for
- * another (U39).
- *
- * ## The defect this locks out
- *
- * The shipped chrome disagreed with itself about its own cutover: the hamburger and the drawer hid at `md`
- * (768px) while the rail only appeared at `lg` (1024px). Between 768 and 1023px there was therefore NEITHER
- * — a tablet had no way to reach the full navigation, and survived only on the tab bar's compact icons.
- * `AppShell`'s module doc already called the cutover "the shared `lg` token", so `md` was the unfinished half
- * of that migration rather than a second, deliberate breakpoint.
- *
- * The invariant is stated as a MUTUAL EXCLUSION over a width — "exactly one of {hamburger, rail}" — not as
- * two independent per-element class assertions. Both failure directions (neither present, which is the U39
- * gap; both present, a future over-correction) fail it on their own, and it stays meaningful whatever
- * breakpoint the chrome later moves to, so long as the three renderings move together.
- *
- * ## What jsdom can settle here, and where the rest is proved
- *
- * jsdom runs no Tailwind and computes no layout, so nothing here MEASURES anything. `isDisplayedAt` resolves
- * a width against the element's own class string using Tailwind's default breakpoint scale: it reads the real
- * classes the components ship, but it necessarily assumes `lg` still means 1024px, and that assumption is the
- * one thing it cannot check. That is precisely the class of failure that once let a 32px avatar paint at 64px
- * while a jsdom simulator stayed green (see `HomeTopBar.test.tsx`), so the authoritative measurement lives in
- * `tests/e2e/homeNavCutover.spec.ts`, which loads the real stylesheet at 767 / 900 / 1024px and asks a real
- * engine what is visible. This suite is the fast guard that keeps the class strings in agreement.
- */
-describe('HomeChrome — the desktop-vs-narrow nav cutover', () => {
-    /** Tailwind's default `min-width` scale, in px. This app's `@theme` does not override it (globals.css). */
-    const BREAKPOINT_MIN_WIDTH_PX: Readonly<Record<string, number>> = {
-        sm: 640,
-        md: 768,
-        lg: 1024,
-        xl: 1280,
-        '2xl': 1536,
-    };
-
-    /** The `display` utilities this chrome uses. Matched as WHOLE tokens, so `flex-1` is never `flex`. */
-    const DISPLAY_UTILITIES = new Set(['hidden', 'flex', 'block', 'inline-flex', 'inline-block', 'grid']);
-
-    /**
-     * The nearest self-or-ancestor element whose `display` is RESPONSIVE — i.e. that carries a
-     * breakpoint-prefixed display utility.
-     *
-     * Anchoring on the responsive one is what makes this work from a role query: the rail's collapse control
-     * is itself an unprefixed `flex`, so a "nearest element with any display utility" walk would stop on the
-     * button and never reach the rail whose visibility is actually in question.
-     *
-     * @param from - The role-anchored element to walk up from (inclusive).
-     * @returns The element whose display classes decide whether `from` is on screen.
-     * @throws Error When no ancestor carries one — the anchor is wrong for this assertion.
-     */
-    const responsiveDisplayScope = (from: Element): Element => {
-        for (let node: Element | null = from; node !== null; node = node.parentElement) {
-            const isResponsive = [...node.classList].some((token) => {
-                const [variant, utility] = token.split(':');
-
-                return utility !== undefined && variant !== undefined && variant in BREAKPOINT_MIN_WIDTH_PX
-                    ? DISPLAY_UTILITIES.has(utility)
-                    : false;
-            });
-
-            if (isResponsive) {
-                return node;
-            }
-        }
-
-        throw new Error(`no responsive display scope at or above <${from.tagName.toLowerCase()}>`);
-    };
-
-    /**
-     * Whether an element is displayed at a viewport width, per its own Tailwind display utilities.
-     *
-     * Tailwind emits base utilities first and breakpoint variants in ascending `min-width` order, so for one
-     * property the WIDEST matching breakpoint wins; an unprefixed utility is the 0px base.
-     *
-     * @param from - A role-anchored element inside the rendering under test.
-     * @param widthPx - The viewport width to resolve against.
-     * @returns `true` unless the winning display utility is `hidden`.
-     */
-    const isDisplayedAt = (from: Element, widthPx: number): boolean => {
-        const scope = responsiveDisplayScope(from);
-        let winner = 'block';
-        let winningMinWidth = -1;
-
-        for (const token of scope.classList) {
-            const parts = token.split(':');
-            const utility = parts.length === 1 ? parts[0] : parts[1];
-            const variant = parts.length === 1 ? undefined : parts[0];
-
-            if (utility === undefined || !DISPLAY_UTILITIES.has(utility)) {
-                continue;
-            }
-
-            const minWidth = variant === undefined ? 0 : (BREAKPOINT_MIN_WIDTH_PX[variant] ?? Number.NaN);
-
-            if (Number.isNaN(minWidth) || minWidth > widthPx || minWidth < winningMinWidth) {
-                continue;
-            }
-
-            winner = utility;
-            winningMinWidth = minWidth;
-        }
-
-        return winner !== 'hidden';
-    };
-
-    /**
-     * The three renderings of the nav, each reached by role + accessible name — never by a test id.
-     *
-     * The rail is anchored on `collapseNav`, a control only the rail has; the tab bar is then the 'Main'
-     * landmark that is NOT inside the rail, which distinguishes the two without depending on DOM order.
-     *
-     * @returns The hamburger, an element inside the rail, and the tab bar's nav landmark.
-     * @throws Error When the tab bar landmark cannot be told apart from the rail's.
-     */
-    const navRenderings = (): { hamburger: Element; rail: Element; tabBar: Element } => {
-        const hamburger = screen.getByRole('button', { name: chrome.openNav });
-        const rail = screen.getByRole('button', { name: chrome.collapseNav });
-        const railRoot = responsiveDisplayScope(rail);
-        const tabBar = screen
-            .getAllByRole('navigation', { name: chrome.primaryNavLabel })
-            .find((landmark) => !railRoot.contains(landmark));
-
-        if (tabBar === undefined) {
-            throw new Error('no bottom tab bar landmark outside the desktop rail');
-        }
-
-        return { hamburger, rail, tabBar };
-    };
-
-    const cutoverCases: [label: string, widthPx: number, hamburgerShown: boolean, railShown: boolean][] = [
-        ['767px (a phone) — the hamburger, no rail', 767, true, false],
-        ['900px (a TABLET) — the gap U39 closes', 900, true, false],
-        ['1024px (desktop) — the rail, no hamburger', 1024, false, true],
-    ];
-
-    it.each(cutoverCases)(
-        'shows exactly one of {hamburger, rail} at %s',
-        (_label, widthPx, hamburgerShown, railShown) => {
-            renderChrome();
-            const { hamburger, rail } = navRenderings();
-
-            expect(isDisplayedAt(hamburger, widthPx), `the hamburger at ${widthPx}px`).toBe(hamburgerShown);
-            expect(isDisplayedAt(rail, widthPx), `the desktop rail at ${widthPx}px`).toBe(railShown);
-            expect(
-                [hamburger, rail].filter((element) => isDisplayedAt(element, widthPx)).length,
-                `exactly one navigation affordance at ${widthPx}px`,
-            ).toBe(1);
-        },
-    );
-
-    const tabBarCases: [label: string, widthPx: number, shown: boolean][] = [
-        ['767px', 767, true],
-        ['900px', 900, true],
-        ['1024px', 1024, false],
-    ];
-
-    it.each(tabBarCases)('leaves the bottom tab bar on its own unchanged cutover at %s', (_label, widthPx, shown) => {
-        renderChrome();
-
-        expect(isDisplayedAt(navRenderings().tabBar, widthPx), `the tab bar at ${widthPx}px`).toBe(shown);
+        expect(container.firstElementChild?.className).toContain('nav:[--bottom-chrome:0px]');
     });
 
-    it('opens a drawer that survives the SAME cutover as the hamburger that opens it', async () => {
-        const user = userEvent.setup();
-        renderChrome();
+    it('drops the tab bar and zeroes --bottom-chrome on a focused task, whose own bar owns the foot', () => {
+        const { container } = renderChrome({ focusedTask: true });
 
-        await user.click(navRenderings().hamburger);
-        const drawer = screen.getByRole('dialog', { name: chrome.primaryNavLabel });
-        // Radix portals the overlay immediately before the panel; it carries no role of its own, so it is
-        // reached structurally from the role-anchored panel rather than given a test-only attribute.
-        const overlay = drawer.previousElementSibling;
-
-        expect(overlay, 'the drawer overlay').not.toBeNull();
-        expect(isDisplayedAt(drawer, 900), 'the drawer panel at 900px').toBe(true);
-        expect(isDisplayedAt(overlay ?? drawer, 900), 'the drawer overlay at 900px').toBe(true);
-        // A drawer that hid at a width where its trigger is shown would open onto nothing; one that opens
-        // must still trap focus, which is the behaviour the tablet width now newly depends on.
-        expect(drawer.contains(document.activeElement)).toBe(true);
-    });
-});
-
-/**
- * UI-overhaul slice 2 (finding D2): the shell publishes its bottom tab bar to the design system's popups through
- * `@commise/ui/popup-insets`, so a menu opened near the foot of a phone screen keeps clear of the bar.
- */
-describe('HomeChrome — the popups keep clear of the tab bar', () => {
-    /** A surface that reads the insets its popups would read, when asked. */
-    function InsetsProbe(): JSX.Element {
-        const readInsets = useContext(PopupInsetsContext);
-        const [read, setRead] = useState('');
-
-        return (
-            <button type="button" onClick={() => setRead(JSON.stringify(readInsets()))}>
-                {`read ${read}`}
-            </button>
-        );
-    }
-
-    it('hands a popup the tab bar’s strip of the viewport', async () => {
-        const user = userEvent.setup();
-        render(
-            <HomeChrome
-                chrome={chrome}
-                pageTitle={chrome.pageTitles.home}
-                locale="en"
-                liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
-                activeId="home"
-                displayName="Jane Doe"
-            >
-                <InsetsProbe />
-            </HomeChrome>,
-        );
-        const bar = screen.getAllByRole('navigation', { name: chrome.tabNavLabel }).at(-1);
-
-        if (bar === undefined) {
-            throw new Error('no tab bar');
-        }
-
-        bar.getBoundingClientRect = () =>
-            DOMRect.fromRect({ x: 0, y: window.innerHeight - 64, width: 390, height: 64 });
-
-        await user.click(screen.getByRole('button', { name: /^read/u }));
-
-        expect(screen.getByRole('button', { name: /^read/u }).textContent).toBe('read {"top":0,"bottom":64}');
+        expect(document.querySelector('[data-tab-bar]')).toBeNull();
+        expect(container.firstElementChild?.className).toContain('[--bottom-chrome:0px]');
     });
 
-    it('hands a popup no chrome on a focused task, which has no tab bar', async () => {
-        const user = userEvent.setup();
-        render(
-            <HomeChrome
-                chrome={chrome}
-                pageTitle={chrome.pageTitles.home}
-                locale="en"
-                liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
-                activeId="home"
-                displayName="Jane Doe"
-                focusedTask
-            >
-                <InsetsProbe />
-            </HomeChrome>,
-        );
+    it('starts from the server-read preference and writes the collapse to its cookie', () => {
+        renderChrome({ collapsed: true });
 
-        await user.click(screen.getByRole('button', { name: /^read/u }));
+        expect(screen.getByRole('button', { name: 'rail' })).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
 
-        expect(screen.getByRole('button', { name: /^read/u }).textContent).toBe('read {"top":0,"bottom":0}');
+        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+        expect(document.cookie).toContain(`${SIDEBAR_COOKIE}=expanded`);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
+        expect(document.cookie).toContain(`${SIDEBAR_COOKIE}=collapsed`);
     });
 });

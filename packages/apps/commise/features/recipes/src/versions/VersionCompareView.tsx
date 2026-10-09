@@ -1,73 +1,31 @@
 'use client';
 
 /**
- * @module @commise/features-recipes — web two-version compare panel (W6 Task 4 / FR-007b, FR-007c).
+ * @module @commise/features-recipes — web compare panel (build spec §6.6): one version against the CURRENT one.
  *
- * Presentational (pure props → JSX) render of the wireframe's "Compare Versions" right sidebar: a Diff
- * Summary (Added/Removed/Modified rollup) plus a CHANGED-ONLY field-by-field A/B display. Built on the house
- * **Radix `Dialog`**, MIRRORING `VersionPreviewModal.tsx` (W6 Task 3) structurally and behaviourally — Radix
- * owns the focus trap, Escape-to-dismiss, and background inert; `open` is driven entirely by the caller and
- * `onOpenChange` maps every Radix close path onto the same `onClose` the explicit close control uses, so
- * there is exactly ONE exit path. `Dialog.Content` is styled as a right-anchored panel (`inset-y-0 right-0`)
- * rather than centered, matching the wireframe's sidebar placement while keeping Radix's dismissal/focus
- * machinery. Focus-return is handled explicitly, for the SAME reason `VersionPreviewModal` does it: this
- * panel is opened by a sibling control (the version list's "Compare" action, W6 Task 5), not an owned
- * `Dialog.Trigger`.
+ * A Radix Dialog drawn as a right-side panel (menus and sheets are the navigation and control layer). The caller
+ * computes the diff (`compareWithCurrent`), so this leaf only lists it: each changed field or element with what the
+ * version said and what the recipe says now, "None" where one side has no such element, or one line when they match.
+ * Focus returns to the row menu’s trigger on close. Presentational: props → JSX, apart from the dialog’s own focus handling.
  *
- * A three-way state (`compareViewState`, discriminated, matching
- * `VersionCompareViewProps`'s JSDoc): (1) `'selecting'` — `open` but fewer than
- * two versions (or no `diff`) supplied yet, showing "Select two versions to compare." rather than a broken
- * partial render (the two-version SELECTION UI itself lives in the composing container, Task 5); (2)
- * `'unchanged'` — both versions supplied but their snapshots are identical, showing the (all-zero) Diff
- * Summary plus a "no changes" message instead of field rows; (3) `'changed'` — the Diff Summary plus
- * ONLY `diff.changedFields`, each as an A/B row. `steps`/`ingredients` rows show a COUNT ONLY by default
- * (never a per-line explosion — see `buildCompareFieldRows`'s module docs for the Task 1 reorder sanity
- * note); their own Added/Removed/Modified tally is opt-in detail behind "Show full diff", a single toggle
- * shared by every collection row (local UI state — pure navigation, not data the caller needs, matching
- * `RecipeConflictView`'s merge-panel-visible precedent).
- *
- * @pattern Adapter over the house Radix `Dialog`, mirroring `VersionPreviewModal.tsx` structurally and behaviourally
- *     — Radix owns the focus trap, Escape-to-dismiss and background inert.
+ * @pattern Adapter over Radix Dialog — the panel's focus trap, Escape and return focus come from the primitive
  */
 import { useMessages } from '@commise/i18n/react';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
+import { Icon } from '@commise/ui/icon';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useState, type FC } from 'react';
+import type { FC } from 'react';
 
-import { recipeVersionMessages } from './messages.js';
 import { fillTemplate } from '../list/model.js';
-import {
-    type VersionCompareViewProps,
-    buildCompareFieldRows,
-    compareViewState,
-    formatCollectionTally,
-} from './compare.js';
+import { compareRowsOf, type VersionCompareViewProps } from './compare.js';
+import { recipeVersionMessages } from './messages.js';
 
-export const VersionCompareView: FC<VersionCompareViewProps> = ({
-    open,
-    versionA,
-    versionB,
-    diff,
-    onClose,
-    locale,
-}) => {
-    const { compare, conflict, versionList } = useMessages(recipeVersionMessages);
-    const [showFullDiff, setShowFullDiff] = useState(false);
-
-    // Snapshot whatever had focus right before this panel opened, and restore it on close — see module docs
-    // and `@commise/ui/dialog-focus`; the false→true edge guard lives inside the hook.
+/** The web compare panel. */
+export const VersionCompareView: FC<VersionCompareViewProps> = ({ open, version, diff, onClose }) => {
+    const { compare, conflict } = useMessages(recipeVersionMessages);
     const onCloseAutoFocus = useReturnFocusOnClose(open);
-
-    const state = compareViewState(versionA, versionB, diff);
-    const heading =
-        state !== 'selecting' && versionA !== undefined && versionB !== undefined
-            ? fillTemplate(compare.title, { versionA: versionA.versionNumber, versionB: versionB.versionNumber })
-            : compare.selectTwoVersions;
-    const rows =
-        diff !== undefined && versionA !== undefined && versionB !== undefined
-            ? buildCompareFieldRows(diff, versionA, versionB, conflict, locale)
-            : [];
-    const hasCollectionRow = rows.some((row) => row.tally !== undefined);
+    const rows = diff === undefined ? [] : compareRowsOf(diff, conflict);
+    const versionNumber = version?.versionNumber ?? 0;
 
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
@@ -75,88 +33,46 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     onCloseAutoFocus={onCloseAutoFocus}
-                    className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col gap-4 overflow-y-auto bg-paper p-6 shadow-lg"
+                    aria-describedby={undefined}
+                    className="fixed inset-y-0 end-0 z-50 flex w-full max-w-md flex-col gap-4 overflow-y-auto bg-paper-overlay p-6 shadow-lg"
                 >
-                    <div className="flex items-center justify-between gap-3">
-                        <Dialog.Title className="font-display text-heading-lg font-semibold text-ink">
-                            {heading}
+                    <div className="flex items-start justify-between gap-3">
+                        <Dialog.Title className="text-section-title text-ink">
+                            {fillTemplate(compare.title, { version: versionNumber })}
                         </Dialog.Title>
                         <Dialog.Close
                             aria-label={compare.close}
-                            className="rounded-full p-1.5 text-ink-muted transition hover:bg-ink/6"
+                            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         >
-                            ×
+                            <Icon name="x" size={20} />
                         </Dialog.Close>
                     </div>
-
-                    {state !== 'selecting' && diff !== undefined && (
-                        <>
-                            <section
-                                aria-label={compare.diffSummaryHeading}
-                                className="flex flex-col gap-2 rounded-2xl bg-surface-muted p-4"
-                            >
-                                <h3 className="font-display text-body-md font-semibold text-ink">
-                                    {compare.diffSummaryHeading}
-                                </h3>
-                                <dl className="flex flex-col gap-1 text-body-sm text-ink">
-                                    <div>{fillTemplate(compare.added, { count: diff.summary.added })}</div>
-                                    <div>{fillTemplate(compare.removed, { count: diff.summary.removed })}</div>
-                                    <div>{fillTemplate(compare.modified, { count: diff.summary.modified })}</div>
-                                </dl>
-                            </section>
-
-                            {state === 'unchanged' ? (
-                                <p className="text-body-md text-ink-muted">{compare.noChanges}</p>
-                            ) : (
-                                versionA !== undefined &&
-                                versionB !== undefined && (
-                                    <div className="flex flex-col gap-3">
-                                        <div className="grid grid-cols-1 gap-3 text-caption font-medium uppercase tracking-wide text-ink-muted md:grid-cols-2">
-                                            <span>
-                                                {fillTemplate(versionList.versionLabel, {
-                                                    version: versionB.versionNumber,
-                                                })}
-                                            </span>
-                                            <span>
-                                                {fillTemplate(versionList.versionLabel, {
-                                                    version: versionA.versionNumber,
-                                                })}
-                                            </span>
+                    {rows.length === 0 ? (
+                        <p className="text-body text-ink-muted">{compare.noChanges}</p>
+                    ) : (
+                        <ul className="flex flex-col divide-y divide-line-divider">
+                            {rows.map((row) => (
+                                <li key={row.key} className="flex flex-col gap-2 py-3">
+                                    <span className="text-label text-ink">{row.label}</span>
+                                    <dl className="grid grid-cols-1 gap-2 text-meta sm:grid-cols-2">
+                                        <div className="flex flex-col gap-0.5">
+                                            <dt className="text-caption text-ink-muted">
+                                                {fillTemplate(compare.wasLabel, { version: versionNumber })}
+                                            </dt>
+                                            <dd className="break-words text-ink">
+                                                {row.was === '' ? compare.noValue : row.was}
+                                            </dd>
                                         </div>
-                                        <ul className="flex flex-col gap-3">
-                                            {rows.map((row) => (
-                                                <li
-                                                    key={row.key}
-                                                    className="flex flex-col gap-1 rounded-2xl bg-surface-muted p-3"
-                                                >
-                                                    <span className="text-caption font-medium uppercase tracking-wide text-ink-muted">
-                                                        {row.label}
-                                                    </span>
-                                                    <div className="grid grid-cols-1 gap-3 text-body-sm text-ink md:grid-cols-2">
-                                                        <span>{row.valueB}</span>
-                                                        <span>{row.valueA}</span>
-                                                    </div>
-                                                    {row.tally !== undefined && showFullDiff && (
-                                                        <span className="text-caption text-ink-muted">
-                                                            {formatCollectionTally(row.tally, compare)}
-                                                        </span>
-                                                    )}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                        {hasCollectionRow && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowFullDiff((current) => !current)}
-                                                className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-action-text transition hover:bg-action/10"
-                                            >
-                                                {showFullDiff ? compare.hideFullDiff : compare.showFullDiff}
-                                            </button>
-                                        )}
-                                    </div>
-                                )
-                            )}
-                        </>
+                                        <div className="flex flex-col gap-0.5">
+                                            <dt className="text-caption text-ink-muted">{compare.nowLabel}</dt>
+                                            <dd className="break-words text-ink">
+                                                {row.now === '' ? compare.noValue : row.now}
+                                            </dd>
+                                        </div>
+                                    </dl>
+                                </li>
+                            ))}
+                        </ul>
                     )}
                 </Dialog.Content>
             </Dialog.Portal>

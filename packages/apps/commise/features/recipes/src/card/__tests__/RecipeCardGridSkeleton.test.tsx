@@ -48,4 +48,43 @@ describe('RecipeCardGridSkeleton (web)', () => {
             expect(pulse.className).toContain('motion-reduce:animate-none');
         }
     });
+
+    // Slice 4 (`buildSpec.md` §4.1 "Skeleton: the same rows at the same sizes in pearl. It stops pulsing after 1 s."):
+    // the skeleton draws the variant the loaded cards will use, in the same grid, so nothing moves when they land.
+    it('pulses once, for one second, in the surface-muted role', () => {
+        const { container } = render(<RecipeCardGridSkeleton label="Loading recipes" />);
+
+        for (const pulse of container.querySelectorAll('.animate-pulse')) {
+            expect(pulse.className).toContain('[animation-iteration-count:1]');
+            expect(pulse.className).toContain('[animation-duration:1s]');
+            expect(pulse.className).toContain('bg-surface-muted');
+        }
+    });
+
+    it.each([
+        ['grid', 6],
+        ['row', 3],
+        ['compact', 2],
+    ] as const)('draws a %s skeleton with the rows of that variant (%i bars and covers)', (variant, parts) => {
+        const { container } = render(<RecipeCardGridSkeleton label="Loading recipes" variant={variant} />);
+        const first = container.querySelector('[aria-hidden="true"]')?.children[0];
+
+        expect(first?.getAttribute('data-skeleton-variant')).toBe(variant);
+        expect(first?.querySelectorAll('.animate-pulse')).toHaveLength(parts);
+    });
+
+    it('lays a library grid skeleton out as subgrid cells, a list as one column, and Home as its fixed grid', () => {
+        const grid = render(<RecipeCardGridSkeleton label="L" variant="grid" />).container;
+        expect(grid.querySelector('[aria-hidden="true"]')?.className).toContain('minmax(15rem,1fr)');
+        expect(grid.querySelector('[data-skeleton-variant]')?.className).toContain('grid-rows-subgrid');
+        cleanup();
+
+        const list = render(<RecipeCardGridSkeleton label="L" variant="row" />).container;
+        expect(list.querySelector('[aria-hidden="true"]')?.className).toContain('flex-col');
+        cleanup();
+
+        const home = render(<RecipeCardGridSkeleton label="L" variant="compact" layout="home" count={4} />).container;
+        expect(home.querySelector('[aria-hidden="true"]')?.className).toContain('grid-cols-2');
+        expect(home.querySelector('[aria-hidden="true"]')?.children).toHaveLength(4);
+    });
 });

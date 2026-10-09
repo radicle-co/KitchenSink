@@ -7,7 +7,7 @@
  * Preview modal (opened from a row, reading the target's snapshot straight off the already-loaded versions
  * list — no extra fetch — with a "changed from current" line and a busy Restore-from-preview action), the
  * two-version Compare view (a checkbox-per-row selection capped at two, diffed via `diffSnapshots`), and a
- * "Back to Recipe" control present in every state (loading/error/populated), not just populated.
+ * "Back to recipe" control present in every state (loading/error/populated), not just populated.
  *
  * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
  * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL query/mutation hooks over
@@ -17,7 +17,7 @@
  * options object and invoking `onError` by hand — a more faithful reproduction, not a loosened one.
  *
  * `next/navigation` is mocked (mirroring `RecipeDetailContainer.test.tsx`/`RecipeListContainer.test.tsx`) —
- * the container reads `locale` off `useParams` and navigates "Back to Recipe" via `useRouter`, both of which
+ * the container reads `locale` off `useParams` and navigates "Back to recipe" via `useRouter`, both of which
  * throw/return `null` outside an actual Next app-router tree.
  */
 import { LocaleProvider } from '@commise/i18n/react';
@@ -33,11 +33,27 @@ import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithRecipeClient, utilityContrast } from '@commise/test-utils';
+import { SnackbarHost } from '@commise/ui/snackbar';
+import type { ReactElement } from 'react';
 
 import { RecipeVersionsContainer } from '@/components/recipes/RecipeVersionsContainer';
 
 import { makeRecipeDetail } from './__fixtures__/recipeFixtures';
 import { makeRecipeVersion } from './__fixtures__/versionFixtures';
+
+/** Choose an entry from a version row's ⋯ menu. */
+async function chooseRowAction(
+    user: ReturnType<typeof userEvent.setup>,
+    version: number,
+    label: string,
+): Promise<void> {
+    await user.click(await screen.findByRole('button', { name: `More actions for version ${version}` }));
+    await user.click(screen.getByRole('menuitem', { name: label }));
+}
+
+/** The container under the snackbar host the app shell mounts (a restore says so, with Undo). */
+const renderVersions = (ui: ReactElement, client: RecipeServiceClient): ReturnType<typeof renderWithRecipeClient> =>
+    renderWithRecipeClient(<SnackbarHost>{ui}</SnackbarHost>, client);
 
 const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 
@@ -90,7 +106,7 @@ describe('RecipeVersionsContainer', () => {
         vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
         vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
 
-        renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+        renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
         expect(screen.getByRole('status', { name: 'Loading version history' })).toBeInTheDocument();
     });
@@ -100,7 +116,7 @@ describe('RecipeVersionsContainer', () => {
         vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
         vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
 
-        renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+        renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
         // A `role="status"` node rendered EMPTY is doubly broken: zero-height (nothing for a sighted viewer,
         // and Playwright resolves it as `hidden`) AND silent, because a live region announces its CONTENT, not
@@ -120,7 +136,7 @@ describe('RecipeVersionsContainer', () => {
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 2 }));
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-        renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+        renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
         expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t load the version history/i);
         expect(versionsSpy).toHaveBeenCalledTimes(1);
@@ -151,7 +167,7 @@ describe('RecipeVersionsContainer', () => {
         );
 
         expect(html).toContain('Loading version history');
-        expect(html).toContain('Back to Recipe');
+        expect(html).toContain('Back to recipe');
         expect(versionsSpy).not.toHaveBeenCalled();
         expect(recipeSpy).not.toHaveBeenCalled();
     });
@@ -167,7 +183,7 @@ describe('RecipeVersionsContainer', () => {
             const versionsSpy = vi.spyOn(client, 'listRecipeVersions');
             const recipeSpy = vi.spyOn(client, 'getRecipeById');
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="" />, client);
+            renderVersions(<RecipeVersionsContainer recipeId="" />, client);
 
             expect(versionsSpy).not.toHaveBeenCalled();
             expect(recipeSpy).not.toHaveBeenCalled();
@@ -176,13 +192,13 @@ describe('RecipeVersionsContainer', () => {
             expect(screen.queryByRole('status', { name: 'Loading version history' })).not.toBeInTheDocument();
         });
 
-        it('offers BOTH ways out — retry and Back to Recipe', () => {
+        it('offers BOTH ways out — retry and Back to recipe', () => {
             const client = createFakeRecipeServiceClient();
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="" />, client);
+            renderVersions(<RecipeVersionsContainer recipeId="" />, client);
 
             expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: 'Back to Recipe' })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Back to recipe' })).toBeInTheDocument();
         });
     });
 
@@ -195,14 +211,14 @@ describe('RecipeVersionsContainer', () => {
         ]);
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 3 }));
 
-        renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+        renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
         expect(await screen.findByRole('heading', { name: 'Version history' })).toBeInTheDocument();
         expect(screen.getByText('Current version')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Restore version 1' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Restore version 2' })).toBeInTheDocument();
-        // The current version (3) is not restorable.
-        expect(screen.queryByRole('button', { name: 'Restore version 3' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'More actions for version 1' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'More actions for version 2' })).toBeInTheDocument();
+        // The current version (3) has nothing to restore or compare, so no menu.
+        expect(screen.queryByRole('button', { name: 'More actions for version 3' })).not.toBeInTheDocument();
     });
 
     it('restores the chosen version with the correct version number', async () => {
@@ -210,9 +226,9 @@ describe('RecipeVersionsContainer', () => {
         const client = readyTwoVersionsClient();
         const restoreSpy = vi.spyOn(client, 'restoreRecipeVersion').mockReturnValue(new Promise(() => {}));
 
-        renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+        renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'Restore version 1' }));
+        await chooseRowAction(user, 1, 'Restore this version');
 
         expect(restoreSpy).toHaveBeenCalledWith('rec_1', 1);
     });
@@ -224,8 +240,8 @@ describe('RecipeVersionsContainer', () => {
             // A restore that fails with a 409 leaves the mutation carrying a VersionConflictError.
             vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionConflictError(3, 1));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(await screen.findByRole('button', { name: 'Restore version 1' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Restore this version');
 
             // The failure is a mandated UI state — the conflict copy, not a silent no-op.
             await vi.waitFor(() =>
@@ -240,8 +256,8 @@ describe('RecipeVersionsContainer', () => {
             const client = readyTwoVersionsClient();
             vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionLineUnrestorableError([0]));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(await screen.findByRole('button', { name: 'Restore version 1' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Restore this version');
 
             await vi.waitFor(() =>
                 expect(screen.getByRole('alert').textContent).toBe(
@@ -255,8 +271,8 @@ describe('RecipeVersionsContainer', () => {
             const client = readyTwoVersionsClient();
             vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new Error('network down'));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(await screen.findByRole('button', { name: 'Restore version 1' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Restore this version');
 
             await vi.waitFor(() =>
                 expect(screen.getByRole('alert').textContent).toBe(
@@ -272,8 +288,8 @@ describe('RecipeVersionsContainer', () => {
             const recipeSpy = vi.mocked(client.getRecipeById);
             vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionConflictError(3, 1));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(await screen.findByRole('button', { name: 'Restore version 1' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Restore this version');
 
             // Initial mount = 1 call each; a conflict-triggered refetch adds a second.
             await vi.waitFor(() => expect(versionsSpy).toHaveBeenCalledTimes(2));
@@ -287,8 +303,8 @@ describe('RecipeVersionsContainer', () => {
             const recipeSpy = vi.mocked(client.getRecipeById);
             vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new Error('network down'));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(await screen.findByRole('button', { name: 'Restore version 1' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Restore this version');
 
             await vi.waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
             expect(versionsSpy).toHaveBeenCalledTimes(1);
@@ -307,41 +323,39 @@ describe('RecipeVersionsContainer', () => {
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 3 }));
         vi.spyOn(client, 'restoreRecipeVersion').mockReturnValue(new Promise(() => {}));
 
-        renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-        await user.click(await screen.findByRole('button', { name: 'Restore version 1' }));
+        renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+        await chooseRowAction(user, 1, 'Restore this version');
 
         expect(await screen.findByText('Restoring version 1…')).toBeInTheDocument();
-        // Every restorable row is busy while a restore is in flight (prevents a concurrent restore). REWRITTEN from
-        // `toBeDisabled()`: the pressed row keeps focus (`busyControlProps`, SC 2.4.3), and a second press is
-        // refused — asserted on the restore call count.
-        const restoring = screen.getByRole('button', { name: 'Restore version 1' });
-        expect(restoring).toHaveAttribute('aria-disabled', 'true');
-        expect(restoring).not.toBeDisabled();
-        expect(screen.getByRole('button', { name: 'Restore version 2' })).toHaveAttribute('aria-disabled', 'true');
-        await user.click(screen.getByRole('button', { name: 'Restore version 2' }));
+        // Every row menu is unavailable while a restore is in flight (prevents a concurrent restore): the trigger
+        // stays focusable and opens nothing, asserted on the restore call count.
+        const other = screen.getByRole('button', { name: 'More actions for version 2' });
+        expect(other).toHaveAttribute('aria-disabled', 'true');
+        await user.click(other);
+        expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
         expect(client.restoreRecipeVersion).toHaveBeenCalledTimes(1);
     });
 
     describe('back to recipe (V6 fold-in, W6 Task 5)', () => {
-        it('renders a Back to Recipe control while loading', () => {
+        it('renders a Back to recipe control while loading', () => {
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
             vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
-            expect(screen.getByRole('button', { name: 'Back to Recipe' })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Back to recipe' })).toBeInTheDocument();
         });
 
-        it('renders a Back to Recipe control on error', async () => {
+        it('renders a Back to recipe control on error', async () => {
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'listRecipeVersions').mockRejectedValue(new Error('boom'));
             vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail());
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
             expect(await screen.findByRole('alert')).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: 'Back to Recipe' })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Back to recipe' })).toBeInTheDocument();
         });
 
         it('navigates to the recipe from the loading state’s Back control', async () => {
@@ -350,37 +364,37 @@ describe('RecipeVersionsContainer', () => {
             vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
             vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(screen.getByRole('button', { name: 'Back to Recipe' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await user.click(screen.getByRole('button', { name: 'Back to recipe' }));
 
             expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
         });
 
-        it('keeps the Back to Recipe control WCAG-AA legible AT REST AND ON HOVER', () => {
+        it('keeps the Back to recipe control WCAG-AA legible AT REST AND ON HOVER', () => {
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
             vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
             // The loading/error branches' ONLY route back to the recipe: a bare text button that paints a
             // seafoam tint under the pointer. Seafoam is 4.02:1 bare and 3.57:1 on that hover tint — both under
             // the 4.5:1 body floor (SC 1.4.3) — so both states are measured. See the palette JSDoc in
             // `@commise/ui` for when seafoam is still the right token.
-            const back = screen.getByRole('button', { name: 'Back to Recipe' });
+            const back = screen.getByRole('button', { name: 'Back to recipe' });
 
-            expect(utilityContrast(back.className), 'Back to Recipe at rest').toBeGreaterThanOrEqual(4.5);
+            expect(utilityContrast(back.className), 'Back to recipe at rest').toBeGreaterThanOrEqual(4.5);
             expect(
                 utilityContrast(back.className, { variant: 'hover' }),
-                'Back to Recipe on hover (a seafoam/10 tint appears)',
+                'Back to recipe on hover (a seafoam/10 tint appears)',
             ).toBeGreaterThanOrEqual(4.5);
         });
 
         it('renders exactly one Back control in the populated state', async () => {
             const client = readyTwoVersionsClient();
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
-            expect(await screen.findAllByRole('button', { name: 'Back to Recipe' })).toHaveLength(1);
+            expect(await screen.findAllByRole('button', { name: 'Back to recipe' })).toHaveLength(1);
         });
     });
 
@@ -394,8 +408,8 @@ describe('RecipeVersionsContainer', () => {
             ]);
             vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 2 }));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(await screen.findByRole('button', { name: 'Preview version 1' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Preview');
 
             expect(screen.getByRole('dialog')).toBeInTheDocument();
             expect(screen.getByText('Version 1 Preview: Weeknight Pasta')).toBeInTheDocument();
@@ -409,8 +423,8 @@ describe('RecipeVersionsContainer', () => {
             const client = readyTwoVersionsClient();
             const restoreSpy = vi.spyOn(client, 'restoreRecipeVersion');
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(await screen.findByRole('button', { name: 'Preview version 1' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Preview');
             await user.click(screen.getByRole('button', { name: 'Keep current version' }));
 
             expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -426,8 +440,8 @@ describe('RecipeVersionsContainer', () => {
                 currentVersion: 1,
             });
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(await screen.findByRole('button', { name: 'Preview version 1' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Preview');
             await user.click(screen.getByRole('button', { name: 'Restore this version' }));
 
             expect(restoreSpy).toHaveBeenCalledWith('rec_1', 1);
@@ -471,8 +485,8 @@ describe('RecipeVersionsContainer', () => {
             ]);
             vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionLineUnrestorableError([0]));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(await screen.findByRole('button', { name: 'Preview version 1' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Preview');
             await user.click(screen.getByRole('button', { name: 'Restore this version' }));
 
             const dialog = screen.getByRole('dialog');
@@ -516,9 +530,9 @@ describe('RecipeVersionsContainer', () => {
             /** Open the preview on v1, then fire the restore whose 409 refetches a history without v1. */
             async function openPreviewThenLoseTheVersion(user: ReturnType<typeof userEvent.setup>): Promise<void> {
                 const client = historyThatDropsVersionOneOnRefetch();
-                renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+                renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
-                await user.click(await screen.findByRole('button', { name: 'Preview version 1' }));
+                await chooseRowAction(user, 1, 'Preview');
                 await user.click(screen.getByRole('button', { name: 'Restore this version' }));
                 await vi.waitFor(() =>
                     expect(screen.queryByRole('button', { name: 'Restore this version' })).not.toBeInTheDocument(),
@@ -554,8 +568,8 @@ describe('RecipeVersionsContainer', () => {
             const client = readyTwoVersionsClient();
             vi.spyOn(client, 'restoreRecipeVersion').mockReturnValue(new Promise(() => {}));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(await screen.findByRole('button', { name: 'Preview version 1' }));
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Preview');
             await user.click(screen.getByRole('button', { name: 'Restore this version' }));
 
             // REWRITTEN from `disabled`: the pressed control keeps focus while busy, and refuses a second restore.
@@ -567,8 +581,8 @@ describe('RecipeVersionsContainer', () => {
         });
     });
 
-    describe('compare (W6 Task 5)', () => {
-        it('opens the compare view once exactly two versions are selected, ordered older/newer', async () => {
+    describe('compare with current (§6.6)', () => {
+        it('opens the compare panel for one version against the current one, through the row menu', async () => {
             const user = userEvent.setup();
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'listRecipeVersions').mockResolvedValue([
@@ -577,81 +591,48 @@ describe('RecipeVersionsContainer', () => {
             ]);
             vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 2 }));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Compare with current');
 
-            // Select newer (2) first, then older (1) — the panel must still read "v2 vs v1" (newer vs older),
-            // not selection order.
-            await user.click(await screen.findByRole('checkbox', { name: 'Select version 2 to compare' }));
-            await user.click(screen.getByRole('checkbox', { name: 'Select version 1 to compare' }));
-
-            expect(screen.getByText('Compare v2 vs v1')).toBeInTheDocument();
-            // title changed (1 scalar) + steps modified (1) = 2 modified; no adds/removes.
-            expect(screen.getByText('Modified: 2')).toBeInTheDocument();
+            const panel = await screen.findByRole('dialog', { name: 'Version 1 and the current version' });
+            expect(within(panel).getByText(priorSnapshot.title)).toBeInTheDocument();
+            expect(within(panel).getByText(revisedSnapshot.title)).toBeInTheDocument();
         });
 
-        it('deselecting before a second pick is made keeps the compare view closed', async () => {
-            // The compare view is a MODAL Radix Dialog (mirroring VersionPreviewModal — see its module docs):
-            // once it opens (exactly two selected) it aria-hides and pointer-event-blocks the page behind it,
-            // so a THIRD interaction with the list is only reachable by closing the panel first. The
-            // deselect-toggle itself is therefore only exercised here BELOW that two-selection threshold,
-            // where the list is still fully interactive.
-            const user = userEvent.setup();
-            const client = readyTwoVersionsClient();
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-
-            const versionOneCheckbox = await screen.findByRole('checkbox', { name: 'Select version 1 to compare' });
-            await user.click(versionOneCheckbox);
-            await user.click(versionOneCheckbox);
-
-            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-            expect(
-                screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 1 to compare' }).checked,
-            ).toBe(false);
-        });
-
-        it('closing the compare view clears the selection (both checkboxes uncheck)', async () => {
-            const user = userEvent.setup();
-            const client = readyTwoVersionsClient();
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
-
-            await user.click(await screen.findByRole('checkbox', { name: 'Select version 1 to compare' }));
-            await user.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
-            await user.click(screen.getByRole('button', { name: 'Close compare' }));
-
-            expect(
-                screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 1 to compare' }).checked,
-            ).toBe(false);
-            expect(
-                screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 2 to compare' }).checked,
-            ).toBe(false);
-        });
-
-        it('caps selection at two — a third checkbox is disabled once two are chosen', async () => {
+        it('closing the panel closes it, with no selection left behind', async () => {
             const user = userEvent.setup();
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'listRecipeVersions').mockResolvedValue([
-                makeRecipeVersion({ versionNumber: 1 }),
-                makeRecipeVersion({ versionNumber: 2 }),
-                makeRecipeVersion({ versionNumber: 3 }),
+                makeRecipeVersion({ versionNumber: 1, snapshot: priorSnapshot }),
+                makeRecipeVersion({ versionNumber: 2, snapshot: revisedSnapshot }),
             ]);
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 3 }));
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 2 }));
 
-            renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Compare with current');
+            await user.click(await screen.findByRole('button', { name: 'Close compare' }));
 
-            await user.click(await screen.findByRole('checkbox', { name: 'Select version 1 to compare' }));
-            await user.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
+            await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        });
+    });
 
-            // The now-open compare panel is a MODAL Radix Dialog, so the list behind it is aria-hidden and
-            // pointer-event-blocked (see the "deselecting before a second pick" test above) — `hidden: true`
-            // reaches into the inert page to confirm the container correctly threaded `selectedForCompare`
-            // down (the SAME cap-at-two contract `RecipeVersionList.test.tsx` covers in isolation), even
-            // though a real viewer could not click this checkbox without closing the panel first.
-            expect(
-                screen.getByRole<HTMLInputElement>('checkbox', {
-                    name: 'Select version 3 to compare',
-                    hidden: true,
-                }).disabled,
-            ).toBe(true);
+    describe('restore says so, with Undo (§6.6)', () => {
+        it('shows "Restored version 1." after a restore, and Undo restores the version that was current', async () => {
+            const user = userEvent.setup();
+            const client = readyTwoVersionsClient();
+            const restoreSpy = vi.spyOn(client, 'restoreRecipeVersion').mockResolvedValue({
+                recipe: makeRecipeDetail({ currentVersion: 3 }),
+                restoredFromVersion: 1,
+                currentVersion: 3,
+            });
+
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Restore this version');
+
+            expect(await screen.findByText('Restored version 1.')).toBeInTheDocument();
+            await user.click(screen.getByRole('button', { name: 'Undo' }));
+
+            await vi.waitFor(() => expect(restoreSpy).toHaveBeenLastCalledWith('rec_1', 2));
         });
     });
 });

@@ -1191,3 +1191,20 @@ describe('RecipeConflictView (native) — the design-system Button (UI overhaul 
         );
     });
 });
+
+/** The native leaf's half of the web case above: same copy, same lifted gate. */
+describe('RecipeConflictView (native) — a never-published draft', () => {
+    it('speaks of a draft saved elsewhere, with no version numbers and no stale-base gate', () => {
+        freezeClock();
+        renderConflict({ base: undefined, versionsBehind: 6, neverPublished: true });
+
+        expect(screen.getByRole('heading', { name: 'This draft changed somewhere else' })).toBeTruthy();
+        expect(screen.getByText('Saved elsewhere 2 minutes ago')).toBeTruthy();
+        expect(screen.getByText('This screen')).toBeTruthy();
+        expect(screen.queryByText(/v6/)).toBeNull();
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(
+            screen.getByRole('button', { name: 'Overwrite with your version' }).getAttribute('aria-disabled'),
+        ).not.toBe('true');
+    });
+});

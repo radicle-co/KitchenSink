@@ -7,7 +7,10 @@
  * Migrated (CP-6 T3) off `vi.mock('@kitchensink/recipe-service-client/hooks', ...)` onto the type-checked
  * fake-client seam: `renderWithRecipeClient` mounts the container through the REAL `useRecipes` hook over a
  * real, network-guarded `RecipeServiceClient` (`createFakeRecipeServiceClient`), stubbed per test with a
- * type-checked `vi.spyOn(client, 'listRecipes')`. The Next router stays mocked — routing is not part of the
+ * type-checked `vi.spyOn(client, 'listRecipes')`.
+ *
+ * ⚠️ UPDATED for slice 4: the container reads the whole library (`recipeQueries(client).library`), the copy is the
+ * overhaul's, the cards are links, and the segments replace the source switcher. The Next router stays mocked — routing is not part of the
  * recipe-service hooks seam this migration targets.
  */
 import { LocaleProvider } from '@commise/i18n/react';
@@ -61,10 +64,10 @@ describe('RecipeListContainer', () => {
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).not.toBeInTheDocument();
     });
 
-    it('keeps the heading, the source switcher and the search field on screen while the library loads', () => {
+    it('keeps the heading, the segments and the search field on screen while the library loads', () => {
         // §11.0: the pending read suspends the RESULTS only. The frame sits outside the boundary, so a cook can start
         // typing before the library has answered.
         const client = createFakeRecipeServiceClient();
@@ -73,8 +76,8 @@ describe('RecipeListContainer', () => {
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeInTheDocument();
-        expect(screen.getByRole('navigation', { name: 'Recipe source' })).toBeInTheDocument();
-        expect(screen.getByRole('searchbox', { name: 'Search recipes' })).toBeInTheDocument();
+        expect(screen.getByRole('navigation', { name: 'Recipes' })).toBeInTheDocument();
+        expect(screen.getByRole('searchbox', { name: 'Search your recipes' })).toBeInTheDocument();
         expect(screen.queryByRole('group', { name: 'Quick filters' })).not.toBeInTheDocument();
     });
 
@@ -89,8 +92,8 @@ describe('RecipeListContainer', () => {
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
-        expect(await screen.findByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Sunday Roast' })).toBeInTheDocument();
+        expect(await screen.findByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Sunday Roast' })).toBeInTheDocument();
         expect(screen.getByText('2 recipes')).toBeInTheDocument();
     });
 
@@ -100,7 +103,7 @@ describe('RecipeListContainer', () => {
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
-        expect(await screen.findByText('No recipes yet')).toBeInTheDocument();
+        expect(await screen.findByText('Your recipe box is empty')).toBeInTheDocument();
         // The loading branch must have FLIPPED, not merely been joined by the empty copy.
         expect(screen.queryByRole('status', { name: 'Loading recipes' })).not.toBeInTheDocument();
     });
@@ -139,9 +142,9 @@ describe('RecipeListContainer', () => {
         await vi.waitFor(() => expect(listRecipesSpy).toHaveBeenCalledTimes(2));
     });
 
-    it('⛔ keeps the create dial on a load error, reaching both creation routes', async () => {
+    it('⛔ keeps the create button on a load error: one tap opens the editor (slice 8)', async () => {
         // Creating a recipe does not depend on the read that failed, and the error body has no create CTA — hiding the
-        // dial would leave Try again as the only action (wireframe recipe-list, "Load Error State").
+        // button would leave Try again as the only action (wireframe recipe-list, "Load Error State").
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipes').mockRejectedValue(new Error('boom'));
@@ -150,9 +153,8 @@ describe('RecipeListContainer', () => {
 
         expect(await screen.findByRole('alert')).toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: 'New recipe' }));
-        await user.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
 
-        expect(pushMock).toHaveBeenCalledWith('/en/recipes/parse');
+        expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
     });
 
     it('⛔ keeps the typed search term across Try again — the term lives above the read boundary', async () => {
@@ -169,13 +171,13 @@ describe('RecipeListContainer', () => {
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
         await screen.findByRole('alert');
-        await user.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'roast');
+        await user.type(screen.getByRole('searchbox', { name: 'Search your recipes' }), 'roast');
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
 
-        expect(await screen.findByRole('button', { name: 'Sunday Roast' })).toBeInTheDocument();
-        expect(screen.getByRole('searchbox', { name: 'Search recipes' })).toHaveValue('roast');
-        expect(screen.queryByRole('button', { name: 'Weeknight Pasta' })).not.toBeInTheDocument();
+        expect(await screen.findByRole('link', { name: 'Sunday Roast' })).toBeInTheDocument();
+        expect(screen.getByRole('searchbox', { name: 'Search your recipes' })).toHaveValue('roast');
+        expect(screen.queryByRole('link', { name: 'Weeknight Pasta' })).not.toBeInTheDocument();
     });
 
     it('navigates to the recipe detail route when a recipe is selected', async () => {
@@ -187,7 +189,7 @@ describe('RecipeListContainer', () => {
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'Weeknight Pasta' }));
+        await user.click(await screen.findByRole('link', { name: 'Weeknight Pasta' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_42');
     });
@@ -200,15 +202,13 @@ describe('RecipeListContainer', () => {
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
         // Empty list → the create control is the empty-state CTA (the FAB is suppressed on empty; L1).
-        await user.click(await screen.findByRole('button', { name: 'Create your first recipe' }));
+        await user.click(await screen.findByRole('button', { name: 'Add your first recipe' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
     });
 
-    it('navigates to the create route from the pinned dial when the list is populated', async () => {
-        // REWRITTEN for U34 (owner ruling 2026-08-25): the pinned FAB is now a menu TRIGGER, so the route is
-        // reached from the dial's single "Create from Scratch" destination. Asserting that opening the dial
-        // alone navigates NOWHERE is the half that would otherwise silently pass on a broken wiring.
+    it('navigates to the create route in one press of the floating "New recipe" when the list is populated', async () => {
+        // REWRITTEN for slice 8 (build spec §3.4): the button no longer discloses a menu; one press opens the editor.
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipes').mockResolvedValue(
@@ -219,11 +219,8 @@ describe('RecipeListContainer', () => {
 
         await user.click(await screen.findByRole('button', { name: 'New recipe' }));
 
-        expect(pushMock).not.toHaveBeenCalled();
-
-        await user.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
-
-        expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
+        expect(pushMock).toHaveBeenCalledExactlyOnceWith('/en/recipes/new');
+        expect(screen.queryByRole('menu')).toBeNull();
     });
 
     it('filters the loaded recipes by the search term', async () => {
@@ -237,12 +234,12 @@ describe('RecipeListContainer', () => {
         );
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
-        await screen.findByRole('button', { name: 'Weeknight Pasta' });
+        await screen.findByRole('link', { name: 'Weeknight Pasta' });
 
-        await user.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'roast');
+        await user.type(screen.getByRole('searchbox', { name: 'Search your recipes' }), 'roast');
 
-        expect(screen.getByRole('button', { name: 'Sunday Roast' })).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Weeknight Pasta' })).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Sunday Roast' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Weeknight Pasta' })).not.toBeInTheDocument();
     });
 
     it('says NO MATCH — not "no recipes yet" — when the search filters every loaded recipe out, and keeps the dial', async () => {
@@ -255,13 +252,13 @@ describe('RecipeListContainer', () => {
         );
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
-        await screen.findByRole('button', { name: 'Weeknight Pasta' });
+        await screen.findByRole('link', { name: 'Weeknight Pasta' });
 
-        await user.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'zzz');
+        await user.type(screen.getByRole('searchbox', { name: 'Search your recipes' }), 'zzz');
 
-        expect(screen.getByText('No matching recipes')).toBeInTheDocument();
-        expect(screen.queryByText('No recipes yet')).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).not.toBeInTheDocument();
+        expect(screen.getByText('No recipes match')).toBeInTheDocument();
+        expect(screen.queryByText('Your recipe box is empty')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'New recipe' })).toBeInTheDocument();
     });
 
@@ -279,34 +276,32 @@ describe('RecipeListContainer', () => {
         );
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
-        await screen.findByRole('button', { name: 'Weeknight Pasta' });
+        await screen.findByRole('link', { name: 'Weeknight Pasta' });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
-        await user.click(within(chips).getByRole('button', { name: 'Vegetarian' }));
-        await user.click(within(chips).getByRole('button', { name: 'Italian' }));
+        await user.click(within(chips).getByRole('button', { name: /^Vegetarian( \d+)?$/ }));
+        await user.click(within(chips).getByRole('button', { name: /^Italian( \d+)?$/ }));
 
-        expect(screen.getByText('No matching recipes')).toBeInTheDocument();
-        expect(screen.queryByText('No recipes yet')).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).not.toBeInTheDocument();
+        expect(screen.getByText('No recipes match')).toBeInTheDocument();
+        expect(screen.queryByText('Your recipe box is empty')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).not.toBeInTheDocument();
     });
 
-    it('points the Community source at the discover route as a real LINK (L5)', async () => {
+    // Slice 4 (`buildSpec.md` §4.3): the Community source is gone — Discover is its own destination — and the Recipes
+    // screen's places are the My recipes · Collections segments, real links with this list the current one.
+    it('offers My recipes · Collections as real links, with My recipes current', async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipes').mockResolvedValue(
             makeRecipesPage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]),
         );
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
-        await screen.findByRole('button', { name: 'Weeknight Pasta' });
+        await screen.findByRole('link', { name: 'Weeknight Pasta' });
 
-        // It used to be a `<button onClick={router.push}>`, which cost the control its link semantics
-        // (middle-click, ⌘-click, "open in new tab", the `link` role) — and, because `active` was hardcoded to
-        // `'mine'`, gave the far side no way back. Both sources are now addressable destinations, and THIS
-        // list is the current one.
-        const nav = screen.getByRole('navigation', { name: 'Recipe source' });
-        expect(within(nav).getByRole('link', { name: 'Community' })).toHaveAttribute('href', '/en/discover');
-        expect(within(nav).getByRole('link', { name: 'My Recipes' })).toHaveAttribute('href', '/en/recipes');
-        expect(within(nav).getByRole('link', { name: 'My Recipes' })).toHaveAttribute('aria-current', 'page');
+        const nav = screen.getByRole('navigation', { name: 'Recipes' });
+        expect(within(nav).getByRole('link', { name: 'Collections' })).toHaveAttribute('href', '/en/collections');
+        expect(within(nav).getByRole('link', { name: 'My recipes' })).toHaveAttribute('href', '/en/recipes');
+        expect(within(nav).getByRole('link', { name: 'My recipes' })).toHaveAttribute('aria-current', 'page');
     });
 
     it('derives quick-filter chips from the loaded dietary flags + cuisine and filters by one (L4)', async () => {
@@ -320,23 +315,23 @@ describe('RecipeListContainer', () => {
         );
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
-        await screen.findByRole('button', { name: 'Weeknight Pasta' });
+        await screen.findByRole('link', { name: 'Weeknight Pasta' });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
         // Real facet dimensions surface as chips (dietary flags + cuisines), not free-form tags.
-        expect(within(chips).getByRole('button', { name: 'Vegetarian' })).toBeInTheDocument();
-        expect(within(chips).getByRole('button', { name: 'Italian' })).toBeInTheDocument();
-        expect(within(chips).getByRole('button', { name: 'British' })).toBeInTheDocument();
+        expect(within(chips).getByRole('button', { name: /^Vegetarian( \d+)?$/ })).toBeInTheDocument();
+        expect(within(chips).getByRole('button', { name: /^Italian( \d+)?$/ })).toBeInTheDocument();
+        expect(within(chips).getByRole('button', { name: /^British( \d+)?$/ })).toBeInTheDocument();
 
-        await user.click(within(chips).getByRole('button', { name: 'Vegetarian' }));
+        await user.click(within(chips).getByRole('button', { name: /^Vegetarian( \d+)?$/ }));
 
         // Only the recipe carrying the active facet remains.
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Sunday Roast' })).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Sunday Roast' })).not.toBeInTheDocument();
 
         // "All" clears the filter and restores every row.
-        await user.click(within(chips).getByRole('button', { name: 'All' }));
-        expect(screen.getByRole('button', { name: 'Sunday Roast' })).toBeInTheDocument();
+        await user.click(within(chips).getByRole('button', { name: /^All( \d+)?$/ }));
+        expect(screen.getByRole('link', { name: 'Sunday Roast' })).toBeInTheDocument();
     });
 
     it('surfaces a "Quick (<30m)" chip that filters to recipes under the 30-minute threshold (L4/#4)', async () => {
@@ -350,16 +345,16 @@ describe('RecipeListContainer', () => {
         );
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
-        await screen.findByRole('button', { name: 'Overnight Oats' });
+        await screen.findByRole('link', { name: 'Overnight Oats' });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
-        const quickChip = within(chips).getByRole('button', { name: 'Quick (<30m)' });
+        const quickChip = within(chips).getByRole('button', { name: /^Under 30 min/ });
         expect(screen.queryByRole('button', { name: 'quick' })).not.toBeInTheDocument();
 
         await user.click(quickChip);
 
-        expect(screen.getByRole('button', { name: 'Overnight Oats' })).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: "Grandma's Pasta" })).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Overnight Oats' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: "Grandma's Pasta" })).not.toBeInTheDocument();
     });
 
     it('omits the "Quick (<30m)" chip when no loaded recipe qualifies (other facets still render)', async () => {
@@ -371,11 +366,11 @@ describe('RecipeListContainer', () => {
         );
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
-        await screen.findByRole('button', { name: "Grandma's Pasta" });
+        await screen.findByRole('link', { name: "Grandma's Pasta" });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
-        expect(within(chips).getByRole('button', { name: 'Italian' })).toBeInTheDocument();
-        expect(within(chips).queryByRole('button', { name: 'Quick (<30m)' })).not.toBeInTheDocument();
+        expect(within(chips).getByRole('button', { name: /^Italian( \d+)?$/ })).toBeInTheDocument();
+        expect(within(chips).queryByRole('button', { name: /^Under 30 min/ })).not.toBeInTheDocument();
     });
 });
 
@@ -392,7 +387,7 @@ describe('RecipeListContainer — a failed refresh of the rows on screen', () =>
             .mockResolvedValue(page);
 
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client, { queryClient });
-        await screen.findByRole('button', { name: 'Weeknight Pasta' });
+        await screen.findByRole('link', { name: 'Weeknight Pasta' });
 
         // A focus or reconnect refetch that fails over the loaded page.
         await act(async () => {
@@ -400,7 +395,7 @@ describe('RecipeListContainer — a failed refresh of the rows on screen', () =>
         });
 
         expect(await screen.findAllByText('We couldn’t refresh your recipes.')).not.toHaveLength(0);
-        expect(screen.getByRole('button', { name: 'Weeknight Pasta' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
         expect(screen.queryByText('We couldn’t load your recipes.')).not.toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -433,7 +428,7 @@ describe('RecipeListContainer — across the server render', () => {
     async function prefetched(client: ReturnType<typeof createFakeRecipeServiceClient>): Promise<QueryClient> {
         const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
 
-        await queryClient.prefetchQuery(recipeQueries(client).list());
+        await queryClient.prefetchInfiniteQuery(recipeQueries(client).library({ sortBy: 'updatedAt' }));
 
         return queryClient;
     }
@@ -447,7 +442,7 @@ describe('RecipeListContainer — across the server render', () => {
 
         const html = renderToString(page(client, queryClient));
 
-        expect(html).toContain('Search recipes');
+        expect(html).toContain('Search your recipes');
         expect(html).toContain('Weeknight Pasta');
         expect(html).not.toContain('Loading recipes');
         expect(list).toHaveBeenCalledTimes(1);
@@ -459,7 +454,7 @@ describe('RecipeListContainer — across the server render', () => {
 
         const html = renderToString(page(client, new QueryClient({ defaultOptions: { queries: { retry: false } } })));
 
-        expect(html).toContain('Search recipes');
+        expect(html).toContain('Search your recipes');
         expect(html).toContain('Loading recipes');
         expect(html).not.toContain('New recipe');
         expect(list).not.toHaveBeenCalled();

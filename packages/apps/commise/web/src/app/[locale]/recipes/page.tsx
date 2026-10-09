@@ -1,10 +1,14 @@
 import type { Route } from 'next';
 import { auth } from '@clerk/nextjs/server';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { VIEW_MODE_KEY, viewModeFrom } from '@commise/features-recipes';
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
 import { AppShell } from '@/components/app/AppShell';
+import { ShellBackToTop } from '@/components/app/ShellBackToTop';
+import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
 import { RecipeListContainer } from '@/components/recipes/RecipeListContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
@@ -43,14 +47,23 @@ export default async function RecipesPage({
         token: (await getToken()) ?? '',
     });
 
-    await queryClient.prefetchQuery(recipeQueries(client).list());
+    // The whole library (A11), in its default order — the read the container's boundary checks for.
+    await queryClient.prefetchInfiniteQuery(recipeQueries(client).library({ sortBy: 'updatedAt' }));
+    // The cook's list/grid choice, so the server renders it and hydration does not flip the view.
+    const storedViewMode = viewModeFrom((await cookies()).get(VIEW_MODE_KEY)?.value);
 
     // L9: the list renders inside the shared app nav shell (sidebar on desktop, bottom nav on narrow) with
     // its own active destination — the same chrome Home uses, so navigation is consistent across the app.
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
             <AppShell activeId="recipes" titleId="recipes">
-                <RecipeListContainer locale={locale} />
+                <RecipeListContainer
+                    locale={locale}
+                    avatar={<ProfileAvatarEntry />}
+                    {...(storedViewMode === undefined ? {} : { storedViewMode })}
+                />
+                {/* A long list with a floating create button: "Back to top" sits above it, last in DOM order (§3.6). */}
+                <ShellBackToTop aboveFab />
             </AppShell>
         </HydrationBoundary>
     );

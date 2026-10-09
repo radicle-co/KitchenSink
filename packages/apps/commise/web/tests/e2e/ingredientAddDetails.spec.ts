@@ -4,10 +4,10 @@ import type { RecipeDetail } from '@kitchensink/recipe-core';
 import { addIngredientByFoodVariantRequestSchema } from '@kitchensink/schema-recipe';
 
 import { signInWithTicket } from './utils/auth';
-import { route } from './utils/basePath';
 import { mockFoodApi } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Curated U15 (`docs/design/ingredientSpecialization.md` §S7, F1, AE1), through the real web app with the recipe and
@@ -139,10 +139,8 @@ const savedRecipe = (viewerId: string): RecipeDetail =>
         ],
     });
 
-async function openIngredientsStep(page: Page): Promise<void> {
-    await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
-    await page.getByRole('button', { name: /Ingredients:/ }).click();
-    await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 2 of 4');
+async function openIngredientsSection(page: Page): Promise<void> {
+    await openRecipeEditor(page, RECIPE_ID);
 }
 
 test.describe('Add details from the row’s ⋮ (curated U15, F1, AE1)', () => {
@@ -160,7 +158,7 @@ test.describe('Add details from the row’s ⋮ (curated U15, F1, AE1)', () => {
         await mockRootRead(page);
         const rebinds = await mockRebind(page, store, REBIND_CATALOG);
         const variantAdmissions = await recordVariantAdmissions(page);
-        await openIngredientsStep(page);
+        await openIngredientsSection(page);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
         const row = ingredients.getByRole('listitem').nth(1);
 
@@ -243,7 +241,7 @@ test.describe('Add details from the row’s ⋮ (curated U15, F1, AE1)', () => {
         await mockRootRead(page);
         const rebinds = await mockRebind(page, store, REBIND_CATALOG);
         const variantAdmissions = await recordVariantAdmissions(page);
-        await openIngredientsStep(page);
+        await openIngredientsSection(page);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
         const trigger = ingredients.getByRole('button', { name: `Actions for ${ROOT_NAME}`, exact: true });
 
@@ -310,17 +308,15 @@ test.describe('Add details on a new recipe (curated U15, decision 7: the draft r
             await intercepted.fallback();
         });
 
-        await page.goto(route('/recipes/new'));
+        await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Chicken Details');
         await page.getByRole('radio', { name: 'Easy' }).click();
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
-        await expect(page.getByText('Step 2 of 4')).toBeVisible();
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('chicken');
         await page.getByRole('group', { name: 'Food catalog' }).getByRole('option', { name: ROOT_NAME }).click();
         await expect(page.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText(ROOT_NAME);
 
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
-        // Whatever the wizard saved on its own before this point is not the pick's doing.
+        // Whatever the editor saved on its own before this point (a checkpoint's create, slice 7) is not the pick's doing.
         const writesBeforePick = recipeWrites;
 
         await ingredients.getByRole('button', { name: `Actions for ${ROOT_NAME}` }).click();

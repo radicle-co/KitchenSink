@@ -7,7 +7,7 @@
  *
  * It renders for EVERY viewer. Provenance is a property of the recipe, not of who is looking — which is the
  * defect this component exists to close: attribution used to reach the screen only through
- * `RecipeCloneAction`, mounted only for a viewer who could clone, so the OWNER of an imported recipe could
+ * the old clone action, mounted only for a viewer who could clone, so the OWNER of an imported recipe could
  * never see where it came from and `sourceUrl` reached nobody.
  *
  * SAFETY: `sourceUrl` is untrusted (an import pipeline wrote it, and the wire's `z.string().url()` happily

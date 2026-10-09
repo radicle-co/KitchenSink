@@ -6,7 +6,7 @@
  * The viewer-profile hook is mocked; the locale comes from a provider.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen, within } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useSnackbar } from '@commise/ui/snackbar';
 import type { JSX } from 'react';
@@ -16,6 +16,12 @@ import { renderWithProviders } from '@commise/test-utils';
 import { webMessages } from '@/i18n/messages';
 import { SHELL_SURFACE_IDS, type ShellSurfaceId } from '@/components/app/shellSurfaces';
 
+// The shell's sidebar opens the editor through the router and its tab bar reads the route (slice 3).
+vi.mock('next/navigation', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('next/navigation')>()),
+    useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+    usePathname: () => '/en',
+}));
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({ data: { user: { displayName: 'Ada' } } }),
 }));
@@ -50,25 +56,40 @@ describe('AppShell', () => {
 });
 
 /**
- * The top-bar title was hard-coded to `chrome.pageTitle` ('Home'), so every one of the 15 shell-hosted routes
- * announced itself as "Home". It is now per-surface, defaulting to Home so nothing regresses for a caller that
- * says nothing.
- *
- * The title is passed as an ID, not a resolved string: the shell-hosted routes are SERVER components with no
- * locale context, while `AppShell` already owns it — and an id-keyed record makes a surface with no copy a
- * COMPILE error instead of a blank bar discovered in review.
+ * Slice 3 deleted the top bar (`buildSpec.md` §3.2): there is no banner and the page's large title is its only H1. The
+ * page's NAME now goes to the document title, "{page} · Commise" (§3.3). The title is passed as an ID: the shell-hosted
+ * routes are SERVER components with no locale context, and an id-keyed record makes a page with no copy a COMPILE error.
  */
-describe('AppShell — per-surface top-bar title', () => {
-    it('defaults to the Home title when no titleId is given (today’s behaviour, unchanged)', () => {
+describe('AppShell — the page name', () => {
+    it('draws no top bar', () => {
         renderShell('home');
 
-        expect(within(screen.getByRole('banner')).getByText(titles.home)).toBeTruthy();
+        expect(screen.queryByRole('banner')).toBeNull();
     });
 
-    it.each(SHELL_SURFACE_IDS)('renders the localized title for the "%s" surface', (titleId) => {
+    it('defaults the document title to Home', () => {
+        renderShell('home');
+
+        expect(document.title).toBe(`${titles.home} · Commise`);
+    });
+
+    it.each(SHELL_SURFACE_IDS)('names the "%s" page in the document title', (titleId) => {
         renderShell('recipes', titleId);
 
-        expect(within(screen.getByRole('banner')).getByText(titles[titleId])).toBeTruthy();
+        expect(document.title).toBe(`${titles[titleId]} · Commise`);
+    });
+
+    it('wraps the page in its scroll host and puts the sidebar’s New recipe first', () => {
+        renderShell('recipes');
+
+        const [sidebarNav] = screen.getAllByRole('navigation');
+        const newRecipe = screen.getByRole('button', { name: 'New recipe' });
+
+        expect(
+            sidebarNav === undefined
+                ? 0
+                : newRecipe.compareDocumentPosition(sidebarNav) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
     });
 
     /**

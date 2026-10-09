@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import type { CreateRecipeRequest } from '@kitchensink/schema-recipe';
 
-import { recipeServiceKeys } from '../queries.js';
 import { useRecipeServiceClient } from './recipeServiceProvider.js';
+import { applyRecipeCreated } from './recipeWriteCache.js';
 
 /** `POST /api/v1/recipes` — create a recipe. */
 export function useCreateRecipe() {
@@ -12,9 +12,7 @@ export function useCreateRecipe() {
 
     return useMutation({
         mutationFn: (input: CreateRecipeRequest) => client.createRecipe(input),
-        onSuccess: () => {
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
-            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
-        },
+        // One statement of what a create does to the cache, shared with the offline write port (`recipeWriteCache.ts`).
+        onSuccess: () => applyRecipeCreated(queryClient),
     });
 }

@@ -4,34 +4,29 @@
  *
  * Two invariants beyond "it renders": every user-facing string resolves from `mobileMessages` (a hardcoded
  * English literal is a repo-mandate violation, and these notices are shown at the worst possible moment),
- * and every colour comes from the design-system `palette` — the banners previously carried six raw Material
- * hex values that belong to no Commise token.
+ * and every colour is a ROLE of the scheme the device is in (D15), so the notice reads in the dark theme too —
+ * the banners previously carried raw `palette` values baked into one theme at import.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
-import { palette } from '@commise/ui';
+import { role, roleDark } from '@commise/ui/colors';
 
 import { ImpersonationWarning } from '../../src/components/ImpersonationWarning.js';
 import { SuspensionBanner } from '../../src/components/SuspensionBanner.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    scheme.current = null;
+});
 
-/**
- * Every colour react-native-web actually PAINTS on the rendered subtree: the background, the text, and each
- * border that has a non-zero width (an unset border still reports jsdom's initial `rgb(0, 0, 0)`, which is
- * not an authored value and would only add noise).
- */
-const colorsIn = (container: HTMLElement): readonly string[] =>
-    Array.from(container.querySelectorAll<HTMLElement>('*')).flatMap((node) => {
-        const style = window.getComputedStyle(node);
-        const edges = (['Left', 'Right', 'Top', 'Bottom'] as const)
-            .filter((edge) => Number.parseFloat(style.getPropertyValue(`border-${edge.toLowerCase()}-width`)) > 0)
-            .map((edge) => style[`border${edge}Color` as const]);
-
-        return [style.backgroundColor, style.color, ...edges];
-    });
+/** The system colour scheme the next render sees. */
+const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
+vi.mock('react-native', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('react-native')>()),
+    useColorScheme: () => scheme.current,
+}));
 
 /** `#RRGGBB` → the `rgb(r, g, b)` form `getComputedStyle` reports. */
 const toRgb = (hex: string): string => {
@@ -40,27 +35,10 @@ const toRgb = (hex: string): string => {
     return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
 };
 
-/** Colours that are neither an unset default, nor a palette entry, nor the tokenized subtle border. */
-const offPaletteColors = (container: HTMLElement): readonly string[] => {
-    const allowed = new Set([
-        // jsdom's initial values for an unset background / text colour.
-        '',
-        'rgba(0, 0, 0, 0)',
-        'transparent',
-        'canvastext',
-        // ⚠️ ADDED FOR jsdom 30, AND IT WEAKENS THIS TEST — stated rather than absorbed. jsdom 24 reported
-        // an empty computed `color` for an element that paints none; 30 reports `rgb(0, 0, 0)`, which is
-        // indistinguishable from a component deliberately painting pure black. Pure black is NOT in the
-        // palette (`charcoal` is #2D3436), so this check can no longer catch that particular off-palette
-        // value. Every other raw hex is still caught, which is what the test was written for.
-        'rgb(0, 0, 0)',
-        // `nativeTokens.borderSubtle`, the single-sourced hairline.
-        'rgba(178, 190, 195, 0.3)',
-        ...Object.values(palette).map(toRgb),
-    ]);
-
-    return colorsIn(container).filter((color) => !allowed.has(color));
-};
+const THEMES = [
+    ['light', role],
+    ['dark', roleDark],
+] as const;
 
 describe('SuspensionBanner', () => {
     it('renders nothing for an active account', () => {
@@ -78,17 +56,20 @@ describe('SuspensionBanner', () => {
         expect(screen.getByText(t.message)).toBeTruthy();
     });
 
-    it('paints only design-system palette colours (no raw Material hex)', () => {
-        const { container } = render(<SuspensionBanner status="suspended" />);
-
-        expect(offPaletteColors(container)).toEqual([]);
-    });
-
-    it('accents the notice with the error tone', () => {
+    it.each(THEMES)('paints the notice from the %s theme’s roles, accented with the danger tone', (name, colors) => {
+        scheme.current = name;
         const { container } = render(<SuspensionBanner status="suspended" />);
         const banner = container.firstElementChild as HTMLElement;
+        const style = window.getComputedStyle(banner);
 
-        expect(window.getComputedStyle(banner).borderLeftColor).toBe(toRgb(palette.error));
+        expect(style.borderLeftColor).toBe(toRgb(colors.danger));
+        expect(style.backgroundColor).toBe(toRgb(colors.surfaceMuted));
+        expect(window.getComputedStyle(screen.getByText(mobileMessages.en.suspension.title)).color).toBe(
+            toRgb(colors.ink),
+        );
+        expect(window.getComputedStyle(screen.getByText(mobileMessages.en.suspension.message)).color).toBe(
+            toRgb(colors.inkMuted),
+        );
     });
 });
 
@@ -115,16 +96,15 @@ describe('ImpersonationWarning', () => {
         expect(screen.queryByText(/Session:/)).toBeNull();
     });
 
-    it('paints only design-system palette colours (no raw Material hex)', () => {
-        const { container } = render(<ImpersonationWarning sessionId="sess_42" />);
+    it.each(THEMES)(
+        'accents the notice with the caution tone in the %s theme (it is a caution, not a failure)',
+        (name, colors) => {
+            scheme.current = name;
+            const { container } = render(<ImpersonationWarning />);
+            const banner = container.firstElementChild as HTMLElement;
 
-        expect(offPaletteColors(container)).toEqual([]);
-    });
-
-    it('accents the notice with the warning tone (it is a caution, not a failure)', () => {
-        const { container } = render(<ImpersonationWarning />);
-        const banner = container.firstElementChild as HTMLElement;
-
-        expect(window.getComputedStyle(banner).borderLeftColor).toBe(toRgb(palette.warning));
-    });
+            expect(window.getComputedStyle(banner).borderLeftColor).toBe(toRgb(colors.attention));
+            expect(window.getComputedStyle(banner).borderLeftColor).not.toBe(toRgb(colors.danger));
+        },
+    );
 });

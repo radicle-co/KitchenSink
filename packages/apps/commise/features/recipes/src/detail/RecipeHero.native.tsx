@@ -38,8 +38,8 @@
  * The placeholder is `mediaBoxHeight(token, window height)`: at most 40% of the window's height, so on a phone held
  * sideways the recipe's title stays on the first screen.
  *
- * The leaf holds no state, fetches nothing and navigates nowhere; it reads only the window's height. The mockup's overlaid back/share/save controls are
- * NOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.
+ * The leaf holds no state, fetches nothing and navigates nowhere; it reads only the window's height. The overlaid back and ⋯ controls are NOT
+ * this leaf's: they are navigation and mutations, so the orchestration layer passes them in as `overlay`.
  *
  * @pattern Null Object for the no-cover state — the same designed placeholder as the web leaf, derived from the
  *     shared gradient and geometry tokens so the two cannot drift.
@@ -59,7 +59,25 @@ import { PhotoCarousel } from './PhotoCarousel.native.js';
 export type { RecipeHeroProps };
 
 /** The recipe-detail hero (native): the photo carousel, or its deliberate compact no-photo fallback. */
-export const RecipeHero: FC<RecipeHeroProps> = ({ title, photos }) => {
+export const RecipeHero: FC<RecipeHeroProps> = ({ title, photos, overlay }) => {
+    if (overlay === undefined) {
+        return <HeroMedia title={title} photos={photos} />;
+    }
+
+    // The overlay comes FIRST (Back is reached before the photos) and paints above them through `zIndex`. `box-none`
+    // lets a swipe between the two controls reach the carousel beneath.
+    return (
+        <View>
+            <View pointerEvents="box-none" style={styles.overlay}>
+                {overlay}
+            </View>
+            <HeroMedia title={title} photos={photos} />
+        </View>
+    );
+};
+
+/** The hero's media: the carousel, or the deliberate compact no-photo placeholder. */
+const HeroMedia: FC<Pick<RecipeHeroProps, 'title' | 'photos'>> = ({ title, photos }) => {
     const { card } = useMessages(recipeMessages);
     const { height: windowHeight } = useWindowDimensions();
 
@@ -87,6 +105,18 @@ export const RecipeHero: FC<RecipeHeroProps> = ({ title, photos }) => {
 };
 
 const styles = StyleSheet.create({
+    overlay: {
+        position: 'absolute',
+        top: 0,
+        start: 0,
+        end: 0,
+        zIndex: 1,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: nativeTokens.spacing[2],
+        padding: nativeTokens.spacing[3],
+    },
     // The COMPACT band (see the module doc's PLATFORM-FORK note) — not the full `hero` box.
     placeholderSurface: {
         width: '100%',

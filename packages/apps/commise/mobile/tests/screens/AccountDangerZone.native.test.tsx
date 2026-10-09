@@ -20,13 +20,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
-import { role } from '@commise/ui/colors';
+import { role, roleDark } from '@commise/ui/colors';
 import { accountDangerMessages } from '@commise/features-account/danger';
+import { profileMessages } from '@commise/features-account/profile';
+import { formatRgb } from 'culori';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
 import { useEraseAccount } from '../../src/hooks/useEraseAccount.js';
+
+/** The system colour scheme the next render sees. */
+const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
+vi.mock('react-native', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('react-native')>()),
+    useColorScheme: () => scheme.current,
+}));
 
 const { signOut, signOutAndVerify } = vi.hoisted(() => ({ signOut: vi.fn(), signOutAndVerify: vi.fn() }));
 vi.mock('@clerk/expo', () => ({
@@ -118,7 +127,10 @@ beforeEach(() => {
     setErasure();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+    scheme.current = null;
+    cleanup();
+});
 
 describe('AccountDangerZone (native) — closure vs erasure are distinct', () => {
     it('offers both a recoverable close and an irreversible erase', () => {
@@ -129,57 +141,74 @@ describe('AccountDangerZone (native) — closure vs erasure are distinct', () =>
     });
 });
 
-describe('AccountDangerZone (native) — design-system surfaces (U4b)', () => {
-    it('paints the close trigger as the neutral secondary tier, on the role tokens', () => {
-        render(<AccountDangerZone />);
-
-        const trigger = screen.getByRole('button', { name: close.trigger });
-
-        // ⚠️ REWRITTEN in UI-overhaul slice 2 (the owner overruled coral on every control): the label is the tier's
-        // `ink` — NOT the off-palette `#2C3E50` the hand-rolled Pressable used — on the `lineControl` edge.
-        expect(window.getComputedStyle(screen.getByText(close.trigger)).color).toBe(rgb(role.ink));
-        expect(borderColours(trigger)).toContain(rgb(role.lineControl));
+/**
+ * ⚠️ REWRITTEN in UI-overhaul slice 9. The two triggers were design-system `Button`s (a neutral `secondary` tier and a
+ * `destructive` tier, 44 pt floor, a spinner while busy). They are now the Profile page's `ProfileRow`s in the `danger`
+ * tone (`buildSpec.md` §9.1): the label and the hint carry the danger, the row is 56 pt, and busy is a disabled row that
+ * says so (`aria-busy`), not a spinner. Same two actions, same flows; only the surface changed.
+ */
+describe.each([
+    ['light', role],
+    ['dark', roleDark],
+] as const)('AccountDangerZone (native) — the Profile danger rows (%s theme)', (name, roles) => {
+    beforeEach(() => {
+        scheme.current = name;
     });
 
-    it('paints the erase trigger as the destructive tier, on palette', () => {
+    it('is a Danger zone group with both rows and each one’s consequence as its hint', () => {
         render(<AccountDangerZone />);
 
-        const trigger = screen.getByRole('button', { name: erase.trigger });
-
-        // The `dangerText` role, NOT the off-palette `#E74C3C`, on the neutral destructive surface.
-        expect(window.getComputedStyle(screen.getByText(erase.trigger)).color).toBe(rgb(role.dangerText));
-        expect(borderColours(trigger)).toContain(rgb(role.lineControl));
+        expect(screen.getByRole('heading', { name: profileMessages.en.dangerZone, level: 2 })).toBeTruthy();
+        expect(screen.getByText(close.rowHint)).toBeTruthy();
+        expect(screen.getByText(erase.rowHint)).toBeTruthy();
     });
 
-    it('clears the 44pt touch floor on both triggers (U4 / RC-3)', () => {
+    it('paints both labels in dangerText and both hints in inkMuted, on role colours', () => {
         render(<AccountDangerZone />);
 
-        for (const name of [close.trigger, erase.trigger]) {
-            const trigger = screen.getByRole('button', { name });
-            const surface = [trigger, ...Array.from(trigger.querySelectorAll<HTMLElement>('*'))].find(
-                (node) => window.getComputedStyle(node).minHeight === '44px',
-            );
+        for (const label of [close.trigger, erase.trigger]) {
+            expect(window.getComputedStyle(screen.getByText(label)).color, label).toBe(formatRgb(roles.dangerText));
+        }
 
-            expect(surface, `${name} does not reach a 44pt target`).toBeDefined();
+        for (const hint of [close.rowHint, erase.rowHint]) {
+            expect(window.getComputedStyle(screen.getByText(hint)).color, hint).toBe(formatRgb(roles.inkMuted));
         }
     });
 
-    it('shows the design-system busy spinner while the closure is in flight', () => {
-        // Idle: no progress indicator anywhere. (The spinner lives in the Button's aria-hidden icon slot, so
-        // it is queried with `hidden` — busy is announced through accessibilityState.busy.)
+    it('clears a 56 pt target on both rows', () => {
+        render(<AccountDangerZone />);
+
+        for (const label of [close.trigger, erase.trigger]) {
+            const row = screen.getByRole('button', { name: label });
+
+            expect(window.getComputedStyle(row).minHeight, label).toBe('56px');
+        }
+    });
+
+    it('paints the closure failure alert in dangerText', () => {
+        setDeleteAccount({ isError: true });
+        render(<AccountDangerZone />);
+
+        expect(window.getComputedStyle(screen.getByRole('alert')).color).toBe(formatRgb(roles.dangerText));
+    });
+});
+
+describe('AccountDangerZone (native) — closing is busy-locked', () => {
+    it('disables the closure row and says it is busy while in flight, so it cannot be double-fired', () => {
+        // Idle: the row is live.
         const { unmount } = render(<AccountDangerZone />);
-        expect(screen.queryByRole('progressbar', { hidden: true })).toBeNull();
+        expect(screen.getByRole('button', { name: close.trigger }).getAttribute('aria-busy')).not.toBe('true');
         unmount();
 
         setDeleteAccount({ isPending: true });
         render(<AccountDangerZone />);
 
-        // A real spinner, not merely a swapped label — and the control is out of action while in flight.
-        expect(screen.getByRole('progressbar', { hidden: true })).toBeTruthy();
-        const busyTrigger = screen.getByRole('button', { name: close.busyLabel });
-        expect(busyTrigger.getAttribute('aria-disabled')).toBe('true');
+        const busyRow = screen.getByRole('button', { name: close.busyLabel });
+        expect(busyRow.getAttribute('aria-busy')).toBe('true');
+        expect(busyRow.getAttribute('aria-disabled')).toBe('true');
 
-        fireEvent.click(busyTrigger);
+        fireEvent.click(busyRow);
+        expect(screen.queryByText(/not permanent deletion/i)).toBeNull();
         expect(deleteMutate).not.toHaveBeenCalled();
     });
 });
@@ -314,7 +343,7 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         await screen.findByRole('alert');
         // The dialog would otherwise trap focus inside a flow whose account no longer exists.
         expect(screen.queryByLabelText('Confirmation phrase')).toBeNull();
-        expect(screen.getByRole('button', { name: account.signOutAction })).toBeTruthy();
+        expect(screen.getByRole('button', { name: profileMessages.en.signOut })).toBeTruthy();
     });
 
     it('does not erase while the phrase gate is unsatisfied', () => {
@@ -377,21 +406,3 @@ describe('AccountDangerZone (native) — the ACCOUNT-erasure leg has its own bus
         expect(screen.getByText(erase.error)).toBeTruthy();
     });
 });
-
-/** A design-token hex (`#RRGGBB`) as the `rgb(r, g, b)` string a resolved computed style reports. */
-function rgb(hex: string): string {
-    const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
-
-    return `rgb(${channels.join(', ')})`;
-}
-
-/**
- * Every border colour resolved anywhere in `root`'s subtree. react-native-web compiles a `StyleSheet`
- * `borderColor` to an atomic class, so the honest read is the computed style of each candidate node — the
- * button's visible surface is whichever descendant carries the tier's border.
- */
-function borderColours(root: HTMLElement): readonly string[] {
-    return [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))].map(
-        (node) => window.getComputedStyle(node).borderTopColor,
-    );
-}

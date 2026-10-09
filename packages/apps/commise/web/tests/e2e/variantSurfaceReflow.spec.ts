@@ -5,6 +5,7 @@ import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
 import { mockFoodApi } from './utils/foodApi';
 import { makeRecipeDetail, makeRecipeVersion, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Curated U15 — no read surface scrolls sideways (`docs/design/ingredientSpecialization.md` §S10, §S18, E2).
@@ -193,9 +194,8 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
 
     test('the recipe editor’s ingredient step, with its variant lines', async ({ page }, testInfo) => {
         await seed(page);
-        await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
+        await openRecipeEditor(page, RECIPE_ID);
         await applyTextScale(page, testInfo);
-        await page.getByRole('button', { name: /Ingredients:/ }).click();
 
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
@@ -219,7 +219,8 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
         await page.goto(route(`/recipes/${RECIPE_ID}/versions`));
         await applyTextScale(page, testInfo);
 
-        await page.getByRole('button', { name: 'Preview version 1' }).click();
+        await page.getByRole('button', { name: 'More actions for version 1' }).click();
+        await page.getByRole('menuitem', { name: 'Preview' }).click();
         await expect(page.getByRole('dialog')).toBeVisible();
         await expectNoSidewaysScroll(page);
     });
@@ -233,91 +234,40 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
         await applyTextScale(page, testInfo);
 
         await page.getByRole('button', { name: 'Filters, 1 active' }).click();
-        const sheet = page.getByRole('dialog', { name: 'Filter recipes' });
+        const sheet = page.getByRole('dialog', { name: 'Filters' });
         await expect(sheet.getByRole('button', { name: 'Remove boneless skinless chicken breasts' })).toBeVisible();
-        await sheet.getByRole('searchbox', { name: 'Search ingredients' }).fill('sal');
+        await sheet.getByRole('searchbox', { name: 'Has ingredient' }).fill('sal');
         await expect(sheet.getByRole('button', { name: 'Filter by Salt' })).toBeVisible();
         await expectNoSidewaysScroll(page);
     });
 
-    test('the paste form’s stacked buttons fill the form’s width below 640 px', async ({ page }, testInfo) => {
-        // Below `sm` the two controls stack, full width, so the primary sits in the thumb zone with a full-width
-        // target (`ParsePasteForm.tsx`). The text field beside them fills the form, so it is the width to match.
-        test.skip(testInfo.project.name !== 'reflow320', 'the buttons stack only below 640 px wide');
+    // Slice 8: the paste page and its review are retired; Paste a list is a sheet in the editor's Ingredients section, and
+    // the pasted lines are rows of its list (build spec §7.5.4).
+    test('the Paste a list sheet', async ({ page }, testInfo) => {
         await seed(page);
-        await page.goto(route('/recipes/parse'));
+        await page.goto(route('/recipes/new?paste=1#ingredients'));
         await applyTextScale(page, testInfo);
 
-        const fieldControl = page.getByLabel('Ingredient lines');
-
-        await expect(fieldControl).toBeVisible();
-        const fieldWidth = (await fieldControl.boundingBox())?.width ?? 0;
-
-        // Positive control: the field fills the 320 px form less its gutters, so the comparison below is not vacuous.
-        expect(fieldWidth).toBeGreaterThan(250);
-
-        for (const name of ['Back to recipes', 'Read my ingredients']) {
-            const button = page.getByRole('button', { name });
-
-            await expect(button).toBeVisible();
-            expect((await button.boundingBox())?.width ?? 0, `${name} does not fill the form`).toBeGreaterThanOrEqual(
-                fieldWidth - 1,
-            );
-        }
-
-        await expectNoSidewaysScroll(page);
-    });
-
-    test('the paste form’s buttons share one row from 640 px', async ({ page }, testInfo) => {
-        // From `sm` the parent is a row, and a filled button keeps its content width in a row (R9,
-        // `docs/design/rowEditorOpenDecisions.md`), so the two actions sit side by side. A label may wrap at 200% text.
-        test.skip((testInfo.project.use.viewport?.width ?? 0) < 640, 'the buttons share a row only from 640 px wide');
-        await seed(page);
-        await page.goto(route('/recipes/parse'));
-        await applyTextScale(page, testInfo);
-
-        const back = page.getByRole('button', { name: 'Back to recipes' });
-        const submit = page.getByRole('button', { name: 'Read my ingredients' });
-
-        await expect(back).toBeVisible();
-        await expect(submit).toBeVisible();
-        const backBox = await back.boundingBox();
-        const submitBox = await submit.boundingBox();
-
-        // Positive control: both actions were laid out, so the comparison below is not between two missing boxes.
-        expect(backBox?.width ?? 0).toBeGreaterThan(0);
-        expect(submitBox?.width ?? 0).toBeGreaterThan(0);
-        // Vertical centres, not tops: one line holds whether the row stretches its items or centres them.
-        const middle = (box: typeof backBox): number => (box?.y ?? 0) + (box?.height ?? 0) / 2;
-        expect(Math.abs(middle(backBox) - middle(submitBox)), 'the two actions sit on one line').toBeLessThanOrEqual(1);
-        expect((backBox?.x ?? 0) + (backBox?.width ?? 0), 'Back sits before the submit').toBeLessThanOrEqual(
-            (submitBox?.x ?? 0) + 1,
-        );
-        await expectNoSidewaysScroll(page);
-    });
-
-    test('the import review', async ({ page }, testInfo) => {
-        await seed(page);
-        await page.goto(route('/recipes/parse'));
-
-        await page
-            .getByLabel('Ingredient lines')
+        const sheet = page.getByRole('dialog', { name: 'Paste a list' });
+        await sheet
+            .getByRole('textbox', { name: 'Ingredient lines' })
             .fill('2 lb beef brisket, flat half, separable lean and fat, 1/8-inch trim, select, braised');
-        const created = page.waitForResponse(
-            (response) =>
-                response.url().endsWith('/api/v1/recipe-parse-jobs') && response.request().method() === 'POST',
-        );
-        await page.getByRole('button', { name: 'Read my ingredients' }).click();
-        // Opened at its own address, so this measures the review's layout alone. The paste form's hand-off to the
-        // review is `parseIngredients.spec.ts`'s.
-        const { id } = (await (await created).json()) as { readonly id: string };
-        await page.goto(route(`/recipes/parse/${id}`));
+        await expect(sheet.getByRole('button', { name: 'Add 1 ingredient' })).toBeVisible();
+        await expectNoSidewaysScroll(page);
+    });
+
+    test('pasted lines reading in the Ingredients section', async ({ page }, testInfo) => {
+        await seed(page);
+        await page.goto(route('/recipes/new?paste=1#ingredients'));
+
+        const sheet = page.getByRole('dialog', { name: 'Paste a list' });
+        await sheet
+            .getByRole('textbox', { name: 'Ingredient lines' })
+            .fill('2 lb beef brisket, flat half, separable lean and fat, 1/8-inch trim, select, braised');
+        await sheet.getByRole('button', { name: 'Add 1 ingredient' }).click();
         await applyTextScale(page, testInfo);
 
-        await expect(page.getByRole('heading', { name: 'Your ingredients', exact: true })).toBeVisible({
-            timeout: 20_000,
-        });
-        await expect(page.getByRole('listitem', { name: 'Line 1' })).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByRole('list', { name: 'Ingredients' }).getByRole('listitem').first()).toBeVisible();
         await expectNoSidewaysScroll(page);
     });
 });

@@ -274,7 +274,7 @@ describe('AccountEraseForm (web) — a failed exit AFTER the erasure was accepte
             'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
         );
         // The viewer is not left with a dead page: the recovery is the ordinary sign-out control.
-        expect(screen.getByRole('button', { name: 'Sign out of your account' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
         // And the dead dialog is dismissed — it would otherwise trap focus away from the alert.
         expect(screen.queryByRole('dialog')).toBeNull();
     });

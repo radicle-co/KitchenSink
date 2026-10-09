@@ -7,20 +7,19 @@
  * — one authoritative implementation of pluralization + placeholder filling for the whole feature.
  */
 import type { Locale } from '@commise/i18n';
+import type { HeaderAction } from '@commise/ui/large-title-header';
+import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { ReactNode } from 'react';
 
 import { RecipeSearchSortBy, type RecipeSearchResult } from '@kitchensink/recipe-core';
 import type { RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
 import type { RecipeCardModel } from '../card/model.js';
+import type { SaveCopy, SaveCopyState } from '../hooks/useSaveCopy.js';
 import { filtersToSearchParams, hasActiveFilters, type RecipeFilterState } from '../filters/model.js';
-import {
-    fillTemplate,
-    formatRecipeCount,
-    type RecipeListRefreshControl,
-    type RecipeListTabControl,
-} from '../list/model.js';
+import { fillTemplate, formatRecipeCount, type RecipeListRefreshControl } from '../list/model.js';
 import type { DiscoveryMessages } from './messages.js';
+import { noResultTitleOf, type NoResultKind } from './noResults.js';
 import type { RefreshNoticeControl } from '../refresh/model.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
 
@@ -36,6 +35,15 @@ export const DISCOVERY_SORTS: readonly RecipeSearchSortBy[] = [
 ];
 
 /**
+ * Whether a menu value is one of the discovery sorts. A menu reports a string; only a known key is passed on.
+ *
+ * @param value - The chosen value.
+ * @returns `true` for a sort Discover offers.
+ */
+export const isDiscoverySort = (value: string): value is RecipeSearchSortBy =>
+    (DISCOVERY_SORTS as readonly string[]).includes(value);
+
+/**
  * The visible label of a discovery sort option (S3). A sort discovery does not offer (the library's `title`) reads as
  * relevance, the order a discovery search falls back to.
  *
@@ -45,13 +53,13 @@ export const DISCOVERY_SORTS: readonly RecipeSearchSortBy[] = [
  */
 export const discoverySortLabel = (
     sort: RecipeSearchSortBy,
-    messages: Pick<DiscoveryMessages, 'sortRelevance' | 'sortNewest' | 'sortMostCloned' | 'sortQuickest'>,
+    messages: Pick<DiscoveryMessages, 'sortRelevance' | 'sortNewest' | 'sortMostSaved' | 'sortQuickest'>,
 ): string => {
     switch (sort) {
         case RecipeSearchSortBy.RECENT:
             return messages.sortNewest;
         case RecipeSearchSortBy.MOST_CLONED:
-            return messages.sortMostCloned;
+            return messages.sortMostSaved;
         case RecipeSearchSortBy.QUICKEST:
             return messages.sortQuickest;
         default:
@@ -170,11 +178,13 @@ export const recipeIdPagesOf = (
     pages: readonly { readonly results: readonly RecipeSearchResult[] }[],
 ): readonly (readonly string[])[] => pages.map((page) => page.results.map((result) => result.recipe.id));
 
-/** The facts the results header states: how many results, the term they belong to, and whether anything narrowed. */
+/** The facts the results header states: how many results, the term they belong to, and what narrowed the search. */
 export interface RecipeDiscoveryResultsSummary {
+    /** How many recipes the search matched in all (the response's total, not the pages loaded so far). */
     readonly count: number;
     readonly query: string;
-    readonly searching: boolean;
+    /** What narrowed the search, or `undefined` for none: zero results are then an empty catalogue. */
+    readonly kind: NoResultKind | undefined;
 }
 
 /**
@@ -185,15 +195,24 @@ export interface RecipeDiscoveryResultsSummary {
  * @param summary - The results' count, term and narrowing.
  * @param messages - The discovery copy.
  * @param locale - The locale whose plural rules count the results.
- * @returns The count (with the term, when one is typed), or the no-match or empty title when there are no results.
+ * @returns "12 recipes for “lamb”" (or just the count with no term), or the no-result heading when there are none.
  */
 export const formatDiscoveryResultsSummary = (
-    { count, query, searching }: RecipeDiscoveryResultsSummary,
-    messages: Pick<DiscoveryMessages, 'countOne' | 'countOther' | 'resultsForQuery' | 'noMatchTitle' | 'emptyTitle'>,
+    { count, query, kind }: RecipeDiscoveryResultsSummary,
+    messages: Pick<
+        DiscoveryMessages,
+        | 'countOne'
+        | 'countOther'
+        | 'resultsForQuery'
+        | 'noMatchTitle'
+        | 'noMatchQueryTitle'
+        | 'noMatchBothTitle'
+        | 'emptyTitle'
+    >,
     locale: Locale,
 ): string => {
     if (count === 0) {
-        return searching ? messages.noMatchTitle : messages.emptyTitle;
+        return noResultTitleOf(kind, query, messages);
     }
 
     const counted = formatRecipeCount(count, { one: messages.countOne, other: messages.countOther }, locale);
@@ -245,15 +264,21 @@ export interface RecipeBrowseRailsProps {
      * screen while browsing; the results' own pull refreshes the result list.
      */
     readonly refresh?: RecipeListRefreshControl;
+    /**
+     * The screen's scroll host's bind for this, its one vertical scroller (blueprint A7) — native only: the host reads
+     * the scroll (the floating create button, the tab's second tap). Web's document scrolls, so the web leaf ignores it.
+     */
+    readonly scrollBind?: ScrollBind;
 }
 
 /** Props for one browse rail's settled RESULTS: a horizontal strip of discovery cards, or the rail's empty note. */
 export interface RecipeBrowseRailResultsProps {
     readonly results: readonly RecipeSearchResult[];
-    /** The id of the recipe whose clone is in flight, if any (busies exactly that card). */
-    readonly cloningId?: string | null;
+    /** Each card's Save a copy control (`useSaveCopy`). */
+    readonly saveCopy: SaveCopy;
+    /** Where a recipe's card leads, which makes it a real link on web. Native has no URLs and ignores it. */
+    readonly hrefOf?: (recipeId: string) => string;
     readonly onSelectRecipe: (id: string) => void;
-    readonly onClone: (id: string) => void;
     /**
      * Render one card's deferred per-serving calorie figure (see {@link RenderRecipeNutrition}); the host closes over
      * this rail's batch promise. The rails are the default state of Discover, so a host that omits it leaves the
@@ -290,24 +315,42 @@ export interface RecipeDiscoverySortControl {
 }
 
 /**
- * Props for a single public-recipe search result card (S1). It composes the shared `RecipeCard`
- * compound parts (P7's search surface) from a {@link RecipeCardModel} — photo, title, cuisine/time/calorie
- * meta, visibility badge, rating, tags — rather than widening a flat discovery prop bag. `authorHandle`
- * (`by @handle`, W8-a.2) and `sourceAttribution` (imported provenance) are the two search-specific extras.
+ * Props for the footer of a Discover card: the author (or the source of an imported recipe), and the Save a copy control
+ * in the state the copy is in. Presentational — it sends nothing itself.
+ */
+export interface DiscoveryFooterProps {
+    /** The recipe's title, so the control is named for the recipe it copies. */
+    readonly title: string;
+    /** The author's handle, when the recipe carries one. */
+    readonly authorHandle?: string;
+    /** Human-readable provenance (e.g. `Serious Eats`) for an imported recipe with no author handle. */
+    readonly sourceAttribution?: string;
+    readonly state: SaveCopyState;
+    /** Make a copy; the card does not call it while a copy is saving or saved. */
+    readonly onSave: () => void;
+}
+
+/**
+ * Props for a single public-recipe search result card (S1): the shared `RecipeCard` in the variant the host
+ * decided (`cardVariantOf`), with the Discover footer in its `footer` slot.
  */
 export interface RecipeDiscoveryCardProps {
-    /** The card view-model projected from the search hit's recipe (drives the compound RecipeCard parts). */
+    /** The card view-model projected from the search hit's recipe. */
     readonly recipe: RecipeCardModel;
-    /** The author's handle (`by @handle`), when the recipe carries one. */
+    /** `grid` from a 600 container, `compact` below it; a Discover rail card is always `grid`. */
+    readonly variant: 'grid' | 'compact';
+    /** The author's handle (`@handle`), when the recipe carries one. */
     readonly authorHandle?: string;
-    /** Human-readable provenance (e.g. `Serious Eats`) for an imported recipe, when present. */
+    /** Human-readable provenance for an imported recipe, when present. */
     readonly sourceAttribution?: string;
-    /** Whether THIS row's clone is in flight (drives the busy/disabled clone action). */
-    readonly isCloning: boolean;
-    /** Invoked with the recipe id when the card (cover/title) is activated. */
+    /** The Save a copy control's state for this recipe. */
+    readonly saveCopy: SaveCopyState;
+    /** Where the card leads, which makes it a real link on web. */
+    readonly href?: string;
+    /** Invoked with the recipe id when the card is activated. */
     readonly onSelect: (id: string) => void;
-    /** Invoked with the recipe id when the row's clone action is activated. */
-    readonly onClone: (id: string) => void;
+    /** Make a copy of this recipe. */
+    readonly onSave: (id: string) => void;
     /**
      * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
      * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
@@ -324,6 +367,27 @@ export interface RecipeDiscoveryCardProps {
  * them, which also keeps their layout shift inside the input window — while the results below it follow what has
  * settled.
  */
+/** The id of Discover's large title. */
+export const DISCOVER_TITLE_ID = 'discover-title';
+
+/** The id of Discover's search field, which the `/` shortcut focuses. */
+export const DISCOVER_SEARCH_ID = 'discover-search';
+
+/**
+ * Where Discover's filters live (`docs/design/uiOverhaul/buildSpec.md` §4.4).
+ *
+ * - `panel` — a sticky panel beside the results, at a 960 container in a window that is not short.
+ * - `sheet` — otherwise: a Filters button (with the sort), the applied-filter chips under it, and the sheet it opens.
+ */
+export type DiscoveryFilterSlots =
+    | { readonly presentation: 'panel'; readonly panel: ReactNode }
+    | {
+          readonly presentation: 'sheet';
+          readonly trigger: ReactNode;
+          readonly applied: ReactNode;
+          readonly sheet: ReactNode;
+      };
+
 export interface RecipeDiscoveryFrameProps {
     readonly searchValue: string;
     readonly onSearchChange: (value: string) => void;
@@ -340,15 +404,18 @@ export interface RecipeDiscoveryFrameProps {
      */
     readonly resultsSummary?: RecipeDiscoveryResultsSummary;
     /**
-     * The My/Community source switcher (L5) — the SAME `RecipeSourceTabs` strip the personal library renders. This
-     * surface IS the community source, so it passes `active: 'community'`. Without it the community surface was a
-     * one-way trip, so omit it only where the shell itself owns the switcher (mobile's recipe shell does).
+     * The large title's action: the avatar, which opens Profile (`buildSpec.md` §3.3). The app supplies it, because
+     * the profile read and the navigation are the app's. Discover is a tab of its own since slice 3, so this surface
+     * takes no source switcher.
      */
-    readonly tab?: RecipeListTabControl;
+    readonly headerAction?: HeaderAction;
     /** The recent-search memory (U7). Absent → no recent searches on this surface. */
     readonly recentSearches?: RecipeRecentSearchesControl;
-    /** Rendered between the search field and the results — where the container mounts `RecipeFilterBar`. */
-    readonly filterSlot?: ReactNode;
+    /**
+     * The filters, in the one presentation the container decided (`filterPresentationOf`). A union, so a panel and a
+     * sheet can never both be drawn, and the facets exist exactly once.
+     */
+    readonly filters?: DiscoveryFilterSlots;
     /** The sort control (S3). The container omits it while the viewer is browsing the rails. */
     readonly sort?: RecipeDiscoverySortControl;
     /** Back to the rails, offered by the container only after a rail's "see all" left browse with nothing searched. */
@@ -357,21 +424,35 @@ export interface RecipeDiscoveryFrameProps {
     readonly children: ReactNode;
 }
 
+/** What the no-result states offer: the two clears, the tag chips and the Trending rail that end every one of them. */
+export interface DiscoveryNoResultControls {
+    /** Clear the search term. */
+    readonly onClearSearch: () => void;
+    /** Clear the filters. */
+    readonly onClearFilters: () => void;
+    /** The three most-used tags to try (`tryTheseTagsOf`), or none when fewer than three remain. */
+    readonly tryTags: readonly string[];
+    /** Apply one of those tags as a filter. */
+    readonly onPickTag: (tag: string) => void;
+    /** The Trending rail, which the container builds from the same rail view the browse surface uses. */
+    readonly trendingSlot?: ReactNode;
+}
+
 /**
  * Props for the discovery RESULTS — what renders inside the discovery suspense boundary once a search has settled: the
- * rails (while browsing), the empty or no-match body, or the counted grid with its clone actions and load-more control,
- * plus the notice for a failed refresh. A pending or failed search never reaches it; the boundary renders the loading
- * and load-error bodies instead.
+ * rails (while browsing), a no-result state, or the cards in the decided variant with the load-more control, plus the
+ * notice for a failed refresh. A pending or failed search never reaches it; the boundary renders the loading and
+ * load-error bodies instead. The count line is the frame's.
  */
 export interface RecipeDiscoveryResultsProps {
     readonly results: readonly RecipeSearchResult[];
     /**
      * The term the results BELONG TO — the settled one, not the field's current value. While newer results are pending
-     * the header keeps naming the query of the results on screen, which is what tells a viewer what they are looking at.
+     * the no-result heading keeps naming the query of the results on screen.
      */
     readonly query: string;
-    /** Whether the settled search narrowed anything: zero results are then a no-match, not an empty catalogue. */
-    readonly searching: boolean;
+    /** What narrowed the settled search: zero results are then a no-result state, not an empty catalogue. */
+    readonly kind: NoResultKind | undefined;
     /**
      * Whether newer results are pending behind these. The results stay readable and usable; the region is marked busy
      * and, after a delay, a still bar appears above it.
@@ -379,10 +460,15 @@ export interface RecipeDiscoveryResultsProps {
     readonly stale: boolean;
     /** The curated rails (U7), supplied by the container while browsing; rendered in place of the result body. */
     readonly browseSlot?: ReactNode;
-    /** The id of the recipe whose clone is currently in flight, if any (busies exactly that row). */
-    readonly cloningId?: string | null;
+    /** The variant the host decided with `cardVariantOf(container, mode, 'discover')`. */
+    readonly cardVariant: 'grid' | 'compact';
+    /** Each card's Save a copy control (`useSaveCopy`). */
+    readonly saveCopy: SaveCopy;
+    /** Where a recipe's card leads, which makes it a real link on web. Native has no URLs and ignores it. */
+    readonly hrefOf?: (recipeId: string) => string;
     readonly onSelectRecipe: (id: string) => void;
-    readonly onClone: (id: string) => void;
+    /** What the no-result states offer. */
+    readonly noResult: DiscoveryNoResultControls;
     /**
      * How to render one card's deferred calorie figure — called once per visible card with its recipe id (see
      * {@link RenderRecipeNutrition}). The host closes over the page's ONE batch promise, so N cards are ONE read.
@@ -400,12 +486,22 @@ export interface RecipeDiscoveryResultsProps {
      * list uses.
      */
     readonly refresh?: RecipeListRefreshControl;
+    /**
+     * The screen's scroll host's bind for this, its one vertical scroller (blueprint A7) — native only: the host reads
+     * the scroll (the floating create button, the tab's second tap). Web's document scrolls, so the web leaf ignores it.
+     */
+    readonly scrollBind?: ScrollBind;
 }
 
 /** Props for the discovery LOAD ERROR body: a search failed with nothing loaded for it. */
 export interface RecipeDiscoveryLoadErrorProps {
     /** Retry the failed search. */
     readonly onRetry: () => void;
+    /**
+     * The results that were on screen before this search failed, which stay under the message
+     * (`docs/design/uiOverhaul/buildSpec.md` §4.6: "Previous results stay"). Absent on a first load.
+     */
+    readonly previous?: ReactNode;
 }
 
 /**

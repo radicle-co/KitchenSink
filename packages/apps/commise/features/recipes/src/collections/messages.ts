@@ -32,6 +32,53 @@ export interface CollectionListMessages {
     readonly loadMoreError: string;
     /** The notice when refreshing the collections already on screen fails. */
     readonly refreshError: string;
+    /** The result bar's count (contains `{count}`), singular. */
+    readonly countOne: string;
+    /** The result bar's count (contains `{count}`), plural. */
+    readonly countOther: string;
+    /** The search field's label (shown from six collections). */
+    readonly searchLabel: string;
+    /** Clears the search. */
+    readonly clearSearch: string;
+    /** No collection matches the search (contains `{query}`). */
+    readonly noMatch: string;
+    /** A card's name: the collection's name and its visibility (contains `{name}` and `{visibility}`). */
+    readonly cardLabel: string;
+    /** A copy's attribution (contains `{handle}`). */
+    readonly copiedFrom: string;
+    readonly visibilityPublic: string;
+    readonly visibilityPrivate: string;
+    /** The first run's line when the cook has no recipes to group yet. */
+    readonly needRecipes: string;
+    /** The first run's action when the cook has no recipes yet: opens the editor. */
+    readonly addRecipe: string;
+}
+
+/** Copy for the new-collection sheet (`docs/design/uiOverhaul/buildSpec.md` §5.1). */
+export interface CollectionSheetMessages {
+    readonly newTitle: string;
+    readonly nameLabel: string;
+    readonly descriptionLabel: string;
+    /** The name's counter (contains `{count}` and `{max}`). */
+    readonly counter: string;
+    readonly create: string;
+    readonly cancel: string;
+    readonly close: string;
+    readonly nameRequired: string;
+    readonly createFailed: string;
+    readonly discardTitle: string;
+    readonly discardBody: string;
+    readonly discard: string;
+    readonly keepEditing: string;
+}
+
+/** Copy for the sheet's rename mode (`docs/design/uiOverhaul/buildSpec.md` §5.1). */
+export interface CollectionRenameMessages {
+    readonly title: string;
+    /** The primary action (`check`). */
+    readonly save: string;
+    /** The inline alert when the rename failed; what was typed stays. */
+    readonly failed: string;
 }
 
 /** Copy for the collection-detail screen (T072), rendered by both the web and native detail views. */
@@ -75,6 +122,86 @@ export interface CollectionDetailMessages {
     /** Client-side member-list load-more template naming how many more are hidden (contains `{count}`,
      *  W5/C7 — "Load more (4 more)" in the collection-view wireframe). */
     readonly loadMore: string;
+    /** A copy's attribution on the meta line (contains `{handle}`). */
+    readonly copiedFrom: string;
+    /** A copy's attribution when the source's owner is unknown (contains `{name}`). */
+    readonly copiedFromNamed: string;
+    /** A copy's attribution when nothing about the source is known. */
+    readonly copiedFromUnknown: string;
+    /** The meta line's recipe count, singular (contains `{count}`). */
+    readonly recipeCountOne: string;
+    /** The meta line's recipe count, plural (contains `{count}`). */
+    readonly recipeCountOther: string;
+    readonly visibilityPublic: string;
+    readonly visibilityPrivate: string;
+    /** The back link above the title at 840 and wider, and the back control's name elsewhere. */
+    readonly backTo: string;
+    /** The members' view switch: list. */
+    readonly viewList: string;
+    /** The members' view switch: grid. */
+    readonly viewGrid: string;
+    /** The view switch's group name. */
+    readonly viewLabel: string;
+    /** Not found: the 404 body. */
+    readonly notFoundTitle: string;
+    readonly notFoundBody: string;
+}
+
+/** The collection's ⋯ menu (`docs/design/uiOverhaul/buildSpec.md` §5.2), in the order it is drawn. */
+export interface CollectionMenuMessages {
+    /** The ⋯ trigger's accessible name (contains `{name}`). */
+    readonly moreActions: string;
+    /** The native menu sheet's Close control. */
+    readonly close: string;
+    readonly rename: string;
+    readonly makePrivate: string;
+    readonly makePublic: string;
+    readonly saveCopy: string;
+    readonly pullUpdates: string;
+    readonly delete: string;
+}
+
+/** A member row's ⋯ menu, its removal and the snackbars that follow a change. */
+export interface CollectionMemberMessages {
+    /** The row's ⋯ trigger name (contains `{title}`). */
+    readonly moreActions: string;
+    readonly open: string;
+    readonly remove: string;
+    /** The removal snackbar (contains `{recipe}` and `{collection}`). */
+    readonly removed: string;
+    readonly undo: string;
+    /** The alert when a removal that was already committed failed (contains `{title}`). */
+    readonly removeFailed: string;
+    /** The visibility snackbar (contains `{visibility}`, which is the lower-case word). */
+    readonly visibilityChanged: string;
+    readonly visibilityPrivateWord: string;
+    readonly visibilityPublicWord: string;
+    /** The alert when a visibility change failed. */
+    readonly visibilityFailed: string;
+    /** The alert when saving a copy of the collection failed. */
+    readonly saveCopyFailed: string;
+}
+
+/** The confirmation before deleting a collection, and the Premium sheet for making one private. */
+export interface CollectionDialogMessages {
+    /** Contains `{name}`. */
+    readonly deleteTitle: string;
+    /** The recipes stay: singular (contains `{count}`). */
+    readonly deleteBodyOne: string;
+    /** The recipes stay: plural (contains `{count}`). */
+    readonly deleteBodyOther: string;
+    readonly deleteConfirm: string;
+    readonly deleteKeep: string;
+    readonly upsellTitle: string;
+    readonly upsellBody: string;
+    readonly upsellSee: string;
+    readonly upsellNotNow: string;
+    /** The error under the delete dialog's body when deleting failed. */
+    readonly deleteFailed: string;
+    /** The delete dialog's busy label. */
+    readonly deleting: string;
+    /** The Premium sheet's Close control. */
+    readonly upsellClose: string;
 }
 
 /**
@@ -118,24 +245,28 @@ export interface CollectionRecipePickerMessages {
     readonly addFailed: string;
     /** Label of the done action that dismisses the picker. */
     readonly done: string;
-}
-
-/** Copy for the collection create/rename form (T073), rendered by both the web and native form views. */
-export interface CollectionFormMessages {
-    /** Title shown in `create` mode. */
-    readonly createTitle: string;
-    /** Title shown in `rename` mode. */
-    readonly renameTitle: string;
-    /** Accessible label for the name field. */
-    readonly nameLabel: string;
-    /** Placeholder shown inside the name field. */
-    readonly namePlaceholder: string;
-    /** Submit label in `create` mode. */
-    readonly createSubmit: string;
-    /** Submit label in `rename` mode. */
-    readonly renameSubmit: string;
-    /** Label of the cancel action. */
-    readonly cancel: string;
+    /** The sheet's title (contains `{name}`). */
+    readonly title: string;
+    /** The toolbar's label row above the search field. */
+    readonly toolbarHeading: string;
+    /** The sheet's Close control. */
+    readonly close: string;
+    /** Polite announcement of a removal (contains `{title}`). */
+    readonly removedAnnouncement: string;
+    /** The alert when a toggle that added a recipe failed (contains `{title}`). */
+    readonly toggleAddFailed: string;
+    /** The alert when a toggle that removed a recipe failed (contains `{title}`). */
+    readonly toggleRemoveFailed: string;
+    /** Done, with what changed (contains `{summary}`). */
+    readonly doneWithCount: string;
+    /** A part of that summary (contains `{count}`). */
+    readonly addedCount: string;
+    /** A part of that summary (contains `{count}`). */
+    readonly removedCount: string;
+    /** Clears the picker's search. */
+    readonly clearSearch: string;
+    /** The no-recipes state (contains no placeholders). */
+    readonly noRecipesTitle: string;
 }
 
 /** Copy for the collection-header view (W5 Task 6), rendered by both the web and native header leaves. */
@@ -158,56 +289,6 @@ export interface CollectionHeaderMessages {
     readonly lastPulled: string;
     /** Label of the web back-to-collections affordance (C6). */
     readonly backToCollections: string;
-}
-
-/**
- * Copy for the collection-actions sidebar (W5 Task 7): Add Recipes / Pull Updates (clones only) / Clone
- * Collection / the premium-gated visibility toggle (C1, FR-010), rendered by both the web and native leaves.
- */
-export interface CollectionActionsMessages {
-    /** Accessible name for the sidebar's wrapping landmark. */
-    readonly heading: string;
-    /** Label of the add-recipes action. */
-    readonly addRecipes: string;
-    /** Label of the pull-updates-from-source action (rendered only for a cloned collection, FR-011). */
-    readonly pullUpdates: string;
-    /** Busy indicator shown while a pull is in flight. */
-    readonly pullingLabel: string;
-    /** Label of the clone-collection action. */
-    readonly cloneCollection: string;
-    /** Busy indicator shown while a clone is in flight. */
-    readonly cloningLabel: string;
-    /** Accessible group label for the visibility toggle. */
-    readonly visibilityGroupLabel: string;
-    /** Label for the public visibility option. */
-    readonly makePublic: string;
-    /** Label for the private visibility option. */
-    readonly makePrivate: string;
-    /** Localized "private is premium-only" copy (C1). NOT read by this component — `disabledReason` always
-     *  arrives as an already-localized prop from the composing container (W5 Task 12), which sources this
-     *  string; it is homed here so the collections feature owns its own copy instead of the container. */
-    readonly privatePremiumGated: string;
-    /** Label of the action that commits the pending visibility selection. */
-    readonly saveVisibility: string;
-}
-
-/**
- * Copy for the clone-info panel (W5 Task 8, C5): the source collection's `@owner / "name"` attribution, the
- * cloned date, and the View Source action, rendered by both the web and native leaves.
- */
-export interface CloneInfoPanelMessages {
-    /** Accessible name for the panel's wrapping landmark, and its visible section title. */
-    readonly heading: string;
-    /** Attribution template with a resolved source owner handle (contains `{handle}` and `{name}`). */
-    readonly clonedFrom: string;
-    /** Attribution template with no resolved source owner (contains `{name}`). */
-    readonly clonedFromNoHandle: string;
-    /** Generic fallback shown when neither the source owner handle nor the collection name resolved. */
-    readonly clonedFromUnknown: string;
-    /** "Cloned {date}" template (contains `{date}`). */
-    readonly clonedOn: string;
-    /** Label of the view-source action. */
-    readonly viewSource: string;
 }
 
 /**
@@ -254,14 +335,18 @@ export interface CollectionMessages {
     readonly detail: CollectionDetailMessages;
     /** Copy for the collection recipe-picker (the add-a-recipe flow). */
     readonly picker: CollectionRecipePickerMessages;
-    /** Copy for the collection create/rename form. */
-    readonly form: CollectionFormMessages;
+    /** Copy for the new-collection sheet. */
+    readonly sheet: CollectionSheetMessages;
+    /** Copy for the sheet's rename mode. */
+    readonly rename: CollectionRenameMessages;
+    /** Copy for the collection's ⋯ menu. */
+    readonly menu: CollectionMenuMessages;
+    /** Copy for a member row's ⋯ menu and the snackbars. */
+    readonly member: CollectionMemberMessages;
+    /** Copy for the delete confirmation and the Premium sheet. */
+    readonly dialogs: CollectionDialogMessages;
     /** Copy for the collection-header view (badge, count, source attribution, last-pulled, back). */
     readonly header: CollectionHeaderMessages;
-    /** Copy for the collection-actions sidebar. */
-    readonly actions: CollectionActionsMessages;
-    /** Copy for the clone-info panel (source attribution, cloned date, View Source). */
-    readonly cloneInfo: CloneInfoPanelMessages;
     /** Copy for the Pull-Updates preview dialog (diff counts, protection note, cancel/confirm). */
     readonly pull: PullUpdatesDialogMessages;
 }
@@ -272,32 +357,113 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             heading: 'Collections',
             createCta: 'New collection',
             loadingLabel: 'Loading collections',
-            emptyTitle: 'No collections yet',
-            emptyBody: 'Create a collection to organize your recipes.',
+            emptyTitle: 'Group recipes your way',
+            emptyBody: 'Make a collection for weeknights, holidays or anything else.',
             errorTitle: 'We couldn’t load your collections.',
             retry: 'Try again',
             loadMore: 'Load more',
             loadingMore: 'Loading…',
             loadMoreError: 'We couldn’t load more collections.',
             refreshError: 'We couldn’t refresh your collections.',
+            countOne: '{count} collection',
+            countOther: '{count} collections',
+            searchLabel: 'Search your collections',
+            clearSearch: 'Clear search',
+            noMatch: 'No collections match “{query}”.',
+            cardLabel: '{name}, {visibility}',
+            copiedFrom: 'Copied from @{handle}',
+            visibilityPublic: 'Public',
+            visibilityPrivate: 'Private',
+            needRecipes: 'Add a few recipes first.',
+            addRecipe: 'Add a recipe',
+        },
+        sheet: {
+            newTitle: 'New collection',
+            nameLabel: 'Name',
+            descriptionLabel: 'Description (optional)',
+            counter: '{count}/{max}',
+            create: 'Create collection',
+            cancel: 'Cancel',
+            close: 'Close',
+            nameRequired: 'Give your collection a name.',
+            createFailed: 'We couldn’t create the collection. Try again.',
+            discardTitle: 'Discard this collection?',
+            discardBody: 'The name you typed will be lost.',
+            discard: 'Discard',
+            keepEditing: 'Keep editing',
+        },
+        rename: {
+            title: 'Rename collection',
+            save: 'Save name',
+            failed: 'We couldn’t rename the collection. Try again.',
+        },
+        menu: {
+            moreActions: 'More actions for {name}',
+            close: 'Close menu',
+            rename: 'Rename',
+            makePrivate: 'Make private',
+            makePublic: 'Make public',
+            saveCopy: 'Save a copy',
+            pullUpdates: 'Pull updates',
+            delete: 'Delete collection',
+        },
+        member: {
+            moreActions: 'More actions for {title}',
+            open: 'Open recipe',
+            remove: 'Remove from collection',
+            removed: 'Removed {recipe} from {collection}.',
+            undo: 'Undo',
+            removeFailed: 'Couldn’t remove {title}. Try again.',
+            visibilityChanged: 'Collection is now {visibility}.',
+            visibilityPrivateWord: 'private',
+            visibilityPublicWord: 'public',
+            visibilityFailed: 'We couldn’t change who can see this collection. Try again.',
+            saveCopyFailed: 'We couldn’t save a copy of this collection. Try again.',
+        },
+        dialogs: {
+            deleteTitle: 'Delete {name}?',
+            deleteBodyOne: 'The {count} recipe stays in your library.',
+            deleteBodyOther: 'The {count} recipes stay in your library.',
+            deleteConfirm: 'Delete collection',
+            deleteKeep: 'Keep collection',
+            upsellTitle: 'Private collections are part of Premium.',
+            upsellBody: 'Public collections are free. Premium lets you keep a collection to yourself.',
+            upsellSee: 'See Premium',
+            upsellNotNow: 'Not now',
+            deleteFailed: 'We couldn’t delete this collection. Try again.',
+            deleting: 'Deleting…',
+            upsellClose: 'Close',
         },
         detail: {
             membersHeading: 'Recipes',
-            emptyTitle: 'No recipes in this collection yet',
-            emptyBody: 'Add recipes to see them here.',
+            emptyTitle: 'No recipes here yet',
+            emptyBody: 'Add a few recipes to this collection.',
             removeRecipe: 'Remove {title}',
             removeCta: 'Remove',
-            addRecipeCta: 'Add a recipe',
+            addRecipeCta: 'Add recipes',
             renameCta: 'Rename',
             deleteCta: 'Delete',
             deleteError: 'We couldn’t delete this collection. Please try again.',
             removeError: 'We couldn’t remove that recipe. Please try again.',
             sourceIndicatorOwned: 'Added by you',
-            sourceIndicatorFromSource: 'From source collection',
+            sourceIndicatorFromSource: 'From the original collection',
             byAuthor: 'by @{handle}',
             refreshError: 'We couldn’t refresh this collection.',
             refreshRetry: 'Try again',
             loadMore: 'Load more ({count} more)',
+            copiedFrom: 'Copied from @{handle}',
+            copiedFromNamed: 'Copied from “{name}”',
+            copiedFromUnknown: 'Copied from another collection',
+            recipeCountOne: '{count} recipe',
+            recipeCountOther: '{count} recipes',
+            visibilityPublic: 'Public',
+            visibilityPrivate: 'Private',
+            backTo: 'Back to {parent}',
+            viewList: 'List view',
+            viewGrid: 'Grid view',
+            viewLabel: 'View',
+            notFoundTitle: 'We couldn’t find that collection',
+            notFoundBody: 'It may have been deleted.',
         },
         picker: {
             heading: 'Add recipes to {name}',
@@ -308,7 +474,7 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             retry: 'Try again',
             emptyTitle: 'No recipes yet',
             emptyBody: 'Create a recipe to add it to this collection.',
-            createRecipe: 'New recipe',
+            createRecipe: 'Add a recipe',
             noMatchesTitle: 'No recipes match your search',
             add: 'Add',
             addRecipe: 'Add {title}',
@@ -318,15 +484,17 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             addedAnnouncement: 'Added {title}',
             addFailed: 'We couldn’t add that recipe. Please try again.',
             done: 'Done',
-        },
-        form: {
-            createTitle: 'New collection',
-            renameTitle: 'Rename collection',
-            nameLabel: 'Collection name',
-            namePlaceholder: 'e.g. Weeknight dinners',
-            createSubmit: 'Create',
-            renameSubmit: 'Save',
-            cancel: 'Cancel',
+            title: 'Add to {name}',
+            toolbarHeading: 'Your recipes',
+            close: 'Close',
+            removedAnnouncement: 'Removed {title}',
+            toggleAddFailed: 'Couldn’t add {title}. Try again.',
+            toggleRemoveFailed: 'Couldn’t remove {title}. Try again.',
+            doneWithCount: 'Done · {summary}',
+            addedCount: '{count} added',
+            removedCount: '{count} removed',
+            clearSearch: 'Clear search',
+            noRecipesTitle: 'You have no recipes yet.',
         },
         header: {
             visibilityPublic: 'Public',
@@ -337,27 +505,6 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             sourceAttributionNoHandle: 'Source: "{name}"',
             lastPulled: 'Last pulled: {date}',
             backToCollections: 'Back to My Collections',
-        },
-        actions: {
-            heading: 'Collection actions',
-            addRecipes: 'Add Recipes',
-            pullUpdates: 'Pull Updates from Source',
-            pullingLabel: 'Pulling updates…',
-            cloneCollection: 'Clone Collection',
-            cloningLabel: 'Cloning…',
-            visibilityGroupLabel: 'Visibility',
-            makePublic: 'Public',
-            makePrivate: 'Private',
-            privatePremiumGated: 'Upgrade to premium to make a collection private.',
-            saveVisibility: 'Save changes',
-        },
-        cloneInfo: {
-            heading: 'Clone Info',
-            clonedFrom: '@{handle} / "{name}"',
-            clonedFromNoHandle: '"{name}"',
-            clonedFromUnknown: 'a source collection',
-            clonedOn: 'Cloned {date}',
-            viewSource: 'View Source',
         },
         pull: {
             title: 'Pull Updates from Source Collection',

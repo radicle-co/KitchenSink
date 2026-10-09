@@ -21,13 +21,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage({ params }: { params: Promise<{ locale: string }> }) {
     const { locale } = await params;
-    const { userId, getToken } = await auth();
+    const { userId } = await auth();
 
     if (!userId) {
         redirect(`/${locale}/sign-in` as Route);
     }
 
-    const token = (await getToken()) ?? '';
-
-    return <ProfileContent accessToken={token} locale={locale} />;
+    return <ProfileContent />;
 }

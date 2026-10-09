@@ -1,155 +1,127 @@
 /**
- * Native component tests for the collection member row (rendered via react-native-web under jsdom). Mirrors
- * the web leaf across every state — source indicator, `by @handle`, card-composed fields, select/remove
- * reporting, and the mandatory double-fire guard — so the two platform renders cannot drift.
+ * The native collection member (`docs/design/uiOverhaul/buildSpec.md` §5.2): the shared `RecipeCard`, as a list row or a grid
+ * card, with its source label ("Added by you" or "From the original collection") on the row's last line and a trailing ⋯
+ * menu — Open recipe, Remove from collection. The card is one link; the menu sits beside it, never inside, so one press
+ * cannot do both. Removing here only ASKS: the screen hides the row and offers Undo (`useMemberRemoval`).
+ *
+ * ⚠️ REWRITTEN for slice 5. The row used to be a bespoke arrangement with a text "Remove" button beside the title; the
+ * remove control is now a menu item, the card is the shared one, and the source label moved to the last line.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { RecipeCollectionAddedVia } from '@kitchensink/recipe-core';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { RecipeCollectionAddedVia } from '@kitchensink/recipe-core';
+import { LocaleProvider } from '@commise/i18n/react';
 
 import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
-// Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionMemberRow } from '../CollectionMemberRow.native.js';
-import type { CollectionMemberRowProps } from '../model.js';
+import type { CollectionMemberRowProps } from '../detailModel.js';
 
 afterEach(cleanup);
 
-const noop = () => undefined;
-
-function renderRow(overrides: Partial<CollectionMemberRowProps> = {}) {
+function renderRow(over: Partial<CollectionMemberRowProps> = {}) {
     const props: CollectionMemberRowProps = {
-        member: makeCollectionMemberRecipe(),
-        onSelect: noop,
-        onRemove: noop,
-        ...overrides,
+        member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Pasta' }),
+        variant: 'row',
+        onSelect: vi.fn(),
+        onRemove: vi.fn(),
+        ...over,
     };
-    render(<CollectionMemberRow {...props} />);
+
+    render(
+        <LocaleProvider locale="en">
+            <CollectionMemberRow {...props} />
+        </LocaleProvider>,
+    );
 
     return props;
 }
 
-describe('CollectionMemberRow (native) — source indicator', () => {
-    it('shows the owner-added/protected indicator when addedVia is manual', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ addedVia: RecipeCollectionAddedVia.MANUAL }) });
+describe.each(['row', 'grid', 'compact'] as const)('CollectionMemberRow (native, %s)', (variant) => {
+    it('draws the shared card in that variant, one link named by the title', () => {
+        renderRow({ variant });
+
+        expect(screen.getByRole('link', { name: 'Pasta' })).toBeTruthy();
+    });
+
+    it('says where the recipe came from: added by the cook, or from the original collection', () => {
+        const { unmount } = render(
+            <LocaleProvider locale="en">
+                <CollectionMemberRow
+                    member={makeCollectionMemberRecipe({ addedVia: RecipeCollectionAddedVia.MANUAL })}
+                    variant={variant}
+                    onSelect={vi.fn()}
+                    onRemove={vi.fn()}
+                />
+            </LocaleProvider>,
+        );
 
         expect(screen.getByText('Added by you')).toBeTruthy();
-        expect(screen.queryByText('From source collection')).toBeNull();
+        unmount();
+
+        for (const addedVia of [RecipeCollectionAddedVia.CLONE_SEED, RecipeCollectionAddedVia.PULL]) {
+            const view = render(
+                <LocaleProvider locale="en">
+                    <CollectionMemberRow
+                        member={makeCollectionMemberRecipe({ addedVia })}
+                        variant={variant}
+                        onSelect={vi.fn()}
+                        onRemove={vi.fn()}
+                    />
+                </LocaleProvider>,
+            );
+
+            expect(screen.getByText('From the original collection')).toBeTruthy();
+            view.unmount();
+        }
     });
 
-    it('shows the from-source/will-sync indicator when addedVia is clone_seed', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ addedVia: RecipeCollectionAddedVia.CLONE_SEED }) });
+    it('offers a ⋯ menu named for the recipe, beside the link and not inside it', () => {
+        renderRow({ variant });
+        const menu = screen.getByRole('button', { name: 'More actions for Pasta' });
 
-        expect(screen.getByText('From source collection')).toBeTruthy();
-        expect(screen.queryByText('Added by you')).toBeNull();
+        expect(screen.getByRole('link', { name: 'Pasta' }).contains(menu)).toBe(false);
     });
 
-    it('shows the from-source/will-sync indicator when addedVia is pull', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ addedVia: RecipeCollectionAddedVia.PULL }) });
+    it('opens the menu with Open recipe and Remove from collection, and each reports what it asks for', () => {
+        const props = renderRow({ variant });
 
-        expect(screen.getByText('From source collection')).toBeTruthy();
-        expect(screen.queryByText('Added by you')).toBeNull();
-    });
-});
+        fireEvent.click(screen.getByRole('button', { name: 'More actions for Pasta' }));
+        const items = screen.getAllByRole('menuitem');
 
-describe('CollectionMemberRow (native) — by @handle', () => {
-    it('renders the by-@handle line when the member has an author handle', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ authorHandle: 'alexk' }) });
+        expect(items.map((item) => item.textContent)).toEqual(['Open recipe', 'Remove from collection']);
 
-        expect(screen.getByText('by @alexk')).toBeTruthy();
-    });
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from collection' }));
 
-    it('omits the by-@handle line when the member has no author handle (never "by @undefined")', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ authorHandle: undefined }) });
-
-        expect(screen.queryByText(/^by @/)).toBeNull();
-    });
-});
-
-describe('CollectionMemberRow (native) — composes RecipeCard (not a hand-rolled duplicate)', () => {
-    // The calorie assertion MOVED with the deferred lookup: the figure is no longer a card-model field, so a
-    // member row renders none until this surface passes a `nutrition` slot. Coverage of the figure's states
-    // lives in `nutrition/__tests__/RecipeCalorieChip.native.test.tsx`.
-    it('renders the title, version badge past v1, and visibility via the shared RecipeCard', () => {
-        renderRow({
-            member: makeCollectionMemberRecipe({
-                title: 'Chicken Alfredo',
-                currentVersion: 3,
-                visibility: 'private',
-                status: 'published',
-            }),
-        });
-
-        expect(screen.getByText('Chicken Alfredo')).toBeTruthy();
-        expect(screen.getByLabelText('Version 3').textContent).toBe('v3');
-        expect(screen.getByText('Private')).toBeTruthy();
-        // No fabricated figure of any kind while the deferred lookup is unwired on this surface.
-        expect(screen.queryByText(/\d+ cal/)).toBeNull();
+        expect(props.onRemove).toHaveBeenCalledExactlyOnceWith({ id: 'rec_1', title: 'Pasta' });
+        expect(props.onSelect).not.toHaveBeenCalled();
     });
 
-    // NARROWED from "…and renders no calorie line when calories are absent (never 0)". With the figure gone
-    // from the card model entirely, the calorie half could no longer fail for ANY implementation — coverage
-    // theatre under a title that still advertised it. Its `leadCaloriesPerServing: 520` fixture line has now
-    // gone too: the field left the wire `Recipe` (ADR-0021's "Follow-up owed"), so a member CANNOT carry a
-    // figure to leak. The test above asserts no calorie text renders at all, which still has teeth.
-    it('hides the version badge at v1', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ currentVersion: 1 }) });
+    it('Open recipe selects it', () => {
+        const props = renderRow({ variant });
 
-        expect(screen.queryByLabelText(/Version/)).toBeNull();
-    });
-});
+        fireEvent.click(screen.getByRole('button', { name: 'More actions for Pasta' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Open recipe' }));
 
-describe('CollectionMemberRow (native) — select / remove', () => {
-    it('reports the recipe id upward when the select target is activated', () => {
-        const onSelect = vi.fn();
-        renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }), onSelect });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Weeknight Pasta' }));
-
-        expect(onSelect).toHaveBeenCalledWith('rec_1');
+        expect(props.onSelect).toHaveBeenCalledExactlyOnceWith('rec_1');
+        expect(props.onRemove).not.toHaveBeenCalled();
     });
 
-    it('reports the recipe id upward when the remove control is activated', () => {
-        const onRemove = vi.fn();
-        renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }), onRemove });
+    it('opening the card from its title reports the selection and not a removal', () => {
+        const props = renderRow({ variant });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
+        fireEvent.click(screen.getByRole('link', { name: 'Pasta' }));
 
-        expect(onRemove).toHaveBeenCalledWith('rec_1');
+        expect(props.onSelect).toHaveBeenCalledExactlyOnceWith('rec_1');
+        expect(props.onRemove).not.toHaveBeenCalled();
     });
 
-    it('does NOT also fire onSelect when Remove is activated (double-fire guard — sibling controls, never nested)', () => {
-        const onSelect = vi.fn();
-        const onRemove = vi.fn();
-        renderRow({
-            member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }),
-            onSelect,
-            onRemove,
-        });
+    it('renders the host’s nutrition figure in the card’s meta', () => {
+        renderRow({ variant, nutrition: <span>612 cal</span> });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
-
-        expect(onRemove).toHaveBeenCalledWith('rec_1');
-        expect(onSelect).not.toHaveBeenCalled();
-    });
-});
-
-/**
- * ⛔ THE TITLE BELONGS IN THE REMOVE CONTROL'S NAME, NEVER IN ITS VISIBLE TEXT. The row lays the title and Remove
- * out side by side, with Remove unable to shrink. When Remove's visible text repeated the whole title, a long title
- * made Remove take the full row width. On device (Maestro run 34863424203, `collectionsPull`) the title was
- * squeezed to almost no width and wrapped about one character per line, so the card became a ~1,500px blank with
- * the title off-screen. A layout this environment cannot measure is pinned here by its cause: the visible text is
- * the short verb, and only the accessible name carries the title.
- */
-describe('CollectionMemberRow (native) — Remove never repeats the title on screen', () => {
-    it('shows the bare verb while the accessible name still names the recipe', () => {
-        const title = 'Mediterranean Grilled Lamb ghg0ks6a3-1-29eb8f29';
-        renderRow({ member: makeCollectionMemberRecipe({ title }) });
-
-        const remove = screen.getByRole('button', { name: `Remove ${title}` });
-
-        expect(remove.textContent).toBe('Remove');
+        if (variant !== 'compact') {
+            expect(screen.getByText('612 cal')).toBeTruthy();
+        }
     });
 });

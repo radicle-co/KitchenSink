@@ -19,7 +19,9 @@ import { signInWithTicket } from './utils/auth';
  */
 
 const TITLE = 'We couldn’t find that page.';
-const UNKNOWN_PATHS = ['/this-page-does-not-exist', '/recipes/rec_seed/typo'];
+// `/settings` and `/account` are DELETED routes (slice 9; blueprint A10): no redirect, so they answer the same 404 as any
+// other unknown path. Profile is the one page that replaced both.
+const UNKNOWN_PATHS = ['/this-page-does-not-exist', '/recipes/rec_seed/typo', '/settings', '/account'];
 
 for (const path of UNKNOWN_PATHS) {
     test(`${path} is a 404 inside the app shell, with a way home`, async ({ page }) => {
@@ -51,8 +53,8 @@ test.describe('as the server sends it, signed in', () => {
             try {
                 const serverPage = await context.newPage();
 
-                await serverPage.goto(route('/account'));
-                expect(isRoute(pathnameOf(serverPage), '/account')).toBe(true);
+                await serverPage.goto(route('/profile'));
+                expect(isRoute(pathnameOf(serverPage), '/profile')).toBe(true);
 
                 const response = await serverPage.goto(route(path));
 

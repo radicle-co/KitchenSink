@@ -5,6 +5,7 @@ import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
+import { addStep, setServings } from './utils/recipeEditor';
 
 /**
  * A line's PREPARATION and its SECTION, end to end (plan U26 / U27).
@@ -37,18 +38,13 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
 
         await page.goto(route('/recipes'));
         await page.getByRole('button', { name: 'New recipe' }).click();
-        // U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
-        await page.getByRole('menuitem', { name: 'Create from Scratch' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 
-        // Step 1 (Details).
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
+        // Details.
         await page.getByLabel('Title').fill('E2E Marinade Bowl');
-        await page.getByLabel('Servings').fill('4');
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
+        await setServings(page, 4);
 
-        // Step 2 (Ingredients) — resolve a catalog line, then state its preparation and its section.
-        await expect(page.getByText('Step 2 of 4')).toBeVisible();
+        // Ingredients — resolve a catalog line, then state its preparation and its section.
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
         await page
             .getByRole('group', { name: 'Food catalog' })
@@ -64,28 +60,23 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         // derived from the draft, not from a save.
         await expect(page.getByRole('heading', { name: 'For the marinade' })).toBeVisible();
 
-        await page.getByRole('button', { name: 'Next: Instructions' }).click();
-        await page.getByRole('button', { name: 'Add step' }).click();
-        await page.getByLabel('Step 1 instruction').fill('Marinate and grill.');
-        await page.getByRole('button', { name: 'Next: Review' }).click();
+        await addStep(page, 'Marinate and grill.');
         await page.getByRole('button', { name: 'Publish' }).click();
 
         // VIEW — the preparation is on the surface a cook actually cooks from, as its own text and NOT
         // welded into the food's name.
         await expect(page.getByRole('heading', { name: 'E2E Marinade Bowl' })).toBeVisible();
-        // Rewritten when the row became one flowing text block (namelessLineCopy.md §2c): the name and the
-        // preparation now sit in one line of text, so the proof is that each is its OWN element and that the
-        // line's accessible name carries the food without the preparation.
+        // The name and the preparation sit in one flowing line of text (namelessLineCopy.md §2c), each its OWN
+        // element, so the preparation is never concatenated into the food's name (U26). REWRITTEN for slice 6: the
+        // whole row is now the checkbox, named with the full line (build spec §6.3) — the food, then the
+        // preparation as its own clause after a comma.
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
         await expect(ingredients.getByText('finely chopped', { exact: true })).toBeVisible();
         await expect(ingredients.getByText('Salt', { exact: true })).toBeVisible();
-        await expect(ingredients.getByRole('checkbox', { name: /Salt$/u })).toBeVisible();
+        await expect(ingredients.getByRole('checkbox', { name: /Salt, finely chopped$/u })).toBeVisible();
 
         // RE-OPEN — both values are re-seeded. Dropping either here is the narrowing defect.
         await page.getByRole('link', { name: 'Edit recipe' }).click();
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
-        await expect(page.getByText('Step 2 of 4')).toBeVisible();
 
         await expect(page.getByLabel('Ingredient 1 preparation')).toHaveValue('finely chopped');
         await expect(page.getByLabel('Ingredient 1 section')).toHaveValue('For the marinade');
@@ -100,12 +91,9 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
 
         await page.goto(route('/recipes'));
         await page.getByRole('button', { name: 'New recipe' }).click();
-        // U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
-        await page.getByRole('menuitem', { name: 'Create from Scratch' }).click();
 
         await page.getByLabel('Title').fill('E2E Flat Loaf');
-        await page.getByLabel('Servings').fill('2');
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
+        await setServings(page, 2);
 
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
         await page
@@ -114,15 +102,12 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
             .click();
         await page.getByLabel('Ingredient 1 quantity').fill('1');
 
-        // ⛔ The whole ingredients step carries NO section heading. `level: 3` is the section-heading level;
-        // the step's own "Ingredients" heading is a level 2 and is unaffected.
-        const step = page.getByRole('region', { name: 'Ingredients' });
-        await expect(step.getByRole('heading', { level: 3 })).toHaveCount(0);
+        // ⛔ The whole Ingredients section carries NO ingredient-section heading. `level: 3` is that heading's level;
+        // the editor section's own "Ingredients" heading is a level 2 and is unaffected.
+        const section = page.getByRole('region', { name: 'Ingredients' });
+        await expect(section.getByRole('heading', { level: 3 })).toHaveCount(0);
 
-        await page.getByRole('button', { name: 'Next: Instructions' }).click();
-        await page.getByRole('button', { name: 'Add step' }).click();
-        await page.getByLabel('Step 1 instruction').fill('Bake.');
-        await page.getByRole('button', { name: 'Next: Review' }).click();
+        await addStep(page, 'Bake.');
         await page.getByRole('button', { name: 'Publish' }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Flat Loaf' })).toBeVisible();

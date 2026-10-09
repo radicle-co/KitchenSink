@@ -37,6 +37,8 @@ import {
     Lock,
     LogIn,
     LogOut,
+    LayoutGrid,
+    List,
     Menu,
     Minus,
     PencilLine,
@@ -114,4 +116,6 @@ export const GLYPHS: Readonly<Record<IconName, LucideIcon>> = {
     chartColumn: ChartColumn,
     bell: Bell,
     menu: Menu,
+    list: List,
+    layoutGrid: LayoutGrid,
 };

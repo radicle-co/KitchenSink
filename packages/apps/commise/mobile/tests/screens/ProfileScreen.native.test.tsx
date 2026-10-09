@@ -1,206 +1,458 @@
 /**
- * Component tests for the rebuilt mobile ProfileScreen (U2). react-native-web under jsdom. The rebuild moves
- * the profile-editing surface onto the design system: a tokenized `Input` for the display name (label
- * associated), the `AvatarField` image-picker (replacing the raw avatar-URL text box), a DS `Button` with a
- * real `busy` state for Save, all copy from `mobileMessages`, and a `SafeAreaView` + `KeyboardAvoidingView`
- * shell. The load-bearing B1 case still holds: an unsaved edit MUST survive a background refetch of the same
- * profile (the form seeds once via `useState` + remounts on `key={user.id}`, never via a clobbering effect).
+ * The native Profile page (`docs/design/uiOverhaul/buildSpec.md` §9.1): ONE page from the avatar that holds who the cook
+ * is, the one thing they can change (the display name), preferences, sign out and the danger zone. It replaces the old
+ * profile form AND the `AccountSettings` hub, so this suite also pins that the hub is gone.
  *
- * `useAvatarUpload` (the picker's upload seam) is stubbed so the field renders without `@clerk/expo`; the
- * profile hooks are mocked to drive each query state.
+ * REWRITTEN in slice 9. The previous suite drove a suspense read under `QueryBoundary` and a Save-everything form
+ * (display name + avatar URL in one PATCH, a keyboard-avoider shell). None of that survives, by design: a FAILED read
+ * must no longer replace the page (E15: sign out and the danger zone still work), the name is written only from the
+ * sheet's Save, and the page has no field of its own to pad above a keyboard. What carried over, as new cases: the
+ * loading / failed / ready states, the B17 sign-out failure alert, and the rule that nothing is written before Save.
+ *
+ * Rendered through react-native-web under jsdom. Hooks that reach the network are mocked; the design-system leaves and
+ * the Profile leaves of `@commise/features-account/profile` are REAL, so colour, roles and names are what ships.
  */
 import { createElement } from 'react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { AccessibilityInfo } from 'react-native';
+import { formatRgb } from 'culori';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
+import { accountDangerMessages } from '@commise/features-account/danger';
+import { profileMessages } from '@commise/features-account/profile';
+import { role, roleDark } from '@commise/ui/colors';
+import { SnackbarHost } from '@commise/ui/snackbar';
+
+import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
+import { useEraseAccount } from '../../src/hooks/useEraseAccount.js';
 import { useUpdateProfile } from '../../src/hooks/useUpdateProfile.js';
-import { useSuspenseUserProfile } from '../../src/hooks/useSuspenseUserProfile.js';
-import { ProfileScreen } from '../../src/screens/profile.js';
+import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
+import { ProfileScreen } from '../../src/screens/profile.js';
 
-vi.mock('../../src/hooks/useSuspenseUserProfile.js', () => ({ useSuspenseUserProfile: vi.fn() }));
-vi.mock('../../src/hooks/useUpdateProfile.js', () => ({ useUpdateProfile: vi.fn() }));
-
-vi.mock('../../src/hooks/useAvatarUpload.js', () => ({ useAvatarUpload: () => ({ upload: vi.fn() }) }));
-
-vi.mock('react-native-safe-area-context', () => ({
-    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
-    SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
-    SafeAreaView: ({ children }: { readonly children?: unknown }) =>
-        createElement('div', { 'aria-label': 'safe-area-root' }, children as never),
-}));
-
-// The platform is react-native-web's unless a test sets it, so a case can ask what the avoider does on Android.
-const platform = vi.hoisted(() => ({ os: undefined as 'android' | 'ios' | undefined }));
+/** The system colour scheme the next render sees. */
+const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
         ...actual,
-        Platform: {
-            ...actual.Platform,
-            get OS() {
-                return platform.os ?? actual.Platform.OS;
-            },
-        },
-        KeyboardAvoidingView: ({ children, behavior }: { readonly children?: unknown; readonly behavior?: string }) =>
-            createElement('div', { 'aria-label': 'keyboard-avoiding', 'data-behavior': behavior }, children as never),
+        useColorScheme: () => scheme.current,
+        // react-native-web implements no `sendAccessibilityEvent`: the contract (which node, when) is what is asserted.
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
     };
 });
 
-const { profile: t } = mobileMessages.en;
-const useUserProfileMock = vi.mocked(useSuspenseUserProfile);
-const useUpdateProfileMock = vi.mocked(useUpdateProfile);
-const mutateMock = vi.fn();
+const { signOutAndVerify, clerkUser } = vi.hoisted(() => ({
+    signOutAndVerify: vi.fn(),
+    clerkUser: { current: null as unknown },
+}));
+vi.mock('@clerk/expo', () => ({
+    useUser: () => ({ user: clerkUser.current }),
+    useAuth: () => ({ signOut: vi.fn() }),
+    useClerk: () => ({ signOut: vi.fn(), loaded: true, status: 'ready', session: null }),
+}));
+vi.mock('../../src/hooks/useSignOutAndVerify.js', () => ({ useSignOutAndVerify: () => ({ signOutAndVerify }) }));
+vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: vi.fn() }));
+vi.mock('../../src/hooks/useUpdateProfile.js', () => ({ useUpdateProfile: vi.fn() }));
+vi.mock('../../src/hooks/useDeleteAccount.js', () => ({ useDeleteAccount: vi.fn() }));
+vi.mock('../../src/hooks/useEraseAccount.js', () => ({ useEraseAccount: vi.fn() }));
+vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
+    useAllOwnerRecipes: () => ({ recipes: [], isLoading: false, isError: false, isComplete: true }),
+    useRequestAccountErasure: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+}));
 
-/**
- * A SETTLED profile read carrying a user with the given display name.
- *
- * ⚠️ No `isLoading` / `isLoadingError` any more, and their absence is the conversion: a suspense read only
- * ever returns settled data to its leaf, because Suspense owns pending and `QueryBoundary` owns failed
- * (§11.0). A fixture still carrying those flags would be describing a shape this screen can no longer see.
- */
-function profileResult(displayName: string): ReturnType<typeof useSuspenseUserProfile> {
+// The photo control reaches the device picker and an upload; here it is a stub that "uploads" one URL on press.
+vi.mock('../../src/components/account/AvatarField.js', () => ({
+    AvatarField: ({ onChange, value }: { onChange: (url: string) => void; value: string }) =>
+        createElement(
+            'button',
+            { type: 'button', 'data-photo': value, onClick: () => onChange('https://cdn.example/new.png') },
+            'Pick photo',
+        ),
+}));
+
+// The sheet reads a food-service endpoint; here it is a stub that can be closed.
+vi.mock('@commise/features-recipes/data-sources/mobile', () => ({
+    DataSourcesScreen: ({ onRequestClose }: { onRequestClose: () => void }) =>
+        createElement('div', { role: 'dialog', 'aria-label': 'Data sources sheet' }, [
+            createElement('button', { key: 'c', type: 'button', onClick: onRequestClose }, 'Close sources'),
+        ]),
+}));
+
+const t = profileMessages.en;
+const { close, erase } = accountDangerMessages.en;
+const { suspension } = mobileMessages.en;
+
+const useUserProfileMock = vi.mocked(useUserProfile);
+const useUpdateProfileMock = vi.mocked(useUpdateProfile);
+const useDeleteAccountMock = vi.mocked(useDeleteAccount);
+const useEraseAccountMock = vi.mocked(useEraseAccount);
+const mutate = vi.fn();
+const refetch = vi.fn();
+
+type ProfileQuery = ReturnType<typeof useUserProfile>;
+
+/** A settled profile read. */
+function ready(
+    over: { displayName?: string; email?: string; avatarUrl?: string; status?: 'active' | 'suspended' } = {},
+): ProfileQuery {
     return {
-        data: { user: { id: 'usr_1', displayName, avatarUrl: '', status: 'active' } },
-    } as unknown as ReturnType<typeof useSuspenseUserProfile>;
+        data: {
+            user: {
+                id: 'usr_1',
+                displayName: over.displayName ?? 'Eliza Moreno',
+                email: over.email ?? 'eliza@example.com',
+                avatarUrl: over.avatarUrl ?? '',
+                status: over.status ?? 'active',
+            },
+        },
+        isError: false,
+        refetch,
+    } as unknown as ProfileQuery;
+}
+
+const loading = { data: undefined, isError: false, refetch } as unknown as ProfileQuery;
+const failed = { data: undefined, isError: true, refetch } as unknown as ProfileQuery;
+
+/** Render the page where the app does: under the snackbar host. */
+function renderProfile(onBack = vi.fn()) {
+    render(
+        <SnackbarHost>
+            <ProfileScreen onBack={onBack} />
+        </SnackbarHost>,
+    );
+
+    return onBack;
+}
+
+/** A mutation double: `mutate` runs the caller's `onSuccess` unless a case says otherwise. */
+function setMutation(state: { isPending?: boolean; isError?: boolean } = {}): void {
+    useUpdateProfileMock.mockReturnValue({
+        mutate,
+        reset: vi.fn(),
+        variables: {},
+        isPending: state.isPending ?? false,
+        isError: state.isError ?? false,
+    } as unknown as ReturnType<typeof useUpdateProfile>);
 }
 
 beforeEach(() => {
-    useUpdateProfileMock.mockReturnValue({ mutate: mutateMock, isPending: false } as never);
+    useUserProfileMock.mockReturnValue(ready());
+    mutate.mockReset().mockImplementation((_body: unknown, options?: { onSuccess?: () => void }) => {
+        options?.onSuccess?.();
+    });
+    setMutation();
+    useDeleteAccountMock.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false } as never);
+    useEraseAccountMock.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false } as never);
+    signOutAndVerify.mockReset().mockResolvedValue(undefined);
+    clerkUser.current = null;
 });
 
 afterEach(() => {
     cleanup();
     vi.clearAllMocks();
-    platform.os = undefined;
+    scheme.current = null;
 });
 
-describe('ProfileScreen — query states are owned by the boundary (§11.0)', () => {
-    /**
-     * ⛔ THESE TWO TESTS PROVE A DIFFERENT THING THAN THEY USED TO, and that is the point of the change.
-     * Before, the screen read `toDetailQueryView(useUserProfile())` and rendered the pending and failed
-     * states ITSELF, so these drove the hook's status flags. Now the read suspends: React owns pending and
-     * `QueryBoundary` owns failed, and the screen supplies only the NODES. So the mock no longer returns a
-     * status — it SUSPENDS (throws a promise) or THROWS, which is what a real suspense read does.
-     *
-     * The observable outcome is deliberately unchanged — same copy, same roles — because a viewer should not
-     * be able to tell that ownership moved. What changed is who is responsible, and these assertions now fail
-     * if the boundary is removed rather than if a status ladder is.
-     */
-    it('shows a labelled loading indicator while the profile suspends', () => {
-        // A never-settling promise is exactly what a pending suspense read throws.
-        useUserProfileMock.mockImplementation(() => {
-            throw new Promise<void>(() => undefined);
-        });
+describe('ProfileScreen — the one page (§9.1)', () => {
+    it('is a titled page with a back control that leaves it', () => {
+        const onBack = renderProfile();
 
-        render(<ProfileScreen />);
+        expect(screen.getByRole('heading', { name: t.title, level: 1 })).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: t.back }));
 
-        expect(screen.getByRole('progressbar', { name: t.loading })).toBeTruthy();
-        // …and the same context is VISIBLE, so a sighted viewer can also tell what is happening.
-        expect(screen.getByText(t.loading)).toBeTruthy();
+        expect(onBack).toHaveBeenCalledTimes(1);
     });
 
-    it('shows the localized load error when the suspense read throws', () => {
-        useUserProfileMock.mockImplementation(() => {
-            throw new Error('boom');
-        });
+    it('shows the name and email in the header and both rows in the Account group', () => {
+        renderProfile();
 
-        render(<ProfileScreen />);
+        const account = screen.getByRole('button', { name: t.displayName });
+        expect(account.textContent).toContain('Eliza Moreno');
+        // Header and the read-only Email row both carry the address.
+        expect(screen.getAllByText('eliza@example.com').length).toBeGreaterThanOrEqual(2);
+        expect(screen.getByText(t.email)).toBeTruthy();
+    });
 
-        expect(screen.getByText(t.loadError)).toBeTruthy();
+    it('holds Preferences with the data sources row, sign out, and the danger zone with both hints', () => {
+        renderProfile();
+
+        expect(screen.getByRole('heading', { name: t.preferences, level: 2 })).toBeTruthy();
+        expect(screen.getByRole('button', { name: t.dataSources })).toBeTruthy();
+        expect(screen.getByRole('button', { name: t.signOut })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: t.dangerZone, level: 2 })).toBeTruthy();
+        expect(screen.getByRole('button', { name: close.trigger })).toBeTruthy();
+        expect(screen.getByRole('button', { name: erase.trigger })).toBeTruthy();
+        expect(screen.getByText(close.rowHint)).toBeTruthy();
+        expect(screen.getByText(erase.rowHint)).toBeTruthy();
+    });
+
+    it('has no keyboard-shortcuts row (web only) and no Account settings entry (the hub is deleted)', () => {
+        renderProfile();
+
+        expect(screen.queryByText(t.shortcuts)).toBeNull();
+        expect(screen.queryByRole('button', { name: /account settings/i })).toBeNull();
+        expect(screen.queryByText(/account settings/i)).toBeNull();
+    });
+
+    it('opens the data sources sheet from its row and closes it back', () => {
+        renderProfile();
+
+        fireEvent.click(screen.getByRole('button', { name: t.dataSources }));
+        expect(screen.getByRole('dialog', { name: 'Data sources sheet' })).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close sources' }));
+        expect(screen.queryByRole('dialog', { name: 'Data sources sheet' })).toBeNull();
+    });
+
+    // §10 "Dialogs and sheets": focus returns to the trigger. It used to, through the settings link's own signal.
+    it('returns the screen-reader cursor to the data sources row once its sheet closes', () => {
+        renderProfile();
+        vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
+
+        fireEvent.click(screen.getByRole('button', { name: t.dataSources }));
+        expect(AccessibilityInfo.sendAccessibilityEvent).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close sources' }));
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(1);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
+            screen.getByRole('button', { name: t.dataSources }),
+            'focus',
+        );
     });
 });
 
-describe('ProfileScreen — editing surface', () => {
-    // An edge-to-edge Android window is not resized for the keyboard (E2 I6), so the avoider pads on both platforms; this
-    // screen padded on iOS only. The rule is `@commise/ui/keyboard-avoider`'s, the one avoider the apps use.
-    it.each(['android', 'ios'] as const)('pads its form above the keyboard on %s', (os) => {
-        platform.os = os;
-        useUserProfileMock.mockReturnValue(profileResult('Ada'));
+describe('ProfileScreen — states', () => {
+    it('shows the header skeleton while loading, keeps the other groups, and hides the Account group', () => {
+        useUserProfileMock.mockReturnValue(loading);
+        renderProfile();
 
-        render(<ProfileScreen />);
-
-        expect(screen.getByLabelText('keyboard-avoiding').getAttribute('data-behavior')).toBe('padding');
+        expect(screen.getByRole('status', { name: t.loading })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: t.displayName })).toBeNull();
+        expect(screen.getByRole('button', { name: t.signOut })).toBeTruthy();
+        expect(screen.getByRole('button', { name: erase.trigger })).toBeTruthy();
     });
 
-    it('renders the DS field, avatar picker, save button and the safe-area + keyboard-avoiding wrappers', () => {
-        useUserProfileMock.mockReturnValue(profileResult('Ada'));
+    it('says the read failed with Try again, which refetches; sign out and the danger zone still work (E15)', () => {
+        useUserProfileMock.mockReturnValue(failed);
+        renderProfile();
 
-        render(<ProfileScreen />);
+        expect(screen.getByRole('alert').textContent).toContain(t.loadError);
+        fireEvent.click(screen.getByRole('button', { name: t.retry }));
+        expect(refetch).toHaveBeenCalledTimes(1);
 
-        expect(screen.getByLabelText(t.displayName)).toBeTruthy();
-        expect(screen.getByText(t.avatarLabel)).toBeTruthy();
-        expect(screen.getByRole('button', { name: t.avatarChangeAction })).toBeTruthy();
-        expect(screen.getByRole('button', { name: t.save })).toBeTruthy();
-        expect(screen.getByLabelText('safe-area-root')).toBeTruthy();
-        expect(screen.getByLabelText('keyboard-avoiding')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: t.displayName })).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: t.signOut }));
+        expect(signOutAndVerify).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: close.trigger })).toBeTruthy();
     });
 
-    it('disables the save button and shows its busy state while a save is in flight', () => {
-        useUpdateProfileMock.mockReturnValue({ mutate: mutateMock, isPending: true } as never);
-        useUserProfileMock.mockReturnValue(profileResult('Ada'));
+    it('shows “Not set” and no name in the header while no name is saved', () => {
+        useUserProfileMock.mockReturnValue(ready({ displayName: '' }));
+        renderProfile();
 
-        render(<ProfileScreen />);
-
-        const button = screen.getByRole('button', { name: t.save });
-        // Busy spinner lives in the DS Button's decorative (aria-hidden) icon slot; include hidden nodes.
-        expect(within(button).getByRole('progressbar', { hidden: true })).toBeTruthy();
-        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByRole('button', { name: t.displayName }).textContent).toContain(t.displayNameUnset);
     });
 
-    it('saves the current edited value', () => {
-        useUserProfileMock.mockReturnValue(profileResult('Ada'));
+    it('keeps the suspended-account notice at the top', () => {
+        useUserProfileMock.mockReturnValue(ready({ status: 'suspended' }));
+        renderProfile();
 
-        render(<ProfileScreen />);
-        fireEvent.change(screen.getByDisplayValue('Ada'), { target: { value: 'Ada Edited' } });
+        expect(screen.getByText(suspension.title)).toBeTruthy();
+    });
+
+    it('shows no suspension notice for an active account', () => {
+        renderProfile();
+
+        expect(screen.queryByText(suspension.title)).toBeNull();
+    });
+});
+
+describe('ProfileScreen — the display-name sheet (A17)', () => {
+    const openSheet = () => fireEvent.click(screen.getByRole('button', { name: t.displayName }));
+    const field = () => screen.getByLabelText(t.namePrompt) as HTMLInputElement;
+
+    it('opens seeded from the SAVED name, not Clerk’s', () => {
+        clerkUser.current = { firstName: 'Clerky', externalAccounts: [] };
+        renderProfile();
+        openSheet();
+
+        expect(field().value).toBe('Eliza Moreno');
+    });
+
+    it('prefills Clerk’s given name when nothing is saved, and writes NOTHING until Save', () => {
+        useUserProfileMock.mockReturnValue(ready({ displayName: '' }));
+        clerkUser.current = { firstName: 'Eliza', externalAccounts: [] };
+        renderProfile();
+        openSheet();
+
+        expect(field().value).toBe('Eliza');
+        expect(mutate).not.toHaveBeenCalled();
+    });
+
+    it('opens empty when nothing is saved and Clerk has no name', () => {
+        useUserProfileMock.mockReturnValue(ready({ displayName: '' }));
+        renderProfile();
+        openSheet();
+
+        expect(field().value).toBe('');
+        expect(screen.getByRole('button', { name: t.save }).getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('saves only { displayName }, trimmed, then closes and says “Saved.”', async () => {
+        renderProfile();
+        openSheet();
+        fireEvent.change(field(), { target: { value: '  Eliza M  ' } });
         fireEvent.click(screen.getByRole('button', { name: t.save }));
 
-        expect(mutateMock).toHaveBeenCalledWith({ displayName: 'Ada Edited', avatarUrl: '' });
+        expect(mutate).toHaveBeenCalledTimes(1);
+        expect(mutate.mock.calls[0]?.[0]).toEqual({ displayName: 'Eliza M' });
+        await waitFor(() => expect(screen.queryByLabelText(t.namePrompt)).toBeNull());
+        expect(await screen.findByText(t.saved)).toBeTruthy();
     });
 
-    it('does not clobber an unsaved display-name edit when the profile refetches (B1)', () => {
-        useUserProfileMock.mockReturnValue(profileResult('Ada'));
+    it('does not save an unchanged name', () => {
+        renderProfile();
+        openSheet();
 
-        const { rerender } = render(<ProfileScreen />);
-        fireEvent.change(screen.getByDisplayValue('Ada'), { target: { value: 'Ada Edited' } });
-
-        // A background refetch returns a DIFFERENT server value for the SAME profile (same user id).
-        useUserProfileMock.mockReturnValue(profileResult('Ada Server'));
-        rerender(<ProfileScreen />);
-
-        expect(screen.getByDisplayValue('Ada Edited')).toBeTruthy();
-        expect(screen.queryByDisplayValue('Ada Server')).toBeNull();
+        expect(screen.getByRole('button', { name: t.save }).getAttribute('aria-disabled')).toBe('true');
+        fireEvent.click(screen.getByRole('button', { name: t.save }));
+        expect(mutate).not.toHaveBeenCalled();
     });
 
-    it('⛔ keeps the form AND an unsaved edit when a background refetch of the profile fails', () => {
-        useUserProfileMock.mockReturnValue(profileResult('Ada'));
+    it('closing without Save writes nothing and drops the edit', () => {
+        renderProfile();
+        openSheet();
+        fireEvent.change(field(), { target: { value: 'Someone Else' } });
+        fireEvent.click(screen.getByRole('button', { name: t.closeNameSheet }));
 
-        const { rerender } = render(<ProfileScreen />);
-        fireEvent.change(screen.getByDisplayValue('Ada'), { target: { value: 'Ada Edited' } });
-
-        // TanStack keeps the cached profile when a refetch fails, and ALSO sets `error`. Under a SUSPENSE read
-        // that combination is still reachable and is still the case this test exists for: the data stays
-        // settled, so the leaf keeps rendering and the boundary is never entered — only a read that NEVER
-        // loaded throws. That is why the failure below must stay silent.
-        useUserProfileMock.mockReturnValue({
-            ...profileResult('Ada'),
-            error: new Error('network down'),
-        } as unknown as ReturnType<typeof useSuspenseUserProfile>);
-        rerender(<ProfileScreen />);
-
-        // A retry would change nothing on this form (it is seeded once), so the failure stays silent.
-        expect(screen.getByDisplayValue('Ada Edited')).toBeTruthy();
-        expect(screen.queryByText(mobileMessages.en.profile.loadError)).toBeNull();
+        expect(mutate).not.toHaveBeenCalled();
+        openSheet();
+        expect(field().value).toBe('Eliza Moreno');
     });
 
-    it('exposes the account-settings entry when a handler is provided', () => {
-        const onOpenAccountSettings = vi.fn();
-        useUserProfileMock.mockReturnValue(profileResult('Ada'));
+    it('keeps the sheet open and says so when the save fails', () => {
+        mutate.mockImplementation(() => undefined);
+        setMutation({ isError: true });
+        renderProfile();
+        openSheet();
 
-        render(<ProfileScreen onOpenAccountSettings={onOpenAccountSettings} />);
-        fireEvent.click(screen.getByRole('button', { name: mobileMessages.en.account.settingsAction }));
+        expect(screen.getByText(t.saveFailed)).toBeTruthy();
+        expect(field()).toBeTruthy();
+    });
 
-        expect(onOpenAccountSettings).toHaveBeenCalledTimes(1);
+    it('shows the saving state and cannot be pressed again while in flight', () => {
+        setMutation({ isPending: true });
+        renderProfile();
+        openSheet();
+        fireEvent.change(field(), { target: { value: 'Eliza M' } });
+
+        const saving = screen.getByRole('button', { name: t.saving });
+        expect(saving.getAttribute('aria-disabled')).toBe('true');
+        fireEvent.click(saving);
+        expect(mutate).not.toHaveBeenCalled();
+    });
+});
+
+describe('ProfileScreen — the photo (native-only AvatarField)', () => {
+    it('is offered in the Account group, shows the saved photo, and persists a new one on its own', () => {
+        useUserProfileMock.mockReturnValue(ready({ avatarUrl: 'https://cdn.example/old.png' }));
+        renderProfile();
+
+        const pick = screen.getByRole('button', { name: 'Pick photo' });
+        expect(pick.getAttribute('data-photo')).toBe('https://cdn.example/old.png');
+
+        fireEvent.click(pick);
+
+        // A picked photo is its own explicit act: it is written alone, never with the name.
+        expect(mutate).toHaveBeenCalledTimes(1);
+        expect(mutate.mock.calls[0]?.[0]).toEqual({ avatarUrl: 'https://cdn.example/new.png' });
+    });
+
+    it('is not offered while the profile has not loaded', () => {
+        useUserProfileMock.mockReturnValue(loading);
+        renderProfile();
+
+        expect(screen.queryByRole('button', { name: 'Pick photo' })).toBeNull();
+    });
+});
+
+describe('ProfileScreen — sign out (ADR-0009, B17)', () => {
+    it('issues the verified sign-out command and shows the busy state', async () => {
+        signOutAndVerify.mockReturnValue(new Promise<void>(() => undefined));
+        renderProfile();
+
+        fireEvent.click(screen.getByRole('button', { name: t.signOut }));
+
+        expect(signOutAndVerify).toHaveBeenCalledTimes(1);
+        const busy = await screen.findByRole('button', { name: t.signingOut });
+        expect(busy.getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('alerts and stays retryable when sign-out fails, never echoing the raw error', async () => {
+        signOutAndVerify.mockRejectedValueOnce(new Error('sess_live still active'));
+        renderProfile();
+
+        fireEvent.click(screen.getByRole('button', { name: t.signOut }));
+
+        expect((await screen.findByRole('alert')).textContent).toBe(t.signOutFailed);
+        expect(screen.queryByText(/sess_live/)).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: t.signOut }));
+        await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(2));
+    });
+});
+
+/** The colour a node resolves to, as culori formats it (`rgb(r, g, b)`). */
+const colourOf = (node: HTMLElement): string => window.getComputedStyle(node).color;
+
+/** The first painted background at or above a node: the surface the node actually sits on. */
+function backgroundBehind(node: HTMLElement): string {
+    for (let at: HTMLElement | null = node; at !== null; at = at.parentElement) {
+        const { backgroundColor } = window.getComputedStyle(at);
+
+        if (backgroundColor !== 'rgba(0, 0, 0, 0)') {
+            return backgroundColor;
+        }
+    }
+
+    return 'transparent';
+}
+
+describe.each([
+    ['light', role],
+    ['dark', roleDark],
+] as const)('ProfileScreen — the %s theme reads colour from roles', (name, roles) => {
+    beforeEach(() => {
+        scheme.current = name;
+    });
+
+    it('paints sign out in ink (not red) and the danger rows in dangerText', () => {
+        renderProfile();
+
+        expect(colourOf(screen.getByText(t.signOut, { selector: 'div,span' }))).toBe(formatRgb(roles.ink));
+        expect(colourOf(screen.getByText(close.trigger, { selector: 'div,span' }))).toBe(formatRgb(roles.dangerText));
+        expect(colourOf(screen.getByText(erase.trigger, { selector: 'div,span' }))).toBe(formatRgb(roles.dangerText));
+    });
+
+    it('paints the hints and the email in inkMuted, and the group card in paper', () => {
+        renderProfile();
+
+        expect(colourOf(screen.getByText(close.rowHint))).toBe(formatRgb(roles.inkMuted));
+        expect(backgroundBehind(screen.getByRole('button', { name: t.signOut }))).toBe(formatRgb(roles.paper));
+    });
+
+    it('paints the failed-load message and the sign-out failure in role colours', async () => {
+        useUserProfileMock.mockReturnValue(failed);
+        signOutAndVerify.mockRejectedValueOnce(new Error('x'));
+        renderProfile();
+
+        fireEvent.click(screen.getByRole('button', { name: t.signOut }));
+        const alert = await screen.findByText(t.signOutFailed);
+
+        expect(colourOf(alert)).toBe(formatRgb(roles.dangerText));
     });
 });

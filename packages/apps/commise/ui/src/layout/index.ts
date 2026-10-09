@@ -6,6 +6,7 @@
  * imports it. The web `Sheet` reads its own web measurement hook from inside the package.
  */
 export { BottomChromeFrame, useBottomEdge, type BottomChromeFrameProps } from './BottomChromeFrame.native.js';
+export { BottomEdgeProvider } from './BottomEdgeProvider.native.js';
 export { COMPACT_HEIGHT_BELOW_DP, isCompactHeight, isFrameCollapsed } from './compactHeight.js';
 export { MEDIA_MAX_WINDOW_FRACTION, carouselBox, mediaBoxHeight, type MediaBox } from './mediaBox.js';
 export { isFooterUnpinned, type PinnedFooterMeasure } from './pinnedFooter.js';

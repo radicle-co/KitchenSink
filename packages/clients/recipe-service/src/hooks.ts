@@ -82,9 +82,10 @@ export type { IngredientStatusOptions } from './hooks/useIngredientStatus.js';
 // `CreateRecipeInput` / `UpdateRecipeInput` — hand-written twins of these schemas (§15 rule 4 / ADR-0014).
 export { useCreateRecipe } from './hooks/useCreateRecipe.js';
 export { useUpdateRecipe } from './hooks/useUpdateRecipe.js';
+export { applyRecipeCreated, applyRecipeUpdated } from './hooks/recipeWriteCache.js';
 export { useRebindIngredientLine } from './hooks/useRebindIngredientLine.js';
 export { useDeleteRecipe } from './hooks/useDeleteRecipe.js';
-export { useCloneRecipe } from './hooks/useCloneRecipe.js';
+export { SAVE_COPY_MUTATION_KEY, useCloneRecipe } from './hooks/useCloneRecipe.js';
 export { useSetRecipeVisibility } from './hooks/useSetRecipeVisibility.js';
 export { invalidateCollections } from './hooks/invalidateCollections.js';
 export { useRestoreRecipeVersion } from './hooks/useRestoreRecipeVersion.js';

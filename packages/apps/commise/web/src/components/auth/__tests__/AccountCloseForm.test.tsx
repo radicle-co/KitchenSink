@@ -11,8 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-const { signOut, clerkState } = vi.hoisted(() => ({
+const { signOut, getToken, clerkState } = vi.hoisted(() => ({
     signOut: vi.fn(),
+    getToken: vi.fn(),
     clerkState: {
         loaded: true,
         status: 'ready' as 'degraded' | 'error' | 'loading' | 'ready',
@@ -33,15 +34,19 @@ vi.mock('@clerk/nextjs', () => ({
             return clerkState.session;
         },
     }),
-    useAuth: () => ({ signOut }),
+    useAuth: () => ({ signOut, getToken }),
 }));
 
 const { navigateTo } = vi.hoisted(() => ({ navigateTo: vi.fn() }));
 vi.mock('@/lib/navigation', () => ({ navigateTo }));
 
-const { deleteMe } = vi.hoisted(() => ({ deleteMe: vi.fn() }));
+const { deleteMe, tokenSources } = vi.hoisted(() => ({ deleteMe: vi.fn(), tokenSources: [] as unknown[] }));
 vi.mock('@/lib/identityServiceClient', () => ({
-    createProfileServiceClient: () => ({ deleteMe }),
+    createProfileServiceClient: (token: unknown) => {
+        tokenSources.push(token);
+
+        return { deleteMe };
+    },
 }));
 
 beforeEach(() => {
@@ -51,6 +56,8 @@ beforeEach(() => {
     });
     navigateTo.mockReset();
     deleteMe.mockReset().mockResolvedValue(undefined);
+    getToken.mockReset().mockResolvedValue('fresh-token');
+    tokenSources.length = 0;
     clerkState.loaded = true;
     clerkState.status = 'ready';
     clerkState.session = { id: 'sess_live' };
@@ -61,7 +68,7 @@ afterEach(cleanup);
 const { AccountCloseForm } = await import('../AccountCloseForm');
 
 const renderForm = (): void => {
-    render(<AccountCloseForm accessToken="test-token" />);
+    render(<AccountCloseForm />);
 };
 
 describe('AccountCloseForm (web) — closed', () => {
@@ -70,6 +77,36 @@ describe('AccountCloseForm (web) — closed', () => {
 
         expect(screen.getByRole('button', { name: 'Close account' })).toBeTruthy();
         expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+});
+
+describe('AccountCloseForm (web) — the Profile row', () => {
+    it('is a danger-toned row that names the action and describes what it does', () => {
+        renderForm();
+
+        const row = screen.getByRole('button', { name: 'Close account' });
+        const described = (row.getAttribute('aria-describedby') ?? '').split(' ');
+
+        expect(row.className).toContain('text-danger-text');
+        expect(described.map((id) => document.getElementById(id)?.textContent)).toEqual([
+            'Signs you out and deactivates your account. Support can restore it.',
+        ]);
+    });
+});
+
+describe('AccountCloseForm (web) — the bearer token', () => {
+    it('mints it at the moment of closing, never from a copy captured at render (a session token lives about a minute)', async () => {
+        const user = userEvent.setup();
+        renderForm();
+
+        await user.click(screen.getByRole('button', { name: 'Close account' }));
+        await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Close account' }));
+
+        const source = tokenSources.at(-1);
+
+        expect(typeof source).toBe('function');
+        await expect((source as () => Promise<string>)()).resolves.toBe('fresh-token');
+        expect(getToken).toHaveBeenCalled();
     });
 });
 

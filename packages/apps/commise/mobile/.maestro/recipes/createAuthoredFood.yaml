@@ -35,19 +35,11 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-- tapOn: 'Create from Scratch'
 
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 - tapOn: 'Title'
 - inputText: 'Maestro Authored Food'
 
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-
-- assertVisible: 'Step 2 of 4'
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
@@ -61,10 +53,10 @@ appId: io.commise.mobile
 # ⛔ THE DOOR ITSELF. `Use “{text}” as written` and `Create my own food` sit in the same group, and they are NOT the
 # same affordance: the first keeps an unbacked name, the second authors a real food with macros. Tapping the wrong
 # one is the regression this asserts against.
-- scrollUntilVisible:
-      element: 'Create my own food'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Create my own food'
 - tapOn: 'Create my own food'
 
 # The sheet's form. Its action row is brought into view first, because `assertVisible` does not scroll and a field
@@ -127,3 +119,8 @@ appId: io.commise.mobile
       text: '^Maestro Nut Butter$'
 - assertNotVisible:
       text: '^Resolved$'
+
+# Throw the scratch recipe away: the editor saves a titled draft on its own (10 s idle, and on exit, §7.3), so a flow
+# that simply stopped here would leave one behind. The authored FOOD is the pool slot's, reset as noted above.
+- runFlow: common/discardDraft.yaml
+- assertVisible: 'Recipes'

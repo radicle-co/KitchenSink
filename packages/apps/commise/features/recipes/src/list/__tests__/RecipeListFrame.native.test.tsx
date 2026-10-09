@@ -4,14 +4,16 @@
  *
  * Moved from the retired `RecipeList.native.test.tsx` ("chrome", "U8 brand title band", "source tabs (L5)", the search
  * placeholder's contrast, and the notice's screen-reader hand-off — which now arrives as `headingFocusSignal`).
+ *
+ * ⚠️ REWRITTEN in part for slice 4 of the UI overhaul: the source tabs become the My recipes · Collections segments, the
+ * hand-built input becomes the design-system `SearchField` (which owns its placeholder contrast, so that test moved
+ * there), and the field hides on the first run. The compact-height and focus invariants are kept.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo, Text } from 'react-native';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { placeholderContrast } from '@commise/test-utils';
 import { nativeTokens } from '@commise/ui/native';
-import { palette } from '@commise/ui';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeListFrame } from '../RecipeListFrame.native.js';
@@ -47,11 +49,11 @@ beforeEach(() => {
 const noop = () => undefined;
 
 /** The source switcher's destinations. Native ignores them (its shell has no URLs) — see the control's JSDoc. */
-const HREF = { mine: '/en/recipes', community: '/en/discover' } as const;
+const HREF = { mine: '/en/recipes', collections: '/en/collections' } as const;
 
 function frame(overrides: Partial<RecipeListFrameProps> = {}) {
     return (
-        <RecipeListFrame searchValue="" onSearchChange={noop} headingFocusSignal={0} {...overrides}>
+        <RecipeListFrame searchValue="" onSearchChange={noop} searchVisible headingFocusSignal={0} {...overrides}>
             {overrides.children ?? <Text>boundary content</Text>}
         </RecipeListFrame>
     );
@@ -62,7 +64,7 @@ describe('RecipeListFrame (native) — chrome', () => {
         render(frame());
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
-        expect(screen.getByLabelText('Search recipes')).toBeTruthy();
+        expect(screen.getByLabelText('Search your recipes')).toBeTruthy();
         expect(screen.getByText('boundary content')).toBeTruthy();
     });
 
@@ -70,7 +72,7 @@ describe('RecipeListFrame (native) — chrome', () => {
         const onSearchChange = vi.fn();
         render(frame({ onSearchChange }));
 
-        fireEvent.change(screen.getByLabelText('Search recipes'), { target: { value: 'lamb' } });
+        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'lamb' } });
 
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
     });
@@ -98,22 +100,28 @@ describe('RecipeListFrame (native) — the heading sits on the canvas', () => {
     });
 });
 
-// The switcher's own contract is owned by `RecipeSourceTabs.native.test.tsx`; HERE is the composition.
-describe('RecipeListFrame (native) — source tabs (L5)', () => {
-    it('renders no source switcher when no tab prop is given', () => {
+describe('RecipeListFrame (native) — segments and the first run', () => {
+    it('renders no segments without a segments control', () => {
         render(frame());
 
-        expect(screen.queryByText('Community')).toBeNull();
+        expect(screen.queryByRole('tab', { name: 'Collections' })).toBeNull();
     });
 
-    it('mounts the shared switcher with the active source marked and both sources reachable', () => {
-        const onChange = vi.fn();
-        render(frame({ tab: { active: 'mine', href: HREF, onChange } }));
+    it('renders My recipes · Collections as tabs, the current one selected, and reports a press', () => {
+        const onSelect = vi.fn();
+        render(frame({ segments: { current: 'mine', href: HREF, onSelect } }));
 
-        expect(screen.getByRole('tab', { name: 'My Recipes' }).getAttribute('aria-selected')).toBe('true');
-        fireEvent.click(screen.getByRole('tab', { name: 'Community' }));
+        expect(screen.getByRole('tab', { name: 'My recipes' }).getAttribute('aria-selected')).toBe('true');
+        fireEvent.click(screen.getByRole('tab', { name: 'Collections' }));
 
-        expect(onChange).toHaveBeenCalledWith('community');
+        expect(onSelect).toHaveBeenCalledWith('collections');
+    });
+
+    it('hides the search field on the first run, keeping the boundary', () => {
+        render(frame({ searchVisible: false }));
+
+        expect(screen.queryByLabelText('Search your recipes')).toBeNull();
+        expect(screen.getByText('boundary content')).toBeTruthy();
     });
 });
 
@@ -132,25 +140,20 @@ describe('RecipeListFrame (native) — the heading takes the screen-reader curso
     });
 });
 
-describe('RecipeListFrame (native) — text contrast (WCAG 2.1 AA)', () => {
-    it('keeps the search field’s PLACEHOLDER text legible on the field', () => {
-        render(frame());
-
-        // `placeholderContrast` reads the colour react-native-web actually paints and composites the field's own
-        // background over the screen, so this fails if the token drifts AND if the prop stops being passed.
-        expect(
-            placeholderContrast(screen.getByLabelText('Search recipes'), { surface: palette.sand }),
-            'recipe-list search placeholder on its white field',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-});
-
 /**
  * Read back the `font-family` react-native-web ACTUALLY applied to `element`: RNW compiles a `StyleSheet` family into
  * an atomic `r-fontFamily-*` class whose rule jsdom's `getComputedStyle` does not resolve, so the honest read is the
  * injected declaration itself. `undefined` when the element carries no compiled family.
  */
-function appliedFontFamily(element: Element): string | undefined {
+function appliedFontFamily(element: HTMLElement): string | undefined {
+    // A style object that is not from `StyleSheet.create` (the large title picks one per container class) reaches the
+    // DOM inline rather than as a compiled class, so the inline declaration is read first.
+    const inline = element.style.getPropertyValue('font-family');
+
+    if (inline !== '') {
+        return inline;
+    }
+
     const className = element.className.split(' ').find((name) => name.startsWith('r-fontFamily-'));
 
     if (className === undefined) {
@@ -187,17 +190,17 @@ describe('RecipeListFrame (native) — compact height', () => {
 
         expect(container.querySelector('[data-commise-stub="linear-gradient"]')).toBeNull();
 
-        const field = screen.getByLabelText('Search recipes');
+        const field = screen.getByLabelText('Search your recipes');
         const heading = screen.getByRole('heading', { name: 'Recipes' });
 
-        expect(field.parentElement).toBe(heading.parentElement);
-        expect(getComputedStyle(field.parentElement as Element).flexDirection).toBe('row');
+        expect(heading.parentElement?.contains(field)).toBe(true);
+        expect(getComputedStyle(heading.parentElement as Element).flexDirection).toBe('row');
         expect(appliedFontFamily(heading)).toBe(nativeTokens.fontFace.display.bold);
     });
 
     it('keeps the same field node, focused, through regular, compact and collapsed', () => {
         const { rerender } = render(frame());
-        const field = screen.getByLabelText('Search recipes') as HTMLInputElement;
+        const field = screen.getByLabelText('Search your recipes') as HTMLInputElement;
 
         field.focus();
 
@@ -210,7 +213,7 @@ describe('RecipeListFrame (native) — compact height', () => {
             layout.collapsed = next.collapsed;
             rerender(frame({ searchValue: `${String(next.compact)}${String(next.collapsed)}` }));
 
-            expect(screen.getByLabelText('Search recipes')).toBe(field);
+            expect(screen.getByLabelText('Search your recipes')).toBe(field);
             expect(document.activeElement).toBe(field);
         }
     });

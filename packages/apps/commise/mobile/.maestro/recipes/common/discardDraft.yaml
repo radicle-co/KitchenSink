@@ -1,0 +1,19 @@
+appId: io.commise.mobile
+---
+# Reusable sub-flow: throw away the never-published recipe the editor holds, so a flow leaves no scratch draft behind.
+# Called with `runFlow: common/discardDraft.yaml` from a flow standing in the one-page editor on a recipe it typed into.
+#
+# REPLACES `common/raiseDiscardGuard.yaml` (slice 7). The editor has no discard guard any more: ×, system Back and the
+# swipe leave at once and save (build spec §3.5, §7.3), so leaving no longer throws the work away. Discarding is a
+# deliberate act in the header's menu, and it goes through controls both platforms render — so a flow calling this
+# needs no Android back key, and is not excluded on iOS for it.
+#
+# The menu item exists once the draft holds anything (`editorChrome.ts` `discardOf`), which every caller has typed.
+# It ENDS on the editor being gone, so a caller that has to assert where it landed does so after the runFlow.
+- tapOn: 'More editor actions'
+- tapOn: 'Discard draft'
+- assertVisible: 'Discard this draft?'
+- tapOn: 'Discard'
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 20000

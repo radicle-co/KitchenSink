@@ -4,6 +4,7 @@ import { route } from './utils/basePath';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
+import { addStep, openRecipeEditor, setServings } from './utils/recipeEditor';
 
 /**
  * Ranged and absent ingredient quantities, end to end (U9 / R40, R42; acceptance AE20 + AE21).
@@ -33,19 +34,14 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
 
         await page.goto(route('/recipes'));
         await page.getByRole('button', { name: 'New recipe' }).click();
-        // U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
-        await page.getByRole('menuitem', { name: 'Create from Scratch' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 
-        // Step 1 (Details).
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
+        // Details.
         await page.getByLabel('Title').fill('E2E Range Loaf');
-        await page.getByLabel('Servings').fill('4');
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
+        await setServings(page, 4);
 
-        // Step 2 (Ingredients) — resolve a catalog line, then state a RANGE across the two bounds that share
+        // Ingredients — resolve a catalog line, then state a RANGE across the two bounds that share
         // the line's one unit field.
-        await expect(page.getByText('Step 2 of 4')).toBeVisible();
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
         await page
             .getByRole('group', { name: 'Food catalog' })
@@ -56,10 +52,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await page.getByLabel('Ingredient 1 maximum quantity').fill('3');
         await page.getByLabel('Ingredient 1 unit').fill('cups');
 
-        await page.getByRole('button', { name: 'Next: Instructions' }).click();
-        await page.getByRole('button', { name: 'Add step' }).click();
-        await page.getByLabel('Step 1 instruction').fill('Mix and bake.');
-        await page.getByRole('button', { name: 'Next: Review' }).click();
+        await addStep(page, 'Mix and bake.');
         await page.getByRole('button', { name: 'Publish' }).click();
 
         // VIEW — the detail renders the SPAN, not its lower bound. The checkbox's accessible name is composed
@@ -71,17 +64,14 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         // The narrowing failure, stated as its own assertion so a regression names itself.
         await expect(page.getByRole('checkbox', { name: '2 cups Salt' })).toHaveCount(0);
 
-        // EDIT — re-open and confirm the seed carries BOTH bounds, then widen the upper one and publish.
-        await page.goto(route(`/recipes/${createdId}/edit`));
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
-        await page.getByRole('button', { name: /Ingredients:/ }).click();
+        // EDIT — re-open and confirm the seed carries BOTH bounds, then widen the upper one and save.
+        await openRecipeEditor(page, createdId ?? '');
         await expect(page.getByLabel('Ingredient 1 quantity')).toHaveValue('2');
         await expect(page.getByLabel('Ingredient 1 maximum quantity')).toHaveValue('3');
 
         await page.getByLabel('Ingredient 1 maximum quantity').fill('4');
-        await page.getByRole('button', { name: /Review:/ }).click();
-        await expect(page.getByText('Step 4 of 4')).toBeVisible();
-        await page.getByRole('button', { name: 'Publish' }).click();
+        // Published now, so its one write is Save changes (slice 7, D1).
+        await page.getByRole('button', { name: 'Save changes' }).click();
 
         await expect(page.getByRole('checkbox', { name: '2–4 cups Salt' })).toBeVisible();
     });
@@ -94,14 +84,9 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
 
         await page.goto(route('/recipes'));
         await page.getByRole('button', { name: 'New recipe' }).click();
-        // U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
-        await page.getByRole('menuitem', { name: 'Create from Scratch' }).click();
 
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
         await page.getByLabel('Title').fill('E2E Grandmother Butter');
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
 
-        await expect(page.getByText('Step 2 of 4')).toBeVisible();
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
         await page
             .getByRole('group', { name: 'Food catalog' })
@@ -113,12 +98,9 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await page.getByLabel('Ingredient 1 quantity').fill('');
         await page.getByLabel('Ingredient 1 unit').fill('the size of an egg');
 
-        await page.getByRole('button', { name: 'Next: Instructions' }).click();
-        await page.getByRole('button', { name: 'Add step' }).click();
-        await page.getByLabel('Step 1 instruction').fill('Rub it in.');
-        await page.getByRole('button', { name: 'Next: Review' }).click();
+        await addStep(page, 'Rub it in.');
         // ⛔ THE ASSERTION THIS SPEC EXISTS FOR: Publish must SUCCEED. Before U9 the draft held `NaN`, the
-        // validator refused it, and this click left the author on the wizard with no way forward.
+        // validator refused it, and this click left the author in the editor with no way forward.
         await page.getByRole('button', { name: 'Publish' }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Grandmother Butter' })).toBeVisible();
@@ -128,14 +110,13 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await expect(page.getByRole('checkbox', { name: '0 the size of an egg Salt' })).toHaveCount(0);
 
         // Re-opening the editor shows an EMPTY field, not a zero — and saving again keeps the amount absent.
-        await page.goto(route(`/recipes/${createdId}/edit`));
-        await page.getByRole('button', { name: /Ingredients:/ }).click();
+        await openRecipeEditor(page, createdId ?? '');
         await expect(page.getByLabel('Ingredient 1 quantity')).toHaveValue('');
         await expect(page.getByLabel('Ingredient 1 maximum quantity')).toHaveValue('');
 
-        await page.getByRole('button', { name: /Review:/ }).click();
-        await expect(page.getByText('Step 4 of 4')).toBeVisible();
-        await page.getByRole('button', { name: 'Publish' }).click();
+        // Save changes needs a change to save (slice 7): one that leaves the line alone, so the line round-trips.
+        await page.getByLabel('Description').fill('Rubbed in by hand.');
+        await page.getByRole('button', { name: 'Save changes' }).click();
         await expect(page.getByRole('checkbox', { name: 'the size of an egg Salt' })).toBeVisible();
     });
 });

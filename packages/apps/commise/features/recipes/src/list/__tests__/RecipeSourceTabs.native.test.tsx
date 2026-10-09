@@ -46,14 +46,14 @@ describe('RecipeSourceTabs (native) — semantics', () => {
         // Native has no URL, no address bar and no new tab: the platform trait for a top-level destination
         // switcher IS the tab trait (see the leaf's JSDoc for why web is a link instead).
         expect(screen.getByRole('tab', { name: 'Community' }).getAttribute('aria-selected')).toBe('true');
-        expect(screen.getByRole('tab', { name: 'My Recipes' }).getAttribute('aria-selected')).not.toBe('true');
+        expect(screen.getByRole('tab', { name: 'My recipes' }).getAttribute('aria-selected')).not.toBe('true');
     });
 
     it('reports the chosen source upward', () => {
         const onChange = vi.fn();
         renderTabs({ active: 'community', onChange });
 
-        fireEvent.click(screen.getByRole('tab', { name: 'My Recipes' }));
+        fireEvent.click(screen.getByRole('tab', { name: 'My recipes' }));
 
         expect(onChange).toHaveBeenCalledWith('mine');
     });
@@ -61,7 +61,7 @@ describe('RecipeSourceTabs (native) — semantics', () => {
     it('offers BOTH sources while community is active, so the surface is never a one-way trip', () => {
         renderTabs({ active: 'community' });
 
-        expect(screen.getByRole('tab', { name: 'My Recipes' })).toBeTruthy();
+        expect(screen.getByRole('tab', { name: 'My recipes' })).toBeTruthy();
         expect(screen.getByRole('tab', { name: 'Community' })).toBeTruthy();
     });
 });
@@ -98,11 +98,11 @@ describe('RecipeSourceTabs (native) — the INACTIVE tab’s resting affordance 
 describe('RecipeSourceTabs (native) — the ACTIVE tab', () => {
     it('keeps the seafoam underline with a legible ocean-dark label (the palette rule)', () => {
         renderTabs({ active: 'mine' });
-        const active = screen.getByRole('tab', { name: 'My Recipes' });
+        const active = screen.getByRole('tab', { name: 'My recipes' });
         const style = window.getComputedStyle(active);
 
         expect(
-            computedContrast(within(active).getByText('My Recipes'), { surface: fillOf(active) }),
+            computedContrast(within(active).getByText('My recipes'), { surface: fillOf(active) }),
             'active source-tab label',
         ).toBeGreaterThanOrEqual(4.5);
         // The 2px seafoam indicator is a non-text graphic on the 3:1 floor, and it is what reads as selected.

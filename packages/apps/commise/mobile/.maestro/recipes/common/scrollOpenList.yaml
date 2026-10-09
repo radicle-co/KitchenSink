@@ -1,0 +1,33 @@
+appId: io.commise.mobile
+---
+# Reusable sub-flow: scroll an OPEN food list until `TARGET` (a regex on an option's text) is on screen. Called with
+# `runFlow: { file: common/scrollOpenList.yaml, env: { TARGET: '…' } }`, and `DIRECTION: UP` to go back up the list.
+#
+# ⛔ It swipes from INSIDE the list, never from the screen's centre as `scrollUntilVisible` does: a drag that starts on
+# the page outside an open list closes it (UI overhaul slice 8). The list is in the page's flow on native and the
+# field's reveal puts it under the field, filling the lower screen, so a swipe that starts at 70% of the height starts
+# on it.
+- repeat:
+      while:
+          notVisible:
+              text: ${TARGET}
+      times: 10
+      commands:
+          - runFlow:
+                when:
+                    true: ${DIRECTION == 'UP'}
+                commands:
+                    - swipe:
+                          start: 50%, 50%
+                          end: 50%, 75%
+                          duration: 500
+          - runFlow:
+                when:
+                    true: ${DIRECTION != 'UP'}
+                commands:
+                    - swipe:
+                          start: 50%, 75%
+                          end: 50%, 50%
+                          duration: 500
+- assertVisible:
+      text: ${TARGET}

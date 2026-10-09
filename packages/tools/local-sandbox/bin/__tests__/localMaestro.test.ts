@@ -309,3 +309,45 @@ describe('local_maestro_check_bundle_env — the bundle names only local origins
         expect(run(sandbox, `local_maestro_check_bundle_env '${write(sandbox, '')}'`).status).not.toBe(0);
     });
 });
+
+/**
+ * ⛔ The local identity database must resolve each pool user to the app-user id its Clerk `external_id` names
+ * (`src/identityAlignment.ts`), or every owner-gated control is hidden on the cook's own recipes. The device's first
+ * request is what would otherwise mint a fresh id, so the alignment has to run BEFORE the flows — and a failed
+ * alignment must stop the run rather than leave five owner flows to fail one by one.
+ */
+describe('local_maestro_align_identities — the local identity agrees with Clerk before any flow runs', () => {
+    const fakeNpx = (sandbox: Sandbox, exitCode: number): void => {
+        writeFileSync(
+            path.join(sandbox.bin, 'npx'),
+            `#!/usr/bin/env bash\necho "npx $* shard=\${COMMISE_E2E_SHARD:-unset}" >> "${sandbox.calls}"\nexit ${exitCode}\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
+    };
+
+    it('runs the aligner for this run’s shard', () => {
+        const sandbox = makeSandbox();
+        fakeNpx(sandbox, 0);
+
+        expect(run(sandbox, 'COMMISE_E2E_SHARD=1 local_maestro_align_identities').status).toBe(0);
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain(
+            'npx tsx packages/tools/local-sandbox/bin/alignIdentities.ts shard=1',
+        );
+    });
+
+    it('fails when the aligner fails', () => {
+        const sandbox = makeSandbox();
+        fakeNpx(sandbox, 1);
+
+        expect(run(sandbox, 'local_maestro_align_identities').status).not.toBe(0);
+    });
+
+    it('runs after the pool reset and before the world is seeded and any flow runs', () => {
+        const body = run(makeSandbox(), 'declare -f local_maestro_main').stdout;
+        const at = (needle: string): number => body.indexOf(needle);
+
+        expect(at('local_maestro_align_identities')).toBeGreaterThan(at('local_maestro_reset_pool'));
+        expect(at('local_maestro_align_identities')).toBeLessThan(at('e2e-seed/src/provision.ts'));
+        expect(at('local_maestro_align_identities')).toBeLessThan(at('maestro_run_flow_list'));
+    });
+});

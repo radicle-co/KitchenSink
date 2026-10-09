@@ -19,25 +19,21 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-- tapOn: 'Create from Scratch'
 
-- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Close editor'
 - tapOn: 'Title'
 - inputText: 'Maestro Unmatched'
+
 - scrollUntilVisible:
-      element: 'Next: Ingredients'
+      element: 'Add an ingredient'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Ingredients'
-
-- assertVisible: 'Step 2 of 4'
 - tapOn: 'Add an ingredient'
 - inputText: 'Maestro Glorp'
-- scrollUntilVisible:
-      element:
-          text: 'Use .*Maestro Glorp.* as written.*'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Maestro Glorp.* as written.*'
 - tapOn:
       text: 'Use .*Maestro Glorp.* as written.*'
 - extendedWaitUntil:
@@ -64,7 +60,6 @@ appId: io.commise.mobile
       timeout: 10000
 - assertVisible: 'About Maestro Glorp'
 
-# Leave without saving: the explicit Discard, as `systemBackGuard.yaml` does.
-- runFlow: common/raiseDiscardGuard.yaml
-- tapOn: 'Discard changes'
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
 - assertVisible: 'Recipes'

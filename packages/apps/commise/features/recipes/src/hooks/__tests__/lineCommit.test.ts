@@ -11,12 +11,13 @@
  *
  * And for `toIngredientLine`, the projection of an admitted ingredient onto the resolved line the draft route appends.
  */
-import { FoodResolutionStatus, type Ingredient } from '@kitchensink/recipe-core';
+import { ABSENT_QUANTITY, FoodResolutionStatus, type Ingredient } from '@kitchensink/recipe-core';
 import { makeIngredient, makeRecipeDetail } from '@kitchensink/recipe-core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
 import { mintedLineKey, persistedLineKeysOf, seedLineKey } from '../../form/lineKey.js';
 import { foodRefOf } from '../../form/nutritionLookup.js';
+import { draftQuantity } from '../../form/quantity.js';
 import type { RecipeFormIngredient } from '../../form/values.js';
 import {
     commitRouteFor,
@@ -150,7 +151,12 @@ describe('onceLineCommand', () => {
 });
 
 describe('toIngredientLine', () => {
-    it('projects a catalog ingredient onto a form line, defaulting quantity to 1', () => {
+    /**
+     * REWRITTEN for slice 7 (build spec F5): a picked row used to arrive with an invented quantity of 1, which the cook
+     * never stated and the recipe then published. It now states no amount — the draft's spelling of absent is `NaN`,
+     * the same one `toRecipeFormValues` seeds a stored amount-less line with — and the wire reads it as `absent`.
+     */
+    it('projects a catalog ingredient onto a form line stating NO amount (F5: never an invented 1)', () => {
         const ingredient = makeIngredient({
             id: 'ing_9',
             name: 'Olive oil',
@@ -163,10 +169,11 @@ describe('toIngredientLine', () => {
             isUserEntered: false,
             ingredientId: 'ing_9',
             name: 'Olive oil',
-            quantity: 1,
+            quantity: Number.NaN,
             resolutionStatus: FoodResolutionStatus.RESOLVED,
             foodId: 'food_1',
         });
+        expect(draftQuantity({ ...toIngredientLine(ingredient), key: seedLineKey(1, 0) })).toEqual(ABSENT_QUANTITY);
     });
 
     it('omits resolutionStatus entirely when the catalog row carries none', () => {
@@ -183,7 +190,7 @@ describe('toIngredientLine', () => {
             isUserEntered: true,
             ingredientId: 'ing_free',
             name: 'Grandma’s spice mix',
-            quantity: 1,
+            quantity: Number.NaN,
         });
         expect('resolutionStatus' in toIngredientLine(ingredient)).toBe(false);
     });
@@ -208,7 +215,7 @@ describe('toIngredientLine', () => {
             isUserEntered: false,
             ingredientId: 'ing_9',
             name: 'Olive oil',
-            quantity: 1,
+            quantity: Number.NaN,
             resolutionStatus: FoodResolutionStatus.RESOLVED,
             foodId: 'food_oil',
         });
@@ -239,7 +246,12 @@ describe('toIngredientLine', () => {
 
         const line = toIngredientLine(ingredient);
 
-        expect(line).toEqual({ isUserEntered: true, ingredientId: 'ing_10', name: 'Sourdough starter', quantity: 1 });
+        expect(line).toEqual({
+            isUserEntered: true,
+            ingredientId: 'ing_10',
+            name: 'Sourdough starter',
+            quantity: Number.NaN,
+        });
         expect('caloriesPer100g' in line).toBe(false);
         expect('proteinGPer100g' in line).toBe(false);
         expect('carbsGPer100g' in line).toBe(false);

@@ -18,12 +18,11 @@
  *     `useBottomEdge`, with the bare safe-area inset as the answer when no frame is above (react-navigation's
  *     `BottomTabBarHeightContext` is the same shape).
  */
-import { createContext, useContext, useState, type FC, type ReactElement, type ReactNode } from 'react';
+import { useContext, useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-/** The bottom edge a frame publishes; `null` when no frame is above. */
-const BottomEdgeContext = createContext<number | null>(null);
+import { BottomEdgeContext } from './bottomEdgeContext.native.js';
 
 /**
  * How far above the window's foot the current screen's content ends, in dp.

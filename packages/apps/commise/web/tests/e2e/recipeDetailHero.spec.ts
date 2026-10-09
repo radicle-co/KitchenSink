@@ -67,7 +67,11 @@ async function openRecipeWithPhotos(page: Page): Promise<void> {
 }
 
 test.describe('recipe-detail hero', () => {
-    test('a recipe WITH photos leads with them, above the title, and shows the cover once', async ({ page }) => {
+    test('a recipe WITH photos leads with them, above the title on a phone, and shows the cover once', async ({
+        page,
+    }) => {
+        // Below a 960 px body the hero leads the page; from 960 it sits beside the title (the next test).
+        await page.setViewportSize({ width: 390, height: 844 });
         await openRecipeWithPhotos(page);
 
         const heading = page.getByRole('heading', { level: 1, name: TITLE });
@@ -94,6 +98,22 @@ test.describe('recipe-detail hero', () => {
         expect(coverSources).toBe(1);
         await expect(page.getByRole('region', { name: 'Recipe photos' })).toHaveCount(1);
         await expect(page.getByRole('img', { name: NO_PHOTO_LABEL })).toHaveCount(0);
+    });
+
+    test('from a 960 px body the hero sits at the END beside the title block, not above it (§6.1)', async ({
+        page,
+    }) => {
+        await page.setViewportSize({ width: 1920, height: 1080 });
+        await openRecipeWithPhotos(page);
+
+        const coverBox = await page.getByRole('img', { name: `${TITLE} photo 1` }).boundingBox();
+        const headingBox = await page.getByRole('heading', { level: 1, name: TITLE }).boundingBox();
+
+        expect(coverBox).not.toBeNull();
+        expect(headingBox).not.toBeNull();
+        // Beside: the cover starts to the right of where the title ends, and overlaps it vertically.
+        expect(coverBox?.x ?? 0).toBeGreaterThanOrEqual((headingBox?.x ?? 0) + (headingBox?.width ?? 0));
+        expect(coverBox?.y ?? 0).toBeLessThan((headingBox?.y ?? 0) + (headingBox?.height ?? 0));
     });
 
     test('the hero is at most 40% of the window tall on a phone held sideways', async ({ page }) => {

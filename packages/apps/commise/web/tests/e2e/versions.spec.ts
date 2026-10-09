@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
+import { role, roleDark } from '@commise/ui/colors';
 
 import { route } from './utils/basePath';
 import { simulateOutage } from './utils/outage';
@@ -97,6 +98,12 @@ const v3 = makeRecipeVersion({
     createdAt: '2026-01-03T00:00:00.000Z',
 });
 
+/** Choose an entry from a version row's ⋯ menu. */
+async function chooseRowAction(page: Page, version: number, label: string): Promise<void> {
+    await page.getByRole('button', { name: `More actions for version ${String(version)}` }).click();
+    await page.getByRole('menuitem', { name: label }).click();
+}
+
 /** Seed the mock with the recipe (`currentVersion: 3`, consistent with `v3`) and its 3-version history. */
 async function seedVersionHistory(page: Page): Promise<void> {
     const viewerId = await readViewerAppId(page);
@@ -132,9 +139,9 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await signInWithTicket(page);
         await openVersionHistory(page);
 
-        // v3 is the current version — marked, and not restorable.
+        // v3 is the current version — marked, with no ⋯ menu: nothing to restore or compare.
         await expect(page.getByText('Current version')).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Restore version 3' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'More actions for version 3' })).toHaveCount(0);
 
         // v2's row: `by @{handle}` attribution, plus the changed-fields summary versus its immediately-prior
         // sibling (v1) — only the title differs between v1 and v2.
@@ -148,11 +155,10 @@ test.describe('recipe version history (W6 Task 6)', () => {
         // now pinned to v2 rather than to "somewhere on the page", so a summary rendered against the wrong
         // sibling would fail here instead of passing.
 
-        // Scoped by the row's OWN "Version N" label element, not by a `hasText` substring: the row's
-        // concatenated text content runs the label straight into the timestamp ("Version 2Jan 3, 2026"), so a
-        // text-prefix match has no word boundary to anchor on and would silently match the wrong row.
+        // Scoped by the row's OWN title line ("Version 2 · Edited …"), anchored at its start so version 1 never
+        // matches version 12.
         const rowFor = (version: number) =>
-            page.getByRole('listitem').filter({ has: page.getByText(`Version ${version}`, { exact: true }) });
+            page.getByRole('listitem').filter({ has: page.getByText(new RegExp(`^Version ${version} · Edited`, 'u')) });
 
         // All three rows carry the attribution — the property the old single assertion could only sample.
         await expect(page.getByText('by @chef_e2e')).toHaveCount(3);
@@ -170,7 +176,7 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await signInWithTicket(page);
         await openVersionHistory(page);
 
-        await page.getByRole('button', { name: 'Preview version 1' }).click();
+        await chooseRowAction(page, 1, 'Preview');
 
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible();
@@ -186,31 +192,19 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await expect(page.getByRole('dialog')).toHaveCount(0);
     });
 
-    test('compares two versions with the Diff Summary and changed-only fields', async ({ page }) => {
+    test('compares a version with the current one, listing only what changed', async ({ page }) => {
         await signInWithTicket(page);
         await openVersionHistory(page);
 
-        await page.getByRole('checkbox', { name: 'Select version 2 to compare' }).click();
-        await page.getByRole('checkbox', { name: 'Select version 3 to compare' }).click();
+        await chooseRowAction(page, 2, 'Compare with current');
 
-        const dialog = page.getByRole('dialog');
+        const dialog = page.getByRole('dialog', { name: 'Version 2 and the current version' });
         await expect(dialog).toBeVisible();
-        // Newer (v3) vs older (v2) — the heading always reads "Compare v{newer} vs v{older}".
-        await expect(dialog.getByText('Compare v3 vs v2')).toBeVisible();
-
-        // v2 -> v3 changed the description (1 scalar) and modified the olive oil line (1) — no adds/removes.
-        const diffSummary = dialog.getByRole('region', { name: 'Diff Summary' });
-        await expect(diffSummary.getByText('Added: 0')).toBeVisible();
-        await expect(diffSummary.getByText('Removed: 0')).toBeVisible();
-        await expect(diffSummary.getByText('Modified: 2')).toBeVisible();
-
-        // Changed-only fields render...
+        // v2 -> v3 changed the description and the olive oil line; servings never differs, so it is absent.
         await expect(dialog.getByText('Description', { exact: true })).toBeVisible();
-        await expect(dialog.getByText('Ingredients', { exact: true })).toBeVisible();
-        // ...and an UNCHANGED field (servings never differs across v1/v2/v3) is absent, not merely unhighlighted.
         await expect(dialog.getByText('Servings', { exact: true })).toHaveCount(0);
 
-        await page.getByRole('button', { name: 'Close compare' }).click();
+        await dialog.getByRole('button', { name: 'Close compare' }).click();
         await expect(page.getByRole('dialog')).toHaveCount(0);
     });
 
@@ -218,15 +212,17 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await signInWithTicket(page);
         await openVersionHistory(page);
 
-        // Before restoring, v3 is current — not restorable.
-        await expect(page.getByRole('button', { name: 'Restore version 3' })).toHaveCount(0);
+        // Before restoring, v3 is current — no menu.
+        await expect(page.getByRole('button', { name: 'More actions for version 3' })).toHaveCount(0);
 
-        await page.getByRole('button', { name: 'Restore version 1' }).click();
+        await chooseRowAction(page, 1, 'Restore this version');
 
-        // A successful restore records a NEW, higher-numbered version and advances `currentVersion` past 3 —
-        // observable as v3 losing its current status and becoming restorable again, once the container's
-        // post-restore refetch of the version list lands.
-        await expect(page.getByRole('button', { name: 'Restore version 3' })).toBeVisible();
+        // A restore makes a new version, so it asks nothing and says so, with Undo (§6.6).
+        await expect(page.getByText('Restored version 1.')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible();
+        // It records a NEW, higher-numbered version and advances `currentVersion` past 3 — observable as v3 losing
+        // its current status and gaining a menu, once the post-restore refetch of the version list lands.
+        await expect(page.getByRole('button', { name: 'More actions for version 3' })).toBeVisible();
     });
 
     // The history suspends under ONE boundary, so its retry must reset the boundary AND the failed query and
@@ -245,7 +241,7 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await page.getByRole('button', { name: 'Try again' }).click();
 
         await expect(page.getByRole('heading', { name: 'Version history' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Restore version 1' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'More actions for version 1' })).toBeVisible();
     });
 });
 
@@ -321,7 +317,7 @@ test.describe('version preview — a variant-bound line (curated U15)', () => {
         });
 
         await page.goto(route(`/recipes/${BRISKET_RECIPE_ID}/versions`));
-        await page.getByRole('button', { name: 'Preview version 1' }).click();
+        await chooseRowAction(page, 1, 'Preview');
 
         const lines = page.getByRole('dialog').getByRole('listitem');
         const variant = lines.filter({ hasText: '2 lb beef brisket' });
@@ -337,3 +333,30 @@ test.describe('version preview — a variant-bound line (curated U15)', () => {
         await expect(lines.filter({ hasText: 'Olive oil' })).toContainText('flat half, select');
     });
 });
+
+/** `#RRGGBB` → the `rgb(r, g, b)` spelling a computed style uses. */
+function rgb(hex: string): string {
+    const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+for (const [scheme, colors] of [
+    ['light', role],
+    ['dark', roleDark],
+] as const) {
+    test.describe(`the version history in the ${scheme} theme (D15)`, () => {
+        test.use({ colorScheme: scheme });
+
+        test('paints the page and its rows from the scheme’s roles', async ({ page }) => {
+            await signInWithTicket(page);
+            await openVersionHistory(page);
+
+            const title = page.getByText(/^Version 2 · Edited/u);
+            expect(await page.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor)).toBe(
+                rgb(colors.canvas),
+            );
+            expect(await title.evaluate((element) => getComputedStyle(element).color)).toBe(rgb(colors.ink));
+        });
+    });
+}

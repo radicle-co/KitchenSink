@@ -11,7 +11,13 @@ import { describe, expect, it } from 'vitest';
 
 import { computeRecipeNutrition } from '@kitchensink/recipe-core';
 import { makeFilledRecipeFormValues, withLineKeys, withLineKey } from '../../__fixtures__/index.js';
-import { lineCatalogOf, recipeNutritionTotal, toNutritionLine, userStatedFiguresOf } from '../nutrition.js';
+import {
+    lineCatalogOf,
+    nutritionCountOf,
+    recipeNutritionTotal,
+    toNutritionLine,
+    userStatedFiguresOf,
+} from '../nutrition.js';
 import type { FoodNutritionRef, LineNutritionLookup, LookupEntry } from '../nutritionLookup.js';
 
 const RICE: FoodNutritionRef = { kind: 'root', id: 'rice' };
@@ -222,6 +228,40 @@ describe('recipeNutritionTotal — the running per-serving total, one aggregator
         expect(recipeNutritionTotal(makeFilledRecipeFormValues({ ingredients: [] }), lookup)).toMatchObject({
             calories: 0,
             isComplete: true,
+        });
+    });
+});
+
+/** Build spec §7.5.6: the total says how many lines it counts ("7 of 9 counted"), from the same aggregator. */
+describe('nutritionCountOf — how many lines the running total counts', () => {
+    const line = (over: Parameters<typeof withLineKey>[0]) => over;
+    const values = makeFilledRecipeFormValues({
+        servings: 1,
+        ingredients: withLineKeys([
+            line({ ingredientId: 'a', name: 'Rice', quantity: 300, unit: 'g', isUserEntered: false, foodId: RICE.id }),
+            line({ ingredientId: 'b', name: 'Oil', quantity: 2, unit: 'tbsp', isUserEntered: false, foodId: OIL.id }),
+            // A unit no portion converts: the line names a food and still contributes nothing.
+            line({
+                ingredientId: 'c',
+                name: 'Rice',
+                quantity: 1,
+                unit: 'handful',
+                isUserEntered: false,
+                foodId: RICE.id,
+            }),
+            // A food still resolving.
+            line({ ingredientId: 'd', name: 'Kale', quantity: 1, unit: 'cup', isUserEntered: false, foodId: 'kale' }),
+        ]),
+    });
+
+    it('counts exactly the lines the aggregator adds into the total', () => {
+        expect(nutritionCountOf(values, lookup)).toEqual({ counted: 2, total: 4 });
+    });
+
+    it('counts nothing for an empty recipe', () => {
+        expect(nutritionCountOf(makeFilledRecipeFormValues({ ingredients: [] }), lookup)).toEqual({
+            counted: 0,
+            total: 0,
         });
     });
 });

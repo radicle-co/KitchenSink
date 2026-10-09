@@ -13,12 +13,13 @@
  * ⚠️ `sendAccessibilityEvent` and `announceForAccessibilityWithOptions` are mocked because react-native-web does not
  * implement them, and `Platform.OS` because react-native-web is `'web'`: a case sets `'ios'` to hear iOS's channel.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState, type FC } from 'react';
 import { AccessibilityInfo, Text, View } from 'react-native';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { FieldRevealContext, type FieldRevealer } from '../../fieldReveal/fieldRevealContext.js';
+import { ScrollerDragContext } from '../../fieldReveal/scrollerDrag.js';
 import { Combobox } from '../Combobox.native.js';
 import type { ComboboxGroup, ComboboxProps, ComboboxStatus } from '../props.js';
 import { watchRegion } from './regionSpeech.js';
@@ -122,6 +123,20 @@ describe('Combobox (native) — typing and choosing', () => {
 
         expect(onSelect).toHaveBeenCalledExactlyOnceWith('flax');
         expect(screen.queryByRole('button', { name: 'Flaxseed' })).toBeNull();
+    });
+
+    it('the keyboard’s submit with no option tapped tells the host and chooses nothing (§7.5.3)', () => {
+        const onSelect = vi.fn();
+        const onSubmitWithoutChoice = vi.fn();
+        render(<Host onSelect={onSelect} onSubmitWithoutChoice={onSubmitWithoutChoice} />);
+        type('fl');
+
+        fireEvent.keyDown(field(), { key: 'Enter' });
+
+        expect(onSubmitWithoutChoice).toHaveBeenCalledTimes(1);
+        expect(onSelect).not.toHaveBeenCalled();
+        // That the keyboard and the list stay up (`submitBehavior="submit"`) is the device's: react-native-web, which
+        // this suite runs on, reads only the deprecated `blurOnSubmit`. `addIngredientLine.yaml` proves it on Android.
     });
 
     it('leaving the field closes the list', () => {
@@ -675,5 +690,93 @@ describe('Combobox (native) — the field reveal (E1)', () => {
         type('Fl');
 
         expect(screen.getByLabelText('Food suggestions')).toBeTruthy();
+    });
+});
+
+/**
+ * The page's drag and the open list (`docs/design/rowEditorOpenDecisions.md` item 7: the native list is in the page's
+ * flow, with no scroller of its own). A drag that begins inside the list scrolls the page under the cook's finger and
+ * the list stays open; a drag that begins anywhere else on the page closes it.
+ */
+describe('Combobox (native) — a drag on the page', () => {
+    function renderInScroller(): { readonly beginDrag: () => void } {
+        const listeners = new Set<() => void>();
+
+        render(
+            <ScrollerDragContext.Provider
+                value={(listener) => {
+                    listeners.add(listener);
+
+                    return () => listeners.delete(listener);
+                }}
+            >
+                <Host />
+            </ScrollerDragContext.Provider>,
+        );
+
+        return {
+            beginDrag: () => {
+                for (const listener of listeners) {
+                    listener();
+                }
+            },
+        };
+    }
+
+    const list = (): HTMLElement => screen.getByLabelText('Food suggestions');
+    /** A one-finger touch, shaped as react-native-web's responder system reads it. */
+    const finger = { identifier: 0, clientX: 10, clientY: 10, pageX: 10, pageY: 10, force: 1 };
+    const touch = { touches: [finger], changedTouches: [finger], targetTouches: [finger] };
+    const lifted = { touches: [], changedTouches: [finger], targetTouches: [] };
+
+    it('that begins outside the open list closes it', () => {
+        const { beginDrag } = renderInScroller();
+        type('fl');
+
+        act(() => beginDrag());
+
+        expect(field().getAttribute('aria-expanded')).toBe('false');
+        expect(screen.queryByRole('button', { name: 'Flaxseed' })).toBeNull();
+    });
+
+    it('that begins inside the list keeps it open: the page scrolls the list under the finger', () => {
+        const { beginDrag } = renderInScroller();
+        type('fl');
+
+        fireEvent.touchStart(list(), touch);
+        act(() => beginDrag());
+
+        expect(field().getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('a touch that ended inside the list does not shield a later drag outside it', () => {
+        const { beginDrag } = renderInScroller();
+        type('fl');
+
+        fireEvent.touchStart(list(), touch);
+        fireEvent.touchEnd(list(), lifted);
+        act(() => beginDrag());
+
+        expect(field().getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('with no scroller around it, nothing closes the list', () => {
+        render(<Host />);
+        type('fl');
+
+        expect(field().getAttribute('aria-expanded')).toBe('true');
+    });
+});
+
+describe('Combobox (native) — a line under the field', () => {
+    it('draws the host’s line directly under the field, before the list in the page’s flow', () => {
+        render(<Host belowField={<Text>2 tbsp · olive oil</Text>} />);
+        type('fl');
+
+        const note = screen.getByText('2 tbsp · olive oil');
+        const option = screen.getByRole('button', { name: 'Flaxseed' });
+
+        expect(note.compareDocumentPosition(option) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(field().compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });

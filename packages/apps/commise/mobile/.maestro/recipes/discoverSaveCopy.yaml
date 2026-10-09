@@ -1,0 +1,42 @@
+appId: io.commise.mobile
+---
+# Save a copy from a Discover card (`docs/design/uiOverhaul/buildSpec.md` §4.1) — the mobile mirror of the web
+# Playwright `saveACopy.spec.ts`. Signs in, switches to the Discover tab, finds a public recipe the caller does NOT own,
+# and presses the icon button beside its author: "Save a copy of {title}". Pressing it makes a copy and says so in a
+# snackbar ("Saved a copy to My recipes.") whose Edit action opens the COPY in the editor (a copy is published only after
+# an edit, FR-005b); the card's control then reads "Saved a copy of {title}". One press does ONE thing: the card is a link
+# and the control is its own button, so saving never opens the recipe.
+#
+# The recipe page's own Save a copy is `discoverDetailSaveCopy.yaml`'s.
+#
+# Mutates the signer's library (the copy). The next flow's reset deletes it: its title is not in the manifest.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover'
+      timeout: 40000
+
+# Typing a recipe's name switches the rails for the deterministic result list; a rail's order is data about the whole
+# sandbox.
+- tapOn: 'Search recipes'
+- inputText: 'Risotto'
+- scrollUntilVisible:
+      element: 'Save a copy of ${E2E_RECIPE_RISOTTO}'
+      direction: DOWN
+      timeout: 40000
+
+# SAVE. Nothing opens by itself: the snackbar and the control both say it, and Discover is still on screen.
+- tapOn: 'Save a copy of ${E2E_RECIPE_RISOTTO}'
+- extendedWaitUntil:
+      visible: 'Saved a copy to My recipes.'
+      timeout: 40000
+- assertVisible: 'Saved a copy of ${E2E_RECIPE_RISOTTO}'
+- assertVisible: 'Search recipes'
+
+# EDIT. The snackbar's action opens the COPY in the one-page editor.
+- tapOn: 'Edit'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 40000

@@ -283,7 +283,8 @@ export async function settleHomeWidgets(page: Page, seededRecipeTitle: string): 
     const widget = page.getByRole('region', { name: 'Recent recipes' });
 
     await expect(widget).toBeVisible({ timeout: HOME_WIDGET_TIMEOUT_MS });
-    await expect(widget.getByRole('button', { name: seededRecipeTitle })).toBeVisible({
+    // Each recent card is ONE link named by its title (slice 5's `RecipeCard`).
+    await expect(widget.getByRole('link', { name: seededRecipeTitle, exact: true })).toBeVisible({
         timeout: HOME_WIDGET_TIMEOUT_MS,
     });
     await expect(page.getByRole('heading', { name: /^this week.s meals$/i })).toBeVisible({

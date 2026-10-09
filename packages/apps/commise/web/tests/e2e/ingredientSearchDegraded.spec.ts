@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 
 import { signInWithTicket } from './utils/auth';
-import { route } from './utils/basePath';
 import { mockFoodApi, ownFoodLedger, type MockFoodApiOptions } from './utils/foodApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * REWRITTEN for plan 002 S7.8: the ingredient search when part of it cannot answer
@@ -66,8 +66,7 @@ async function openTheList(
     await mockFoodApi(page, food);
     await setUp(page);
 
-    await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
-    await page.getByRole('button', { name: /Ingredients:/ }).click();
+    await openRecipeEditor(page, RECIPE_ID);
     const field = page.getByRole('combobox', { name: 'Ingredient 1 name' });
 
     await field.click();
@@ -165,8 +164,7 @@ test.describe('the ingredient search when part of it cannot answer (S7 list cont
         await page.route('**/api/v1/foods/search/progressive?**', (intercepted) =>
             online ? intercepted.fallback() : intercepted.abort('internetdisconnected'),
         );
-        await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
-        await page.getByRole('button', { name: /Ingredients:/ }).click();
+        await openRecipeEditor(page, RECIPE_ID);
 
         online = false;
         await context.setOffline(true);

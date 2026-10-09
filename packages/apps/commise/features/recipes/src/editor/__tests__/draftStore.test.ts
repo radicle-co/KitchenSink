@@ -21,6 +21,7 @@ import type { RecipeFormValues } from '../../form/values.js';
 import {
     MAX_KEPT_DRAFTS,
     createDraftStore,
+    draftStoreFor,
     draftQuarantineKeyFor,
     draftStoreKeyFor,
     draftValuesSchema,
@@ -71,6 +72,36 @@ describe('the persisted format', () => {
 });
 
 describe('createDraftStore', () => {
+    /**
+     * ⛔ AN AMOUNT-LESS LINE IS A NORMAL DRAFT. The draft spells "no amount" as `NaN` (`toRecipeFormValues`, and every
+     * fresh pick since F5), and JSON writes `NaN` as `null`. Read back through a bare `z.number()` that `null` failed the
+     * strict parse, and the whole key — every draft the cook had — went to the quarantine on the next read.
+     */
+    it('⛔ round-trips a line that states no amount (NaN is written as null, and read back as NaN)', async () => {
+        const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
+        const base = makeRecipeFormValues();
+        const [first] = base.ingredients;
+
+        if (first === undefined) {
+            throw new Error('fixture has no ingredient');
+        }
+
+        const amountless = memento({
+            values: toDraftValues({
+                ...base,
+                ingredients: [{ ...first, quantity: Number.NaN, quantityHigh: Number.NaN }],
+            }),
+        });
+
+        await drafts.save(amountless);
+
+        const loaded = await drafts.load(LOCAL_REF);
+
+        expect(loaded?.values.ingredients[0]?.quantity).toBeNaN();
+        expect(loaded?.values.ingredients[0]?.quantityHigh).toBeNaN();
+        expect(loaded).toEqual(amountless);
+    });
+
     it('round-trips a memento, and answers nothing for a recipe it holds no draft for', async () => {
         const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
 
@@ -115,14 +146,58 @@ describe('createDraftStore', () => {
         expect(await drafts.load('srv-2')).toBeDefined();
     });
 
-    it('moves a draft from its local ref to the server id once the create resolves', async () => {
+    /**
+     * REWRITTEN for slice 7: `rekey` became `adopt`, because an answer can land while the editor is closed (the outbox
+     * drains after it), and the store — not the editor — is then the only thing that can record it.
+     */
+    it('adopts a create`s answer: the draft moves from its local ref to the server id, at the version returned', async () => {
         const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
         await drafts.save(memento());
 
-        await drafts.rekey(LOCAL_REF, 'srv-1', 1);
+        await drafts.adopt(LOCAL_REF, { serverId: 'srv-1', version: 1 });
 
         expect(await drafts.load(LOCAL_REF)).toBeUndefined();
         expect(await drafts.load('srv-1')).toMatchObject({ recipeRef: 'srv-1', baseVersion: 1 });
+    });
+
+    it('adopts an update`s answer: the version moves up, and never down', async () => {
+        const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
+        await drafts.save(memento({ recipeRef: 'srv-1', baseVersion: 4 }));
+
+        await drafts.adopt('srv-1', { serverId: 'srv-1', version: 6 });
+        expect(await drafts.load('srv-1')).toMatchObject({ baseVersion: 6 });
+
+        // ⛔ A late answer for an older write cannot regress the token the next update will carry.
+        await drafts.adopt('srv-1', { serverId: 'srv-1', version: 5 });
+        expect(await drafts.load('srv-1')).toMatchObject({ baseVersion: 6 });
+    });
+
+    it('⛔ a save never lowers the version an answer already recorded (whichever writes last)', async () => {
+        const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
+        await drafts.save(memento({ recipeRef: 'srv-1', baseVersion: 4 }));
+        await drafts.adopt('srv-1', { serverId: 'srv-1', version: 6 });
+
+        await drafts.save(memento({ recipeRef: 'srv-1', baseVersion: 4, savedAt: '2026-10-08T12:00:05.000Z' }));
+
+        expect(await drafts.load('srv-1')).toMatchObject({ baseVersion: 6, savedAt: '2026-10-08T12:00:05.000Z' });
+    });
+
+    it('an answer for a recipe with no draft writes nothing (the cook discarded it)', async () => {
+        const store = createMemoryOutboxStore();
+        const drafts = createDraftStore(store, 'user_a');
+
+        await drafts.adopt(LOCAL_REF, { serverId: 'srv-1', version: 1 });
+
+        expect(await drafts.load('srv-1')).toBeUndefined();
+        expect(await store.getItem(draftStoreKeyFor('user_a'))).toBeNull();
+    });
+
+    it('⛔ one store per user and port: two callers share one serial queue (draftStoreFor)', async () => {
+        const store = createMemoryOutboxStore();
+
+        expect(draftStoreFor(store, 'user_a')).toBe(draftStoreFor(store, 'user_a'));
+        expect(draftStoreFor(store, 'user_a')).not.toBe(draftStoreFor(store, 'user_b'));
+        expect(draftStoreFor(store, 'user_a')).not.toBe(draftStoreFor(createMemoryOutboxStore(), 'user_a'));
     });
 
     it('discards one draft and keeps the others', async () => {

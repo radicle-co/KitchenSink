@@ -32,7 +32,7 @@ import { signInWithTicket } from './utils/auth';
  *    ⚠️ The FAB is now withheld while the list is LOADING as well, so its absence no longer separates
  *    first-run from a hung skeleton on its own — the live-region assertion above carries that alone. It was
  *    mounted over an unsettled list and then unmounted as the empty library resolved, taking an already-open
- *    create menu with it; `shouldShowCreateDial`'s JSDoc has the account (the loading branch now mounts no dial).
+ *    create menu with it; `shouldShowCreateButton`'s JSDoc has the account (the loading branch now mounts no dial).
  *
  * The second spec pins the state a recently-fixed defect got WRONG: a quick-filter chip that narrows to zero
  * is a NO-MATCH (the viewer has recipes; their own criteria excluded them), never first-run — it keeps the
@@ -49,24 +49,30 @@ test.describe('recipe list — zero-row states', () => {
         // A successful load with nothing in it is the EMPTY state — not an error, and not a wait.
         await page.goto(route('/recipes'));
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
-        await expect(page.getByText('No recipes yet')).toBeVisible();
-        await expect(page.getByText('Create your first recipe to see it here.')).toBeVisible();
+        await expect(page.getByRole('heading', { level: 2, name: 'Your recipe box is empty' })).toBeVisible();
+        await expect(
+            page.getByText('Add a recipe you love, or paste an ingredient list and we’ll set it up.'),
+        ).toBeVisible();
+        // Slice 4 (`buildSpec.md` §4.3): the first run hides the search, and offers paste beside the editor.
+        await expect(page.getByRole('searchbox')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Paste ingredients' })).toBeVisible();
 
         // The empty-state CTA is the SOLE create control here, and the pinned FAB is suppressed (L1) — the
         // PAIR is what names this state. ⚠️ The FAB's absence alone no longer separates first-run from a
         // stuck skeleton: it is now withheld while the list is LOADING too (it used to mount over an
         // unsettled library and then unmount as the empty state resolved). The live-region assertion below
         // carries that discrimination on its own.
-        await expect(page.getByRole('button', { name: 'Create your first recipe' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'New recipe' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Add your first recipe' })).toBeVisible();
+        // The results' floating button, inside `main` — the shell's sidebar carries its own "New recipe" from 840 px.
+        await expect(page.getByRole('main').getByRole('button', { name: 'New recipe' })).toHaveCount(0);
 
         // …and the list has SETTLED: no live "Loading recipes" region survives alongside the empty state.
         // Asserted after the positive copy above, so it cannot pass merely by running before the skeleton
         // mounts. This is the assertion that fails when the request never resolves.
         await expect(page.getByRole('status', { name: 'Loading recipes' })).toHaveCount(0);
 
-        // The empty state is not a dead end: its CTA opens the create wizard.
-        await page.getByRole('button', { name: 'Create your first recipe' }).click();
+        // The empty state is not a dead end: its CTA opens the editor.
+        await page.getByRole('button', { name: 'Add your first recipe' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
     });
 
@@ -99,28 +105,31 @@ test.describe('recipe list — zero-row states', () => {
         });
 
         await page.goto(route('/recipes'));
-        await expect(page.getByRole('button', { name: 'Slow Ratatouille' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Quick Steak Bites' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Slow Ratatouille' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Quick Steak Bites' })).toBeVisible();
 
         const chips = page.getByRole('group', { name: 'Quick filters' });
         await chips.getByRole('button', { name: 'Vegetarian' }).click();
-        await expect(page.getByRole('button', { name: 'Quick Steak Bites' })).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'Quick Steak Bites' })).toHaveCount(0);
 
         // Both chips active → no recipe satisfies all of them. The rows are gone because the VIEWER narrowed
         // them, so this is the no-match state, with the first-run copy nowhere on the page.
-        await chips.getByRole('button', { name: 'Quick (<30m)' }).click();
-        await expect(page.getByRole('button', { name: 'Slow Ratatouille' })).toHaveCount(0);
-        await expect(page.getByText('No matching recipes')).toBeVisible();
-        await expect(page.getByText('No recipes yet')).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Create your first recipe' })).toHaveCount(0);
+        await chips.getByRole('button', { name: /^Under 30 min/ }).click();
+        await expect(page.getByRole('link', { name: 'Slow Ratatouille' })).toHaveCount(0);
+        await expect(page.getByRole('heading', { level: 2, name: 'No recipes match' })).toBeVisible();
+        await expect(page.getByText('No recipes match these filters.')).toBeVisible();
+        await expect(page.getByText('Your recipe box is empty')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Add your first recipe' })).toHaveCount(0);
 
         // …and the viewer is not stranded: the no-match body carries no CTA, so the pinned FAB must survive
         // (the defect suppressed it here, leaving the state with no create affordance at all).
-        await expect(page.getByRole('button', { name: 'New recipe' })).toBeVisible();
+        // At this width the create affordance is the shell's sidebar "New recipe" (the floating button is for phones).
+        await expect(page.getByRole('button', { name: 'New recipe' }).first()).toBeVisible();
 
-        // Clearing the chips restores the full library — the narrowing is derived, never destructive.
-        await chips.getByRole('button', { name: 'All' }).click();
-        await expect(page.getByRole('button', { name: 'Slow Ratatouille' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Quick Steak Bites' })).toBeVisible();
+        // Clearing the chips restores the full library — the narrowing is derived, never destructive. The no-match
+        // body's own Clear filters does it (slice 4); All does the same.
+        await page.getByRole('status').getByRole('button', { name: 'Clear filters' }).click();
+        await expect(page.getByRole('link', { name: 'Slow Ratatouille' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Quick Steak Bites' })).toBeVisible();
     });
 });

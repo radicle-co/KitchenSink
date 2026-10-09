@@ -16,9 +16,9 @@ describe('DataSourcesList (native)', () => {
         render(<DataSourcesList sources={[makeDataSource(), SWISS_SOURCE, CIQUAL_SOURCE]} onOpen={vi.fn()} />);
 
         expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
-            'USDA',
-            'Swiss Food Composition Database',
-            'Ciqual',
+            makeDataSource().publisher,
+            SWISS_SOURCE.publisher,
+            CIQUAL_SOURCE.publisher,
         ]);
     });
 

@@ -632,18 +632,3 @@ export interface RecipeIngredientSearchState {
     /** The current typeahead view (idle/searching/results). */
     readonly viewState: IngredientFilterSearchViewState;
 }
-
-/** The controlled, presentational recipe filter bar's props (web + native share this shape). */
-export interface RecipeFilterBarProps {
-    /** Facet buckets from the latest search response (drives which chips render, with counts). */
-    readonly facets: RecipeFacets;
-    /** The active filter state (drives selected/pressed chips and the clear-all summary). */
-    readonly filters: RecipeFilterState;
-    /** The ingredient-filter typeahead's live query + view state (FR-006 gap #3). */
-    readonly ingredientSearch: RecipeIngredientSearchState;
-    /**
-     * Every filter change the cook makes, as a {@link FilterAction} for the container to apply with
-     * {@link applyFilterAction}. One intent channel: the leaf says WHAT was asked for, the reducer owns what it does.
-     */
-    readonly onFilterAction: (action: FilterAction) => void;
-}

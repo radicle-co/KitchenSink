@@ -69,8 +69,8 @@ test.describe('a cook’s cached recipes end with their session (ADR-0054)', () 
         await page.goto(route('/recipes'));
         await expect(page.getByRole('button', { name: 'A’s Private Lamb' })).toBeVisible();
 
-        await page.goto(route('/settings'));
-        await page.getByRole('button', { name: 'Sign out of your account' }).click();
+        await page.goto(route('/profile'));
+        await page.getByRole('button', { name: 'Sign out' }).click();
         await expect.poll(() => isRoute(pathnameOf(page), '/sign-in'), { timeout: 20_000 }).toBe(true);
 
         await page.unrouteAll({ behavior: 'ignoreErrors' });

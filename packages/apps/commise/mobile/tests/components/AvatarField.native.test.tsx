@@ -9,11 +9,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+import { role, roleDark } from '@commise/ui/colors';
+import { formatRgb } from 'culori';
 import * as ImagePicker from 'expo-image-picker';
 
 import { AvatarField } from '../../src/components/account/AvatarField.js';
 import { useAvatarUpload } from '../../src/hooks/useAvatarUpload.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
+
+/** The system colour scheme the next render sees. */
+const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
+vi.mock('react-native', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('react-native')>()),
+    useColorScheme: () => scheme.current,
+}));
 
 vi.mock('expo-image-picker', () => ({
     MediaTypeOptions: { Images: 'Images' },
@@ -52,6 +61,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    scheme.current = null;
     cleanup();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
@@ -132,5 +142,29 @@ describe('AvatarField', () => {
 
         expect(await screen.findByText(messages.uploadError)).toBeTruthy();
         expect(onChange).not.toHaveBeenCalled();
+    });
+});
+
+describe.each([
+    ['light', role],
+    ['dark', roleDark],
+] as const)('AvatarField — the %s theme reads colour from roles', (name, roles) => {
+    it('paints the label in ink, the empty photo in surfaceMuted, and the upload error in dangerText', async () => {
+        scheme.current = name;
+        fetchMock.mockResolvedValueOnce({ blob: async () => new Blob([new Uint8Array(1024)], { type: 'image/png' }) });
+        uploadMock.mockRejectedValue(new Error('network'));
+
+        render(<AvatarField value="" onChange={vi.fn()} messages={messages} />);
+
+        expect(window.getComputedStyle(screen.getByText(messages.label)).color).toBe(formatRgb(roles.ink));
+        expect(window.getComputedStyle(screen.getByLabelText(messages.imageLabel)).backgroundColor).toBe(
+            formatRgb(roles.surfaceMuted),
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: messages.changeAction }));
+
+        expect(window.getComputedStyle(await screen.findByText(messages.uploadError)).color).toBe(
+            formatRgb(roles.dangerText),
+        );
     });
 });

@@ -15,6 +15,7 @@
         "./sync-notice-state": "./src/syncNoticeState.ts",
         "./sync-notice-host": "./src/SyncNoticeHost.tsx",
         "./recipe-sender": "./src/recipeSender.ts",
+        "./recipe-write-cache": "./src/recipeWriteCacheObserver.tsx",
         "./session-scope": "./src/sessionScope.ts"
     },
     "scripts": {

@@ -16,7 +16,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { SessionSubjectChangedError } from '@commise/features-account';
-import { BadRequestError, InvalidRequestError } from '@kitchensink/recipe-service-client';
+import { BadRequestError, InvalidRequestError, VersionConflictError } from '@kitchensink/recipe-service-client';
+import type { VersionConflictSide } from '@kitchensink/recipe-core';
+import { makeRecipeVersion } from '@kitchensink/recipe-core/testing';
 import { classifyFailure, type OutboxRecord } from '@kitchensink/sync';
 
 import { recipeSender } from '../recipeSender.js';
@@ -26,25 +28,82 @@ function record(intentKind: string, payload: unknown = {}, entity = 'recipe'): O
     return { entity, intentKind, localId: 'r1', dependsOn: [], payload, seq: 1, state: 'pending' } as OutboxRecord;
 }
 
+/** One side of a version conflict, at `versionNumber`. */
+function sideAt(versionNumber: number): VersionConflictSide {
+    const { snapshot } = makeRecipeVersion({ versionNumber });
+
+    return { versionNumber, updatedAt: '2026-10-09T00:00:00.000Z', snapshot };
+}
+
 describe('recipeSender', () => {
-    it('sends an update through the client and reports the server id', async () => {
-        const updateRecipe = vi.fn().mockResolvedValue({ id: 'srv-1' });
+    /**
+     * REWRITTEN for slice 7: a write's answer now travels with it. The editor that queued the update reads the version
+     * it produced from `answer` (ADR-0057: "the editor owns the CAS token"), so the recipe the server returned is part of
+     * the result, not only its id.
+     */
+    it('sends an update through the client and reports the server id and the recipe it returned', async () => {
+        const updateRecipe = vi.fn().mockResolvedValue({ id: 'srv-1', currentVersion: 5 });
         const send = recipeSender(() => ({ updateRecipe }) as never);
 
         const result = await send(record('update', { id: 'r1', input: { title: 'edited' } }));
 
         expect(updateRecipe).toHaveBeenCalledWith('r1', { title: 'edited' });
-        expect(result).toStrictEqual({ outcome: 'ok', serverId: 'srv-1' });
+        expect(result).toStrictEqual({
+            outcome: 'ok',
+            serverId: 'srv-1',
+            answer: { kind: 'recipeWritten', detail: { id: 'srv-1', currentVersion: 5 } },
+        });
     });
 
-    it('sends a create and reports the id the server assigned', async () => {
-        const createRecipe = vi.fn().mockResolvedValue({ id: 'srv-new' });
+    it('sends a create and reports the id the server assigned, with the recipe it returned', async () => {
+        const createRecipe = vi.fn().mockResolvedValue({ id: 'srv-new', currentVersion: 1 });
         const send = recipeSender(() => ({ createRecipe }) as never);
 
         const result = await send(record('create', { input: { title: 'New' } }));
 
         expect(createRecipe).toHaveBeenCalledWith({ title: 'New' });
-        expect(result).toStrictEqual({ outcome: 'ok', serverId: 'srv-new' });
+        expect(result).toStrictEqual({
+            outcome: 'ok',
+            serverId: 'srv-new',
+            answer: { kind: 'recipeWritten', detail: { id: 'srv-new', currentVersion: 1 } },
+        });
+    });
+
+    /**
+     * ⛔ A 409 CARRIES ITS TWO SIDES AS DATA. The conflict view is built from the server's winning side and the base the
+     * edit started from, and the queued write is the only thing that saw the response — dropping them here would leave
+     * the editor a bare 409 with nothing to show.
+     */
+    it('⛔ reports a version conflict as a 409 carrying the server`s side and the base', async () => {
+        const server = sideAt(7);
+        const base = sideAt(6);
+        const updateRecipe = vi.fn().mockRejectedValue(new VersionConflictError(7, 6, 'conflict', { server, base }));
+        const send = recipeSender(() => ({ updateRecipe }) as never);
+
+        expect(await send(record('update', { id: 'r1', input: {} }))).toStrictEqual({
+            outcome: 'failed',
+            status: 409,
+            answer: { kind: 'recipeConflict', server, base },
+        });
+    });
+
+    it('a draft`s 409 has no base, and none is invented (ADR-0058)', async () => {
+        const server = sideAt(3);
+        const updateRecipe = vi.fn().mockRejectedValue(new VersionConflictError(3, 2, 'conflict', { server }));
+        const send = recipeSender(() => ({ updateRecipe }) as never);
+
+        expect(await send(record('update', { id: 'r1', input: {} }))).toStrictEqual({
+            outcome: 'failed',
+            status: 409,
+            answer: { kind: 'recipeConflict', server },
+        });
+    });
+
+    it('a 409 with no server side is a plain refusal, with no answer to build a view from', async () => {
+        const updateRecipe = vi.fn().mockRejectedValue(new VersionConflictError(3, 2));
+        const send = recipeSender(() => ({ updateRecipe }) as never);
+
+        expect(await send(record('update', { id: 'r1', input: {} }))).toStrictEqual({ outcome: 'failed', status: 409 });
     });
 
     it('sends a delete', async () => {

@@ -12,10 +12,10 @@
  * The mobile counterpart of the web `AccountCloseForm` + `AccountEraseForm`. All copy is localized
  * (`accountDangerMessages`), never hard-coded.
  *
- * Both triggers are the design-system {@link Button}: `secondary` for the recoverable closure, `destructive`
- * for the irreversible erasure — so they inherit the DS palette, the 44pt touch floor, and the real busy
- * spinner instead of the hand-rolled `Pressable`s (off-palette hex, ~38pt targets, label-swap-only "busy")
- * this surface used to carry as the app's last un-migrated native control.
+ * It draws the Profile page's Danger zone group (`buildSpec.md` §9.1): both triggers are the shared
+ * {@link ProfileRow} in the `danger` tone, each with its consequence as a hint, as direct children of ONE
+ * {@link ProfileGroup} (which draws the hairline between them from its direct children). The dialogs and the alerts
+ * sit OUTSIDE the group's card. Colour comes from the theme at render.
  *
  * **Both exits END THE SESSION, and neither may do so silently (ADR-0009 / B17).** The erasure's exit used to
  * be `{ onSuccess: () => void signOut() }` — a fire-and-forget side effect of the mutation, with nowhere to
@@ -33,10 +33,10 @@ import { useMessages } from '@commise/i18n/react';
 import { selectDonatableRecipes } from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
 import { useEraseAccount } from '../../hooks/useEraseAccount.js';
-import { palette } from '@commise/ui';
-import { Button } from '@commise/ui/button';
+import { ProfileGroup, ProfileRow, profileMessages } from '@commise/features-account/profile';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
@@ -140,6 +140,8 @@ function AccountEraseFlow({
 export function AccountDangerZone(): JSX.Element {
     const { close, erase } = useMessages(accountDangerMessages);
     const { account } = useMessages(mobileMessages);
+    const profile = useMessages(profileMessages);
+    const { colors } = useTheme();
     const deleteAccount = useDeleteAccount();
     const [closeOpen, setCloseOpen] = useState(false);
     const [eraseOpen, setEraseOpen] = useState(false);
@@ -156,23 +158,32 @@ export function AccountDangerZone(): JSX.Element {
 
     return (
         <View style={styles.container}>
-            {/* Recoverable closure — the calmer bordered tier, so it never competes with the erasure. Its
-                `busy` state is the DS spinner (the control is disabled while in flight, so an in-progress
-                closure cannot be double-fired) AND the localized busy label. */}
-            <Button variant="secondary" icon="userX" busy={deleteAccount.isPending} onPress={() => setCloseOpen(true)}>
-                {deleteAccount.isPending ? close.busyLabel : close.trigger}
-            </Button>
+            <ProfileGroup heading={profile.dangerZone}>
+                {/* Recoverable closure. Its `busy` state disables the row while in flight, so an in-progress closure
+                    cannot be double-fired, and the label says so. */}
+                <ProfileRow
+                    label={deleteAccount.isPending ? close.busyLabel : close.trigger}
+                    hint={close.rowHint}
+                    tone="danger"
+                    chevron
+                    busy={deleteAccount.isPending}
+                    onPress={() => setCloseOpen(true)}
+                />
+                {/* Irreversible erasure. It opens the phrase-gated dialog; the erasure's own in-flight state belongs to
+                    that dialog's confirm control, not to this row. */}
+                <ProfileRow
+                    label={erase.trigger}
+                    hint={erase.rowHint}
+                    tone="danger"
+                    chevron
+                    onPress={() => setEraseOpen(true)}
+                />
+            </ProfileGroup>
             {deleteAccount.isError ? (
-                <Text role="alert" style={styles.error}>
+                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
                     {close.error}
                 </Text>
             ) : null}
-
-            {/* Irreversible erasure — the destructive tier. It opens the phrase-gated dialog; the erasure's
-                own in-flight state belongs to that dialog's confirm control, not to this trigger. */}
-            <Button variant="destructive" icon="trash" onPress={() => setEraseOpen(true)}>
-                {erase.trigger}
-            </Button>
 
             <ConfirmDialog
                 open={closeOpen}
@@ -193,10 +204,12 @@ export function AccountDangerZone(): JSX.Element {
                 sign-out control — never a prompt to retry an erasure that already happened. */}
             {eraseExitFailed ? (
                 <>
-                    <Text role="alert" style={styles.error}>
+                    <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
                         {account.eraseSignOutFailed}
                     </Text>
-                    <SignOutButton />
+                    <ProfileGroup label={profile.signOut}>
+                        <SignOutButton />
+                    </ProfileGroup>
                 </>
             ) : null}
         </View>
@@ -204,7 +217,6 @@ export function AccountDangerZone(): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-    // Spacing from the shared scale — the buttons own their own surface, padding, and touch floor.
-    container: { gap: nativeTokens.spacing[3], marginTop: nativeTokens.spacing[5] },
-    error: { fontSize: nativeTokens.fontSize.bodySm, color: palette['error-dark'] },
+    container: { gap: nativeTokens.spacing[3] },
+    error: { ...nativeTokens.type.meta },
 });

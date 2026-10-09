@@ -82,5 +82,11 @@ export type DraftAction =
     | { readonly kind: 'setIngredientQuantityLow'; readonly index: number; readonly value?: number }
     | { readonly kind: 'setIngredientQuantityHigh'; readonly index: number; readonly value?: number }
     | { readonly kind: 'addStep' }
+    /** Move one step to another position (⋯ Move up / Move down; SC 2.5.7). Out of range, nothing changes. */
+    | { readonly kind: 'moveStep'; readonly from: number; readonly to: number }
+    /** Set a step's timer, or clear it (`seconds` absent) by REMOVING the key. */
+    | { readonly kind: 'setStepTimer'; readonly index: number; readonly seconds?: number }
+    /** Append pasted steps at the end, in order, with no timer (Paste steps). */
+    | { readonly kind: 'appendSteps'; readonly instructions: readonly string[] }
     | { readonly kind: 'setDifficulty'; readonly value?: RecipeDifficulty }
     | { readonly kind: 'setMealType'; readonly value?: RecipeMealType };

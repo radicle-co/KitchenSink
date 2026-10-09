@@ -47,7 +47,8 @@ vi.mock('../../../src/hooks/useUserProfile.js', () => ({ useUserProfile: () => p
 vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
 
 // The Home surface reads the bottom safe-area inset for the tab bar; a zero-inset stub renders it faithfully.
-vi.mock('react-native-safe-area-context', () => ({
+vi.mock('react-native-safe-area-context', async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
     useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
     SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
 }));
@@ -87,28 +88,30 @@ const containerWith = (...descriptors: readonly HomeWidgetDescriptor[]): Contain
 };
 
 const renderSurface = (props: Partial<Parameters<typeof HomeWidgetSurface>[0]> = {}): void => {
-    renderWithProviders(
-        <HomeWidgetSurface onSeeAllRecipes={noop} onSelectRecipe={noop} onOpenAccount={noop} {...props} />,
-    );
+    renderWithProviders(<HomeWidgetSurface onSeeAllRecipes={noop} onSelectRecipe={noop} {...props} />);
 };
 
 const FakeRecipeWidget: FC = () => <Text>fake-recipe-widget</Text>;
 
 describe('HomeWidgetSurface (mobile) — host composition', () => {
-    // Rewritten for M1: this also asserted the bottom tab bar ("Main"). The bar moved up to the app root so it shows
-    // on every top-level screen, not only Home; `tests/screens/AppRoot.shell.native.test.tsx` covers it there. Home's
-    // own chrome is the top bar, asserted here instead.
-    it('renders the time-of-day greeting header and the top-bar chrome, and no tab bar of its own', () => {
+    // Rewritten for slice 3: the top bar (with its dead search and bell) is deleted. Home's large title is the greeting,
+    // the scroller's first child, with the avatar as its action; the tab bar is the navigator's
+    // (`tests/navigation/RootNavigator.native.test.tsx`).
+    it('renders the greeting as the large title, with its action, and no top bar or tab bar of its own', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
         renderSurface({
             container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
             renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+            headerAction: { kind: 'avatar', avatar: <Text accessibilityRole="button">Profile</Text> },
         });
 
-        expect(screen.getByText('Good afternoon, Chef!')).toBeTruthy();
-        expect(screen.getByLabelText('Search, coming soon')).toBeTruthy();
+        const heading = screen.getByRole('heading', { name: /^Good afternoon/u });
+
+        expect(screen.getAllByRole('heading')[0]).toBe(heading);
+        expect(screen.getByRole('button', { name: 'Profile' })).toBeTruthy();
+        expect(screen.queryByLabelText(/coming soon/u)).toBeNull();
         expect(screen.queryByLabelText('Main')).toBeNull();
     });
 
@@ -120,7 +123,6 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
             <HomeWidgetSurface
                 onSeeAllRecipes={noop}
                 onSelectRecipe={noop}
-                onOpenAccount={noop}
                 container={containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID))}
                 renderers={{ [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget }}
             />,
@@ -128,7 +130,9 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
 
         // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): the greeting card is deleted. The app canvas
         // already carries the beach-glow wash, so the greeting sits on it rather than in a second gradient card.
-        expect(screen.getByText('Good afternoon, Chef!').closest('[data-commise-stub="linear-gradient"]')).toBeNull();
+        expect(
+            screen.getByRole('heading', { name: /^Good afternoon/u }).closest('[data-commise-stub="linear-gradient"]'),
+        ).toBeNull();
     });
 
     it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {

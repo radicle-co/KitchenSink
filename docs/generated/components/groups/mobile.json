@@ -4,15 +4,15 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 48,
-        "implementations": 48,
-        "props": 113,
-        "documentedComponents": 47,
-        "implementationsWithModuleDoc": 46,
-        "implementationsWithComponentDoc": 41,
-        "documentedProps": 109,
-        "classifiedComponents": 19,
-        "componentsWithPatternTag": 11,
+        "components": 49,
+        "implementations": 49,
+        "props": 110,
+        "documentedComponents": 48,
+        "implementationsWithModuleDoc": 47,
+        "implementationsWithComponentDoc": 38,
+        "documentedProps": 102,
+        "classifiedComponents": 27,
+        "componentsWithPatternTag": 21,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -76,7 +76,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/account/AccountDangerZone.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/account",
-                    "moduleDoc": "components/account/AccountDangerZone — the mobile account danger-zone (CR-002 / U4b).\n\nPresents the two DISTINCT, non-conflatable account actions the platform rule requires on BOTH platforms:\n  - CLOSE ACCOUNT — recoverable (identity ban + tombstone; data retained). Confirmed through the\n    design-system `ConfirmDialog` with the recoverable `close` copy, then `deleteMe` + sign-out via the\n    shared `useDeleteAccount` hook.\n  - ERASE MY DATA — irreversible (GDPR erasure). Driven through the SAME cross-platform, phrase-gated,\n    donate-election `AccountEraseDialog` the web app uses (`@commise/features-account/danger`); this is the\n    orchestrational half (recipe fetch + erasure mutation + form state), the dialog is the render half.\n\nThe mobile counterpart of the web `AccountCloseForm` + `AccountEraseForm`. All copy is localized\n(`accountDangerMessages`), never hard-coded.\n\nBoth triggers are the design-system {@link Button}: `secondary` for the recoverable closure, `destructive`\nfor the irreversible erasure — so they inherit the DS palette, the 44pt touch floor, and the real busy\nspinner instead of the hand-rolled `Pressable`s (off-palette hex, ~38pt targets, label-swap-only \"busy\")\nthis surface used to carry as the app's last un-migrated native control.\n\n**Both exits END THE SESSION, and neither may do so silently (ADR-0009 / B17).** The erasure's exit used to\nbe `{ onSuccess: () => void signOut() }` — a fire-and-forget side effect of the mutation, with nowhere to\nreport a problem: a failure left the viewer sitting on an authenticated danger zone for an account that no\nlonger exists, told nothing. Now it issues the app's one sign-out command and, on failure, dismisses the\n(dead) dialog and surfaces a distinct alert plus {@link SignOutButton} as the recovery. That copy is\ndeliberately NOT the dialog's `submitError`: the erasure has ALREADY succeeded server-side (202) by then, so\ninviting a retry of it would be a lie — the only outstanding action is leaving the session. A failed CLOSURE\nlikewise now reports `close.error` instead of stopping with no feedback.",
+                    "moduleDoc": "components/account/AccountDangerZone — the mobile account danger-zone (CR-002 / U4b).\n\nPresents the two DISTINCT, non-conflatable account actions the platform rule requires on BOTH platforms:\n  - CLOSE ACCOUNT — recoverable (identity ban + tombstone; data retained). Confirmed through the\n    design-system `ConfirmDialog` with the recoverable `close` copy, then `deleteMe` + sign-out via the\n    shared `useDeleteAccount` hook.\n  - ERASE MY DATA — irreversible (GDPR erasure). Driven through the SAME cross-platform, phrase-gated,\n    donate-election `AccountEraseDialog` the web app uses (`@commise/features-account/danger`); this is the\n    orchestrational half (recipe fetch + erasure mutation + form state), the dialog is the render half.\n\nThe mobile counterpart of the web `AccountCloseForm` + `AccountEraseForm`. All copy is localized\n(`accountDangerMessages`), never hard-coded.\n\nIt draws the Profile page's Danger zone group (`buildSpec.md` §9.1): both triggers are the shared\n{@link ProfileRow} in the `danger` tone, each with its consequence as a hint, as direct children of ONE\n{@link ProfileGroup} (which draws the hairline between them from its direct children). The dialogs and the alerts\nsit OUTSIDE the group's card. Colour comes from the theme at render.\n\n**Both exits END THE SESSION, and neither may do so silently (ADR-0009 / B17).** The erasure's exit used to\nbe `{ onSuccess: () => void signOut() }` — a fire-and-forget side effect of the mutation, with nowhere to\nreport a problem: a failure left the viewer sitting on an authenticated danger zone for an account that no\nlonger exists, told nothing. Now it issues the app's one sign-out command and, on failure, dismisses the\n(dead) dialog and surfaces a distinct alert plus {@link SignOutButton} as the recovery. That copy is\ndeliberately NOT the dialog's `submitError`: the erasure has ALREADY succeeded server-side (202) by then, so\ninviting a retry of it would be a lie — the only outstanding action is leaving the session. A failed CLOSURE\nlikewise now reports `close.error` instead of stopping with no feedback.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -122,7 +122,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/account/AvatarField.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/account",
-                    "moduleDoc": "components/account/AvatarField — the profile screen's avatar control (U2).\n\nReplaces the old \"paste an image URL\" text box with a real device flow, modelled on\n`RecipePhotoUploader`: a design-system {@link Button} opens\n`expo-image-picker`, the picked asset's bytes are read as a Blob, client-validated against the same\n5 MB / JPEG-PNG-WebP allowlist the identity presign enforces (so an obviously-invalid pick fails fast,\nbefore any request), uploaded via {@link useAvatarUpload}, and the durable public URL is handed back\nthrough `onChange` for the profile PATCH to persist. Presentational otherwise: it owns only the in-flight\n+ error state of a pick, never the profile form's `value`.\n\n`expo-image-picker` is imported lazily on first use (it pulls `expo-modules-core`, which only evaluates in\nthe native runtime) — mirroring the recipe uploader.",
+                    "moduleDoc": "components/account/AvatarField — the profile screen's avatar control (U2).\n\nReplaces the old \"paste an image URL\" text box with a real device flow, modelled on\n`RecipePhotoUploader`: a design-system {@link Button} opens\n`expo-image-picker`, the picked asset's bytes are read as a Blob, client-validated against the same\n5 MB / JPEG-PNG-WebP allowlist the identity presign enforces (so an obviously-invalid pick fails fast,\nbefore any request), uploaded via {@link useAvatarUpload}, and the durable public URL is handed back\nthrough `onChange` for the profile PATCH to persist. Presentational otherwise: it owns only the in-flight\n+ error state of a pick, never the saved `value`. It sits in the Profile page's Account group as the native-only\nphoto row (`buildSpec.md` §9.1); colour comes from the theme at render.\n\n`expo-image-picker` is imported lazily on first use (it pulls `expo-modules-core`, which only evaluates in\nthe native runtime) — mirroring the recipe uploader.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -194,11 +194,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/account/SignOutButton.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/account",
-                    "moduleDoc": "components/account/SignOutButton — the mobile sign-out control (the counterpart of the web\n`LogoutButton`).\n\nThe orchestration half of the sign-out surface: it owns only the control's own state (busy, failed) and\nissues the app's one sign-out command,\n`useSignOutAndVerify` — which owns the mechanism\n(Clerk's load-safe `signOut`), the ordering, and the post-condition that the session really ended. Read\nthat module, and ADR-0009, before changing anything here.\n\nB17 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never\nswallowed: the busy state is released and a localized alert appears, so the control is retryable instead of\nleaving the viewer silently signed in with no feedback. The previous shape was `onPress={() => void\nsignOut()}` — nothing awaited, nothing reported.\n\nIt exists as its own component because TWO surfaces need exactly this behaviour: the account hub's session\nsection, and the danger zone's recovery after an erasure that was ACCEPTED but whose sign-out failed.",
+                    "moduleDoc": "components/account/SignOutButton — the mobile sign-out control: the Profile page's sign-out row (the\ncounterpart of the web `LogoutButton`).\n\nThe orchestration half of the sign-out surface: it owns only the control's own state (busy, failed) and\nissues the app's one sign-out command,\n`useSignOutAndVerify` — which owns the mechanism\n(Clerk's load-safe `signOut`), the ordering, and the post-condition that the session really ended. Read\nthat module, and ADR-0009, before changing anything here.\n\nB17 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never\nswallowed: the busy state is released and a localized alert appears, so the control is retryable instead of\nleaving the viewer silently signed in with no feedback. The previous shape was `onPress={() => void\nsignOut()}` — nothing awaited, nothing reported.\n\nIt exists as its own component because TWO surfaces need exactly this behaviour: the Profile page's sign-out\ngroup, and the danger zone's recovery after an erasure that was ACCEPTED but whose sign-out failed. The row is\n`ink`, not red: signing out is not destructive (`buildSpec.md` §9.1). Colour comes from the theme at render.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "components/account/SignOutButton — the mobile sign-out control (the counterpart of the web"
+                            "text": "components/account/SignOutButton — the mobile sign-out control: the Profile page's sign-out row (the"
                         },
                         {
                             "name": "pattern",
@@ -240,7 +240,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/AlertBanner.tsx",
                     "dir": "packages/apps/commise/mobile/src/components",
-                    "moduleDoc": "components/AlertBanner — the shared shape of the mobile account notices.\n\nEvery account notice (suspension, impersonation block) is the same thing: an `alert`-role banner with a\ntone accent, a heading, and a body. They differ only in tone and copy, so the shape lives here once and\neach notice supplies its accent + its localized strings.\n\nTwo U8 corrections are baked in here. (1) Every colour is a `palette`/`nativeTokens` value: the banners\npreviously carried six raw Material hex codes belonging to no Commise token. (2) The accent tone — not the\ntext — carries the colour, and the copy stays `charcoal`/`slate`. The accent is the FILL half of each tier\n(`palette.error`, `palette.warning`), which is correct for a 4px bar under SC 1.4.11 but is not a text\ncolour: `palette.warning` as copy is 1.88:1 on white, and `palette.error` 4.66:1 only because it was\ndarkened for exactly that role. Keeping the words neutral means neither tier's bar has to double as a\nlegible foreground — the tone is communicated by the accent and the heading, not by tinting the sentence.",
+                    "moduleDoc": "components/AlertBanner — the shared shape of the mobile account notices.\n\nEvery account notice (suspension, impersonation block) is the same thing: an `alert`-role banner with a\ntone accent, a heading, and a body. They differ only in tone and copy, so the shape lives here once and\neach notice supplies its accent role + its localized strings.\n\nEvery colour is a ROLE of the scheme the device is in (`docs/design/uiOverhaul/ownerDecisions.md` D15), read from\n`useTheme()` at render, so the notice reads in the dark theme too. The accent tone — not the text — carries the\ncolour, and the copy stays `ink` / `inkMuted`: the accent is a 4 px bar, which owes 3:1 (SC 1.4.11), and keeping the\nwords neutral means neither tone has to double as a legible foreground.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -263,11 +263,14 @@
                     "props": [
                         {
                             "name": "accent",
-                            "type": "string",
-                            "typeDetail": null,
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"danger\"",
+                                "\"attention\""
+                            ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "The accent colour naming the tone — `palette.error` for a block, `palette.warning` for a caution.",
+                            "description": "The role naming the tone — `danger` for a block, `attention` for a caution.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/AlertBanner.tsx"
                         },
                         {
@@ -360,6 +363,67 @@
             ]
         },
         {
+            "id": "mobile/components/auth/AuthHeader",
+            "name": "AuthHeader",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components/auth",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "AuthHeader",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthHeader.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components/auth",
+                    "moduleDoc": "components/auth/AuthHeader — the top of both signed-out screens, in the order `buildSpec.md` §8 gives: the\nmark, the H1, then the brand line under it. Sign-in and sign-up differ only in the H1, so the order and the roles\nlive here once.\n\nColour comes from the theme at render, so both screens follow the system scheme.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/AuthHeader — the top of both signed-out screens, in the order `buildSpec.md` §8 gives: the"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The H1."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The mark, the H1 and the brand line."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The screen's H1.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthHeader.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "mobile/components/AuthGate",
             "name": "AuthGate",
             "group": "mobile",
@@ -421,13 +485,67 @@
             ]
         },
         {
+            "id": "mobile/components/EditorDraftAnswers",
+            "name": "EditorDraftAnswers",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components",
+            "kind": "unclassified",
+            "patterns": [
+                "Observer — the app's mount point for the draft observer"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "EditorDraftAnswers",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/EditorDraftAnswers.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components",
+                    "moduleDoc": "Records the outbox's recipe answers in the signed-in cook's device drafts, whether or not an editor is open\n(`useDraftAnswers`, slice 7): the cook can leave the editor while its write is still queued, and the outbox drains\nlater. Mounted once, inside `SyncProvider`, in `RecipeServiceGate`. Renders nothing.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Observer — the app's mount point for the draft observer"
+                        }
+                    ],
+                    "description": "The native mount of the draft observer.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "subject",
+                            "type": "string | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The signed-in cook (Clerk `userId`), or `undefined` while nobody is signed in.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/EditorDraftAnswers.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "mobile/components/home/chrome/HomeTabBar",
             "name": "HomeTabBar",
             "group": "mobile",
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components/home/chrome",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [],
             "platforms": [
                 "web"
@@ -441,22 +559,22 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTabBar — the bottom tab bar (mobile; US-000 / FR-046 / FR-044).\n\nThe native rendering of the SHARED six-destination nav model (`resolveHomeNav`) — the same model the web\nsidebar/tab bar render, so the platforms cannot list different destinations. Reachable destinations are\nreal tabs (`accessibilityRole=\"tab\"`, selected state); gated destinations are non-interactive and announced\nas \"…, coming soon\" (never a tab that navigates nowhere). The active destination is the selected tab.\n\nEach tab pairs the mockup's glyph (the shared `NAV_ITEM_GLYPH` registry, drawn by `@commise/ui/icon`) with its text\nlabel — icon AND label, as the mockup's bottom bar has it. The glyph is decorative: the label alone owns the\naccessible name. The bottom safe-area inset is padded so the bar clears the home indicator.",
+                    "moduleDoc": "home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions\nD6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 pt glyph over a `caption` label, on every phone and tablet, iPad included in both orientations.\n\nIt is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere\n(`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).\n\n- The active tab: `ink` glyph and label at weight 600, a 32 × 3 pt `hereBar` above the glyph, and\n  `accessibilityState.selected`. Inactive: `inkMuted`. (No filled glyph: Lucide has none, and a filled compass hides\n  its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.\n\nPresentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/chrome/HomeTabBar — the bottom tab bar (mobile; US-000 / FR-046 / FR-044)."
+                            "text": "home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions"
                         }
                     ],
-                    "description": "The mobile bottom tab bar.",
+                    "description": "The native bottom tab bar.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The chrome copy, live capabilities, active destination, select handler, and bottom inset."
+                            "text": "props - The copy, live capabilities, active destination, press handlers and bottom inset."
                         },
                         {
                             "name": "returns",
-                            "text": "The bottom navigation with one tab per shared destination."
+                            "text": "The tab bar."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -468,14 +586,13 @@
                             "typeDetail": [
                                 "\"home\"",
                                 "\"recipes\"",
+                                "\"discover\"",
                                 "\"meal-plan\"",
-                                "\"grocery\"",
-                                "\"nutrition\"",
-                                "\"profile\""
+                                "\"grocery\""
                             ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "The currently active (selected) destination.",
+                            "description": "The active destination.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
@@ -489,11 +606,11 @@
                         },
                         {
                             "name": "chrome",
-                            "type": "{ readonly pageTitle: string; readonly search: string; readonly notifications: string; readonly account: string; readonly accountNoName: string; readonly tabNavLabel: string; readonly comingSoonSuffix: string; readonly destinations: Readonly<...>; }",
+                            "type": "{ readonly profileButton: string; readonly profileButtonNoName: string; readonly tabNavLabel: string; readonly destinations: Readonly<Record<HomeNavItemId, string>>; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The chrome copy (labels + accessible names), resolved for the active locale.",
+                            "description": "The chrome copy, resolved for the active locale.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
@@ -502,102 +619,32 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Capabilities whose backing service is live — decides which tabs are reachable.",
+                            "description": "Capabilities whose backing service is live — which destinations show.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
-                            "name": "onSelect",
+                            "name": "onLongPress",
+                            "type": "((id: HomeNavItemId) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A tab was long-pressed (React Navigation's `tabLongPress`).",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
+                        },
+                        {
+                            "name": "onPress",
                             "type": "(id: HomeNavItemId) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Activate a reachable destination. The parent routes the id (home is a no-op — already here).",
+                            "description": "A tab was pressed — the active one too (its second tap goes to the root, then the top).",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
                         }
                     ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/components/home/chrome/HomeTopBar",
-            "name": "HomeTopBar",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/components/home/chrome",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "HomeTopBar",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/components/home/chrome/HomeTopBar.tsx",
-                    "dir": "packages/apps/commise/mobile/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTopBar — the Home top bar (mobile; US-000 / FR-046).\n\nThe native mirror of the web top bar: the page title, the mockup's search and notification affordances, and\nthe account avatar. The avatar shows the viewer's REAL initials via the shared `initialsFor`; a name-less\naccount (email sign-up, no name yet) is a real state that falls back to a neutral glyph and a \"your account\"\naccessible name — never invented initials.\n\n## Two deliberate honesty rules on the affordances\n\n**The bell carries NO count.** The mockup shows a red \"3\"; there is no notifications service in v1, so a\nnumber here would be fabricated data (the web bar refuses it for the same reason).\n\n**Neither affordance pretends to work.** Search and notifications have no backing feature yet, so each is a\nnon-interactive, `aria-disabled` control announced as \"…, coming soon\" — the SAME vocabulary the gated tabs\nuse — rather than a button that navigates nowhere. The mockup's chrome is intact and the promise is honest;\nboth become real controls when their features ship.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "home/chrome/HomeTopBar — the Home top bar (mobile; US-000 / FR-046)."
-                        }
-                    ],
-                    "description": "The Home top bar (mobile).",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The chrome copy, the viewer display name, and the account-open handler."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The top bar with the page title and the account avatar."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "chrome",
-                            "type": "{ readonly pageTitle: string; readonly search: string; readonly notifications: string; readonly account: string; readonly accountNoName: string; readonly tabNavLabel: string; readonly comingSoonSuffix: string; readonly destinations: Readonly<...>; }",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The chrome copy (title + accessible names), resolved for the active locale.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTopBar.tsx"
-                        },
-                        {
-                            "name": "displayName",
-                            "type": "string | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The viewer's display name, if known — the source of the avatar initials.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTopBar.tsx"
-                        },
-                        {
-                            "name": "onOpenAccount",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Open the account/profile surface (avatar tap).",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTopBar.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -624,23 +671,46 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/HomeGreeting — the time-of-day Home greeting + date subtitle (mobile; US-000 / FR-046).\n\nThe native mirror of the web greeting: \"Good afternoon, Chef!\" over the local calendar date. Both derive\nfrom the viewer's local clock via the SHARED formatters in `@commise/features-core`\n({@link greetingBucketForHour} + {@link formatHomeDate}), so web and mobile greet identically (FR-044).\nThe greeting uses the loaded Playfair display face; the whole surface is client-rendered on device, so\n(unlike web) there is no hydration concern — reading the clock in render is fine.",
+                    "moduleDoc": "home/HomeGreeting — Home's large title on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md`\n§4.2): the time-of-day greeting as the screen's header, \"Good afternoon, Eliza\" (\"Good afternoon\" without a name),\nover the local calendar date, drawn by the design system's `LargeTitleHeader` with the avatar as its action.\n\nBoth lines derive from the viewer's local clock via the SHARED formatters in `@commise/features-core`\n({@link greetingBucketForHour} + {@link formatHomeDate}), so web and mobile greet identically (FR-044). The surface is\nclient-rendered on device, so (unlike web) there is no hydration concern — reading the clock in render is fine.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/HomeGreeting — the time-of-day Home greeting + date subtitle (mobile; US-000 / FR-046)."
+                            "text": "home/HomeGreeting — Home's large title on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md`"
                         }
                     ],
-                    "description": "The Home greeting header (mobile).",
+                    "description": "Home's large title (native).",
                     "tags": [
                         {
+                            "name": "param",
+                            "text": "props - The cook's name and the header's action."
+                        },
+                        {
                             "name": "returns",
-                            "text": "The time-of-day greeting and the localized full-date subtitle."
+                            "text": "The greeting as the header and the localized full date under it."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "action",
+                            "type": "HeaderAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The header's action: the avatar.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx"
+                        },
+                        {
+                            "name": "name",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The cook's display name, if any.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx"
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -718,7 +788,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/HomeWidgetSurface — the post-login Home widget-surface host (mobile; US-000 / FR-046).\n\nThe composition root of the three-layer Home surface, mirroring the web host:\n - **discovery** — features register their widget descriptors into the ditox {@link homeContainer};\n   resolved here via `resolveHomeWidgets`.\n - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the\n   viewer's subscription **tier**. In Home v1 the recipe widget is the only **live** widget; the unshipped\n   005–009 cohort is present as **skeleton placeholders** (CR-001) that gate themselves out the moment the\n   backing service ships and the feature's live widget (same id) takes over.\n - **render** — each curated descriptor is drawn through a slot wrapped in a per-widget `ErrorBoundary`:\n   a live widget with a **bespoke** slot (the recipe widget, which needs its data + nav) through\n   `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live id with\n   no bespoke renderer is **skipped** (graceful version skew).\n\nThe host also renders the top bar and the time-of-day greeting, and threads the navigation intents\n(`onSeeAllRecipes`, `onSelectRecipe`, `onOpenAccount`) down to the recipe slot and the top bar. The bottom tab bar\nis NOT here: the app root owns it, so it shows on every top-level screen and not only on Home (M1,\n`docs/design/uiOverhaul/specShellAndLists.md` §S.3). `container` and `renderers` are injectable seams for tests.",
+                    "moduleDoc": "home/HomeWidgetSurface — the post-login Home widget-surface host (mobile; US-000 / FR-046).\n\nThe composition root of the three-layer Home surface, mirroring the web host:\n - **discovery** — features register their widget descriptors into the ditox {@link homeContainer};\n   resolved here via `resolveHomeWidgets`.\n - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the\n   viewer's subscription **tier**. In Home v1 the recipe widget is the only **live** widget; the unshipped\n   005–009 cohort is present as **skeleton placeholders** (CR-001) that gate themselves out the moment the\n   backing service ships and the feature's live widget (same id) takes over.\n - **render** — each curated descriptor is drawn through a slot wrapped in a per-widget `ErrorBoundary`:\n   a live widget with a **bespoke** slot (the recipe widget, which needs its data + nav) through\n   `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live id with\n   no bespoke renderer is **skipped** (graceful version skew).\n\nThe host also renders Home's large title (the greeting, with the avatar as its action) as the scroller's first\nchild, takes the scroller's `bind` from the screen's `ScrollHost`, and threads the navigation intents down to the\nrecipe slot. The tab bar, the condensed title bar and the floating create button are NOT here: the navigator owns the\nbar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -749,12 +819,39 @@
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx"
                         },
                         {
-                            "name": "onOpenAccount",
-                            "type": "() => void",
+                            "name": "headerAction",
+                            "type": "HeaderAction",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Invoked when the account avatar or the Profile tab is activated.",
+                            "description": "The large title's action: the avatar, which opens Profile.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx"
+                        },
+                        {
+                            "name": "onCreateRecipe",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The recent block's first run: open an empty editor (`buildSpec.md` §4.2). With Discover, its ways in show.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx"
+                        },
+                        {
+                            "name": "onFindOnDiscover",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The first run: go to Discover.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx"
+                        },
+                        {
+                            "name": "onPasteIngredients",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The first run: paste an ingredient list.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx"
                         },
                         {
@@ -782,6 +879,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Map of widget id → the bespoke slot component that renders it. Defaults to the v1 renderer set.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx"
+                        },
+                        {
+                            "name": "scrollBind",
+                            "type": "ScrollBind",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`).",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx"
                         }
                     ],
@@ -815,34 +921,52 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/RecipeWidgetSlot.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/RecipeWidgetSlot — the recipe Home widget's host slot (mobile).\n\nThe Home composition root renders one slot per curated widget id; this is the slot for the recipe\n(recent-recipes) widget. It owns the two things the generic host cannot: it code-splits the widget module\nthrough the descriptor's loader seam via **`React.lazy`** (Metro resolves the loader's\n`import('./widget/RecipeHomeWidget.js')` to the `.native.tsx` leaf), and it supplies the widget's data —\nthe viewer's recent recipes, read with `useSuspenseQuery` under a {@link QueryBoundary} and passed as the\n`recipes` PROP, since the native widget is prop-driven (unlike the web entry, which takes a promise). The\nboundary owns the other two outcomes: the shared loading card while the read is pending, and the widget\nfailure notice when it fails — a failed read is never shown as an empty library.\n\nIt also owns the widget's navigation entry point (\"see all recipes\" → the recipes surface), since the\npresentational widget building blocks carry no navigation. That entry is the viewer's route off Home, so it\nis deliberately insulated from the widget body: an inner `Suspense` keeps it mounted while the chunk\nresolves, and an inner `ErrorBoundary` keeps it mounted when the chunk (or the widget) FAILS — see the\nboundary's own comment for why the host's per-widget boundary is not sufficient on its own.",
+                    "moduleDoc": "home/RecipeWidgetSlot — the recipe Home widget's host slot (mobile).\n\nThe Home composition root renders one slot per curated widget id; this is the slot for the recipe\n(recent-recipes) widget. It owns the two things the generic host cannot: it code-splits the widget module\nthrough the descriptor's loader seam via **`React.lazy`** (Metro resolves the loader's\n`import('./widget/RecipeHomeWidget.js')` to the `.native.tsx` leaf), and it supplies the widget's data —\nthe viewer's recent recipes, read with `useSuspenseQuery` under a {@link QueryBoundary} and passed as the\n`recipes` PROP, since the native widget is prop-driven (unlike the web entry, which takes a promise). The\nboundary owns the other two outcomes: the shared loading card while the read is pending, and the widget\nfailure notice when it fails — a failed read is never shown as an empty library.\n\nIt also owns the widget's navigation entry point (\"see all recipes\" → the recipes surface), since the\npresentational widget building blocks carry no navigation. That entry is the viewer's route off Home, so it\nis deliberately insulated from the widget body: an inner `Suspense` keeps it mounted while the chunk\nresolves, and an inner `ErrorBoundary` keeps it mounted when the chunk (or the widget) FAILS — see the\nboundary's own comment for why the host's per-widget boundary is not sufficient on its own.\n\nSlice 4 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.2, owner ruling D8): the slot decides the card\nvariant from the container class (compact below 960, full from 960), puts \"See all\" in the block's heading row —\nand keeps it on a failure — offers the first run's three ways in when the host wires them, and a failed READ shows\nTry again, which refetches.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "home/RecipeWidgetSlot — the recipe Home widget's host slot (mobile)."
                         }
                     ],
-                    "description": "The recipe Home-widget slot: reads the viewer's recent recipes and renders the widget plus its \"see all\"\nentry into the recipes surface.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The `onSeeAllRecipes` and `onSelectRecipe` navigation callbacks."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The recipe widget with its navigation affordances."
-                        }
-                    ],
+                    "description": "",
+                    "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "onCreateRecipe",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "First run: open an empty editor. With {@link onFindOnDiscover}, the first run offers its ways in.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/RecipeWidgetSlot.tsx"
+                        },
+                        {
+                            "name": "onFindOnDiscover",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "First run: go to Discover.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/RecipeWidgetSlot.tsx"
+                        },
+                        {
+                            "name": "onPasteIngredients",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "First run: paste an ingredient list. Absent → no paste action.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/RecipeWidgetSlot.tsx"
+                        },
                         {
                             "name": "onSeeAllRecipes",
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Invoked when the \"see all recipes\" entry point is activated (the host wires it to navigation).",
+                            "description": "Invoked when \"See all\" is activated (the host wires it to navigation).",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/RecipeWidgetSlot.tsx"
                         },
                         {
@@ -851,7 +975,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Invoked with the activated recipe's id when a \"Recent recipes\" CARD is tapped (the host wires it to\nnavigation). Required, not optional: the shared card leaves render inert without it, and an optional\nseam here is exactly how the cards silently shipped dead — nothing failed, they just did nothing.",
+                            "description": "Invoked with the activated recipe's id when a \"Recent recipes\" CARD is tapped (the host wires it to\nnavigation). Required, not optional: an optional seam here is exactly how the cards silently shipped dead.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/RecipeWidgetSlot.tsx"
                         },
                         {
@@ -860,7 +984,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Invoked when the WIDGET BODY fails to render (see the boundary in the component). Optional only so the\nhappy-path tests need not supply it; the host always does, so a failure is never swallowed (B23/DA9).\n\nTakes `unknown`, matching the appShell `ErrorReporter` seam the host wires this to — a throw is not\nguaranteed to be an `Error`, and narrowing here would force the host to lie about that.",
+                            "description": "Invoked when the WIDGET BODY fails to render. Optional only so the happy-path tests need not supply it; the host\nalways does, so a failure is never swallowed (B23/DA9). Takes `unknown`: a throw is not guaranteed to be an Error.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/RecipeWidgetSlot.tsx"
                         }
                     ],
@@ -1690,6 +1814,548 @@
             ]
         },
         {
+            "id": "mobile/navigation/AppTabBar",
+            "name": "AppTabBar",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/navigation",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter from `BottomTabBarProps` to the presentational `HomeTabBar`"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "AppTabBar",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/navigation/AppTabBar.tsx",
+                    "dir": "packages/apps/commise/mobile/src/navigation",
+                    "moduleDoc": "navigation/AppTabBar — React Navigation's tab state, drawn by our own {@link HomeTabBar} (ownerDecisions D6,\nD14; `docs/architecture/uiOverhaulBlueprint.md` A6).\n\nIt does exactly what the library's default bar does with a press, and nothing more: it emits `tabPress` with\n`canPreventDefault` and navigates unless a listener prevented it. The library's own listeners then give the second\ntap on the active tab its meaning — the tab's stack pops to its root, and at the root `useScrollToTop` scrolls the\nscreen (`TabRootScreen`). Re-implementing either here would fork the library's behaviour.\n\nORCHESTRATION: it drives the navigator (emit, navigate); the bar it draws is presentational.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "navigation/AppTabBar — React Navigation's tab state, drawn by our own {@link HomeTabBar} (ownerDecisions D6,"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter from `BottomTabBarProps` to the presentational `HomeTabBar`"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The tab navigator's state, descriptors, navigation and safe-area insets."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The app's tab bar."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "descriptors",
+                            "type": "BottomTabDescriptorMap",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "insets",
+                            "type": "EdgeInsets",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "navigation",
+                            "type": "NavigationHelpers<ParamListBase, BottomTabNavigationEventMap>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "state",
+                            "type": "TabNavigationState<ParamListBase>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/navigation/ProfileAvatarEntry",
+            "name": "ProfileAvatarEntry",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/navigation",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter — the profile read, as the design-system Avatar's props"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ProfileAvatarEntry",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/navigation/ProfileAvatarEntry.tsx",
+                    "dir": "packages/apps/commise/mobile/src/navigation",
+                    "moduleDoc": "navigation/ProfileAvatarEntry — the avatar at the end of a tab root's large title, which pushes Profile onto\nthe CURRENT tab's stack (`docs/design/uiOverhaul/buildSpec.md` §3.1, §3.3). Native's `'·'` for a name-less cook is\ngone: the design system draws the `user` glyph (M8).\n\nORCHESTRATION: it reads the signed-in profile (`useUserProfile`) and hands `@commise/ui/avatar` its state; the route\nsays where a press goes. Data enters the chrome here.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "navigation/ProfileAvatarEntry — the avatar at the end of a tab root's large title, which pushes Profile onto"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — the profile read, as the design-system Avatar's props"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - What a press does."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The tab root's profile entry."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Push Profile onto the current tab's stack.",
+                            "declaredIn": "packages/apps/commise/mobile/src/navigation/ProfileAvatarEntry.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/navigation/RootNavigator",
+            "name": "RootNavigator",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/navigation",
+            "kind": "orchestration",
+            "patterns": [
+                "Composition root — the back-intercept chain, the navigation container, the snackbar host and the root stack"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RootNavigator",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/navigation/RootNavigator.tsx",
+                    "dir": "packages/apps/commise/mobile/src/navigation",
+                    "moduleDoc": "navigation/RootNavigator — the app's navigation spine (ADR-0056; blueprint A6; `buildSpec.md` §3.5, §3.7).\n\n`BackInterceptProvider` → `NavigationContainer` → the root native stack: the tabs, then the focused tasks above them.\nA pushed or task screen pops on Android Back and on the iOS edge swipe. Every routed screen contains its own crash\n(`ScreenBoundary`), so the tab bar survives a screen that throws.\n\n⛔ THE BACK-HANDLER ORDER IS LOAD-BEARING. React Native calls `hardwareBackPress` listeners LAST-REGISTERED FIRST, and\nReact runs a child's effects before its parent's — so a provider mounted INSIDE the container subscribes before the\ncontainer does and would be asked AFTER it: an open sheet's Back would pop the screen under it. Mounted OUTSIDE, the\nprovider subscribes last and is asked first: a sheet or a guarded editor gets first refusal, and a press nothing\nclaims falls through (`onUnhandled` → false) to React Navigation's own handler, which pops or leaves the app. The\nblueprint drew it the other way round; this order is the one the subscription semantics require.\n\nORCHESTRATION: the navigation's composition root; every screen below it is a route component.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "navigation/RootNavigator — the app's navigation spine (ADR-0056; blueprint A6; `buildSpec.md` §3.5, §3.7)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composition root — the back-intercept chain, the navigation container, the snackbar host and the root stack"
+                        }
+                    ],
+                    "description": "The app's navigation and its one snackbar host.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/navigation/ScreenBoundary",
+            "name": "ScreenBoundary",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/navigation",
+            "kind": "orchestration",
+            "patterns": [
+                "Bulkhead — one crash boundary per routed screen, so a failure stays inside the screen that threw"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ScreenBoundary",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/navigation/ScreenBoundary.tsx",
+                    "dir": "packages/apps/commise/mobile/src/navigation",
+                    "moduleDoc": "navigation/ScreenBoundary — the crash boundary around every routed screen (B18; `buildSpec.md` §3.8): a render\ncrash shows the localized, recoverable fallback IN PLACE of that screen, with the tab bar still under it, instead of\na white screen. \"Try again\" re-renders the screen and resets TanStack's query errors, so a failed read refetches;\n\"Back to Home\" is offered everywhere but Home itself, where it would only repeat \"Try again\". Leaving the screen\nunmounts the failure with it. Reports through the SAME `errorReporterToken` seam the Home widgets use (DA9).\n\nORCHESTRATION: it owns the recovery (reset, query-error reset, go Home); the fallback it shows is presentational.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "navigation/ScreenBoundary — the crash boundary around every routed screen (B18; `buildSpec.md` §3.8): a render"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Bulkhead — one crash boundary per routed screen, so a failure stays inside the screen that threw"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - Whether the screen is Home, and the screen."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The screen, or its recoverable fallback."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "atHome",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether this screen IS Home's root, where \"Back to Home\" is not offered.",
+                            "declaredIn": "packages/apps/commise/mobile/src/navigation/ScreenBoundary.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/navigation/ScreenFrame",
+            "name": "ScreenFrame",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/navigation",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ScreenFrame",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/navigation/ScreenFrame.tsx",
+                    "dir": "packages/apps/commise/mobile/src/navigation",
+                    "moduleDoc": "navigation/ScreenFrame — the safe-area frame every routed screen sits in: the top inset clears the status bar\n(without it the top row renders UNDER it, and the occluded nodes drop out of the accessibility tree — invisible to\nscreen readers and to Maestro), the side insets clear a camera cutout or a three-button navigation bar in landscape,\nand — on a focused task with no tab bar under it — the bottom inset clears the home indicator. Inside a tab the bar\nowns the bottom edge instead.\n\nTransparent, so the root `AppCanvas` wash shows through (issue #145).\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "navigation/ScreenFrame — the safe-area frame every routed screen sits in: the top inset clears the status bar"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - Whether the frame owns the bottom edge, and the screen."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The screen inside the safe-area insets."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "ownsBottom",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether this frame owns the bottom edge: true above the tabs (a focused task), false inside a tab.",
+                            "declaredIn": "packages/apps/commise/mobile/src/navigation/ScreenFrame.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/navigation/TabRootScreen",
+            "name": "TabRootScreen",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/navigation",
+            "kind": "orchestration",
+            "patterns": [
+                "Mediator — composes the library's `useScrollToTop` with the design system's `ScrollHost`"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "TabRootScreen",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/navigation/TabRootScreen.tsx",
+                    "dir": "packages/apps/commise/mobile/src/navigation",
+                    "moduleDoc": "navigation/TabRootScreen — a tab's root screen inside its `ScrollHost`, so the second tap on the active tab\nscrolls it to the top (React Navigation's `useScrollToTop`, over the host's one scroller handle) and the screen's\nchrome — the condensed title bar, the floating create button — reads one scroll. The iOS status-bar tap reaches the\nsame scroller natively, because it is the screen's only one with `scrollsToTop` (`nativeScrollsToTop` guard).\n\nORCHESTRATION of the tab root's scroll; it draws nothing of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "navigation/TabRootScreen — a tab's root screen inside its `ScrollHost`, so the second tap on the active tab"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Mediator — composes the library's `useScrollToTop` with the design system's `ScrollHost`"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The screen as a function of its scroller's bind."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The screen inside its scroll host."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "(bind: ScrollBind) => ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The screen, given the bind for its one vertical scroller.",
+                            "declaredIn": "packages/apps/commise/mobile/src/navigation/TabRootScreen.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/navigation/TabsNavigator",
+            "name": "TabsNavigator",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/navigation",
+            "kind": "orchestration",
+            "patterns": [
+                "Composite — three per-tab stacks under one tab navigator"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "TabsNavigator",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/navigation/TabsNavigator.tsx",
+                    "dir": "packages/apps/commise/mobile/src/navigation",
+                    "moduleDoc": "navigation/TabsNavigator — the bottom tabs, one native stack each (ADR-0056; blueprint A6), drawn by our own\nbar (`AppTabBar`, D6/D14). `backBehavior=\"initialRoute\"`: Android Back from the root of Recipes or Discover goes to\nHome, and from Home leaves the app (`buildSpec.md` §3.5).\n\nORCHESTRATION: it composes the navigator; the bar it draws is presentational (`HomeTabBar`).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "navigation/TabsNavigator — the bottom tabs, one native stack each (ADR-0056; blueprint A6), drawn by our own"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composite — three per-tab stacks under one tab navigator"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - Where the tab bar's height goes."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The tabs."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onTabBarHeight",
+                            "type": "(height: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Reports the laid-out tab bar's height, which the app's popups (the snackbar) keep clear of.",
+                            "declaredIn": "packages/apps/commise/mobile/src/navigation/TabsNavigator.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/navigation/TabStack",
+            "name": "TabStack",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/navigation",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter — route params and navigator intents → each screen's callback props"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "TabStack",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/navigation/stacks.tsx",
+                    "dir": "packages/apps/commise/mobile/src/navigation",
+                    "moduleDoc": "navigation/stacks — one native stack per tab (ADR-0056; `docs/design/uiOverhaul/buildSpec.md` §3.1, §3.7).\nEach stack registers its own root and the same pushed screens, so a recipe, a collection or Profile opens on the tab\nthe cook is in, and switching tabs keeps each tab's history. The route components here ADAPT a route's params and\nthe navigator's intents to each screen's existing callback props, so no screen knows it is routed.\n\nThe navigation rules the hand-made `RecipesScreen` stack carried are kept, each at its new home:\n- Paste ingredients opens the new editor at Ingredients with its Paste a list sheet open (slice 8; the paste and\n  review screens are retired, so there is no spent paste left in a stack to land on);\n- a new recipe opens its detail on the Recipes tab with the list beneath it, so Back lands on the list;\n- deleting a recipe or a collection returns to the tab's root.\n\nORCHESTRATION: each route component binds a screen to the navigator; the screens themselves stay unaware of it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "navigation/stacks — one native stack per tab (ADR-0056; `docs/design/uiOverhaul/buildSpec.md` §3.1, §3.7)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — route params and navigator intents → each screen's callback props"
+                        }
+                    ],
+                    "description": "A tab's native stack: its root, then the pushed screens every tab shares.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The tab."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The stack navigator."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "tab",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"home\"",
+                                "\"recipes\"",
+                                "\"discover\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The tab this stack belongs to, which decides its root.",
+                            "declaredIn": "packages/apps/commise/mobile/src/navigation/stacks.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
             "id": "mobile/providers/AppProviders",
             "name": "AppProviders",
             "group": "mobile",
@@ -1796,58 +2462,6 @@
             ]
         },
         {
-            "id": "mobile/screens/AccountSettingsScreen",
-            "name": "AccountSettingsScreen",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "AccountSettingsScreen",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/screens/AccountSettings.tsx",
-                    "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/AccountSettings — the mobile account hub (security + sign-out + danger zone), U2 rebuild.\n\nReachable from the profile surface's \"Account settings\" action (`AppRoot`\nwires it as a top-level destination). It is the single home for account-level actions: the signed-in\nidentity, the IdP-hosted security note, SIGN OUT, and the shared {@link AccountDangerZone} — which presents\nCLOSE (recoverable) and ERASE (irreversible) as two DISTINCT actions through the design-system\n`ConfirmDialog` (CR-002 / U4b), never the earlier conflated single \"delete\" button.\n\nOn the design system now: the sign-out/back controls are `@commise/ui` {@link Button}s, all copy comes\nfrom `mobileMessages`, and the surface is wrapped in a `SafeAreaView`.\n\nSIGN OUT is the shared {@link SignOutButton}, which issues the app's one sign-out COMMAND and owns that\ncontrol's own busy/failed state. This screen used to inline `onPress={() => void signOut()}` —\nfire-and-forget, nothing awaited, no failure path: a sign-out that failed left the viewer silently signed in,\ntold nothing, with no way to retry (ADR-0009 / B17).",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "screens/AccountSettings — the mobile account hub (security + sign-out + danger zone), U2 rebuild."
-                        }
-                    ],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "onBack",
-                            "type": "(() => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "When provided, renders a back affordance returning to the profile surface.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/AccountSettings.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "mobile/screens/AppRoot",
             "name": "AppRoot",
             "group": "mobile",
@@ -1868,13 +2482,13 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/AppRoot.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Root navigator (mobile). The post-login landing is **Home**; from the Home chrome the caller crosses into\nthe full recipes surface — at the LIST (the recipe widget's \"see all\" entry or the Recipes tab) or straight\nat one recipe's DETAIL (a \"Recent recipes\" card tap, which carries the recipe id through the destination) —\nor into the account/profile surface (the avatar or the Profile tab). A lightweight `useState` state machine\nmirrors the style already used INSIDE {@link RecipesScreen} — the top-level destinations are a single piece\nof local state, so this drops straight into a real stack navigator when one is introduced app-wide. It is\ndeliberately thin: each destination screen owns its own internal navigation.\n\nB18 — wrapped in a root `ErrorBoundary`: the app-level safety net. The per-widget Home boundaries\n(`HomeWidgetSurface`, DA9) already contain a crash inside ONE widget; this is the layer above them,\ncatching a render crash ANYWHERE under the current destination screen so the app shows a localized,\nrecoverable fallback instead of a white screen. Reports through the SAME `errorReporterToken` seam\n(resolved from `homeContainer`, the one bound instance on mobile — mirroring the web root boundary's reuse\nof its own `homeContainer`) rather than a second Sentry binding path.\n\nM1 (`docs/design/uiOverhaul/specShellAndLists.md` §S.3) — this root OWNS the bottom tab bar, and shows it on every\ntop-level destination (Home, Recipes, Profile). It used to render only inside Home, so Recipes and Profile had no way\nback: Android's Back left the app from them, and iOS has no system Back at all. Recipes gets the bar as a `footer`\nand shows it only on its own top-level tabs, because only it knows when a detail is pushed. The account hub is a\npushed task with its own Back, so it has no bar. The root is also the last link in the hardware-back chain: a press\nnothing else took goes Home from Recipes or Profile, back to Profile from the account hub, and on Home is declined\nso Android leaves the app.\n\nB13 — this app deliberately does NOT depend on `@react-navigation/*`: with exactly three flat\ndestinations and no deep-linking/history requirements, a `useState` switch is the simplest correct\ndesign (KISS) and the unused react-navigation packages (+ their `react-native-screens` peer) were\nremoved from `package.json` as dead weight. Adopting react-navigation for richer stack/tab navigation\nis a legitimate future need but is a separate, feature-sized task — not a drop-in here.",
+                    "moduleDoc": "The post-login root (mobile): the app's navigation, which starts on Home.\n\n// ⚠️ DELIBERATE — React Navigation 7 is the navigation library, one native stack per tab: read\n// `docs/architecture/decisions/0056-native-navigation-react-navigation-7.md` before replacing it. The earlier\n// `useState` destination switch (the \"B13\" note: \"three flat destinations, no history requirements\") stopped holding\n// when the owner required per-tab history, push and pop with the iOS edge swipe, pop-to-root on a second tab tap,\n// and Profile pushed onto any tab.\n\nThe spine, the back-handler order, the crash boundary and the snackbar host live in `navigation/RootNavigator.tsx`.",
                     "moduleTags": [],
-                    "description": "The app's post-login root: starts on Home and switches to the recipes or account/profile surface when the\ncorresponding Home chrome entry is activated. Wrapped in the root `ErrorBoundary` (B18).",
+                    "description": "The app's post-login root.",
                     "tags": [
                         {
                             "name": "returns",
-                            "text": "The current top-level destination, or the recoverable crash fallback."
+                            "text": "The navigation, starting on Home."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -1896,8 +2510,10 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Facade — one screen over the removal, visibility, pull and picker hooks and the sheets they drive"
+            ],
             "platforms": [
                 "web"
             ],
@@ -1910,8 +2526,13 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/CollectionDetailScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Collection-detail screen (mobile, W5 Task 12 — the native mirror of `CollectionDetailContainer`). Reads the\ncollection with its members and composes the shared native collection building blocks:\nthe {@link CollectionHeader} (name, visibility badge, count, source attribution, last-pulled, Back +\nrename/delete — C4/C6), the {@link CollectionActions} sidebar (add-recipes, pull-updates, clone, and the\npremium-gated visibility toggle — C1/FR-009/FR-010/FR-011), the {@link CloneInfoPanel} (only for a cloned\ncollection — C5), the member list ({@link CollectionDetail}), and the {@link PullUpdatesDialog} (C2).\nThe read is a suspense read under a `QueryBoundary`, which owns the localized loading state and the failure:\nnot-found (no retry) or the load error with a retry that refetches, each with Back — the same choice the web\ncontainer makes, from the client's `isNotFoundError`. A background refetch that fails while the collection is on\nscreen does not throw, so the cook keeps reading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED on the id:\na `replace` or deep link can reuse this screen with another collection, and the remount clears the previous\ncollection's pending visibility, pull dialog and mutation state.\n\nPremium gate (C1): a single `Viewer` (P4) is built from `useUserProfile` (app-user id + subscription tier)\nand the shared `canGoPrivate` predicate — the SAME predicate the web container and the recipe screens\nevaluate, so the platforms can never diverge; it fails safe (gated OFF) while the profile loads/absent.\n\nPull-updates state machine (C2/FR-011): opening Pull runs `previewPull` and shows its {@link PullDiff};\nconfirming commits with `pullCollectionFromSource({ previewedDiff })`; a `PullDriftError` (409) is caught,\nRE-PREVIEWED for the fresh diff, and surfaced as the dialog's `'drift'` state (never a blind retry, never an\ninfinite spinner). Navigation (member select, add-recipes, rename, view-source, post-clone, post-delete) is\nforwarded upward so the navigator can route.",
-                    "moduleTags": [],
+                    "moduleDoc": "Collection-detail screen (mobile, orchestration; slice 5 of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3 — the native\nmirror of `CollectionDetailContainer`). Reads the collection with its members and composes the shared native blocks: the\n{@link CollectionHeader} (back, name, meta, description, Add recipes and the ⋯ menu), the {@link CollectionMembers} list,\nand the sheets the header opens — rename ({@link CollectionSheet}), delete ({@link CollectionDeleteDialog}), Premium\n({@link CollectionUpsellSheet}), the add-recipes picker and the pull-updates dialog. Rename and Add recipes are sheets on\nthis screen, not routes.\n\nThe read is a suspense read under a `QueryBoundary`, which owns the localized loading state and the failure: not-found (no\nretry) or the load error with a retry that refetches, each with Back — the same choice the web container makes, from the\nclient's `isNotFoundError`. A background refetch that fails while the collection is on screen does not throw, so the cook\nkeeps reading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is\nKEYED on the id: a `replace` or deep link can reuse this screen with another collection, and the remount clears the\nprevious collection's pending removal, sheets and pull state.\n\nRemote state stays in TanStack Query. The hooks own the work: `useMemberRemoval` (a removal hides the row and commits when\nits Undo snackbar times out), `useCollectionVisibility` (changes at once, with a compensating Undo and the Premium sheet),\n`useCollectionPull` (the preview, commit and drift machine) and `useMemberToggle` (the picker's per-row mutations). The\nonly local state is which sheet is open, the picker's search and the list/grid choice.\n\nPremium gate (C1): a single `Viewer` (P4) is built from `useUserProfile` (app-user id + subscription tier) and the shared\n`canGoPrivate` predicate — the SAME predicate the web container evaluates; it fails safe (gated OFF) while the profile\nloads or is absent.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Facade — one screen over the removal, visibility, pull and picker hooks and the sheets they drive"
+                        }
+                    ],
                     "description": "The collection-detail screen: its read boundary around {@link CollectionDetailView}.",
                     "tags": [
                         {
@@ -1936,15 +2557,6 @@
                             "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionDetailScreen.tsx"
                         },
                         {
-                            "name": "onAddRecipe",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked when the add-a-recipe action is activated (opens the recipe picker).",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionDetailScreen.tsx"
-                        },
-                        {
                             "name": "onBack",
                             "type": "() => void",
                             "typeDetail": null,
@@ -1959,7 +2571,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Invoked with the new collection's id after a successful clone.",
+                            "description": "Invoked with the new collection's id after a successful Save a copy.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionDetailScreen.tsx"
+                        },
+                        {
+                            "name": "onCreateRecipe",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Invoked when the picker's empty state asks to create a recipe.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionDetailScreen.tsx"
                         },
                         {
@@ -1969,15 +2590,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Invoked after the collection is successfully deleted.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionDetailScreen.tsx"
-                        },
-                        {
-                            "name": "onRename",
-                            "type": "(currentName: string) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked with the collection's current name when the rename action is activated.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionDetailScreen.tsx"
                         },
                         {
@@ -1995,7 +2607,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Invoked with the source collection's id when View Source (clone info) is activated.",
+                            "description": "Invoked with the source collection's id when \"Copied from …\" is activated.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionDetailScreen.tsx"
                         }
                     ],
@@ -2003,176 +2615,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/screens/CollectionFormScreen",
-            "name": "CollectionFormScreen",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "CollectionFormScreen",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/screens/CollectionFormScreen.tsx",
-                    "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Collection create/rename screen (mobile, T073). Owns the editable name and drives the shared native\n`CollectionForm` building block, wiring submit to `useCreateCollection` (create) or `useUpdateCollection`\n(rename). A successful submit navigates away via `onDone`; a failed submit is surfaced through the form's\nerror slot. The screen holds only the transient name input — the mutation + query cache own remote state.",
-                    "moduleTags": [],
-                    "description": "The collection create/rename screen.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The mode, seed values, and the done/cancel callbacks the navigator wires."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The collection form wired to the create or update mutation."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "collectionId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The collection id to rename (required in `rename` mode; ignored in `create`).",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionFormScreen.tsx"
-                        },
-                        {
-                            "name": "initialName",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "",
-                            "description": "The seed name (the current name in `rename` mode; blank in `create`).",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionFormScreen.tsx"
-                        },
-                        {
-                            "name": "mode",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"create\"",
-                                "\"rename\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Create a new collection, or rename an existing one.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionFormScreen.tsx"
-                        },
-                        {
-                            "name": "onCancel",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked when the user leaves the form without saving.\n\n⚠️ It is the ANSWER to a leave, never the leave itself: an edited name is confirmed first.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionFormScreen.tsx"
-                        },
-                        {
-                            "name": "onDone",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked after a successful create/rename.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionFormScreen.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/screens/CollectionRecipePickerScreen",
-            "name": "CollectionRecipePickerScreen",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "CollectionRecipePickerScreen",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/screens/CollectionRecipePickerScreen.tsx",
-                    "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Add-a-recipe-to-collection screen (mobile, the ADD half of FR-009 / T072). Loads the target collection\n(for its name + current membership) and the caller's own recipes, then drives the shared native\n`CollectionRecipePicker`, wiring the add to `useAddRecipeToCollection`. The caller\nsees only their OWN recipes and their OWN collection — both queries are scoped to the authenticated caller\nby the recipe service. Remote state stays in the query cache: the candidate list, the membership, and the\nadd's in-flight/success/failure signals are DERIVED from the queries and the mutation; the only local state\nis the transient search box value. A successful add invalidates the collection's cache, so the just-added\nrecipe re-renders as a member (its row flips to the inert marker), making a re-add idempotent-feeling.\n\nThe picker FRAME (heading, Done, search) sits OUTSIDE the read boundary and the candidates INSIDE it, so Done —\nthis screen's only way out — is reachable while loading and after a failure, and the search field keeps what was\ntyped when the candidates settle. The collection NAME in the heading is enrichment the heading renders without,\nread with `useCollection` on the same cache key as the suspense read, so it costs no second request.",
-                    "moduleTags": [],
-                    "description": "The add-a-recipe picker screen.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The target collection id and the create/done callbacks the navigator wires."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The picker frame around its read boundary: the loading and load-error bodies, or the candidates."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "collectionId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The target collection's id.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionRecipePickerScreen.tsx"
-                        },
-                        {
-                            "name": "onCreateRecipe",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked when the create-recipe action is activated (no recipes yet).",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionRecipePickerScreen.tsx"
-                        },
-                        {
-                            "name": "onDone",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked when the done affordance is activated (dismisses the picker).",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionRecipePickerScreen.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -2207,27 +2650,36 @@
                             "text": "Layout slot — the persistent frame around a Suspense read boundary, with the recovery counter lifted to the\n    frame's side"
                         }
                     ],
-                    "description": "The collections list screen.",
+                    "description": "The collections list screen (`docs/design/uiOverhaul/buildSpec.md` §5.1): the frame, the read boundary and the\nnew-collection sheet, which replaces the deleted `collectionCreate` screen. A created collection closes the sheet and\nopens its detail.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The selection and create handlers."
+                            "text": "props - The navigation intents."
                         },
                         {
                             "name": "returns",
-                            "text": "The frame around the read boundary."
+                            "text": "The frame around the read boundary, and the sheet."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "onCreate",
+                            "name": "headerAction",
+                            "type": "HeaderAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The large title's action: the avatar, which pushes Profile. The route supplies it.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionsScreen.tsx"
+                        },
+                        {
+                            "name": "onCreateRecipe",
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Invoked when the create-collection action is activated.",
+                            "description": "The first run's Add a recipe, when the cook has no recipes to group yet: opens the editor.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionsScreen.tsx"
                         },
                         {
@@ -2236,7 +2688,25 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Invoked with a collection id when a row is activated.",
+                            "description": "Invoked with a collection id when a card is activated — and with the new collection's id once one is created.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionsScreen.tsx"
+                        },
+                        {
+                            "name": "scrollBind",
+                            "type": "ScrollBind",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionsScreen.tsx"
+                        },
+                        {
+                            "name": "segments",
+                            "type": "RecipesSegmentControl",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The My recipes · Collections segments (slice 3: the Recipes tab's one root switches them).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionsScreen.tsx"
                         }
                     ],
@@ -2256,8 +2726,10 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "presentational",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Mediator — floats the condensed bar and the create button over the Home surface's one scroller"
+            ],
             "platforms": [
                 "web"
             ],
@@ -2270,29 +2742,52 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Home screen (mobile). The thin post-login landing that composes the {@link HomeWidgetSurface} host under\nthe top safe-area inset, and wires the recipe widget's two navigation affordances to the navigator's intents:\n\"see all recipes\" → `onOpenRecipes`, and a \"Recent recipes\" CARD tap → `onOpenRecipe` (that recipe's detail).\nIt owns no widget logic itself — the surface resolves, curates, and renders the registered Home widgets; this\nscreen only supplies the device chrome (status-bar inset) and navigation.\n\n⚠️ So it is PRESENTATIONAL, which a file under `src/screens/` is not expected to be: every other screen\nhere mounts a query or a statechart. This one reads a safe-area inset and passes three callbacks straight\nthrough. The child that decides — `HomeWidgetSurface` — is where a read belongs; one added here would be\nin the wrong place.",
-                    "moduleTags": [],
-                    "description": "The Home landing screen.",
+                    "moduleDoc": "Home screen (mobile): the Home tab's root (`docs/design/uiOverhaul/buildSpec.md` §4.2). It composes the\n{@link HomeWidgetSurface} — whose scroller takes the screen's `ScrollHost` bind and whose first child is the large\ntitle — and floats two things over it: the condensed title bar, once the greeting scrolls under the top, and the\nfloating \"New recipe\" button, a sibling after the scroller so it stays put.\n\nInterim (§13, slice 3): the button opens today's two-item create menu (Write → the wizard, Paste → the paste flow)\nuntil slice 8 makes it one tap. ⚠️ Home's first run should hide it (§3.4); whether the cook has any recipe is known\nonly inside the recipe widget today, so it shows in first run too.\n\n⚠️ ORCHESTRATION of chrome, not of data: it reads the scroll host and the cook's name for the condensed title.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Mediator — floats the condensed bar and the create button over the Home surface's one scroller"
+                        }
+                    ],
+                    "description": "The Home tab's root.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The `onOpenRecipes`, `onOpenRecipe` and `onOpenProfile` navigation intents."
+                            "text": "props - The scroller's bind and the navigation intents."
                         },
                         {
                             "name": "returns",
-                            "text": "The Home widget surface inside the top and side safe-area insets."
+                            "text": "The Home surface, with the condensed title bar and the create button over it."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "onCreateRecipe",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the editor (the create button, and the recent block's first run).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx"
+                        },
+                        {
+                            "name": "onFindOnDiscover",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Go to Discover (the recent block's first run).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx"
+                        },
+                        {
                             "name": "onOpenProfile",
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Navigate to the account/profile surface (wired by the root navigator).",
+                            "description": "Push Profile, from the avatar.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx"
                         },
                         {
@@ -2301,7 +2796,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Navigate straight to one recipe's detail, from a \"Recent recipes\" card (wired by the root navigator).",
+                            "description": "Push one recipe's detail, from a \"Recent recipes\" card.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx"
                         },
                         {
@@ -2310,15 +2805,33 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Navigate to the full recipes surface (wired by the root navigator).",
+                            "description": "Navigate to the Recipes tab (the recipe widget's \"See all\").",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx"
+                        },
+                        {
+                            "name": "onPasteIngredients",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The first run's Paste ingredients: the new editor at Ingredients with its paste sheet open (§7.5.4).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx"
+                        },
+                        {
+                            "name": "scrollBind",
+                            "type": "ScrollBind",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The bind for the screen's one vertical scroller.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx"
                         }
                     ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]
@@ -2376,135 +2889,16 @@
             ]
         },
         {
-            "id": "mobile/screens/ParseIngredientsScreen",
-            "name": "ParseIngredientsScreen",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ParseIngredientsScreen",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/screens/ParseIngredientsScreen.tsx",
-                    "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Ingredient-paste screen (mobile). The container that drives the shared, presentational native\n`ParsePasteForm` from the typed `useCreateParseJob` mutation: it owns the pasted text, runs the shared\nadmission projection, and reports the created job's id upward so the composing screen can push the\nreview surface.\n\nIt performs no rendering of its own — the view lives in `@commise/features-recipes`, shared with web —\nand it decides nothing the web container decides differently. The one genuine per-platform difference is\nhow a created job is reached: web REPLACES its route, this pushes a stack entry.",
-                    "moduleTags": [],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "onBack",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked when the cook leaves without submitting.\n\n⛔ REQUIRED. This is a pushed surface over a stack with no chrome — no tab bar, no shell — so without\nit there was no exit at all on iOS, which has no hardware back either. Every sibling pushed screen\n(`RecipeCreateScreen.onCancel`, `RecipeVersionsScreen.onBack`, …) already takes this seam.\n\n⚠️ It is the ANSWER to a leave, never the leave itself: a paste in progress is confirmed first.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/ParseIngredientsScreen.tsx"
-                        },
-                        {
-                            "name": "onCreated",
-                            "type": "(jobId: string) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked with the accepted job's id once the paste has been submitted.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/ParseIngredientsScreen.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/screens/ParseJobReviewScreen",
-            "name": "ParseJobReviewScreen",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ParseJobReviewScreen",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/screens/ParseJobReviewScreen.tsx",
-                    "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Parse-review screen (mobile). The container that drives the shared, presentational native\n`ParseJobReview` from the `useParseJobReview` headless seam — the SAME hook the web container uses, so\nthe poll cadence, the stall bound, the expiry rule and every error sentence are one implementation\nrather than two that happen to agree.\n\n⚠️ ACCEPTED ASYMMETRY, recorded rather than left to be discovered. Web addresses a job by URL, so a\nrefresh (or returning tomorrow) resumes the review and the server's 24-hour TTL is reachable. This stack\nis in-memory: the id lives as long as the app process, and a cold start loses it. That is a real\ndifference in reach, not a difference in behaviour — the review itself renders identically, and the\nserver's `expired` state is still reachable here for any job the process has held. Closing it properly\nmeans persisting the id (the same decision `useRecentSearches` made for its own state), which is a\nproduct call rather than an omission to patch over.\n\n⛔ The correction slot is deliberately not supplied — see `parse/props.ts`. It has no write route on this\nbranch yet, and a placeholder would put a control on screen that cannot do what it says.",
-                    "moduleTags": [],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "jobId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The job to review.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/ParseJobReviewScreen.tsx"
-                        },
-                        {
-                            "name": "onBack",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked when the cook leaves the parse surface entirely.\n\n⛔ REQUIRED, and NOT redundant with `onStartOver` — which goes to the paste form. It is also the only\ncontrol the `running` state offers, since that branch deliberately renders no retry.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/ParseJobReviewScreen.tsx"
-                        },
-                        {
-                            "name": "onStartOver",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked when the cook abandons this job to paste a fresh list.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/ParseJobReviewScreen.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "mobile/screens/ProfileScreen",
             "name": "ProfileScreen",
             "group": "mobile",
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Composition root over the Profile render leaves — the read, the editor and the navigator's back meet here and\n    nowhere below"
+            ],
             "platforms": [
                 "web"
             ],
@@ -2517,25 +2911,38 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/profile.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/profile — the mobile profile-editing surface (U2 rebuild).\n\nThe profile half of the account/profile surface: edit the display name and the avatar. On the design\nsystem now — a tokenized {@link Input} (label associated) for the name, the {@link AvatarField} device\nimage-picker (replacing the old paste-a-URL text box), and a `@commise/ui` {@link Button} with a real\n`busy` state for Save — all copy from `mobileMessages`, wrapped in a `SafeAreaView` + `KeyboardAvoider`\nso the keyboard never occludes the field. The account-level controls (security, sign out, close/erase)\nlive in the reachable `AccountSettingsScreen` hub, entered via the\n\"Account settings\" action here (`onOpenAccountSettings`), so destructive actions have a single home.",
+                    "moduleDoc": "screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), pushed from the\navatar. It replaces the old profile form AND the `AccountSettings` hub: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the display-name editor and\nthe photo write, and hands the render leaves from `@commise/features-account/profile` their state. The read decides\none of three states — loading, failed, ready — and ONLY the Account group depends on it: sign out and the danger zone\nneed no profile, so a failed read never takes them away (E15). That is why this is a plain query and not a suspense\nread under a boundary: a boundary would replace the whole page with its error.\n\nSign out is `SignOutButton`, which issues the one verified sign-out command (ADR-0009); close and erase are\n`AccountDangerZone`, which keeps its own dialogs and flows. Nothing here calls Clerk's `signOut`.\n\nTHE PHOTO. The spec's 72 pt avatar is \"initials, or the native `AvatarField` photo\". `ProfileHeader` is shared with\nweb and draws initials only, so the native-only photo control sits as the first row of the Account group instead.\nA picked photo is an explicit act and is written ALONE (`{ avatarUrl }`) through its own mutation; the display name is\nwritten only from the sheet's Save, so the two never share a pending or failed state.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "screens/profile — the mobile profile-editing surface (U2 rebuild)."
+                            "text": "screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), pushed from the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composition root over the Profile render leaves — the read, the editor and the navigator's back meet here and\n    nowhere below"
                         }
                     ],
-                    "description": "",
-                    "tags": [],
+                    "description": "The Profile page, inside its own scroll host (it is a pushed screen, not a tab root).",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The way back."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The page."
+                        }
+                    ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "onOpenAccountSettings",
-                            "type": "(() => void)",
+                            "name": "onBack",
+                            "type": "() => void",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "When provided, renders the entry into the account hub (security + sign-out + danger zone).",
+                            "description": "Leave Profile: pop to the screen it was pushed from.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/profile.tsx"
                         }
                     ],
@@ -2543,72 +2950,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/screens/RecipeCreateScreen",
-            "name": "RecipeCreateScreen",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeCreateScreen",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeCreateScreen.tsx",
-                    "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe-create screen (mobile, T067; CP-6/P1 — `RecipeEditor` is a controlled component, so this screen\nowns its own `values`/`errors` state — a create has no seed/conflict/version concerns, so it does NOT use\n`useRecipeEditor` (that hook's seed-once/409/resolution machinery is edit-only); w3/e1,e2 — this screen\nALSO owns the wizard's own step/draft/publish navigation state, reimplementing the SAME step-gating\n(`canAdvanceFromStep`/`stepErrorsFor`) and draft-vs-publish floor the hook uses for edit, so the two flows\ncannot drift on what \"valid enough to advance/draft/publish\" means. Mirrors the web\n`RecipeCreateContainer`'s direct `Wizard` wiring, one layer down (through the shared `RecipeEditor` leaf\nmobile's create AND edit screens both compose).\n\n⛔ **PHOTOS ARE A FIELD NOW (U33, owner ruling 2026-08-25).** This screen used to pass a \"save this recipe\nfirst\" notice as its photo slot, because the uploader needed a recipe id. A pick is now recorded in the\nDRAFT (`useRecipeDraftPhotos`) and handed to the upload queue by the create mutation's `onSuccess`, which calls\nthe hook's `flush` in the same batch that records the new id. The edit screen never needs this: its recipe\nalready exists, so its uploader enqueues directly. The uploader is shared: only the DESTINATION of a pick\ndiffers (`onPick` vs its own queue).\n\n⚠️ **The create is not \"done\" the instant the POST returns.** A save is create-THEN-upload, so this screen\nhands the created id to `onCreated` only once every picked photo has left the queue. Navigating sooner\nwould unmount the queue mid-flight and lose the upload silently — the exact failure the draft seam exists\nto make visible rather than to introduce. While uploads are outstanding the editor stays mounted with the\nphoto surface showing each file's own state and its Retry.\n\n⚠️ **Auto-save is deliberately NOT wired here.** An unattended write needs an `expectedVersion` to be safe\nand a recipe that does not exist has no version; the first write on this route is a POST, not a CAS-guarded\nPATCH. Auto-save begins on the edit screen. Firing a create on a timer would also mint a recipe from a form\nthe cook has not finished.",
-                    "moduleTags": [],
-                    "description": "The recipe-create screen.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The success + cancel callbacks the navigator wires."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The blank 4-step create wizard wired to the create mutation."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "onCancel",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked when the user cancels the editor.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeCreateScreen.tsx"
-                        },
-                        {
-                            "name": "onCreated",
-                            "type": "(recipeId: string) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked with the created recipe's id after a successful create.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeCreateScreen.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -2634,7 +2976,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block from a\nsuspense read under `QueryBoundary`, which owns the localized loading state and the failure: a distinct not-found\nmessage with no retry, or the generic error with a retry that refetches — the same three outcomes as the web\ncontainer. The settled view is keyed on `recipeId`, so a `replace`/deep-link that reuses this screen with a new id\nremounts it: every mutation and the delete dialog start fresh, and nothing of the previous recipe can leak.\nOn top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,\nT075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and tier:\n\n- Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. The\n  private-visibility option is tier-gated (C-004): free-tier owners see it disabled with an upgrade reason.\n- The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.\n\nA single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from `useUserProfile` (the\nviewer's app-user id + subscription tier); every ownership/clone/tier gate above reads from that ONE\n`Viewer` through the shared `isOwner`/`canClone`/`canGoPrivate` policy predicates — the SAME predicates\nthe web detail container evaluates, so the two platforms can never diverge on a gate (this closes D7,\nwhere the clone gate previously disagreed: web ignored ownership while mobile checked it). Every mutation\nis owned here and reported upward so the navigator can route (back to the list after delete, to the new\nrecipe after clone). Remote state stays in the query cache — this screen derives its view state from it.\n\nRecipe-detail wireframe parity (C3/C4): Edit stays the sole primary, always-visible owner control; version\nhistory, the visibility toggle, and the delete trigger are grouped behind a `MoreActionsMenu` (C4,\n`[Edit] [More]`). The clone action is passed into `RecipeDetailView`'s `footerActions` slot so it renders\nalongside the version + visibility badges in ONE grouped footer row (C3), instead of as a separate block.",
+                    "moduleDoc": "Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block from a\nsuspense read under `QueryBoundary`, which owns the localized loading state and the failure: a distinct not-found\nmessage with no retry, or the generic error with a retry that refetches — the same three outcomes as the web\ncontainer. The settled view is keyed on `recipeId`, so a `replace`/deep-link that reuses this screen with a new id\nremounts it: every mutation and the delete dialog start fresh, and nothing of the previous recipe can leak.\nOn top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,\nT075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and tier:\n\n- Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. The\n  private-visibility option is tier-gated (C-004): free-tier owners see it disabled with an upgrade reason.\n- The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.\n\nA single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from `useUserProfile` (the\nviewer's app-user id + subscription tier); every ownership/clone/tier gate above reads from that ONE\n`Viewer` through the shared `isOwner`/`canClone`/`canGoPrivate` policy predicates — the SAME predicates\nthe web detail container evaluates, so the two platforms can never diverge on a gate (this closes D7,\nwhere the clone gate previously disagreed: web ignored ownership while mobile checked it). Every mutation\nis owned here and reported upward so the navigator can route (back to the list after delete, to the new\nrecipe after clone). Remote state stays in the query cache — this screen derives its view state from it.\n\nThe recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another\ncook who may clone — beside the ⋯ menu, whose entries come from the shared `detailMenuOf` (Version history, Make\nprivate/public, Clear checks, then Delete); the rating block goes in the view's `rating` slot, under the nutrition.\nThe cook's marks, the serving scale and Screen on are bound by the view itself; this screen reads the marks only to\noffer Clear checks.",
                     "moduleTags": [],
                     "description": "The recipe-detail screen: the read boundary around the settled detail.",
                     "tags": [
@@ -2665,7 +3007,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Invoked with the new recipe's id after a successful clone.",
+                            "description": "Invoked with the copy's id after Save a copy; the navigator opens it in the editor (FR-005b).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
                         },
                         {
@@ -2684,15 +3026,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Invoked with the recipe id when the owner opens the editor.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
-                        },
-                        {
-                            "name": "onFilterByTag",
-                            "type": "((tag: string) => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Invoked with a tag when the viewer taps a tag chip to filter search (D6).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
                         },
                         {
@@ -2746,7 +3079,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Public-recipe discovery screen (mobile, T076 / US2 + FR-006, U7 overhaul, orchestration): the shared native discovery\nFRAME around a suspense read of the search, with the curated rails as the body while the viewer is browsing.\n\nThe frame (heading, search field, filter bar, back-to-browse, sort) sits outside the read boundary, so a pending or\nfailed search swaps only the results. `Suspense` renders `RecipeDiscoveryLoading`, the error boundary renders\n`RecipeDiscoveryLoadError`, and once settled the RESULTS render the rails or the counted grid. Unlike web\n(URL-persisted), the term and filters are component state — the platform edge — fed through the SAME shared pure model\n(`discoverySearchParams`, `applyFilterAction`, …), so the two platforms cannot drift on what a search is.\n\nThe same three behaviours as the web container meet at the criteria: the field echoes every keystroke while the term\nthat searches is debounced ({@link DISCOVERY_SEARCH_DEBOUNCE_MS}); the criteria are deferred\n(`useDeferredDiscoveryCriteria`), so a new term, filter or sort keeps the previous results on screen, busy, until the\nnew ones settle, and the boundary resets when the settled criteria change; and with nothing searched the body is the\ncurated rails. The frame follows what the viewer asked for NOW; the results follow what has settled. The filter bar's\nfacets come from a PASSIVE observer of the settled search (`enabled: false`), so they keep their last settled values\nwhile a newer search is pending. Recent searches persist through the injected `nativeRecentSearchStore` port.",
+                    "moduleDoc": "Public-recipe discovery screen (mobile, T076 / US2 + FR-006, U7 overhaul, orchestration): the shared native discovery\nFRAME around a suspense read of the search, with the curated rails as the body while the viewer is browsing.\n\nThe frame (heading, search field, filters, back-to-browse, sort, the count line) sits outside the read boundary, so a pending or\nfailed search swaps only the results. `Suspense` renders `RecipeDiscoveryLoading`, the error boundary renders\n`RecipeDiscoveryLoadError` — over the PREVIOUS results, which stay — and once settled the RESULTS render the rails or the\ncards. Unlike web\n(URL-persisted), the term and filters are component state — the platform edge — fed through the SAME shared pure model\n(`discoverySearchParams`, `applyFilterAction`, …), so the two platforms cannot drift on what a search is.\n\nThe same three behaviours as the web container meet at the criteria: the field echoes every keystroke while the term\nthat searches is debounced ({@link DISCOVERY_SEARCH_DEBOUNCE_MS}); the criteria are deferred\n(`useDeferredDiscoveryCriteria`), so a new term, filter or sort keeps the previous results on screen, busy, until the\nnew ones settle, and the boundary resets when the settled criteria change; and with nothing searched the body is the\ncurated rails. The frame follows what the viewer asked for NOW; the results follow what has settled. The facets\nlive in ONE place (`useFilterPresentation`): a panel beside the results on a wide tablet, otherwise the Filters button,\nthe applied-filter chips and the sheet. Their groups come from a PASSIVE observer of the settled search\n(`enabled: false`), so they keep their last settled values while a newer search is pending. Recent searches persist\nthrough the injected `nativeRecentSearchStore` port. Save a copy is `useSaveCopy`: the snackbar's Edit opens the copy.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -2768,12 +3101,30 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "headerAction",
+                            "type": "HeaderAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The large title's action: the avatar, which pushes Profile (slice 3). The route supplies it.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx"
+                        },
+                        {
                             "name": "initialFilters",
                             "type": "RecipeFilterState",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
                             "description": "Filters to pre-apply on first mount — e.g. a tag deep-link from a recipe detail (D6). Defaults to no filters. This\nstill runs through the SAME visibility-scoped search, so a deep-linked tag never surfaces a recipe the viewer\ncouldn't otherwise see.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx"
+                        },
+                        {
+                            "name": "onEditRecipe",
+                            "type": "(id: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Opens a saved copy in the editor: the Save a copy snackbar's Edit action.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx"
                         },
                         {
@@ -2784,6 +3135,15 @@
                             "defaultValue": null,
                             "description": "Invoked with a recipe id when a discovery row is activated (the navigator opens its detail).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx"
+                        },
+                        {
+                            "name": "scrollBind",
+                            "type": "ScrollBind",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -2796,15 +3156,15 @@
             ]
         },
         {
-            "id": "mobile/screens/RecipeEditor",
-            "name": "RecipeEditor",
+            "id": "mobile/screens/RecipeEditorScreen",
+            "name": "RecipeEditorScreen",
             "group": "mobile",
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "orchestration",
+            "kind": "unclassified",
             "patterns": [
-                "Orchestration layer over the `Wizard` compound-component shell shared by the create and edit screens — it\n    wires the row editor into step 2 and hosts the extracted field groups."
+                "Mediator — the screen wires the editor's ports (outbox, drafts, row editor, photos) and its hand-offs"
             ],
             "platforms": [
                 "web"
@@ -2814,297 +3174,105 @@
             "documented": true,
             "implementations": [
                 {
-                    "name": "RecipeEditor",
+                    "name": "RecipeEditorScreen",
                     "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx",
+                    "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe editor (mobile, T067; CP-6/P1 fully controlled; w3/e1,e2 rewired onto the 4-step `Wizard` shell;\nU32/U33 re-laid-out). The presentational orchestration layer shared by the create and edit screens: it\nwires the row editor and poll-after-add into step 2, and renders the\n`Wizard` compound shell around one `Wizard.Step` per step, each hosting the SAME extracted\n`RecipeBasicsFields`/`RecipeIngredientsFields`/`RecipeInstructionsFields`/`RecipeVisibilityField`/\n`RecipeReviewFields` leaves the web containers use. It performs NO data fetching and runs NO mutation, and\nowns NO state of its own: `values`/`errors`/the wizard's `step`/navigation come in from the caller and\nevery edit reports back via `onChange`/`goNext`/`goPrev`/etc.\n\n⛔ **THE LAYOUT IS THE UNIT (U32).** Three siblings, in this order and no other:\n  1. `Wizard.Header` — the sticky band with the back affordance. `RecipesScreen` renders pushed surfaces\n     bare, so before this there was no title and no deliberate exit at all.\n  2. a `ScrollView` holding the rail and the four step bodies.\n  3. `Wizard.Controls` — the action bar, OUTSIDE that scroller.\n\nThe third is a SHIPPED-DEFECT FIX, not a restyle: the bar used to sit inside the `ScrollView` alongside\neverything else, so on a recipe with a long ingredient list a cook had to scroll past every row to reach\n`Next`. `useScrollResetOnChange` exists because four Maestro flows caught the downstream consequence.\nNothing inside `Wizard.Controls` can enforce its own placement, so `tests/screens/RecipeEditor.native.test.tsx`\nasserts the DOM ancestry here instead.\n\n⚠️ **One limit, the Sheet's (`docs/design/compactHeightLayout.md` §4; owner ruling on I7).** When the header and the\nbar together are taller than half the editor, the bar becomes the scroller's last content and scrolls with the step\n(`isFooterUnpinned`, read through `usePinnedFooter`); the header, which holds the only exit, stays pinned. At the\ndefault text size that happens only on a phone held sideways with its keyboard open, where a pinned bar would leave\nthe field being typed in about 19 dp; `Next` is then one keyboard dismissal away, and the bar pins again as the\nframe grows back. Each place is a conditional at a FIXED position, so the scroller never changes index. The frame\nis measured INSIDE the keyboard avoider: with `padding` the avoider's own frame does not shrink, its child does.\n\n**The field reveal (`docs/design/rowEditorOpenDecisions.md` E1).** This screen hosts it for the scroller: an\ningredient field whose list opens behind the pinned bar or the keyboard is scrolled to the top of the visible area,\nonce per opening. While that needs room, a blank space is the scroller's LAST child, after the bar's slot, so an\nunpinned bar does not move (`useFieldRevealHost`).\n\n⛔ **`photosSlot` renders on step 1, not step 4 (U33).** Photos are a field of Details now; step 4 is\nReview. The caller supplies the surface because only it knows the recipe id and owns the upload queue.\n\n⛔ **INGREDIENTS ARE PICK-FIRST (U28).** The only way a line enters `values.ingredients` is a pick in the fields\nleaf's trailing add row (plan 002 V1 B8), committed through the row editor as `appendResolvedIngredient`, whose line\nis a `ResolvedRecipeFormIngredient` — an unresolved row is not a value this screen can construct.\n\nThe create screen (no seed/conflict/version concerns) owns its own local `values`/`errors`/step\n`useState` and passes them down the same way the edit screen's `useRecipeEditor` hook does — same\ncontrolled contract, different state owner.",
+                    "moduleDoc": "The native one-page recipe editor screen (UI overhaul slice 7; owner decisions D1, D10): one screen for a new recipe\nand an existing one. It reads what the editor is seeded from — the recipe (a suspense read under `QueryBoundary`)\nand the device draft from AsyncStorage — then mounts one editor session keyed on the recipe.\n\nThe session binds the platform to the editor's lifecycle (`useRecipeEditor`): the outbox (`useSyncQueue`) as its\nwrite port, the draft store, the row editor and its pollers, the nutrition read, the photos, visibility, and the\nhand-offs the navigator wires. What the screen draws is `RecipeEditorView`'s (its native leaf).\n\n⚠️ A new recipe's draft is found again only within the session that made it, or once the server created it (then by\nits id, from My recipes). A cook who types only ingredients and leaves keeps them on the device but has nothing to\nreopen them from (blueprint A4, accepted).\n\n⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload takes\na recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
                     "moduleTags": [
                         {
                             "name": "pattern",
-                            "text": "Orchestration layer over the `Wizard` compound-component shell shared by the create and edit screens — it\n    wires the row editor into step 2 and hosts the extracted field groups."
+                            "text": "Mediator — the screen wires the editor's ports (outbox, drafts, row editor, photos) and its hand-offs"
                         }
                     ],
-                    "description": "The recipe create/edit wizard editor.",
+                    "description": "The recipe editor screen.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - Mode, the controlled draft + its change handler, the wizard's step/navigation, submission\nstate, the discard guard's `isDirty`, and the caller-supplied Photos step body."
+                            "text": "props - The recipe (absent for a new one), a deep link's section, and the hand-offs."
                         },
                         {
                             "name": "returns",
-                            "text": "The typeahead-augmented, controlled `Wizard`."
+                            "text": "The editor, or the read boundary around it."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "canAdvanceFrom",
-                            "type": "(step: RecipeWizardStep, pendingEntryText: string) => boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether `step` has no validation errors (the `[Next]` gate). `pendingEntryText` is what an ingredient entry holds\nand has not committed (`validateRecipeForm`); this editor hosts the entry, so it supplies it.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "dispatch",
-                            "type": "(action: DraftAction) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Apply one draft transition to the draft as it is when it lands. ⛔ Every write that lands after a network call\n(a picked line, a poll or retry answer) goes through this, never `onChange(applyDraftAction(values, …))`: a\n`values` read before the call drops every edit the cook made while it ran.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "errors",
-                            "type": "RecipeFormErrors",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Field-level validation errors to surface; absent/empty when the form is valid.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "goNext",
-                            "type": "(pendingEntryText: string) => GateOutcome",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Advance one step. Answers what the gate decided.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "goPrev",
+                            "name": "onClose",
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Go back one step.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
+                            "description": "× , or the cook kept the server's copy: go back where the editor was opened.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         },
                         {
-                            "name": "goToStep",
-                            "type": "(step: RecipeWizardStep) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Jump directly to a step.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "isDirty",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the draft has unsaved edits relative to its baseline — drives the discard guard.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "lineCommand",
-                            "type": "LineCommandPort | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The edit screen's rebind command for a line the server stores (`useRecipeEditor`'s `lineCommand`), through which\na re-pick teaches (ADR-0045); `undefined` on the create screen, where nothing is stored yet. REQUIRED, so the edit\nscreen cannot leave it out and send a stored line's re-pick through the draft, where it teaches nothing.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "mode",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"create\"",
-                                "\"edit\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Create vs edit, forwarded to the `Wizard`. Informational only (w3/e7) — Publish is named the same in both modes.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "onCancel",
+                            "name": "onDiscarded",
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Called once Cancel is confirmed (or immediately when nothing would be lost).",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
+                            "description": "A never-published recipe was discarded: go to My recipes.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         },
                         {
-                            "name": "onChange",
-                            "type": "(next: RecipeFormValues) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Called with the next values on every field/row edit (add, remove, or change).",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "photosSlot",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The photo surface, rendered on step 1 beside the other Details fields (U33).\n\nCaller-supplied because only the composing screen knows the recipe id and owns the upload queue. It is\nno longer a \"save this recipe first\" notice on the create path: a pick is recorded in the draft\n(`useRecipeDraftPhotos`) and handed to the upload queue by the create's success, so both screens pass a real\nsurface.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "publish",
-                            "type": "(pendingEntryText: string) => GateOutcome",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whole-form validate then persist as published. Refuses and answers as {@link saveDraft} does.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "saveDraft",
-                            "type": "(pendingEntryText: string) => GateOutcome",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Persist as a draft. A refusal moves to the first step holding an error (`rowEditorOpenDecisions.md` R7). Answers\nwhat the gate decided.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "step",
-                            "type": "enum",
-                            "typeDetail": [
-                                "4",
-                                "1",
-                                "2",
-                                "3"
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The wizard's active step.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "stepErrors",
-                            "type": "(step: RecipeWizardStep, pendingEntryText: string) => RecipeFormErrors",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The validation errors belonging to `step` — drives the rail's invalid flag.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "submitError",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "A localized error to surface above the wizard when the mutation failed.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "submitting",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the composing screen's create/update mutation is in flight.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        },
-                        {
-                            "name": "values",
-                            "type": "RecipeFormValues",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The controlled draft (blank for create, seeded from the loaded recipe for edit).",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/screens/RecipeEditScreen",
-            "name": "RecipeEditScreen",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "orchestration",
-            "patterns": [
-                "Adapter — binds the `useRecipeEditor` statechart to the native `RecipeEditor` wizard, under a read boundary\n    whose settled view is keyed on the recipe id."
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeEditScreen",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeEditScreen.tsx",
-                    "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe-edit screen (mobile, orchestration): a suspense read of the recipe under `QueryBoundary`, whose settled branch\nis the editor — the same shape as the web `RecipeEditContainer`. The boundary owns loading and the load failure (a\nnot-found with only Back, or the generic error with a retry, as `RecipeDetailScreen` offers); the settled editor is\nkeyed on the recipe id, so editing another recipe is a fresh editor seeded from it, and a failed background refetch\nnever reaches the boundary, so the editor and the draft stay. ⛔ Nothing under the boundary may suspend without its\nown nested `<Suspense>`: React hides a re-suspended subtree, and the cook would watch the form vanish.\n\nHistory (T067 + T070; CP-6/P1 — rewired onto the shared `useRecipeEditor` headless\nhook, `@commise/features-recipes/hooks`; w3/e1,e2 — rewired again onto the 4-step `Wizard` shell via\n`RecipeEditor`). The hook owns the whole edit lifecycle — the mount-time seed, validation,\nsubmit-with-`expectedVersion`, the 409-to-conflict transition, the three FR-007c resolutions, AND (w3) the\nstep/draft/publish extensions — as a discriminated-union statechart plus orthogonal step-navigation state;\nthis screen is a thin renderer that switches on `state.status`. The old `seedNonce`/`seedOverride` remount\nhack is GONE: `RecipeEditor` is a plain controlled component (`values` in, `onChange` out), seeded once from the\nsettled read; editing another recipe is the keyed remount above, never a reseed. See the\nhook's module doc for the full statechart and the reseed-incompatibility fix. Mirrors the web\n`RecipeEditContainer`.\n\n**OQ-1 resolve→detail navigation (W7 Task 6).** A successful `overwrite`/`merge` resolves through the SAME\n`submitDraft` → `onSuccess` → `opts.onSaved` path a plain save uses, so it lands on the SAME\n`onSaved(recipe.id)` call this screen already wires. Choosing `keepServer` (Option A) is different: it is a\ndiscard, not a write, so `useRecipeEditor` never calls `onSaved` for it — it transitions to the DISTINCT\n`status: 'discarded'` terminal instead. This screen watches for that transition in its own `useEffect` and\ncalls `onCancel` — the navigator (`RecipesScreen`) wires BOTH `onSaved` and `onCancel` to `nav.back()`,\nwhich pops the pushed edit screen back to the detail screen already underneath it on the stack, so\n`onCancel` lands on the SAME detail destination `onSaved` does, without implying a write happened.\n\n**\"Discard and close\" (wireframe gap #1) reuses this SAME wiring.** `editor.discardAndClose` (the header\nexit `RecipeConflictView` now renders) also lands on `status: 'discarded'` — it needs no separate `useEffect`\nbranch here, since it is indistinguishable from `keepServer`'s own discard from this screen's point of view\n(no write, `onCancel` back to the detail screen). Unlike `keepServer`, it stays callable even while a\nresolve is in flight — see `useRecipeEditor`'s own doc for the epoch-guard that neutralizes a late resolve.",
-                    "moduleTags": [
-                        {
-                            "name": "pattern",
-                            "text": "Adapter — binds the `useRecipeEditor` statechart to the native `RecipeEditor` wizard, under a read boundary\n    whose settled view is keyed on the recipe id."
-                        }
-                    ],
-                    "description": "The recipe-edit screen: the read boundary around the settled editor.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The recipe id and the save/cancel callbacks the navigator wires."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The loading state, a not-found or retrying error, or the settled editor."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "onCancel",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked when the user cancels the editor.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditScreen.tsx"
-                        },
-                        {
-                            "name": "onSaved",
+                            "name": "onFinished",
                             "type": "(recipeId: string) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Invoked with the recipe's id after a successful save.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditScreen.tsx"
+                            "description": "The recipe was published, or its changes saved: show it.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
+                        },
+                        {
+                            "name": "openPaste",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open Paste a list at once: Home's first-run Paste ingredients (build spec §7.5.4). A new recipe only.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         },
                         {
                             "name": "recipeId",
                             "type": "string",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "The id of the recipe to edit.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditScreen.tsx"
+                            "description": "The recipe to edit; absent for a new recipe.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
+                        },
+                        {
+                            "name": "section",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"details\"",
+                                "\"ingredients\"",
+                                "\"steps\"",
+                                "\"photos\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The section a deep link names (route param, blueprint A16).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
+                        },
+                        {
+                            "name": "subscribeToLeave",
+                            "type": "((listener: () => void) => () => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Hear the screen being left by any route, not only × (system Back, the swipe): the route wires it to React\nNavigation's `beforeRemove`. Returns the unsubscribe. Each leave runs the exit checkpoint, which does nothing once\nthe editor has handed off.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         }
                     ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": true
+                        "orchestration": false
                     }
                 }
             ]
@@ -3132,7 +3300,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe-list screen (mobile, orchestration). The shared native recipe-list FRAME (title band + search field) around a suspense read\nof the caller's library: `Suspense` renders `RecipeListLoading`, the error boundary renders `RecipeListLoadError`\n(its retry refetches, and it keeps the create dial), and once settled the RESULTS render the facet chips, the rows\nnarrowed by the search term and chips with pull-to-refresh, and a notice for a failed refresh of them.\n\nThe screen owns the search term and the active chips, because both outlive the boundary: typing while the library\nloads, or pressing Try again, must not reset them. A retry from the refresh notice that succeeds moves the\nscreen-reader cursor to the heading; the notice is inside the boundary and the heading outside it, so the recovery\ncrosses as a `useRecoverySignal` counter. Community switching is the shell's Discover tab on mobile, so the frame\nmounts no source switcher (L5 parity).",
+                    "moduleDoc": "Recipe-list screen (mobile, orchestration). The shared native recipe-list FRAME (title band + search field) around a suspense read\nof the caller's library: `Suspense` renders `RecipeListLoading`, the error boundary renders `RecipeListLoadError`\n(its retry refetches, and it keeps the create button), and once settled the RESULTS render the facet chips, the rows\nnarrowed by the search term and chips with pull-to-refresh, and a notice for a failed refresh of them.\n\nThe screen owns the search term and the active chips, because both outlive the boundary: typing while the library\nloads, or pressing Try again, must not reset them. A retry from the refresh notice that succeeds moves the\nscreen-reader cursor to the heading; the notice is inside the boundary and the heading outside it, so the recovery\ncrosses as a `useRecoverySignal` counter. Community switching is the shell's Discover tab on mobile, so the frame\nmounts no source switcher (L5 parity).\n\nSlice 4 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.3): the screen reads the WHOLE library in\nchunks of up to 500 (`recipeQueries(client).library`), so the chips, their counts and the no-match states are right\npast the first page (blueprint A11); forwards the sort to the server; keeps the list/grid choice per device; and\ndecides the card variant from the container class. The My recipes · Collections segments are the host's to pass\n(`segments`), with the large title's avatar (`headerAction`).",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -3143,7 +3311,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - Selection + create callbacks the composing screen wires to navigation."
+                            "text": "props - Selection and create callbacks the composing screen wires to navigation."
                         },
                         {
                             "name": "returns",
@@ -3153,6 +3321,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "headerAction",
+                            "type": "HeaderAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The large title's action: the avatar, which pushes Profile (slice 3). The route supplies it.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx"
+                        },
                         {
                             "name": "onCreateRecipe",
                             "type": "(() => void)",
@@ -3168,7 +3345,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Invoked when the paste-ingredients destination is activated (plan U9).\n\n⛔ Forwarded UNDEFAULTED, unlike `onCreateRecipe`'s `?? noop`: the shared dial removes the entry when this is\nabsent, and defaulting it to a no-op would render a destination that silently does nothing instead.",
+                            "description": "The first run's Paste ingredients: the new editor at Ingredients with its paste sheet open (build spec §7.5.4).\n\n⛔ Forwarded UNDEFAULTED, unlike `onCreateRecipe`'s `?? noop`: the first run removes the button when this is\nabsent, and defaulting it to a no-op would render a button that silently does nothing instead.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx"
                         },
                         {
@@ -3179,6 +3356,24 @@
                             "defaultValue": null,
                             "description": "Invoked with the recipe id when a row is activated (the composing screen navigates to detail).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx"
+                        },
+                        {
+                            "name": "scrollBind",
+                            "type": "ScrollBind",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx"
+                        },
+                        {
+                            "name": "segments",
+                            "type": "RecipesSegmentControl",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The My recipes · Collections segments, when the host shows them on this screen.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -3186,71 +3381,6 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/screens/RecipesScreen",
-            "name": "RecipesScreen",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipesScreen",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/screens/RecipesScreen.tsx",
-                    "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipes surface (mobile). The lightweight state-machine navigator for the recipe slice (US1 + US2): it\nowns a small navigation STACK of screen descriptors (a discriminated union carrying `recipeId`,\n`collectionId`, and rename `name` params) and renders the current screen, composing the per-screen\ncontainers that each drive a `@commise/features-recipes` native block from a\n`@kitchensink/recipe-service-client` hook. No navigation library — the stack is a single piece of local\nstate; every screen already exposes the right seams (selection/back/done callbacks) so they drop straight\ninto a real stack navigator when one is introduced app-wide.\n\nThe three top-level destinations (my recipes, discover, collections) are TABS rendered under a persistent\ntab bar; selecting a tab resets the stack to that root. Everything else (detail, create, edit, version\nhistory, collection detail/create/rename) is a full-screen push with its own back/cancel affordance.",
-                    "moduleTags": [],
-                    "description": "The recipes surface — a stack of screens starting at the \"my recipes\" list.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - Optional `initialRecipeId` to open straight into a recipe's detail."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The current screen, under the tab bar when it is a top-level destination."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "footer",
-                            "type": "ReactElement<unknown, string | JSXElementConstructor<any>>",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The app's bottom tab bar, handed in by the app root (M1, `docs/design/uiOverhaul/specShellAndLists.md` §S.3).\nShown on the three top-level tabs and hidden on a pushed screen, which carries its own Back. This screen\ndecides, because only it knows which surface is on top; the root never has to be told.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipesScreen.tsx"
-                        },
-                        {
-                            "name": "initialRecipeId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Enter the surface DIRECTLY at this recipe's detail instead of the list — how a Home \"Recent recipes\"\ncard tap arrives here. The list is kept BENEATH the detail on the seeded stack (rather than the detail\nbeing the root) so Back lands on the recipe list instead of dead-ending, matching what\n`RecipeCreateScreen`'s `onCreated` already does.\n\nRead at mount only, which is correct because the surface is unmounted whenever the root navigator is\nshowing Home; `AppRoot` additionally keys this screen by the id so a different recipe always remounts.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipesScreen.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
                     }
                 }
             ]

@@ -25,3 +25,14 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
         dispatchEvent: () => false,
     });
 }
+
+// React Navigation's frame-size hook observes its container with `ResizeObserver` when it renders through
+// react-native-web, and jsdom implements none. jsdom lays nothing out, so an observer that never fires is the honest
+// stand-in: the navigator keeps the frame it was given (`initialWindowMetrics` from the safe-area stub).
+if (typeof globalThis.ResizeObserver !== 'function') {
+    globalThis.ResizeObserver = class {
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+    };
+}

@@ -37,6 +37,8 @@ import ListPlusGlyph from 'lucide-react-native/icons/list-plus';
 import LockGlyph from 'lucide-react-native/icons/lock';
 import LogInGlyph from 'lucide-react-native/icons/log-in';
 import LogOutGlyph from 'lucide-react-native/icons/log-out';
+import LayoutGridGlyph from 'lucide-react-native/icons/layout-grid';
+import ListGlyph from 'lucide-react-native/icons/list';
 import MenuGlyph from 'lucide-react-native/icons/menu';
 import MinusGlyph from 'lucide-react-native/icons/minus';
 import PencilLineGlyph from 'lucide-react-native/icons/pencil-line';
@@ -118,4 +120,6 @@ export const GLYPHS: Readonly<Record<IconName, NativeGlyph>> = {
     chartColumn: ChartColumnGlyph,
     bell: BellGlyph,
     menu: MenuGlyph,
+    list: ListGlyph,
+    layoutGrid: LayoutGridGlyph,
 };

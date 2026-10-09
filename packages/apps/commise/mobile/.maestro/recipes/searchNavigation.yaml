@@ -35,7 +35,7 @@ appId: io.commise.mobile
       timeout: 40000
 
 # Type a query that matches exactly ONE recipe.
-- tapOn: 'Search recipes'
+- tapOn: 'Search your recipes'
 - inputText: 'Asparagus'
 
 # The result set really narrowed to one row: the match is present and the count label now reads "1 recipe".
@@ -47,17 +47,17 @@ appId: io.commise.mobile
       text: '^1 recipe$'
 
 # A query matching NOTHING collapses to the NO-MATCH state — proves the filter is applied, not merely
-# reordered. "No matching recipes" (not the browse-empty "No recipes yet"): the caller HAS recipes, the
+# reordered. "No recipes match" (not the empty library's "Your recipe box is empty"): the caller HAS recipes, the
 # search just excluded them all. Asserting the empty-vs-no-match distinction guards the copy-bug regression.
-- tapOn: 'Search recipes'
+- tapOn: 'Search your recipes'
 - eraseText
 - inputText: 'zzzznosuchrecipe'
-- assertVisible: 'No matching recipes'
-- assertNotVisible: 'No recipes yet'
+- assertVisible: 'No recipes match'
+- assertNotVisible: 'Your recipe box is empty'
 
 # Clearing the query restores the full set — the count returns to "3 recipes", proving filtering is derived
 # from the query and never destroys the underlying cache.
-- tapOn: 'Search recipes'
+- tapOn: 'Search your recipes'
 - eraseText
 - extendedWaitUntil:
       visible:
@@ -67,7 +67,7 @@ appId: io.commise.mobile
 # --- Navigation: cross to Discover, and search it server-side -------------------------------------------
 - tapOn: 'Discover'
 - extendedWaitUntil:
-      visible: 'Discover recipes'
+      visible: 'Discover'
       timeout: 40000
 
 # With no query/filter, discovery shows the curated browse rails (U7), not a bare stream — the rail headings
@@ -77,30 +77,34 @@ appId: io.commise.mobile
 # `discoverBrowse.yaml`), so it is scrolled into view instead of asserted blind — `assertVisible` only sees
 # the current viewport. Then scroll back up, since the steps that follow drive the search field.
 - assertVisible: 'Trending'
-- assertVisible: 'New'
+- scrollUntilVisible:
+      element: 'New'
+      direction: DOWN
+      timeout: 20000
 - scrollUntilVisible:
       element: 'Quick'
       direction: DOWN
       timeout: 20000
 - scrollUntilVisible:
-      element: 'Discover recipes'
+      element: 'Discover'
       direction: UP
       timeout: 20000
 
 # A query the server cannot match must yield discovery's empty state. This is the strongest assertion
 # available here that the query REACHES the service: if `query` were dropped from the request the endpoint
 # would return the full public feed and this would fail. It is also immune to seed drift (it does not care
-# which public rows exist), unlike an exact-count assertion — discoverClone.yaml clones "Herb Risotto" and
+# which public rows exist), unlike an exact-count assertion — discoverDetailSaveCopy.yaml clones "Herb Risotto" and
 # delete.yaml removes the other public seed row, so the public feed's size is not stable across a suite run.
-- tapOn: 'Search public recipes'
+- tapOn: 'Search recipes'
 - inputText: 'zzzznosuchrecipe'
+# Slice 5 (`buildSpec.md` §4.6): a search that finds nothing NAMES the term; the browse-empty copy is a different state.
 - extendedWaitUntil:
-      visible: 'No matching recipes'
+      visible: 'No recipes for .zzzznosuchrecipe.'
       timeout: 40000
-- assertNotVisible: 'No recipes found'
+- assertNotVisible: 'No public recipes yet.'
 
 # A query that DOES match returns the seeded public recipe — the positive half of the same contract.
-- tapOn: 'Search public recipes'
+- tapOn: 'Search recipes'
 - eraseText
 - inputText: 'Risotto'
 - extendedWaitUntil:
@@ -108,9 +112,11 @@ appId: io.commise.mobile
       timeout: 40000
 
 # --- W4/S3 sort controls -------------------------------------------------------------------------------
-# The sort control (Relevance / Newest / Most cloned / Quickest) is always present on Discover. Choosing a
-# sort re-runs the visibility-scoped search; a smoke that the control renders and accepts a change.
-- assertVisible: 'Relevance'
+# The sort control is a "Sort: {choice}" button once a search is active; it opens a sheet of four radios (Relevance /
+# Newest / Most saved / Quickest). Choosing one re-runs the visibility-scoped search; a smoke that the control renders and
+# accepts a change.
+- assertVisible: 'Sort: Relevance'
+- tapOn: 'Sort: Relevance'
 - assertVisible: 'Quickest'
 - tapOn: 'Quickest'
 - extendedWaitUntil:
@@ -130,40 +136,34 @@ appId: io.commise.mobile
 # prep bound, cook bound or ingredient id would still show Risotto, or still hide it. The result set is then
 # this run's recipe alone, however many public rows the sandbox has built up. The leftovers are reported as an
 # environment problem, not absorbed here.
-- tapOn: 'Filters'
+- tapOn: 'Filters.*'
 - extendedWaitUntil:
       visible: 'Under 60 min'
       timeout: 40000
 # Herb Risotto is 35 min total (and ≤ 60 prep), so selecting a 60-minute bound must keep it — a filter that
 # wrongly dropped a matching recipe fails here. Close the sheet, then scroll the result grid to the card.
 - tapOn: 'Under 60 min'
-- tapOn: 'Done'
+- tapOn: 'Show \d+ recipes?|Show recipes'
 - scrollUntilVisible:
       element: '${E2E_RECIPE_RISOTTO}'
       direction: DOWN
       timeout: 20000
 # Reopen the sheet and press the SAME (now-active) bound again to clear it (the round trip proves it toggles).
-- tapOn: 'Filters'
-- tapOn: 'Under 60 min'
-- tapOn: 'Done'
+- tapOn: 'Filters.*'
+- tapOn: 'Any'
+- tapOn: 'Show \d+ recipes?|Show recipes'
 
-# --- REQ-030f cook-time filter --------------------------------------------------------------------------
-# Herb Risotto's cook time is 25 min (seed.ts), so an "Under 15 min" COOK bound must exclude it — a filter
-# that dropped maxCookTime would keep rendering it and fail here. "Under 15 min" appears in the Prep, Cook,
-# and Total ladders (in that display order); `index: 1` disambiguates the Cook ladder's button from Prep's
-# identical label.
-- tapOn: 'Filters'
-- tapOn:
-      text: 'Under 15 min'
-      index: 1
-- tapOn: 'Done'
+# --- Total-time bound ----------------------------------------------------------------------------------
+# Total time is one CHOICE (Any / Under 15 / 30 / 60 min); Prep and Cook sit behind "More time filters" (slice 5,
+# `buildSpec.md` §4.4). Herb Risotto's total time is 35 min (seed.ts), so an "Under 15 min" bound must exclude it — a
+# filter that dropped maxTotalTime would keep rendering it and fail here. "Any" clears the bound again.
+- tapOn: 'Filters.*'
+- tapOn: 'Under 15 min'
+- tapOn: 'Show \d+ recipes?|Show recipes'
 - assertNotVisible: '${E2E_RECIPE_RISOTTO}'
-# Pressing the SAME (now-active) cook bound again clears it, restoring Herb Risotto to the browse set.
-- tapOn: 'Filters'
-- tapOn:
-      text: 'Under 15 min'
-      index: 1
-- tapOn: 'Done'
+- tapOn: 'Filters.*'
+- tapOn: 'Any'
+- tapOn: 'Show \d+ recipes?|Show recipes'
 - extendedWaitUntil:
       visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000
@@ -187,29 +187,33 @@ appId: io.commise.mobile
 # scroll list and the keyboard is up from the `inputText`, so the result row can land just below the visible
 # region. Same idiom `create.yaml` uses for the picker's "Create …" affordance under the same conditions — it
 # still waits for the row to EXIST, it just also brings it into view.
-- tapOn: 'Filters'
-- tapOn: 'Search ingredients'
+- tapOn: 'Filters.*'
+- tapOn: 'Has ingredient'
 - inputText: '${E2E_PROBE_INGREDIENT}'
 - scrollUntilVisible:
       element: 'Filter by ${E2E_PROBE_INGREDIENT}'
       direction: DOWN
       timeout: 40000
 - tapOn: 'Filter by ${E2E_PROBE_INGREDIENT}'
-- tapOn: 'Done'
+- tapOn: 'Show \d+ recipes?|Show recipes'
 - extendedWaitUntil:
-      visible: 'No matching recipes'
+      visible: 'No recipes for .Risotto.* with these filters'
       timeout: 40000
 
 # Reopen the sheet, confirm the chip, and remove it — clearing the filter restores the browse set.
-- tapOn: 'Filters'
+- tapOn: 'Filters.*'
 - assertVisible: 'Remove ${E2E_PROBE_INGREDIENT}'
 - tapOn: 'Remove ${E2E_PROBE_INGREDIENT}'
-- tapOn: 'Done'
+- tapOn: 'Show \d+ recipes?|Show recipes'
 - extendedWaitUntil:
       visible: '${E2E_RECIPE_RISOTTO}'
       timeout: 40000
 
-# --- Navigation: the third tab, and back to the first ---------------------------------------------------
+# --- Navigation: back to the Recipes tab, through its two segments (slice 3: Collections is a segment of Recipes) --
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 40000
 - tapOn: 'Collections'
 - extendedWaitUntil:
       visible: 'New collection'

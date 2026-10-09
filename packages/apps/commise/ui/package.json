@@ -20,6 +20,7 @@
         },
         "./theme.css": "./dist/theme.css",
         "./colors": "./src/tokens/colors.ts",
+        "./clerk": "./src/clerk.ts",
         "./scale": "./src/tokens/scale.ts",
         "./native": "./src/tokens/native.ts",
         "./tokens/*": {
@@ -32,15 +33,19 @@
         "./testing/hardware-back": "./src/testing/hardwareBack.native.ts",
         "./testing/safe-area-context": "./src/testing/safeAreaContext.native.tsx",
         "./testing/lucide-native": "./src/testing/lucideNativeStub.ts",
+        "./testing/expo-keep-awake": "./src/testing/expoKeepAwakeStub.ts",
         "./button": "./src/button/index.ts",
+        "./check-box-glyph": "./src/checkBoxGlyph/index.ts",
         "./combobox": "./src/combobox/index.ts",
         "./confirm-dialog": "./src/confirmDialog/index.ts",
+        "./compact-height": "./src/layout/compactHeight.ts",
         "./container-class": "./src/layout/containerClass.ts",
         "./dialog-frame": "./src/dialogFrame/index.ts",
         "./dialog-focus": "./src/dialogFocus/index.ts",
         "./duration": "./src/durationField/duration.ts",
         "./duration-field": "./src/durationField/index.ts",
         "./field-reveal": "./src/fieldReveal/index.ts",
+        "./keep-awake": "./src/keepAwake/index.ts",
         "./icon": "./src/icon/index.ts",
         "./motion": "./src/motion/index.ts",
         "./press-scale": "./src/pressScale/index.ts",
@@ -58,6 +63,7 @@
         "./popup-insets": "./src/popupInsets/index.ts",
         "./stand-in": "./src/standIn/index.ts",
         "./status-badge": "./src/statusBadge/index.ts",
+        "./difficulty-badge": "./src/difficultyBadge/index.ts",
         "./sheet": "./src/sheet/index.ts",
         "./full-screen-sheet": "./src/sheet/FullScreenSheet.native.tsx",
         "./modal": "./src/modal/Modal.native.tsx",
@@ -68,15 +74,26 @@
         "./chip": "./src/chip/index.ts",
         "./segmented-control": "./src/segmentedControl/index.ts",
         "./search-field": "./src/searchField/index.ts",
+        "./section-switch": "./src/sectionSwitch/index.ts",
+        "./section-index": "./src/sectionIndex/index.ts",
         "./testing/screen-reader-shim": "./src/testing/screenReaderShim.native.ts",
         "./recipe-cover": "./src/recipeCover/index.ts",
         "./snackbar": "./src/snackbar/index.ts",
         "./icon-names": "./src/icon/props.ts",
-        "./theme": "./src/theme/index.ts"
+        "./theme": "./src/theme/index.ts",
+        "./avatar": "./src/avatar/index.ts",
+        "./avatar-props": "./src/avatar/props.ts",
+        "./back-to-top": "./src/backToTop/index.ts",
+        "./chrome-surface": "./src/chromeSurface/index.ts",
+        "./create-fab": "./src/createFab/index.ts",
+        "./photo-control": "./src/photoControl/index.ts",
+        "./large-title-header": "./src/largeTitleHeader/index.ts",
+        "./scroll-host": "./src/scrollHost/index.ts"
     },
     "dependencies": {
         "@floating-ui/react-dom": "2.1.9",
         "@radix-ui/react-alert-dialog": "^1.1.15",
+        "@radix-ui/react-compose-refs": "^1.1.5",
         "@radix-ui/react-dialog": "^1.1.20",
         "@radix-ui/react-dropdown-menu": "^2.1.24",
         "@radix-ui/react-popover": "^1.1.23",
@@ -91,7 +108,9 @@
         "expo-linear-gradient": "~57.0.1"
     },
     "peerDependencies": {
+        "expo-glass-effect": "~57.0.4",
         "expo-image": "~57.0.1",
+        "expo-keep-awake": "~57.0.2",
         "lucide-react-native": "1.53.0",
         "react": "^19.0.0",
         "react-native": ">=0.79.0",
@@ -99,7 +118,13 @@
         "react-native-svg": ">=15.0.0"
     },
     "peerDependenciesMeta": {
+        "expo-glass-effect": {
+            "optional": true
+        },
         "expo-image": {
+            "optional": true
+        },
+        "expo-keep-awake": {
             "optional": true
         },
         "lucide-react-native": {
@@ -126,7 +151,9 @@
         "@types/react": "^19.0.0",
         "culori": "^4.0.2",
         "eslint": "^10.0.3",
+        "expo-glass-effect": "~57.0.4",
         "expo-image": "~57.0.1",
+        "expo-keep-awake": "~57.0.2",
         "jsdom": "^30.0.1",
         "lucide-react-native": "1.53.0",
         "prettier": "^3.0.0",

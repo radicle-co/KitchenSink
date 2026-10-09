@@ -10,20 +10,26 @@ appId: io.commise.mobile
 #
 # This flow runs against an EMPTY recipe database: the per-flow reset truncates for every flow, and for THIS
 # flow only it plans no creates (`e2e-seed reset --mode empty`, see tests/e2e/runMaestroFlows.sh).
-# Every other flow keeps the seeded fixture unchanged. Read-only — it opens the create wizard but never
-# saves — and the next flow's reset re-seeds regardless, so it is order-independent.
+# Every other flow keeps the seeded fixture unchanged. Read-only — it opens the editor but types nothing,
+# so nothing is saved — and the next flow's reset re-seeds regardless, so it is order-independent.
 #
 # Mobile mirror of the web Playwright `recipeListEmptyStates.spec.ts` (cross-platform mandate).
-- runFlow: ../auth/signin.yaml
+# Signed in on Home, then to Recipes by its tab: an empty library's Home draws its first run, which has no
+# "See all recipes" for `auth/signin.yaml` to follow.
+- runFlow: ../auth/signinHome.yaml
+- tapOn: 'Recipes'
 
 # The empty library's OWN copy (recipe i18n `list.emptyTitle` / `emptyBody` / `emptyCreateCta`) — asserted
 # positively, so this flow can only pass in the state it names. The wait must outlast the recipe-service
 # fetch on first paint.
 - extendedWaitUntil:
-      visible: 'No recipes yet'
+      visible: 'Your recipe box is empty'
       timeout: 40000
-- assertVisible: 'Create your first recipe to see it here.'
-- assertVisible: 'Create your first recipe'
+- assertVisible: 'Add a recipe you love, or paste an ingredient list and we’ll set it up.'
+- assertVisible: 'Add your first recipe'
+# Slice 4 (`buildSpec.md` §4.3): the first run offers paste beside the editor, and hides the search.
+- assertVisible: 'Paste ingredients'
+- assertNotVisible: 'Search your recipes'
 
 # The three ABSENCES that make this a real assertion instead of a tolerant one:
 #   - the loading skeleton's live region is GONE — the reported bug leaves it up for the life of the screen;
@@ -35,10 +41,11 @@ appId: io.commise.mobile
 #   - nothing was typed and no chip pressed, so this is not the narrowed no-match state either.
 - assertNotVisible: 'Loading recipes'
 - assertNotVisible: 'New recipe'
-- assertNotVisible: 'No matching recipes'
+- assertNotVisible: 'No recipes match'
 
-# The empty state is not a dead end: its CTA is a real control that opens the create wizard (step 1 of 4).
-- tapOn: 'Create your first recipe'
+# The empty state is not a dead end: its CTA is a real control that opens the one-page editor (its × is the editor's
+# own control; 'New recipe' would also match the FAB).
+- tapOn: 'Add your first recipe'
 - extendedWaitUntil:
-      visible: 'Step 1 of 4'
+      visible: 'Close editor'
       timeout: 30000

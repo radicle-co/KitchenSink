@@ -11,8 +11,10 @@
  * cuisine visible and selected instead of silently dropping it.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { Icon } from '@commise/ui/icon';
+import { FIELD_EDGE, fieldGeometry } from '@commise/ui/input';
+import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -36,13 +38,14 @@ export interface CuisineSelectProps {
  */
 export const CuisineSelect: FC<CuisineSelectProps> = ({ value, onChange }) => {
     const m = useMessages(recipeFormMessages);
+    const { colors } = useTheme();
     const [open, setOpen] = useState(false);
     const options = cuisineOptions(value, m);
     const selected = options.find((option) => option.value === value) ?? options[0];
 
     return (
         <View style={styles.field}>
-            <Text style={styles.fieldLabel}>{m.cuisineLabel}</Text>
+            <Text style={[styles.fieldLabel, { color: colors.inkMuted }]}>{m.cuisineLabel}</Text>
             <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={m.cuisineLabel}
@@ -50,13 +53,19 @@ export const CuisineSelect: FC<CuisineSelectProps> = ({ value, onChange }) => {
                 // react-native-web does not forward `accessibilityState.expanded`; set the ARIA attr explicitly.
                 aria-expanded={open}
                 onPress={() => setOpen((prev) => !prev)}
-                style={styles.trigger}
+                style={[styles.trigger, { backgroundColor: colors.paper, borderColor: colors.lineControl }]}
             >
-                <Text style={styles.triggerLabel}>{selected?.label ?? m.cuisineUnsetOption}</Text>
+                <Text style={[styles.triggerLabel, { color: colors.ink }]}>
+                    {selected?.label ?? m.cuisineUnsetOption}
+                </Text>
                 <Icon name={open ? 'chevronUp' : 'chevronDown'} size={20} tone="inkMuted" />
             </Pressable>
             {open && (
-                <View collapsable={false} accessibilityRole="menu" style={styles.menu}>
+                <View
+                    collapsable={false}
+                    accessibilityRole="menu"
+                    style={[styles.menu, { backgroundColor: colors.paperRaised, borderColor: colors.lineControl }]}
+                >
                     {options.map((option) => {
                         const isSelected = option.value === value;
 
@@ -73,9 +82,15 @@ export const CuisineSelect: FC<CuisineSelectProps> = ({ value, onChange }) => {
                                     onChange(option.value);
                                     setOpen(false);
                                 }}
-                                style={[styles.option, isSelected && styles.optionSelected]}
+                                style={[styles.option, isSelected ? { backgroundColor: colors.selectedFill } : null]}
                             >
-                                <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
+                                <Text
+                                    style={[
+                                        styles.optionLabel,
+                                        { color: isSelected ? colors.actionText : colors.ink },
+                                        isSelected ? styles.optionLabelSelected : null,
+                                    ]}
+                                >
                                     {option.label}
                                 </Text>
                                 {/* Contrast (WCAG 2.1 AA): the check is this row's selection affordance and
@@ -91,44 +106,28 @@ export const CuisineSelect: FC<CuisineSelectProps> = ({ value, onChange }) => {
     );
 };
 
-const border = 'rgba(178, 190, 195, 0.3)';
-
 const styles = StyleSheet.create({
-    field: { gap: 6 },
-    fieldLabel: { fontSize: 13, fontWeight: '500', color: palette.slate },
+    field: { gap: nativeTokens.spacing[1] },
+    fieldLabel: nativeTokens.type.label,
     trigger: {
+        ...fieldGeometry,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: palette.white,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: border,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
+        borderWidth: FIELD_EDGE,
     },
     // A CUSTOM (non-curated) cuisine value is deliberately preserved and shown here, and RN defaults
     // `flexShrink` to 0 — so a long one used to take its full intrinsic width and push the disclosure chevron
     // (the only affordance that opens this menu) past the field's right edge. Same for an option row's check.
-    triggerLabel: { flexShrink: 1, fontSize: 16, color: palette.charcoal },
-    menu: {
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: border,
-        backgroundColor: palette.white,
-        overflow: 'hidden',
-    },
+    triggerLabel: { ...nativeTokens.type.body, flexShrink: 1 },
+    menu: { borderRadius: nativeTokens.radius.md, borderWidth: FIELD_EDGE, overflow: 'hidden' },
     option: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: 10,
-        paddingHorizontal: 12,
+        minHeight: 44,
+        paddingHorizontal: nativeTokens.spacing[3],
     },
-    optionSelected: { backgroundColor: palette.pearl },
-    optionLabel: { flexShrink: 1, fontSize: 16, color: palette.charcoal },
-    // Contrast (WCAG 2.1 AA): the selected row's pearl highlight stays; its label a reader READS takes
-    // `ocean-dark` (5.68:1 on pearl) rather than seafoam (3.68:1). This control is native-only — there is no
-    // web leaf to mirror, since web keeps its platform `<select>`. See `@commise/ui`'s palette JSDoc.
-    optionLabelSelected: { fontWeight: '600', color: palette['ocean-dark'] },
+    optionLabel: { ...nativeTokens.type.body, flexShrink: 1 },
+    optionLabelSelected: { fontWeight: nativeTokens.fontWeight.semibold },
 });

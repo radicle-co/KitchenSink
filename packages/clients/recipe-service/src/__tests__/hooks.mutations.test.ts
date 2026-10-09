@@ -44,6 +44,7 @@ import {
     recipeServiceKeys,
     useAddRecipeToCollection,
     useCloneCollection,
+    SAVE_COPY_MUTATION_KEY,
     useCloneRecipe,
     useConfirmPhotoUpload,
     useCreateCollection,
@@ -376,6 +377,22 @@ describe('useDeleteRecipe', () => {
 });
 
 describe('useCloneRecipe', () => {
+    it('keys the mutation under SAVE_COPY_MUTATION_KEY and keeps it for the session, so a card can show "Saved a copy"', async () => {
+        // A card derives its filled state from `useMutationState` over this key. With the default five-minute
+        // mutation `gcTime` the state would silently revert mid-session (blueprint A14), so retention is pinned.
+        const { result, client, queryClient } = renderMutation(() => useCloneRecipe());
+        vi.spyOn(client, 'cloneRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_clone' }));
+
+        act(() => result.current.mutate('rec_src'));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        const mutations = queryClient.getMutationCache().findAll({ mutationKey: SAVE_COPY_MUTATION_KEY });
+
+        expect(mutations).toHaveLength(1);
+        expect(mutations[0]?.state.variables).toBe('rec_src');
+        expect(mutations[0]?.gcTime).toBe(Infinity);
+    });
+
     it('clones through the client with the source recipe id and returns the clone', async () => {
         const clone = makeRecipeDetail({ id: 'rec_clone', clonedFromId: 'rec_src' });
         const { result, client } = renderMutation(() => useCloneRecipe());

@@ -394,6 +394,42 @@ describe('Combobox (web) — Enter chooses, and only an active option (2.1.1, 3.
     });
 });
 
+describe('Combobox (web) — Enter with no choice is reported (build spec §7.5.3: "Pick a food from the list.")', () => {
+    it('Enter with nothing active, list open or closed, tells the host and chooses nothing', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const onSubmitWithoutChoice = vi.fn();
+        render(<Host onSelect={onSelect} onSubmitWithoutChoice={onSubmitWithoutChoice} />);
+        await user.type(field(), 'f');
+
+        await user.keyboard('{Enter}');
+        await user.keyboard('{Escape}{Enter}');
+
+        expect(onSubmitWithoutChoice).toHaveBeenCalledTimes(2);
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it('⛔ Enter on the active option is a choice, not a submit without one', async () => {
+        const user = userEvent.setup();
+        const onSubmitWithoutChoice = vi.fn();
+        render(<Host initial="f" onSubmitWithoutChoice={onSubmitWithoutChoice} />);
+        field().focus();
+
+        await user.keyboard('{ArrowDown}{Enter}');
+
+        expect(onSubmitWithoutChoice).not.toHaveBeenCalled();
+    });
+
+    it('⛔ Enter while an input method composes is the input method’s, not a submit', () => {
+        const onSubmitWithoutChoice = vi.fn();
+        render(<Host initial="f" onSubmitWithoutChoice={onSubmitWithoutChoice} />);
+
+        fireEvent.keyDown(field(), { key: 'Enter', isComposing: true });
+
+        expect(onSubmitWithoutChoice).not.toHaveBeenCalled();
+    });
+});
+
 describe('Combobox (web) — Escape, Tab, and leaving the field (2.1.1, 2.1.2)', () => {
     it('⛔ Escape closes the list and keeps the text; a second Escape still keeps it', async () => {
         const user = userEvent.setup();
@@ -1516,5 +1552,63 @@ describe('Combobox (web) — the alert said again at each refused press (R8)', (
         );
 
         expect(alerts()).toEqual(['', 'You’ve reached your limit for USDA lookups. You can try again at 3:05 PM.']);
+    });
+});
+
+/**
+ * A drag on a touch screen while the list is open (`docs/design/uiOverhaul` slice 8): a drag that begins inside the list
+ * scrolls the list, which contains its own scroll so the page under it stays put; a drag on the page outside it closes
+ * the list, which would otherwise float over content the cook has moved on to.
+ */
+describe('Combobox (web) — a touch drag while the list is open', () => {
+    const popupOf = (): HTMLElement => {
+        const popup = screen.getByRole('listbox').closest('div');
+
+        if (popup === null) {
+            throw new Error('no popup');
+        }
+
+        return popup;
+    };
+
+    it('the popup keeps its own scroll: a drag inside it scrolls the list, not the page', async () => {
+        const user = userEvent.setup();
+        render(<Host />);
+        await user.type(field(), 'f');
+
+        expect(popupOf().className.split(/\s+/u)).toContain('overscroll-contain');
+    });
+
+    it('a drag that begins inside the list keeps it open', async () => {
+        const user = userEvent.setup();
+        render(<Host />);
+        await user.type(field(), 'f');
+
+        fireEvent.touchMove(within(screen.getByRole('listbox')).getAllByRole('option')[0] ?? field());
+
+        expect(screen.getByRole('listbox')).toBeTruthy();
+    });
+
+    it('a drag on the page outside it closes the list, and keeps the text', async () => {
+        const user = userEvent.setup();
+        render(<Host />);
+        await user.type(field(), 'f');
+
+        fireEvent.touchMove(screen.getByRole('button', { name: 'Elsewhere' }));
+
+        expect(screen.queryByRole('listbox')).toBeNull();
+        expect(field().value).toBe('f');
+    });
+});
+
+describe('Combobox (web) — a line under the field', () => {
+    it('draws the host’s line directly after the field', async () => {
+        const user = userEvent.setup();
+        render(<Host belowField={<span>2 tbsp · olive oil</span>} />);
+        await user.type(field(), 'f');
+
+        const note = screen.getByText('2 tbsp · olive oil');
+
+        expect(field().compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });

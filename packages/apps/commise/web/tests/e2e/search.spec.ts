@@ -42,16 +42,27 @@ import { signInWithTicket } from './utils/auth';
  * result count reading "1 recipe" can only happen if the criterion actually reached the API.
  */
 /**
- * A discovery results sentence is rendered TWICE by design: once as the visible results header (or the no-match
- * title), and once in the frame's polite `status` region that announces results when they settle. Asserting exactly
- * two proves both — the viewer sees it and a screen reader hears it — and keeps Playwright's strict mode satisfied.
+ * A discovery sentence is ONE element: the frame's count line, which is both the visible "12 recipes for “lamb”" and the
+ * polite live region that announces it (slice 5, `buildSpec.md` §4.4). A no-result title is two: the same words are also
+ * the no-result state's own heading. Asserting the exact count proves each is on screen once and keeps Playwright's
+ * strict mode satisfied.
  *
  * @param page - The discovery page.
- * @param sentence - The exact header sentence.
+ * @param sentence - The exact sentence.
+ * @returns The locator for it.
  */
 function discoverySentence(page: Page, sentence: string): Locator {
     return page.getByText(sentence, { exact: true });
 }
+
+/**
+ * A window wide enough for Discover's filter PANEL (a 960 container in a window that is not short, `filterPresentationOf`),
+ * where the facets are always on screen; and a phone, where they live in the Filters sheet.
+ */
+const PANEL_VIEWPORT = { width: 1440, height: 900 } as const;
+
+/** The filter panel (an `aside` named "Filters"), when the window is wide enough to draw it. */
+const filtersPanel = (page: Page): Locator => page.getByRole('complementary', { name: 'Filters' });
 
 /** The note that takes the ingredient search's place once the filter holds six foods (curated U9). */
 const CAP_NOTE = 'You can filter by up to 6 ingredients. Remove one to add another.';
@@ -74,7 +85,7 @@ async function seedFiveSharedFoods(page: Page): Promise<void> {
 
 /** Search for salt and add it by keyboard, the sixth food. */
 async function addSaltByKeyboard(page: Page): Promise<void> {
-    await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('sal');
+    await page.getByRole('searchbox', { name: 'Has ingredient' }).fill('sal');
     const salt = page.getByRole('button', { name: 'Filter by Salt' });
     await expect(salt).toBeVisible();
     await salt.focus();
@@ -96,18 +107,18 @@ test.describe('recipe search (T110)', () => {
         // BROWSE — an untyped search is "no criteria", so discovery shows the curated rails over every public
         // recipe. This is the "before" that gives the narrowing below its meaning (see the file doc).
         await page.goto(route('/discover'));
-        await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Discover', exact: true })).toBeVisible();
         await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
         await expect(page.getByRole('article', { name: 'Seafood Paella' }).first()).toBeVisible();
         await expect(page.getByRole('article', { name: 'Weeknight Pasta' }).first()).toBeVisible();
 
         // SEARCH — typing a term narrows the result set to the match. The non-match disappearing is the
         // assertion that matters: it can only happen if `query=paella` actually reached the API.
-        await page.getByRole('searchbox', { name: 'Search public recipes' }).fill('paella');
+        await page.getByRole('searchbox', { name: 'Search recipes' }).fill('paella');
         await expect(page.getByRole('article', { name: 'Weeknight Pasta' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Seafood Paella' })).toBeVisible();
         // With a term typed the header names it (`resultsForQuery`); a bare count is a filter-only narrowing's.
-        await expect(discoverySentence(page, 'Showing 1 recipe for “paella”')).toHaveCount(2);
+        await expect(discoverySentence(page, '1 recipe for “paella”')).toHaveCount(1);
     });
 
     test('shows the empty state when nothing matches the term', async ({ page }) => {
@@ -124,10 +135,11 @@ test.describe('recipe search (T110)', () => {
         // A search with no hits is a NO-MATCH, not an error and not the browse-empty state — the no-match
         // guidance shows and the failure copy does NOT. (Asserted by copy rather than by `role=alert`, which
         // Next's permanent route-announcer `<div role="alert" id="__next-route-announcer__">` occupies on
-        // every page.) "No matching recipes" ≠ the browse-empty "No recipes found": the caller searched.
-        await page.getByRole('searchbox', { name: 'Search public recipes' }).fill('tiramisu');
-        await expect(discoverySentence(page, 'No matching recipes')).toHaveCount(2);
-        await expect(page.getByRole('article', { name: 'Seafood Paella' })).toHaveCount(0);
+        // every page.) The title NAMES the term, so it is not the browse-empty "No public recipes yet.": the caller searched.
+        // The state is the heading and the count line, and ends in the Trending rail (`discoverNoResults.spec.ts`).
+        await page.getByRole('searchbox', { name: 'Search recipes' }).fill('tiramisu');
+        await expect(discoverySentence(page, 'No recipes for “tiramisu”')).toHaveCount(2);
+        await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
         await expect(page.getByText('We couldn’t load recipes.')).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
     });
@@ -156,21 +168,22 @@ test.describe('recipe search (T110)', () => {
         });
 
         // BROWSE — both public recipes are on the curated surface, and the dietary facet chip (which lives in
-        // the persistent filter bar, above the browse/results split) carries its server count.
+        // the filter panel, beside the browse/results split) carries its server count.
+        await page.setViewportSize(PANEL_VIEWPORT);
         await page.goto(route('/discover'));
         await expect(page.getByRole('article', { name: 'Gourmet Garden Salad' }).first()).toBeVisible();
         await expect(page.getByRole('article', { name: 'Mediterranean Grilled Lamb' }).first()).toBeVisible();
 
         // FILTER — selecting the vegan chip narrows the set to vegan recipes. The non-vegan lamb disappearing
         // is the assertion that matters: it can only happen if `dietaryFlags=vegan` actually reached the API.
-        const veganChip = page.getByRole('button', { name: 'vegan, 1 recipe' });
+        const veganChip = filtersPanel(page).getByRole('button', { name: 'vegan 1' });
         await expect(veganChip).toHaveAttribute('aria-pressed', 'false');
         await veganChip.click();
 
-        await expect(page.getByRole('button', { name: 'vegan, 1 recipe' })).toHaveAttribute('aria-pressed', 'true');
+        await expect(veganChip).toHaveAttribute('aria-pressed', 'true');
         await expect(page.getByRole('article', { name: 'Mediterranean Grilled Lamb' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Gourmet Garden Salad' })).toBeVisible();
-        await expect(discoverySentence(page, '1 recipe')).toHaveCount(2);
+        await expect(discoverySentence(page, '1 recipe')).toHaveCount(1);
 
         // The URL now carries the filter (shareable / reload-safe).
         await expect(page).toHaveURL(/dietaryFlags=vegan/);
@@ -200,22 +213,24 @@ test.describe('recipe search (T110)', () => {
         });
 
         // BROWSE — both public recipes are on the curated surface before any filter is applied.
+        await page.setViewportSize(PANEL_VIEWPORT);
         await page.goto(route('/discover'));
         await expect(page.getByRole('article', { name: 'Pan-Seared Scallops' }).first()).toBeVisible();
         await expect(page.getByRole('article', { name: 'Braised Short Ribs' }).first()).toBeVisible();
 
-        // FILTER — selecting the "Under 15 min" cook-time bucket narrows to the quick-cooking recipe. The
-        // 90-minute braise disappearing is the assertion that matters: it can only happen if
-        // `maxCookTime=15` actually reached the API.
-        const cookTimeGroup = page.getByRole('group', { name: 'Cook time' });
-        const under15 = cookTimeGroup.getByRole('button', { name: 'Under 15 min' });
-        await expect(under15).toHaveAttribute('aria-pressed', 'false');
+        // FILTER — Total time is the one time choice the panel leads with; Prep and Cook sit behind "More time filters".
+        // Selecting the "Under 15 min" COOK bucket narrows to the quick-cooking recipe. The 90-minute braise disappearing
+        // is the assertion that matters: it can only happen if `maxCookTime=15` actually reached the API.
+        await filtersPanel(page).getByText('More time filters').click();
+        const cookTimeGroup = filtersPanel(page).getByRole('radiogroup', { name: 'Cook time' });
+        const under15 = cookTimeGroup.getByRole('radio', { name: 'Under 15 min' });
+        await expect(under15).not.toBeChecked();
         await under15.click();
 
-        await expect(under15).toHaveAttribute('aria-pressed', 'true');
+        await expect(under15).toBeChecked();
         await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Pan-Seared Scallops' })).toBeVisible();
-        await expect(discoverySentence(page, '1 recipe')).toHaveCount(2);
+        await expect(discoverySentence(page, '1 recipe')).toHaveCount(1);
 
         // The URL now carries the filter (shareable / reload-safe).
         await expect(page).toHaveURL(/maxCookTime=15/);
@@ -249,6 +264,7 @@ test.describe('recipe search (T110)', () => {
         });
 
         // BROWSE — both public recipes are on the curated surface before any filter is applied.
+        await page.setViewportSize(PANEL_VIEWPORT);
         await page.goto(route('/discover'));
         await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' }).first()).toBeVisible();
         await expect(page.getByRole('article', { name: 'Tropical Fruit Salad' }).first()).toBeVisible();
@@ -258,14 +274,14 @@ test.describe('recipe search (T110)', () => {
         // the salt FOOD id actually reached the API as a filter.
         // The option is addressed by its ACTION name ("Filter by Salt"), which is what makes it distinguishable
         // from the search box that now holds the typed query — a bare "Salt" would also match the field.
-        await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('sal');
+        await page.getByRole('searchbox', { name: 'Has ingredient' }).fill('sal');
         const saltResult = page.getByRole('button', { name: 'Filter by Salt' });
         await expect(saltResult).toBeVisible();
         await saltResult.click();
 
         await expect(page.getByRole('article', { name: 'Tropical Fruit Salad' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' })).toBeVisible();
-        await expect(discoverySentence(page, '1 recipe')).toHaveCount(2);
+        await expect(discoverySentence(page, '1 recipe')).toHaveCount(1);
 
         // The picked ingredient renders as a removable chip, and the URL now carries it (shareable / reload-safe).
         const chip = page.getByRole('button', { name: 'Remove Salt' });
@@ -337,8 +353,9 @@ test.describe('recipe search (T110)', () => {
                 }),
         );
 
+        await page.setViewportSize(PANEL_VIEWPORT);
         await page.goto(route('/discover'));
-        await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('brisket');
+        await page.getByRole('searchbox', { name: 'Has ingredient' }).fill('brisket');
         const option = page.getByRole('button', { name: 'Filter by beef brisket' });
         await expect(option).toHaveText('beef brisket');
         await option.click();
@@ -357,10 +374,11 @@ test.describe('recipe search (T110)', () => {
      * a chip brings the box back with focus. Inline, at the project's laptop size; the phone's Sheet is below.
      */
     test('at six ingredients, the note replaces the search and takes focus (curated U9)', async ({ page }) => {
+        await page.setViewportSize(PANEL_VIEWPORT);
         await seedFiveSharedFoods(page);
         await expect(page.getByRole('button', { name: 'Remove Food 4' })).toBeVisible();
 
-        const search = page.getByRole('searchbox', { name: 'Search ingredients' });
+        const search = page.getByRole('searchbox', { name: 'Has ingredient' });
         await addSaltByKeyboard(page);
 
         const note = page.getByText(CAP_NOTE, { exact: true });
@@ -385,13 +403,13 @@ test.describe('recipe search (T110)', () => {
         await page.setViewportSize({ width: 320, height: 640 });
         await seedFiveSharedFoods(page);
         await page.getByRole('button', { name: 'Filters, 5 active' }).click();
-        const sheet = page.getByRole('dialog', { name: 'Filter recipes' });
+        const sheet = page.getByRole('dialog', { name: 'Filters' });
 
         await addSaltByKeyboard(page);
 
         const note = sheet.getByText(CAP_NOTE, { exact: true });
         await expect(note).toBeFocused();
-        await expect(sheet.getByRole('searchbox', { name: 'Search ingredients' })).toHaveCount(0);
+        await expect(sheet.getByRole('searchbox', { name: 'Has ingredient' })).toHaveCount(0);
         await expect(page).toHaveURL(/foodId=food_salt/u);
         const overflow = await page.evaluate(() => ({
             page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -401,7 +419,7 @@ test.describe('recipe search (T110)', () => {
 
         await sheet.getByRole('button', { name: 'Remove Salt' }).click();
 
-        await expect(sheet.getByRole('searchbox', { name: 'Search ingredients' })).toBeFocused();
+        await expect(sheet.getByRole('searchbox', { name: 'Has ingredient' })).toBeFocused();
         await expect(note).toHaveCount(0);
     });
 
@@ -419,15 +437,17 @@ test.describe('recipe search (T110)', () => {
         await page.goto(route('/discover'));
 
         // S5 — an active query names the result set it is FOR (not just a bare count).
-        await page.getByRole('searchbox', { name: 'Search public recipes' }).fill('paella');
-        await expect(discoverySentence(page, 'Showing 1 recipe for “paella”')).toHaveCount(2);
+        await page.getByRole('searchbox', { name: 'Search recipes' }).fill('paella');
+        await expect(discoverySentence(page, '1 recipe for “paella”')).toHaveCount(1);
 
-        // S3 — the sort control is a single-select radiogroup; choosing Quickest moves the selection there.
-        const sort = page.getByRole('radiogroup', { name: 'Sort by' });
-        await expect(sort.getByRole('radio', { name: 'Relevance' })).toHaveAttribute('aria-checked', 'true');
-        await sort.getByRole('radio', { name: 'Quickest' }).click();
-        await expect(sort.getByRole('radio', { name: 'Quickest' })).toHaveAttribute('aria-checked', 'true');
-        await expect(sort.getByRole('radio', { name: 'Relevance' })).toHaveAttribute('aria-checked', 'false');
+        // S3 — the sort is a "Sort: {choice}" menu of four radio items with a check on the one in use; choosing Quickest
+        // moves the selection there and names it on the button.
+        await page.getByRole('button', { name: 'Sort: Relevance' }).click();
+        await expect(page.getByRole('menuitemradio', { name: 'Relevance' })).toHaveAttribute('aria-checked', 'true');
+        await page.getByRole('menuitemradio', { name: 'Quickest' }).click();
+        await page.getByRole('button', { name: 'Sort: Quickest' }).click();
+        await expect(page.getByRole('menuitemradio', { name: 'Quickest' })).toHaveAttribute('aria-checked', 'true');
+        await expect(page.getByRole('menuitemradio', { name: 'Relevance' })).toHaveAttribute('aria-checked', 'false');
     });
 
     /**
@@ -470,11 +490,11 @@ test.describe('recipe search (T110)', () => {
         );
 
         await page.goto(route('/discover'));
-        const searchBox = page.getByRole('searchbox', { name: 'Search public recipes' });
+        const searchBox = page.getByRole('searchbox', { name: 'Search recipes' });
         await searchBox.fill('paella');
         const previous = page.getByRole('article', { name: 'Seafood Paella' });
         await expect(previous).toBeVisible();
-        await expect(discoverySentence(page, 'Showing 1 recipe for “paella”')).toHaveCount(2);
+        await expect(discoverySentence(page, '1 recipe for “paella”')).toHaveCount(1);
 
         await searchBox.fill('pasta');
         await heldSearch;
@@ -483,7 +503,7 @@ test.describe('recipe search (T110)', () => {
             page.getByRole('region', { name: 'Search results' }).getByRole('article', { name: 'Seafood Paella' }),
         ).toBeVisible();
         await expect(searchBox).toHaveValue('pasta');
-        await expect(discoverySentence(page, 'Showing 1 recipe for “paella”')).toHaveCount(2);
+        await expect(discoverySentence(page, '1 recipe for “paella”')).toHaveCount(1);
         await expect(page.getByRole('status', { name: 'Loading recipes' })).toHaveCount(0);
 
         releaseSearch();
@@ -491,8 +511,8 @@ test.describe('recipe search (T110)', () => {
         const next = page.getByRole('article', { name: 'Weeknight Pasta' });
         await expect(next).toBeVisible();
         await expect(previous).toHaveCount(0);
-        await expect(discoverySentence(page, 'Showing 1 recipe for “pasta”')).toHaveCount(2);
-        await expect(discoverySentence(page, 'Showing 1 recipe for “paella”')).toHaveCount(0);
+        await expect(discoverySentence(page, '1 recipe for “pasta”')).toHaveCount(1);
+        await expect(discoverySentence(page, '1 recipe for “paella”')).toHaveCount(0);
     });
 
     test('narrows the caller’s own recipe list to the term', async ({ page }) => {
@@ -512,7 +532,7 @@ test.describe('recipe search (T110)', () => {
         await expect(page.getByRole('article', { name: 'Weeknight Pasta' })).toBeVisible();
         await expect(page.getByRole('article', { name: 'Lentil Soup' })).toBeVisible();
 
-        await page.getByRole('searchbox', { name: 'Search recipes' }).fill('soup');
+        await page.getByRole('searchbox', { name: 'Search your recipes' }).fill('soup');
         await expect(page.getByRole('article', { name: 'Weeknight Pasta' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Lentil Soup' })).toBeVisible();
         await expect(page.getByText('1 recipe')).toBeVisible();

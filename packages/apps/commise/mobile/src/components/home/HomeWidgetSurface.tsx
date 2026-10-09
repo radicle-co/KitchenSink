@@ -13,14 +13,15 @@
  *    `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live id with
  *    no bespoke renderer is **skipped** (graceful version skew).
  *
- * The host also renders the top bar and the time-of-day greeting, and threads the navigation intents
- * (`onSeeAllRecipes`, `onSelectRecipe`, `onOpenAccount`) down to the recipe slot and the top bar. The bottom tab bar
- * is NOT here: the app root owns it, so it shows on every top-level screen and not only on Home (M1,
- * `docs/design/uiOverhaul/specShellAndLists.md` §S.3). `container` and `renderers` are injectable seams for tests.
+ * The host also renders Home's large title (the greeting, with the avatar as its action) as the scroller's first
+ * child, takes the scroller's `bind` from the screen's `ScrollHost`, and threads the navigation intents down to the
+ * recipe slot. The tab bar, the condensed title bar and the floating create button are NOT here: the navigator owns the
+ * bar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.
  */
 import {
     curateHomeWidgets,
     isPlaceholderHomeWidget,
+    profileEntryOf,
     resolveErrorReporter,
     resolveHomeWidgets,
     type HomeWidgetCurationContext,
@@ -29,6 +30,9 @@ import {
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { makeViewer, type Tier } from '@kitchensink/recipe-core';
+import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import type { HeaderAction } from '@commise/ui/large-title-header';
+import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { Container } from 'ditox';
 import { useMemo, type ComponentType, type JSX } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -38,7 +42,6 @@ import { mobileMessages } from '../../i18n/messages.js';
 import { useUserProfile } from '../../hooks/useUserProfile.js';
 import { HomeGreeting } from './HomeGreeting.js';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
-import { HomeTopBar } from './chrome/HomeTopBar.js';
 import { homeContainer } from './homeContainer.js';
 import { LIVE_CAPABILITIES } from './liveCapabilities.js';
 import { RecipeWidgetSlot } from './RecipeWidgetSlot.js';
@@ -66,8 +69,16 @@ export interface HomeWidgetSurfaceProps {
     readonly onSeeAllRecipes: () => void;
     /** Invoked with the activated recipe's id when a "Recent recipes" card is tapped. */
     readonly onSelectRecipe: (id: string) => void;
-    /** Invoked when the account avatar or the Profile tab is activated. */
-    readonly onOpenAccount: () => void;
+    /** The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`). */
+    readonly scrollBind?: ScrollBind;
+    /** The large title's action: the avatar, which opens Profile. */
+    readonly headerAction?: HeaderAction;
+    /** The recent block's first run: open an empty editor (`buildSpec.md` §4.2). With Discover, its ways in show. */
+    readonly onCreateRecipe?: () => void;
+    /** The first run: paste an ingredient list. */
+    readonly onPasteIngredients?: () => void;
+    /** The first run: go to Discover. */
+    readonly onFindOnDiscover?: () => void;
     /** The appShell container to resolve widget descriptors from. Defaults to the app singleton. */
     readonly container?: Container;
     /** Map of widget id → the bespoke slot component that renders it. Defaults to the v1 renderer set. */
@@ -83,7 +94,11 @@ export interface HomeWidgetSurfaceProps {
 export function HomeWidgetSurface({
     onSeeAllRecipes,
     onSelectRecipe,
-    onOpenAccount,
+    scrollBind,
+    headerAction,
+    onCreateRecipe,
+    onPasteIngredients,
+    onFindOnDiscover,
     container = homeContainer,
     renderers,
 }: HomeWidgetSurfaceProps): JSX.Element {
@@ -93,7 +108,7 @@ export function HomeWidgetSurface({
 
     // P4: the shared Tier authority — an absent/unrecognized subscription tier fails closed to `'free'`.
     const tier = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier }).tier;
-    const displayName = profile.data?.user.displayName;
+    const cookName = profileEntryOf(profile).name;
 
     // B23/DA9 — a widget render throw must never be silent. Resolved from the injected `errorReporterToken`
     // (never a hard-coded Sentry import), mirroring the web host so both platforms share ONE reporting seam.
@@ -112,11 +127,14 @@ export function HomeWidgetSurface({
                 <RecipeWidgetSlot
                     onSeeAllRecipes={onSeeAllRecipes}
                     onSelectRecipe={onSelectRecipe}
+                    {...(onCreateRecipe === undefined ? {} : { onCreateRecipe })}
+                    {...(onPasteIngredients === undefined ? {} : { onPasteIngredients })}
+                    {...(onFindOnDiscover === undefined ? {} : { onFindOnDiscover })}
                     onWidgetError={(error) => reportWidgetError(error, { widget: RECIPE_HOME_WIDGET_ID })}
                 />
             ),
         }),
-        [onSeeAllRecipes, onSelectRecipe, reportWidgetError],
+        [onSeeAllRecipes, onSelectRecipe, onCreateRecipe, onPasteIngredients, onFindOnDiscover, reportWidgetError],
     );
 
     const activeRenderers = renderers ?? defaultRenderers;
@@ -133,17 +151,19 @@ export function HomeWidgetSurface({
 
     return (
         <View style={styles.screen}>
-            <HomeTopBar chrome={home.chrome} displayName={displayName} onOpenAccount={onOpenAccount} />
-
             <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
                 <ScrollView
+                    {...scrollBind}
                     accessibilityLabel={home.regionLabel}
                     style={styles.region}
                     contentContainerStyle={styles.regionContent}
                 >
-                    {/* The greeting sits on the app canvas, which already carries the beach-glow wash: the gradient
-                        card it used to sit in was a box in a box (`docs/design/uiOverhaul/buildSpec.md` §1.6). */}
-                    <HomeGreeting />
+                    {/* The large title is the scroller's FIRST child, so its host knows when it has scrolled under the
+                        top (`LargeTitleHeader`); it sits on the app canvas, never in a card (§1.6). */}
+                    <HomeGreeting
+                        {...(cookName === undefined ? {} : { name: cookName })}
+                        {...(headerAction === undefined ? {} : { action: headerAction })}
+                    />
 
                     {curated.map((descriptor) => {
                         const Bespoke = activeRenderers[descriptor.id];
@@ -198,5 +218,6 @@ const styles = StyleSheet.create({
     // fill here occludes the whole canvas and restores the flat page the wireframes never had.
     screen: { flex: 1, backgroundColor: 'transparent' },
     region: { flex: 1 },
-    regionContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 16 },
+    // The foot clears the floating create button (its height + 32, `buildSpec.md` §3.4), which floats over it.
+    regionContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: FAB_RESERVED_BOTTOM_PX, gap: 16 },
 });

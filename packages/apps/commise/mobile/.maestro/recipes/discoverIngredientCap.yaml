@@ -16,11 +16,11 @@ appId: io.commise.mobile
 - assertVisible: 'Recipes'
 - tapOn: 'Discover'
 - extendedWaitUntil:
-      visible: 'Discover recipes'
+      visible: 'Discover'
       timeout: 40000
 
-- tapOn: 'Filters'
-- tapOn: 'Search ingredients'
+- tapOn: 'Filters.*'
+- tapOn: 'Has ingredient'
 - inputText: '${E2E_CAP_FOOD_PREFIX}'
 
 # Six picks. Anchored, because Maestro matches substrings and the field itself holds the typed prefix. The Ingredients
@@ -41,7 +41,8 @@ appId: io.commise.mobile
       element: 'You can filter by up to 6 ingredients. Remove one to add another.'
       direction: DOWN
       timeout: 20000
-- assertNotVisible: 'Search ingredients'
+# The search box is gone: its example text ("chicken") is no longer drawn. (The group's name, "Has ingredient", stays.)
+- assertNotVisible: 'chicken'
 - assertVisible:
       text: '^Remove ${E2E_CAP_FOOD_PREFIX} .+$'
 
@@ -49,12 +50,12 @@ appId: io.commise.mobile
 - tapOn:
       text: '^Remove ${E2E_CAP_FOOD_PREFIX} .+$'
 - scrollUntilVisible:
-      element: 'Search ingredients'
+      element: 'chicken'
       direction: DOWN
       timeout: 20000
 - assertNotVisible: 'You can filter by up to 6 ingredients. Remove one to add another.'
 
-- tapOn: 'Done'
+- tapOn: 'Show \d+ recipes?|Show recipes'
 - extendedWaitUntil:
-      visible: 'Discover recipes'
+      visible: 'Discover'
       timeout: 20000

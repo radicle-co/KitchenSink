@@ -21,34 +21,25 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
-- tapOn: 'Create from Scratch'
 
-# Step 1 of 4 (Basic). servings/prep/cook keep their valid defaults, as in `create.yaml`.
-- assertVisible: 'Step 1 of 4'
+# Details. servings/prep/cook keep their valid defaults, as in `create.yaml`.
+- assertVisible: 'Close editor'
 - assertVisible: 'Title'
 - tapOn: 'Title'
 - inputText: 'Maestro Marinade Bowl'
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
 
-# Step 2 of 4 (Ingredients). Declare a line "as written" from the trailing field (no food-service dependency in this
+# Ingredients, below Details. Declare a line "as written" from the trailing field (no food-service dependency in this
 # job — same rationale as `create.yaml`), then state its preparation and its section.
-- assertVisible: 'Step 2 of 4'
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
-- scrollUntilVisible:
-      element:
-          text: 'Use .*Tomato.* as written.*'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
 - tapOn:
       text: 'Use .*Tomato.* as written.*'
 # The trailing field empties only after the line is committed, so this disappearing IS the declaration landing
@@ -88,28 +79,15 @@ appId: io.commise.mobile
       direction: UP
       timeout: 20000
 
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
-
-# Step 3 of 4 (Instructions) — a fresh create has no steps, so this is `Step 1`.
-- assertVisible: 'Step 3 of 4'
+# Steps, below Ingredients — a fresh create has no steps, so this is `Step 1`.
 - scrollUntilVisible:
       element: 'Add step'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
-- inputText: 'Marinate and grill.'
-- scrollUntilVisible:
-      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Review'
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Marinate and grill.'
 
-- assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 
 # Landed on the new recipe's detail. The title regex tolerates this emulator's occasional last-character
@@ -135,13 +113,7 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
-- assertVisible: 'Step 1 of 4'
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-- assertVisible: 'Step 2 of 4'
+- assertVisible: 'Close editor'
 # A TextInput's own value is matchable text in this suite (see `searchNavigation.yaml`), so the seeded
 # fields are assertable directly — as is the section heading the fold re-derives from them.
 - scrollUntilVisible:

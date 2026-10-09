@@ -2,9 +2,9 @@ import { expect, test, type Request } from '@playwright/test';
 import { FoodResolutionStatus, ingredientSchema } from '@kitchensink/recipe-core';
 
 import { signInWithTicket } from './utils/auth';
-import { route } from './utils/basePath';
 import { mockFoodApi } from './utils/foodApi';
 import { E2E_SALT_FOOD, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { openNewRecipe } from './utils/recipeEditor';
 
 /**
  * "Find nutrition for “…”" on a row of the create form (`docs/design/rowEditorOpenDecisions.md` item 1; the `name` pick
@@ -16,6 +16,9 @@ import { E2E_SALT_FOOD, mockRecipeApi, readViewerAppId } from './utils/recipeApi
  * cook's words; a line that lands `UNRESOLVED` is committed as it is, and the candidates panel does not open by itself;
  * from a row in entry mode focus goes to that row's glyph, and the status line names the glyph to choose with. The line
  * is the same line, so its amount and unit stay, and the draft saves it with the binding food made.
+ *
+ * REWRITTEN for slice 7: Save Draft is gone. The editor saves at checkpoints through the outbox, so the save here is the
+ * exit's checkpoint (× Close editor), and the stored recipe is polled until that write lands.
  *
  * What only this tier proves: the pick reaches the wire as the cook's words, and a real browser moves focus. The
  * per-state rules are the component tests' (`RecipeIngredientsFields.rowEditor.test.tsx`). Selectors are role, label
@@ -43,11 +46,8 @@ test.describe('Find nutrition on a row of the create form (rowEditorOpenDecision
             await intercepted.fallback();
         });
 
-        await page.goto(route('/recipes/new'));
-        await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 1 of 4');
+        await openNewRecipe(page);
         await page.getByLabel('Title').fill(TITLE);
-        await page.getByRole('button', { name: 'Next: Ingredients' }).click();
-        await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 2 of 4');
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
         // A line to work on, with an amount of its own.
@@ -93,21 +93,22 @@ test.describe('Find nutrition on a row of the create form (rowEditorOpenDecision
         expect(byName.map((request) => request.postDataJSON())).toEqual([{ name: WORDS }]);
         const admitted = ingredientSchema.parse(await (await byName[0]?.response())?.json());
 
-        await page.getByRole('button', { name: 'Save Draft' }).click();
-
-        await expect(page.getByRole('heading', { name: TITLE })).toBeVisible();
-        const saved = [...store.values()].find((recipe) => recipe.title === TITLE);
+        // Leaving is a checkpoint (A3): the draft's write goes out through the outbox, without asking.
+        await page.getByRole('button', { name: 'Close editor' }).click();
+        await expect(page.getByRole('alertdialog')).toHaveCount(0);
 
         // The saved line names the binding food made for the words, not Salt's, and keeps its amount.
-        expect(saved?.ingredients).toEqual([
-            expect.objectContaining({
-                ingredientId: admitted.id,
-                name: WORDS,
-                foodId: admitted.foodId,
-                quantity: { kind: 'exact', value: 200 },
-                unit: 'g',
-                isUserEntered: false,
-            }),
-        ]);
+        await expect
+            .poll(() => [...store.values()].find((recipe) => recipe.title === TITLE)?.ingredients)
+            .toEqual([
+                expect.objectContaining({
+                    ingredientId: admitted.id,
+                    name: WORDS,
+                    foodId: admitted.foodId,
+                    quantity: { kind: 'exact', value: 200 },
+                    unit: 'g',
+                    isUserEntered: false,
+                }),
+            ]);
     });
 });

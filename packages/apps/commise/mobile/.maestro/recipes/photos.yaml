@@ -2,7 +2,7 @@ appId: io.commise.mobile
 ---
 # Recipe photo manager surface (T067, CP-6/P3 photo-upload user story). Assumes an authenticated session
 # (auth flow runs first in CI) and a seeded recipe API. Drives list -> detail -> edit, and asserts the shared
-# photo-manager block (`RecipePhotoManager.native.tsx`, mounted by `RecipeEditScreen`) renders its accessible
+# photo-manager block (`RecipePhotoUploader`, mounted by `RecipeEditorScreen`) renders its accessible
 # "Photos" section, the empty state, and the add-photo control. Mobile counterpart to the web Playwright spec
 # `recipePhotos.spec.ts`.
 #
@@ -54,42 +54,21 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Edit recipe'
 
-# The wizard opens on step 1 and has NO page heading of its own — that "Edit recipe" copy belonged to the
-# retired flat `RecipeForm`, and this flow's old `assertVisible: 'Edit recipe'` here was asserting the detail
-# screen's own button label from inside the editor that replaced it. The step-progress label is the entry
-# checkpoint instead (the same checkpoint `create.yaml`, `edit.yaml` and `versions.yaml` already use).
-- assertVisible: 'Step 1 of 4'
+# REWRITTEN for slice 7: the one-page editor. Its × ('Close editor') is the header's deliberate exit and the entry
+# checkpoint; the editor's own control, so unlike a bare `Back` it cannot be satisfied by Android's system bar, which
+# publishes a node named exactly `Back` under three-button navigation (`com.android.systemui:id/back`).
+- assertVisible: 'Close editor'
+# The pinned action bar is on screen from the top of the page: Preview, and the published lamb's `Save changes`.
+- assertVisible: 'Preview'
+- assertVisible: 'Save changes'
 
-# U32: the header the editor never had. `RecipesScreen` renders pushed surfaces bare, so before this there
-# was no title and no deliberate exit — only the hardware back button and a kebab item.
+# ⛔ THE PHOTO MANAGER IS THE LAST SECTION ("Photos & publish"), on the same page as everything else, so the flow
+# reaches it by scrolling — no step to walk to. It renders only for a stored recipe (photos attach to a server id),
+# which the seeded lamb is.
 #
-# ⛔ ANCHORED, and the anchor is the whole assertion. A Maestro selector matches the WHOLE string, and under
-# three-button navigation Android's own system bar publishes a node named exactly `Back`
-# (`com.android.systemui:id/back`). A bare `- assertVisible: 'Back'` is therefore satisfied by the OPERATING
-# SYSTEM, on any screen, whether or not the app drew a header at all — so it would pass against precisely the
-# regression it exists to catch. `above:` binds it to this editor's own step label, which only the app draws.
-# (Gestural navigation publishes no such node, which is why this never failed locally — the emulator's
-# navigation mode decided it.) Same fix, same reasoning as `pinnedActionBar.yaml`.
-- assertVisible:
-      text: 'Back'
-      above:
-          text: 'Step 1 of 4'
-# And the action bar's Save Draft, which used to be reachable only by opening that kebab.
-- assertVisible: 'Save Draft'
-
-# ⛔ THE PHOTO MANAGER IS STEP 1'S BODY NOW (U33, owner ruling 2026-08-25), not step 4's. Photos behave like
-# every other field: they are part of Details, and step 4 is the read-only Review. This flow therefore no
-# longer walks forward through steps 2 and 3 to reach the manager — which is the point of the change, since
-# that walk is exactly what a cook had to do before.
-#
-# The whole `Next: …` chain this flow used to run (adding a freeform ingredient and an instruction purely to
-# open the gates on the way) is DELETED with it. That coverage is not lost: `create.yaml` and `edit.yaml` both
-# walk the full four-step wizard, and `recipes/pinnedActionBar.yaml` covers reaching the bar on a long list.
-#
-# Anchored on "Add photo" — the LAST element of the manager block — not on "Photos": the step RAIL renders a
-# marker of its own at the top of every step, so a scroll anchored there settles on try 0 without ever moving
-# (the same wrong-anchor trap `rating.yaml` fell into). Reaching "Add photo" puts the whole manager, empty
-# state included, on screen.
+# Anchored on "Add photo" — the LAST element of the manager block — not on "Photos": the section index names the
+# section too, so a scroll anchored there could settle without ever moving (the same wrong-anchor trap `rating.yaml`
+# fell into). Reaching "Add photo" puts the whole manager, empty state included, on screen.
 - scrollUntilVisible:
       element: 'Add photo'
       direction: DOWN

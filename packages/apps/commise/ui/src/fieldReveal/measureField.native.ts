@@ -21,6 +21,17 @@ import type { RevealTarget } from './fieldRevealContext.js';
 /** What the host uses of its scroller. */
 export type RevealScroller = Pick<ScrollView, 'getNativeScrollRef' | 'scrollTo'>;
 
+/**
+ * Whether a scroller can be revealed into: it measures through `getNativeScrollRef` and moves with `scrollTo`, which
+ * a list's handle (`scrollToOffset`) does not have. Lets a screen hand the reveal its `ScrollHost`'s one handle.
+ *
+ * @param scroller - A screen's scroller handle.
+ * @returns Whether it is a {@link RevealScroller}. Pure.
+ */
+export function isRevealScroller(scroller: object): scroller is RevealScroller {
+    return 'getNativeScrollRef' in scroller && 'scrollTo' in scroller;
+}
+
 /** The field's box in the visible area, and the scroll offset it was measured at. */
 export type FieldMeasure = FieldBox & FieldPlace;
 

@@ -21,6 +21,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, waitFor } from '@testing-library/react';
+import { onlineManager } from '@tanstack/react-query';
 
 import type { RecipeServiceClient } from '../client.js';
 import { NotFoundError, ParseJobExpiredError } from '../errors.js';
@@ -139,6 +140,25 @@ describe('useCreateParseJob', () => {
 
         expect(queryClient.getQueryData(recipeServiceKeys.parseJob(job.id))).toEqual(job);
         expect(queryClient.getQueryData(recipeServiceKeys.parseJob(FIXTURE_OTHER_PARSE_JOB_UUID))).toBeUndefined();
+    });
+
+    it('⛔ offline it is ATTEMPTED and fails, never paused: a paste cannot wait (UI overhaul blueprint A5)', async () => {
+        onlineManager.setOnline(false);
+
+        try {
+            const { result, client } = renderParseHook(() => useCreateParseJob());
+            const createParseJob = vi
+                .spyOn(client, 'createParseJob')
+                .mockRejectedValue(new TypeError('Failed to fetch'));
+
+            act(() => result.current.mutate({ text: '2 cups flour' }));
+            await waitFor(() => expect(result.current.isError).toBe(true));
+
+            expect(createParseJob).toHaveBeenCalledTimes(1);
+            expect(result.current.isPaused).toBe(false);
+        } finally {
+            onlineManager.setOnline(true);
+        }
     });
 
     it('stales no other cache region — a parse binds nothing (R19)', async () => {

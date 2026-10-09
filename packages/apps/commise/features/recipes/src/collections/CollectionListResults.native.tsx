@@ -8,29 +8,84 @@
  * the shared design scale (`nativeTokens`).
  */
 import { LoadMoreControl } from '@commise/ui/load-more';
-import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { useLocale, useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
+import { contentWidthOf, containerClassOf } from '@commise/ui/container-class';
+import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
+import { PressScale } from '@commise/ui/press-scale';
+import { RecipeCover } from '@commise/ui/recipe-cover';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
+import { SearchField } from '@commise/ui/search-field';
+import { useTheme } from '@commise/ui/theme';
+import type { CollectionResponse } from '@kitchensink/schema-recipe';
 import { FlashList } from '@shopify/flash-list';
-import type { Collection } from '@kitchensink/recipe-core';
-import type { FC } from 'react';
-import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useId, type FC } from 'react';
+import { RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
+import { libraryGridColumnsOf } from '../card/cardGridLayout.js';
+import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { collectionMessages } from './messages.js';
-import type { CollectionListResultsProps } from './model.js';
+import { COLLECTION_SEARCH_FROM, type CollectionListResultsProps } from './model.js';
 
 export const CollectionListResults: FC<CollectionListResultsProps> = ({
     collections,
+    total,
     onSelect,
+    search,
+    firstRun,
     loadMore,
     refresh,
     refreshNotice,
+    scrollBind,
 }) => {
     const { list } = useMessages(collectionMessages);
+    const { colors } = useTheme();
+    const locale = useLocale();
+    const searchId = useId();
+    const contentWidth = contentWidthOf(useWindowDimensions().width);
+    // Two columns on a phone; from a 600 container, as many columns of at least 240 as fit (§5.1).
+    const columns = containerClassOf(contentWidth) === 'narrow' ? 2 : libraryGridColumnsOf(contentWidth);
+
+    if (total === 0) {
+        return (
+            <View style={styles.firstRun}>
+                <Text role="heading" aria-level={2} style={[styles.sectionTitle, { color: colors.ink }]}>
+                    {list.emptyTitle}
+                </Text>
+                <Text style={[styles.body, styles.centred, { color: colors.inkMuted }]}>{list.emptyBody}</Text>
+                {firstRun.hasRecipes ? (
+                    <Button icon="plus" size="lg" width="fill" onPress={firstRun.onCreate}>
+                        {list.createCta}
+                    </Button>
+                ) : (
+                    <>
+                        <Text style={[styles.body, { color: colors.inkMuted }]}>{list.needRecipes}</Text>
+                        <Button icon="pencilLine" size="lg" width="fill" onPress={firstRun.onAddRecipe}>
+                            {list.addRecipe}
+                        </Button>
+                    </>
+                )}
+            </View>
+        );
+    }
 
     return (
         <>
+            {total >= COLLECTION_SEARCH_FROM && (
+                <SearchField
+                    id={searchId}
+                    label={list.searchLabel}
+                    labelVisibility="hidden"
+                    clearLabel={list.clearSearch}
+                    placeholder={list.searchLabel}
+                    value={search.value}
+                    onChangeText={search.onChange}
+                />
+            )}
+            <Text style={[styles.count, { color: colors.ink }]}>
+                {formatRecipeCount(total, { one: list.countOne, other: list.countOther }, locale)}
+            </Text>
             {refreshNotice !== undefined && (
                 <RefreshNotice
                     failed={refreshNotice.failed}
@@ -40,18 +95,21 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
                 />
             )}
             {collections.length === 0 ? (
-                <View>
-                    <Text>{list.emptyTitle}</Text>
-                    <Text>{list.emptyBody}</Text>
-                </View>
+                <Text role="status" style={[styles.body, { color: colors.inkMuted }]}>
+                    {fillTemplate(list.noMatch, { query: search.value.trim() })}
+                </Text>
             ) : (
-                // FlashList (U4), not ScrollView + .map: a full server page holds up to 20 rows plus the load-more
-                // control, so the list must both scroll AND recycle cells. The `[Load more]` control (W5/C7 —
-                // server-paged, no infinite scroll) is the list footer; it vanishes once the last page loads.
                 <FlashList
+                    key={columns}
+                    {...scrollBind}
                     data={collections}
+                    numColumns={columns}
                     keyExtractor={(collection) => collection.id}
-                    renderItem={({ item }) => <CollectionRow collection={item} onSelect={onSelect} />}
+                    renderItem={({ item }) => (
+                        <View style={styles.cell}>
+                            <CollectionCard collection={item} onSelect={onSelect} />
+                        </View>
+                    )}
                     ItemSeparatorComponent={CardSeparator}
                     ListFooterComponent={
                         loadMore === undefined ? null : (
@@ -79,36 +137,74 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
     );
 };
 
-/** A single collection row (a card named by the collection, with an optional description). */
-const CollectionRow: FC<{ collection: Collection; onSelect: (id: string) => void }> = ({ collection, onSelect }) => (
-    <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={collection.name}
-        onPress={() => onSelect(collection.id)}
-        style={styles.card}
-    >
-        <Text style={styles.cardTitle}>{collection.name}</Text>
-        {collection.description !== undefined && collection.description.length > 0 && (
-            <Text style={styles.cardDescription}>{collection.description}</Text>
-        )}
-    </Pressable>
-);
+/** One album card: the cover, the name (two lines), the visibility as glyph and word, and a copy's credit. */
+const CollectionCard: FC<{ readonly collection: CollectionResponse; readonly onSelect: (id: string) => void }> = ({
+    collection,
+    onSelect,
+}) => {
+    const { list } = useMessages(collectionMessages);
+    const { colors } = useTheme();
+    const visibility = collection.visibility === 'public' ? list.visibilityPublic : list.visibilityPrivate;
+
+    return (
+        <PressScale
+            accessibilityRole="link"
+            accessibilityLabel={fillTemplate(list.cardLabel, { name: collection.name, visibility })}
+            width="fill"
+            onPress={() => onSelect(collection.id)}
+        >
+            <View style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
+                <View style={styles.clip}>
+                    <RecipeCover recipeId={collection.id} title={collection.name} aspect="1:1" />
+                    <View style={styles.cardBody}>
+                        <Text numberOfLines={2} style={[styles.cardTitle, { color: colors.ink }]}>
+                            {collection.name}
+                        </Text>
+                        <View style={styles.meta}>
+                            <Icon
+                                name={collection.visibility === 'public' ? 'globe' : 'lock'}
+                                size={16}
+                                tone="inkMuted"
+                            />
+                            <Text style={[styles.metaText, { color: colors.inkMuted }]}>{visibility}</Text>
+                        </View>
+                        {collection.sourceOwnerHandle === undefined ? null : (
+                            <Text numberOfLines={1} style={[styles.caption, { color: colors.inkMuted }]}>
+                                {fillTemplate(list.copiedFrom, { handle: collection.sourceOwnerHandle })}
+                            </Text>
+                        )}
+                    </View>
+                </View>
+            </View>
+        </PressScale>
+    );
+};
 
 /** The inter-card spacer for the virtualized list (FlashList lays cells out itself, so gap is a separator). */
 const CardSeparator: FC = () => <View style={styles.cardSeparator} />;
 
 const styles = StyleSheet.create({
+    firstRun: {
+        alignItems: 'center',
+        alignSelf: 'center',
+        width: '100%',
+        maxWidth: 448,
+        gap: nativeTokens.spacing[3],
+        paddingVertical: nativeTokens.spacing[8],
+    },
+    sectionTitle: { ...nativeTokens.type.sectionTitle },
+    body: { ...nativeTokens.type.body },
+    centred: { textAlign: 'center' },
+    count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
     cards: { paddingBottom: nativeTokens.spacing[5] },
-    cardSeparator: { height: nativeTokens.spacing[3] },
-    card: {
-        backgroundColor: palette.white,
-        borderRadius: nativeTokens.radius.lg,
-        borderWidth: 1,
-        borderColor: nativeTokens.borderSubtle,
-        padding: 18,
-        gap: nativeTokens.spacing[1],
-    },
-    cardTitle: { fontSize: nativeTokens.fontSize.headingSm, fontWeight: '600', color: palette.charcoal },
-    cardDescription: { fontSize: 13, color: palette.slate },
+    cardSeparator: { height: nativeTokens.spacing[4] },
+    cell: { flex: 1, paddingHorizontal: nativeTokens.spacing[2] },
+    card: { borderRadius: nativeTokens.radius.md, borderWidth: StyleSheet.hairlineWidth, ...nativeTokens.elevation.sm },
+    clip: { borderRadius: nativeTokens.radius.md, overflow: 'hidden' },
+    cardBody: { padding: nativeTokens.spacing[3], gap: nativeTokens.spacing[1] },
+    cardTitle: { ...nativeTokens.type.cardTitle },
+    meta: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
+    metaText: { ...nativeTokens.type.meta },
+    caption: { ...nativeTokens.type.caption },
 });

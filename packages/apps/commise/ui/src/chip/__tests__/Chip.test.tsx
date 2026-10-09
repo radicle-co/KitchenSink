@@ -80,6 +80,9 @@ describe('Chip (web) — filter', () => {
         expect(glyphIn(screen.getByRole('button', { name: 'Vegan' }))).toBeNull();
     });
 
+    // ⚠️ REWRITTEN: the overlay reaches 6 px past the padding box (it was 4, which a selected chip's 1.5 px edge left one
+    // pixel short of 44 — measured by `recipeHomeResponsive.spec.ts`'s tap band, which is the real proof; jsdom lays
+    // nothing out, so this only pins the recipe).
     it('keeps a 44px hit area on a coarse pointer around its 36px pill', () => {
         render(<Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />);
 
@@ -88,7 +91,7 @@ describe('Chip (web) — filter', () => {
                 'relative',
                 "before:content-['']",
                 'before:absolute',
-                'pointer-coarse:before:-inset-y-1',
+                'pointer-coarse:before:-inset-y-1.5',
             ]),
         );
     });

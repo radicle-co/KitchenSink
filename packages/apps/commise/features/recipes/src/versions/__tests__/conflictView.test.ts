@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
 import { makeVersionConflictSide } from '../__fixtures__/index.js';
 import {
+    conflictCopyOf,
     countMergeSelections,
     formatMergeSummary,
     formatServerBanner,
@@ -119,5 +120,35 @@ describe('countMergeSelections / formatMergeSummary (W7 Task 5 — running "Summ
         // `composeMergedRecipe`/`composeConflictMerge` still default an absent key to "mine", but the running
         // summary reports what the user actively picked, not the composed result.
         expect(countMergeSelections({ title: 'theirs' })).toEqual({ server: 1, mine: 0 });
+    });
+});
+
+/**
+ * A never-published draft has no versions (ADR-0058), so its 409 never carries a `base` — and must not be told it was
+ * "evicted from history", shown version numbers, or held behind the stale-base gate. The other writer is the same cook,
+ * in another tab or on another device (`staff-ux-engineer`, slice 7).
+ */
+describe('a never-published draft`s conflict', () => {
+    const messages = recipeVersionMessages.en.conflict;
+
+    it('speaks of a draft saved elsewhere, with no version numbers', () => {
+        const copy = conflictCopyOf(messages, true);
+
+        expect(copy.heading).toBe('This draft changed somewhere else');
+        expect(copy.explanation).toBe(
+            'You saved this draft in another tab or on another device while you were editing here. Choose which one to keep.',
+        );
+        expect(copy.serverCardHeading).not.toContain('{version}');
+        expect(copy.yourCardHeading).toBe('This screen');
+        expect(copy.yourCardHeadingUnknown).toBe('This screen');
+    });
+
+    it('leaves a published recipe`s copy as it is', () => {
+        expect(conflictCopyOf(messages, false)).toBe(messages);
+    });
+
+    it('is never held behind the stale-base gate', () => {
+        expect(isConflictBaseStale(undefined, 9, true)).toBe(false);
+        expect(isConflictBaseStale(undefined, 9, false)).toBe(true);
     });
 });

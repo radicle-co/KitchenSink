@@ -101,7 +101,7 @@ export type FixtureRecipeKey = 'lamb' | 'asparagus' | 'salad' | 'risotto' | 'pri
  * The world, before run-scoping.
  *
  * ⚠️ OWNERSHIP IS LOAD-BEARING, not an arbitrary split. `risotto` belongs to the co-author because
- * `discoverClone` clones it and then asserts the owner-only "Edit recipe" appears on the COPY, and
+ * `discoverDetailSaveCopy` saves a copy of it and then lands in the COPY's editor, which only its owner can open, and
  * `rating`'s docblock says it uses a recipe the signer does not own "so the own-recipe gate, Sc8, is NOT
  * engaged". No amount of seeding under one identity produces "a recipe you do not own". The other three are
  * the signer's, which is what makes `searchNavigation`'s "3 recipes" true.

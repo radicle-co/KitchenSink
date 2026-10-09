@@ -1,18 +1,17 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web recipe-list FRAME — the chrome that renders outside the list's suspense boundary, so a
- * pending or failed read never unmounts the heading, the source switcher or the field the viewer is typing in.
+ * The web My recipes FRAME — the chrome outside the list's suspense boundary (`docs/design/uiOverhaul/buildSpec.md`
+ * §4.3): the heading, the My recipes · Collections segments and the design-system search field, so a pending or failed
+ * read never unmounts the field a cook is typing in.
  *
- * Moved from the retired `RecipeList.test.tsx` ("chrome", "U8 brand title band", "source tabs (L5)", the search
- * field's contrast and focus ring, and the notice's focus move — which now arrives as the frame's
- * `headingFocusSignal`, because the notice sits inside the boundary and the heading outside it).
+ * ⚠️ REWRITTEN for slice 4 of the UI overhaul. The My Recipes / Community source switcher is replaced by the route
+ * segments (Discover is its own destination now), the hand-built search input by `SearchField` (whose contrast and
+ * focus ring its own tests pin), and the field hides on the first run. The heading's focus-on-recovery is kept.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
-import { ringContrast, utilityContrast } from '@commise/test-utils';
-import { semantic } from '@commise/ui';
+import { LocaleProvider } from '@commise/i18n/react';
 
 import { RecipeListFrame } from '../RecipeListFrame.js';
 import type { RecipeListFrameProps } from '../model.js';
@@ -20,83 +19,79 @@ import type { RecipeListFrameProps } from '../model.js';
 afterEach(cleanup);
 
 const noop = () => undefined;
-
-/** The source switcher's destinations — the web app's real `/{locale}/…` pair. */
-const HREF = { mine: '/en/recipes', community: '/en/discover' } as const;
+const HREF = { mine: '/en/recipes', collections: '/en/collections' } as const;
 
 function frame(overrides: Partial<RecipeListFrameProps> = {}) {
     return (
-        <RecipeListFrame searchValue="" onSearchChange={noop} headingFocusSignal={0} {...overrides}>
-            {overrides.children ?? <p>boundary content</p>}
-        </RecipeListFrame>
+        <LocaleProvider locale="en">
+            <RecipeListFrame searchValue="" onSearchChange={noop} searchVisible headingFocusSignal={0} {...overrides}>
+                {overrides.children ?? <p>boundary content</p>}
+            </RecipeListFrame>
+        </LocaleProvider>
     );
 }
 
-describe('RecipeListFrame (web) — chrome', () => {
-    it('renders the heading, the search field and whatever the boundary below it renders', () => {
+describe('RecipeListFrame (web)', () => {
+    it('renders the heading, the search field and the boundary under it', () => {
         render(frame());
 
-        expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
-        expect(screen.getByRole('searchbox', { name: 'Search recipes' })).toBeTruthy();
+        expect(screen.getByRole('heading', { level: 1, name: 'Recipes' })).toBeTruthy();
+        expect(screen.getByRole('searchbox', { name: 'Search your recipes' })).toBeTruthy();
         expect(screen.getByText('boundary content')).toBeTruthy();
     });
 
-    it('reflects the controlled search value', () => {
-        render(frame({ searchValue: 'risotto' }));
-
-        expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('risotto');
-    });
-
-    it('reports search input changes upward', () => {
+    it('reports each edit, and clearing returns an empty query', () => {
         const onSearchChange = vi.fn();
-        render(frame({ onSearchChange }));
+        const { rerender } = render(frame({ onSearchChange }));
 
-        // fireEvent.change, not user.type: this harness renders a static `searchValue`, so React's controlled-input
-        // restoration resets the field after every keystroke and user.type would report single characters.
-        fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'lamb' } });
+        fireEvent.change(screen.getByRole('searchbox', { name: 'Search your recipes' }), {
+            target: { value: 'lamb' },
+        });
+        expect(onSearchChange).toHaveBeenLastCalledWith('lamb');
 
-        expect(onSearchChange).toHaveBeenCalledWith('lamb');
+        rerender(frame({ onSearchChange, searchValue: 'lamb' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+
+        expect(onSearchChange).toHaveBeenLastCalledWith('');
     });
-});
 
-describe('RecipeListFrame (web) — the heading sits on the canvas', () => {
-    it('does not wrap the heading in a gradient title band', () => {
+    it('hides the search field when the host says so (the first run), keeping the boundary', () => {
+        render(frame({ searchVisible: false }));
+
+        expect(screen.queryByRole('searchbox')).toBeNull();
+        expect(screen.getByText('boundary content')).toBeTruthy();
+    });
+
+    it('keeps the search field sticky at the top while the list scrolls on a narrow container', () => {
         render(frame());
-        // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): a card exists only to group, and the page
-        // canvas already carries the beach-glow wash, so the heading sits on the canvas, not in a second gradient.
-        let node: HTMLElement | null = screen.getByRole('heading', { name: 'Recipes' });
+        const field = screen.getByRole('searchbox', { name: 'Search your recipes' });
+        const sticky = field.closest('[data-sticky-search]');
 
-        for (; node !== null; node = node.parentElement) {
-            expect(node.style.backgroundImage, 'a gradient surface wraps the heading').not.toContain('linear-gradient');
-        }
+        expect(sticky?.className).toContain('sticky');
+        expect(sticky?.className).toContain('bg-canvas');
     });
 
-    it('threads the Playfair display family onto the list heading', () => {
-        render(frame());
-
-        expect(screen.getByRole('heading', { name: 'Recipes' }).className).toContain('font-display');
-    });
-});
-
-// The switcher's own contract — link semantics, affordance, contrast and touch targets — is owned by
-// `RecipeSourceTabs.test.tsx`. What belongs HERE is the composition: that the frame mounts it.
-describe('RecipeListFrame (web) — source tabs (L5)', () => {
-    it('renders no source switcher when no tab prop is given', () => {
+    it('renders no segments without a segments control', () => {
         render(frame());
 
-        expect(screen.queryByRole('navigation', { name: 'Recipe source' })).toBeNull();
+        expect(screen.queryByRole('navigation', { name: 'Recipes' })).toBeNull();
     });
 
-    it('mounts the shared switcher with the active source marked and BOTH destinations reachable', () => {
-        render(frame({ tab: { active: 'mine', href: HREF } }));
+    it('renders My recipes · Collections as route segments, the current one marked, a plain click handed over', () => {
+        const onSelect = vi.fn();
+        render(frame({ segments: { current: 'mine', href: HREF, onSelect } }));
+        const nav = screen.getByRole('navigation', { name: 'Recipes' });
+        const mine = within(nav).getByRole('link', { name: 'My recipes' });
+        const collections = within(nav).getByRole('link', { name: 'Collections' });
 
-        const nav = screen.getByRole('navigation', { name: 'Recipe source' });
-        expect(within(nav).getByRole('link', { name: 'My Recipes' }).getAttribute('aria-current')).toBe('page');
-        expect(within(nav).getByRole('link', { name: 'Community' }).getAttribute('href')).toBe('/en/discover');
+        expect(mine.getAttribute('aria-current')).toBe('page');
+        expect(collections.getAttribute('href')).toBe('/en/collections');
+
+        fireEvent.click(collections, { button: 0 });
+
+        expect(onSelect).toHaveBeenCalledWith('collections');
     });
-});
 
-describe('RecipeListFrame (web) — the heading takes focus when a refresh recovers', () => {
     it('⛔ moves focus to the heading when the recovery signal advances, and not on mount', () => {
         const { rerender } = render(frame());
 
@@ -105,52 +100,5 @@ describe('RecipeListFrame (web) — the heading takes focus when a refresh recov
         rerender(frame({ headingFocusSignal: 1 }));
 
         expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Recipes' }));
-    });
-});
-
-describe('RecipeListFrame (web) — text contrast (WCAG 2.1 AA)', () => {
-    it('keeps the search field’s PLACEHOLDER text legible on the field', () => {
-        render(frame());
-
-        // Placeholder copy is TEXT — the field's only visible instruction before they type — so it owes 4.5:1;
-        // `mist` measured 1.90:1 here. Measured as its own `placeholder:` variant, since the base `text-ink`
-        // is the VALUE colour and would mask the defect.
-        expect(
-            utilityContrast(screen.getByRole('searchbox', { name: 'Search recipes' }).className, {
-                surface: semantic.card,
-                variant: 'placeholder',
-            }),
-            'recipe-list search placeholder on the card-white field',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-});
-
-/**
- * The frame is a `<section>` on the app background, so that is the surface its search field's focus ring is drawn
- * on — a Tailwind `ring-*` is a spread box-shadow OUTSIDE the border box. The ring shipped as `ring-focus-ring`
- * (2.58:1), under the 3:1 SC 1.4.11 floor (#114), and `outline-none` makes it the ONLY focus indicator.
- */
-describe('RecipeListFrame (web) — the search field’s focus ring clears the 3:1 SC 1.4.11 floor', () => {
-    it('rings the search box legibly against the page it sits on', () => {
-        render(frame());
-
-        const search = screen.getByRole('searchbox', { name: 'Search recipes' });
-
-        expect(search.className, 'the browser outline is suppressed, so the ring is the whole indicator') //
-            .toContain('outline-none');
-        expect(
-            ringContrast(search.className, { surface: semantic.background }),
-            'recipe-search focus ring',
-        ).toBeGreaterThanOrEqual(3);
-    });
-
-    it('out-measures the `seafoam-light` it replaced', () => {
-        render(frame());
-
-        expect(
-            ringContrast(screen.getByRole('searchbox', { name: 'Search recipes' }).className, {
-                surface: semantic.background,
-            }),
-        ).toBeGreaterThan(ringContrast('ring-2 ring-seafoam-light', { surface: semantic.background }));
     });
 });

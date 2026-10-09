@@ -58,6 +58,9 @@ export default defineConfig({
         passWithNoTests: true,
         include: ['**/__tests__/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
+        // `expo-glass-effect` ships plain JS whose non-iOS leaves are a `View` and two `false`s; inlined so its
+        // `react-native` import takes the alias above instead of Node loading React Native's Flow source.
+        server: { deps: { inline: ['expo-glass-effect'] } },
     },
     resolve: {
         alias: {

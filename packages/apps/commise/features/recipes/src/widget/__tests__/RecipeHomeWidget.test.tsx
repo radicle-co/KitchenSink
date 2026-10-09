@@ -1,148 +1,178 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web recipe Home widget — its Suspense-driven states: the skeleton fallback
- * while the recipes promise is pending, the recent-recipes list once it resolves, and the empty state
- * when the viewer has none. (Loading is a `<Suspense>` boundary, not an `isLoading` flag.)
+ * The web Home "Recent recipes" block (`docs/design/uiOverhaul/buildSpec.md` §4.2, owner ruling D8): its heading with
+ * "See all", up to four cards in the variant the host decided (compact below a 960 container, the full grid card from
+ * 960), the first run with its three ways in, the loading skeletons and the load error with Try again.
+ *
+ * ⚠️ REWRITTEN for slice 4 of the UI overhaul, with the per-component tests of the pieces it composes
+ * (`RecentRecipeGrid`, `RecentRecipeItem`, `RecipeWidgetCard`, `RecipeWidgetEmptyState`, `RecipeWidgetSkeleton`) moved
+ * here: the block is now one heading row, one grid in a decided variant, and a first run with actions, so its states are
+ * tested through the entry the host mounts. The Suspense and `renderNutrition` hop assertions are kept.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { LocaleProvider } from '@commise/i18n/react';
 import type { Recipe } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
-import RecipeHomeWidget from '../RecipeHomeWidget.js';
+import { RecipeWidgetLoadError } from '../../components/RecipeWidgetLoadError.js';
+import { RecipeWidgetLoadingCard } from '../../components/RecipeWidgetLoadingCard.js';
+import RecipeHomeWidget, { type RecipeHomeWidgetProps } from '../RecipeHomeWidget.js';
 
 afterEach(cleanup);
 
-describe('RecipeHomeWidget (web)', () => {
-    it('shows the skeleton fallback while the recipes promise is pending', () => {
-        // A promise that never settles keeps the widget suspended → the fallback is rendered.
-        const { container } = render(<RecipeHomeWidget recipesPromise={new Promise<readonly Recipe[]>(() => {})} />);
+const fourRecipes = ['r1', 'r2', 'r3', 'r4', 'r5'].map((id) => makeRecipe({ id, title: `Recipe ${id}` }));
 
-        expect(screen.getByText('Recent recipes')).toBeTruthy(); // the card title
-        expect(container.querySelector('[role="presentation"]')).not.toBeNull(); // the skeleton
-        expect(screen.queryByRole('article')).toBeNull(); // no recipe rows yet
-        expect(screen.queryByText(/No recipes yet/i)).toBeNull(); // and NOT the empty state
+async function renderWidget(props: Partial<RecipeHomeWidgetProps> = {}) {
+    await act(async () => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeHomeWidget recipesPromise={Promise.resolve(fourRecipes)} variant="compact" {...props} />
+            </LocaleProvider>,
+        );
+    });
+}
+
+describe('RecipeHomeWidget (web) — recent recipes', () => {
+    it('heads the block with "Recent recipes" as an H2', async () => {
+        await renderWidget();
+
+        expect(screen.getByRole('heading', { level: 2, name: 'Recent recipes' })).toBeTruthy();
     });
 
-    it('renders the recent recipes once the promise resolves', async () => {
-        const recipes = [
-            makeRecipe({ id: 'r1', title: 'Weeknight Pasta' }),
-            makeRecipe({ id: 'r2', title: 'Chana Masala' }),
-        ];
+    it('shows at most four cards, in the variant the host decided', async () => {
+        await renderWidget({ variant: 'grid' });
+        const cards = screen.getAllByRole('article');
 
-        // act flushes the promise resolution + Suspense retry so the content replaces the fallback.
-        let container: HTMLElement | undefined;
-        await act(async () => {
-            container = render(<RecipeHomeWidget recipesPromise={Promise.resolve(recipes)} />).container;
-        });
-
-        expect(screen.getByText('Weeknight Pasta')).toBeTruthy();
-        expect(screen.getByText('Chana Masala')).toBeTruthy();
-        // "Skeleton gone", asserted the same way the pending case asserts "skeleton present" (line above): by
-        // the skeleton's own EXPLICIT `role="presentation"` node. The previous `screen.queryByRole(
-        // 'presentation')` could not fail — the skeleton is `aria-hidden`, so a role query never saw it either
-        // way — and it did not distinguish the skeleton from any decorative element. It broke the moment the
-        // recipe cover became a decorative `alt=""` image (#140), which is an implicit presentation role.
-        expect(container?.querySelector('[role="presentation"]')).toBeNull();
+        expect(cards).toHaveLength(4);
+        expect(cards.map((card) => card.getAttribute('data-card-variant'))).toEqual(['grid', 'grid', 'grid', 'grid']);
     });
 
-    it('caps the list at MAX_RECENT_RECIPES', async () => {
-        const many = Array.from({ length: 8 }, (_unused, index) =>
-            makeRecipe({ id: `r${index}`, title: `Recipe ${index}` }),
+    it('lays the cards out in Home’s grid: 2 × 2 on a phone, one row of four from 600', async () => {
+        await renderWidget();
+        const list = screen.getByRole('list');
+
+        expect(list.className).toContain('grid-cols-2');
+        expect(list.className).toContain('@regular/main:grid-cols-4');
+    });
+
+    it('offers "See all", named "See all recipes", at the end of the heading row', async () => {
+        const onPress = vi.fn();
+        await renderWidget({ seeAll: { href: '/en/recipes', onPress } });
+
+        const link = screen.getByRole('link', { name: 'See all recipes' });
+        expect(link.textContent).toBe('See all');
+        expect(link.getAttribute('href')).toBe('/en/recipes');
+
+        await userEvent.click(link);
+
+        expect(onPress).toHaveBeenCalledTimes(1);
+    });
+
+    it('makes each card a link when the host gives an href, reporting a plain click', async () => {
+        const onSelectRecipe = vi.fn();
+        await renderWidget({ onSelectRecipe, hrefOf: (id) => `/en/recipes/${id}` });
+
+        await userEvent.click(screen.getByRole('link', { name: 'Recipe r2' }));
+
+        expect(onSelectRecipe).toHaveBeenCalledWith('r2');
+    });
+
+    it('renders inert cards with no onSelectRecipe and no href', async () => {
+        await renderWidget();
+
+        expect(within(screen.getByRole('list')).queryByRole('link')).toBeNull();
+        expect(within(screen.getByRole('list')).queryByRole('button')).toBeNull();
+    });
+
+    it('⛔ calls renderNutrition once per card with its own id, across the Suspense hop', async () => {
+        const renderNutrition = vi.fn((recipeId: string) => <span>{`kcal:${recipeId}`}</span>);
+        await renderWidget({ variant: 'grid', renderNutrition });
+
+        expect(renderNutrition.mock.calls.map(([id]) => id)).toStrictEqual(['r1', 'r2', 'r3', 'r4']);
+        expect(screen.getByText('kcal:r3')).toBeTruthy();
+    });
+
+    it('shows the loading skeletons while the promise is pending, under the real heading', () => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeHomeWidget recipesPromise={new Promise<readonly Recipe[]>(() => undefined)} variant="compact" />
+            </LocaleProvider>,
         );
 
-        await act(async () => {
-            render(<RecipeHomeWidget recipesPromise={Promise.resolve(many)} />);
+        expect(screen.getByRole('heading', { level: 2, name: 'Recent recipes' })).toBeTruthy();
+        expect(screen.getByRole('status').textContent).toContain('Loading recipes');
+    });
+});
+
+describe('RecipeHomeWidget (web) — the first run', () => {
+    it('says where recipes will show, offers the three ways in, and drops "See all"', async () => {
+        const onCreateRecipe = vi.fn();
+        const onPasteIngredients = vi.fn();
+        const onFindOnDiscover = vi.fn();
+        await renderWidget({
+            recipesPromise: Promise.resolve([]),
+            seeAll: { href: '/en/recipes', onPress: vi.fn() },
+            firstRun: { onCreateRecipe, onPasteIngredients, onFindOnDiscover, discoverHref: '/en/discover' },
         });
 
-        expect(screen.getAllByRole('article')).toHaveLength(4); // MAX_RECENT_RECIPES
+        expect(screen.getByText('Your recipes will show up here.')).toBeTruthy();
+        expect(screen.queryByRole('link', { name: 'See all recipes' })).toBeNull();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Add your first recipe' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Paste ingredients' }));
+        await userEvent.click(screen.getByRole('link', { name: 'Or find one on Discover' }));
+
+        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+        expect(onPasteIngredients).toHaveBeenCalledTimes(1);
+        expect(onFindOnDiscover).toHaveBeenCalledTimes(1);
     });
 
-    it('renders the empty state when the viewer has no recipes', async () => {
-        await act(async () => {
-            render(<RecipeHomeWidget recipesPromise={Promise.resolve<readonly Recipe[]>([])} />);
-        });
+    it('still says where recipes will show when the host offers no actions', async () => {
+        await renderWidget({ recipesPromise: Promise.resolve([]) });
 
-        expect(screen.getByText(/No recipes yet/i)).toBeTruthy();
-        expect(screen.queryByRole('article')).toBeNull();
+        expect(screen.getByText('Your recipes will show up here.')).toBeTruthy();
+        expect(screen.queryByRole('button')).toBeNull();
+    });
+});
+
+describe('the Home recent block’s own fallbacks (web)', () => {
+    it('loading: four skeletons of the variant in use, under the heading', () => {
+        const { container } = render(
+            <LocaleProvider locale="en">
+                <RecipeWidgetLoadingCard variant="grid" />
+            </LocaleProvider>,
+        );
+
+        expect(screen.getByRole('heading', { level: 2, name: 'Recent recipes' })).toBeTruthy();
+        expect(container.querySelectorAll('[data-skeleton-variant="grid"]')).toHaveLength(4);
     });
 
-    it('lays the resolved recipes out as the mockup card GRID, not a vertical stack', async () => {
-        let container!: HTMLElement;
+    it('load error: says so under the heading, with Try again', async () => {
+        const onRetry = vi.fn();
+        render(
+            <LocaleProvider locale="en">
+                <RecipeWidgetLoadError onRetry={onRetry} />
+            </LocaleProvider>,
+        );
 
-        await act(async () => {
-            ({ container } = render(
-                <RecipeHomeWidget recipesPromise={Promise.resolve([makeRecipe({ id: 'r1', title: 'Ragu' })])} />,
-            ));
-        });
+        expect(screen.getByRole('heading', { level: 2, name: 'Recent recipes' })).toBeTruthy();
+        expect(screen.getByText('We couldn’t load your recent recipes.')).toBeTruthy();
 
-        const className = container.querySelector('ul')?.className ?? '';
-        expect(className).toContain('grid-cols-2');
-        expect(className).toContain('md:grid-cols-4');
+        await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
-    it('reports the activated recipe’s id to onSelectRecipe (the navigation seam the host owns)', async () => {
-        const user = userEvent.setup();
-        const onSelectRecipe = vi.fn();
-        const recipes = [
-            makeRecipe({ id: 'r1', title: 'Weeknight Pasta' }),
-            makeRecipe({ id: 'r2', title: 'Chana Masala' }),
-        ];
+    it('load error with no retry: says so, with no dead button', () => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeWidgetLoadError />
+            </LocaleProvider>,
+        );
 
-        await act(async () => {
-            render(<RecipeHomeWidget recipesPromise={Promise.resolve(recipes)} onSelectRecipe={onSelectRecipe} />);
-        });
-
-        await user.click(screen.getByRole('button', { name: 'Chana Masala' }));
-
-        expect(onSelectRecipe).toHaveBeenCalledExactlyOnceWith('r2');
-    });
-
-    it('renders inert cards when the host supplies no onSelectRecipe (no dead buttons)', async () => {
-        await act(async () => {
-            render(<RecipeHomeWidget recipesPromise={Promise.resolve([makeRecipe({ id: 'r1', title: 'Ragu' })])} />);
-        });
-
-        expect(screen.getByRole('article', { name: 'Ragu' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Ragu' })).toBeNull();
-    });
-
-    /**
-     * ⛔ The `renderNutrition` seam must survive the widget's OWN Suspense hop (ADR-0021 §6). The outer
-     * component and the suspending content component are two different functions here, and the prop has to be
-     * threaded through both — a widget that accepts the prop, type-checks, and quietly drops it between them
-     * renders exactly like a host that never supplied one, so no other test in this file (and nothing in the
-     * host's suite that only asserts "no chip appears") can tell the two apart. That defect shipped: the
-     * declared prop reached `RecipeHomeWidgetProps`, `RecentRecipeGrid` forwarded it, and the widget's own
-     * root never passed it down, so web's Home widget could not render a figure at all.
-     */
-    it('calls renderNutrition once per rendered card, with that card’s own recipe id', async () => {
-        const renderNutrition = vi.fn((recipeId: string) => <span>{`kcal:${recipeId}`}</span>);
-        const recipes = [
-            makeRecipe({ id: 'r1', title: 'Weeknight Pasta' }),
-            makeRecipe({ id: 'r2', title: 'Chana Masala' }),
-        ];
-
-        await act(async () => {
-            render(<RecipeHomeWidget recipesPromise={Promise.resolve(recipes)} renderNutrition={renderNutrition} />);
-        });
-
-        // The NODE reaches the DOM (a widget that called the prop and discarded the result would pass a
-        // call-count-only assertion), and each card asked about ITSELF — not the first recipe, twice.
-        expect(screen.getByText('kcal:r1')).toBeTruthy();
-        expect(screen.getByText('kcal:r2')).toBeTruthy();
-        expect(renderNutrition.mock.calls.map(([recipeId]) => recipeId)).toStrictEqual(['r1', 'r2']);
-    });
-
-    it('renders no nutrition node at all when the host supplies no renderNutrition', async () => {
-        await act(async () => {
-            render(<RecipeHomeWidget recipesPromise={Promise.resolve([makeRecipe({ id: 'r1', title: 'Ragu' })])} />);
-        });
-
-        // The counterweight: a widget hard-wiring its own placeholder (or a fabricated zero) into the slot
-        // would satisfy the test above and fabricate a figure on every unwired surface.
-        expect(screen.queryByText(/cal/iu)).toBeNull();
+        expect(screen.queryByRole('button')).toBeNull();
     });
 });

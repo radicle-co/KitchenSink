@@ -93,7 +93,7 @@ export {
     narrowLibrary,
     sortLabelOf,
 } from './list/library.js';
-export type { LibraryFacet, LibraryState } from './list/library.js';
+export type { LibraryFacet, LibraryState } from './list/libraryTypes.js';
 export { VIEW_MODE_KEY, viewModeCookieFor, viewModeFrom, viewModeOf } from './list/viewModePreference.js';
 export { useMainContainerClass } from './layout/useMainContainerClass.js';
 export { RecipeSourceTabs } from './list/RecipeSourceTabs.js';
@@ -132,6 +132,7 @@ export { ServingScaleControl } from './detail/ServingScaleControl.js';
 export { formatQuantity, isUnreachableRecovery } from './detail/model.js';
 export { resetServingScale } from './detail/servingScale.js';
 export { CookMarksProvider } from './detail/CookMarksProvider.js';
+export { clearStoredCookMarks } from './detail/cookMarksBackend.js';
 export { detailMenuOf } from './detail/detailMenu.js';
 export { useCookMarks } from './detail/useCookMarks.js';
 export { useServingScale } from './detail/useServingScale.js';
@@ -163,6 +164,7 @@ export type {
 export { ChipInput } from './form/ChipInput.js';
 export { RecipeBasicsFields } from './form/RecipeBasicsFields.js';
 export { RecipeIngredientsFields } from './form/RecipeIngredientsFields.js';
+export { IngredientsNutritionFoot, type IngredientsNutritionFootProps } from './form/IngredientsNutritionFoot.js';
 export { RecipeInstructionsFields } from './form/RecipeInstructionsFields.js';
 export { RecipeVisibilityField } from './form/RecipeVisibilityField.js';
 export {
@@ -184,8 +186,6 @@ export {
     parseNumericInput,
     removeChipAt,
     resolutionStatusLabel,
-    reviewIngredientLabel,
-    reviewRows,
 } from './form/props.js';
 export { computeTotalTime } from './form/totalTime.js';
 export { validateRecipeForm } from './form/validate.js';
@@ -202,7 +202,6 @@ export type {
     RecipeFormMode,
     RecipeFormSectionProps,
     RecipeIngredientsFieldsProps,
-    RecipeReviewRow,
 } from './form/props.js';
 export type { RecipeFormErrors } from './form/validate.js';
 export type { RecipeFormIngredient, RecipeFormPhoto, RecipeFormStep, RecipeFormValues } from './form/values.js';

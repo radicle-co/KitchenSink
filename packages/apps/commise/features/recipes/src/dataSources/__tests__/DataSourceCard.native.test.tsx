@@ -7,6 +7,7 @@
  * for word.
  */
 import { role, roleDark } from '@commise/ui/colors';
+import { systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -18,17 +19,16 @@ const rgb = (hex: string): string => {
     return `rgb(${r}, ${g}, ${b})`;
 };
 
-const device = vi.hoisted(() => ({ scheme: null as 'light' | 'dark' | null }));
-
 // `accessibilityLanguage` is iOS's; react-native-web maps only its own `lang`, so under jsdom the prop would vanish and
 // no test could see it. This forwards it to `lang` the way VoiceOver consumes it, and changes nothing else.
 vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
     const actual = await importOriginal<typeof import('react-native')>();
     const { createElement } = await import('react');
     const Text = (props: { accessibilityLanguage?: string }) =>
         createElement(actual.Text, { ...props, lang: props.accessibilityLanguage } as never);
 
-    return { ...actual, Text, useColorScheme: () => device.scheme };
+    return { ...withSystemScheme(actual), Text };
 });
 
 import { CIQUAL_SOURCE, SWISS_SOURCE, makeDataSource } from '../__fixtures__/makeDataSource.js';
@@ -37,7 +37,7 @@ import { DataSourceCard } from '../DataSourceCard.native.js';
 
 afterEach(() => {
     cleanup();
-    device.scheme = null;
+    systemScheme.current = null;
 });
 
 describe('DataSourceCard (native)', () => {
@@ -45,7 +45,7 @@ describe('DataSourceCard (native)', () => {
     it.each(['light', 'dark'] as const)(
         'paints the heading, the name and the licence link from the %s roles',
         (scheme) => {
-            device.scheme = scheme;
+            systemScheme.current = scheme;
             const colors = scheme === 'dark' ? roleDark : role;
 
             render(<DataSourceCard source={makeDataSource()} onOpen={vi.fn()} />);

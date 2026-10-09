@@ -22,11 +22,6 @@ import { recipeMessages } from '../messages.js';
 import type { StepRowProps } from './cookRowProps.js';
 import { stepTimerLabel } from './model.js';
 
-/** `dataSet` is a react-native-web runtime prop (→ DOM `data-*`) absent from react-native's `ViewProps`. */
-const MarkedView = View as unknown as FC<
-    React.ComponentProps<typeof View> & { readonly dataSet?: Record<string, string> }
->;
-
 /** The native step row. */
 export const StepRow: FC<StepRowProps> = ({ step, current, onToggle }) => {
     const { detail, duration } = useMessages(recipeMessages);
@@ -35,9 +30,7 @@ export const StepRow: FC<StepRowProps> = ({ step, current, onToggle }) => {
 
     return (
         <Pressable accessible={false} onPress={() => onToggle(step.stepNumber)} style={styles.row}>
-            {current ? (
-                <MarkedView dataSet={{ hereBar: '' }} style={[styles.hereBar, { backgroundColor: colors.hereBar }]} />
-            ) : null}
+            {current ? <View style={[styles.hereBar, { backgroundColor: colors.hereBar }]} /> : null}
             <Pressable
                 role="button"
                 aria-pressed={current}

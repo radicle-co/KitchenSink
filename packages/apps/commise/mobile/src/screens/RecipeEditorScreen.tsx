@@ -18,6 +18,7 @@
  */
 import {
     pendingIngredientIds,
+    IngredientsNutritionFoot,
     RecipeBasicsFields,
     PasteListSheet,
     PasteStepsControl,
@@ -356,6 +357,8 @@ function RecipeEditorSession({
                 pendingEntryText={rowEditor.entry.pendingEntryText}
                 pastePending={paste.pending}
                 sections={sections}
+                // §7.2 and §7.5.6: a wide tablet's rail foot shows the Ingredients total too, from the same draft and read.
+                railFooter={<IngredientsNutritionFoot values={editor.values} nutrition={nutrition} />}
                 headingActions={{
                     ...(paste.inHeading
                         ? {

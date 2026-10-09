@@ -4,7 +4,7 @@ import type { RecipeDetail } from '@kitchensink/recipe-core';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi, ownFoodLedger, type MockFoodApiOptions } from './utils/foodApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { openRecipeEditor } from './utils/recipeEditor';
+import { chooseRowAction, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * REWRITTEN for plan 002 S7.8: the ingredient search when part of it cannot answer
@@ -17,12 +17,13 @@ import { openRecipeEditor } from './utils/recipeEditor';
  * the search failing, never as the cook's lookup limit. Offline, the list says it is waiting for a connection, and
  * fills in once the connection is back. In every state the ways to fill a name that is not listed stay.
  *
- * The search runs from a declared line's own field (SPECIFY.1 row 2), an entry field on the edit form. What only this
+ * The search runs from a declared line's own field (SPECIFY.1 row 1), opened from its `⋯` Find a food for this (the
+ * read row's way into its search, build spec §7.5.1). What only this
  * tier proves: a real browser's stream, a real `429` and a real offline switch reach the list as these sentences. The
  * per-state rules are pinned by the component tests (`RecipeIngredientsFields.rowEditor.test.tsx`, `entryCombobox`).
  * Selectors are role, label and text only.
  */
-const RECIPE_ID = 'rec_search_degraded';
+const RECIPE_ID = 'ec000000-0000-4000-8000-00000000002a';
 const MY_PAPRIKA = { id: 'food_my_paprika', name: 'smoked paprika, my blend', score: 0.8 } as const;
 const CATALOG_PAPRIKA = { id: 'food_paprika', name: 'Spices, paprika', score: 0.9 } as const;
 
@@ -67,9 +68,9 @@ async function openTheList(
     await setUp(page);
 
     await openRecipeEditor(page, RECIPE_ID);
+    await chooseRowAction(page, 'paprika', 'Find a food for this');
     const field = page.getByRole('combobox', { name: 'Ingredient 1 name' });
 
-    await field.click();
     await field.press('ArrowDown');
 
     return page.getByRole('listbox', { name: 'Food suggestions for ingredient 1' });
@@ -168,6 +169,7 @@ test.describe('the ingredient search when part of it cannot answer (S7 list cont
 
         online = false;
         await context.setOffline(true);
+        await chooseRowAction(page, 'paprika', 'Find a food for this');
         const field = page.getByRole('combobox', { name: 'Ingredient 1 name' });
 
         await field.fill('paprika powder');

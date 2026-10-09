@@ -365,3 +365,39 @@ describe('Popover (web) — once it is gone', () => {
         },
     );
 });
+
+/**
+ * The attention line (build spec §7.5.1): a read row that needs the cook says why in a visible line that IS the
+ * panel's trigger. The words show, the glyph stays decorative, and the name (which carries the row) contains the
+ * visible words (SC 2.5.3).
+ */
+describe('Popover (web) — a text trigger', () => {
+    it('shows its words beside the glyph and keeps the name, which contains them', () => {
+        renderPopover({
+            triggerLabel: 'Choose a match for Kale',
+            triggerText: 'Choose a match',
+            triggerIcon: 'triangleAlert',
+        });
+
+        const button = screen.getByRole('button', { name: 'Choose a match for Kale' });
+
+        expect(button.textContent).toBe('Choose a match');
+        expect(button.querySelector('[aria-hidden="true"] svg')).not.toBeNull();
+        expect(button.getAttribute('aria-haspopup')).toBe('dialog');
+    });
+
+    it('opens the same panel as the glyph trigger', async () => {
+        const user = userEvent.setup();
+        renderPopover({ triggerLabel: 'Choose a match for Kale', triggerText: 'Choose a match' });
+
+        await user.click(screen.getByRole('button', { name: 'Choose a match for Kale' }));
+
+        expect(screen.getByRole('dialog', { name: 'Kale' }).textContent).toContain('No match for this.');
+    });
+
+    it('a glyph trigger draws no words', () => {
+        renderPopover();
+
+        expect(trigger().textContent).toBe('');
+    });
+});

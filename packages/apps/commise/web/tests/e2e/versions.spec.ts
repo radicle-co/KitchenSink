@@ -37,7 +37,7 @@ import { signInWithTicket } from './utils/auth';
  * - FR-007b Compare (W6 Task 4) → "compares two versions with the Diff Summary and changed-only fields"
  * - Restore (T069, W6 Task 5) → "restores a past version and the current version advances"
  */
-const RECIPE_ID = 'rec_pasta';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000019';
 
 const oliveOil = {
     id: 'ri_1',

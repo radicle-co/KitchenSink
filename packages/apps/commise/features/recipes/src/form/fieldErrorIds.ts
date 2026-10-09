@@ -97,9 +97,6 @@ export const ingredientQuantityDescribedBy = (
     return ids.length === 0 ? undefined : ids.join(' ');
 };
 
-/** The id of the wrapper around a row's status word (web): the glyph's description (V1 sign-off 1). */
-export const ingredientStatusWordId = (key: string): string => `recipe-ingredient-${key}-status-word`;
-
 /** The id of one row's pending sentence: text a save refused (§4b; `docs/design/rowEditorOpenDecisions.md` item 4). */
 export const ingredientPendingTextId = (key: string): string => `recipe-ingredient-${key}-pending-text`;
 

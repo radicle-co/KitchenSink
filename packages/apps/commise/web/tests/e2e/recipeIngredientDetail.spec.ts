@@ -5,7 +5,7 @@ import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
-import { addStep, setServings } from './utils/recipeEditor';
+import { addStep, openIngredientEditor, setServings } from './utils/recipeEditor';
 
 /**
  * A line's PREPARATION and its SECTION, end to end (plan U26 / U27).
@@ -44,21 +44,24 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         await page.getByLabel('Title').fill('E2E Marinade Bowl');
         await setServings(page, 4);
 
-        // Ingredients — resolve a catalog line, then state its preparation and its section.
-        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
+        // Ingredients — REWRITTEN for the overhaul (build spec §7.5.3, §7.5.5): name a group first, then type the
+        // amount, the food and, after a comma, the preparation into that group's add field, and pick the food.
+        await page.getByRole('button', { name: 'Add a group' }).click();
+        await page.getByRole('textbox', { name: 'Group name' }).fill('For the marinade');
+        await page.getByRole('button', { name: 'Save' }).click();
+        await expect(page.getByRole('heading', { name: 'For the marinade' })).toBeVisible();
+
+        await page.getByRole('combobox', { name: 'Add to For the marinade' }).fill('2 cups salt, finely chopped');
         await page
             .getByRole('group', { name: 'Food catalog' })
             .getByRole('option', { name: 'Salt', exact: true })
             .click();
 
-        await page.getByLabel('Ingredient 1 quantity').fill('2');
-        await page.getByLabel('Ingredient 1 unit').fill('cups');
-        await page.getByLabel('Ingredient 1 preparation').fill('finely chopped');
-        await page.getByLabel('Ingredient 1 section').fill('For the marinade');
-
-        // ⛔ THE SECTION HEADING APPEARS, in the editor, as soon as a line carries a label — the fold is
-        // derived from the draft, not from a save.
-        await expect(page.getByRole('heading', { name: 'For the marinade' })).toBeVisible();
+        // ⛔ The line lands in the group, read amount first with its preparation after the name. The reader stores the
+        // unit in its canonical spelling (`readLeadingMeasure`: "cups" is `cup`).
+        await expect(
+            page.getByRole('list', { name: 'For the marinade' }).getByRole('button', { name: 'Edit 2 cup Salt' }),
+        ).toHaveText('2 cupSalt · finely chopped');
 
         await addStep(page, 'Marinate and grill.');
         await page.getByRole('button', { name: 'Publish' }).click();
@@ -78,9 +81,10 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         // RE-OPEN — both values are re-seeded. Dropping either here is the narrowing defect.
         await page.getByRole('link', { name: 'Edit recipe' }).click();
 
-        await expect(page.getByLabel('Ingredient 1 preparation')).toHaveValue('finely chopped');
-        await expect(page.getByLabel('Ingredient 1 section')).toHaveValue('For the marinade');
         await expect(page.getByRole('heading', { name: 'For the marinade' })).toBeVisible();
+        const fields = await openIngredientEditor(page, 'Salt');
+
+        await expect(fields.getByLabel('Preparation')).toHaveValue('finely chopped');
     });
 
     test('⛔ an UNGROUPED recipe stays a flat list, with no section chrome anywhere', async ({ page }) => {
@@ -100,7 +104,6 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
             .getByRole('group', { name: 'Food catalog' })
             .getByRole('option', { name: 'Salt', exact: true })
             .click();
-        await page.getByLabel('Ingredient 1 quantity').fill('1');
 
         // ⛔ The whole Ingredients section carries NO ingredient-section heading. `level: 3` is that heading's level;
         // the editor section's own "Ingredients" heading is a level 2 and is unaffected.

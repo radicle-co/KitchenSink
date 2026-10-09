@@ -312,6 +312,20 @@ describe('ActionMenu (web) — the overhaul contract', () => {
         expect(trigger.querySelector('svg.lucide-ellipsis')).not.toBeNull();
     });
 
+    // WCAG 1.4.10: a row's ⋯ holds up to seven items, which at 200% text in a 360 px tall window is taller than the space
+    // Radix finds. The menu then scrolls inside the room it has rather than running off the page, where an item cannot
+    // be reached (measured by `ingredientListGeometry.spec.ts` at 640 × 360, 200%).
+    it('keeps to the height the page leaves it, and scrolls inside itself past that', async () => {
+        const user = userEvent.setup();
+        const { trigger } = renderMenu();
+        await user.click(trigger);
+
+        const { className } = screen.getByRole('menu');
+
+        expect(className).toContain('max-h-[var(--radix-dropdown-menu-content-available-height)]');
+        expect(className).toContain('overflow-y-auto');
+    });
+
     it('places the destructive item last, after a divider, in the danger label', async () => {
         const user = userEvent.setup();
         const { trigger } = renderMenu();

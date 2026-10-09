@@ -10,21 +10,19 @@
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { formatRgb } from 'culori';
 import { useState, type FC } from 'react';
 
 import { AccessibilityInfo } from 'react-native';
 
 import { role, roleDark } from '@commise/ui/colors';
-
-const device = vi.hoisted(() => ({ scheme: null as 'light' | 'dark' | null }));
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
-        ...actual,
-        useColorScheme: () => device.scheme,
+        ...withSystemScheme(actual),
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
     };
 });
@@ -39,7 +37,7 @@ const e = editorMessages.en;
 
 afterEach(() => {
     cleanup();
-    device.scheme = null;
+    systemScheme.current = null;
 });
 
 const withSteps = (steps: readonly RecipeFormStep[]): RecipeFormValues => ({ ...defaultRecipeFormValues(), steps });
@@ -110,14 +108,14 @@ describe('RecipeInstructionsFields (native) — the list', () => {
     });
 
     it.each(['light', 'dark'] as const)('paints the numeral in the selected fill in the %s scheme', (scheme) => {
-        device.scheme = scheme;
+        systemScheme.current = scheme;
         renderLive();
 
         const numeral = within(item(0)).getByText('1');
         const theme = scheme === 'dark' ? roleDark : role;
 
-        expect(getComputedStyle(numeral.parentElement ?? numeral).backgroundColor).toBe(formatRgb(theme.selectedFill));
-        expect(getComputedStyle(numeral).color).toBe(formatRgb(theme.ink));
+        expect(getComputedStyle(numeral.parentElement ?? numeral).backgroundColor).toBe(rgb(theme.selectedFill));
+        expect(getComputedStyle(numeral).color).toBe(rgb(theme.ink));
     });
 
     it('a return inserts a line break', () => {

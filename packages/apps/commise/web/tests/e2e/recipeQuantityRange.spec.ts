@@ -4,7 +4,7 @@ import { route } from './utils/basePath';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
-import { addStep, openRecipeEditor, setServings } from './utils/recipeEditor';
+import { addStep, openIngredientEditor, openRecipeEditor, setServings } from './utils/recipeEditor';
 
 /**
  * Ranged and absent ingredient quantities, end to end (U9 / R40, R42; acceptance AE20 + AE21).
@@ -48,9 +48,14 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
             .getByRole('option', { name: 'Salt', exact: true })
             .click();
 
-        await page.getByLabel('Ingredient 1 quantity').fill('2');
-        await page.getByLabel('Ingredient 1 maximum quantity').fill('3');
-        await page.getByLabel('Ingredient 1 unit').fill('cups');
+        // Build spec §7.5.2: the amount, its range and the unit live in the row's editor.
+        const fields = await openIngredientEditor(page, 'Salt');
+
+        await fields.getByLabel('Amount', { exact: true }).fill('2');
+        await fields.getByRole('button', { name: 'Add a range' }).click();
+        await fields.getByLabel('Amount, up to').fill('3');
+        await fields.getByRole('combobox', { name: 'Unit' }).fill('cups');
+        await fields.getByRole('button', { name: 'Done' }).click();
 
         await addStep(page, 'Mix and bake.');
         await page.getByRole('button', { name: 'Publish' }).click();
@@ -66,10 +71,12 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
 
         // EDIT — re-open and confirm the seed carries BOTH bounds, then widen the upper one and save.
         await openRecipeEditor(page, createdId ?? '');
-        await expect(page.getByLabel('Ingredient 1 quantity')).toHaveValue('2');
-        await expect(page.getByLabel('Ingredient 1 maximum quantity')).toHaveValue('3');
+        const reopened = await openIngredientEditor(page, 'Salt');
 
-        await page.getByLabel('Ingredient 1 maximum quantity').fill('4');
+        await expect(reopened.getByLabel('Amount', { exact: true })).toHaveValue('2');
+        await expect(reopened.getByLabel('Amount, up to')).toHaveValue('3');
+
+        await reopened.getByLabel('Amount, up to').fill('4');
         // Published now, so its one write is Save changes (slice 7, D1).
         await page.getByRole('button', { name: 'Save changes' }).click();
 
@@ -95,8 +102,12 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
 
         // Clearing the amount is how an author states that the source gave none. The unit still carries the
         // prose the source DID give.
-        await page.getByLabel('Ingredient 1 quantity').fill('');
-        await page.getByLabel('Ingredient 1 unit').fill('the size of an egg');
+        // A pick states no amount (F5); the unit carries the source's prose.
+        const fields = await openIngredientEditor(page, 'Salt');
+
+        await expect(fields.getByLabel('Amount', { exact: true })).toHaveValue('');
+        await fields.getByRole('combobox', { name: 'Unit' }).fill('the size of an egg');
+        await fields.getByRole('button', { name: 'Done' }).click();
 
         await addStep(page, 'Rub it in.');
         // ⛔ THE ASSERTION THIS SPEC EXISTS FOR: Publish must SUCCEED. Before U9 the draft held `NaN`, the
@@ -111,8 +122,11 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
 
         // Re-opening the editor shows an EMPTY field, not a zero — and saving again keeps the amount absent.
         await openRecipeEditor(page, createdId ?? '');
-        await expect(page.getByLabel('Ingredient 1 quantity')).toHaveValue('');
-        await expect(page.getByLabel('Ingredient 1 maximum quantity')).toHaveValue('');
+        const reopened = await openIngredientEditor(page, 'Salt');
+
+        await expect(reopened.getByLabel('Amount', { exact: true })).toHaveValue('');
+        await expect(reopened.getByLabel('Amount, up to')).toHaveCount(0);
+        await reopened.getByRole('button', { name: 'Done' }).click();
 
         // Save changes needs a change to save (slice 7): one that leaves the line alone, so the line round-trips.
         await page.getByLabel('Description').fill('Rubbed in by hand.');

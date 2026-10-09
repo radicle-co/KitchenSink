@@ -49,6 +49,7 @@ const input = (over: Partial<TrailingEntryFieldInput> = {}): TrailingEntryFieldI
         view: KALE_LISTED,
     }),
     nextNumber: 4,
+    label: 'Add an ingredient',
     invalid: false,
     pickFailure: undefined,
     refusal: undefined,
@@ -77,6 +78,13 @@ describe('trailingEntryFieldOf', () => {
             listLabel: 'Food suggestions for ingredient 4',
             hint: 'Type the amount first, then pick the food. For example: 2 tbsp olive oil.',
             value: '  kale ',
+        });
+    });
+
+    it('in a group it is named for that group, its placeholder too (build spec §7.11 `ingredients.addToGroup`)', () => {
+        expect(trailingEntryFieldOf(input({ label: 'Add to Sauce' }), COPY)).toMatchObject({
+            label: 'Add to Sauce',
+            placeholder: 'Add to Sauce',
         });
     });
 

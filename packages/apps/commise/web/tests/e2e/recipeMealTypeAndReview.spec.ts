@@ -24,7 +24,11 @@ import { mockRecipeApi, makeRecipeDetail, readViewerAppId } from './utils/recipe
 import { signInWithTicket } from './utils/auth';
 import { openRecipeEditor } from './utils/recipeEditor';
 
-const SEEDED = makeRecipeDetail({ id: 'rec_meal', title: 'Weeknight Pasta', currentVersion: 3 });
+const SEEDED = makeRecipeDetail({
+    id: 'ec000000-0000-4000-8000-000000000014',
+    title: 'Weeknight Pasta',
+    currentVersion: 3,
+});
 
 /** Sign in, mock the API around one seeded recipe (published unless `over` says otherwise), and open its editor. */
 async function openEditor(page: Page, over: Partial<typeof SEEDED> = {}): Promise<void> {
@@ -32,7 +36,7 @@ async function openEditor(page: Page, over: Partial<typeof SEEDED> = {}): Promis
     const viewerId = await readViewerAppId(page);
 
     await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [{ ...SEEDED, ...over }] });
-    await openRecipeEditor(page, 'rec_meal');
+    await openRecipeEditor(page, 'ec000000-0000-4000-8000-000000000014');
     await expect(page.getByLabel('Title')).toBeVisible();
 }
 
@@ -46,7 +50,8 @@ async function hideTab(page: Page): Promise<void> {
 
 /** Whether a request is a write to the seeded recipe. */
 const isRecipePatch = (request: Request): boolean =>
-    request.method() === 'PATCH' && /\/api\/v1\/recipes\/rec_meal(?:\?|$)/u.test(request.url());
+    request.method() === 'PATCH' &&
+    /\/api\/v1\/recipes\/ec000000-0000-4000-8000-000000000014(?:\?|$)/u.test(request.url());
 
 test.describe('recipe meal type — a closed axis beside two free-text ones (U34)', () => {
     test('offers the vocabulary, and sends the chosen value', async ({ page }) => {

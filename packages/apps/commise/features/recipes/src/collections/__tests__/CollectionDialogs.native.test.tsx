@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LocaleProvider } from '@commise/i18n/react';
 
-import { CollectionDeleteDialog } from '../CollectionDeleteDialog.native.js';
+import { CollectionDeleteDialog } from '../CollectionDeleteDialog.js';
 import { CollectionUpsellSheet } from '../CollectionUpsellSheet.native.js';
 import type { CollectionDeleteDialogProps, CollectionUpsellSheetProps } from '../detailModel.js';
 

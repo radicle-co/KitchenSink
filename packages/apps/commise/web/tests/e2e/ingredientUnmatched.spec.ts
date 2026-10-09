@@ -6,9 +6,10 @@ import { openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Plan 002 US1, through the real web app with the recipe-service contract intercepted: in the recipe editor an
- * ingredient that did not match shows its status word and an alert glyph in the row; activating the glyph explains
- * THIS row's cause in plain words, and Escape returns focus to the glyph (`ingredientStatusExplanation.md` SPECIFY.1,
- * §3 2.1.1/2.4.3, §6d — activation only, no hover).
+ * ingredient that did not match says so in an attention line under its name, and a matched row is quiet (build spec
+ * §7.5.1, REWRITTEN for the read rows: the glyph on every row is gone). Activating the attention line explains THIS
+ * row's cause in plain words, and Escape returns focus to it (`ingredientStatusExplanation.md` SPECIFY.1, §3
+ * 2.1.1/2.4.3, §6d — activation only, no hover).
  *
  * What only this tier proves: the Radix popover's portal, focus return and collision handling in a real engine, and
  * that the editor's seed carries each line's status through to the row.
@@ -25,7 +26,7 @@ const seedEditor = async (page: Page, ingredientStatuses: Readonly<Record<string
         ingredientStatuses,
         recipes: [
             makeRecipeDetail({
-                id: 'rec_unmatched',
+                id: 'ec000000-0000-4000-8000-000000000035',
                 ownerId: viewerId,
                 title: 'Green Risotto',
                 currentVersion: 3,
@@ -61,35 +62,32 @@ const seedEditor = async (page: Page, ingredientStatuses: Readonly<Record<string
         ],
     });
 
-    await openRecipeEditor(page, 'rec_unmatched');
+    await openRecipeEditor(page, 'ec000000-0000-4000-8000-000000000035');
 };
 
 const runUnmatchedStory = async (page: Page): Promise<void> => {
     const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
-    // The status words come from the row policy; a matched row is not news and has none. Each word describes its
-    // row's glyph, so it is asserted as what a screen reader hears there.
-    await expect(ingredients.getByRole('button', { name: 'About Kale' })).toHaveAccessibleDescription('No match found');
-    await expect(ingredients.getByRole('button', { name: 'About Saffron' })).toHaveAccessibleDescription(
-        'Resolution failed',
-    );
-    await expect(ingredients.getByRole('button', { name: 'About Arborio rice' })).toHaveAccessibleDescription('');
+    // Each row that needs the cook says why, in a line named for its food; a matched row is not news and is quiet.
+    await expect(ingredients.getByRole('button', { name: 'No match found: Kale' })).toHaveText('No match found');
+    await expect(ingredients.getByRole('button', { name: 'Couldn’t look up: Saffron' })).toHaveText('Couldn’t look up');
+    await expect(ingredients.getByRole('button', { name: /: Arborio rice$/u })).toHaveCount(0);
 
     // Activation opens THIS row's explanation…
-    const aboutKale = ingredients.getByRole('button', { name: 'About Kale' });
+    const aboutKale = ingredients.getByRole('button', { name: 'No match found: Kale' });
     await expect(aboutKale).toHaveAttribute('aria-expanded', 'false');
     await aboutKale.click();
     const kale = page.getByRole('dialog', { name: 'Kale' });
     await expect(kale).toContainText('We searched the food database and there’s no match for this.');
     await expect(aboutKale).toHaveAttribute('aria-expanded', 'true');
 
-    // …and Escape closes it and returns focus to the glyph (APG).
+    // …and Escape closes it and returns focus to the line that opened it (APG).
     await page.keyboard.press('Escape');
     await expect(kale).toHaveCount(0);
     await expect(aboutKale).toBeFocused();
 
     // The keyboard alone reaches the next row's cause, and it is a DIFFERENT cause.
-    const aboutSaffron = ingredients.getByRole('button', { name: 'About Saffron' });
+    const aboutSaffron = ingredients.getByRole('button', { name: 'Couldn’t look up: Saffron' });
     await aboutSaffron.focus();
     await page.keyboard.press('Enter');
     const saffron = page.getByRole('dialog', { name: 'Saffron' });
@@ -101,7 +99,7 @@ const runUnmatchedStory = async (page: Page): Promise<void> => {
 };
 
 test.describe('an unmatched ingredient explains itself in the editor (plan 002 US1)', () => {
-    test('desktop: the glyph opens the row’s own cause; Escape and Close return focus', async ({ page }) => {
+    test('desktop: the attention line opens the row’s own cause; Escape and Close return focus', async ({ page }) => {
         await seedEditor(page);
         await runUnmatchedStory(page);
     });
@@ -112,8 +110,7 @@ test.describe('an unmatched ingredient explains itself in the editor (plan 002 U
         // Food answers this time: the open failure settles to a definite "no match".
         await seedEditor(page, { ing_saffron: 'NOT_FOUND' });
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
-        const aboutSaffron = ingredients.getByRole('button', { name: 'About Saffron' });
-        await aboutSaffron.click();
+        await ingredients.getByRole('button', { name: 'Couldn’t look up: Saffron' }).click();
 
         const statusRead = page.waitForRequest(
             (request) => request.url().endsWith('/api/v1/ingredients/ing_saffron/status') && request.method() === 'GET',
@@ -121,12 +118,10 @@ test.describe('an unmatched ingredient explains itself in the editor (plan 002 U
         await page.getByRole('dialog', { name: 'Saffron' }).getByRole('button', { name: 'Try again' }).click();
         await statusRead;
 
-        await expect(aboutSaffron).toHaveAccessibleDescription('No match found');
-        await expect(ingredients.getByRole('button', { name: 'About Kale' })).toHaveAccessibleDescription(
-            'No match found',
-        );
-        // The focus target after Try again is the row's status glyph (recorded for UX sign-off).
-        await expect(aboutSaffron).toBeFocused();
+        await expect(ingredients.getByRole('button', { name: 'No match found: Saffron' })).toBeVisible();
+        await expect(ingredients.getByRole('button', { name: 'No match found: Kale' })).toBeVisible();
+        // The attention line gave way while the ask ran, so focus is on the row's open control, never the page.
+        await expect(ingredients.getByRole('button', { name: 'Edit 1 pinch Saffron' })).toBeFocused();
     });
 
     test.describe('at 320 × 640 (WCAG 1.4.10 reflow)', () => {
@@ -136,7 +131,10 @@ test.describe('an unmatched ingredient explains itself in the editor (plan 002 U
             await seedEditor(page);
             await runUnmatchedStory(page);
 
-            await page.getByRole('region', { name: 'Ingredients' }).getByRole('button', { name: 'About Kale' }).click();
+            await page
+                .getByRole('region', { name: 'Ingredients' })
+                .getByRole('button', { name: 'No match found: Kale' })
+                .click();
             await expect(page.getByRole('dialog', { name: 'Kale' })).toBeVisible();
             const overflow = await page.evaluate(
                 () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

@@ -9,6 +9,7 @@ vi.mock('@clerk/nextjs/server', () => ({
 vi.mock('next/server', () => ({
     NextResponse: {
         redirect: (url: URL) => ({ type: 'redirect', location: url.toString() }),
+        rewrite: (url: URL) => ({ type: 'rewrite', location: url.toString() }),
         next: () => ({ type: 'next' }),
     },
 }));
@@ -162,5 +163,30 @@ describe('middleware handler — platform paths must not be locale-redirected', 
             expect(res.type).toBe('redirect');
             expect(res.location).toBe(`https://app.test/en${path}`);
         }
+    });
+});
+
+/**
+ * The recipe routes' 404 (`lib/recipeRouteId.ts`). A page's `notFound()` streams under `[locale]/loading.tsx` and
+ * answers 200, so a segment that is not a recipe id is rewritten here, before any page renders, to a path no route
+ * matches — the app's global not-found then answers 404 in the first HTML. The URL the cook typed stays in the bar.
+ */
+describe('middleware handler — a recipe path that names no recipe', () => {
+    it('rewrites /en/recipes/parse to the 404', async () => {
+        const mod = await import('@/middleware');
+
+        const res = await (mod.default as unknown as Handler)(undefined, makeReq('/en/recipes/parse'));
+
+        expect(res).toEqual({ type: 'rewrite', location: 'https://app.test/en/_not-a-recipe' });
+    });
+
+    it('passes a recipe id and the static new-recipe route through', async () => {
+        const mod = await import('@/middleware');
+        const handler = mod.default as unknown as Handler;
+
+        expect((await handler(undefined, makeReq('/en/recipes/0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60'))).type).toBe(
+            'next',
+        );
+        expect((await handler(undefined, makeReq('/en/recipes/new'))).type).toBe('next');
     });
 });

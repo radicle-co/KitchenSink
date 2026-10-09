@@ -1,9 +1,10 @@
 import type { Route } from 'next';
 import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { AppShell } from '@/components/app/AppShell';
 import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContainer';
+import { isRecipeRouteId } from '@/lib/recipeRouteId';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,13 @@ export default async function EditRecipePage({
     params: Promise<{ locale: string; id: string }>;
 }): Promise<React.ReactElement> {
     const { locale, id } = await params;
+
+    // Before auth and any request: a segment that is not a recipe id names nothing (the middleware has already
+    // answered it with the 404 — this keeps the page from ever asking the service about one).
+    if (!isRecipeRouteId(id)) {
+        notFound();
+    }
+
     const { userId } = await auth();
 
     if (!userId) {

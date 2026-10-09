@@ -233,6 +233,7 @@ recipes:recipes/create
 recipes:recipes/pasteList
 recipes:recipes/quantityRange
 recipes:recipes/preparationGroups
+recipes:recipes/ingredientGroups
 recipes:recipes/addIngredientLoop
 recipes:recipes/addIngredientLine
 recipes:recipes/ingredientUnmatched

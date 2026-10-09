@@ -5,7 +5,7 @@ import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { E2E_CATALOG_FOOD, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { openRecipeEditor } from './utils/recipeEditor';
+import { ingredientOpen, ingredientRow, openIngredientEditor, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * The ingredient row editor's stories on a saved recipe (plan 002 V1 B7), through the real web app with the recipe
@@ -26,8 +26,12 @@ import { openRecipeEditor } from './utils/recipeEditor';
  * decision 7 gives it — ONE rebind command at the line's STORED position for a food pick, the draft for a declaration —
  * and the refusal moves a real browser's focus. The per-state rules are pinned by the component tests
  * (`RecipeIngredientsFields.rowEditor.test.tsx`). Selectors are role, label and text only.
+ *
+ * REWRITTEN for the UI overhaul's read rows (build spec §7.5.1, §7.5.2): a row's amount, unit and preparation are read
+ * in its row editor, focus after a pick lands on the row's open control ("Edit {amount} {food}"), and row 6's panel
+ * opens from its attention line ("Choose a match: {food}").
  */
-const RECIPE_ID = 'rec_row_editor';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000027';
 const SALT_ID = '99999999-9999-4999-8999-999999999991';
 const GARLIC_ID = '99999999-9999-4999-8999-999999999992';
 const MIX_ID = '99999999-9999-4999-8999-999999999993';
@@ -105,15 +109,16 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         await field.fill('pepper');
         await page.getByRole('option', { name: PEPPER.name }).click();
 
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 2 name' })).toHaveText(PEPPER.name);
-        // The pick moved the binding, not the cook's words.
-        await expect(ingredients.getByLabel('Ingredient 2 quantity')).toHaveValue('2');
-        await expect(ingredients.getByLabel('Ingredient 2 unit')).toHaveValue('clove');
-        await expect(ingredients.getByLabel('Ingredient 2 preparation')).toHaveValue('minced');
-        await expect(ingredients.getByLabel('Ingredient 2 section')).toHaveValue('For the sauce');
-        // §2d: a committed pick hands focus to the row's glyph, and says so politely.
-        await expect(ingredients.getByRole('button', { name: `About ${PEPPER.name}` })).toBeFocused();
+        // §2d: a committed pick hands focus to the row's open control, and says so politely.
+        await expect(ingredientOpen(ingredients, PEPPER.name)).toBeFocused();
         await expect(page.getByText(`${PEPPER.name} is matched. Its nutrition now counts.`)).toBeVisible();
+        // The pick moved the binding, not the cook's words: the row stays in its group, and its editor holds them.
+        await expect(ingredientRow(page.getByRole('list', { name: 'For the sauce' }), PEPPER.name)).toBeVisible();
+        const fields = await openIngredientEditor(page, PEPPER.name);
+
+        await expect(fields.getByLabel('Amount', { exact: true })).toHaveValue('2');
+        await expect(fields.getByRole('combobox', { name: 'Unit' })).toHaveValue('clove');
+        await expect(fields.getByLabel('Preparation')).toHaveValue('minced');
         expect(rebinds.map((each) => [each.path, each.body])).toEqual([
             [
                 `/api/v1/recipes/${RECIPE_ID}/ingredients/1/rebind`,
@@ -153,7 +158,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         await field.fill('pepper');
         await page.getByRole('option', { name: PEPPER.name }).click();
 
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 2 name' })).toHaveText(PEPPER.name);
+        await expect(ingredientOpen(ingredients, PEPPER.name)).toBeVisible();
         expect(rebinds.map((each) => each.body)).toEqual([
             { expectedVersion: 1, target: { kind: 'catalogFood', foodId: PEPPER.foodId } },
         ]);
@@ -286,7 +291,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         expect(store.get(RECIPE_ID)?.ingredients[1]?.foodId).toBe('food_garlic');
     });
 
-    test('row 6: the glyph opens a list searched from the line’s own words, and a remote pick rebinds the line', async ({
+    test('row 6: the attention line opens a list searched from the line’s own words, and a remote pick rebinds the line', async ({
         page,
     }) => {
         await signInWithTicket(page);
@@ -302,18 +307,18 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
         // The panel never opens by itself, and nothing is searched until the cook asks.
-        await expect(ingredients.getByText('Not resolved')).toBeVisible();
+        await expect(ingredients.getByRole('button', { name: 'Choose a match: Kale' })).toBeVisible();
         expect(searches).toEqual([]);
 
-        await ingredients.getByRole('button', { name: 'About Kale' }).click();
+        await ingredients.getByRole('button', { name: 'Choose a match: Kale' }).click();
         const fromUsda = page.getByRole('list', { name: 'From USDA' });
 
         await fromUsda.getByRole('button', { name: `${KALE_RAW.name}, from USDA` }).click();
 
         await expect(fromUsda).toBeHidden();
-        await expect(ingredients.getByRole('button', { name: `About ${KALE_RAW.name}` })).toBeFocused();
+        await expect(ingredientOpen(ingredients, KALE_RAW.name)).toBeFocused();
         await expect(page.getByText(`${KALE_RAW.name} is matched. Its nutrition now counts.`)).toBeVisible();
-        await expect(ingredients.getByText('Not resolved')).toHaveCount(0);
+        await expect(ingredients.getByText('Choose a match')).toHaveCount(0);
         // One pick: the line's own words searched (sent as food's canonical term), the remote food adopted, then ONE
         // rebind of THAT line to its root.
         expect(searches).toEqual([
@@ -343,12 +348,13 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         await openIngredientsSection(page);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
-        await ingredients.getByRole('button', { name: 'About Kale' }).click();
+        await ingredients.getByRole('button', { name: 'Choose a match: Kale' }).click();
         await page.getByRole('button', { name: 'None of these — search for a different food' }).click();
 
         await expect(ingredients.getByRole('combobox', { name: 'Ingredient 2 name' })).toBeFocused();
-        await expect(ingredients.getByLabel('Ingredient 2 quantity')).toHaveValue('1');
-        await expect(ingredients.getByLabel('Ingredient 2 unit')).toHaveValue('bunch');
+        // Leaving the search reads the row again, its amount and unit kept.
+        await page.keyboard.press('Escape');
+        await expect(ingredients.getByRole('button', { name: 'Edit 1 bunch Kale' })).toBeFocused();
         // Declining every food is not a binding: no adopt, no rebind, no new version.
         expect(searches.filter((each) => each.route === 'adopt')).toEqual([]);
         expect(rebinds).toEqual([]);

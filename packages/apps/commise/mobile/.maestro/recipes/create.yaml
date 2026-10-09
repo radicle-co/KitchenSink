@@ -72,7 +72,7 @@ appId: io.commise.mobile
 # name field both waits for it and is the falsifiable checkpoint — if the line never landed this scroll finds nothing
 # and the flow fails here rather than passing empty (an unresolved form can't Publish).
 - scrollUntilVisible:
-      element: 'Ingredient 1 name'
+      element: 'Edit Tomato'
       direction: UP
       timeout: 30000
 

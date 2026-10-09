@@ -35,7 +35,7 @@ appId: io.commise.mobile
       label: 'KTD-16 root "boneless skinless chicken breasts" is in this stage’s food catalog'
 - tapOn: 'boneless skinless chicken breasts'
 - scrollUntilVisible:
-      element: 'Ingredient 1 name'
+      element: 'Edit boneless skinless chicken breasts'
       direction: DOWN
       timeout: 30000
 

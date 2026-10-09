@@ -6,6 +6,7 @@
  * never overwrites a saved name, and nothing is written until the cook presses Save.
  */
 import { describe, expect, it } from 'vitest';
+import { patchUserMeRequestSchema } from '@kitchensink/schema-identity';
 
 import {
     DISPLAY_NAME_MAX_LENGTH,
@@ -120,5 +121,21 @@ describe('profileReadOf', () => {
             displayName: '',
             email: 'e@example.com',
         });
+    });
+});
+
+/**
+ * The limit is the identity service's, read from its contract (`patchUserMeRequestSchema`), so a change to the
+ * service's limit moves the field and the Save gate with it. Pinned on the BEHAVIOUR of the contract, not on a number:
+ * the longest name the gate allows is one the service accepts, and one more character is one it refuses.
+ */
+describe('DISPLAY_NAME_MAX_LENGTH — the identity contract’s limit', () => {
+    it('is the longest display name the PATCH accepts', () => {
+        expect(patchUserMeRequestSchema.safeParse({ displayName: 'a'.repeat(DISPLAY_NAME_MAX_LENGTH) }).success).toBe(
+            true,
+        );
+        expect(
+            patchUserMeRequestSchema.safeParse({ displayName: 'a'.repeat(DISPLAY_NAME_MAX_LENGTH + 1) }).success,
+        ).toBe(false);
     });
 });

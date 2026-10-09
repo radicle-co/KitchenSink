@@ -204,3 +204,25 @@ describe('Popover (native) — once it is gone', () => {
         expect(onDismissed).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('Popover (native) — a text trigger (build spec §7.5.1)', () => {
+    it('shows its words, keeps the name that contains them, and opens the sheet', () => {
+        render(
+            <Popover
+                triggerLabel="Choose a match for Kale"
+                triggerText="Choose a match"
+                triggerIcon="triangleAlert"
+                title="Kale"
+                closeLabel="Close details for Kale"
+            >
+                <Text>No match for this.</Text>
+            </Popover>,
+        );
+
+        const button = screen.getByRole('button', { name: 'Choose a match for Kale' });
+
+        expect(button.textContent).toContain('Choose a match');
+        fireEvent.click(button);
+        expect(screen.getByText('No match for this.')).toBeTruthy();
+    });
+});

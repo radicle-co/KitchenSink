@@ -6,7 +6,6 @@
  */
 import { FIELD_CLASS } from '@commise/ui/input';
 
-export const sectionCard = 'flex flex-col gap-4 rounded-2xl bg-paper p-6 shadow-sm';
 export const sectionHeading = 'font-display text-heading-md font-semibold text-ink';
 /**
  * The input chrome with NO width and NO text colour: the base for a field that states either itself. It IS the
@@ -20,6 +19,4 @@ export const sectionHeading = 'font-display text-heading-md font-semibold text-i
 export const fieldChrome = FIELD_CLASS;
 /** A full-width charcoal field: the default input. */
 export const field = `w-full ${fieldChrome} text-ink`;
-/** A field whose caller states its width, in charcoal. */
-export const sizedField = `${fieldChrome} text-ink`;
 export const errorText = 'text-body-sm text-danger-text';

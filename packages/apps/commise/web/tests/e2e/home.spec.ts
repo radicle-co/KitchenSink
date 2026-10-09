@@ -20,7 +20,13 @@ test.describe('Home widget surface (T104)', () => {
         await mockRecipeApi(page, {
             viewerId,
             tier: 'free',
-            recipes: [makeRecipeDetail({ id: 'rec_home', ownerId: viewerId, title: 'Weeknight Pasta' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000010',
+                    ownerId: viewerId,
+                    title: 'Weeknight Pasta',
+                }),
+            ],
         });
 
         // Reload Home so the recent-recipes widget fetches against the mock (the first landing fired before

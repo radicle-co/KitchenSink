@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "counts": {
-        "ambiguous-layer-signal": 10,
-        "boolean-prop-selects-subtree": 6,
-        "cross-platform-props-diverge": 12,
-        "missing-component-doc": 144,
+        "ambiguous-layer-signal": 9,
+        "boolean-prop-selects-subtree": 7,
+        "cross-platform-props-diverge": 13,
+        "missing-component-doc": 140,
         "missing-module-doc": 20,
-        "platform-singleton": 22,
-        "ref-api": 7,
+        "platform-singleton": 42,
+        "ref-api": 11,
         "unclassified-layer": 96,
-        "undocumented-prop": 146
+        "undocumented-prop": 167
     },
     "findings": [
         {
@@ -272,6 +272,26 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/input/Input",
+            "sourcePath": "packages/apps/commise/ui/src/input/Input.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/input/Input",
+            "sourcePath": "packages/apps/commise/ui/src/input/Input.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
             ]
         },
         {
@@ -681,17 +701,19 @@
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "featuresRecipes/actions/RecipeDeleteDialog",
-            "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeDeleteDialog.native.tsx",
+            "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeDeleteDialog.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
         },
         {
-            "rule": "missing-component-doc",
-            "severity": "gap",
+            "rule": "platform-singleton",
+            "severity": "review",
             "component": "featuresRecipes/actions/RecipeDeleteDialog",
             "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeDeleteDialog.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
         },
         {
             "rule": "missing-component-doc",
@@ -739,28 +761,18 @@
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "featuresRecipes/collections/CollectionDeleteDialog",
-            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDeleteDialog.native.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
-        },
-        {
-            "rule": "missing-component-doc",
-            "severity": "gap",
-            "component": "featuresRecipes/collections/CollectionDeleteDialog",
             "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDeleteDialog.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
         },
         {
-            "rule": "undocumented-prop",
-            "severity": "gap",
+            "rule": "platform-singleton",
+            "severity": "review",
             "component": "featuresRecipes/collections/CollectionDeleteDialog",
-            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDeleteDialog.native.tsx",
-            "message": "props carry no JSDoc description",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDeleteDialog.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
-                "name",
-                "onConfirm",
-                "open"
+                "web"
             ]
         },
         {
@@ -1369,17 +1381,19 @@
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "featuresRecipes/components/RecipeWidgetLoadingCard",
-            "sourcePath": "packages/apps/commise/features/recipes/src/components/RecipeWidgetLoadingCard.native.tsx",
+            "sourcePath": "packages/apps/commise/features/recipes/src/components/RecipeWidgetLoadingCard.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
         },
         {
-            "rule": "missing-component-doc",
-            "severity": "gap",
+            "rule": "platform-singleton",
+            "severity": "review",
             "component": "featuresRecipes/components/RecipeWidgetLoadingCard",
             "sourcePath": "packages/apps/commise/features/recipes/src/components/RecipeWidgetLoadingCard.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
         },
         {
             "rule": "unclassified-layer",
@@ -1471,6 +1485,16 @@
             ]
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/DetailDescription",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailDescription.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
             "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "featuresRecipes/detail/DetailEmptySection",
@@ -1479,6 +1503,111 @@
             "evidence": [
                 "web: action actionLabel text",
                 "native: actionLabel onAction text"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/DetailFooter",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/detail/DetailFooter",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "recipe"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/DetailIngredientsSection",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailIngredientsSection.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/detail/DetailIngredientsSection",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailIngredientsSection.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "marks",
+                "onServingsChange",
+                "recipe",
+                "servings",
+                "unreachableRetry"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/DetailInstructionsSection",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailInstructionsSection.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/detail/DetailInstructionsSection",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailInstructionsSection.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "marks",
+                "steps"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/DetailNutritionSection",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/detail/DetailNutritionSection",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "recipe"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/DetailRatingLine",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailRatingLine.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/DetailStatStrip",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailStatStrip.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {
@@ -1663,6 +1792,16 @@
             ]
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/discovery/DiscoveryControls",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryControls.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "featuresRecipes/discovery/DiscoveryFooter",
@@ -1696,6 +1835,36 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "state"
+            ]
+        },
+        {
+            "rule": "boolean-prop-selects-subtree",
+            "severity": "review",
+            "component": "featuresRecipes/discovery/DiscoveryHeaderGroup",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryHeaderGroup.native.tsx",
+            "message": "a boolean prop selects between two rendered subtrees — behaviour switch, or display derivation?",
+            "evidence": [
+                "compact"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/discovery/DiscoveryHeaderGroup",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryHeaderGroup.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/discovery/DiscoveryRecentSearches",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryRecentSearches.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {
@@ -1734,6 +1903,16 @@
             "evidence": [
                 "active",
                 "onChange"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/discovery/DiscoveryTitle",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryTitle.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {
@@ -2312,27 +2491,18 @@
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "featuresRecipes/filters/FilterTrigger",
-            "sourcePath": "packages/apps/commise/features/recipes/src/filters/FilterTrigger.native.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
-        },
-        {
-            "rule": "missing-component-doc",
-            "severity": "gap",
-            "component": "featuresRecipes/filters/FilterTrigger",
             "sourcePath": "packages/apps/commise/features/recipes/src/filters/FilterTrigger.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
         },
         {
-            "rule": "undocumented-prop",
-            "severity": "gap",
+            "rule": "platform-singleton",
+            "severity": "review",
             "component": "featuresRecipes/filters/FilterTrigger",
-            "sourcePath": "packages/apps/commise/features/recipes/src/filters/FilterTrigger.native.tsx",
-            "message": "props carry no JSDoc description",
+            "sourcePath": "packages/apps/commise/features/recipes/src/filters/FilterTrigger.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
-                "onPress",
-                "view"
+                "web"
             ]
         },
         {
@@ -2437,6 +2607,264 @@
         {
             "rule": "undocumented-prop",
             "severity": "gap",
+            "component": "featuresRecipes/form/FoodDetailsSheet",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/FoodDetailsSheet.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "closeLabel",
+                "view"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/FoodDetailsSheet",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/FoodDetailsSheet.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "closeLabel",
+                "view"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/GroupNameField",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/GroupNameField.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "field"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/GroupNameField",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/GroupNameField.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "field"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientGroupHeading",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientGroupHeading.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "group",
+                "id"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientGroupHeading",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientGroupHeading.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "group",
+                "id"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientLineEditor",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientLineEditor.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "m",
+                "view"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientLineEditor",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientLineEditor.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "m",
+                "view"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientLineEditorSheet",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientLineEditorSheet.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "details",
+                "m",
+                "open"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientLineEditorSheet",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientLineEditorSheet.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "details",
+                "m",
+                "open"
+            ]
+        },
+        {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
+            "component": "featuresRecipes/form/IngredientRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientRow.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: entryCopy expanded inlineEditor panel row",
+                "native: amountColumn entryCopy expanded inlineEditor m panel row speak"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "featuresRecipes/form/IngredientRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientRow.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "featuresRecipes/form/IngredientRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientRow.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientRow.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "entryCopy",
+                "expanded",
+                "inlineEditor",
+                "m",
+                "panel",
+                "row",
+                "speak"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientRow.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "entryCopy",
+                "row"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientRowPanelBody",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientRowPanelBody.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "m",
+                "nutrition",
+                "row"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientRowPanelBody",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientRowPanelBody.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "m",
+                "nutrition",
+                "row"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientsNutritionFoot",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientsNutritionFoot.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "nutrition",
+                "values"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientsNutritionFoot",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientsNutritionFoot.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "nutrition",
+                "values"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientsNutritionTotal",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientsNutritionTotal.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "failedText",
+                "retryLabel",
+                "view"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/IngredientsNutritionTotal",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientsNutritionTotal.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "failedText",
+                "retryLabel",
+                "view"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/MoveToGroupSheet",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/MoveToGroupSheet.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "view"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/form/MoveToGroupSheet",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/MoveToGroupSheet.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "view"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
             "component": "featuresRecipes/form/NutritionPanelBody",
             "sourcePath": "packages/apps/commise/features/recipes/src/form/NutritionPanelBody.native.tsx",
             "message": "props carry no JSDoc description",
@@ -2486,17 +2914,19 @@
             "rule": "ambiguous-layer-signal",
             "severity": "review",
             "component": "featuresRecipes/form/ShortlistPanel",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/ShortlistPanel.native.tsx",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/ShortlistPanel.tsx",
             "message": "the docblock names BOTH layers; the catalogue resolved it to orchestration",
             "evidence": []
         },
         {
-            "rule": "ambiguous-layer-signal",
+            "rule": "platform-singleton",
             "severity": "review",
             "component": "featuresRecipes/form/ShortlistPanel",
             "sourcePath": "packages/apps/commise/features/recipes/src/form/ShortlistPanel.tsx",
-            "message": "the docblock names BOTH layers; the catalogue resolved it to orchestration",
-            "evidence": []
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
         },
         {
             "rule": "unclassified-layer",
@@ -2611,13 +3041,13 @@
             ]
         },
         {
-            "rule": "undocumented-prop",
-            "severity": "gap",
+            "rule": "platform-singleton",
+            "severity": "review",
             "component": "featuresRecipes/list/RecipeListLoading",
-            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLoading.native.tsx",
-            "message": "props carry no JSDoc description",
+            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLoading.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
-                "variant"
+                "web"
             ]
         },
         {
@@ -2705,6 +3135,16 @@
             "evidence": []
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/nutrition/NutritionBoundaryShell",
+            "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/NutritionBoundaryShell.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
             "rule": "unclassified-layer",
             "severity": "gap",
             "component": "featuresRecipes/nutrition/RecipeCalorieChip",
@@ -2719,6 +3159,26 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/RecipeCalorieSkeleton.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/nutrition/RecipeNutritionBoundary",
+            "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/RecipeNutritionBoundary.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/nutrition/RecipeNutritionSlot",
+            "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/RecipeNutritionSlot.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
         },
         {
             "rule": "missing-component-doc",

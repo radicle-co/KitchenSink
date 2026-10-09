@@ -10,11 +10,11 @@
  */
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { formatRgb } from 'culori';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
@@ -23,17 +23,15 @@ import { toRecipeCardModel } from '../model.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCard } from '../RecipeCard.native.js';
 
-/** The system colour scheme the next render sees. */
-const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-vi.mock('react-native', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('react-native')>()),
-    useColorScheme: () => scheme.current,
-}));
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
 
 afterEach(() => {
     cleanup();
-    scheme.current = null;
+    systemScheme.current = null;
 });
 
 const model = (over: Parameters<typeof makeRecipe>[0] = {}) => toRecipeCardModel(makeRecipe(over));
@@ -104,12 +102,12 @@ describe.each(VARIANTS)('RecipeCard (native, %s) — what every variant keeps', 
         ['light', role.paper, role.lineDivider],
         ['dark', roleDark.paper, roleDark.lineDivider],
     ])('is a %s level-1 card: paper with a divider hairline, never glass', (name, paper, divider) => {
-        scheme.current = name;
+        systemScheme.current = name;
         const { container } = renderCard(<RecipeCard variant={variant} recipe={model({ title: 'Soup' })} />);
         const shell = shadowed(container)[0]!;
 
-        expect(getComputedStyle(shell).backgroundColor).toBe(formatRgb(paper));
-        expect(getComputedStyle(shell).borderTopColor).toBe(formatRgb(divider));
+        expect(getComputedStyle(shell).backgroundColor).toBe(rgb(paper));
+        expect(getComputedStyle(shell).borderTopColor).toBe(rgb(divider));
         expect(container.innerHTML).not.toMatch(/backdrop-filter/u);
     });
 
@@ -117,10 +115,10 @@ describe.each(VARIANTS)('RecipeCard (native, %s) — what every variant keeps', 
         ['light', role.ink],
         ['dark', roleDark.ink],
     ])('draws the %s title in ink', (name, ink) => {
-        scheme.current = name;
+        systemScheme.current = name;
         renderCard(<RecipeCard variant={variant} recipe={model({ title: 'Soup' })} />);
 
-        expect(getComputedStyle(screen.getByText('Soup')).color).toBe(formatRgb(ink));
+        expect(getComputedStyle(screen.getByText('Soup')).color).toBe(rgb(ink));
     });
 
     it('elevates ONE node, which never clips, and clips the cover inside it (iOS masks a co-located shadow)', () => {
@@ -178,11 +176,11 @@ describe('RecipeCard (native, grid)', () => {
         ['light', role.rating],
         ['dark', roleDark.rating],
     ])('fills the %s stars in the rating role', (name, rating) => {
-        scheme.current = name;
+        systemScheme.current = name;
         renderCard(<RecipeCard variant="grid" recipe={model({ averageRating: 5, ratingCount: 1 })} />);
         const star = screen.getByRole('img', { name: /Rated/u }).querySelector('div, span');
 
-        expect(star === null ? '' : getComputedStyle(star).color).toBe(formatRgb(rating));
+        expect(star === null ? '' : getComputedStyle(star).color).toBe(rgb(rating));
     });
 
     it('renders the cuisine, the nutrition slot, the servings, the tags line and the footer', () => {

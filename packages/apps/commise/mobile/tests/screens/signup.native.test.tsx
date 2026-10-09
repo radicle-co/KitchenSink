@@ -11,7 +11,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { useClerk, useSignUp } from '@clerk/expo';
 
 import { role, roleDark } from '@commise/ui/colors';
-import { formatRgb } from 'culori';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { SignUpScreen } from '../../src/screens/signup.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
@@ -30,23 +30,20 @@ vi.mock('react-native-safe-area-context', () => ({
         createElement('div', { 'aria-label': 'safe-area-root' }, children as never),
 }));
 
-/** The system colour scheme the next render sees. */
-const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
-
 // The platform is react-native-web's unless a test sets it, so a case can ask what the avoider does on Android.
 const platform = vi.hoisted(() => ({ os: undefined as 'android' | 'ios' | undefined }));
 vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
-        ...actual,
+        ...withSystemScheme(actual),
         Platform: {
             ...actual.Platform,
             get OS() {
                 return platform.os ?? actual.Platform.OS;
             },
         },
-        useColorScheme: () => scheme.current,
         KeyboardAvoidingView: ({ children, behavior }: { readonly children?: unknown; readonly behavior?: string }) =>
             createElement('div', { 'aria-label': 'keyboard-avoiding', 'data-behavior': behavior }, children as never),
     };
@@ -54,6 +51,12 @@ vi.mock('react-native', async (importOriginal) => {
 
 const useSignUpMock = vi.mocked(useSignUp);
 const useClerkMock = vi.mocked(useClerk);
+
+/**
+ * A hook result the screen under test reads, built from just the members it touches. The real Clerk hook results are
+ * large resource types the screen uses a handful of members of; `never` is the one place that gap is bridged.
+ */
+const partialHook = (members: object): never => members as never;
 
 const setActive = vi.fn(async () => undefined);
 
@@ -74,7 +77,7 @@ afterEach(() => {
     cleanup();
     vi.clearAllMocks();
     platform.os = undefined;
-    scheme.current = null;
+    systemScheme.current = null;
 });
 
 describe('SignUpScreen — chrome + design system', () => {
@@ -83,10 +86,8 @@ describe('SignUpScreen — chrome + design system', () => {
     it.each(['android', 'ios'] as const)('pads its form above the keyboard on %s', (os) => {
         platform.os = os;
         const signUp = makeSignUp();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignUpMock.mockReturnValue({ signUp } as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useClerkMock.mockReturnValue({ setActive } as any);
+        useSignUpMock.mockReturnValue(partialHook({ signUp }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={() => undefined} />);
 
         expect(screen.getByLabelText('keyboard-avoiding').getAttribute('data-behavior')).toBe('padding');
@@ -94,10 +95,8 @@ describe('SignUpScreen — chrome + design system', () => {
 
     it('renders the DS create button, localized labelled fields, and the safe-area + keyboard-avoiding wrappers', () => {
         const signUp = makeSignUp();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignUpMock.mockReturnValue({ signUp } as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useClerkMock.mockReturnValue({ setActive } as any);
+        useSignUpMock.mockReturnValue(partialHook({ signUp }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={() => undefined} />);
 
         expect(screen.getByText(auth.brand)).toBeTruthy();
@@ -115,10 +114,8 @@ describe('SignUpScreen — chrome + design system', () => {
     it('routes the toggle link to onBack', () => {
         const onBack = vi.fn();
         const signUp = makeSignUp();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignUpMock.mockReturnValue({ signUp } as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useClerkMock.mockReturnValue({ setActive } as any);
+        useSignUpMock.mockReturnValue(partialHook({ signUp }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={onBack} />);
 
         fireEvent.click(screen.getByRole('button', { name: auth.signInLink }));
@@ -128,10 +125,8 @@ describe('SignUpScreen — chrome + design system', () => {
 
     it('shows the busy spinner and disables the create button while sign-up is in flight', async () => {
         const signUp = makeSignUp({ create: vi.fn(() => new Promise<StepResult>(() => undefined)) });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignUpMock.mockReturnValue({ signUp } as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useClerkMock.mockReturnValue({ setActive } as any);
+        useSignUpMock.mockReturnValue(partialHook({ signUp }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={() => undefined} />);
 
         fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
@@ -148,10 +143,8 @@ describe('SignUpScreen — chrome + design system', () => {
 describe('SignUpScreen — sign-up flow', () => {
     it('creates the account and activates the session on the happy path', async () => {
         const signUp = makeSignUp({ status: 'complete' });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignUpMock.mockReturnValue({ signUp } as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useClerkMock.mockReturnValue({ setActive } as any);
+        useSignUpMock.mockReturnValue(partialHook({ signUp }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={() => undefined} />);
 
         fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
@@ -163,10 +156,8 @@ describe('SignUpScreen — sign-up flow', () => {
 
     it('surfaces the localized additional-verification message when the sign-up does not complete', async () => {
         const signUp = makeSignUp({ status: 'missing_requirements', createdSessionId: null });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignUpMock.mockReturnValue({ signUp } as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useClerkMock.mockReturnValue({ setActive } as any);
+        useSignUpMock.mockReturnValue(partialHook({ signUp }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={() => undefined} />);
 
         fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
@@ -183,10 +174,8 @@ describe('SignUpScreen — sign-up flow', () => {
                 throw new Error();
             }),
         });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignUpMock.mockReturnValue({ signUp } as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useClerkMock.mockReturnValue({ setActive } as any);
+        useSignUpMock.mockReturnValue(partialHook({ signUp }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={() => undefined} />);
 
         fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
@@ -198,10 +187,8 @@ describe('SignUpScreen — sign-up flow', () => {
 
 describe('SignUpScreen — Section 8 native: order, copy and field hints', () => {
     function setup(overrides: Record<string, unknown> = {}) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignUpMock.mockReturnValue({ signUp: makeSignUp(overrides) } as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useClerkMock.mockReturnValue({ setActive } as any);
+        useSignUpMock.mockReturnValue(partialHook({ signUp: makeSignUp(overrides) }));
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={() => undefined} />);
     }
 
@@ -270,22 +257,21 @@ describe.each([
     ['dark', roleDark],
 ] as const)('SignUpScreen — the %s theme reads colour from roles', (name, roles) => {
     it('paints the mark and H1 in ink, the brand line and prompt in inkMuted, and the alert in dangerText', async () => {
-        scheme.current = name;
+        systemScheme.current = name;
         useSignUpMock.mockReturnValue({
             signUp: makeSignUp({ create: vi.fn(async () => ({ error: { message: 'No' } })) }),
         } as unknown as ReturnType<typeof useSignUp>);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useClerkMock.mockReturnValue({ setActive } as any);
+        useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={() => undefined} />);
 
         const colour = (node: HTMLElement) => window.getComputedStyle(node).color;
 
-        expect(colour(screen.getByText(auth.brand))).toBe(formatRgb(roles.ink));
-        expect(colour(screen.getByRole('heading', { name: auth.createHeading }))).toBe(formatRgb(roles.ink));
-        expect(colour(screen.getByText(auth.brandLine))).toBe(formatRgb(roles.inkMuted));
-        expect(colour(screen.getByText(auth.haveAccountPrompt))).toBe(formatRgb(roles.inkMuted));
+        expect(colour(screen.getByText(auth.brand))).toBe(rgb(roles.ink));
+        expect(colour(screen.getByRole('heading', { name: auth.createHeading }))).toBe(rgb(roles.ink));
+        expect(colour(screen.getByText(auth.brandLine))).toBe(rgb(roles.inkMuted));
+        expect(colour(screen.getByText(auth.haveAccountPrompt))).toBe(rgb(roles.inkMuted));
 
         fireEvent.click(screen.getByRole('button', { name: auth.createAccountAction }));
-        expect(colour(await screen.findByRole('alert'))).toBe(formatRgb(roles.dangerText));
+        expect(colour(await screen.findByRole('alert'))).toBe(rgb(roles.dangerText));
     });
 });

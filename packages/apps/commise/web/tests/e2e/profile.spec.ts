@@ -113,6 +113,24 @@ test.describe('the display name', () => {
         await expect(page.getByRole('button', { name: /Display name/ })).toContainText('Chef Eliza');
     });
 
+    // The field stops a name at the identity service's limit (100). Typed key by key, as a cook types: past the limit the
+    // keys do nothing, and Save stays available for the name that fits instead of going quietly disabled.
+    test('a name typed past the limit stops at the field, and Save still saves it', async ({ page }) => {
+        const { patches } = await openProfile(page);
+
+        await page.getByRole('button', { name: /Display name/ }).click();
+
+        const dialog = page.getByRole('dialog', { name: 'What should we call you?' });
+        const field = dialog.getByRole('textbox', { name: 'What should we call you?' });
+
+        await field.clear();
+        await field.pressSequentially('a'.repeat(105));
+
+        await expect(field).toHaveValue('a'.repeat(100));
+        await dialog.getByRole('button', { name: 'Save' }).click();
+        await expect.poll(() => patches).toEqual([{ displayName: 'a'.repeat(100) }]);
+    });
+
     test('closing the sheet saves nothing', async ({ page }) => {
         const { patches } = await openProfile(page);
 

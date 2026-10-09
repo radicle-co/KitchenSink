@@ -18,8 +18,10 @@ import {
     withEntryAbandoned,
     withEntryLeft,
     withEntryText,
+    withPlacement,
     type EntryLine,
 } from '../hooks/ingredientEntry.model.js';
+import type { IngredientLineKey } from '../form/lineKey.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientEntry } from '../hooks/useIngredientEntry.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
@@ -29,6 +31,11 @@ import { makeIngredientEntry, makeIngredientRowEditor } from './index.js';
 export interface FakeRowEditorOverrides {
     readonly entry?: Partial<IngredientEntry>;
     readonly editor?: Partial<Omit<IngredientRowEditor, 'entry'>>;
+    /**
+     * Rows whose food search is already open when the editor mounts, as if the cook had pressed their "No match found"
+     * line or Change food (build spec §7.5.1: a read row opens its search on demand).
+     */
+    readonly startInEntry?: readonly IngredientLineKey[];
 }
 
 const keyOf = (target: LineCommitTarget): string => (target.kind === 'line' ? target.key : 'newLine');
@@ -41,7 +48,11 @@ const keyOf = (target: LineCommitTarget): string => (target.kind === 'line' ? ta
  * @returns The row editor.
  */
 export function useFakeRowEditor(lines: readonly EntryLine[], over: FakeRowEditorOverrides = {}): IngredientRowEditor {
-    const [state, setState] = useState(EMPTY_ENTRY);
+    const [state, setState] = useState(() =>
+        lines
+            .filter((line) => over.startInEntry?.includes(line.key) === true)
+            .reduce((current, line) => withChangeBegun(current, line), EMPTY_ENTRY),
+    );
     const [movedPastFrom, setMovedPastFrom] = useState<IngredientRowEditor['settled']>(undefined);
     const settled = over.editor?.settled;
     const activeKey = state.active === undefined ? undefined : keyOf(state.active);
@@ -86,6 +97,11 @@ export function useFakeRowEditor(lines: readonly EntryLine[], over: FakeRowEdito
             pending,
             pendingEntryText: pending?.text ?? '',
             isPending: (target) => isPendingAt(state, target, lines),
+            placement: state.placement,
+            place: (placement) => {
+                setState((current) => withPlacement(current, placement));
+                spies.place?.(placement);
+            },
         }),
     });
 }

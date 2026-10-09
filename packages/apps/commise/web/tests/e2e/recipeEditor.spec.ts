@@ -190,7 +190,7 @@ for (const colorScheme of SCHEMES) {
         test('a published recipe keeps its changes in this tab, and Save changes is ONE write', async ({ page }) => {
             const viewerId = await readViewerAppId(page);
             const seed = makeRecipeDetail({
-                id: 'rec_published',
+                id: 'ec000000-0000-4000-8000-00000000001c',
                 ownerId: viewerId,
                 title: 'Published Pie',
                 status: 'published',
@@ -199,7 +199,7 @@ for (const colorScheme of SCHEMES) {
             const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
             const writes = recipeWrites(page);
 
-            await page.goto(route('/recipes/rec_published/edit'));
+            await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000001c/edit'));
             const save = page.getByRole('button', { name: 'Save changes' });
             await expect(save).toBeDisabled();
 
@@ -214,13 +214,13 @@ for (const colorScheme of SCHEMES) {
 
             await expect(page.getByRole('heading', { level: 1, name: 'Published Pie' })).toBeVisible();
             expect(writes.map((write) => write.method)).toEqual(['PATCH']);
-            expect(store.get('rec_published')?.currentVersion).toBe(4);
+            expect(store.get('ec000000-0000-4000-8000-00000000001c')?.currentVersion).toBe(4);
         });
 
         test('a refused Publish says how many things to fix and takes the cook to the first', async ({ page }) => {
             const viewerId = await readViewerAppId(page);
             const seed = makeRecipeDetail({
-                id: 'rec_incomplete',
+                id: 'ec000000-0000-4000-8000-000000000011',
                 ownerId: viewerId,
                 title: 'Incomplete Recipe',
                 status: 'draft',
@@ -229,12 +229,12 @@ for (const colorScheme of SCHEMES) {
             });
             const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
 
-            await page.goto(route('/recipes/rec_incomplete/edit'));
+            await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000011/edit'));
             await page.getByRole('button', { name: 'Publish' }).click();
 
             await expect(page.getByText('Fix 1 thing to publish')).toBeVisible();
             await expect(page.getByRole('heading', { level: 2, name: 'Ingredients' })).toBeFocused();
-            expect(store.get('rec_incomplete')?.status).toBe('draft');
+            expect(store.get('ec000000-0000-4000-8000-000000000011')?.status).toBe('draft');
         });
 
         test('× never asks, and the action bar is never covered', async ({ page }) => {

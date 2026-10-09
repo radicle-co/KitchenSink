@@ -20,7 +20,7 @@ test.describe('recipe lines with no name (plan 002)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const recipe = makeRecipeDetail({
-            id: 'rec_unreachable',
+            id: 'ec000000-0000-4000-8000-000000000036',
             ownerId: viewerId,
             title: 'Za’atar Flatbread',
             ingredients: [
@@ -35,7 +35,7 @@ test.describe('recipe lines with no name (plan 002)', () => {
         });
         const store = await mockRecipeApi(page, { viewerId, recipes: [recipe] });
 
-        await page.goto(route('/recipes/rec_unreachable'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000036'));
         await expect(page.getByRole('heading', { name: 'Za’atar Flatbread' })).toBeVisible();
 
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
@@ -48,7 +48,7 @@ test.describe('recipe lines with no name (plan 002)', () => {
         await expect(ingredients.getByRole('button', { name: 'Try again' })).toHaveCount(1);
 
         // Food answers on the next read.
-        store.set('rec_unreachable', {
+        store.set('ec000000-0000-4000-8000-000000000036', {
             ...recipe,
             ingredients: [
                 {
@@ -73,7 +73,7 @@ test.describe('recipe lines with no name (plan 002)', () => {
     }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        const recipeId = 'rec_restore_refused';
+        const recipeId = 'ec000000-0000-4000-8000-000000000025';
         const v1Snapshot: RecipeSnapshot = {
             version: 1,
             title: 'Weeknight Pasta',

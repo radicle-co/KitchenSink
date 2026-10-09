@@ -9,6 +9,7 @@ import { mintedLineKey, seedLineKey } from '../../form/lineKey.js';
 import {
     EMPTY_ENTRY,
     activeTargetOf,
+    commitTargetOf,
     isPendingAt,
     changingOf,
     entryTextOf,
@@ -19,6 +20,7 @@ import {
     withEntryCommitted,
     withEntryLeft,
     withEntryText,
+    withPlacement,
     type EntryLine,
 } from '../ingredientEntry.model.js';
 import type { LineCommitTarget } from '../lineCommit.js';
@@ -170,5 +172,44 @@ describe('Change food (item 4)', () => {
 
     it('a row that is gone is not in Change food', () => {
         expect(changingOf(withChangeBegun(EMPTY_ENTRY, OIL), [CHICK]).size).toBe(0);
+    });
+});
+
+/**
+ * §7.5.5: the trailing field sits in one group at a time, and an appended line joins it. The placement is the FIELD's
+ * state, like its text: it survives a commit (the cook keeps adding to the same group) and never reaches a row's target.
+ */
+describe('the trailing field\u2019s group (§7.5.5)', () => {
+    it('starts with no placement: the field follows the group being built', () => {
+        expect(EMPTY_ENTRY.placement).toBeUndefined();
+        expect(commitTargetOf(TRAILING, 'flour', EMPTY_ENTRY.placement)).toEqual({ kind: 'newLine' });
+    });
+
+    it('a placed field commits into its group, with or without a measure', () => {
+        const state = withPlacement(EMPTY_ENTRY, { group: 'Sauce' });
+
+        expect(commitTargetOf(TRAILING, 'garlic', state.placement)).toEqual({
+            kind: 'newLine',
+            placement: { group: 'Sauce' },
+        });
+        expect(commitTargetOf(TRAILING, '2 tbsp oil', state.placement)).toMatchObject({
+            kind: 'newLine',
+            placement: { group: 'Sauce' },
+            measure: { unit: 'tablespoon' },
+        });
+    });
+
+    it('a row\u2019s own target never carries a placement', () => {
+        expect(commitTargetOf(at(CHICK), 'chickpeas', { group: 'Sauce' })).toEqual(at(CHICK));
+    });
+
+    it('survives a commit, so the cook keeps adding to the same group', () => {
+        const placed = withPlacement(withEntryText(EMPTY_ENTRY, TRAILING, 'garlic', LINES), { group: 'Sauce' });
+
+        expect(withEntryCommitted(placed, TRAILING, 'garlic').placement).toEqual({ group: 'Sauce' });
+    });
+
+    it('can be cleared back to following the group being built', () => {
+        expect(withPlacement(withPlacement(EMPTY_ENTRY, { group: 'Sauce' }), undefined).placement).toBeUndefined();
     });
 });

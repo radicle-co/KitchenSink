@@ -53,23 +53,24 @@ appId: io.commise.mobile
       text: 'beef brisket'
       below: 'Add an ingredient'
 - scrollUntilVisible:
-      element: 'Ingredient 2 name'
+      element: 'Edit beef brisket'
       direction: DOWN
       timeout: 30000
 
 # The variant's parts sit under the root name, and the root-bound line shows the name only (R28).
 - assertVisible:
       text: 'fried'
-      below: 'Ingredient 1 name'
+      below: 'Edit boneless skinless chicken breasts'
 - assertVisible: 'Actions for boneless skinless chicken breasts, fried'
 - assertVisible: 'Actions for beef brisket'
 - assertNotVisible: 'Actions for beef brisket, .*'
 # Never one comma-joined label (§S4).
 - assertNotVisible: 'boneless skinless chicken breasts, fried'
 
-# The row's nutrition sheet repeats the dotted line under its title row, which holds Close (§S1). Anchored to Close,
-# which only the sheet draws, so the row's own dotted line behind the sheet cannot satisfy it.
-- tapOn: 'About boneless skinless chicken breasts, fried'
+# The row's Food details sheet (its ⋯, build spec §7.5.1) repeats the dotted line under its title row, which holds Close
+# (§S1). Anchored to Close, which only the sheet draws, so the row's own dotted line behind the sheet cannot satisfy it.
+- tapOn: 'Actions for boneless skinless chicken breasts, fried'
+- tapOn: 'Food details'
 - extendedWaitUntil:
       visible:
           text: 'Close details for boneless skinless chicken breasts, fried'

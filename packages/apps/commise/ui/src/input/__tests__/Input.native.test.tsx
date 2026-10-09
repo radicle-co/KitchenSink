@@ -295,3 +295,35 @@ describe('TextArea (native)', () => {
         expect(getComputedStyle(field()).height).toBe(`${2 * line + 34}px`);
     });
 });
+
+/** A field a host shows on demand takes focus when asked (a level, acknowledged once), as `Button`'s request. */
+describe('Input (native) — a focus request', () => {
+    it('takes focus when asked, and acknowledges once', () => {
+        const onHandled = vi.fn();
+        render(<LabelledInput focusRequested onFocusRequestHandled={onHandled} />);
+
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Email' }));
+        expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not take focus unasked', () => {
+        render(<LabelledInput />);
+
+        expect(document.activeElement).toBe(document.body);
+    });
+});
+
+/** A field with a length limit hands it to the platform's text input, which stops the text at the limit. */
+describe('Input (native) — a length limit', () => {
+    it('passes maxLength to the text input', () => {
+        render(<LabelledInput maxLength={5} />);
+
+        expect(screen.getByRole('textbox', { name: 'Email' }).getAttribute('maxlength')).toBe('5');
+    });
+
+    it('has no limit when none is given', () => {
+        render(<LabelledInput />);
+
+        expect(screen.getByRole('textbox', { name: 'Email' }).hasAttribute('maxlength')).toBe(false);
+    });
+});

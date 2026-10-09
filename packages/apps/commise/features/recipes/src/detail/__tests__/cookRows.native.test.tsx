@@ -7,6 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { role } from '@commise/ui/colors';
+import { rgb } from '@commise/ui/testing/system-color-scheme';
+
 import { makeIngredientView, makeStepView } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { IngredientCheckRow } from '../IngredientCheckRow.native.js';
@@ -41,7 +44,14 @@ describe('IngredientCheckRow (native)', () => {
         expect(row.getAttribute('aria-checked')).toBe('true');
         const name = screen.getByText('lamb shoulder');
         expect(getComputedStyle(name).textDecorationLine ?? '').not.toContain('line-through');
-        expect(name.closest('[data-line-text]')?.getAttribute('data-dimmed')).toBe('true');
+        expect(getComputedStyle(name).color).toBe(rgb(role.inkMuted));
+    });
+
+    it('unchecked: reports unchecked and keeps the text in ink', () => {
+        render(<IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />);
+
+        expect(screen.getByRole('checkbox', { name: /lamb shoulder/u }).getAttribute('aria-checked')).toBe('false');
+        expect(getComputedStyle(screen.getByText('lamb shoulder')).color).toBe(rgb(role.ink));
     });
 });
 
@@ -67,13 +77,18 @@ describe('StepRow (native)', () => {
         expect(onToggle).toHaveBeenCalledWith(3);
     });
 
-    it('current: pressed, and the here bar shown', () => {
-        const { container } = render(<StepRow step={step} current onToggle={vi.fn()} />);
+    it('current: reports pressed; a step that is not current reports not pressed', () => {
+        const { rerender } = render(<StepRow step={step} current onToggle={vi.fn()} />);
 
         expect(screen.getByRole('button', { name: 'Mark step 3 as current' }).getAttribute('aria-pressed')).toBe(
             'true',
         );
-        expect(container.querySelector('[data-here-bar]')).not.toBeNull();
+
+        rerender(<StepRow step={step} current={false} onToggle={vi.fn()} />);
+
+        expect(screen.getByRole('button', { name: 'Mark step 3 as current' }).getAttribute('aria-pressed')).toBe(
+            'false',
+        );
     });
 
     it('shows the timer as text after the timer glyph', () => {

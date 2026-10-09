@@ -12,3 +12,9 @@ import { memoryCookMarksBackend, type CookMarksBackend } from './cookMarksStore.
 export function defaultCookMarksBackend(): CookMarksBackend {
     return memoryCookMarksBackend();
 }
+
+/**
+ * The native half of the sign-out's cook-marks end. Nothing to do: native keeps marks in memory only, and the
+ * provider's session scope removes them when the cook changes — there is no document load to outrun it.
+ */
+export function clearStoredCookMarks(): void {}

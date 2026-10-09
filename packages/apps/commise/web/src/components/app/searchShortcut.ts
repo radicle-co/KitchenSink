@@ -62,11 +62,21 @@ export function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 /**
+ * What an open dialog looks like in the DOM. `aria-modal` alone is not enough: Radix `Dialog.Content` sets `role` and
+ * hides the rest of the page instead, so the erase dialog carried no `aria-modal` and `/` moved focus behind it. A
+ * closed Radix dialog is unmounted and a closed `<dialog>` has no `open`, so neither matches.
+ *
+ * ⚠️ A Radix `Popover` is `role="dialog"` too, so `/` also does nothing while a popover is open — focus stays in it,
+ * which is the same rule.
+ */
+const OPEN_DIALOG_SELECTOR = '[aria-modal="true"], [role="dialog"], [role="alertdialog"], dialog[open]';
+
+/**
  * @param doc - The document.
- * @returns Whether a modal dialog is open. While one is, focus must not move behind it. Pure.
+ * @returns Whether a dialog is open. While one is, focus must not move behind it. Pure.
  */
 export function hasOpenModal(doc: Document): boolean {
-    return doc.querySelector('[aria-modal="true"]') !== null;
+    return doc.querySelector(OPEN_DIALOG_SELECTOR) !== null;
 }
 
 /**

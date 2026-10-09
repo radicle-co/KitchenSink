@@ -160,6 +160,14 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: "One node handle, the field, for `.focus()` and the caret (`setSelectionRange` on web, `setSelection` on native) when a host requests focus. Neither has a declarative form, and the web leaf reads the node from floating-ui rather than holding a ref object. On native the same node also leaves the leaf through `FieldRevealContext` (`@commise/ui/field-reveal`), typed as `Pick<HostInstance, 'measureLayout'>`, so the host can measure it for the reveal.",
     },
+    'designSystem/input/Input': {
+        verdict: 'sanctioned',
+        why: "One node handle, the field, for a host focus request (a field the host has just shown, such as an ingredient group's name): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Button and Combobox take.",
+    },
+    'featuresRecipes/form/IngredientRow': {
+        verdict: 'sanctioned',
+        why: "One node handle, the read row's open control (\"Edit {amount} {food}\"), for a host focus request: after a Remove the next row's open control takes focus, and after Done or a cancelled food search the row's own does (build spec §7.5.1, §7.5.2). `.focus()` on web and `moveScreenReaderFocus` on native have no declarative form; the request is a level the row view clears on acknowledgement.",
+    },
     'designSystem/popover/Popover': {
         verdict: 'sanctioned',
         why: 'One node handle, the trigger, for `.focus()` when a host requests focus (a level-triggered request, acknowledged once taken). `.focus()` has no declarative form, and Radix owns every other focus move.',
@@ -246,7 +254,7 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
     },
     'packages/apps/commise/ui/src/dialogFocus/useFocusOnSignal.ts': {
         verdict: 'sanctioned',
-        why: "`node` holds a DOM element whose sole use is the imperative `.focus()` (through `focusIfLost`), which has no declarative form, and it never leaves the module except through the ref the caller attaches. `seen` is a previous-value latch compared and advanced INSIDE the effect, the `useScrollResetOnChange` shape: a discarded render can neither consume the signal's change nor advance the latch, and a remount with a non-zero signal moves nothing. A `focusSignal` epoch prop was once rejected because correctness depended on observing one render exactly once; comparing the value inside a committed effect is what removes that dependency.",
+        why: "`node` holds a DOM element whose sole use is the imperative `.focus()` (through `focusIfLost`), which has no declarative form, and it never leaves the module except through the ref the caller attaches. `seen` is a previous-value latch compared and advanced INSIDE the effect, the shape a previous-value latch takes: a discarded render can neither consume the signal's change nor advance the latch, and a remount with a non-zero signal moves nothing. A `focusSignal` epoch prop was once rejected because correctness depended on observing one render exactly once; comparing the value inside a committed effect is what removes that dependency.",
     },
     'packages/apps/commise/ui/src/screenReaderFocus/useScreenReaderFocusOnSignal.native.ts': {
         verdict: 'sanctioned',
@@ -263,10 +271,6 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
     'packages/apps/commise/query/src/syncProvider.tsx': {
         verdict: 'sanctioned-adjacent',
         why: "Three refs, all about a timing React does not model. `store` holds the platform storage adapter — an external, non-declarative system (AsyncStorage on device) and the definition of the sanctioned case. `draining` and `needsDrain` are a single-flight mutex over an async drain that spans the network: a drain is not a render, so React has no state that can express 'one is already running' without tearing. ⚠️ `draining` was WRONG until this commit: a refused drain simply returned, so a reconnect landing inside an in-flight drain was SILENTLY DISCARDED and the queue sat until an unrelated connectivity transition — a queued write that never left, which is the exact silence the layer exists to remove. It now re-arms through `needsDrain`, consumed by a `do/while` INSIDE the `try` so that the empty-log break and any throw are covered too — the first fix consumed it after the `try/finally` and therefore skipped every path but the happy one, leaving the dropped-request defect alive inside its own fix. `flushRef` is a stable handle for the mount drain, which cannot depend on `flush` without depending on itself. ⚠️ Both are pinned by mutation-proven tests in `syncProvider.test.tsx`, and the re-arm one had to be REWRITTEN to earn that: the first version asserted `calls.length >= 1` (already true from the preceding wait) over a fixture whose single record was gone after the first drain, so deleting the re-arm left the suite green. It now scripts the store to hand out a second record and asserts two distinct sends.",
-    },
-    'packages/apps/commise/mobile/src/hooks/useScrollResetOnChange.ts': {
-        verdict: 'sanctioned-adjacent',
-        why: "`scroller` holds a React Native scroller handle whose `scrollTo` is the only way to move a `ScrollView` — the same kind of imperative native handle an `Animated.Value` is, and its caller types it: the hook itself calls only `scrollTo` (`ScrollResettable`), and `RecipeEditor` widens it to `ScrollView` because the field reveal's host (`useFieldRevealHost`) measures through the same handle. `seen` is a previous-value latch, and the reason it is not the `useRef` hazard `useReturnFocusOnClose` was rewritten for is that it is compared and advanced INSIDE the effect: an effect runs only for a render that committed, so a discarded render can neither consume the edge nor advance the latch.",
     },
 };
 

@@ -13,6 +13,7 @@ import { ProfileGroup } from '../ProfileGroup.js';
 import { ProfileHeader } from '../ProfileHeader.js';
 import { ProfileRow } from '../ProfileRow.js';
 import { ProfileValueRow } from '../ProfileValueRow.js';
+import { DISPLAY_NAME_MAX_LENGTH } from '../model.js';
 import type { DisplayNameSheetProps, ProfileRowProps } from '../props.js';
 
 afterEach(cleanup);
@@ -280,5 +281,30 @@ describe('DisplayNameSheet (web)', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Close' }));
 
         expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+});
+
+/**
+ * The field stops a name at the identity service's limit. Without it a long name was typed in full and Save went
+ * quietly disabled, with nothing saying why.
+ */
+describe('DisplayNameSheet (web) — the length limit', () => {
+    it('stops the field at the display name’s limit', () => {
+        render(
+            <DisplayNameSheet
+                open
+                onOpenChange={noop}
+                draft=""
+                onDraftChange={noop}
+                canSave={false}
+                saving={false}
+                failed={false}
+                onSave={noop}
+            />,
+        );
+
+        expect(screen.getByRole('textbox', { name: 'What should we call you?' }).getAttribute('maxlength')).toBe(
+            String(DISPLAY_NAME_MAX_LENGTH),
+        );
     });
 });

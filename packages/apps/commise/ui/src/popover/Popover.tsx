@@ -44,6 +44,7 @@ const Spinner: FC = () => (
 export const Popover: FC<PopoverProps> = ({
     triggerLabel,
     triggerIcon,
+    triggerText,
     title,
     closeLabel,
     children,
@@ -91,11 +92,17 @@ export const Popover: FC<PopoverProps> = ({
                 aria-label={triggerLabel}
                 aria-busy={busy || undefined}
                 aria-describedby={describedBy}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className={
+                    triggerText === undefined
+                        ? 'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring'
+                        : // The attention line: at least 32 px tall (2.5.8 asks 24), its words in `attention`.
+                          'inline-flex min-h-8 items-center gap-1 rounded-sm text-left text-caption font-medium text-attention transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring'
+                }
             >
                 <span aria-hidden="true" className="inline-flex">
-                    {busy ? <Spinner /> : <Icon name={triggerIcon} size={20} />}
+                    {busy ? <Spinner /> : <Icon name={triggerIcon} size={triggerText === undefined ? 20 : 16} />}
                 </span>
+                {triggerText}
             </RadixPopover.Trigger>
             <RadixPopover.Portal>
                 <RadixPopover.Content

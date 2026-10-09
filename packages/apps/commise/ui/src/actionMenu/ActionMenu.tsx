@@ -122,7 +122,7 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                         setHeldKey(undefined);
                         actionNamed(items, destructiveItem, heldKey)?.onSelect();
                     }}
-                    className="z-50 min-w-[12rem] rounded-lg bg-paper-overlay p-1 shadow-lg"
+                    className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[12rem] overflow-y-auto rounded-lg bg-paper-overlay p-1 shadow-lg"
                 >
                     {shown.items.map((item) => (
                         <MenuItem key={item.id} item={item} tone="text-ink" onChoose={setHeldKey} />

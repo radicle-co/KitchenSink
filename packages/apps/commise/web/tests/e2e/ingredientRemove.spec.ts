@@ -2,13 +2,13 @@ import { expect, test } from '@playwright/test';
 
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
-import { openRecipeEditor } from './utils/recipeEditor';
+import { ingredientOpen, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Plan 002 US6, through the real web app with the recipe-service contract intercepted: deleting an ingredient from a
- * recipe removes ONLY that row, and never affects another recipe. Remove is slot 2's direct control on a row whose
- * only action it is (the FAILED row here), and an item of the row's `⋮` menu on a row with more than one action (the
- * RESOLVED row, which also offers Change food; `ingredientRowPolicy.ts`, §3a). Both are driven.
+ * recipe removes ONLY that row, and never affects another recipe. REWRITTEN for the UI overhaul's read rows (build spec
+ * §7.5.1): Remove is never a row button, always the last item of the row's `⋯`; it is driven from the keyboard on the
+ * FAILED row and by pointer on a RESOLVED one.
  *
  * What only this tier proves: in a real browser the right row goes, the rest keep their values, and the save the
  * removal leads to writes this recipe and nothing else. Selectors are role/label/text only.
@@ -38,7 +38,7 @@ test.describe('removing an ingredient (plan 002 US6)', () => {
             ...(resolutionStatus === 'FAILED' ? { unresolvedReason: 'sources_errored' as const } : {}),
         });
         const other = makeRecipeDetail({
-            id: 'rec_other',
+            id: 'ec000000-0000-4000-8000-000000000016',
             ownerId: viewerId,
             title: 'Other Recipe',
             ingredients: [line(LINE_IDS.saffron, 'Saffron', 'RESOLVED')],
@@ -47,7 +47,7 @@ test.describe('removing an ingredient (plan 002 US6)', () => {
             viewerId,
             recipes: [
                 makeRecipeDetail({
-                    id: 'rec_remove',
+                    id: 'ec000000-0000-4000-8000-000000000024',
                     ownerId: viewerId,
                     title: 'Paella',
                     currentVersion: 1,
@@ -61,32 +61,36 @@ test.describe('removing an ingredient (plan 002 US6)', () => {
             ],
         });
 
-        await openRecipeEditor(page, 'rec_remove');
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-000000000024');
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
-        // Remove the middle row (a FAILED one) from the keyboard.
-        await ingredients.getByRole('button', { name: 'Remove ingredient 2' }).focus();
+        const rows = ingredients.getByRole('button', { name: /^Edit / });
+
+        // Remove the middle row (a FAILED one) from the keyboard, through its `⋯`.
+        await ingredients.getByRole('button', { name: 'Actions for Saffron' }).focus();
+        await page.keyboard.press('Enter');
+        await page.getByRole('menuitem', { name: 'Remove ingredient' }).focus();
         await page.keyboard.press('Enter');
 
-        await expect(ingredients.getByRole('group', { name: /Ingredient \d name/ })).toHaveCount(2);
-        // V1 sign-off item 11: focus moves on to the NEXT row's glyph, never to the page.
-        await expect(ingredients.getByRole('button', { name: 'About Stock' })).toBeFocused();
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText('Rice');
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 2 name' })).toHaveText('Stock');
+        await expect(rows).toHaveCount(2);
+        // §7.5.1: focus moves on to the NEXT row's open control, never to the page.
+        await expect(ingredientOpen(ingredients, 'Stock')).toBeFocused();
+        await expect(rows).toHaveText(['1 cupRice', '1 cupStock']);
 
-        // And the first row, by pointer, from its `⋮` menu.
+        // And the first row, by pointer.
         await ingredients.getByRole('button', { name: 'Actions for Rice' }).click();
         await page.getByRole('menuitem', { name: 'Remove ingredient' }).click();
-        await expect(ingredients.getByRole('group', { name: /Ingredient \d name/ })).toHaveCount(1);
-        await expect(ingredients.getByRole('button', { name: 'About Stock' })).toBeFocused();
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText('Stock');
+        await expect(rows).toHaveCount(1);
+        await expect(ingredientOpen(ingredients, 'Stock')).toBeFocused();
 
         // The seed is published, so its one write is Save changes (slice 7, D1).
         await page.getByRole('button', { name: 'Save changes' }).click();
         await expect(page.getByRole('heading', { name: 'Paella' })).toBeVisible();
 
-        expect(store.get('rec_remove')?.ingredients.map((saved) => saved.ingredientId)).toEqual([LINE_IDS.stock]);
+        expect(
+            store.get('ec000000-0000-4000-8000-000000000024')?.ingredients.map((saved) => saved.ingredientId),
+        ).toEqual([LINE_IDS.stock]);
         // ⛔ Never affects another recipe: the other recipe's line on the same food is untouched.
-        expect(store.get('rec_other')?.ingredients).toEqual(other.ingredients);
+        expect(store.get('ec000000-0000-4000-8000-000000000016')?.ingredients).toEqual(other.ingredients);
     });
 });

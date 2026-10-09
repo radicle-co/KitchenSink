@@ -9,9 +9,11 @@
  * keeps Android's full-screen editor away from every field.
  *
  * @pattern Template — one field geometry (`fieldStyle.ts`), rendered by both native text-field leaves
+ * @pattern Adapter over `TextInput.focus()` — a level-triggered focus request, acknowledged once taken. It is the one
+ *     reason this leaf holds a ref: focusing a field has no declarative form.
  */
-import type { FC } from 'react';
-import { StyleSheet } from 'react-native';
+import { useEffect, useEffectEvent, useRef, type FC } from 'react';
+import { StyleSheet, type TextInput as NativeTextInput } from 'react-native';
 
 import { useTheme } from '../theme/useTheme.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
@@ -33,11 +35,27 @@ export const Input: FC<InputProps> = ({
     enterKeyHint,
     secret = false,
     onSubmit,
+    maxLength,
+    focusRequested = false,
+    onFocusRequestHandled,
 }) => {
     const theme = useTheme();
+    const node = useRef<NativeTextInput>(null);
+    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
+    const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
+
+    useEffect(() => {
+        if (!focusRequested) {
+            return;
+        }
+
+        node.current?.focus();
+        acknowledgeFocusRequest();
+    }, [focusRequested]);
 
     return (
         <TextInput
+            ref={node}
             nativeID={id}
             value={value}
             onChangeText={onChangeText}
@@ -53,6 +71,7 @@ export const Input: FC<InputProps> = ({
             enterKeyHint={enterKeyHint}
             secureTextEntry={secret}
             onSubmitEditing={onSubmit}
+            maxLength={maxLength}
             style={[styles.field, fieldPaint(theme, invalid), disabled ? styles.disabled : null]}
         />
     );

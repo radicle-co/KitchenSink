@@ -16,7 +16,7 @@ import { openRecipeEditor } from './utils/recipeEditor';
 
 const ROOT_ID = 'food_chicken_breasts';
 const ROOT_NAME = 'boneless skinless chicken breasts';
-const RECIPE_ID = 'rec_details_footer';
+const RECIPE_ID = 'ec000000-0000-4000-8000-00000000000b';
 const LINE_ID = '77777777-7777-4777-8777-7777777777d2';
 
 const ROASTED: VariantView = {

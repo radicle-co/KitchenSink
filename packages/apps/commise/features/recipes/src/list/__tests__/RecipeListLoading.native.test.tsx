@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
-import { RecipeListLoading } from '../RecipeListLoading.native.js';
+import { RecipeListLoading } from '../RecipeListLoading.js';
 
 afterEach(cleanup);
 

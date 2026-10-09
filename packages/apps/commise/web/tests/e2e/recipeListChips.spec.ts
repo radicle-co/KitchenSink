@@ -30,13 +30,13 @@ test.describe('recipe list — timestamp + quick-filter chip (#2/#4)', () => {
         // to narrow. Both seed with equal createdAt/updatedAt (the mock's default `ISO`), so both cards read
         // "Created", not "Edited" (see `formatRelativeTime`'s CR-002 rule in `card/model.ts`).
         const quick = makeRecipeDetail({
-            id: 'rec_quick',
+            id: 'ec000000-0000-4000-8000-00000000001d',
             ownerId: viewerId,
             title: 'Overnight Oats',
             totalTimeMinutes: 5,
         });
         const slow = makeRecipeDetail({
-            id: 'rec_slow',
+            id: 'ec000000-0000-4000-8000-00000000002f',
             ownerId: viewerId,
             title: "Grandma's Pasta",
             totalTimeMinutes: 45,

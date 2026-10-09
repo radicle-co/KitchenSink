@@ -19,7 +19,7 @@ import { signInWithTicket } from './utils/auth';
  *
  * `recipeNutritionRequestSchema` is `z.array(z.uuid())`, and `RecipeServiceClient.getRecipeNutrition` PARSES
  * its outbound body against that schema before the call (`this.request(...)`). A readable slug id
- * (`rec_cal_1`) therefore throws `InvalidRequestError` **client-side, with no HTTP request at all** — so
+ * (`ec000000-0000-4000-8000-000000000008`) therefore throws `InvalidRequestError` **client-side, with no HTTP request at all** — so
  * `page.route('**\/api/v1/recipes/nutrition-batch')` never fires, the figure never lands, and, worse, a spec
  * asserting only the ABSENCE of a skeleton goes green having exercised nothing but a schema rejection. This
  * file's first cut did exactly that. It is the same trap `E2E_INGREDIENT_IDS` documents for ingredient ids,

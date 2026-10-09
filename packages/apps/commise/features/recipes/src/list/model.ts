@@ -19,7 +19,7 @@ import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
 import type { RecipeListMessages } from '../messages.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
 import type { RefreshNoticeControl } from '../refresh/model.js';
-import type { LibraryFacet, LibraryState } from './library.js';
+import type { LibraryFacet, LibraryState } from './libraryTypes.js';
 
 /**
  * View-model for one recipe card in the list. This is the SHARED card view-model ({@link RecipeCardModel}):

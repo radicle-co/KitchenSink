@@ -5,11 +5,12 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { sessionCookMarksBackend } from '../cookMarksBackend.js';
+import { clearStoredCookMarks, sessionCookMarksBackend } from '../cookMarksBackend.js';
 
 afterEach(() => {
-    sessionStorage.clear();
+    // Restore first: a case may have replaced the `sessionStorage` getter with one that throws.
     vi.restoreAllMocks();
+    sessionStorage.clear();
 });
 
 describe('sessionCookMarksBackend', () => {
@@ -48,5 +49,37 @@ describe('sessionCookMarksBackend', () => {
 
         expect(backend.getItem('k')).toBe('v');
         expect(backend.keys()).toEqual(['k']);
+    });
+});
+
+/**
+ * The session end (`docs/design/uiOverhaul/ownerDecisions.md` D18, ADR-0054). The provider's scope also removes marks
+ * when the cook changes, but a sign-out leaves with a full document load that can unload the page before that effect
+ * runs, so the sign-out command removes them itself. Every cook's marks go — the store's own sign-out rule — including
+ * the ones written under no cook (`cookMarksKey('')`), and nothing outside the namespace is touched.
+ */
+describe('clearStoredCookMarks', () => {
+    it('removes every cook-marks key from the tab, whoever made it, and keeps every other key', () => {
+        sessionStorage.setItem('cook.v1.user_1.rec_1', '{"lines":[],"step":1}');
+        sessionStorage.setItem('cook.v1.user_2.rec_2', '{"lines":["a"],"step":null}');
+        sessionStorage.setItem('cook.v1..rec_3', '{"lines":["b"],"step":null}');
+        sessionStorage.setItem('editor.v1.user_1.draft', 'kept');
+        sessionStorage.setItem('cook.v2.user_1.rec_1', 'kept');
+
+        clearStoredCookMarks();
+
+        expect(sessionStorage.getItem('cook.v1.user_1.rec_1')).toBeNull();
+        expect(sessionStorage.getItem('cook.v1.user_2.rec_2')).toBeNull();
+        expect(sessionStorage.getItem('cook.v1..rec_3')).toBeNull();
+        expect(sessionStorage.getItem('editor.v1.user_1.draft')).toBe('kept');
+        expect(sessionStorage.getItem('cook.v2.user_1.rec_1')).toBe('kept');
+    });
+
+    it('does not throw where the browser blocks storage', () => {
+        vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
+            throw new DOMException('blocked', 'SecurityError');
+        });
+
+        expect(() => clearStoredCookMarks()).not.toThrow();
     });
 });

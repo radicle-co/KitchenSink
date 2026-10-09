@@ -61,6 +61,7 @@ export {
     isImpersonationBlockedError,
 } from './authState.errors.js';
 export { PROFILE_STALE_TIME_MS, profileQueries, profileServiceKeys } from './queries.js';
+export { profileMutations } from './mutations.js';
 export {
     ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
     confirmsErasurePhrase,

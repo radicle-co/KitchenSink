@@ -33,7 +33,7 @@ import { openRecipeEditor } from './utils/recipeEditor';
  * touching `description`/`prepTimeMinutes`/`cookTimeMinutes`, which the panel must NOT show.
  */
 
-/** Enter the conflict view: sign in, seed `rec_conflict`, edit its title, and lose the version race against
+/** Enter the conflict view: sign in, seed `ec000000-0000-4000-8000-000000000009`, edit its title, and lose the version race against
  *  `enrichedConflicts`. Returns the live store so a spec can assert what the resolution ultimately persisted.
  *  `seedOver` overrides the seeded recipe, for a spec that needs particular lines. */
 async function enterConflict(
@@ -44,7 +44,7 @@ async function enterConflict(
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
     const seed = makeRecipeDetail({
-        id: 'rec_conflict',
+        id: 'ec000000-0000-4000-8000-000000000009',
         ownerId: viewerId,
         title: 'Original Title',
         servings: 4,
@@ -54,10 +54,10 @@ async function enterConflict(
     const store = await mockRecipeApi(page, {
         viewerId,
         recipes: [seed],
-        enrichedConflicts: { rec_conflict: conflictSeed },
+        enrichedConflicts: { 'ec000000-0000-4000-8000-000000000009': conflictSeed },
     });
 
-    await openRecipeEditor(page, 'rec_conflict');
+    await openRecipeEditor(page, 'ec000000-0000-4000-8000-000000000009');
     await page.getByLabel('Title').fill('My Merged Title');
     // The seed is published, so its one write is the action bar's Save changes (D1); saving loses the race.
     await page.getByRole('button', { name: 'Save changes' }).click();
@@ -78,7 +78,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const seed = makeRecipeDetail({
-            id: 'rec_conflict',
+            id: 'ec000000-0000-4000-8000-000000000009',
             ownerId: viewerId,
             title: 'Original Title',
             servings: 4,
@@ -86,13 +86,14 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         });
         const store = await mockRecipeApi(page, { viewerId, recipes: [seed] });
         const detailRead = (request: { method(): string; url(): string }): boolean =>
-            request.method() === 'GET' && /\/api\/v1\/recipes\/rec_conflict(?:\?|$)/u.test(request.url());
+            request.method() === 'GET' &&
+            /\/api\/v1\/recipes\/ec000000-0000-4000-8000-000000000009(?:\?|$)/u.test(request.url());
 
-        await openRecipeEditor(page, 'rec_conflict');
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-000000000009');
         await page.getByLabel('Title').fill('My Edit');
 
         // The other device saves: servings 8, version 2.
-        store.set('rec_conflict', { ...seed, servings: 8, currentVersion: 2 });
+        store.set('ec000000-0000-4000-8000-000000000009', { ...seed, servings: 8, currentVersion: 2 });
 
         // The detail read is 30 s fresh; jump past it, then refocus the tab so the editor's cache refetches v2.
         const refetched = page.waitForRequest(detailRead);
@@ -102,7 +103,8 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
 
         const save = page.waitForRequest(
             (request) =>
-                request.method() === 'PATCH' && /\/api\/v1\/recipes\/rec_conflict(?:\?|$)/u.test(request.url()),
+                request.method() === 'PATCH' &&
+                /\/api\/v1\/recipes\/ec000000-0000-4000-8000-000000000009(?:\?|$)/u.test(request.url()),
         );
         await page.getByRole('button', { name: 'Save changes' }).click();
 
@@ -111,7 +113,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         // enriched sides would pass this test while the cook saw an unresolvable error.
         await expect(page.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeVisible();
         // The server refused the stale write, so the other device's change stands.
-        expect(store.get('rec_conflict')).toMatchObject({ currentVersion: 2, servings: 8 });
+        expect(store.get('ec000000-0000-4000-8000-000000000009')).toMatchObject({ currentVersion: 2, servings: 8 });
     });
 
     test('the conflict shows the per-side banner and the changed-only diff (markers, Server before Yours)', async ({
@@ -165,7 +167,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
 
         // The other device's write already landed: the store holds the server side (v2, servings 8, the
         // server's title) at conflict time. Capturing it lets us prove Keep server writes NOTHING further.
-        expect(store.get('rec_conflict')?.currentVersion).toBe(2);
+        expect(store.get('ec000000-0000-4000-8000-000000000009')?.currentVersion).toBe(2);
 
         await page.getByRole('button', { name: 'Keep server version' }).click();
 
@@ -177,7 +179,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         // No write happened: the stored recipe is byte-for-byte the server version from the conflict — its
         // `currentVersion` did NOT advance past v2 (a resubmit would have bumped it to v3 via `applyUpdate`)
         // and its title stayed the server's, proving Keep server is a pure discard, not a last-write-wins save.
-        const persisted = store.get('rec_conflict');
+        const persisted = store.get('ec000000-0000-4000-8000-000000000009');
         expect(persisted?.currentVersion).toBe(2);
         expect(persisted?.title).toBe('Original Title');
         expect(persisted?.servings).toBe(8);
@@ -191,7 +193,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         // The other device's write already landed (v2, servings 8) — capturing it proves the discard writes
         // NOTHING further, exactly like Option A, even though this is a DIFFERENT exit (the header control,
         // not one of the three A/B/C resolutions).
-        expect(store.get('rec_conflict')?.currentVersion).toBe(2);
+        expect(store.get('ec000000-0000-4000-8000-000000000009')?.currentVersion).toBe(2);
 
         await page.getByRole('button', { name: 'Discard and close' }).click();
 
@@ -200,7 +202,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         await expect(page.getByRole('heading', { name: 'Original Title' })).toBeVisible();
         await expect(page.getByRole('heading', { name: 'My Merged Title' })).toHaveCount(0);
 
-        const persisted = store.get('rec_conflict');
+        const persisted = store.get('ec000000-0000-4000-8000-000000000009');
         expect(persisted?.currentVersion).toBe(2);
         expect(persisted?.title).toBe('Original Title');
         expect(persisted?.servings).toBe(8);
@@ -215,7 +217,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         // discards the OTHER device's servings change too (mine wins WHOLESALE, not merged).
         await expect(page.getByRole('heading', { name: 'My Merged Title' })).toBeVisible();
 
-        const persisted = store.get('rec_conflict');
+        const persisted = store.get('ec000000-0000-4000-8000-000000000009');
         expect(persisted?.title).toBe('My Merged Title');
         expect(persisted?.servings).toBe(4);
     });
@@ -241,7 +243,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         // whole side (proving this is a genuine merge, not last-write-wins).
         await expect(page.getByRole('heading', { name: 'My Merged Title' })).toBeVisible();
 
-        const persisted = store.get('rec_conflict');
+        const persisted = store.get('ec000000-0000-4000-8000-000000000009');
         expect(persisted?.title).toBe('My Merged Title');
         expect(persisted?.servings).toBe(8);
     });

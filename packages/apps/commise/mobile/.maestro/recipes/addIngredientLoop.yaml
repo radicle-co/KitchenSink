@@ -43,7 +43,7 @@ appId: io.commise.mobile
       timeout: 20000
 
 # ⛔ (1) No row, and nothing refused: no row means no UNRESOLVED row means no refusal.
-- assertNotVisible: 'Ingredient 1 name'
+- assertNotVisible: 'Edit .*'
 - assertNotVisible:
       text: 'Every ingredient needs an item picked from the list.'
 
@@ -82,7 +82,7 @@ appId: io.commise.mobile
       visible:
           text: '“Tomato.*” isn’t in the recipe yet\. Choose a food for it, or clear the box\.'
       timeout: 20000
-- assertNotVisible: 'Ingredient 1 name'
+- assertNotVisible: 'Edit .*'
 # E1 again: the refusal opened the list with the focus (R7), and its first option shows with no scroll command.
 - extendedWaitUntil:
       visible:
@@ -108,7 +108,7 @@ appId: io.commise.mobile
 
 # ⛔ (3) NOW there is a row. A committed row wears no "no food chosen" note.
 - scrollUntilVisible:
-      element: 'Ingredient 1 name'
+      element: 'Edit Tomato'
       # The line lands above the add field the cook is at: one page, so it is UP.
       direction: UP
       timeout: 30000

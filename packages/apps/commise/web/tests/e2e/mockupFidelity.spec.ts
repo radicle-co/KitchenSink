@@ -78,7 +78,7 @@ import {
  */
 
 /** The seeded recipe, titled as `screenRecipeDetail.html` titles it so the two sides carry the same words. */
-const RECIPE_ID = 'rec_lamb';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000013';
 const RECIPE_TITLE = 'Mediterranean Grilled Lamb';
 
 /**

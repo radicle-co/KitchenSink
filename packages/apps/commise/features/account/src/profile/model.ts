@@ -6,9 +6,26 @@
  * it says: a Google given name only PREFILLS an empty field, never replaces a saved name, and nothing is written until
  * the cook presses Save.
  */
+import { patchUserMeRequestSchema } from '@kitchensink/schema-identity';
 
-/** The identity service's limit on a display name (`userUpdateSchema.displayName`). */
-export const DISPLAY_NAME_MAX_LENGTH = 100;
+/**
+ * The identity service's limit on a display name, read from its contract (`patchUserMeRequestSchema.displayName`), so
+ * the field, the Save gate and the service cannot disagree.
+ *
+ * @throws {Error} At load, if the contract stops bounding the name — a field with no limit would let the cook type a
+ *     name the gate can never save.
+ */
+export const DISPLAY_NAME_MAX_LENGTH: number = (() => {
+    const limit = patchUserMeRequestSchema.shape.displayName.unwrap().maxLength;
+
+    if (limit === null) {
+        throw new Error(
+            'patchUserMeRequestSchema.displayName has no maximum length; the display-name field needs one.',
+        );
+    }
+
+    return limit;
+})();
 
 /** The slice of a Clerk `UserResource` the prefill reads; both Clerk SDKs (`@clerk/nextjs`, `@clerk/expo`) fit it. */
 export interface GivenNameSource {

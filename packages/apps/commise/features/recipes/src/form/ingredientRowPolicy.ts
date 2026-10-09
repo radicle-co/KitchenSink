@@ -30,7 +30,6 @@
  * @pattern Specification — the row's presentation as a function of the line's state
  * @pattern Visitor — an exhaustive `switch` over `FoodResolutionStatus`
  */
-import type { IconName } from '@commise/ui/icon';
 import { FoodResolutionStatus, type IngredientVariant } from '@kitchensink/recipe-core';
 
 import { isStandInName } from '../detail/lineName.js';
@@ -120,17 +119,6 @@ type IngredientRowTone = 'neutral' | 'caution';
 export const rowBadgeStatus = (tone: IngredientRowTone): 'note' | 'attention' =>
     tone === 'caution' ? 'attention' : 'note';
 
-/** The icon Registry meaning slot 1's state glyph draws: the two are told apart by SHAPE (plan 002 V1). */
-const ROW_GLYPH_ICON: Readonly<Record<IngredientRowGlyph, IconName>> = { alert: 'triangleAlert', info: 'info' };
-
-/**
- * The icon Registry meaning a row's state glyph draws (`@commise/ui/icon`). Pure.
- *
- * @param glyph - The row's state glyph.
- * @returns The triangle for an actionable row, the circle for a quiet one.
- */
-export const rowGlyphIcon = (glyph: IngredientRowGlyph): IconName => ROW_GLYPH_ICON[glyph];
-
 /** Everything a row shows, decided once. */
 export interface IngredientRowPresentation {
     readonly nameMode: IngredientRowNameMode;
@@ -209,6 +197,16 @@ const boundAnswer = (line: RowPolicyLine, figures: RowFigures | undefined): Stat
             return record('info', 'foodUnreachable', ['remove'], undefined, 'neutral');
     }
 };
+
+/**
+ * Whether a line names a food a Change food would replace: bound, and not the cook's own wording. A line that does not
+ * (rows 1 and 2) has its search opened to FIND a food, so it keeps nothing and its copy says so. Pure.
+ *
+ * @param line - The draft line.
+ * @returns `true` for rows 3 to 13.
+ */
+export const namesAFood = (line: Pick<RowPolicyLine, 'ingredientId' | 'isUserEntered'>): boolean =>
+    isResolvedIngredientId(line.ingredientId) && !line.isUserEntered;
 
 /** The state's answer, rows 1-13. */
 const stateAnswer = (line: RowPolicyLine, figures: RowFigures | undefined): StateAnswer => {

@@ -151,7 +151,12 @@ export function useLineCommit<Origin>(surface: LineCommitSurface, sourceLimit: S
         if (target.kind === 'newLine') {
             const key = mintLineKey();
 
-            surface.dispatch({ kind: 'appendResolvedIngredient', key, line: withLineMeasure(line, target.measure) });
+            surface.dispatch({
+                kind: 'appendResolvedIngredient',
+                key,
+                line: withLineMeasure(line, target.measure),
+                ...(target.placement === undefined ? {} : { placement: target.placement }),
+            });
 
             return { kind: 'committed', key, binding };
         }

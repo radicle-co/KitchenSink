@@ -40,7 +40,7 @@ appId: io.commise.mobile
       timeout: 30000
 - tapOn: 'Flour, your food'
 - scrollUntilVisible:
-      element: 'Ingredient 1 quantity'
+      element: 'Edit Flour'
       direction: DOWN
       timeout: 30000
 
@@ -57,15 +57,16 @@ appId: io.commise.mobile
           TARGET: 'Find nutrition for “halloumi ${output.noise}”'
 - tapOn: 'Find nutrition for “halloumi ${output.noise}”'
 
+# UI overhaul slice 8 (build spec §7.5.1): the row says it needs a choice in an attention line under its name.
 - extendedWaitUntil:
       visible:
-          text: 'Not resolved'
+          text: 'Choose a match'
       timeout: 60000
       label: 'a name our database has never seen settles UNRESOLVED on this stage, so row 6 has a line to show'
 
-# The panel never opens by itself: nothing is listed until the cook presses the glyph.
+# The panel never opens by itself: nothing is listed until the cook presses the attention line.
 - assertNotVisible: 'None of these — search for a different food'
-- tapOn: 'About .*'
+- tapOn: 'Choose a match: .*'
 # The panel's own sentence, not `Which “…” did you mean?`: that names the group of OUR database's foods, and a name lands
 # `UNRESOLVED` only when that same search found none (the cascade's lexical tier binds any hit), so it never shows here.
 # `ingredientShortlist.yaml` asserts it on an `AMBIGUOUS` line.
@@ -81,8 +82,7 @@ appId: io.commise.mobile
       timeout: 40000
       label: 'USDA answered the progressive search for the line’s words on this stage'
 
-# One remote pick: the panel adopts it and puts the root on the line, closes, and the row no longer says it is not
-# resolved.
+# One remote pick: the panel adopts it and puts the root on the line, closes, and the row no longer asks for a choice.
 - runFlow:
       file: common/scrollOpenList.yaml
       env:
@@ -94,7 +94,7 @@ appId: io.commise.mobile
       notVisible:
           text: 'None of these — search for a different food'
       timeout: 40000
-- assertNotVisible: 'Not resolved'
+- assertNotVisible: 'Choose a match'
 
 # Leave with ×. REWRITTEN for slice 7: Save Draft is gone; × is the exit checkpoint, which creates the titled draft
 # (build spec §7.3), so the recipe is in My recipes when the list returns.

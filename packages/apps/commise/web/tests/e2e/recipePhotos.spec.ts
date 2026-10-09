@@ -44,7 +44,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
-        await openRecipeEditor(page, 'rec_seed');
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
         // The photo manager block starts empty, with an accessible "Photos" region.
         const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
@@ -80,7 +80,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
-        await openRecipeEditor(page, 'rec_seed');
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
         const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
         await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
@@ -108,7 +108,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
-        await openRecipeEditor(page, 'rec_seed');
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
         const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
         await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
@@ -144,7 +144,7 @@ test.describe('recipe photo replace (U6)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
-        await openRecipeEditor(page, 'rec_seed');
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
         await page.getByLabel('Add photo').setInputFiles({
             name: 'original.png',

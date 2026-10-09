@@ -78,7 +78,7 @@ describe('rowCommittedMessage', () => {
     it('UNRESOLVED: it names the glyph the cook uses to choose (item 1)', () => {
         expect(
             rowCommittedMessage(binding({ resolutionStatus: FoodResolutionStatus.UNRESOLVED }), 'chickpeas', COPY),
-        ).toBe('Added chickpeas. It could be more than one food. Use “About chickpeas” to choose one.');
+        ).toBe('Added chickpeas. It could be more than one food. Use its “Choose a match” line to choose one.');
     });
 
     it('a declaration claims no match: it says only that the line was added', () => {

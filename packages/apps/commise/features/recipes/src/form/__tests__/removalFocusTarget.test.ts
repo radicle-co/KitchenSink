@@ -1,11 +1,10 @@
 /**
- * Where focus goes after an ingredient row is removed (`docs/design/ingredientStatusExplanation.md` V1 sign-off item
- * 11): the next row's glyph; the trailing control when the removed row was last. Both leaves read this one rule, so the
- * two platforms cannot hand focus to different places.
+ * Where focus goes after an ingredient row is removed (build spec §7.5.1: "Removing a row moves focus to the next row"):
+ * the next row's open control; the trailing control when the removed row was last. Both leaves read this one rule, so
+ * the two platforms cannot hand focus to different places.
  *
- * REWRITTEN for plan 002 V1 B7: item 11's middle step, "that row's Remove when it has no glyph", is gone. B7 gives every
- * panel a body, so every row shows its glyph (item 3a), and on a row whose actions sit behind `⋮` its Remove is not a
- * control that could take focus. A line with no food, which had no glyph before B7, now proves the glyph instead.
+ * REWRITTEN for the UI overhaul's read rows: a healthy row shows no glyph, so the next row's OPEN control ("Edit
+ * {amount} {food}"), which every row has, takes focus. A line with no food has one too.
  */
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
@@ -20,21 +19,21 @@ const notFound = (ingredientId: string, name: string) => ({
     isUserEntered: false,
     resolutionStatus: FoodResolutionStatus.NOT_FOUND,
 });
-// A line with no food: before B7 it had no glyph.
+// A line with no food: its open control is the same as any row's.
 const noFood = (name: string) => ({ ingredientId: null, name, quantity: 1, isUserEntered: false });
 
 describe('removalFocusTarget', () => {
-    it('is the NEXT row’s glyph when it has one', () => {
+    it('is the NEXT row’s open control', () => {
         const lines = withLineKeys([notFound('a', 'Kale'), notFound('b', 'Leek'), notFound('c', 'Okra')]);
 
-        expect(removalFocusTarget(lines, 0)).toEqual({ kind: 'glyph', key: lines[1]?.key });
-        expect(removalFocusTarget(lines, 1)).toEqual({ kind: 'glyph', key: lines[2]?.key });
+        expect(removalFocusTarget(lines, 0)).toEqual({ kind: 'open', key: lines[1]?.key });
+        expect(removalFocusTarget(lines, 1)).toEqual({ kind: 'open', key: lines[2]?.key });
     });
 
-    it('is the next row’s glyph for a row with no food too: every row shows its glyph', () => {
+    it('is the next row’s open control for a row with no food too: every row has one', () => {
         const lines = withLineKeys([notFound('a', 'Kale'), noFood('Leek')]);
 
-        expect(removalFocusTarget(lines, 0)).toEqual({ kind: 'glyph', key: lines[1]?.key });
+        expect(removalFocusTarget(lines, 0)).toEqual({ kind: 'open', key: lines[1]?.key });
     });
 
     it('is the trailing control when the removed row was the last, or the only one', () => {

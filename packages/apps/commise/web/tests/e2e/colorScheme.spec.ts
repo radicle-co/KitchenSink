@@ -17,7 +17,7 @@ import { signInWithTicket } from './utils/auth';
  * expectation with it.
  */
 
-const RECIPE_ID = 'rec_scheme';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000029';
 const RECIPE_TITLE = 'Ember Roast Chicken';
 
 /** `#RRGGBB` → the `rgb(r, g, b)` spelling a computed style uses. */

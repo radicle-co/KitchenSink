@@ -40,15 +40,18 @@ appId: io.commise.mobile
       notVisible: 'Use .*Maestro Glorp.* as written.*'
       timeout: 30000
 
-# The row's status word, from the row policy.
+# The cook's own wording needs nothing from them, so its row reads quietly (UI overhaul slice 8, build spec §7.5.1):
+# its open control, named for the line, and no status word.
 - scrollUntilVisible:
-      element:
-          text: '^Your own wording$'
+      element: 'Edit Maestro Glorp'
       direction: DOWN
       timeout: 30000
+- assertNotVisible:
+      text: '^Your own wording$'
 
-# Slot 1: the glyph is a button named for the row's food, never a bare "Info".
-- tapOn: 'About Maestro Glorp'
+# Its panel opens from the row's ⋯ Food details, a sheet titled for the food.
+- tapOn: 'Actions for Maestro Glorp'
+- tapOn: 'Food details'
 - extendedWaitUntil:
       visible: '^No nutritional data available$'
       timeout: 10000
@@ -58,7 +61,7 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       notVisible: '^No nutritional data available$'
       timeout: 10000
-- assertVisible: 'About Maestro Glorp'
+- assertVisible: 'Edit Maestro Glorp'
 
 # Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
 - runFlow: common/discardDraft.yaml

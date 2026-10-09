@@ -27,7 +27,7 @@ import { chooseEntryOption } from './rowEntryField.js';
 /** The copy the trailing field reads, already localised. */
 export interface TrailingEntryFieldCopy extends EntryComboboxCopy {
     readonly form: EntryComboboxCopy['form'] & Pick<RecipeFormMessages, 'ingredientSuggestionsLabel'>;
-    /** The add field's own name and its amount-first hint (build spec §7.5.3). */
+    /** The add field's amount-first hint (build spec §7.5.3). Its name is the input's (`label`). */
     readonly add: Pick<EditorMessages['ingredients'], 'addLabel' | 'addHint'>;
 }
 
@@ -36,6 +36,8 @@ export interface TrailingEntryFieldInput {
     readonly entry: IngredientEntry;
     /** The number the next line takes: the list is named for the ingredient it will add. */
     readonly nextNumber: number;
+    /** The field's name and placeholder: "Add an ingredient", or "Add to {group}" in a group (§7.5.5). */
+    readonly label: string;
     /** The field holds text a save refused. */
     readonly invalid: boolean;
     /** A pick on the trailing row that did not take, already worded; said assertively. */
@@ -95,9 +97,9 @@ export const trailingEntryFieldOf = (
     );
 
     return {
-        label: copy.add.addLabel,
+        label: input.label,
         listLabel: fillTemplate(copy.form.ingredientSuggestionsLabel, { number: input.nextNumber }),
-        placeholder: copy.add.addLabel,
+        placeholder: input.label,
         value: text,
         onValueChange: (next) => {
             input.onTextChange();

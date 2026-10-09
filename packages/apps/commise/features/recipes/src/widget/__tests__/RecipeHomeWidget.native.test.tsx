@@ -8,32 +8,32 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { formatRgb } from 'culori';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { RecipeWidgetLoadError } from '../../components/RecipeWidgetLoadError.native.js';
-import { RecipeWidgetLoadingCard } from '../../components/RecipeWidgetLoadingCard.native.js';
+import { RecipeWidgetLoadingCard } from '../../components/RecipeWidgetLoadingCard.js';
 import RecipeHomeWidget, { type RecipeHomeWidgetProps } from '../RecipeHomeWidget.native.js';
 
 /** The system colour scheme and window width the next render sees. */
-const env = vi.hoisted(() => ({ scheme: null as 'light' | 'dark' | null, width: 390 }));
+const env = vi.hoisted(() => ({ width: 390 }));
 
 vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
-        ...actual,
-        useColorScheme: () => env.scheme,
+        ...withSystemScheme(actual),
         useWindowDimensions: () => ({ width: env.width, height: 844, scale: 2, fontScale: 1 }),
     };
 });
 
 afterEach(() => {
     cleanup();
-    env.scheme = null;
+    systemScheme.current = null;
     env.width = 390;
 });
 
@@ -52,11 +52,11 @@ describe('RecipeHomeWidget (native) — recent recipes', () => {
         ['light', role.ink],
         ['dark', roleDark.ink],
     ])('heads the block with "Recent recipes" in the %s ink', (scheme, ink) => {
-        env.scheme = scheme;
+        systemScheme.current = scheme;
         widget();
         const heading = screen.getByRole('heading', { name: 'Recent recipes' });
 
-        expect(getComputedStyle(heading).color).toBe(formatRgb(ink));
+        expect(getComputedStyle(heading).color).toBe(rgb(ink));
     });
 
     it('shows at most four cards, each a link that reports its id', () => {

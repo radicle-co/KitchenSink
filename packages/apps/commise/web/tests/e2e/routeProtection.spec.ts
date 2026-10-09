@@ -79,10 +79,14 @@ test.describe('route protection (signed out)', () => {
 
         // `/account` and `/settings` (slice 9) and the paste review page (slice 8) are deleted routes (blueprint A10).
         // They are NOT in the protected list above: a deleted path must answer the 404 surface, not bounce to sign-in as
-        // though it still existed. (The paste page's own `/recipes/parse` is now a recipe id to `/recipes/[id]`.)
+        // though it still existed. `/recipes/parse` and `/recipes/new/edit` reach `/recipes/[id]` by shape, but neither
+        // names a recipe — a recipe id is a UUID — so the middleware answers them with the same 404
+        // (`src/lib/recipeRouteId.ts`).
         for (const path of [
             '/this-page-does-not-exist',
-            '/recipes/rec_seed/typo',
+            '/recipes/parse',
+            '/recipes/new/edit',
+            '/recipes/ec000000-0000-4000-8000-00000000002c/typo',
             '/account',
             '/settings',
             '/recipes/parse/00000000-0000-4000-8000-000000000001',

@@ -14,7 +14,7 @@ import { role } from '@commise/ui/colors';
 import { cssColor } from '../../__tests__/cssColor.js';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
-import { RecipeDeleteDialog } from '../RecipeDeleteDialog.native.js';
+import { RecipeDeleteDialog } from '../RecipeDeleteDialog.js';
 import type { RecipeDeleteDialogProps } from '../model.js';
 
 // The real ScrollView, its element marked: jsdom has no layout, so "can the actions be scrolled to" is asserted as

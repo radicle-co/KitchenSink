@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { addStep, fillTimes, openNewRecipe } from './utils/recipeEditor';
+import { addStep, fillTimes, ingredientOpen, openNewRecipe } from './utils/recipeEditor';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
 
@@ -38,7 +38,7 @@ test.describe('add-ingredient loop (plan U28, B8)', () => {
         // (1) The empty state invites the first action, and the field is there to take it. No row, no refusal.
         await expect(page.getByText('No ingredients yet. Add your first ingredient.')).toBeVisible();
         await expect(field).toBeVisible();
-        await expect(page.getByLabel('Ingredient 1 name')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(0);
         await expect(page.getByText('Every ingredient needs an item picked from the list.')).toHaveCount(0);
 
         // (2) ⛔ Typed text is not a line. Publish refuses it and lands in the field with the list open, so the cook
@@ -55,14 +55,14 @@ test.describe('add-ingredient loop (plan U28, B8)', () => {
             /“sal” isn’t in the recipe yet\. Choose a food for it, or clear the box\./u,
         );
         await expect(field).toHaveAttribute('aria-expanded', 'true');
-        await expect(page.getByLabel('Ingredient 1 name')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(0);
 
         // (3) Picking a food is what actually appends a line, with the food bound to it.
         await page
             .getByRole('group', { name: 'Food catalog' })
             .getByRole('option', { name: 'Salt', exact: true })
             .click();
-        await expect(page.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText('Salt');
+        await expect(ingredientOpen(page, 'Salt')).toBeVisible();
         // The field is empty and keeps focus, ready for the next ingredient.
         await expect(field).toHaveValue('');
         await expect(field).toBeFocused();

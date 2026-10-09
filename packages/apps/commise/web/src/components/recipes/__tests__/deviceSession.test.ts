@@ -57,11 +57,13 @@ describe('endDeviceSession', () => {
         expect((await loadOutbox(webOutboxStore, 'user_b')).records).toHaveLength(1);
     });
 
-    it('does nothing when nobody was signed in', async () => {
+    it('keeps every cook`s drafts when nobody was signed in, and still removes the cook marks', async () => {
         await editorDraftsFor('user_a')?.save(memento('local:recipe:a'));
+        window.sessionStorage.setItem('cook.v1..0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60', '{"lines":["a"],"step":null}');
 
         await endDeviceSession(undefined);
 
         expect(await editorDraftsFor('user_a')?.load('local:recipe:a')).toBeDefined();
+        expect(window.sessionStorage.getItem('cook.v1..0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60')).toBeNull();
     });
 });

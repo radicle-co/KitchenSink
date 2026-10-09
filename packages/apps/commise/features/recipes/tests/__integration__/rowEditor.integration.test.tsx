@@ -9,12 +9,12 @@
  *   with no recipe write (create form; `docs/design/rowEditorBlueprint.md` decision 7);
  * - Add details from the row's `⋮`: the dialog reads the root over the food wire, a pick goes out as ONE
  *   `by-food-variant` admission and lands on the row as the variant, with its dotted line (decision 7, §S8.9).
- * - Row 6 (REWRITTEN for plan 002 S7.8): the glyph's panel searches the line's own words through the progressive
+ * - Row 6 (REWRITTEN for plan 002 S7.8): the attention line's panel searches the line's own words through the progressive
  *   answer, as row 7 does, so a remote food is offered; picking it is ONE command, food's adopt then recipe's
  *   admission of the root, and it binds THAT line alone (owner rulings 2026-10-02). The pick belongs to the row editor,
  *   not the panel (`docs/design/rowEditorBlueprint.md` decision 1): a panel closed before the answer still lands the
  *   pick, and reopening it cannot send a second one.
- * - Row 7: the glyph's panel searches the line's own words through the progressive answer, and one pick is admitted
+ * - Row 7: the attention line's panel searches the line's own words through the progressive answer, and one pick is admitted
  *   onto THAT line alone, through recipe's admission route, with no correction written (SPECIFY.1 row 7; owner ruling
  *   2026-10-02).
  */
@@ -35,11 +35,14 @@ import { makeFoodResponse } from '../../src/details/__fixtures__/foodResponse.js
 import { BEEF_BRISKET } from '../../src/details/__fixtures__/seedVariants.js';
 import type { DraftAction } from '../../src/form/draftAction.js';
 import { ingredientCommitFailureId } from '../../src/form/fieldErrorIds.js';
+import { recipeFormMessages } from '../../src/form/messages.js';
 import { applyDraftAction } from '../../src/form/props.js';
 import { RecipeIngredientsFields } from '../../src/form/RecipeIngredientsFields.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../../src/form/values.js';
 import { useIngredientRowEditor } from '../../src/hooks/useIngredientRowEditor.js';
 import { foodProgressive, foodSearches, ndjson, twoOrigins, json as jsonAnswer } from './twoOrigins.js';
+
+const en = recipeFormMessages.en;
 
 afterEach(cleanup);
 
@@ -194,14 +197,14 @@ describe('the row editor, composed over the real clients (integration)', () => {
             />,
         );
 
+        // A row with no food reads quietly; its "No match found" line opens its search on its own words (§7.5.1).
+        await user.click(screen.getByRole('button', { name: `${en.rowStateNoMatch}: chickpea` }));
         await user.click(screen.getByRole('combobox', { name: 'Ingredient 1 name' }));
         await user.keyboard('s');
         const catalog = await screen.findByRole('group', { name: 'Food catalog' }, { timeout: 3000 });
         await user.click(within(catalog).getByRole('option', { name: 'Chickpeas, canned' }));
 
-        await waitFor(() =>
-            expect(screen.getByRole('group', { name: 'Ingredient 1 name' }).textContent).toBe('Chickpeas, canned'),
-        );
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Edit 1 Chickpeas, canned' })).toBeTruthy());
         expect(origins.sentTo('food').map((each) => [each.path, each.query.get('query')])).toEqual([
             ['/api/v1/foods/search/progressive', 'chickpeas'],
         ]);
@@ -242,15 +245,13 @@ describe('the row editor, composed over the real clients (integration)', () => {
             <CreateHost seed={valuesWith(withLineKeys([ambiguous, ambiguous]))} />,
         );
 
-        await user.click(screen.getAllByRole('button', { name: 'About apple sauce' })[0]!);
+        await user.click(screen.getAllByRole('button', { name: `${en.rowStateChooseMatch}: apple sauce` })[0]!);
         const list = await screen.findByRole('list', { name: 'Which “apple sauce” did you mean?' }, { timeout: 3000 });
         await user.click(within(list).getByRole('button', { name: 'Applesauce, canned' }));
 
-        await waitFor(() =>
-            expect(screen.getByRole('group', { name: 'Ingredient 1 name' }).textContent).toBe('Applesauce, canned'),
-        );
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Edit 1 Applesauce, canned' })).toBeTruthy());
         // The second line, which shares the first's words and binding, is untouched: one pick binds one line.
-        expect(screen.getByRole('group', { name: 'Ingredient 2 name' }).textContent).toBe('apple sauce');
+        expect(screen.getByRole('button', { name: 'Edit 1 apple sauce' })).toBeTruthy();
         expect(origins.sentTo('food').map((each) => [each.path, each.query.get('query')])).toEqual([
             ['/api/v1/foods/search/progressive', 'apple sauce'],
         ]);
@@ -362,13 +363,13 @@ describe('the row editor, composed over the real clients (integration)', () => {
         const origins = twoOrigins({ food: KALE_FOOD, recipe: kaleAdmitted });
 
         renderHost(origins.recipes, origins.food, <CreateHost seed={KALE_SIBLINGS} />);
-        expect(screen.getAllByText('Not resolved')).toHaveLength(2);
+        expect(screen.getAllByText(en.rowStateChooseMatch)).toHaveLength(2);
 
-        await user.click(screen.getAllByRole('button', { name: 'About Kale' })[0]!);
+        await user.click(screen.getAllByRole('button', { name: `${en.rowStateChooseMatch}: Kale` })[0]!);
         await user.click(await screen.findByRole('button', { name: 'Kale, raw, from another food database' }));
 
         await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-        await waitFor(() => expect(screen.queryAllByText('Not resolved')).toHaveLength(1));
+        await waitFor(() => expect(screen.queryAllByText(en.rowStateChooseMatch)).toHaveLength(1));
         expect(
             origins.requests
                 .filter((each) => each.method === 'POST')
@@ -404,7 +405,8 @@ describe('the row editor, composed over the real clients (integration)', () => {
             };
         }
 
-        const firstGlyph = (): HTMLElement => screen.getAllByRole('button', { name: 'About Kale' })[0]!;
+        const firstGlyph = (): HTMLElement =>
+            screen.getAllByRole('button', { name: `${en.rowStateChooseMatch}: Kale` })[0]!;
         const kaleHit = 'Kale, raw, from another food database';
 
         it('closed before the answer: the glyph reads busy, then the line takes the food and says so', async () => {
@@ -420,7 +422,7 @@ describe('the row editor, composed over the real clients (integration)', () => {
             expect(firstGlyph().getAttribute('aria-busy')).toBe('true');
             release();
 
-            await waitFor(() => expect(screen.queryAllByText('Not resolved')).toHaveLength(1));
+            await waitFor(() => expect(screen.queryAllByText(en.rowStateChooseMatch)).toHaveLength(1));
             expect(screen.getByText('Kale, raw is matched. Its nutrition now counts.')).toBeTruthy();
             expect(admissions()).toBe(1);
         });
@@ -443,7 +445,7 @@ describe('the row editor, composed over the real clients (integration)', () => {
             expect(admissions()).toBe(1);
 
             release();
-            await waitFor(() => expect(screen.queryAllByText('Not resolved')).toHaveLength(1));
+            await waitFor(() => expect(screen.queryAllByText(en.rowStateChooseMatch)).toHaveLength(1));
             expect(admissions()).toBe(1);
         });
     });
@@ -509,6 +511,7 @@ describe('a pick that fails while its step is away (integration, E2)', () => {
         );
 
         renderHost(origins.recipes, origins.food, <StepHost seed={seed} />);
+        await user.click(screen.getByRole('button', { name: `${en.rowStateNoMatch}: chickpea` }));
         await user.click(screen.getByRole('combobox', { name: 'Ingredient 1 name' }));
         await user.keyboard('s');
         const catalog = await screen.findByRole('group', { name: 'Food catalog' }, { timeout: 3000 });

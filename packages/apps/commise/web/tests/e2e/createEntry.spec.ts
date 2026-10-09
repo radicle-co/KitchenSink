@@ -29,7 +29,13 @@ for (const colorScheme of SCHEMES) {
             await mockRecipeApi(page, {
                 viewerId,
                 tier: 'premium',
-                recipes: [makeRecipeDetail({ id: 'rec_own', ownerId: viewerId, title: 'Weeknight Pasta' })],
+                recipes: [
+                    makeRecipeDetail({
+                        id: 'ec000000-0000-4000-8000-000000000017',
+                        ownerId: viewerId,
+                        title: 'Weeknight Pasta',
+                    }),
+                ],
             });
 
             await page.goto(route('/recipes'));
@@ -52,7 +58,13 @@ for (const colorScheme of SCHEMES) {
             await mockRecipeApi(page, {
                 viewerId,
                 tier: 'premium',
-                recipes: [makeRecipeDetail({ id: 'rec_own', ownerId: viewerId, title: 'Weeknight Pasta' })],
+                recipes: [
+                    makeRecipeDetail({
+                        id: 'ec000000-0000-4000-8000-000000000017',
+                        ownerId: viewerId,
+                        title: 'Weeknight Pasta',
+                    }),
+                ],
             });
 
             await page.goto(route('/recipes'));
@@ -68,7 +80,13 @@ for (const colorScheme of SCHEMES) {
             await mockRecipeApi(page, {
                 viewerId,
                 tier: 'premium',
-                recipes: [makeRecipeDetail({ id: 'rec_own', ownerId: viewerId, title: 'Weeknight Pasta' })],
+                recipes: [
+                    makeRecipeDetail({
+                        id: 'ec000000-0000-4000-8000-000000000017',
+                        ownerId: viewerId,
+                        title: 'Weeknight Pasta',
+                    }),
+                ],
             });
 
             await page.goto(route('/recipes'));

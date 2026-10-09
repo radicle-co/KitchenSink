@@ -45,6 +45,7 @@ import {
     withEntryCommitted,
     withEntryLeft,
     withEntryText,
+    withPlacement,
     type EntryLine,
     type EntryState,
     type PendingEntry,
@@ -60,7 +61,7 @@ import {
 } from './foodSuggestions.model.js';
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from './ingredientSearchDebounce.js';
 import { useIngredientSuggestionSource } from './ingredientSuggestionSource.js';
-import type { IngredientPick, LineCommitPort, LineCommitTarget } from './lineCommit.js';
+import type { IngredientPick, LineCommitPort, LineCommitTarget, NewLinePlacement } from './lineCommit.js';
 import { useDebouncedValue } from './useDebouncedValue.js';
 import { useReadDeadline } from './useReadDeadline.js';
 import type { SourceLimit } from './useSourceLimit.js';
@@ -114,6 +115,10 @@ export interface IngredientEntry {
     readonly isPending: (target: LineCommitTarget) => boolean;
     /** Its text, or `''`: what `validateRecipeForm` is handed. */
     readonly pendingEntryText: string;
+    /** The group the trailing field sits in (build spec §7.5.5), or `undefined` while it follows the group being built. */
+    readonly placement: NewLinePlacement | undefined;
+    /** Move the trailing field to a group, or back to following the group being built. */
+    readonly place: (placement: NewLinePlacement | undefined) => void;
     /** Pick a food of our database from the active field's list. */
     readonly selectFood: (food: FoodOption) => void;
     /** Pick a remote food from the active field's list: adopted, then committed, by the commit port (P8). */
@@ -264,7 +269,7 @@ export function useIngredientEntry(options: UseIngredientEntryOptions): Ingredie
         const pickedText = entryTextOf(state, target, lines);
 
         // The trailing row's line is committed with the measure read from the text it was picked on (A1, A2).
-        void commit(pick, commitTargetOf(target, pickedText)).then((outcome) => {
+        void commit(pick, commitTargetOf(target, pickedText, state.placement)).then((outcome) => {
             if (outcome.kind === 'committed') {
                 setState((current) => withEntryCommitted(current, target, pickedText));
             }
@@ -331,6 +336,8 @@ export function useIngredientEntry(options: UseIngredientEntryOptions): Ingredie
         },
         pending,
         pendingEntryText: pending?.text ?? '',
+        placement: state.placement,
+        place: (placement) => setState((current) => withPlacement(current, placement)),
         isPending: (target) => isPendingAt(state, target, lines),
         selectFood: (food) => {
             if (active === undefined) {

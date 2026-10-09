@@ -5,7 +5,7 @@
  * (its request and its zod parsing), with only `fetch` mocked. What it proves that no unit test can: Try again issues
  * `GET /api/v1/ingredients/{id}/status` for THIS binding — a read, never a recipe write — and the server's answer
  * reaches the row through the host's own settle, so the row's status word changes in place and focus stays on the
- * row's glyph (the focus target recorded for UX sign-off).
+ * row's open control (the attention line that opened the panel gives way while the ask runs).
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
@@ -100,20 +100,20 @@ describe('Try again on a FAILED row (integration)', () => {
                 </RecipeServiceProvider>
             </QueryClientProvider>,
         );
-        expect(screen.getByText(en.statusFailed)).toBeTruthy();
-        const glyph = screen.getByRole('button', { name: 'About Saffron' });
+        const attention = screen.getByRole('button', { name: `${en.rowStateLookupFailed}: Saffron` });
 
-        await user.click(glyph);
+        await user.click(attention);
         await user.click(
             within(screen.getByRole('dialog', { name: 'Saffron' })).getByRole('button', {
                 name: en.statusActionRetryLookupLabel.replace('{food}', 'Saffron'),
             }),
         );
 
-        await waitFor(() => expect(screen.getByText(en.statusNotFound)).toBeTruthy());
-        expect(screen.queryByText(en.statusFailed)).toBeNull();
+        await waitFor(() => expect(screen.getByText(en.rowStateNoMatch)).toBeTruthy());
+        expect(screen.queryByText(en.rowStateLookupFailed)).toBeNull();
         expect(requests).toEqual([{ method: 'GET', url: `https://recipes.test/api/v1/ingredients/${BINDING}/status` }]);
-        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'About Saffron' }));
+        // The attention line gave way while the ask ran: focus is on the row's open control, never the page.
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Edit .*Saffron$/u }));
     });
 });
 
@@ -200,7 +200,7 @@ describe('two retried bindings on a host that sets by value (integration)', () =
         );
 
         for (const food of ['Saffron', 'Sumac']) {
-            await user.click(screen.getByRole('button', { name: `About ${food}` }));
+            await user.click(screen.getByRole('button', { name: `${en.rowStateLookupFailed}: ${food}` }));
             await user.click(
                 within(screen.getByRole('dialog', { name: food })).getByRole('button', {
                     name: en.statusActionRetryLookupLabel.replace('{food}', food),
@@ -208,8 +208,8 @@ describe('two retried bindings on a host that sets by value (integration)', () =
             );
         }
 
-        await waitFor(() => expect(screen.getAllByText(en.statusNotFound)).toHaveLength(2));
-        expect(screen.queryByText(en.statusFailed)).toBeNull();
+        await waitFor(() => expect(screen.getAllByText(en.rowStateNoMatch)).toHaveLength(2));
+        expect(screen.queryByText(en.rowStateLookupFailed)).toBeNull();
     });
 });
 
@@ -290,7 +290,7 @@ describe('Try again that resolves under another binding (integration)', () => {
     };
 
     const tryAgain = async (user: ReturnType<typeof userEvent.setup>): Promise<void> => {
-        await user.click(screen.getByRole('button', { name: 'About Saffron' }));
+        await user.click(screen.getByRole('button', { name: `${en.rowStateLookupFailed}: Saffron` }));
         await user.click(
             within(screen.getByRole('dialog', { name: 'Saffron' })).getByRole('button', {
                 name: en.statusActionRetryLookupLabel.replace('{food}', 'Saffron'),
@@ -341,8 +341,10 @@ describe('Try again that resolves under another binding (integration)', () => {
         expect(nutritionAsked).toEqual([{ refs: [{ kind: 'root', id: 'food_saffron' }] }]);
         expect(announcement().textContent).toBe(en.statusResolvedConfirmation.replace('{food}', 'Saffron'));
 
-        await user.click(screen.getByRole('button', { name: 'About Saffron' }));
-        const panel = screen.getByRole('dialog', { name: 'Saffron' });
+        // Matched now, the row is quiet: its panel opens from ⋯ Food details (build spec §7.5.1).
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+        await user.click(screen.getByRole('menuitem', { name: en.rowFoodDetails }));
+        const panel = await screen.findByRole('dialog', { name: 'Saffron' });
         expect(within(panel).getByText(en.nutritionProteinLabel).nextElementSibling?.textContent).toBe('11.4 g');
         expect(within(panel).queryByText(en.nutritionNoneAvailable)).toBeNull();
     });

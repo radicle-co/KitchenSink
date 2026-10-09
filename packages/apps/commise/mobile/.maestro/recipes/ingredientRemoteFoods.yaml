@@ -73,7 +73,7 @@ appId: io.commise.mobile
       index: 0
 - extendedWaitUntil:
       visible:
-          text: 'Ingredient 1 name'
+          text: 'Edit .*'
       timeout: 40000
       label: 'the remote pick adopted its food and the add row admitted the root'
 
@@ -95,11 +95,11 @@ appId: io.commise.mobile
 - tapOn:
       text: '.*, from USDA'
       index: 0
-# The pick closed the list and left Change food. The row's glyph is named for the line's food, so it names butter
-# only once the second remote pick has moved the line (before it, it names the flour food).
+# The pick closed the list and left Change food. The row's open control is named for the line's food, so it names
+# butter only once the second remote pick has moved the line (before it, it names the flour food).
 - extendedWaitUntil:
       visible:
-          text: 'About .*[Bb]utter.*'
+          text: 'Edit .*[Bb]utter.*'
       timeout: 40000
       label: 'the second remote pick moved the line to its root'
 - assertNotVisible: '.*, from USDA'

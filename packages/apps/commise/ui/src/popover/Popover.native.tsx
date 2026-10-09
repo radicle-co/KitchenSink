@@ -16,13 +16,14 @@
  * @pattern Adapter over `@commise/ui/sheet`, with the trigger owned so its state cannot drift from the sheet
  */
 import { useEffect, useEffectEvent, useState, type FC } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { Sheet } from '../sheet/Sheet.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { Icon } from '../icon/Icon.native.js';
+import { nativeTokens } from '../tokens/native.js';
 import type { PopoverProps } from './props.js';
 
 /** The native target floor the spec sets (§3, 2.5.8: 48 × 48 dp). */
@@ -32,6 +33,7 @@ const TARGET_DP = 48;
 export const Popover: FC<PopoverProps> = ({
     triggerLabel,
     triggerIcon,
+    triggerText,
     title,
     closeLabel,
     children,
@@ -76,11 +78,25 @@ export const Popover: FC<PopoverProps> = ({
                 onPress={() => {
                     onOpenChange(true);
                 }}
-                style={({ pressed }) => [styles.trigger, pressed && { backgroundColor: wash }]}
+                style={({ pressed }) => [
+                    triggerText === undefined ? styles.trigger : styles.textTrigger,
+                    pressed && { backgroundColor: wash },
+                ]}
             >
                 <View aria-hidden style={styles.glyph}>
-                    {busy ? <ActivityIndicator color={colors.ink} /> : <Icon name={triggerIcon} size={20} />}
+                    {busy ? (
+                        <ActivityIndicator color={colors.ink} />
+                    ) : (
+                        <Icon
+                            name={triggerIcon}
+                            size={triggerText === undefined ? 20 : 16}
+                            tone={triggerText === undefined ? 'ink' : 'attention'}
+                        />
+                    )}
                 </View>
+                {triggerText !== undefined && (
+                    <Text style={[styles.triggerText, { color: colors.attention }]}>{triggerText}</Text>
+                )}
             </Pressable>
             <Sheet
                 open={open}
@@ -108,5 +124,16 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderRadius: TARGET_DP / 2,
     },
+    // The attention line: the full 48 dp target, its words beside the glyph (build spec §7.5.1).
+    textTrigger: {
+        minHeight: TARGET_DP,
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        gap: nativeTokens.spacing[1],
+        borderRadius: nativeTokens.radius.sm,
+    },
+    // The caption role's face already carries its medium weight.
+    triggerText: { ...nativeTokens.type.caption },
     glyph: { alignItems: 'center', justifyContent: 'center' },
 });

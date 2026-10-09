@@ -11,6 +11,11 @@
  *
  * The row editor is the stateful fake (`useFakeRowEditor`) over the entry's real pure model. ⚠️ Every render goes
  * through a real `BackInterceptProvider`: the Change food guard throws without one, deliberately.
+ *
+ * REWRITTEN for the UI overhaul's read rows (build spec §7.5.1), as the web suite was: a row that names no food starts
+ * here with its search open (the harness opens it, as its "No match found" line does); the cursor that went to a row's
+ * glyph goes to its open control ("Edit {amount} {food}"); a cancelled search returns it there too; the panels open
+ * from the attention line ("{state}: {food}"); and Remove is always a `⋯` item.
  */
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
@@ -202,6 +207,7 @@ const Harness: FC<{
     const [values, setValues] = useState(initial);
     // The host's draft transition, applied to this harness's own draft, as each host applies it to its own.
     const rowEditor = useFakeRowEditor(values.ingredients, {
+        startInEntry: initial.ingredients.filter((line) => line.ingredientId === null).map((line) => line.key),
         ...over,
         editor: { dispatch: (action) => setValues((current) => applyDraftAction(current, action)), ...over?.editor },
     });
@@ -261,7 +267,7 @@ describe('entry fields (native)', () => {
         expect(screen.queryByRole('button', { name: en.ingredientEntryClear })).toBeNull();
     });
 
-    it('Cancel ends Change food and returns the reading cursor to ⋮', () => {
+    it('Cancel ends Change food and returns the reading cursor to the row', () => {
         render(<Harness initial={valuesWith(withLineKeys([BRISKET]))} />);
         choose('Beef brisket', en.statusActionChangeFood);
         vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
@@ -269,9 +275,9 @@ describe('entry fields (native)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Cancel, keep Beef brisket' }));
 
         // Back in record mode, the name is text again (§3b), no longer a field.
-        expect(screen.getByRole('group', { name: 'Ingredient 1 name' }).textContent).toBe('Beef brisket');
+        expect(screen.getByRole('button', { name: 'Edit 2 lb Beef brisket' })).toBeTruthy();
         expect(screen.queryByRole('combobox', { name: 'Ingredient 1 name' })).toBeNull();
-        expect(cursorWentTo(actions('Beef brisket'))).toBe(true);
+        expect(cursorWentTo(screen.getByRole('button', { name: 'Edit 2 lb Beef brisket' }))).toBe(true);
     });
 
     it('Android back ends Change food, before anything else on the screen hears it (item 4)', () => {
@@ -280,7 +286,7 @@ describe('entry fields (native)', () => {
 
         expect(back.press()).toBe(true);
 
-        expect(screen.getByRole('group', { name: 'Ingredient 1 name' }).textContent).toBe('Beef brisket');
+        expect(screen.getByRole('button', { name: 'Edit 2 lb Beef brisket' })).toBeTruthy();
         expect(screen.queryByRole('combobox', { name: 'Ingredient 1 name' })).toBeNull();
         // With nothing in Change food, back goes on to the host.
         expect(back.press()).toBe(false);
@@ -292,7 +298,7 @@ describe('entry fields (native)', () => {
 
         keyboardCloses();
 
-        expect(screen.getByRole('group', { name: 'Ingredient 1 name' }).textContent).toBe('Beef brisket');
+        expect(screen.getByRole('button', { name: 'Edit 2 lb Beef brisket' })).toBeTruthy();
         expect(screen.queryByRole('combobox', { name: 'Ingredient 1 name' })).toBeNull();
     });
 
@@ -308,13 +314,15 @@ describe('entry fields (native)', () => {
     });
 
     // SPECIFY.1 row 1 (`ingredientStatusExplanation.md` §3a): a line in the cook's own words offers its remedy first.
-    it('a declared row is an entry field; its ⋮ offers Find a food for this, which moves the cursor into the field', () => {
+    it('a declared row reads quietly; its ⋯ offers Find a food for this, which opens the search and moves the cursor into it', () => {
         const focus = vi.fn();
         const values = valuesWith(withLineKeys([DECLARED]));
         render(<Harness initial={values} over={{ entry: { focus } }} />);
 
         fireEvent.click(actions('grandma’s mix'));
         expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+            en.rowEdit,
+            en.rowFoodDetails,
             en.statusActionFindFood,
             en.statusActionRemove,
         ]);
@@ -982,6 +990,8 @@ describe('Add details and Edit details, native (§S7, §S8.8, items 6, 8 and 9)'
 
         fireEvent.click(actions('Beef brisket'));
         expect(menuLabels()).toEqual([
+            en.rowEdit,
+            en.rowFoodDetails,
             en.statusActionChangeFood,
             shared.ingredientDetails.actionAdd,
             en.statusActionRemove,
@@ -1022,7 +1032,7 @@ describe('Add details and Edit details, native (§S7, §S8.8, items 6, 8 and 9)'
 
         fireEvent.click(actions('Beef brisket'));
 
-        expect(menuLabels()).toEqual([en.statusActionChangeFood, en.statusActionRemove]);
+        expect(menuLabels()).toEqual([en.rowEdit, en.rowFoodDetails, en.statusActionChangeFood, en.statusActionRemove]);
     });
 });
 
@@ -1050,7 +1060,7 @@ describe('the sheets the ⋮ opens (items 1 and 8, §S8.8)', () => {
         expect(cursorWentTo(actions('Beef brisket'))).toBe(true);
     });
 
-    it('after a created food is on the line, the cursor goes to the row’s glyph once the form has gone', () => {
+    it('after a created food is on the line, the cursor goes to the row’s open control once the form has gone', () => {
         const values = valuesWith(withLineKeys([BRISKET]));
         const key = values.ingredients[0]?.key ?? 'missing';
         const target = { kind: 'line', key } as const;
@@ -1070,7 +1080,7 @@ describe('the sheets the ⋮ opens (items 1 and 8, §S8.8)', () => {
 
         act(() => rerender(<Harness initial={values} over={{ editor: { settled } }} />));
 
-        expect(cursorWentTo(screen.getByRole('button', { name: 'About Beef brisket' }))).toBe(true);
+        expect(cursorWentTo(screen.getByRole('button', { name: 'Edit 2 lb Beef brisket' }))).toBe(true);
         expect(cursorWentTo(actions('Beef brisket'))).toBe(false);
     });
 
@@ -1114,7 +1124,7 @@ describe('the sheets the ⋮ opens (items 1 and 8, §S8.8)', () => {
  * REWRITTEN for plan 002 S7.8: row 6 searches the line's own words through the progressive answer, as row 7 does (owner
  * ruling 2026-10-02), and one pick binds one line through the row editor's commit port.
  */
-describe('row 6: what the food search finds for the line, in the glyph’s panel (SPECIFY.1 row 6, P12)', () => {
+describe('row 6: what the food search finds for the line, in the attention line’s panel (SPECIFY.1 row 6, P12)', () => {
     const KALE = {
         ingredientId: 'ing_kale',
         name: 'Kale',
@@ -1122,14 +1132,14 @@ describe('row 6: what the food search finds for the line, in the glyph’s panel
         isUserEntered: false,
         resolutionStatus: FoodResolutionStatus.UNRESOLVED,
     } as const;
-    const glyph = () => screen.getByRole('button', { name: 'About Kale' });
+    const glyph = () => screen.getByRole('button', { name: `${en.rowStateChooseMatch}: Kale` });
     const STEWED_PICK = { kind: 'remoteFood', reference: 'sealed.s', name: 'Apples, stewed', source: 'usda' } as const;
 
     afterEach(() => {
         shortlistSearch.calls.length = 0;
     });
 
-    it('never opens by itself: no panel and no search until the glyph is pressed', () => {
+    it('never opens by itself: no panel and no search until the attention line is pressed', () => {
         render(<Harness initial={valuesWith(withLineKeys([KALE]))} />);
 
         expect(screen.queryByRole('button', { name: en.statusActionNoneOfThese })).toBeNull();
@@ -1198,7 +1208,7 @@ describe('row 6: what the food search finds for the line, in the glyph’s panel
     });
 });
 
-describe('row 7: the line’s re-derived shortlist in the glyph’s panel (SPECIFY.1 row 7)', () => {
+describe('row 7: the line’s re-derived shortlist in the attention line’s panel (SPECIFY.1 row 7)', () => {
     const SAUCE = {
         ingredientId: 'ing_sauce',
         name: 'apple sauce',
@@ -1207,14 +1217,14 @@ describe('row 7: the line’s re-derived shortlist in the glyph’s panel (SPECI
         isUserEntered: false,
         resolutionStatus: FoodResolutionStatus.AMBIGUOUS,
     } as const;
-    const glyph = () => screen.getByRole('button', { name: 'About apple sauce' });
+    const glyph = () => screen.getByRole('button', { name: `${en.rowStateChooseMatch}: apple sauce` });
     const CANNED_PICK = { kind: 'catalogFood', foodId: 'food_canned', name: 'Applesauce, canned' } as const;
 
     afterEach(() => {
         shortlistSearch.calls.length = 0;
     });
 
-    it('never opens by itself: no panel and no search until the glyph is pressed', () => {
+    it('never opens by itself: no panel and no search until the attention line is pressed', () => {
         render(<Harness initial={valuesWith(withLineKeys([SAUCE]))} />);
 
         expect(screen.queryByRole('button', { name: en.statusActionNoneOfThese })).toBeNull();
@@ -1297,10 +1307,14 @@ describe('row 7: the line’s re-derived shortlist in the glyph’s panel (SPECI
         expect(pickFromShortlist).not.toHaveBeenCalled();
     });
 
-    it('Remove is the row’s one action, direct: no Change food, no ⋮ (SPECIFY.1 row 7)', () => {
+    it('its ⋯ offers no Change food: the shortlist is the remedy (SPECIFY.1 row 7)', () => {
         render(<Harness initial={valuesWith(withLineKeys([SAUCE]))} />);
 
-        expect(screen.queryByRole('button', { name: 'Actions for apple sauce' })).toBeNull();
-        expect(screen.getByRole('button', { name: 'Remove ingredient 1' })).toBeTruthy();
+        fireEvent.click(actions('apple sauce'));
+
+        expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+            en.rowEdit,
+            en.statusActionRemove,
+        ]);
     });
 });

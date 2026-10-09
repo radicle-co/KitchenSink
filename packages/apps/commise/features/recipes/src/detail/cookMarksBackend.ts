@@ -12,6 +12,7 @@
  *
  * @pattern Adapter over `sessionStorage`, behind the `CookMarksBackend` port
  */
+import { isCookMarksKeyOf } from './cookMarks.js';
 import { memoryCookMarksBackend, type CookMarksBackend } from './cookMarksStore.js';
 
 /** The part of `Storage` the adapter uses. */
@@ -82,4 +83,19 @@ function tabSessionStorage(): SessionStorageLike | undefined {
  */
 export function defaultCookMarksBackend(): CookMarksBackend {
     return sessionCookMarksBackend(tabSessionStorage());
+}
+
+/**
+ * Remove every cook's marks from the tab — the sign-out's half of the session scope (D18, ADR-0054). The provider's
+ * scope removes them too, but only from an effect, and a sign-out leaves with a full document load that can unload the
+ * page first; so the sign-out command calls this once the session is proven ended.
+ *
+ * @sideEffect Removes keys from `sessionStorage`.
+ */
+export function clearStoredCookMarks(): void {
+    const backend = defaultCookMarksBackend();
+
+    for (const key of backend.keys().filter((stored) => isCookMarksKeyOf(stored))) {
+        backend.removeItem(key);
+    }
 }

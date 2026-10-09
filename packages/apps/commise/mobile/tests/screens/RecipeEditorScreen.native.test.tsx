@@ -16,14 +16,26 @@ import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { createMemoryOutboxStore } from '@kitchensink/sync';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { recipeFormMessages } from '@commise/features-recipes';
 
 import { RecipeEditorScreen } from '../../src/screens/RecipeEditorScreen.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
+/** The window's width: a phone unless a test widens it to a tablet (the section index's rail shows from 960). */
+const win = vi.hoisted(() => ({ width: undefined as number | undefined }));
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
-    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+    return {
+        ...actual,
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        useWindowDimensions: () => {
+            const real = actual.useWindowDimensions();
+
+            return win.width === undefined ? real : { ...real, width: win.width };
+        },
+    };
 });
 
 vi.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: 'user_cook' }) }));
@@ -69,6 +81,20 @@ describe('RecipeEditorScreen (native)', () => {
         expect(
             headings.filter((text) => ['Details', 'Ingredients', 'Steps', 'Photos & publish'].includes(text ?? '')),
         ).toEqual(['Details', 'Ingredients', 'Steps', 'Photos & publish']);
+    });
+
+    // Build spec §7.2 and §7.5.6: on a wide tablet the rail's foot shows the Ingredients total too.
+    it('a wide tablet’s section rail carries the running total in its foot', () => {
+        win.width = 1280;
+
+        try {
+            renderScreen(createFakeRecipeServiceClient());
+
+            // Once at the section's foot, once at the rail's: the same line, never "0 cal" (F7).
+            expect(screen.getAllByText(recipeFormMessages.en.nutritionEmpty)).toHaveLength(2);
+        } finally {
+            win.width = undefined;
+        }
     });
 
     it('× leaves without asking', () => {

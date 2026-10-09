@@ -6,7 +6,7 @@ import { route } from './utils/basePath';
 import { mockFoodApi, type RemoteFoodDouble } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { E2E_CATALOG_FOOD, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { addStep, openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
+import { addStep, ingredientOpen, openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Remote foods, in every place a cook picks a food (owner ruling 2026-10-02: "The users should see the remote foods and
@@ -113,8 +113,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         expect(searches.filter((each) => each.route === 'adopt')).toEqual([
             { route: 'adopt', reference: USDA_PEPPER.reference },
         ]);
-        await expect(page.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText(E2E_CATALOG_FOOD.name);
-        await expect(page.getByRole('button', { name: `About ${E2E_CATALOG_FOOD.name}` })).toBeVisible();
+        await expect(ingredientOpen(page, E2E_CATALOG_FOOD.name)).toBeVisible();
 
         // The line names a real root, so the recipe publishes with it: the falsifiable end of the story.
         await addStep(page, 'Simmer, then season generously.');
@@ -126,7 +125,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
     test('Change food: a USDA food picked inline rebinds that line once, keeping its amount', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        const recipe = savedRecipe(viewerId, 'rec_remote_change', [garlicLine]);
+        const recipe = savedRecipe(viewerId, 'ec000000-0000-4000-8000-000000000020', [garlicLine]);
         const store = await mockRecipeApi(page, { viewerId, recipes: [recipe] });
         const searches = await mockFoodApi(page, onlyUsda(USDA_BLACK_GARLIC));
         const rebinds = await mockRebind(page, store, {
@@ -139,9 +138,10 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         await ingredients.getByRole('combobox', { name: 'Ingredient 1 name' }).fill('black garlic');
         await page.getByRole('option', { name: `${USDA_BLACK_GARLIC.name}, from USDA` }).click();
 
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText(USDA_BLACK_GARLIC.name);
-        await expect(ingredients.getByLabel('Ingredient 1 quantity')).toHaveValue('2');
-        await expect(ingredients.getByLabel('Ingredient 1 preparation')).toHaveValue('minced');
+        // The pick moved the binding, not the cook's words.
+        await expect(ingredientOpen(ingredients, USDA_BLACK_GARLIC.name)).toHaveText(
+            new RegExp(`^2 .*${USDA_BLACK_GARLIC.name} · minced$`, 'u'),
+        );
         await expect(page.getByText(`${USDA_BLACK_GARLIC.name} is matched. Its nutrition now counts.`)).toBeVisible();
         expect(searches.filter((each) => each.route === 'adopt')).toEqual([
             { route: 'adopt', reference: USDA_BLACK_GARLIC.reference },
@@ -159,7 +159,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
     }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
-        const recipe = savedRecipe(viewerId, 'rec_remote_row7', [
+        const recipe = savedRecipe(viewerId, 'ec000000-0000-4000-8000-000000000023', [
             ambiguousLine('77777777-7777-4777-8777-777777777772', 1, 'cup'),
             ambiguousLine('77777777-7777-4777-8777-777777777773', 2, 'tbsp'),
         ]);
@@ -170,14 +170,14 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         });
         const ingredients = await openIngredients(page, recipe.id);
 
-        await ingredients.getByRole('button', { name: 'About apple sauce' }).first().click();
+        await ingredients.getByRole('button', { name: 'Choose a match: apple sauce' }).first().click();
         await page
             .getByRole('list', { name: 'From USDA' })
             .getByRole('button', { name: `${USDA_APPLESAUCE.name}, from USDA` })
             .click();
 
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText(USDA_APPLESAUCE.name);
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 2 name' })).toHaveText('apple sauce');
+        await expect(ingredientOpen(ingredients, USDA_APPLESAUCE.name)).toBeVisible();
+        await expect(ingredients.getByRole('button', { name: 'Choose a match: apple sauce' })).toHaveCount(1);
         expect(searches).toEqual([
             { route: 'progressive', query: 'apple sauce' },
             { route: 'adopt', reference: USDA_APPLESAUCE.reference },
@@ -197,7 +197,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const recipe = makeRecipeDetail({
-            id: 'rec_remote_review',
+            id: 'ec000000-0000-4000-8000-000000000021',
             ownerId: viewerId,
             title: 'Remote Review Probe',
             currentVersion: 3,
@@ -241,7 +241,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const recipe = makeRecipeDetail({
-            id: 'rec_remote_review_adding',
+            id: 'ec000000-0000-4000-8000-000000000022',
             ownerId: viewerId,
             title: 'Remote Review Adding Probe',
             currentVersion: 3,

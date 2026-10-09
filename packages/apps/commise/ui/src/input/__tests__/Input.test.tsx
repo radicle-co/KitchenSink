@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 
 import { FieldLabel } from '../FieldLabel.js';
 import { Input } from '../Input.js';
@@ -128,6 +129,36 @@ describe('Input + FieldLabel (web)', () => {
     });
 });
 
+/**
+ * A field a host shows on demand (the editor's group-name field) takes focus when asked: a LEVEL the host clears on
+ * acknowledgement, as `Button`'s, so a field that mounts while the request stands still takes it.
+ */
+describe('Input (web) — a focus request', () => {
+    it('takes focus when asked, and acknowledges once', () => {
+        const onHandled = vi.fn();
+        render(
+            <>
+                <FieldLabel forId="group" label="Group name" />
+                <Input id="group" value="" onChangeText={vi.fn()} focusRequested onFocusRequestHandled={onHandled} />
+            </>,
+        );
+
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Group name' }));
+        expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not take focus unasked', () => {
+        render(
+            <>
+                <FieldLabel forId="group" label="Group name" />
+                <Input id="group" value="" onChangeText={vi.fn()} />
+            </>,
+        );
+
+        expect(document.activeElement).toBe(document.body);
+    });
+});
+
 describe('FieldLabel (web)', () => {
     it('sets the label in the label role, in inkMuted', () => {
         render(<FieldLabel forId="title" label="Title" />);
@@ -202,5 +233,42 @@ describe('TextArea (web)', () => {
         await user.type(screen.getByRole('textbox'), 'S');
 
         expect(onChangeText).toHaveBeenCalledWith('S');
+    });
+});
+
+/** A field with a length limit stops the text at the limit, so a too-long value is never typed in the first place. */
+describe('Input (web) — a length limit', () => {
+    function Controlled({ maxLength }: { readonly maxLength?: number }) {
+        const [value, setValue] = useState('');
+
+        return (
+            <>
+                <FieldLabel forId="name" label="Name" />
+                <Input
+                    id="name"
+                    value={value}
+                    onChangeText={setValue}
+                    {...(maxLength === undefined ? {} : { maxLength })}
+                />
+            </>
+        );
+    }
+
+    it('stops typing at maxLength', async () => {
+        const user = userEvent.setup();
+        render(<Controlled maxLength={5} />);
+
+        await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Abcdefgh');
+
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Name' }).value).toBe('Abcde');
+    });
+
+    it('has no limit when none is given', async () => {
+        const user = userEvent.setup();
+        render(<Controlled />);
+
+        await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Abcdefgh');
+
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Name' }).value).toBe('Abcdefgh');
     });
 });

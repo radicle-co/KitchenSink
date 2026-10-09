@@ -3,6 +3,10 @@
  * Tests for {@link useRowFocus}: where focus goes next in the ingredients field group (§2d;
  * `docs/design/rowEditorOpenDecisions.md` items 1, 4, 8 and 11, R7), shared by the web and native leaves. Each request
  * is a level a control lowers once it has taken focus; where a request comes from is `rowFocus.ts`'s pure rules.
+ *
+ * REWRITTEN for the UI overhaul's read rows (build spec §7.5.1): a healthy row shows no glyph, so the control every row
+ * has, and that focus lands on, is the row's OPEN control ("Edit {amount} {food}"). The panel a request can wait for is
+ * the attention line's (`panel(key).onDismissed`), no longer the glyph's.
  */
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
@@ -49,14 +53,14 @@ describe('useRowFocus — at rest', () => {
         const { result } = renderFocus(editorWith());
 
         expect(result.current.name(A)).toMatchObject({ requested: false, listRequested: false });
-        expect(result.current.glyph(A).requested).toBe(false);
+        expect(result.current.open(A).requested).toBe(false);
         expect(result.current.actions(A).requested).toBe(false);
         expect(result.current.trailing).toMatchObject({ requested: false, listRequested: false });
     });
 });
 
 describe('useRowFocus — a request', () => {
-    it.each(['name', 'glyph', 'actions'] as const)('asks THAT row’s %s alone, until it reports focus', (control) => {
+    it.each(['name', 'open', 'actions'] as const)('asks THAT row’s %s alone, until it reports focus', (control) => {
         const { result } = renderFocus(editorWith());
 
         act(() => result.current.request(A, control));
@@ -64,7 +68,7 @@ describe('useRowFocus — a request', () => {
         expect(result.current[control](A).requested).toBe(true);
         expect(result.current[control](B).requested).toBe(false);
 
-        for (const other of (['name', 'glyph', 'actions'] as const).filter((each) => each !== control)) {
+        for (const other of (['name', 'open', 'actions'] as const).filter((each) => each !== control)) {
             expect(result.current[other](A).requested).toBe(false);
         }
 
@@ -76,17 +80,17 @@ describe('useRowFocus — a request', () => {
     it('a name field lowers only a request for itself, so another row’s request outlives it', () => {
         const { result } = renderFocus(editorWith());
 
-        act(() => result.current.request(B, 'glyph'));
+        act(() => result.current.request(B, 'open'));
         act(() => result.current.name(A).onHandled());
 
-        expect(result.current.glyph(B).requested).toBe(true);
+        expect(result.current.open(B).requested).toBe(true);
     });
 
     it('the glyph and ⋮ lower whatever request stands when they report focus', () => {
         const { result } = renderFocus(editorWith());
 
         act(() => result.current.request(B, 'name'));
-        act(() => result.current.glyph(A).onHandled());
+        act(() => result.current.open(A).onHandled());
 
         expect(result.current.name(B).requested).toBe(false);
 
@@ -150,8 +154,12 @@ describe('useRowFocus — a refused save points at the pending field (R7)', () =
 });
 
 describe('useRowFocus — a commit that settles (§2d, item 1)', () => {
-    it.each<[string, SettledRowCommit, 'glyph' | 'trailing' | 'none']>([
-        ['an entry pick on a row: its glyph, now', settledFrom({ kind: 'entry' }, { kind: 'line', key: A }), 'glyph'],
+    it.each<[string, SettledRowCommit, 'open' | 'trailing' | 'none']>([
+        [
+            'an entry pick on a row: its open control, now',
+            settledFrom({ kind: 'entry' }, { kind: 'line', key: A }),
+            'open',
+        ],
         [
             'an entry pick on the trailing row: the trailing field, now (the F1 loop)',
             settledFrom({ kind: 'entry' }, { kind: 'newLine' }),
@@ -163,9 +171,10 @@ describe('useRowFocus — a commit that settles (§2d, item 1)', () => {
             'none',
         ],
         [
-            'a shortlist pick: nothing, its panel returns focus to the glyph',
+            // The attention line that opened the panel goes with the state it named, so focus cannot return to it.
+            'a shortlist pick: the row’s open control, now',
             settledFrom({ kind: 'shortlist' }, { kind: 'line', key: A }),
-            'none',
+            'open',
         ],
         [
             'a pick that failed: nothing',
@@ -177,7 +186,7 @@ describe('useRowFocus — a commit that settles (§2d, item 1)', () => {
 
         rerender(editorWith({ settled }));
 
-        expect(result.current.glyph(A).requested).toBe(expected === 'glyph');
+        expect(result.current.open(A).requested).toBe(expected === 'open');
         expect(result.current.trailing.requested).toBe(expected === 'trailing');
     });
 
@@ -185,20 +194,20 @@ describe('useRowFocus — a commit that settles (§2d, item 1)', () => {
         const settled = settledFrom({ kind: 'entry' }, { kind: 'line', key: A });
         const { result, rerender } = renderFocus(editorWith({ settled }));
 
-        expect(result.current.glyph(A).requested).toBe(false);
+        expect(result.current.open(A).requested).toBe(false);
 
         const onB = settledFrom({ kind: 'entry' }, { kind: 'line', key: B });
 
         rerender(editorWith({ settled: onB }));
-        expect(result.current.glyph(B).requested).toBe(true);
+        expect(result.current.open(B).requested).toBe(true);
 
-        act(() => result.current.glyph(B).onHandled());
+        act(() => result.current.open(B).onHandled());
         rerender(editorWith({ settled: onB }));
 
-        expect(result.current.glyph(B).requested).toBe(false);
+        expect(result.current.open(B).requested).toBe(false);
     });
 
-    it('an authored food moves focus to its row’s glyph only once its Sheet has gone, and only once', () => {
+    it('an authored food moves focus to its row’s open control only once its Sheet has gone, and only once', () => {
         const { result, rerender } = renderFocus(editorWith());
 
         rerender(
@@ -207,7 +216,7 @@ describe('useRowFocus — a commit that settles (§2d, item 1)', () => {
             }),
         );
 
-        expect(result.current.glyph(A).requested).toBe(false);
+        expect(result.current.open(A).requested).toBe(false);
 
         let moved = false;
 
@@ -216,15 +225,15 @@ describe('useRowFocus — a commit that settles (§2d, item 1)', () => {
         });
 
         expect(moved).toBe(true);
-        expect(result.current.glyph(A).requested).toBe(true);
+        expect(result.current.open(A).requested).toBe(true);
 
-        act(() => result.current.glyph(A).onHandled());
+        act(() => result.current.open(A).onHandled());
         act(() => {
             moved = result.current.authoredSheetDismissed();
         });
 
         expect(moved).toBe(false);
-        expect(result.current.glyph(A).requested).toBe(false);
+        expect(result.current.open(A).requested).toBe(false);
     });
 
     it('a Sheet that closes with no success moves nothing', () => {
@@ -237,25 +246,5 @@ describe('useRowFocus — a commit that settles (§2d, item 1)', () => {
 
         expect(moved).toBe(false);
         expect(result.current.trailing.requested).toBe(false);
-    });
-});
-
-describe('useRowFocus — a request that waits for the glyph’s panel (row 6’s None of these)', () => {
-    it('moves focus only once THAT row’s panel has gone', () => {
-        const { result } = renderFocus(editorWith());
-
-        act(() => result.current.requestAfterGlyphPanel({ key: A, control: 'name' }));
-
-        expect(result.current.name(A).requested).toBe(false);
-
-        act(() => result.current.glyph(B).onPanelDismissed());
-        expect(result.current.name(A).requested).toBe(false);
-
-        act(() => result.current.glyph(A).onPanelDismissed());
-        expect(result.current.name(A).requested).toBe(true);
-
-        act(() => result.current.name(A).onHandled());
-        act(() => result.current.glyph(A).onPanelDismissed());
-        expect(result.current.name(A).requested).toBe(false);
     });
 });

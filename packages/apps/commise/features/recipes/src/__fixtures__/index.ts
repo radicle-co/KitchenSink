@@ -295,6 +295,8 @@ export const makeIngredientEntry = (over: Partial<IngredientEntry> = {}): Ingred
     pending: undefined,
     isPending: () => false,
     pendingEntryText: '',
+    placement: undefined,
+    place: () => undefined,
     databaseSaidEarly: false,
     selectFood: () => undefined,
     selectRemoteFood: () => undefined,

@@ -15,7 +15,7 @@ import { SyncProvider } from '@commise/query/sync';
 import { NotFoundError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
-import { defaultRecipeFormValues, mintLineKey } from '@commise/features-recipes';
+import { defaultRecipeFormValues, mintLineKey, recipeFormMessages } from '@commise/features-recipes';
 
 import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContainer';
 import { editorDraftsFor } from '@/components/recipes/editorDrafts';
@@ -81,6 +81,17 @@ describe('RecipeEditorContainer (web)', () => {
 
         expect(await screen.findByRole('heading', { level: 1, name: 'Edit recipe' })).toBeTruthy();
         expect(screen.getByDisplayValue('Stored Stew')).toBeTruthy();
+    });
+
+    // Build spec §7.2 and §7.5.6: the rail's foot shows the Ingredients total too (the rail itself shows from @wide).
+    it('the section index’s rail foot carries the running total, the same line as the section’s foot', async () => {
+        renderEditor(createFakeRecipeServiceClient());
+
+        const rail = (await screen.findAllByRole('navigation', { name: 'Recipe sections' }))[0];
+
+        expect(rail).toBeDefined();
+        // A new recipe counts nothing yet: the rail says so in the section foot's own words, never "0 cal" (F7).
+        expect(within(rail!).getByText(recipeFormMessages.en.nutritionEmpty)).toBeTruthy();
     });
 
     it('says a missing recipe is not found, with no retry', async () => {

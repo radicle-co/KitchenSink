@@ -51,7 +51,7 @@ for (const scheme of ['light', 'dark'] as const) {
 
             // Edit opens the COPY in the editor.
             await page.getByRole('button', { name: 'Edit' }).click();
-            await expect(page).toHaveURL(/\/recipes\/rec_clone_[^/]+\/edit/);
+            await expect(page).toHaveURL(/\/recipes\/ec100000-0000-4000-8000-[^/]+\/edit/);
         });
 
         test('pressing the control does not open the recipe, and the card still does', async ({ page }) => {

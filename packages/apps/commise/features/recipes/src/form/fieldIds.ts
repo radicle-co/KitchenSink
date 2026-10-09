@@ -42,3 +42,19 @@ export const describedByOf = (...ids: readonly (string | undefined)[]): string |
 
     return shown.length === 0 ? undefined : shown.join(' ');
 };
+
+/** The row editor's fields (build spec §7.5.2). */
+export type IngredientEditorField = 'amount' | 'amountHigh' | 'unit' | 'prep';
+
+/**
+ * One row editor field's id, by its line's key, so two rows never share a label target. Pure.
+ *
+ * @param key - The line's key.
+ * @param field - The field.
+ * @returns The id.
+ */
+export const ingredientEditorFieldId = (key: string, field: IngredientEditorField): string =>
+    `recipe-ingredient-${key}-${field}`;
+
+/** The inline group-name field (build spec §7.5.5: "+ Add a group" and Rename group). */
+export const groupNameFieldId = 'recipe-ingredient-group-name';

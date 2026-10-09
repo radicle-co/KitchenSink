@@ -13,7 +13,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { AppliedFilters } from '../AppliedFilters.native.js';
 import { FilterPanel } from '../FilterPanel.native.js';
 import { FilterSheet } from '../FilterSheet.native.js';
-import { FilterTrigger } from '../FilterTrigger.native.js';
+import { FilterTrigger } from '../FilterTrigger.js';
 import { filterBarViewOf } from '../filterBarView.js';
 import { filterMessages } from '../messages.js';
 import type { RecipeFacets, RecipeFilterState, RecipeIngredientSearchState } from '../model.js';

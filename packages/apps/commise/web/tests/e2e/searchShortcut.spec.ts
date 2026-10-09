@@ -20,7 +20,13 @@ async function openRecipes(page: import('@playwright/test').Page): Promise<void>
 
     await mockRecipeApi(page, {
         viewerId,
-        recipes: [makeRecipeDetail({ id: 'rec_s', ownerId: viewerId, title: 'Searchable Soup' })],
+        recipes: [
+            makeRecipeDetail({
+                id: 'ec000000-0000-4000-8000-000000000028',
+                ownerId: viewerId,
+                title: 'Searchable Soup',
+            }),
+        ],
     });
     await page.goto(route('/recipes'));
     await expect(page.getByRole('searchbox').first()).toBeVisible();

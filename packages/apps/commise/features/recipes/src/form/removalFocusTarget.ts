@@ -12,8 +12,8 @@ import type { RecipeFormIngredient } from './values.js';
 
 /** The control that takes focus after a removal. */
 export type RemovalFocusTarget =
-    /** The named row's status glyph: every row shows one (`panelBodyOf` is total, V1 sign-off item 3a). */
-    | { readonly kind: 'glyph'; readonly key: IngredientLineKey }
+    /** The named row's open control ("Edit {amount} {food}", build spec §7.5.1): every row has one. */
+    | { readonly kind: 'open'; readonly key: IngredientLineKey }
     /** The control after the list: Add ingredient today, the trailing combobox once the add row is one. */
     | { readonly kind: 'trailing' };
 
@@ -24,7 +24,7 @@ export type RemovalFocusTarget =
  *
  * @param lines - The draft's lines BEFORE the removal.
  * @param index - The position of the row being removed.
- * @returns The next row's glyph, or the trailing control when the removed row was last.
+ * @returns The next row's open control, or the trailing control when the removed row was last.
  */
 export const removalFocusTarget = (lines: readonly RecipeFormIngredient[], index: number): RemovalFocusTarget => {
     const next = lines[index + 1];
@@ -33,5 +33,5 @@ export const removalFocusTarget = (lines: readonly RecipeFormIngredient[], index
         return { kind: 'trailing' };
     }
 
-    return { kind: 'glyph', key: next.key };
+    return { kind: 'open', key: next.key };
 };

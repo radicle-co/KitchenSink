@@ -138,6 +138,7 @@ describe('[locale]/recipes/page.tsx SSR prefetch', () => {
         if (container === undefined) {
             throw new Error('the page renders the list container');
         }
+
         expect((container.props as { storedViewMode?: string }).storedViewMode).toBe(expected);
     });
 
@@ -162,16 +163,19 @@ describe('[locale]/recipes/page.tsx SSR prefetch', () => {
 });
 
 describe('[locale]/recipes/[id]/page.tsx SSR prefetch', () => {
+    // A UUID: the page answers not-found for a segment that is not a recipe id (`recipeRouteIds.test.tsx`).
+    const RECIPE_ID = '0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60';
+
     it('prefetches the recipe on recipeQueries(client).detail(id) and dehydrates it', async () => {
         mockAuthed();
-        const detail = makeRecipeDetail({ id: 'rec_1' });
+        const detail = makeRecipeDetail({ id: RECIPE_ID });
         vi.spyOn(RecipeServiceClient.prototype, 'getRecipeById').mockResolvedValue(detail);
 
-        const element = await RecipeDetailPage({ params: Promise.resolve({ locale: 'en', id: 'rec_1' }) });
+        const element = await RecipeDetailPage({ params: Promise.resolve({ locale: 'en', id: RECIPE_ID }) });
         const queries = dehydratedQueries(element);
 
         expect(queries).toHaveLength(1);
-        expect(queries[0]?.queryKey).toEqual(recipeServiceKeys.recipe('rec_1'));
+        expect(queries[0]?.queryKey).toEqual(recipeServiceKeys.recipe(RECIPE_ID));
         expect(queries[0]?.state.data).toEqual(detail);
     });
 
@@ -179,7 +183,7 @@ describe('[locale]/recipes/[id]/page.tsx SSR prefetch', () => {
         mockAuthed();
         vi.spyOn(RecipeServiceClient.prototype, 'getRecipeById').mockRejectedValue(new Error('not found'));
 
-        const element = await RecipeDetailPage({ params: Promise.resolve({ locale: 'en', id: 'rec_1' }) });
+        const element = await RecipeDetailPage({ params: Promise.resolve({ locale: 'en', id: RECIPE_ID }) });
 
         expect(dehydratedQueries(element)).toHaveLength(0);
     });
@@ -188,7 +192,7 @@ describe('[locale]/recipes/[id]/page.tsx SSR prefetch', () => {
         mockSignedOut();
         const detailSpy = vi.spyOn(RecipeServiceClient.prototype, 'getRecipeById');
 
-        await expect(RecipeDetailPage({ params: Promise.resolve({ locale: 'en', id: 'rec_1' }) })).rejects.toThrow(
+        await expect(RecipeDetailPage({ params: Promise.resolve({ locale: 'en', id: RECIPE_ID }) })).rejects.toThrow(
             'NEXT_REDIRECT:/en/sign-in',
         );
         expect(detailSpy).not.toHaveBeenCalled();

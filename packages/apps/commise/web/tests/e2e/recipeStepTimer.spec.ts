@@ -26,7 +26,7 @@ async function openSteps(page: Page): Promise<void> {
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
-    await openRecipeEditor(page, 'rec_seed');
+    await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
     await expect(stepField(page, 1)).toBeVisible();
 }
 
@@ -57,7 +57,7 @@ test('a step timer is entered in hours and minutes and the recipe reads it that 
     await page.getByRole('spinbutton', { name: 'Step 1 timer, minutes' }).fill('30');
     await page.getByRole('button', { name: 'Save changes' }).click();
 
-    await expect(page).toHaveURL(/\/recipes\/rec_seed(?:\?|$)/);
+    await expect(page).toHaveURL(/\/recipes\/ec000000-0000-4000-8000-00000000002c(?:\?|$)/);
     await expect(page.getByText('4 h 30 min')).toBeVisible();
     await expect(page.getByRole('img', { name: 'Timer' })).toBeVisible();
     await expect(page.getByText(/16200/)).toHaveCount(0);

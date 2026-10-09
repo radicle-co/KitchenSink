@@ -246,6 +246,33 @@ describe('useLineCommit — the draft strategy (create form, and lines the edit 
         },
     );
 
+    it.each([
+        { why: 'a named group', placement: { group: 'Sauce' } },
+        { why: 'no group, stated (it does not inherit the last line\u2019s group)', placement: { group: undefined } },
+    ] as const)('§7.5.5: the trailing row appends into the group its field sits in: $why', async ({ placement }) => {
+        mocks.byFood.mockResolvedValue(CHICKPEAS);
+        const dispatch = vi.fn<(action: DraftAction) => void>();
+        const { result } = render({ kind: 'createForm', dispatch });
+
+        await commitThrough(
+            result,
+            { kind: 'catalogFood', foodId: 'food_chickpea', name: 'Chickpeas' },
+            { kind: 'newLine', placement },
+        );
+
+        expect(dispatch.mock.calls[0]?.[0]).toMatchObject({ kind: 'appendResolvedIngredient', placement });
+    });
+
+    it('a trailing row with no placement appends with none, so the line joins the group being built (U27)', async () => {
+        mocks.byFood.mockResolvedValue(CHICKPEAS);
+        const dispatch = vi.fn<(action: DraftAction) => void>();
+        const { result } = render({ kind: 'createForm', dispatch });
+
+        await commitThrough(result, { kind: 'catalogFood', foodId: 'food_chickpea', name: 'Chickpeas' }, NEW_LINE);
+
+        expect(dispatch.mock.calls[0]?.[0]).not.toHaveProperty('placement');
+    });
+
     it('a REMOTE pick on the trailing row carries the measure through its adopt', async () => {
         mocks.adopt.mockResolvedValue({ id: 'food_chickpea' });
         mocks.byFood.mockResolvedValue(CHICKPEAS);

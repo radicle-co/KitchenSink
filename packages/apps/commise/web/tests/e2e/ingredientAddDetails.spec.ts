@@ -7,7 +7,7 @@ import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
+import { ingredientOpen, openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Curated U15 (`docs/design/ingredientSpecialization.md` §S7, F1, AE1), through the real web app with the recipe and
@@ -27,7 +27,7 @@ import { openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
  */
 const ROOT_ID = 'food_chicken_breasts';
 const ROOT_NAME = 'boneless skinless chicken breasts';
-const RECIPE_ID = 'rec_add_details';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000002';
 const LINE_ID = '77777777-7777-4777-8777-777777777771';
 const SALT_LINE_ID = '77777777-7777-4777-8777-777777777772';
 
@@ -179,7 +179,7 @@ test.describe('Add details from the row’s ⋮ (curated U15, F1, AE1)', () => {
 
         await expect(adding).toBeHidden();
         await expect(row).toContainText('fried');
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 2 name' })).toHaveText(ROOT_NAME);
+        await expect(ingredientOpen(ingredients, ROOT_NAME)).toBeVisible();
         // Focus is back on the row's ⋮, which now names the detail too (decision 5, item 6).
         await expect(ingredients.getByRole('button', { name: `Actions for ${ROOT_NAME}, fried` })).toBeFocused();
         expect(rebinds.map((each) => [each.path, each.body])).toEqual([
@@ -313,7 +313,7 @@ test.describe('Add details on a new recipe (curated U15, decision 7: the draft r
         await page.getByRole('radio', { name: 'Easy' }).click();
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('chicken');
         await page.getByRole('group', { name: 'Food catalog' }).getByRole('option', { name: ROOT_NAME }).click();
-        await expect(page.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText(ROOT_NAME);
+        await expect(ingredientOpen(page, ROOT_NAME)).toBeVisible();
 
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
         // Whatever the editor saved on its own before this point (a checkpoint's create, slice 7) is not the pick's doing.

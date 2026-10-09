@@ -58,7 +58,8 @@ interface ShellRoute {
 }
 
 const localeParams = () => ({ params: Promise.resolve({ locale: 'en' }) });
-const idParams = () => ({ params: Promise.resolve({ locale: 'en', id: 'rec_1' }) });
+// A UUID: the recipe pages answer not-found for a segment that is not a recipe id (`recipeRouteIds.test.tsx`).
+const idParams = () => ({ params: Promise.resolve({ locale: 'en', id: '0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60' }) });
 
 /**
  * Every route whose page wraps the shell itself. `/profile` wraps inside its own

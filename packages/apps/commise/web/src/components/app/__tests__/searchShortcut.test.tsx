@@ -9,7 +9,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { writeSearchShortcutEnabled } from '@/lib/searchShortcutPreference';
 
-import { findSearchField, isSearchShortcut, isEditableTarget } from '../searchShortcut';
+import { AccountEraseDialog } from '@commise/features-account/danger';
+import { ConfirmDialog } from '@commise/ui/confirm-dialog';
+
+import { findSearchField, hasOpenModal, isSearchShortcut, isEditableTarget } from '../searchShortcut';
 import { useSearchShortcut } from '../useSearchShortcut';
 
 afterEach(() => {
@@ -148,6 +151,7 @@ describe('findSearchField', () => {
         HTMLElement.prototype.checkVisibility = function (this: HTMLElement) {
             return this.id !== 'a';
         };
+
         mount('<main><input type="search" id="a"><input type="search" id="b"></main>');
 
         expect(findSearchField(document)?.id).toBe('b');
@@ -219,6 +223,7 @@ describe('useSearchShortcut', () => {
 
     it('obeys a change made while mounted — off then on', () => {
         render(<Page />);
+
         const press = (): KeyboardEvent => {
             screen.getByRole('button', { name: 'Elsewhere' }).focus();
             const event = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
@@ -260,5 +265,92 @@ describe('useSearchShortcut', () => {
 
         expect(result.current).toBeUndefined();
         fireEvent.keyDown(document, { key: 'a' });
+    });
+});
+
+/**
+ * The modal check against the dialogs the app really opens. Radix `Dialog.Content` does not set `aria-modal` (it hides
+ * the rest of the page from assistive technology instead), so a check for `[aria-modal="true"]` alone saw no dialog
+ * while the erase dialog was open, and `/` moved focus behind it. These render the real components, not a hand-built
+ * element that happens to carry the attribute.
+ */
+describe('hasOpenModal — the app’s real dialogs', () => {
+    const noop = (): void => undefined;
+
+    /** The Radix `Dialog` the danger zone opens. */
+    function EraseDialog() {
+        return (
+            <AccountEraseDialog
+                open
+                donatableRecipes={[]}
+                selectedRecipeIds={[]}
+                onToggleRecipe={noop}
+                phrase=""
+                onPhraseChange={noop}
+                onConfirm={noop}
+                onCancel={noop}
+            />
+        );
+    }
+
+    it('sees an open Radix dialog', () => {
+        render(<EraseDialog />);
+
+        expect(screen.getByRole('dialog')).toBeTruthy();
+        expect(hasOpenModal(document)).toBe(true);
+    });
+
+    it('sees an open alert dialog', () => {
+        render(
+            <ConfirmDialog
+                open
+                title="Close your account?"
+                body="You can come back."
+                confirm={{ label: 'Close account', icon: 'userX' }}
+                keep={{ label: 'Keep account' }}
+                onConfirm={noop}
+                onKeep={noop}
+            />,
+        );
+
+        expect(screen.getByRole('alertdialog')).toBeTruthy();
+        expect(hasOpenModal(document)).toBe(true);
+    });
+
+    it('sees an open native <dialog>, and not a closed one', () => {
+        const { rerender } = render(<dialog aria-label="Native" />);
+
+        expect(hasOpenModal(document)).toBe(false);
+
+        rerender(<dialog aria-label="Native" open />);
+
+        expect(hasOpenModal(document)).toBe(true);
+    });
+
+    it('sees nothing when no dialog is open', () => {
+        render(<Page />);
+
+        expect(hasOpenModal(document)).toBe(false);
+    });
+
+    it('keeps focus inside the open erase dialog when the cook presses /', () => {
+        render(
+            <>
+                <Page />
+                <EraseDialog />
+            </>,
+        );
+        const inside = screen.getAllByRole('button').find((button) => screen.getByRole('dialog').contains(button));
+
+        if (inside === undefined) {
+            throw new Error('the erase dialog renders a button');
+        }
+
+        inside.focus();
+        const event = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
+        inside.dispatchEvent(event);
+
+        expect(document.activeElement).toBe(inside);
+        expect(event.defaultPrevented).toBe(false);
     });
 });

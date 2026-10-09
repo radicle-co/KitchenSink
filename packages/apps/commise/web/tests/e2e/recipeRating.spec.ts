@@ -28,7 +28,7 @@ test.describe('recipe rating (FR-013)', () => {
 
         // A public recipe owned by another author, with NO ratings yet — the viewer can rate it.
         const recipe = makeRecipeDetail({
-            id: 'rec_rate',
+            id: 'ec000000-0000-4000-8000-00000000001f',
             ownerId: 'usr_author',
             title: 'Community Ramen',
             visibility: 'public',
@@ -36,7 +36,7 @@ test.describe('recipe rating (FR-013)', () => {
         });
         await mockRecipeApi(page, { viewerId, recipes: [recipe] });
 
-        await page.goto(route('/recipes/rec_rate'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000001f'));
         await expect(page.getByRole('heading', { level: 1, name: 'Community Ramen' })).toBeVisible();
 
         // Sc6 — starts unrated (an honest "not yet rated", never a 0-star score).

@@ -44,7 +44,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const ambiguous = makeRecipeDetail({
-            id: 'rec_ambiguous',
+            id: 'ec000000-0000-4000-8000-000000000003',
             ownerId: viewerId,
             title: 'Ambiguity Probe',
             currentVersion: 3,
@@ -67,7 +67,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
             }
         });
 
-        await page.goto(route('/recipes/rec_ambiguous'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000003'));
         await expect(page.getByRole('heading', { name: 'Ambiguity Probe' })).toBeVisible();
 
         // Both LINES badge; the entry counts lines.
@@ -98,7 +98,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
         // ⛔ ONE rebind, for the line the pick was made on, at the version read; no correction of its own.
         expect(rebinds.map((each) => [each.path, each.body])).toEqual([
             [
-                '/api/v1/recipes/rec_ambiguous/ingredients/1/rebind',
+                '/api/v1/recipes/ec000000-0000-4000-8000-000000000003/ingredients/1/rebind',
                 { expectedVersion: 3, target: { kind: 'catalogFood', foodId: E2E_CATALOG_FOOD.foodId } },
             ],
         ]);
@@ -111,7 +111,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const someoneElses = makeRecipeDetail({
-            id: 'rec_ambiguous_public',
+            id: 'ec000000-0000-4000-8000-000000000004',
             ownerId: 'usr_someone_else',
             title: 'Someone Else’s Probe',
             visibility: 'public',
@@ -120,7 +120,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
 
         await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [someoneElses] });
 
-        await page.goto(route('/recipes/rec_ambiguous_public'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000004'));
         await expect(page.getByRole('heading', { name: 'Someone Else’s Probe' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Save a copy' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Review ingredient matches' })).toHaveCount(0);
@@ -132,7 +132,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const withPrivate = makeRecipeDetail({
-            id: 'rec_private_src',
+            id: 'ec000000-0000-4000-8000-00000000001a',
             ownerId: 'usr_someone_else',
             title: 'Private Blend Bowl',
             visibility: 'public',
@@ -150,7 +150,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
 
         await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [withPrivate] });
 
-        await page.goto(route('/recipes/rec_private_src'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000001a'));
         // The stand-in IS the line's name, and names the row's checkbox — never "undefined".
         await expect(page.getByRole('checkbox', { name: '1 cup Private ingredient' })).toBeVisible();
         await expect(page.getByText('Details unavailable')).toHaveCount(0);
@@ -158,7 +158,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
         // Save a copy (slice 6). A copy opens in the editor first (FR-005b); leaving it untouched lands on the copy's
         // page, where the one-time banner lives.
         await page.getByRole('button', { name: 'Save a copy' }).click();
-        await expect(page).toHaveURL(/\/recipes\/rec_clone_[^/]+\/edit/);
+        await expect(page).toHaveURL(/\/recipes\/ec100000-0000-4000-8000-[^/]+\/edit/);
         await page.getByRole('button', { name: 'Close editor' }).click();
 
         // The copy KEEPS the binding, so the banner says the line uses the original cook's private food.

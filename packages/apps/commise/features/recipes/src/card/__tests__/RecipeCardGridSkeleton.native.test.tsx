@@ -15,25 +15,23 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { formatRgb } from 'culori';
 
 import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCardGridSkeleton } from '../RecipeCardGridSkeleton.native.js';
 import { RECIPE_CARD_SKELETON_COUNT } from '../model.js';
 
-/** The system colour scheme the next render sees. */
-const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-vi.mock('react-native', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('react-native')>()),
-    useColorScheme: () => scheme.current,
-}));
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
 
 afterEach(() => {
     cleanup();
-    scheme.current = null;
+    systemScheme.current = null;
 });
 
 describe('RecipeCardGridSkeleton (native)', () => {
@@ -72,7 +70,7 @@ describe('RecipeCardGridSkeleton (native)', () => {
         ['row', 'dark'],
         ['compact', 'light'],
     ] as const)('draws a %s skeleton in the %s surface-muted role', (variant, name) => {
-        scheme.current = name;
+        systemScheme.current = name;
         const { container } = render(<RecipeCardGridSkeleton label="L" variant={variant} count={1} />);
         const card = container.querySelector('[aria-hidden="true"]');
 
@@ -82,9 +80,7 @@ describe('RecipeCardGridSkeleton (native)', () => {
         expect(bars.length).toBeGreaterThan(0);
 
         for (const bar of bars) {
-            expect(getComputedStyle(bar).backgroundColor).toBe(
-                formatRgb((name === 'dark' ? roleDark : role).surfaceMuted),
-            );
+            expect(getComputedStyle(bar).backgroundColor).toBe(rgb((name === 'dark' ? roleDark : role).surfaceMuted));
         }
     });
 });

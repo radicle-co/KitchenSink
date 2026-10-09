@@ -104,11 +104,12 @@ appId: io.commise.mobile
 - tapOn: 'Create and add'
 
 # ⛔ THE FALSIFIABLE CORE. The create goes to the deployed food service and must come back as a line: the sheet
-# closes and line 1 carries the authored food, matched, read by its glyph's accessible name. `extendedWaitUntil`,
-# never a fixed sleep: two services are in the path and their latency is not a constant. The glyph is waited on,
-# not the name field, because the sheet's `Food name` field holds the same text until the sheet closes.
+# closes and line 1 carries the authored food, matched, read by its open control's accessible name (UI overhaul slice
+# 8, build spec §7.5.1). `extendedWaitUntil`, never a fixed sleep: two services are in the path and their latency is
+# not a constant. The control is waited on, not the name, because the sheet's `Food name` field holds the same text
+# until the sheet closes.
 - extendedWaitUntil:
-      visible: 'About Maestro Nut Butter'
+      visible: 'Edit Maestro Nut Butter'
       timeout: 40000
 - assertNotVisible: 'Nutrition per 100 g'
 - assertNotVisible: 'Could not create the food. Check your connection and try again.'

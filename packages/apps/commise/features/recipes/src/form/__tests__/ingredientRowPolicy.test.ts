@@ -20,7 +20,6 @@ import {
     type IngredientRowAction,
     type IngredientRowPresentation,
     rowBadgeStatus,
-    rowGlyphIcon,
     type RowFacts,
     type RowFigures,
     type RowPolicyLine,
@@ -820,13 +819,5 @@ describe('rowBadgeStatus', () => {
     it('draws a caution row’s word as an attention badge, and a neutral row’s as a note', () => {
         expect(rowBadgeStatus('caution')).toBe('attention');
         expect(rowBadgeStatus('neutral')).toBe('note');
-    });
-});
-
-/** UI-overhaul slice 2: slot 1's state glyph draws through the icon Registry — told apart by SHAPE (plan 002 V1). */
-describe('rowGlyphIcon', () => {
-    it('draws an actionable row’s glyph as the triangle, and a quiet row’s as the circle', () => {
-        expect(rowGlyphIcon('alert')).toBe('triangleAlert');
-        expect(rowGlyphIcon('info')).toBe('info');
     });
 });

@@ -54,6 +54,15 @@ export interface InputProps extends FieldCommon {
     readonly secret?: boolean;
     /** Called when the person presses return in the field. */
     readonly onSubmit?: () => void;
+    /** The most characters the field takes; typing stops there, so a too-long value is never entered. */
+    readonly maxLength?: number;
+    /**
+     * A host asks the field to take focus (a field it has just shown, such as a group's name). A LEVEL, as `Button`'s:
+     * it stands until {@link onFocusRequestHandled} acknowledges it, so a field that mounts while it stands takes it.
+     */
+    readonly focusRequested?: boolean;
+    /** Called once the field has taken a requested focus; the host clears its request here. */
+    readonly onFocusRequestHandled?: () => void;
 }
 
 /** The cross-platform `TextArea` contract: a multi-line field that grows with its content. */

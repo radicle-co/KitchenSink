@@ -1,5 +1,5 @@
 /**
- * REWRITTEN for plan 002 S7.8: component tests for the native `ShortlistPanel`, the web panel's twin: rows 6 and 7's
+ * REWRITTEN for plan 002 S7.8: component tests for `ShortlistPanel` under the native resolver (one leaf for both platforms; its body is the fork): rows 6 and 7's
  * panel (SPECIFY.1),
  * orchestration: it searches the line's own words through the progressive food search (`useIngredientSuggestionSource`,
  * mocked at its seam; its own behaviour is `ingredientSuggestionSource.test.tsx`'s), derives the view
@@ -33,7 +33,8 @@ vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
     useIngredientSuggestionSource: mocks.useIngredientSuggestionSource,
 }));
 
-import { ShortlistPanel } from '../ShortlistPanel.native.js';
+// One leaf for both platforms: its body, `CandidatesPanelBody`, is the platform fork (the native twin was identical).
+import { ShortlistPanel } from '../ShortlistPanel.js';
 
 const en = recipeFormMessages.en;
 const KEY = seedLineKey(2, 0);

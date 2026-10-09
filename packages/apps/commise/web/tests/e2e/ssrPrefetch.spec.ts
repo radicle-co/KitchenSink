@@ -47,7 +47,13 @@ test.describe('SSR prefetch degradation (B19)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            recipes: [makeRecipeDetail({ id: 'rec_ssr', ownerId: viewerId, title: 'SSR Prefetch Recipe' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000031',
+                    ownerId: viewerId,
+                    title: 'SSR Prefetch Recipe',
+                }),
+            ],
         });
 
         const response = await page.goto(route('/recipes'));
@@ -64,10 +70,16 @@ test.describe('SSR prefetch degradation (B19)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            recipes: [makeRecipeDetail({ id: 'rec_ssr', ownerId: viewerId, title: 'SSR Prefetch Recipe' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000031',
+                    ownerId: viewerId,
+                    title: 'SSR Prefetch Recipe',
+                }),
+            ],
         });
 
-        const response = await page.goto(route('/recipes/rec_ssr'));
+        const response = await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000031'));
 
         expect(response?.status()).toBe(200);
         await expect(page.getByRole('heading', { name: 'SSR Prefetch Recipe' })).toBeVisible();
@@ -78,7 +90,13 @@ test.describe('SSR prefetch degradation (B19)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            recipes: [makeRecipeDetail({ id: 'rec_ssr', ownerId: 'usr_other', title: 'SSR Prefetch Recipe' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000031',
+                    ownerId: 'usr_other',
+                    title: 'SSR Prefetch Recipe',
+                }),
+            ],
         });
 
         const response = await page.goto(route('/discover'));
@@ -204,7 +222,13 @@ test.describe('suspense read boundary across a failed SSR prefetch (§11.0)', ()
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            recipes: [makeRecipeDetail({ id: 'rec_ssr', ownerId: viewerId, title: 'SSR Prefetch Recipe' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000031',
+                    ownerId: viewerId,
+                    title: 'SSR Prefetch Recipe',
+                }),
+            ],
         });
         const seen = observe(page, isPath('/api/v1/recipes'));
 
@@ -223,7 +247,7 @@ test.describe('suspense read boundary across a failed SSR prefetch (§11.0)', ()
         const context = await unhydratedContext(browser, page);
         const unhydrated = await context.newPage();
 
-        const response = await unhydrated.goto(route('/recipes/rec_ssr'));
+        const response = await unhydrated.goto(route('/recipes/ec000000-0000-4000-8000-000000000031'));
 
         expect(response?.status()).toBe(200);
         await expect(unhydrated.getByRole('status', { name: 'Loading recipe' })).toBeVisible();
@@ -236,11 +260,17 @@ test.describe('suspense read boundary across a failed SSR prefetch (§11.0)', ()
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
             viewerId,
-            recipes: [makeRecipeDetail({ id: 'rec_ssr', ownerId: viewerId, title: 'SSR Prefetch Recipe' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000031',
+                    ownerId: viewerId,
+                    title: 'SSR Prefetch Recipe',
+                }),
+            ],
         });
-        const seen = observe(page, isPath('/api/v1/recipes/rec_ssr'));
+        const seen = observe(page, isPath('/api/v1/recipes/ec000000-0000-4000-8000-000000000031'));
 
-        const response = await page.goto(route('/recipes/rec_ssr'));
+        const response = await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000031'));
 
         expect(response?.status()).toBe(200);
         // The document is not held back by the failed server read: the gate renders the skeleton instead of retrying.

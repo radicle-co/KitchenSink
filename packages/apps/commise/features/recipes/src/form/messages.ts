@@ -43,9 +43,9 @@ export interface RecipeFormMessages {
      */
     readonly mealTypeLabel: string;
     /**
-     * The vocabulary's labels, keyed by wire value (plan U34). A RECORD, not a positional list, for the same
-     * reason `WizardMessages.stepNames` is: the association is then the type, and a vocabulary member added
-     * in `recipe-core` without a label here is a compile error rather than a blank chip.
+     * The vocabulary's labels, keyed by wire value (plan U34). A RECORD, not a positional list: the association
+     * is then the type, and a vocabulary member added in `recipe-core` without a label here is a compile error rather
+     * than a blank chip.
      */
     readonly mealTypeOptions: Readonly<Record<RecipeMealType, string>>;
     /**
@@ -102,105 +102,10 @@ export interface RecipeFormMessages {
     /** Total-time unit template (contains `{minutes}`). */
     readonly durationMinutes: string;
 
-    /**
-     * Heading for the REVIEW step (U33) — the wizard's fourth step, which replaced the deleted `Preview`
-     * overlay. Two surfaces rendering the same draft drift, so there is now exactly one.
-     */
-    readonly reviewHeading: string;
-    /** Review row label: title. */
-    readonly reviewTitle: string;
-    /** Review row label: description. */
-    readonly reviewDescription: string;
-    /** Review row label: cuisine. */
-    readonly reviewCuisine: string;
-    /** Review row label: difficulty. */
-    readonly reviewDifficulty: string;
-    /** Review row label: meal type. */
-    readonly reviewMealType: string;
-    /** Review row label: servings. */
-    readonly reviewServings: string;
-    /** Review row label: prep time. */
-    readonly reviewPrepTime: string;
-    /** Review row label: cook time. */
-    readonly reviewCookTime: string;
-    /** Review row label: total time. */
-    readonly reviewTotalTime: string;
-    /** Review row label: tags. */
-    readonly reviewTags: string;
-    /** Review row label: dietary flags. */
-    readonly reviewDietaryFlags: string;
-    /** Review row label: ingredient count. */
-    readonly reviewIngredientCount: string;
-    /** Review row label: step count. */
-    readonly reviewStepCount: string;
-    /** Review row label: visibility. */
-    readonly reviewVisibility: string;
-    /** Review visibility value: public. */
-    readonly reviewVisibilityPublic: string;
-    /** Review visibility value: private. */
-    readonly reviewVisibilityPrivate: string;
-    /**
-     * Review row label: photos chosen but not yet uploaded (U33).
-     *
-     * ⚠️ The ONE review row that is omitted when it would read zero. Every other row states its absence,
-     * because a vanished row is indistinguishable from one the cook has not scrolled to; this row is about an
-     * OPERATION that is not going to happen, on a step whose job is to be scannable.
-     */
-    readonly reviewPendingPhotos: string;
-    /**
-     * The value shown for an optional field the author left unstated (U33).
-     *
-     * ⛔ Stated, never rendered as a missing row. "Did I set a difficulty?" is exactly the question this step
-     * exists to answer, and a row that disappears answers it by silence.
-     */
-    readonly reviewNotStated: string;
-    /** The value shown for an empty tag / dietary-flag list. */
-    readonly reviewNone: string;
-    /** Accessible label for the review's ingredient list. */
-    readonly reviewIngredientListLabel: string;
-    /** Shown in place of the ingredient list when the draft has no lines yet. */
-    readonly reviewNoIngredients: string;
-
     /** Heading for the ingredients section. */
     readonly ingredientsHeading: string;
     /** Ingredient-name field label template (contains `{number}`). */
     readonly ingredientNameLabel: string;
-    /**
-     * Ingredient-quantity field label template for the LOWER bound (contains `{number}`).
-     *
-     * Still just "quantity", not "minimum quantity": for the overwhelmingly common line that states one
-     * amount, this field IS the quantity, and naming it after the rarer range case would make every
-     * ordinary row read oddly to a screen-reader user.
-     */
-    readonly ingredientQuantityLabel: string;
-    /**
-     * Ingredient-quantity field label template for the optional UPPER bound (contains `{number}`; U9/R42).
-     *
-     * A distinct accessible NAME, not a shared one — two spinbuttons with the same name inside one row are
-     * indistinguishable to anyone navigating by name, which is the whole failure WCAG 3.3.2 addresses.
-     */
-    readonly ingredientQuantityHighLabel: string;
-    /** Ingredient-unit field label template (contains `{number}`). */
-    readonly ingredientUnitLabel: string;
-    /**
-     * Ingredient-PREPARATION field label template (contains `{number}`; plan U26).
-     *
-     * ⛔ "Preparation", never "notes". The wire's `notes` is a different field with a different producer (the
-     * cookbook importer writes the source's whole clause into it) and NO editor writes it — see
-     * `recipeIngredientNotesSchema`. Naming this control "notes" would invite exactly the merge U26 refused.
-     */
-    readonly ingredientPreparationLabel: string;
-    /** Placeholder/hint shown inside the preparation field — the KTD-11b vocabulary, by example. */
-    readonly ingredientPreparationPlaceholder: string;
-    /**
-     * Ingredient-SECTION field label template (contains `{number}`; plan U27).
-     *
-     * "Section" rather than "group": what a cook sees is a heading above a run of lines, and "group" reads
-     * as a verb on a control that does not group anything by itself.
-     */
-    readonly ingredientGroupLabel: string;
-    /** Placeholder/hint shown inside the section field — free text, by example, never a closed set. */
-    readonly ingredientGroupPlaceholder: string;
     /**
      * Note shown beside a unit that names no defined amount — `handful`, `splash`, `to taste` (plan U25).
      *
@@ -219,12 +124,6 @@ export interface RecipeFormMessages {
      */
     readonly ingredientUnitUnknownNote: string;
     /**
-     * The accessible name of a row's state glyph, slot 1 of the icon column (plan 002 V1, R24/R25). Contains `{food}`
-     * — the line's name or stand-in — so a list of rows is not a list of identical "About" buttons
-     * (`ingredientStatusExplanation.md` §3a, "What a screen reader hears").
-     */
-    readonly ingredientStatusPanelTriggerLabel: string;
-    /**
      * The accessible name of the close control for a row's explanation (contains `{food}`). House form "Close {thing}"
      * (`@commise/ui/sheet`); signed off in the V1 sign-off (2026-10-01).
      */
@@ -238,12 +137,10 @@ export interface RecipeFormMessages {
      * is the whole action available, and the brief is explicit that a row must "show what is missing"
      * rather than look complete and be discarded on save.
      *
-     * ⚠️ Distinct from `errors.ingredientsUnresolved`, which is the FORM-level refusal the wizard voices
-     * when Next is pressed: that one says the recipe cannot advance, this one says WHICH row and why.
+     * ⚠️ Distinct from `errors.ingredientsUnresolved`, which is the FORM-level refusal the editor voices
+     * when Publish is pressed: that one says the recipe cannot be published, this one says WHICH row and why.
      */
     readonly ingredientNoFoodNote: string;
-    /** Remove-ingredient action label template (contains `{number}`). */
-    readonly removeIngredient: string;
     /** Empty-state copy shown when there are no ingredient lines yet. */
     readonly noIngredients: string;
     /** Paste a list: a pasted line over the parse job's bound. Holds `{line}` (1-based) and `{max}`. */
@@ -254,6 +151,80 @@ export interface RecipeFormMessages {
     readonly rowStateReading: string;
     /** A row's second line when its lookup failed (build spec §7.5.1, `rowState.lookupFailed`). */
     readonly rowStateLookupFailed: string;
+    /** A row's second line when the cook must pick among foods (build spec §7.5.1, `rowState.chooseMatch`). */
+    readonly rowStateChooseMatch: string;
+    /** A row's second line when nothing matched, or the line names no food (`rowState.noMatch`). */
+    readonly rowStateNoMatch: string;
+    /** A row's second line when its food's author withdrew it (`rowState.foodRemoved`). */
+    readonly rowStateFoodRemoved: string;
+    /** A row's second line while its food is looked up (`rowState.lookingUp`). */
+    readonly rowStateLookingUp: string;
+    /** A read row's open control (§7.5.1): `{item}` is the amount, the unit and the food, as the row reads them. */
+    readonly rowOpenLabel: string;
+    /** The row's `⋯` item that opens its editor. */
+    readonly rowEdit: string;
+    /** The attention line's name: `{state}` is its visible words, so the name contains them (SC 2.5.3). Holds `{food}`. */
+    readonly rowAttentionLabel: string;
+    /** A read row's note when the submit refused its amounts (U9); the list's own error says the rule. */
+    readonly rowAmountInvalid: string;
+    /** The row editor's Done (§7.5.2, `row.done`). */
+    readonly rowDone: string;
+    /** The phone row editor sheet's close control. Holds `{food}`. */
+    readonly rowEditorClose: string;
+    /** The row editor's amount field (`row.amountLabel`). */
+    readonly rowAmountLabel: string;
+    /** The visible word before a range's second field (§7.5.2: "reveals 'to' and a second field"). */
+    readonly rowAmountTo: string;
+    /** The range's second field's accessible name; it contains {@link rowAmountTo} (SC 2.5.3). */
+    readonly rowAmountHighLabel: string;
+    /** `row.addRange`. */
+    readonly rowAddRange: string;
+    /** `row.removeRange`. */
+    readonly rowRemoveRange: string;
+    /** `row.unitLabel`. */
+    readonly rowUnitLabel: string;
+    /** The unit field's suggestion list. */
+    readonly rowUnitListLabel: string;
+    /** `row.prepLabel`. */
+    readonly rowPrepLabel: string;
+    /** `row.change`: the row editor's Change, beside the food. */
+    readonly rowChange: string;
+    /** `row.foodDetails`, in the `⋯` and in the row editor. */
+    readonly rowFoodDetails: string;
+    /** The food line in the row editor when food publishes calories. Holds `{food}` and `{cal}`. */
+    readonly rowFoodCalories: string;
+    /** The Food details sheet's close control. Holds `{food}`. */
+    readonly rowFoodDetailsClose: string;
+    /** `row.moveToGroup`. */
+    readonly rowMoveToGroup: string;
+    /** `row.moveUp`. */
+    readonly rowMoveUp: string;
+    /** `row.moveDown`. */
+    readonly rowMoveDown: string;
+    /** The Move to group sheet's title. */
+    readonly moveToGroupTitle: string;
+    /** The Move to group sheet's close control. */
+    readonly moveToGroupClose: string;
+    /** The Move to group sheet's choice for an ungrouped line. */
+    readonly moveToGroupNone: string;
+    /** `group.add`: the section foot's "+ Add a group". */
+    readonly groupAdd: string;
+    /** The inline group-name field's label. */
+    readonly groupNameLabel: string;
+    /** The inline group-name field's submit. */
+    readonly groupNameSave: string;
+    /** The inline group-name field's cancel. */
+    readonly groupNameCancel: string;
+    /** A group's `⋯`. Holds `{group}`. */
+    readonly groupActionsLabel: string;
+    /** The native group-actions sheet's close. Holds `{group}`. */
+    readonly groupActionsClose: string;
+    /** `group.rename`. */
+    readonly groupRename: string;
+    /** The group heading's own add control: "Add ingredient to this group". */
+    readonly groupAddIngredient: string;
+    /** `group.remove`. */
+    readonly groupRemove: string;
     /** The Paste a list sheet's close control, as `pasteStepsClose` names Paste steps'. */
     readonly pasteListClose: string;
     /** The running total (build spec §7.5.6): "{cal} cal per serving · {counted} of {total} counted". */
@@ -398,8 +369,6 @@ export interface RecipeFormMessages {
     readonly ingredientActionsMenuCloseLabel: string;
     /** The same on a variant-bound row (contains `{food}` and `{parts}`; item 6). */
     readonly ingredientActionsMenuCloseLabelWithDetails: string;
-    /** The glyph's name on a variant-bound row (contains `{food}` and `{parts}`; item 6). */
-    readonly ingredientStatusPanelTriggerLabelWithDetails: string;
     /** The panel's close control on a variant-bound row (contains `{food}` and `{parts}`; item 6). */
     readonly ingredientStatusPanelCloseLabelWithDetails: string;
     /** The row action that opens the authored-food form (SPECIFY.2): generic, no name interpolated. */
@@ -583,49 +552,54 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         totalTimeLabel: 'Total time',
         durationMinutes: '{minutes} min',
 
-        reviewHeading: 'Review',
-        reviewTitle: 'Title',
-        reviewDescription: 'Description',
-        reviewCuisine: 'Cuisine',
-        reviewDifficulty: 'Difficulty',
-        reviewMealType: 'Meal type',
-        reviewServings: 'Servings',
-        reviewPrepTime: 'Prep time',
-        reviewCookTime: 'Cook time',
-        reviewTotalTime: 'Total time',
-        reviewTags: 'Tags',
-        reviewDietaryFlags: 'Dietary flags',
-        reviewIngredientCount: 'Ingredients',
-        reviewStepCount: 'Steps',
-        reviewVisibility: 'Visibility',
-        reviewVisibilityPublic: 'Public',
-        reviewVisibilityPrivate: 'Private',
-        reviewPendingPhotos: 'Photos to upload',
-        reviewNotStated: 'Not stated',
-        reviewNone: 'None',
-        reviewIngredientListLabel: 'Ingredient list',
-        reviewNoIngredients: 'No ingredients yet.',
-
         ingredientsHeading: 'Ingredients',
         ingredientNameLabel: 'Ingredient {number} name',
-        ingredientQuantityLabel: 'Ingredient {number} quantity',
-        ingredientQuantityHighLabel: 'Ingredient {number} maximum quantity',
-        ingredientUnitLabel: 'Ingredient {number} unit',
-        ingredientPreparationLabel: 'Ingredient {number} preparation',
-        ingredientPreparationPlaceholder: 'e.g. finely chopped, melted, at room temperature',
-        ingredientGroupLabel: 'Ingredient {number} section',
-        ingredientGroupPlaceholder: 'e.g. For the marinade',
         ingredientUnitSubjectiveNote: 'Cook\u2019s measure',
         ingredientUnitUnknownNote: 'Unrecognised unit',
-        ingredientStatusPanelTriggerLabel: 'About {food}',
         ingredientStatusPanelCloseLabel: 'Close details for {food}',
         ingredientNoFoodNote: 'No food chosen — this line won’t be saved. Remove it and add it from the search above.',
-        removeIngredient: 'Remove ingredient {number}',
         noIngredients: 'No ingredients yet. Add your first ingredient.',
         pasteRefusalLineTooLong: 'Line {line} is longer than {max} characters. Shorten it and try again.',
         pasteRefusalTooManyLines: 'That’s more than {max} lines. Paste them in smaller batches.',
         rowStateReading: 'Reading…',
         rowStateLookupFailed: 'Couldn’t look up',
+        rowStateChooseMatch: 'Choose a match',
+        rowStateNoMatch: 'No match found',
+        rowStateFoodRemoved: 'Food no longer listed',
+        rowStateLookingUp: 'Looking it up…',
+        rowOpenLabel: 'Edit {item}',
+        rowEdit: 'Edit',
+        rowAttentionLabel: '{state}: {food}',
+        rowAmountInvalid: 'Check the amount',
+        rowDone: 'Done',
+        rowEditorClose: 'Close {food}',
+        rowAmountLabel: 'Amount',
+        rowAmountTo: 'to',
+        rowAmountHighLabel: 'Amount, up to',
+        rowAddRange: 'Add a range',
+        rowRemoveRange: 'Remove range',
+        rowUnitLabel: 'Unit',
+        rowUnitListLabel: 'Units',
+        rowPrepLabel: 'Preparation',
+        rowChange: 'Change',
+        rowFoodDetails: 'Food details',
+        rowFoodCalories: '{food} · {cal} cal per 100 g',
+        rowFoodDetailsClose: 'Close food details for {food}',
+        rowMoveToGroup: 'Move to group…',
+        rowMoveUp: 'Move up',
+        rowMoveDown: 'Move down',
+        moveToGroupTitle: 'Move to group',
+        moveToGroupClose: 'Close move to group',
+        moveToGroupNone: 'No group',
+        groupAdd: 'Add a group',
+        groupNameLabel: 'Group name',
+        groupNameSave: 'Save',
+        groupNameCancel: 'Cancel',
+        groupActionsLabel: 'Actions for {group}',
+        groupActionsClose: 'Close actions for {group}',
+        groupRename: 'Rename group',
+        groupAddIngredient: 'Add ingredient to this group',
+        groupRemove: 'Remove group (keep its ingredients)',
         pasteListClose: 'Close paste a list',
         nutritionCounted: '{cal} cal per serving · {counted} of {total} counted',
         nutritionEmpty: 'Nutrition appears as you match ingredients.',
@@ -658,7 +632,8 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         ingredientEntryFindByName: 'Find nutrition for “{query}”',
         ingredientEntryUseAsWritten: 'Use “{query}” as written, without nutrition',
         ingredientEntryFindByNameFailed: 'We couldn’t add “{query}”. Try again, or use it as written.',
-        ingredientAddedNeedsChoice: 'Added {name}. It could be more than one food. Use “About {name}” to choose one.',
+        ingredientAddedNeedsChoice:
+            'Added {name}. It could be more than one food. Use its “Choose a match” line to choose one.',
         ingredientSuggestionsAuthoredHeading: 'Your foods',
         ingredientSuggestionsCatalogHeading: 'Food catalog',
         ingredientCatalogUnavailable: 'The food catalog is unavailable right now, so only your foods were searched.',
@@ -682,7 +657,6 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         ingredientActionsMenuLabelWithDetails: 'Actions for {food}, {parts}',
         ingredientActionsMenuCloseLabel: 'Close actions for {food}',
         ingredientActionsMenuCloseLabelWithDetails: 'Close actions for {food}, {parts}',
-        ingredientStatusPanelTriggerLabelWithDetails: 'About {food}, {parts}',
         ingredientStatusPanelCloseLabelWithDetails: 'Close details for {food}, {parts}',
         createCustomFoodIconLabel: 'Create my own food',
         statusAuthoredAndLinked: 'Saved to your foods, and this ingredient now uses it.',

@@ -33,9 +33,21 @@ test.describe('Home recent-recipes card grid', () => {
             viewerId,
             tier: 'free',
             recipes: [
-                makeRecipeDetail({ id: 'rec_first', ownerId: viewerId, title: 'Charred Broccolini' }),
-                makeRecipeDetail({ id: 'rec_second', ownerId: viewerId, title: 'Miso Butter Cod' }),
-                makeRecipeDetail({ id: 'rec_third', ownerId: viewerId, title: 'Saffron Risotto' }),
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-00000000000c',
+                    ownerId: viewerId,
+                    title: 'Charred Broccolini',
+                }),
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-00000000002b',
+                    ownerId: viewerId,
+                    title: 'Miso Butter Cod',
+                }),
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000034',
+                    ownerId: viewerId,
+                    title: 'Saffron Risotto',
+                }),
             ],
         });
 
@@ -64,10 +76,10 @@ test.describe('Home recent-recipes card grid', () => {
 
         // Activate the SECOND card by its accessible name. Pinning a non-first card is the point: if the
         // navigation seam closed over the wrong recipe (or the slot pushed a fixed id), this lands on
-        // `rec_first` and the assertions below fail.
+        // `ec000000-0000-4000-8000-00000000000c` and the assertions below fail.
         await widget.getByRole('link', { name: 'Miso Butter Cod' }).click();
 
-        await expect(page).toHaveURL(/\/recipes\/rec_second$/);
+        await expect(page).toHaveURL(/\/recipes\/ec000000-0000-4000-8000-00000000002b$/);
         await expect(page.getByRole('heading', { level: 1, name: 'Miso Butter Cod' })).toBeVisible();
     });
 
@@ -115,7 +127,11 @@ test.describe('Home recent-recipes card grid', () => {
                 viewerId,
                 tier: 'free',
                 recipes: ['a', 'b', 'c', 'd', 'e'].map((id) =>
-                    makeRecipeDetail({ id: `rec_${id}`, ownerId: viewerId, title: `Recipe ${id}` }),
+                    makeRecipeDetail({
+                        id: `ec300000-0000-4000-8000-00000000000${id}`,
+                        ownerId: viewerId,
+                        title: `Recipe ${id}`,
+                    }),
                 ),
             });
 

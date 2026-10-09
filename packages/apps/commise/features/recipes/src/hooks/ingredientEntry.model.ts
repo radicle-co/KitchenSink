@@ -14,7 +14,7 @@ import { ABSENT_QUANTITY } from '@kitchensink/recipe-core';
 import { readLeadingMeasure } from '../form/leadingMeasure.js';
 import type { IngredientLineKey } from '../form/lineKey.js';
 import { hasEntryText } from '../form/validate.js';
-import type { LineCommitTarget, LineMeasure } from './lineCommit.js';
+import type { LineCommitTarget, LineMeasure, NewLinePlacement } from './lineCommit.js';
 
 /** A target's identity in the entry's maps. A line key never spells `newLine` (`isIngredientLineKey`). */
 type EntryTargetId = IngredientLineKey | 'newLine';
@@ -37,10 +37,28 @@ export interface EntryState {
     /** The rows in Change food. More than one can be: a row keeps its new text when focus leaves it (item 4). */
     readonly changing: ReadonlySet<IngredientLineKey>;
     readonly active: LineCommitTarget | undefined;
+    /**
+     * The group the trailing field sits in (build spec §7.5.5), or `undefined` while it follows the group being built.
+     * The field's own state, like its text: a commit keeps it, so the cook keeps adding to the same group.
+     */
+    readonly placement?: NewLinePlacement;
 }
 
 /** No field has been touched. */
 export const EMPTY_ENTRY: EntryState = { texts: new Map(), changing: new Set(), active: undefined };
+
+/**
+ * Move the trailing field to a group, or back to following the group being built. Pure.
+ *
+ * @param state - The entry's state.
+ * @param placement - The group, or `undefined`.
+ * @returns The next state.
+ */
+export const withPlacement = (state: EntryState, placement: NewLinePlacement | undefined): EntryState => {
+    const { placement: _previous, ...rest } = state;
+
+    return placement === undefined ? rest : { ...rest, placement };
+};
 
 const idOf = (target: LineCommitTarget): EntryTargetId => (target.kind === 'line' ? target.key : 'newLine');
 
@@ -112,6 +130,7 @@ export const withChangeBegun = (state: EntryState, line: EntryLine): EntryState 
     const name = line.name ?? '';
 
     return {
+        ...state,
         texts: new Map([...state.texts, [line.key, { text: name, start: name }]]),
         changing: new Set([...state.changing, line.key]),
         active: { kind: 'line', key: line.key },
@@ -227,13 +246,19 @@ export const searchTextOf = (target: LineCommitTarget | undefined, text: string)
 
 /**
  * The target a pick on `target` commits to: the trailing row carries the measure read from the text the pick was made
- * on, and only when the text states one, so a bare food commits as the plain trailing target. Pure.
+ * on, only when the text states one, and the group the field sits in, only when it was placed in one; so a bare food in
+ * an unplaced field commits as the plain trailing target. A row's own target is returned as it is. Pure.
  *
  * @param target - The field the pick was made on.
  * @param text - Its text at the pick.
+ * @param placement - The trailing field's group (`EntryState.placement`). Required, so no caller drops it by default.
  * @returns The commit target.
  */
-export const commitTargetOf = (target: LineCommitTarget, text: string): LineCommitTarget => {
+export const commitTargetOf = (
+    target: LineCommitTarget,
+    text: string,
+    placement: NewLinePlacement | undefined,
+): LineCommitTarget => {
     if (target.kind !== 'newLine') {
         return target;
     }
@@ -242,5 +267,9 @@ export const commitTargetOf = (target: LineCommitTarget, text: string): LineComm
     const measure: LineMeasure = { quantity, unit, preparation };
     const stated = quantity !== ABSENT_QUANTITY || unit !== '' || preparation !== '';
 
-    return stated ? { kind: 'newLine', measure } : { kind: 'newLine' };
+    return {
+        kind: 'newLine',
+        ...(stated ? { measure } : {}),
+        ...(placement === undefined ? {} : { placement }),
+    };
 };

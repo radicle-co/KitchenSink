@@ -22,6 +22,7 @@
  */
 import {
     editorMessages,
+    IngredientsNutritionFoot,
     pendingIngredientIds,
     PasteListSheet,
     RecipeBasicsFields,
@@ -386,6 +387,8 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
                 guided={guided}
                 pendingEntryText={pendingEntryText}
                 sections={sections}
+                // §7.2 and §7.5.6: the rail's foot shows the Ingredients total too, from the same draft and read.
+                railFooter={<IngredientsNutritionFoot values={editor.values} nutrition={nutrition} />}
                 pastePending={paste.pending}
                 headingActions={{
                     ...(paste.inHeading

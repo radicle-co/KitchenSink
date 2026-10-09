@@ -50,15 +50,13 @@ test.describe('Find nutrition on a row of the create form (rowEditorOpenDecision
         await page.getByLabel('Title').fill(TITLE);
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
-        // A line to work on, with an amount of its own.
-        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('sal');
+        // A line to work on, with an amount of its own, typed in front of the food (build spec §7.5.3).
+        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('200 g sal');
         await page
             .getByRole('group', { name: 'Food catalog' })
             .getByRole('option', { name: E2E_SALT_FOOD.name, exact: true })
             .click();
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText(E2E_SALT_FOOD.name);
-        await ingredients.getByLabel('Ingredient 1 quantity').fill('200');
-        await ingredients.getByLabel('Ingredient 1 unit').fill('g');
+        await expect(ingredients.getByRole('button', { name: `Edit 200 g ${E2E_SALT_FOOD.name}` })).toBeVisible();
 
         await ingredients.getByRole('button', { name: `Actions for ${E2E_SALT_FOOD.name}` }).click();
         await page.getByRole('menuitem', { name: 'Change food' }).click();
@@ -72,23 +70,21 @@ test.describe('Find nutrition on a row of the create form (rowEditorOpenDecision
         await expect(findByName).toHaveAccessibleName(`Find nutrition for “${WORDS}”`);
         await findByName.click();
 
-        // The line now carries the cook's words, and its glyph says it is waiting for a choice. Focus is on that glyph,
-        // and the status line names it.
-        const glyph = ingredients.getByRole('button', { name: `About ${WORDS}` });
+        // The line now carries the cook's words, and keeps its amount (the same line); its attention line says it is
+        // waiting for a choice. Focus is on the row's open control, and the status line names the way on.
+        const row = ingredients.getByRole('button', { name: `Edit 200 g ${WORDS}` });
 
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText(WORDS);
-        await expect(glyph).toHaveAccessibleDescription('Not resolved');
-        await expect(glyph).toBeFocused();
+        await expect(row).toBeFocused();
+        await expect(ingredients.getByRole('button', { name: `Choose a match: ${WORDS}` })).toBeVisible();
         await expect(
-            page.getByText(`Added ${WORDS}. It could be more than one food. Use “About ${WORDS}” to choose one.`),
+            page.getByText(
+                `Added ${WORDS}. It could be more than one food. Use its “Choose a match” line to choose one.`,
+            ),
         ).toBeVisible();
-        // The candidates panel never opens by itself: the cook opens it from the glyph.
+        // The candidates panel never opens by itself: the cook opens it from the attention line.
         await expect(
             page.getByText('We found more than one food this could be, and we need you to say which.'),
         ).toHaveCount(0);
-        // The same line, so its amount stays.
-        await expect(ingredients.getByLabel('Ingredient 1 quantity')).toHaveValue('200');
-        await expect(ingredients.getByLabel('Ingredient 1 unit')).toHaveValue('g');
         // ONE admission, of the words as typed.
         expect(byName.map((request) => request.postDataJSON())).toEqual([{ name: WORDS }]);
         const admitted = ingredientSchema.parse(await (await byName[0]?.response())?.json());

@@ -34,6 +34,7 @@
         "./testing/safe-area-context": "./src/testing/safeAreaContext.native.tsx",
         "./testing/lucide-native": "./src/testing/lucideNativeStub.ts",
         "./testing/expo-keep-awake": "./src/testing/expoKeepAwakeStub.ts",
+        "./testing/system-color-scheme": "./src/testing/systemColorScheme.ts",
         "./button": "./src/button/index.ts",
         "./check-box-glyph": "./src/checkBoxGlyph/index.ts",
         "./combobox": "./src/combobox/index.ts",

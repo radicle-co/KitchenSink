@@ -21,6 +21,12 @@ export interface PopoverProps {
     readonly triggerLabel: string;
     /** The meaning the trigger's glyph draws, from the icon Registry. Decorative: the leaf hides it. */
     readonly triggerIcon: IconName;
+    /**
+     * Words drawn beside the glyph, in the `attention` role: the trigger becomes a read row's attention line ("⚠ Choose
+     * a match", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC
+     * 2.5.3). Absent, the trigger is the 44 px glyph button.
+     */
+    readonly triggerText?: string;
     /** The panel's heading: it names the web dialog and titles the native sheet. */
     readonly title: string;
     /** The accessible name of the panel's Close control. House form: "Close {thing}". */

@@ -40,7 +40,7 @@ import { signInWithTicket } from './utils/auth';
  *
  * Selectors are role/label/text only (repo policy); no `data-testid`, no `waitForTimeout`.
  */
-const RECIPE_ID = 'rec_pasta';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000019';
 
 /** The mobile touch-target floor (`min-h-11` / `size-11`). */
 const TOUCH_TARGET_PX = 44;
@@ -407,8 +407,18 @@ async function seedQuickAndSlow(page: Page): Promise<void> {
         viewerId,
         tier: 'premium',
         recipes: [
-            makeRecipeDetail({ id: 'rec_quick', ownerId: viewerId, title: 'Overnight Oats', totalTimeMinutes: 5 }),
-            makeRecipeDetail({ id: 'rec_slow', ownerId: viewerId, title: 'Sunday Ragu', totalTimeMinutes: 240 }),
+            makeRecipeDetail({
+                id: 'ec000000-0000-4000-8000-00000000001d',
+                ownerId: viewerId,
+                title: 'Overnight Oats',
+                totalTimeMinutes: 5,
+            }),
+            makeRecipeDetail({
+                id: 'ec000000-0000-4000-8000-00000000002f',
+                ownerId: viewerId,
+                title: 'Sunday Ragu',
+                totalTimeMinutes: 240,
+            }),
         ],
     });
 }

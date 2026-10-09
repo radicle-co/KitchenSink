@@ -7,6 +7,11 @@
  *
  * The row editor is the stateful fake (`useFakeRowEditor`) over the entry's real pure model, so Change food, a cancel and
  * typed text move as they do in the app; what a test does not drive is a spy or a fixture.
+ *
+ * REWRITTEN for the UI overhaul's read rows (build spec §7.5.1): a row reads quietly until its food search is opened,
+ * so a row that names no food starts here with its search open (the harness opens it, as its "No match found" line
+ * does; that press is `RecipeIngredientsFields.test.tsx`'s). Focus that went to a row's glyph goes to its open control
+ * ("Edit {amount} {food}"); the panels open from the attention line ("{state}: {food}"); Remove is always a `⋯` item.
  */
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
@@ -141,6 +146,7 @@ const Harness: FC<HarnessProps> = ({ initial, errors, over, nutrition = NUTRITIO
     const [values, setValues] = useState(initial);
     // The host's draft transition, applied to this harness's own draft, as each host applies it to its own.
     const rowEditor = useFakeRowEditor(values.ingredients, {
+        startInEntry: initial.ingredients.filter((line) => line.ingredientId === null).map((line) => line.key),
         ...over,
         editor: { dispatch: (action) => setValues((current) => applyDraftAction(current, action)), ...over?.editor },
     });
@@ -184,8 +190,8 @@ const lineTarget = (values: RecipeFormValues, index = 0): LineCommitTarget => ({
     key: keyAt(values, index),
 });
 
-describe('rows 1 and 2 are entry fields (SPECIFY.1, §2a, §4b)', () => {
-    it('a row that names no food shows its text in a combobox with the hint; typing goes to the entry, never the line', async () => {
+describe('rows 1 and 2 search in the row (SPECIFY.1, §2a, §4b)', () => {
+    it('a row that names no food, its search open, shows its text in a combobox with the hint; typing goes to the entry, never the line', async () => {
         const user = userEvent.setup();
         const onValues = vi.fn();
         render(<Harness initial={valuesWith(withLineKeys([NO_FOOD]))} onValues={onValues} />);
@@ -204,14 +210,14 @@ describe('rows 1 and 2 are entry fields (SPECIFY.1, §2a, §4b)', () => {
         expect(onValues).not.toHaveBeenCalled();
     });
 
-    it('a declared row is an entry field; its ⋮ offers Find a food for this, which puts focus in the field', async () => {
+    it('a declared row reads quietly; its ⋯ offers Find a food for this, which opens the search and puts focus in it', async () => {
         const user = userEvent.setup();
         const focus = vi.fn();
         const values = valuesWith(withLineKeys([DECLARED]));
         render(<Harness initial={values} over={{ entry: { focus } }} />);
 
         await user.click(actions('grandma’s mix'));
-        expect(menuLabels()).toEqual([en.statusActionFindFood, en.statusActionRemove]);
+        expect(menuLabels()).toEqual([en.rowEdit, en.rowFoodDetails, en.statusActionFindFood, en.statusActionRemove]);
         await user.click(screen.getByRole('menuitem', { name: en.statusActionFindFood }));
 
         expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'Ingredient 1 name' }));
@@ -220,7 +226,7 @@ describe('rows 1 and 2 are entry fields (SPECIFY.1, §2a, §4b)', () => {
 });
 
 describe('Change food (§2c, §2d, item 4)', () => {
-    it('turns the name into a combobox on the current name, caret at the end; slot 2 is Remove; the dotted line hides', async () => {
+    it('turns the name into a combobox on the current name, caret at the end; the dotted line hides', async () => {
         const user = userEvent.setup();
         render(<Harness initial={valuesWith(withLineKeys([{ ...BRISKET, variant: FLAT }]))} />);
 
@@ -233,22 +239,22 @@ describe('Change food (§2c, §2d, item 4)', () => {
         expect(document.activeElement).toBe(field);
         expect(field.selectionStart).toBe('Beef brisket'.length);
         expect(screen.queryByText('flat half')).toBeNull();
-        expect(screen.getByRole('button', { name: 'Remove ingredient 1' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: /^Actions for / })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Edit / })).toBeNull();
     });
 
-    it('Cancel, named for what it keeps, ends it and returns focus to ⋮', async () => {
+    it('Cancel, named for what it keeps, ends it and returns focus to the row', async () => {
         const user = userEvent.setup();
         render(<Harness initial={valuesWith(withLineKeys([BRISKET]))} />);
         await choose(user, 'Beef brisket', en.statusActionChangeFood);
 
         await user.click(screen.getByRole('button', { name: 'Cancel, keep Beef brisket' }));
 
-        expect(screen.getByRole('group', { name: 'Ingredient 1 name' }).textContent).toBe('Beef brisket');
-        expect(document.activeElement).toBe(actions('Beef brisket'));
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 2 lb Beef brisket' })),
+        );
     });
 
-    it('Escape with the list closed ends it too, and returns focus to ⋮ (system change 8)', async () => {
+    it('Escape with the list closed ends it too, and returns focus to the row (system change 8)', async () => {
         const user = userEvent.setup();
         render(<Harness initial={valuesWith(withLineKeys([BRISKET]))} />);
         await choose(user, 'Beef brisket', en.statusActionChangeFood);
@@ -256,7 +262,9 @@ describe('Change food (§2c, §2d, item 4)', () => {
         await user.keyboard('{Escape}');
 
         expect(screen.queryByRole('combobox', { name: 'Ingredient 1 name' })).toBeNull();
-        expect(document.activeElement).toBe(actions('Beef brisket'));
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 2 lb Beef brisket' })),
+        );
     });
 
     it('focus leaving the row with nothing new typed ends it; with new text the row stays in entry mode', async () => {
@@ -264,12 +272,12 @@ describe('Change food (§2c, §2d, item 4)', () => {
         render(<Harness initial={valuesWith(withLineKeys([BRISKET, LEEK]))} />);
 
         await choose(user, 'Beef brisket', en.statusActionChangeFood);
-        await user.click(screen.getByRole('spinbutton', { name: 'Ingredient 2 quantity' }));
+        await user.click(screen.getByRole('combobox', { name: editorMessages.en.ingredients.addLabel }));
         expect(screen.queryByRole('combobox', { name: 'Ingredient 1 name' })).toBeNull();
 
         await choose(user, 'Beef brisket', en.statusActionChangeFood);
         await user.keyboard(' point');
-        await user.click(screen.getByRole('spinbutton', { name: 'Ingredient 2 quantity' }));
+        await user.click(screen.getByRole('combobox', { name: editorMessages.en.ingredients.addLabel }));
         expect(screen.getByRole<HTMLInputElement>('combobox', { name: 'Ingredient 1 name' }).value).toBe(
             'Beef brisket point',
         );
@@ -287,7 +295,7 @@ describe('Change food (§2c, §2d, item 4)', () => {
         await choose(user, 'Beef brisket', en.statusActionChangeFood);
         await user.click(actions('Beef brisket'));
 
-        expect(menuLabels()).toEqual([en.createCustomFoodIconLabel, en.statusActionRemove]);
+        expect(menuLabels()).toEqual([en.rowEdit, en.createCustomFoodIconLabel, en.statusActionRemove]);
     });
 });
 
@@ -500,7 +508,7 @@ describe('every state of the food list (S5 list contract L1 to L4, §S13 P3 to P
 });
 
 describe('a pick in flight, and what a settled pick says (§2d, item 1, "Busy and disabled")', () => {
-    it('while a pick runs: its caption says what it is doing, ⋮ is unavailable, and Remove does nothing', async () => {
+    it('while a pick runs: its caption says what it is doing, and ⋯ is unavailable, so Remove cannot run', async () => {
         const user = userEvent.setup();
         const dispatch = vi.fn<(action: DraftAction) => void>();
         const lines = withLineKeys([BRISKET, { ...LEEK, resolutionStatus: FoodResolutionStatus.PENDING }]);
@@ -522,13 +530,15 @@ describe('a pick in flight, and what a settled pick says (§2d, item 1, "Busy an
 
         expect(screen.getAllByText(en.ingredientEntryAddingFromCatalog)).toHaveLength(2);
         expect(actions('Beef brisket').getAttribute('aria-disabled')).toBe('true');
+        expect(actions('Leek').getAttribute('aria-disabled')).toBe('true');
 
-        await user.click(screen.getByRole('button', { name: 'Remove ingredient 2' }));
+        await user.click(actions('Leek'));
+        expect(screen.queryByRole('menu')).toBeNull();
         // Removal goes through the host's draft transition, so that is where a refused Remove must not arrive.
         expect(dispatch).not.toHaveBeenCalled();
     });
 
-    it('a pick that committed is said politely, and focus goes to the row’s glyph', () => {
+    it('a pick that committed is said politely, and focus goes to the row’s open control', () => {
         const values = valuesWith(withLineKeys([BRISKET]));
         const { rerender } = render(<Harness initial={values} />);
         const settled: SettledRowCommit = {
@@ -547,7 +557,7 @@ describe('a pick in flight, and what a settled pick says (§2d, item 1, "Busy an
         expect(screen.getByText('Beef brisket is matched. Its nutrition now counts.').getAttribute('role')).toBe(
             'status',
         );
-        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'About Beef brisket' }));
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 2 lb Beef brisket' }));
     });
 
     // E2 (`docs/design/rowEditorOpenDecisions.md`): a pick that failed while its step was away. On return the row shows
@@ -929,7 +939,7 @@ describe('Create my own food (item 1)', () => {
         expect(open).toHaveBeenCalledWith('Kale', lineTarget(values));
     });
 
-    it('after the food is on the line, focus goes to the row’s glyph once the Sheet has gone', async () => {
+    it('after the food is on the line, focus goes to the row’s open control once the Sheet has gone', async () => {
         const values = valuesWith(withLineKeys([BRISKET]));
         const openForm = makeAuthoredFoodController({
             state: {
@@ -964,7 +974,7 @@ describe('Create my own food (item 1)', () => {
 
         expect(screen.queryByRole('dialog')).toBeNull();
         expect(screen.getByText(en.statusAuthoredAndLinked).getAttribute('role')).toBe('status');
-        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'About Beef brisket' }));
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 2 lb Beef brisket' }));
     });
 });
 
@@ -992,6 +1002,8 @@ describe('Add details and Edit details (§S7, §S8.8, item 9)', () => {
 
         await user.click(actions('Beef brisket'));
         expect(menuLabels()).toEqual([
+            en.rowEdit,
+            en.rowFoodDetails,
             en.statusActionChangeFood,
             shared.ingredientDetails.actionAdd,
             en.statusActionRemove,
@@ -1032,7 +1044,7 @@ describe('Add details and Edit details (§S7, §S8.8, item 9)', () => {
 
         await user.click(actions('Beef brisket'));
 
-        expect(menuLabels()).toEqual([en.statusActionChangeFood, en.statusActionRemove]);
+        expect(menuLabels()).toEqual([en.rowEdit, en.rowFoodDetails, en.statusActionChangeFood, en.statusActionRemove]);
     });
 
     it('the dialog shows for the line whose ⋮ opened it', () => {
@@ -1122,7 +1134,7 @@ function makeIngredientRowEditorDetailsModel(mode: 'add' | 'edit' = 'add') {
  * ruling 2026-10-02: every place a cook picks a food shows remote foods), and one pick binds one line through the row
  * editor's commit port, never by resolving the binding.
  */
-describe('row 6: what the food search finds for the line, in the glyph’s panel (SPECIFY.1 row 6, P12)', () => {
+describe('row 6: what the food search finds for the line, in the attention line’s panel (SPECIFY.1 row 6, P12)', () => {
     const KALE = {
         ingredientId: 'ing_kale',
         name: 'Kale',
@@ -1130,14 +1142,14 @@ describe('row 6: what the food search finds for the line, in the glyph’s panel
         isUserEntered: false,
         resolutionStatus: FoodResolutionStatus.UNRESOLVED,
     } as const;
-    const glyph = () => screen.getByRole('button', { name: 'About Kale' });
+    const glyph = () => screen.getByRole('button', { name: `${en.rowStateChooseMatch}: Kale` });
     const STEWED_PICK = { kind: 'remoteFood', reference: 'sealed.s', name: 'Apples, stewed', source: 'usda' } as const;
 
     afterEach(() => {
         shortlistSearch.calls.length = 0;
     });
 
-    it('never opens by itself: no panel and no search until the glyph is pressed', () => {
+    it('never opens by itself: no panel and no search until the attention line is pressed', () => {
         render(<Harness initial={valuesWith(withLineKeys([KALE]))} />);
 
         expect(screen.queryByRole('button', { name: en.statusActionNoneOfThese })).toBeNull();
@@ -1215,7 +1227,7 @@ describe('row 6: what the food search finds for the line, in the glyph’s panel
     });
 });
 
-describe('row 7: the line’s re-derived shortlist in the glyph’s panel (SPECIFY.1 row 7)', () => {
+describe('row 7: the line’s re-derived shortlist in the attention line’s panel (SPECIFY.1 row 7)', () => {
     const SAUCE = {
         ingredientId: 'ing_sauce',
         name: 'apple sauce',
@@ -1224,7 +1236,7 @@ describe('row 7: the line’s re-derived shortlist in the glyph’s panel (SPECI
         isUserEntered: false,
         resolutionStatus: FoodResolutionStatus.AMBIGUOUS,
     } as const;
-    const glyph = () => screen.getByRole('button', { name: 'About apple sauce' });
+    const glyph = () => screen.getByRole('button', { name: `${en.rowStateChooseMatch}: apple sauce` });
     const CANNED_PICK = { kind: 'catalogFood', foodId: 'food_canned', name: 'Applesauce, canned' } as const;
 
     afterEach(() => {
@@ -1232,7 +1244,7 @@ describe('row 7: the line’s re-derived shortlist in the glyph’s panel (SPECI
         shortlistSearch.refetch.mockReset();
     });
 
-    it('never opens by itself: no panel and no search until the glyph is pressed', () => {
+    it('never opens by itself: no panel and no search until the attention line is pressed', () => {
         render(<Harness initial={valuesWith(withLineKeys([SAUCE]))} />);
 
         expect(screen.queryByRole('button', { name: en.statusActionNoneOfThese })).toBeNull();
@@ -1319,10 +1331,12 @@ describe('row 7: the line’s re-derived shortlist in the glyph’s panel (SPECI
         expect(pickFromShortlist).not.toHaveBeenCalled();
     });
 
-    it('Remove is the row’s one action, direct: no Change food, no ⋮ (SPECIFY.1 row 7)', () => {
+    it('its ⋯ offers no Change food: the shortlist is the remedy (SPECIFY.1 row 7)', async () => {
+        const user = userEvent.setup();
         render(<Harness initial={valuesWith(withLineKeys([SAUCE]))} />);
 
-        expect(screen.queryByRole('button', { name: 'Actions for apple sauce' })).toBeNull();
-        expect(screen.getByRole('button', { name: 'Remove ingredient 1' })).toBeTruthy();
+        await user.click(actions('apple sauce'));
+
+        expect(menuLabels()).toEqual([en.rowEdit, en.statusActionRemove]);
     });
 });

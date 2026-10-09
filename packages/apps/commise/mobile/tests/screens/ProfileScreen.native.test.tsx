@@ -15,13 +15,13 @@
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
-import { formatRgb } from 'culori';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { accountDangerMessages } from '@commise/features-account/danger';
 import { profileMessages } from '@commise/features-account/profile';
 import { role, roleDark } from '@commise/ui/colors';
 import { SnackbarHost } from '@commise/ui/snackbar';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
 import { useEraseAccount } from '../../src/hooks/useEraseAccount.js';
@@ -30,14 +30,12 @@ import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 import { ProfileScreen } from '../../src/screens/profile.js';
 
-/** The system colour scheme the next render sees. */
-const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
 vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
-        ...actual,
-        useColorScheme: () => scheme.current,
+        ...withSystemScheme(actual),
         // react-native-web implements no `sendAccessibilityEvent`: the contract (which node, when) is what is asserted.
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
     };
@@ -153,7 +151,7 @@ beforeEach(() => {
 afterEach(() => {
     cleanup();
     vi.clearAllMocks();
-    scheme.current = null;
+    systemScheme.current = null;
 });
 
 describe('ProfileScreen — the one page (§9.1)', () => {
@@ -427,22 +425,22 @@ describe.each([
     ['dark', roleDark],
 ] as const)('ProfileScreen — the %s theme reads colour from roles', (name, roles) => {
     beforeEach(() => {
-        scheme.current = name;
+        systemScheme.current = name;
     });
 
     it('paints sign out in ink (not red) and the danger rows in dangerText', () => {
         renderProfile();
 
-        expect(colourOf(screen.getByText(t.signOut, { selector: 'div,span' }))).toBe(formatRgb(roles.ink));
-        expect(colourOf(screen.getByText(close.trigger, { selector: 'div,span' }))).toBe(formatRgb(roles.dangerText));
-        expect(colourOf(screen.getByText(erase.trigger, { selector: 'div,span' }))).toBe(formatRgb(roles.dangerText));
+        expect(colourOf(screen.getByText(t.signOut, { selector: 'div,span' }))).toBe(rgb(roles.ink));
+        expect(colourOf(screen.getByText(close.trigger, { selector: 'div,span' }))).toBe(rgb(roles.dangerText));
+        expect(colourOf(screen.getByText(erase.trigger, { selector: 'div,span' }))).toBe(rgb(roles.dangerText));
     });
 
     it('paints the hints and the email in inkMuted, and the group card in paper', () => {
         renderProfile();
 
-        expect(colourOf(screen.getByText(close.rowHint))).toBe(formatRgb(roles.inkMuted));
-        expect(backgroundBehind(screen.getByRole('button', { name: t.signOut }))).toBe(formatRgb(roles.paper));
+        expect(colourOf(screen.getByText(close.rowHint))).toBe(rgb(roles.inkMuted));
+        expect(backgroundBehind(screen.getByRole('button', { name: t.signOut }))).toBe(rgb(roles.paper));
     });
 
     it('paints the failed-load message and the sign-out failure in role colours', async () => {
@@ -453,6 +451,6 @@ describe.each([
         fireEvent.click(screen.getByRole('button', { name: t.signOut }));
         const alert = await screen.findByText(t.signOutFailed);
 
-        expect(colourOf(alert)).toBe(formatRgb(roles.dangerText));
+        expect(colourOf(alert)).toBe(rgb(roles.dangerText));
     });
 });

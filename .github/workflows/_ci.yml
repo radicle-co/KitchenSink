@@ -2647,6 +2647,7 @@ jobs:
                       flows_auth:
                           - 'packages/apps/commise/features/account/src/**'
                           - 'packages/apps/commise/mobile/src/auth/**'
+                          - 'packages/apps/commise/mobile/src/components/auth/**'
                           - 'packages/apps/commise/mobile/src/screens/login.tsx'
                           - 'packages/apps/commise/mobile/src/screens/signup.tsx'
                           - 'packages/apps/commise/mobile/src/screens/profile.tsx'
@@ -2697,7 +2698,7 @@ jobs:
                           - 'packages/apps/commise/features/recipes/src/photos/**'
                           - 'packages/apps/commise/features/recipes/src/rating/**'
                           - 'packages/apps/commise/features/recipes/src/versions/**'
-                          - 'packages/apps/commise/features/recipes/src/wizard/**'
+                          - 'packages/apps/commise/features/recipes/src/editor/**'
                           - 'packages/apps/commise/mobile/src/screens/Recipe*.tsx'
                           - 'packages/services/recipe-service/src/recipes/**'
                           - 'packages/services/recipe-service/src/ratings/**'

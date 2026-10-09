@@ -17,26 +17,13 @@
 import type { RecipeListSortBy } from '@kitchensink/recipe-service-client';
 
 import type { RecipeListMessages } from '../messages.js';
+import type { LibraryFacet, LibraryState } from './libraryTypes.js';
 import { QUICK_TIME_FACET, filterChipLabel, isQuickRecipe, matchesListFacet, type RecipeFacetSource } from './model.js';
 
 /** What the library narrowing reads of a recipe. */
 export interface LibraryRecipe extends RecipeFacetSource {
     readonly title: string;
 }
-
-/** One chip of the library's facets. */
-export interface LibraryFacet {
-    /** The facet value (a cuisine, a dietary flag, or {@link QUICK_TIME_FACET}). */
-    readonly value: string;
-    /** What the chip says. User data is its own label; the quick bucket is localized. */
-    readonly label: string;
-    /** How many recipes the chip would leave, beside the search and the other chips. */
-    readonly count: number;
-    readonly selected: boolean;
-}
-
-/** Which body the results draw. */
-export type LibraryState = 'firstRun' | 'results' | 'noMatchQuery' | 'noMatchFilters' | 'noMatchBoth';
 
 /** The sort keys the list endpoint accepts, in the order the sort menu offers them; the first is its default. */
 export const LIBRARY_SORTS: readonly RecipeListSortBy[] = ['updatedAt', 'createdAt', 'title'];

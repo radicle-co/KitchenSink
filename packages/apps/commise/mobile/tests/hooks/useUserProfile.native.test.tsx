@@ -8,11 +8,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useAuth } from '@clerk/expo';
+import { useAuth, useClerk } from '@clerk/expo';
 import type { ReactNode } from 'react';
 import { createElement } from 'react';
 
-vi.mock('@clerk/expo', () => ({ useAuth: vi.fn() }));
+vi.mock('@clerk/expo', () => ({ useAuth: vi.fn(), useClerk: vi.fn() }));
+
+const { endDeviceSession } = vi.hoisted(() => ({ endDeviceSession: vi.fn(async () => undefined) }));
+vi.mock('../../src/storage/deviceSession.js', () => ({ endDeviceSession }));
 
 import { makeUserProfile, makeUserProfileUser } from '@commise/features-account/testing';
 import type { DeleteUserMeResponse, EraseUserMeResponse } from '@kitchensink/schema-identity';
@@ -23,6 +26,7 @@ import { useUpdateProfile } from '../../src/hooks/useUpdateProfile.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 
 const useAuthMock = vi.mocked(useAuth);
+const useClerkMock = vi.mocked(useClerk);
 
 function wrapper({ children }: { children: ReactNode }) {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -139,17 +143,50 @@ describe('useUpdateProfile (mobile)', () => {
     });
 });
 
+/**
+ * The CLOSURE's exit (ADR-0009). It used to call `useAuth().signOut()` itself: no post-condition, so a sign-out that
+ * resolved having revoked nothing reported success, and no `endDeviceSession`, so the closed cook's drafts and outbox
+ * stayed on the device. It now issues the app's ONE sign-out command, `useSignOutAndVerify`, which these cases run for
+ * real — only Clerk and the device storage are doubled.
+ */
 describe('useDeleteAccount (mobile)', () => {
-    it('DELETEs /api/v1/users/me then signs out', async () => {
+    /** A Clerk client whose session ends when `signOut` runs, unless a case says otherwise. */
+    function arrangeClerk(options: { readonly sessionSurvives?: boolean } = {}) {
+        const clerk = { loaded: true, status: 'ready', session: { id: 'sess_live' } as { id: string } | null };
+        const rawSignOut = vi.fn().mockResolvedValue(undefined);
+        const signOut = vi.fn(async () => {
+            if (options.sessionSurvives !== true) {
+                clerk.session = null;
+            }
+        });
         const getToken = vi.fn().mockResolvedValue('tok_cached');
-        const signOut = vi.fn().mockResolvedValue(undefined);
-        useAuthMock.mockReturnValue({ getToken, signOut } as unknown as ReturnType<typeof useAuth>);
+        useAuthMock.mockReturnValue({ getToken, signOut, userId: 'user_cook' } as unknown as ReturnType<
+            typeof useAuth
+        >);
+        useClerkMock.mockReturnValue({
+            signOut: rawSignOut,
+            get loaded() {
+                return clerk.loaded;
+            },
+            get status() {
+                return clerk.status;
+            },
+            get session() {
+                return clerk.session;
+            },
+        } as unknown as ReturnType<typeof useClerk>);
         global.fetch = vi.fn().mockResolvedValue({
             ok: true,
             status: 202,
             json: () => Promise.resolve(deletion),
             text: () => Promise.resolve(JSON.stringify(deletion)),
         } as Response);
+
+        return { signOut, rawSignOut };
+    }
+
+    it('DELETEs /api/v1/users/me, then signs out through the VERIFIED command and ends the device session', async () => {
+        const { signOut, rawSignOut } = arrangeClerk();
 
         const { result } = renderHook(() => useDeleteAccount(), { wrapper });
         result.current.mutate();
@@ -159,7 +196,42 @@ describe('useDeleteAccount (mobile)', () => {
         const [url, init] = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
         expect(url).toContain('/api/v1/users/me');
         expect(init.method).toBe('DELETE');
+        // The load-safe wrapper, never the premount-queuing raw method.
         expect(signOut).toHaveBeenCalledTimes(1);
+        expect(rawSignOut).not.toHaveBeenCalled();
+        expect(endDeviceSession).toHaveBeenCalledWith('user_cook');
+        // The order is the point: nothing is signed out until the closure is accepted.
+        expect(vi.mocked(global.fetch).mock.invocationCallOrder[0]).toBeLessThan(
+            signOut.mock.invocationCallOrder[0] ?? 0,
+        );
+    });
+
+    it('FAILS, keeping the device state, when the sign-out resolved but the session is still live', async () => {
+        arrangeClerk({ sessionSurvives: true });
+
+        const { result } = renderHook(() => useDeleteAccount(), { wrapper });
+        result.current.mutate();
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        expect(endDeviceSession).not.toHaveBeenCalled();
+    });
+
+    it('does not sign out when the closure itself is refused', async () => {
+        const { signOut } = arrangeClerk();
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 500,
+            json: () => Promise.resolve({ message: 'boom' }),
+            text: () => Promise.resolve(JSON.stringify({ message: 'boom' })),
+        } as Response);
+
+        const { result } = renderHook(() => useDeleteAccount(), { wrapper });
+        result.current.mutate();
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        expect(signOut).not.toHaveBeenCalled();
     });
 });
 

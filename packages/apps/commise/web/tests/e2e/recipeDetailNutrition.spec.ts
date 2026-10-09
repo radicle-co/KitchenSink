@@ -35,7 +35,7 @@ test.describe('recipe-detail nutrition freshness', () => {
             tier: 'premium',
             recipes: [
                 makeRecipeDetail({
-                    id: 'rec_stale',
+                    id: 'ec000000-0000-4000-8000-000000000032',
                     ownerId: viewerId,
                     title: 'Saved-Data Stew',
                     nutrition: {
@@ -50,7 +50,7 @@ test.describe('recipe-detail nutrition freshness', () => {
             ],
         });
 
-        await page.goto(route('/recipes/rec_stale'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000032'));
         await expect(page.getByRole('heading', { level: 1, name: 'Saved-Data Stew' })).toBeVisible();
 
         const nutrition = page.getByRole('region', { name: NUTRITION_REGION });
@@ -64,10 +64,16 @@ test.describe('recipe-detail nutrition freshness', () => {
         await mockRecipeApi(page, {
             viewerId,
             tier: 'premium',
-            recipes: [makeRecipeDetail({ id: 'rec_fresh', ownerId: viewerId, title: 'Fresh-Data Stew' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-00000000000d',
+                    ownerId: viewerId,
+                    title: 'Fresh-Data Stew',
+                }),
+            ],
         });
 
-        await page.goto(route('/recipes/rec_fresh'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000000d'));
         await expect(page.getByRole('heading', { level: 1, name: 'Fresh-Data Stew' })).toBeVisible();
 
         const nutrition = page.getByRole('region', { name: NUTRITION_REGION });

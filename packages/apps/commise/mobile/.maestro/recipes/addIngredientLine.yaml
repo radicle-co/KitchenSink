@@ -38,13 +38,12 @@ appId: io.commise.mobile
       timeout: 30000
 - tapOn: 'Flour, your food'
 
-# The line is added with the cook's amount and unit, and the field empties for the next one.
+# The line is added with the cook's amount and unit, read amount first (build spec §7.5.1), and the field empties for
+# the next one.
 - extendedWaitUntil:
-      visible: 'Ingredient 1 unit'
+      visible: 'Edit 2 cup Flour'
       timeout: 40000
-      label: 'the pick added the line'
-- assertVisible:
-      text: 'cup'
+      label: 'the pick added the line with its amount and unit'
 - assertNotVisible: '2 cups · Flou'
 
 # The loop: type the next line at once. A food alone shows no reading (the field already says it).
@@ -62,6 +61,6 @@ appId: io.commise.mobile
       direction: DOWN
       centerElement: true
       timeout: 10000
-- assertNotVisible: 'Ingredient 2 unit'
+- assertNotVisible: 'Edit 1 tablespoon Flour'
 
 - runFlow: common/discardDraft.yaml

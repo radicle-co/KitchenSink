@@ -15,15 +15,21 @@ import { signInWithTicket } from './utils/auth';
  * Driven through the real web UI with the recipe-service contract intercepted. Selectors are role/label only.
  */
 const seed = (viewerId: string) => [
-    makeRecipeDetail({ id: 'rec_a', ownerId: viewerId, title: 'Soup', tags: [] }),
+    makeRecipeDetail({ id: 'ec000000-0000-4000-8000-000000000001', ownerId: viewerId, title: 'Soup', tags: [] }),
     makeRecipeDetail({
-        id: 'rec_b',
+        id: 'ec000000-0000-4000-8000-000000000005',
         ownerId: viewerId,
         title: 'Slow-Roasted Lamb Shoulder with Preserved Lemon, Chickpeas and a Long Title That Wraps',
         cuisine: 'Moroccan',
         tags: ['gluten-free', 'slow-cooked', 'braise', 'winter'],
     }),
-    makeRecipeDetail({ id: 'rec_c', ownerId: viewerId, title: 'Pasta', cuisine: 'Italian', tags: ['quick'] }),
+    makeRecipeDetail({
+        id: 'ec000000-0000-4000-8000-000000000007',
+        ownerId: viewerId,
+        title: 'Pasta',
+        cuisine: 'Italian',
+        tags: ['quick'],
+    }),
 ];
 
 /** The top of a card's element, rounded to the pixel. */

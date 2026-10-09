@@ -134,3 +134,64 @@ export async function editorTopChrome(
         return { x: header?.left ?? 0, y: top, width: header?.width ?? 0, height: bottom - top };
     }, TOP_CHROME_IDS);
 }
+
+/** The text, escaped for a `RegExp`. */
+const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+
+/**
+ * A read ingredient row's open control (build spec §7.5.1): one button named "Edit {amount} {food}", or "Edit {food}"
+ * for a line that states no amount.
+ *
+ * @param scope - The page, or the section or list to look in.
+ * @param food - The food the row names.
+ * @returns The control.
+ */
+export function ingredientOpen(scope: Page | Locator, food: string): Locator {
+    return scope.getByRole('button', { name: new RegExp(`^Edit (.+ )?${escaped(food)}$`, 'u') });
+}
+
+/**
+ * A read ingredient row's list item, by the food it names.
+ *
+ * @param scope - The page, or the section or list to look in.
+ * @param food - The food the row names.
+ * @returns The row.
+ */
+export function ingredientRow(scope: Page | Locator, food: string): Locator {
+    // A `has` locator is matched INSIDE each list item, so it is built from the page, never from `scope`: a locator
+    // chained under `scope` would look for `scope` inside the item and find nothing.
+    const page = 'page' in scope && typeof scope.page === 'function' ? (scope as Locator).page() : (scope as Page);
+
+    return scope.getByRole('listitem').filter({ has: ingredientOpen(page, food) });
+}
+
+/**
+ * Open a row's editor (build spec §7.5.2) and answer where its fields are: the phone sheet below a 600 container, or
+ * the inline panel in the row from 600.
+ *
+ * @param page - The page.
+ * @param food - The food the row names.
+ * @returns The sheet or the row, holding Amount, Unit and Preparation.
+ */
+export async function openIngredientEditor(page: Page, food: string): Promise<Locator> {
+    const row = ingredientRow(page, food);
+
+    await ingredientOpen(page, food).click();
+    await expect(page.getByLabel('Amount', { exact: true })).toBeVisible();
+
+    const sheet = page.getByRole('dialog', { name: food });
+
+    return (await sheet.count()) > 0 ? sheet : row;
+}
+
+/**
+ * Choose an item on a row's `⋯` (build spec §7.5.1).
+ *
+ * @param page - The page.
+ * @param food - The food the row names, as its `⋯` is named ("Actions for {food}").
+ * @param item - The menu item.
+ */
+export async function chooseRowAction(page: Page, food: string, item: string): Promise<void> {
+    await page.getByRole('button', { name: `Actions for ${food}` }).click();
+    await page.getByRole('menuitem', { name: item }).click();
+}

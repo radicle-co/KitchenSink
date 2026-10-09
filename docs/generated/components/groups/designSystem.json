@@ -6,11 +6,11 @@
     "coverage": {
         "components": 63,
         "implementations": 109,
-        "props": 593,
+        "props": 601,
         "documentedComponents": 63,
         "implementationsWithModuleDoc": 109,
         "implementationsWithComponentDoc": 101,
-        "documentedProps": 556,
+        "documentedProps": 564,
         "classifiedComponents": 55,
         "componentsWithPatternTag": 63,
         "crossPlatformComponents": 46
@@ -4190,6 +4190,8 @@
             "dir": "packages/apps/commise/ui/src/input",
             "kind": "presentational",
             "patterns": [
+                "Adapter over `TextInput.focus()` — a level-triggered focus request, acknowledged once taken. It is the one\n    reason this leaf holds a ref: focusing a field has no declarative form.",
+                "Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken. It is the one\n    reason this leaf holds a ref: `.focus()` has no declarative form.",
                 "Template — one field geometry (`FIELD_CLASS`), rendered by both text-field leaves",
                 "Template — one field geometry (`fieldStyle.ts`), rendered by both native text-field leaves"
             ],
@@ -4215,6 +4217,10 @@
                         {
                             "name": "pattern",
                             "text": "Template — one field geometry (`FIELD_CLASS`), rendered by both text-field leaves"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken. It is the one\n    reason this leaf holds a ref: `.focus()` has no declarative form."
                         }
                     ],
                     "description": "The web design-system one-line text field.",
@@ -4286,6 +4292,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "A host asks the field to take focus (a field it has just shown, such as a group's name). A LEVEL, as `Button`'s:\nit stands until {@link onFocusRequestHandled} acknowledges it, so a field that mounts while it stands takes it.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
                             "name": "id",
                             "type": "string",
                             "typeDetail": null,
@@ -4321,12 +4336,30 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
+                            "name": "maxLength",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The most characters the field takes; typing stops there, so a too-long value is never entered.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
                             "name": "onChangeText",
                             "type": "(text: string) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the new value on each edit.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called once the field has taken a requested focus; the host clears its request here.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -4366,7 +4399,9 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         }
                     ],
-                    "usesRefApi": [],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
@@ -4387,6 +4422,10 @@
                         {
                             "name": "pattern",
                             "text": "Template — one field geometry (`fieldStyle.ts`), rendered by both native text-field leaves"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `TextInput.focus()` — a level-triggered focus request, acknowledged once taken. It is the one\n    reason this leaf holds a ref: focusing a field has no declarative form."
                         }
                     ],
                     "description": "The native design-system one-line text field.",
@@ -4458,6 +4497,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "A host asks the field to take focus (a field it has just shown, such as a group's name). A LEVEL, as `Button`'s:\nit stands until {@link onFocusRequestHandled} acknowledges it, so a field that mounts while it stands takes it.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
                             "name": "id",
                             "type": "string",
                             "typeDetail": null,
@@ -4493,12 +4541,30 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
+                            "name": "maxLength",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The most characters the field takes; typing stops there, so a too-long value is never entered.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
                             "name": "onChangeText",
                             "type": "(text: string) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the new value on each edit.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called once the field has taken a requested focus; the host clears its request here.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -4538,7 +4604,9 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         }
                     ],
-                    "usesRefApi": [],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
@@ -6932,6 +7000,15 @@
                             "defaultValue": null,
                             "description": "The trigger's accessible name. ⛔ It names what the panel is ABOUT (a row's food, say), never a bare \"More\": a\nlist of identical names is unusable by voice control and by a screen-reader rotor.",
                             "declaredIn": "packages/apps/commise/ui/src/popover/props.ts"
+                        },
+                        {
+                            "name": "triggerText",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger becomes a read row's attention line (\"⚠ Choose\na match\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3). Absent, the trigger is the 44 px glyph button.",
+                            "declaredIn": "packages/apps/commise/ui/src/popover/props.ts"
                         }
                     ],
                     "usesRefApi": [
@@ -7106,6 +7183,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The trigger's accessible name. ⛔ It names what the panel is ABOUT (a row's food, say), never a bare \"More\": a\nlist of identical names is unusable by voice control and by a screen-reader rotor.",
+                            "declaredIn": "packages/apps/commise/ui/src/popover/props.ts"
+                        },
+                        {
+                            "name": "triggerText",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger becomes a read row's attention line (\"⚠ Choose\na match\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3). Absent, the trigger is the 44 px glyph button.",
                             "declaredIn": "packages/apps/commise/ui/src/popover/props.ts"
                         }
                     ],

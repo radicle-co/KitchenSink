@@ -35,7 +35,7 @@ appId: io.commise.mobile
       label: 'the catalog search found the KTD-16 root carrying its one "fried" variant'
 - tapOn: 'boneless skinless chicken breasts, fried'
 - scrollUntilVisible:
-      element: 'Ingredient 1 name'
+      element: 'Edit boneless skinless chicken breasts'
       direction: DOWN
       timeout: 30000
 
@@ -47,7 +47,7 @@ appId: io.commise.mobile
       label: 'the line binds the "fried" variant'
 - assertVisible:
       text: 'fried'
-      below: 'Ingredient 1 name'
+      below: 'Edit boneless skinless chicken breasts'
 
 # Several variants named: Change food searches "grilled", which names two variants, so the result is the root alone.
 # The field opens on the food's name with the caret at its end (`Combobox.native.tsx`'s focus request), so the name is

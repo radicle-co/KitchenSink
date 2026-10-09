@@ -9,22 +9,22 @@
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { formatRgb } from 'culori';
 import { useState, type FC } from 'react';
 
 import { placeholderContrast } from '@commise/test-utils';
 import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { CUISINES, RecipeDifficulty } from '@kitchensink/recipe-core';
 
 /** The system colour scheme and window width the next render sees. */
-const device = vi.hoisted(() => ({ scheme: null as 'light' | 'dark' | null, width: 390 }));
+const device = vi.hoisted(() => ({ width: 390 }));
 
 vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
-        ...actual,
-        useColorScheme: () => device.scheme,
+        ...withSystemScheme(actual),
         useWindowDimensions: () => ({ ...actual.Dimensions.get('window'), width: device.width }),
     };
 });
@@ -42,7 +42,7 @@ const e = editorMessages.en;
 
 afterEach(() => {
     cleanup();
-    device.scheme = null;
+    systemScheme.current = null;
     device.width = 390;
 });
 
@@ -140,11 +140,11 @@ describe('RecipeBasicsFields (native) — headings', () => {
     });
 
     it.each(['light', 'dark'] as const)('paints a group heading muted in the %s scheme', (scheme) => {
-        device.scheme = scheme;
+        systemScheme.current = scheme;
         renderLive();
 
         expect(getComputedStyle(screen.getByRole('heading', { name: m.groups.about })).color).toBe(
-            formatRgb((scheme === 'dark' ? roleDark : role).inkMuted),
+            rgb((scheme === 'dark' ? roleDark : role).inkMuted),
         );
     });
 });
@@ -168,14 +168,14 @@ describe('RecipeBasicsFields (native) — title', () => {
 
         const counter = screen.getByText(`${String(TITLE_COUNTER_FROM)}/${String(TITLE_MAX_LENGTH)}`);
 
-        expect(getComputedStyle(counter).color).toBe(formatRgb(role.inkMuted));
+        expect(getComputedStyle(counter).color).toBe(rgb(role.inkMuted));
         expect(field(m.titleLabel).getAttribute('aria-invalid')).not.toBe('true');
     });
 
     it.each(['light', 'dark'] as const)(
         'past 120 the counter turns danger in the %s scheme, the field is invalid and says why, live',
         (scheme) => {
-            device.scheme = scheme;
+            systemScheme.current = scheme;
             renderLive({ initial: filled({ title: 'a'.repeat(TITLE_MAX_LENGTH) }) });
 
             fireEvent.change(field(m.titleLabel), { target: { value: 'a'.repeat(TITLE_MAX_LENGTH + 1) } });
@@ -183,7 +183,7 @@ describe('RecipeBasicsFields (native) — title', () => {
             const counter = screen.getByText(`${String(TITLE_MAX_LENGTH + 1)}/${String(TITLE_MAX_LENGTH)}`);
             const message = screen.getByText(e.details.titleLimit);
 
-            expect(getComputedStyle(counter).color).toBe(formatRgb((scheme === 'dark' ? roleDark : role).dangerText));
+            expect(getComputedStyle(counter).color).toBe(rgb((scheme === 'dark' ? roleDark : role).dangerText));
             expect(field(m.titleLabel).getAttribute('aria-invalid')).toBe('true');
             expect(field(m.titleLabel).getAttribute('aria-describedby')?.split(' ')).toContain(message.id);
             expect(field(m.titleLabel).value).toHaveLength(TITLE_MAX_LENGTH + 1);
@@ -201,7 +201,7 @@ describe('RecipeBasicsFields (native) — title', () => {
     it.each(['light', 'dark'] as const)(
         'gives the title a placeholder that clears 4.5:1 in the %s scheme',
         (scheme) => {
-            device.scheme = scheme;
+            systemScheme.current = scheme;
             renderLive({ initial: filled({ title: '' }) });
 
             expect(placeholderContrast(field(m.titleLabel))).toBeGreaterThanOrEqual(4.5);
@@ -249,7 +249,7 @@ describe('RecipeBasicsFields (native) — description', () => {
             getComputedStyle(
                 screen.getByText(`${String(DESCRIPTION_MAX_LENGTH + 1)}/${String(DESCRIPTION_MAX_LENGTH)}`),
             ).color,
-        ).toBe(formatRgb(role.dangerText));
+        ).toBe(rgb(role.dangerText));
         expect(field(m.descriptionLabel).getAttribute('aria-invalid')).not.toBe('true');
         expect(field(m.descriptionLabel).value).toHaveLength(DESCRIPTION_MAX_LENGTH + 1);
     });
@@ -345,13 +345,13 @@ describe('RecipeBasicsFields (native) — cuisine, meal type and difficulty', ()
     });
 
     it.each(['light', 'dark'] as const)('paints the cuisine trigger from the %s theme', (scheme) => {
-        device.scheme = scheme;
+        systemScheme.current = scheme;
         renderLive();
         const theme = scheme === 'dark' ? roleDark : role;
         const trigger = screen.getByRole('button', { name: m.cuisineLabel });
 
-        expect(getComputedStyle(trigger).backgroundColor).toBe(formatRgb(theme.paper));
-        expect(getComputedStyle(screen.getByText('Italian')).color).toBe(formatRgb(theme.ink));
+        expect(getComputedStyle(trigger).backgroundColor).toBe(rgb(theme.paper));
+        expect(getComputedStyle(screen.getByText('Italian')).color).toBe(rgb(theme.ink));
     });
 
     it('lets a long custom cuisine shrink, so the chevron stays on the field', () => {

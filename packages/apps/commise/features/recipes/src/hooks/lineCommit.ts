@@ -81,11 +81,20 @@ export interface LineMeasure {
 
 /**
  * Which line a pick lands on: an existing row, by key, or the trailing add row. A trailing pick carries the measure read
- * from the field's text when it was made; it is not part of the target's identity (one trailing row, one commit).
+ * from the field's text when it was made, and the group the field sits in; neither is part of the target's identity
+ * (one trailing row, one commit).
  */
 export type LineCommitTarget =
     | { readonly kind: 'line'; readonly key: IngredientLineKey }
-    | { readonly kind: 'newLine'; readonly measure?: LineMeasure };
+    | { readonly kind: 'newLine'; readonly measure?: LineMeasure; readonly placement?: NewLinePlacement };
+
+/**
+ * The group the trailing field sits in (build spec §7.5.5): the appended line lands at the end of it, or among the
+ * ungrouped lines for `undefined`. Like the measure, it is not part of the target's identity.
+ */
+export interface NewLinePlacement {
+    readonly group: string | undefined;
+}
 
 /** How one commit ended. */
 export type LineCommitOutcome =

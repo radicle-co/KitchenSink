@@ -30,7 +30,7 @@ import { signInWithTicket } from './utils/auth';
  *
  * Selectors are role/label only (repo policy); no `data-testid`, no `waitForTimeout`.
  */
-const RECIPE_ID = 'rec_owned';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000018';
 const RECIPE_TITLE = 'Ember Roast Chicken';
 
 /** The computed facts that distinguish a design-system control from bare text. */
@@ -224,7 +224,7 @@ test.describe('recipe-detail owner actions', () => {
             tier: 'premium',
             recipes: [
                 makeRecipeDetail({
-                    id: 'rec_theirs',
+                    id: 'ec000000-0000-4000-8000-000000000033',
                     ownerId: 'usr_other',
                     title: 'Somebody Else’s Cassoulet',
                     visibility: 'public',
@@ -232,7 +232,7 @@ test.describe('recipe-detail owner actions', () => {
             ],
         });
 
-        await page.goto(route('/recipes/rec_theirs'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000033'));
         await expect(page.getByRole('heading', { level: 1, name: 'Somebody Else’s Cassoulet' })).toBeVisible();
 
         // The NON-owner affordance IS present — so the absences below are a gate, not a page that failed to

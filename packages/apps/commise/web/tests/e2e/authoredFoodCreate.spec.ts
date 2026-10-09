@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
-import { addStep, openNewRecipe } from './utils/recipeEditor';
+import { addStep, ingredientOpen, openNewRecipe } from './utils/recipeEditor';
 
 /**
  * U16 — the create-your-own-food story, driven through the real one-page editor (Next dev server + Clerk
@@ -64,11 +64,10 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
         expect((await admitted).postDataJSON()).toEqual({ foodId: ownFoods.foods[0]?.id });
 
         // The line landed in ONE flow, named by the created food, matched.
-        await expect(page.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText('grandma blend zq');
-        // EDITED for plan 002 V1: a matched row shows NO status word (SPECIFY.1 rows 3-4, "a match is not news"), and
-        // the old "Ingredient 1 status" label is gone. A match now reads as the row's info glyph, named for its food.
-        await expect(page.getByRole('button', { name: 'About grandma blend zq' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'About grandma blend zq' })).toHaveAccessibleDescription('');
+        // REWRITTEN for the read rows (build spec §7.5.1): a matched row is quiet, its open control named for its food,
+        // with no attention line.
+        await expect(ingredientOpen(page, 'grandma blend zq')).toBeVisible();
+        await expect(page.getByRole('button', { name: /: grandma blend zq$/u })).toHaveCount(0);
 
         // …and the id is real enough to publish with (the falsifiable end of the story).
         await addStep(page, 'Blend, then chill.');
@@ -103,7 +102,7 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
 
         // First create lands as line 1.
         await createOnce('repeated blend zq');
-        await expect(page.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText('repeated blend zq');
+        await expect(ingredientOpen(page, 'repeated blend zq')).toHaveCount(1);
 
         // The SAME name again: the duplicate arm renders its own sentence — not validation copy — with
         // the reuse affordance, and reusing attaches the EXISTING food as line 2.
@@ -111,7 +110,7 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
         await expect(page.getByText('You already have a food named “repeated blend zq”.')).toBeVisible();
         await expect(page.getByText('Outside the allowed range')).toHaveCount(0);
         await page.getByRole('button', { name: 'Use that one' }).click();
-        await expect(page.getByRole('group', { name: 'Ingredient 2 name' })).toHaveText('repeated blend zq');
+        await expect(ingredientOpen(page, 'repeated blend zq')).toHaveCount(2);
     });
 
     test('inline validation renders per field and blocks the submit', async ({ page }) => {
@@ -135,6 +134,6 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
         // Three empty macros say Required; the out-of-bounds one names its own failure. No line landed.
         await expect(form.getByText('Required')).toHaveCount(3);
         await expect(form.getByText('Outside the allowed range')).toBeVisible();
-        await expect(page.getByLabel('Ingredient 1 name')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(0);
     });
 });

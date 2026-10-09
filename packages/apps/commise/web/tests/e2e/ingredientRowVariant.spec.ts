@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { signInWithTicket } from './utils/auth';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { openRecipeEditor } from './utils/recipeEditor';
+import { chooseRowAction, ingredientOpen, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Curated U15 on the recipe form row (`docs/design/ingredientSpecialization.md` §S1, F3), through the real web app
@@ -14,7 +14,7 @@ import { openRecipeEditor } from './utils/recipeEditor';
  * per-state rules are pinned by the component tests (`RecipeIngredientsFields.test.tsx`). Selectors are role, label
  * and text only.
  */
-const RECIPE_ID = 'rec_variant_row';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000037';
 
 test.describe('a variant-bound line in the editor shows its dotted line (curated U15)', () => {
     test('the variant’s parts sit under the root name, and a root-bound line shows the name only', async ({ page }) => {
@@ -63,18 +63,17 @@ test.describe('a variant-bound line in the editor shows its dotted line (curated
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
         const rows = ingredients.getByRole('listitem');
 
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText('beef brisket');
+        await expect(ingredientOpen(ingredients, 'beef brisket')).toBeVisible();
         await expect(rows.nth(0)).toContainText('flat half');
         await expect(rows.nth(0)).toContainText('choice');
         // Positive control beside the negative: the second row is there, and it carries no parts (R28).
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 2 name' })).toHaveText(
-            'boneless skinless chicken breasts',
-        );
+        await expect(ingredientOpen(ingredients, 'boneless skinless chicken breasts')).toBeVisible();
         await expect(rows.nth(1)).not.toContainText('flat half');
         // Never one comma-joined label (§S4).
         await expect(ingredients.getByText('beef brisket, flat half')).toHaveCount(0);
 
-        await ingredients.getByRole('button', { name: 'About beef brisket' }).click();
+        // A matched row is quiet (build spec §7.5.1): its panel opens from ⋯ Food details.
+        await chooseRowAction(page, 'beef brisket, flat half, choice', 'Food details');
         await expect(page.getByRole('dialog', { name: 'beef brisket' })).toContainText('flat half');
     });
 });

@@ -63,7 +63,12 @@ test.describe('a cook’s cached recipes end with their session (ADR-0054)', () 
         await mockRecipeApi(page, {
             viewerId: cookA,
             recipes: [
-                makeRecipeDetail({ id: 'rec_a', ownerId: cookA, title: 'A’s Private Lamb', visibility: 'private' }),
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000001',
+                    ownerId: cookA,
+                    title: 'A’s Private Lamb',
+                    visibility: 'private',
+                }),
             ],
         });
         await page.goto(route('/recipes'));

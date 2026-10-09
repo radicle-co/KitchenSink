@@ -16,7 +16,7 @@ import type { ReactElement } from 'react';
 import { LocaleProvider } from '@commise/i18n/react';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
-import { RecipeNutritionBoundary } from '../RecipeNutritionBoundary.native.js';
+import { RecipeNutritionBoundary } from '../RecipeNutritionBoundary.js';
 import type { RecipeCalorieState } from '../model.js';
 
 afterEach(cleanup);

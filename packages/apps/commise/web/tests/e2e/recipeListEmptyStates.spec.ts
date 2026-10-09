@@ -88,14 +88,14 @@ test.describe('recipe list — zero-row states', () => {
             tier: 'premium',
             recipes: [
                 makeRecipeDetail({
-                    id: 'rec_slow_veg',
+                    id: 'ec000000-0000-4000-8000-000000000030',
                     ownerId: viewerId,
                     title: 'Slow Ratatouille',
                     dietaryFlags: ['Vegetarian'],
                     totalTimeMinutes: 45,
                 }),
                 makeRecipeDetail({
-                    id: 'rec_quick_steak',
+                    id: 'ec000000-0000-4000-8000-00000000001e',
                     ownerId: viewerId,
                     title: 'Quick Steak Bites',
                     dietaryFlags: [],

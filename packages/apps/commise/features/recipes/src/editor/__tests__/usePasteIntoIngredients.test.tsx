@@ -99,7 +99,11 @@ async function settle(): Promise<void> {
 const appended = (dispatch: ReturnType<typeof render>['dispatch']) =>
     dispatch.mock.calls.flatMap(([action]) => (action.kind === 'appendResolvedIngredient' ? [action.line] : []));
 
+/** The fixture job's `createdAt`: its `expiresAt` is a day later, so a real clock past that day expires every job. */
+const FIXTURE_NOW = new Date('2026-10-09T10:00:00.000Z');
+
 beforeEach(() => {
+    vi.setSystemTime(FIXTURE_NOW);
     mocks.created = undefined;
     mocks.createState = { isPending: false, isError: false };
     mocks.job = undefined;
@@ -301,7 +305,7 @@ describe('usePasteIntoIngredients — a lookup that fails', () => {
 
 describe('usePasteIntoIngredients — no row reads for good', () => {
     it('⛔ a line still pending past the stall bound joins through the add field’s reader', async () => {
-        vi.useFakeTimers();
+        vi.useFakeTimers({ now: FIXTURE_NOW });
         const { result, rerender, dispatch } = render();
         act(() => result.current.submit('2 tbsp olive oil, for frying'));
         accept(makeParseJob({ lines: [makeParseJobLine({ sourceLine: '2 tbsp olive oil, for frying' })] }));

@@ -830,6 +830,87 @@ describe('applyDraftAction — one entry point, every draft transition', () => {
         expect(next.ingredients.length).toBe(values.ingredients.length + 1);
     });
 
+    /**
+     * §7.5.5: the group transitions are `ingredientGroups.ts`'s (tested there); this pins that the ONE entry point
+     * routes each action to them, so a host never applies a group edit by a side door.
+     */
+    describe('the group transitions (§7.5.5)', () => {
+        const grouped = (): RecipeFormValues => ({
+            ...makeRecipeFormValues({}),
+            ingredients: withLineKeys([
+                { ingredientId: 'a', name: 'Salt', isUserEntered: false, quantity: 1 },
+                { ingredientId: 'b', name: 'Oil', isUserEntered: false, quantity: 1, groupLabel: 'Sauce' },
+                { ingredientId: 'c', name: 'Garlic', isUserEntered: false, quantity: 1, groupLabel: 'Sauce' },
+            ]),
+        });
+        const names = (values: RecipeFormValues): string[] =>
+            values.ingredients.map((line) => `${line.name ?? ''}/${line.groupLabel ?? '-'}`);
+
+        it('moves a line inside its group', () => {
+            const values = grouped();
+            const key = values.ingredients[2]?.key;
+
+            expect(key).toBeDefined();
+            expect(names(applyDraftAction(values, { kind: 'moveIngredient', key: key!, direction: 'up' }))).toEqual([
+                'Salt/-',
+                'Garlic/Sauce',
+                'Oil/Sauce',
+            ]);
+        });
+
+        it('moves a line to a group', () => {
+            const values = grouped();
+            const key = values.ingredients[0]?.key;
+
+            expect(
+                names(applyDraftAction(values, { kind: 'moveIngredientToGroup', key: key!, group: 'Sauce' })),
+            ).toEqual(['Oil/Sauce', 'Garlic/Sauce', 'Salt/Sauce']);
+        });
+
+        it('renames and removes a group', () => {
+            const renamed = applyDraftAction(grouped(), {
+                kind: 'renameIngredientGroup',
+                from: 'Sauce',
+                to: 'Dressing',
+            });
+
+            expect(names(renamed)).toEqual(['Salt/-', 'Oil/Dressing', 'Garlic/Dressing']);
+            expect(names(applyDraftAction(renamed, { kind: 'removeIngredientGroup', label: 'Dressing' }))).toEqual([
+                'Salt/-',
+                'Oil/-',
+                'Garlic/-',
+            ]);
+        });
+
+        it('appends into the group the add field sits in, at the end of that group', () => {
+            const line: ResolvedRecipeFormIngredient = {
+                ingredientId: 'd',
+                name: 'Pepper',
+                isUserEntered: false,
+                quantity: 1,
+            };
+            const next = applyDraftAction(grouped(), {
+                kind: 'appendResolvedIngredient',
+                key: mintedLineKey('pepper'),
+                line,
+                placement: { group: undefined },
+            });
+
+            // Placed in no group, explicitly: it does NOT inherit the last line's "Sauce".
+            expect(names(next)).toEqual(['Salt/-', 'Pepper/-', 'Oil/Sauce', 'Garlic/Sauce']);
+            expect(
+                names(
+                    applyDraftAction(grouped(), {
+                        kind: 'appendResolvedIngredient',
+                        key: mintedLineKey('pepper2'),
+                        line,
+                        placement: { group: 'Garnish' },
+                    }),
+                ),
+            ).toEqual(['Salt/-', 'Oil/Sauce', 'Garlic/Sauce', 'Pepper/Garnish']);
+        });
+    });
+
     it.each(['ingredients', 'steps'] as const)('removes at an index within %s', (field) => {
         const values = applyDraftAction(base(), { kind: 'addStep' });
         const before = values[field].length;

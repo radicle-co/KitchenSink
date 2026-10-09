@@ -31,7 +31,7 @@ import { RecentRecipeGrid } from '../../components/RecentRecipeGrid.native.js';
 import { RecipeBrowseRailResults } from '../../discovery/RecipeBrowseRailResults.native.js';
 import { RecipeDiscoveryResults } from '../../discovery/RecipeDiscoveryResults.native.js';
 import { RecipeListResults } from '../../list/RecipeListResults.native.js';
-import { RecipeNutritionSlot } from '../RecipeNutritionSlot.native.js';
+import { RecipeNutritionSlot } from '../RecipeNutritionSlot.js';
 import type { RenderRecipeNutrition } from '../model.js';
 
 afterEach(cleanup);

@@ -6,7 +6,7 @@ import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { openRecipeEditor } from './utils/recipeEditor';
+import { ingredientOpen, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Curated AE3 (`docs/brainstorms/2026-09-26-curated-food-catalog-requirements.md`; `docs/design/ingredientSpecialization.md`
@@ -19,7 +19,7 @@ import { openRecipeEditor } from './utils/recipeEditor';
  * (`docs/design/rowEditorBlueprint.md` decision 7). The root is a KTD-16 seed root. The per-state rules are pinned by
  * the component tests (`RecipeIngredientsFields.rowEditor.test.tsx`). Selectors are role, label and text only.
  */
-const RECIPE_ID = 'rec_variant_search';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000038';
 const ROOT_ID = 'food_chicken_breasts';
 const ROOT_NAME = 'boneless skinless chicken breasts';
 const FRIED = { id: 'fdc:171078', parts: [{ attribute: 'cookingMethod', text: 'fried' }] } as const;
@@ -97,7 +97,7 @@ test.describe('a search that names one variant (curated AE3)', () => {
         await expect(result).toContainText('fried');
         await result.click();
 
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 2 name' })).toHaveText(ROOT_NAME);
+        await expect(ingredientOpen(ingredients, ROOT_NAME)).toBeVisible();
         await expect(ingredients.getByRole('listitem').nth(1)).toContainText('fried');
         await expect(page.getByText(`Matched: ${ROOT_NAME}, fried. Nutrition is counted now.`)).toBeVisible();
         expect(rebinds.map((each) => [each.path, each.body])).toEqual([
@@ -120,7 +120,7 @@ test.describe('a search that names one variant (curated AE3)', () => {
         await field.fill('grilled boneless skinless chicken breasts');
         await page.getByRole('group', { name: 'Food catalog' }).getByRole('option', { name: ROOT_NAME }).click();
 
-        await expect(ingredients.getByRole('group', { name: 'Ingredient 2 name' })).toHaveText(ROOT_NAME);
+        await expect(ingredientOpen(ingredients, ROOT_NAME)).toBeVisible();
         expect(rebinds.map((each) => each.body.target)).toEqual([{ kind: 'catalogFood', foodId: ROOT_ID }]);
         expect(store.get(RECIPE_ID)?.ingredients[1]?.variant).toBeUndefined();
     });

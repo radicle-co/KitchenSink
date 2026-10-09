@@ -35,7 +35,7 @@ import { signInWithTicket } from './utils/auth';
 
 test.use({ viewport: { width: 320, height: 640 } });
 
-const RECIPE_ID = 'rec_labels';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000012';
 const RECIPE_TITLE = 'Ember Roast Chicken';
 
 /** A path under the pseudo-locale, whatever locale the rest of the run uses. */

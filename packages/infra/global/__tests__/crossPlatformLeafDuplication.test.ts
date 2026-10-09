@@ -259,6 +259,53 @@ export function pairVerdict(web: PairFile, native: PairFile): PairVerdict {
     return { shared, passes: shared <= MAX_SHARED_LOGIC_LINES };
 }
 
+/**
+ * A file's tokens as the compiler scans them: comments and whitespace are gone, a leading `'use client'` directive is
+ * dropped (it is inert on native), and a RELATIVE module specifier loses its `.native` twin marker, because Metro
+ * resolves `./x.js` to `x.native.tsx` on native, so `./x.js` and `./x.native.js` name the same module there. Pure.
+ *
+ * @param file - The file.
+ * @returns Its tokens, in order.
+ */
+function tokensOf(file: PairFile): readonly string[] {
+    const scanner = ts.createScanner(
+        ts.ScriptTarget.Latest,
+        true,
+        file.fileName.endsWith('.tsx') ? ts.LanguageVariant.JSX : ts.LanguageVariant.Standard,
+        file.text,
+    );
+    const tokens: string[] = [];
+
+    for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan()) {
+        const text = scanner.getTokenText();
+
+        tokens.push(
+            kind === ts.SyntaxKind.StringLiteral && /^(['"])\.{1,2}\//u.test(text)
+                ? text.replace(/\.native(\.jsx?)?(['"])$/u, '$1$2')
+                : text,
+        );
+    }
+
+    const isDirective = tokens[0] === "'use client'" || tokens[0] === '"use client"';
+
+    return isDirective ? tokens.slice(tokens[1] === ';' ? 2 : 1) : tokens;
+}
+
+/**
+ * Whether a native file is its web twin's own source once comments, a `use client` directive and the twin marker in
+ * relative specifiers are set aside, so that it adds nothing and Metro would load the web file for native anyway. Pure.
+ *
+ * @param web - The web file.
+ * @param native - The native file.
+ * @returns `true` when their tokens are equal.
+ */
+export function isTokenEqual(web: PairFile, native: PairFile): boolean {
+    const a = tokensOf(web);
+    const b = tokensOf(native);
+
+    return a.length === b.length && a.every((token, index) => token === b[index]);
+}
+
 /** Lines of distinct logic, `count` of them: `const value0 = compute(0);` and on. Pure. */
 const logic = (count: number, from = 0): string =>
     Array.from({ length: count }, (_, index) => `const value${from + index} = compute(${from + index});`).join('\n');
@@ -433,6 +480,38 @@ describe('a PLATFORM-FORK reason over one member of a declaration (§14.2: it ex
     });
 });
 
+describe('a pair that is the same file twice (token-equal, so the native twin should not exist)', () => {
+    const body = 'export const Leaf = () => <Text>{label}</Text>;';
+
+    it.each<[string, string, string, boolean]>([
+        ['identical files', `${body}\n`, `${body}\n`, true],
+        [
+            'only comments and whitespace differ',
+            `// web\n${body}`,
+            `/* native */\n${body.replace(' = ', '   =   ')}`,
+            true,
+        ],
+        ['only a `use client` directive differs', `'use client';\n\n${body}`, body, true],
+        [
+            'only the twin specifier of an import differs: Metro already resolves `./x.js` to `x.native.tsx` on native',
+            `import { Body } from './Body.js';\n${body}`,
+            `import { Body } from './Body.native.js';\n${body}`,
+            true,
+        ],
+        ['one token differs', `${body}`, body.replace('label', 'title'), false],
+        [
+            'a different import target, not a twin specifier',
+            "import { A } from './A.js';",
+            "import { A } from './B.native.js';",
+            false,
+        ],
+        ['a string that merely mentions `.native`', "const s = 'a.native.js';", "const s = 'a.js';", false],
+        ['extra logic on one side', `${body}\nconst extra = 1;`, body, false],
+    ])('%s', (_case, web, native, identical) => {
+        expect(isTokenEqual(tsx(web), tsx(native))).toBe(identical);
+    });
+});
+
 describe('a pair’s verdict', () => {
     const FORK = '// PLATFORM-FORK: native cannot read where focus was';
 
@@ -522,6 +601,14 @@ describe('the tree', () => {
 
         expect(pairs.length).toBeGreaterThan(50);
         expect(measured.length).toBeGreaterThan(pairs.length / 2);
+    });
+
+    it('⛔ no native twin is token-equal to its web file: delete it, Metro resolves the web file for native', () => {
+        const offenders = pairs
+            .filter((pair) => isTokenEqual(read(pair.web), read(pair.native)))
+            .map(({ native }) => `${native} — is the same file as its web twin; delete it`);
+
+        expect(offenders).toEqual([]);
     });
 
     it(`⛔ no pair shares more than ${MAX_SHARED_LOGIC_LINES} logic lines outside what a PLATFORM-FORK reason excuses`, () => {

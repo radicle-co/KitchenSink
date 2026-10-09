@@ -21,7 +21,7 @@ import { signInWithTicket } from './utils/auth';
  * rather than the browser's own policy. Selectors are role/label only; no `waitForTimeout`.
  */
 
-const RECIPE_ID = 'rec_cook';
+const RECIPE_ID = 'ec000000-0000-4000-8000-00000000000a';
 const RECIPE_TITLE = 'Slow-Roasted Lamb Shoulder';
 
 /** `#RRGGBB` → the `rgb(r, g, b)` spelling a computed style uses. */

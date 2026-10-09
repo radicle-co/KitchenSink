@@ -199,7 +199,7 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
 
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
-        await expect(ingredients.getByLabel('Ingredient 1 name')).toBeVisible();
+        await expect(ingredients.getByRole('button', { name: /^Edit / }).first()).toBeVisible();
         await expect(ingredients.getByText('product of Australia').first()).toBeVisible();
         await expectNoSidewaysScroll(page);
     });

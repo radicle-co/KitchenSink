@@ -21,21 +21,20 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { accountDangerMessages } from '@commise/features-account/danger';
 import { profileMessages } from '@commise/features-account/profile';
-import { formatRgb } from 'culori';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
 import { useEraseAccount } from '../../src/hooks/useEraseAccount.js';
 
-/** The system colour scheme the next render sees. */
-const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
-vi.mock('react-native', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('react-native')>()),
-    useColorScheme: () => scheme.current,
-}));
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
 
 const { signOut, signOutAndVerify } = vi.hoisted(() => ({ signOut: vi.fn(), signOutAndVerify: vi.fn() }));
 vi.mock('@clerk/expo', () => ({
@@ -128,7 +127,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    scheme.current = null;
+    systemScheme.current = null;
     cleanup();
 });
 
@@ -152,7 +151,7 @@ describe.each([
     ['dark', roleDark],
 ] as const)('AccountDangerZone (native) — the Profile danger rows (%s theme)', (name, roles) => {
     beforeEach(() => {
-        scheme.current = name;
+        systemScheme.current = name;
     });
 
     it('is a Danger zone group with both rows and each one’s consequence as its hint', () => {
@@ -167,11 +166,11 @@ describe.each([
         render(<AccountDangerZone />);
 
         for (const label of [close.trigger, erase.trigger]) {
-            expect(window.getComputedStyle(screen.getByText(label)).color, label).toBe(formatRgb(roles.dangerText));
+            expect(window.getComputedStyle(screen.getByText(label)).color, label).toBe(rgb(roles.dangerText));
         }
 
         for (const hint of [close.rowHint, erase.rowHint]) {
-            expect(window.getComputedStyle(screen.getByText(hint)).color, hint).toBe(formatRgb(roles.inkMuted));
+            expect(window.getComputedStyle(screen.getByText(hint)).color, hint).toBe(rgb(roles.inkMuted));
         }
     });
 
@@ -189,7 +188,7 @@ describe.each([
         setDeleteAccount({ isError: true });
         render(<AccountDangerZone />);
 
-        expect(window.getComputedStyle(screen.getByRole('alert')).color).toBe(formatRgb(roles.dangerText));
+        expect(window.getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(roles.dangerText));
     });
 });
 

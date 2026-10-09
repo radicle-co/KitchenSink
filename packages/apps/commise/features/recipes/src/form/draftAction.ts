@@ -5,6 +5,7 @@
  */
 import type { RecipeDifficulty, RecipeMealType } from '@kitchensink/recipe-core';
 
+import type { MoveDirection } from './ingredientGroups.js';
 import type { SettledAnswer } from './ingredientStatus.js';
 import type { LineBinding } from './lineBinding.js';
 import type { IngredientLineKey } from './lineKey.js';
@@ -48,6 +49,11 @@ export type DraftAction =
           /** The new line's identity, minted at the edge (`mintLineKey`) so this transition stays pure. */
           readonly key: IngredientLineKey;
           readonly line: ResolvedRecipeFormIngredient;
+          /**
+           * The group the add field the cook picked in sits in (§7.5.5), and the line lands at the end of it
+           * (`placeIngredient`). Absent: the line joins the group being built, the last line's (U27).
+           */
+          readonly placement?: { readonly group: string | undefined };
       }
     | { readonly kind: 'removeAt'; readonly field: DraftListField; readonly index: number }
     | {
@@ -88,5 +94,13 @@ export type DraftAction =
     | { readonly kind: 'setStepTimer'; readonly index: number; readonly seconds?: number }
     /** Append pasted steps at the end, in order, with no timer (Paste steps). */
     | { readonly kind: 'appendSteps'; readonly instructions: readonly string[] }
+    /** ⋯ Move up / Move down inside the line's group (§7.5.1, SC 2.5.7). At a group's edge, nothing changes. */
+    | { readonly kind: 'moveIngredient'; readonly key: IngredientLineKey; readonly direction: MoveDirection }
+    /** ⋯ Move to group…: to the end of `group`, or out of every group (`undefined`) (§7.5.5). */
+    | { readonly kind: 'moveIngredientToGroup'; readonly key: IngredientLineKey; readonly group: string | undefined }
+    /** A group's ⋯ Rename group. A blank name changes nothing. */
+    | { readonly kind: 'renameIngredientGroup'; readonly from: string; readonly to: string }
+    /** A group's ⋯ Remove group (keep its ingredients). */
+    | { readonly kind: 'removeIngredientGroup'; readonly label: string }
     | { readonly kind: 'setDifficulty'; readonly value?: RecipeDifficulty }
     | { readonly kind: 'setMealType'; readonly value?: RecipeMealType };

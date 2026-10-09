@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { E2E_CATALOG_FOOD, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
-import { addStep, openNewRecipe } from './utils/recipeEditor';
+import { addStep, ingredientOpen, openNewRecipe } from './utils/recipeEditor';
 
 /**
  * The ingredient search's user story since plan 002 S5, driven through the real one-page editor (Next dev server + Clerk
@@ -61,11 +61,9 @@ test.describe('the ingredient search — the cook’s foods and the catalog’s 
 
         // The line landed — with the name and status the ADMIT response supplied, not the suggestion's. A
         // regression that resolved straight off the suggestion would have no valid id to put here.
-        await expect(page.getByRole('group', { name: 'Ingredient 1 name' })).toHaveText('Pepper, black, ground');
-        // EDITED for plan 002 V1: a matched row shows NO status word (SPECIFY.1 rows 3-4, "a match is not news"), and
-        // the old "Ingredient 1 status" label is gone. A match now reads as the row's info glyph, named for its food.
-        await expect(page.getByRole('button', { name: 'About Pepper, black, ground' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'About Pepper, black, ground' })).toHaveAccessibleDescription('');
+        // REWRITTEN for the read rows (build spec §7.5.1): a matched row is quiet, its open control named for its food.
+        await expect(ingredientOpen(page, 'Pepper, black, ground')).toBeVisible();
+        await expect(page.getByRole('button', { name: /: Pepper, black, ground$/u })).toHaveCount(0);
 
         // …and it is a real catalog id, so the recipe publishes (Publish validation rejects a line whose
         // `ingredientId` does not resolve). This is the falsifiable end of the story.

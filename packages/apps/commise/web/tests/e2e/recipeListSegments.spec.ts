@@ -19,7 +19,13 @@ test.describe('Recipes segments — My recipes and Collections', () => {
         await mockRecipeApi(page, {
             viewerId,
             tier: 'premium',
-            recipes: [makeRecipeDetail({ id: 'rec_seg', ownerId: viewerId, title: 'Weeknight Pasta' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-00000000002d',
+                    ownerId: viewerId,
+                    title: 'Weeknight Pasta',
+                }),
+            ],
         });
 
         await page.goto(route('/recipes'));

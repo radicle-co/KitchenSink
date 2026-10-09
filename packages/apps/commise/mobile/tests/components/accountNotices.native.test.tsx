@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import { role, roleDark } from '@commise/ui/colors';
+import { systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { ImpersonationWarning } from '../../src/components/ImpersonationWarning.js';
 import { SuspensionBanner } from '../../src/components/SuspensionBanner.js';
@@ -18,15 +19,14 @@ import { mobileMessages } from '../../src/i18n/messages.js';
 
 afterEach(() => {
     cleanup();
-    scheme.current = null;
+    systemScheme.current = null;
 });
 
-/** The system colour scheme the next render sees. */
-const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
-vi.mock('react-native', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('react-native')>()),
-    useColorScheme: () => scheme.current,
-}));
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
 
 /** `#RRGGBB` → the `rgb(r, g, b)` form `getComputedStyle` reports. */
 const toRgb = (hex: string): string => {
@@ -57,7 +57,7 @@ describe('SuspensionBanner', () => {
     });
 
     it.each(THEMES)('paints the notice from the %s theme’s roles, accented with the danger tone', (name, colors) => {
-        scheme.current = name;
+        systemScheme.current = name;
         const { container } = render(<SuspensionBanner status="suspended" />);
         const banner = container.firstElementChild as HTMLElement;
         const style = window.getComputedStyle(banner);
@@ -99,7 +99,7 @@ describe('ImpersonationWarning', () => {
     it.each(THEMES)(
         'accents the notice with the caution tone in the %s theme (it is a caution, not a failure)',
         (name, colors) => {
-            scheme.current = name;
+            systemScheme.current = name;
             const { container } = render(<ImpersonationWarning />);
             const banner = container.firstElementChild as HTMLElement;
 

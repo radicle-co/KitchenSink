@@ -20,6 +20,7 @@
  * @pattern Composition root over the Profile render leaves — the read, the editor and the navigator's back meet here and
  *     nowhere below
  */
+import { useUser } from '@clerk/expo';
 import { initialsFor } from '@commise/features-core';
 import { DataSourcesScreen } from '@commise/features-recipes/data-sources/mobile';
 import {
@@ -30,6 +31,7 @@ import {
     ProfileValueRow,
     profileMessages,
     profileReadOf,
+    useDisplayNameEditor,
 } from '@commise/features-account/profile';
 import { useMessages } from '@commise/i18n/react';
 import { CondensedTitleBar, LargeTitleHeader } from '@commise/ui/large-title-header';
@@ -43,7 +45,6 @@ import { AccountDangerZone } from '../components/account/AccountDangerZone.js';
 import { AvatarField } from '../components/account/AvatarField.js';
 import { SignOutButton } from '../components/account/SignOutButton.js';
 import { SuspensionBanner } from '../components/SuspensionBanner.js';
-import { useDisplayNameEditor } from '../hooks/useDisplayNameEditor.js';
 import { useUpdateProfile } from '../hooks/useUpdateProfile.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 import { mobileMessages } from '../i18n/messages.js';
@@ -80,7 +81,10 @@ function ProfileSurface({ scrollBind, onBack }: ProfileSurfaceProps): JSX.Elemen
     const query = useUserProfile();
     const read = profileReadOf(query);
     const saved = read.status === 'ready' ? read.displayName : '';
-    const editor = useDisplayNameEditor(saved);
+    const { user: clerkUser } = useUser();
+    // The name and the photo are two mutations, so a photo upload never reads as the name saving, and back.
+    const nameUpdate = useUpdateProfile();
+    const editor = useDisplayNameEditor({ saved, user: clerkUser, update: nameUpdate });
     const photoUpdate = useUpdateProfile();
     const [sourcesOpen, setSourcesOpen] = useState(false);
     // Each close of the sheet advances this, which takes the reading cursor back to the row that opened it (§10).

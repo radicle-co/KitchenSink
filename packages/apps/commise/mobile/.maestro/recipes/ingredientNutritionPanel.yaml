@@ -36,12 +36,13 @@ appId: io.commise.mobile
           TARGET: 'Flour, your food'
 - tapOn: 'Flour, your food'
 
-# The matched row: no status word, and an info glyph named for the food.
+# The matched row is quiet (UI overhaul slice 8, build spec §7.5.1): its figures open from its ⋯ Food details.
 - scrollUntilVisible:
-      element: 'About Flour'
+      element: 'Edit Flour'
       direction: DOWN
       timeout: 30000
-- tapOn: 'About Flour'
+- tapOn: 'Actions for Flour'
+- tapOn: 'Food details'
 - extendedWaitUntil:
       visible: '^(Per 100 g|No nutritional data available)$'
       timeout: 20000
@@ -50,7 +51,7 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       notVisible: '^(Per 100 g|No nutritional data available)$'
       timeout: 10000
-- assertVisible: 'About Flour'
+- assertVisible: 'Edit Flour'
 
 # Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
 - runFlow: common/discardDraft.yaml

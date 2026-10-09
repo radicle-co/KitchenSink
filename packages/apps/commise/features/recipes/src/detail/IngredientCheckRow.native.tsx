@@ -25,11 +25,6 @@ import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineDisplayName, variantPartTexts } from './lineName.js';
 import { formatQuantity, isLineFoodRemoved } from './model.js';
 
-/** `dataSet` is a react-native-web runtime prop (→ DOM `data-*`) absent from react-native's `ViewProps`. */
-const MarkedView = View as unknown as FC<
-    React.ComponentProps<typeof View> & { readonly dataSet?: Record<string, string> }
->;
-
 /** The native checkable ingredient row. */
 export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, checked, allRemoved, onToggle }) => {
     const { detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
@@ -57,7 +52,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
         >
             {/* The 24 pt box and the text's 24 pt first line start together, so the box is centred on that line. */}
             <CheckBoxGlyph checked={checked} />
-            <MarkedView dataSet={{ lineText: '', dimmed: String(checked) }} style={styles.text}>
+            <View style={styles.text}>
                 {isStandInName(ingredient) ? (
                     <>
                         {amount !== '' && <Text style={[styles.line, styles.amount, textColour]}>{amount}</Text>}
@@ -87,7 +82,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
                         {status.text}
                     </StatusBadge>
                 ))}
-            </MarkedView>
+            </View>
         </Pressable>
     );
 };

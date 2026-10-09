@@ -5,6 +5,8 @@
  * page and own the profile read, the display-name write and the sign-out.
  */
 export { DisplayNameSheet } from './DisplayNameSheet.js';
+export { useDisplayNameEditor } from './useDisplayNameEditor.js';
+export type { DisplayNameEditor, DisplayNameEditorInput, DisplayNameSave } from './useDisplayNameEditor.js';
 export { ProfileGroup } from './ProfileGroup.js';
 export { ProfileHeader } from './ProfileHeader.js';
 export { ProfileRow } from './ProfileRow.js';

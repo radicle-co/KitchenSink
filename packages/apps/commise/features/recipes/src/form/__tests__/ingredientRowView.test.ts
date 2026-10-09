@@ -1,5 +1,10 @@
 /**
  * Tests for {@link ingredientRowViewOf}: one ingredient row's view, as both `RecipeIngredientsFields` leaves draw it.
+ *
+ * REWRITTEN for the UI overhaul's read rows (build spec §7.5.1, §7.5.2): a row reads quietly (amount, name · prep, ⋯)
+ * and its fields live in a row editor, so the glyph's name and busy state, the row-level group field, and the direct
+ * Remove button went; the cases that pinned them now pin the open control, the attention line, the full ⋯ and the
+ * row editor's view. Where a case still holds the same design line, it names it as before.
  * Each case names the design line it holds: `docs/design/rowEditorOpenDecisions.md` (items 1, 4 and 6, R7, system
  * change 5), `docs/design/ingredientStatusExplanation.md` (§2d and its rows 1, 6 and 7), `docs/design/namelessLineCopy.md`
  * (§6c and §7), and the resolution plan's U25 and U28. The row policy, the copy builders and the focus levels have
@@ -70,12 +75,11 @@ const makeFocus = () => {
 
     return {
         name: () => ({ ...level, listRequested: false }),
-        glyph: () => ({ ...level, onPanelDismissed: () => undefined }),
+        open: () => level,
         actions: () => level,
         trailing: { ...level, listRequested: false },
         request: vi.fn<RowFocus['request']>(),
         requestTrailing: vi.fn<RowFocus['requestTrailing']>(),
-        requestAfterGlyphPanel: vi.fn<RowFocus['requestAfterGlyphPanel']>(),
         authoredSheetDismissed: () => false,
     } satisfies RowFocus;
 };
@@ -90,6 +94,10 @@ interface Setup {
     readonly retrying?: ReadonlySet<string>;
     readonly failure?: string;
     readonly alert?: string;
+    /** The row whose editor is open. */
+    readonly openKey?: IngredientLineKey;
+    /** How many named groups the list has (its own and the cook's new, empty ones). */
+    readonly groupCount?: number;
 }
 
 /** Every row of a draft, with the spies a test reads. */
@@ -102,6 +110,18 @@ const rowsOf = (setup: Setup) => {
     const entry = makeIngredientEntry(setup.entry);
     const rowEditor = makeIngredientRowEditor({ ...setup.editor, entry });
     const answer = setup.lookup;
+    const lineEditor = {
+        openKey: setup.openKey,
+        open: vi.fn<(key: IngredientLineKey) => void>(),
+        close: vi.fn<() => void>(),
+        rangeShown: () => false,
+        showRange: vi.fn<(key: IngredientLineKey) => void>(),
+        hideRange: vi.fn<(key: IngredientLineKey) => void>(),
+        detailsOpen: false,
+        toggleDetails: vi.fn<() => void>(),
+    };
+    const openFoodDetails = vi.fn<(key: IngredientLineKey) => void>();
+    const openMoveToGroup = vi.fn<(key: IngredientLineKey) => void>();
     const ctx: IngredientRowContext = {
         values,
         errors: setup.errors,
@@ -122,12 +142,16 @@ const rowsOf = (setup: Setup) => {
         failureOf: () => setup.failure,
         alertOf: () => setup.alert,
         moveOn,
+        lineEditor,
+        openFoodDetails,
+        openMoveToGroup,
+        groupCount: setup.groupCount ?? 0,
     };
     const rows: readonly IngredientRowView[] = values.ingredients.map((line, index) =>
         ingredientRowViewOf(line, index, ctx),
     );
 
-    return { rows, values, focus, onChange, retry, entry, rowEditor };
+    return { rows, values, focus, onChange, retry, entry, rowEditor, lineEditor, openFoodDetails, openMoveToGroup };
 };
 
 /** The one row of a single-line draft. */
@@ -163,16 +187,16 @@ const keyOf = (line: RecipeFormIngredient | undefined): IngredientLineKey => {
     return line.key;
 };
 
-describe('ingredientRowViewOf — the glyph and ⋮ names (item 6, namelessLineCopy §6c and §7)', () => {
+describe('ingredientRowViewOf — the row’s control names (item 6, namelessLineCopy §6c and §7)', () => {
     it('a root-bound row names its food alone', () => {
         const { row } = onlyRow({ lines: [bound()] });
 
         expect(row.labels).toEqual({
-            glyphTrigger: 'About beef brisket',
-            glyphClose: 'Close details for beef brisket',
+            panelClose: 'Close details for beef brisket',
             actionsTrigger: 'Actions for beef brisket',
             actionsClose: 'Close actions for beef brisket',
         });
+        expect(row.openLabel).toBe('Edit 1 lb beef brisket');
     });
 
     it('a variant-bound row names its parts after the food, joined as the dotted line speaks them', () => {
@@ -180,8 +204,7 @@ describe('ingredientRowViewOf — the glyph and ⋮ names (item 6, namelessLineC
 
         expect(row.variantParts).toEqual(['flat half', 'select']);
         expect(row.labels).toEqual({
-            glyphTrigger: 'About beef brisket, flat half, select',
-            glyphClose: 'Close details for beef brisket, flat half, select',
+            panelClose: 'Close details for beef brisket, flat half, select',
             actionsTrigger: 'Actions for beef brisket, flat half, select',
             actionsClose: 'Close actions for beef brisket, flat half, select',
         });
@@ -203,9 +226,9 @@ describe('ingredientRowViewOf — the glyph and ⋮ names (item 6, namelessLineC
             ],
         });
 
-        expect(rows.map((row) => row.labels.glyphTrigger)).toEqual([
-            'About beef brisket, flat half, select',
-            'About beef brisket, point half, choice',
+        expect(rows.map((row) => row.labels.actionsTrigger)).toEqual([
+            'Actions for beef brisket, flat half, select',
+            'Actions for beef brisket, point half, choice',
         ]);
     });
 
@@ -215,7 +238,7 @@ describe('ingredientRowViewOf — the glyph and ⋮ names (item 6, namelessLineC
         });
 
         expect(row.variantParts).toBeUndefined();
-        expect(row.labels.glyphTrigger).toBe('About beef brisket');
+        expect(row.labels.panelClose).toBe('Close details for beef brisket');
         expect(row.labels.actionsTrigger).toBe('Actions for beef brisket');
     });
 
@@ -228,7 +251,7 @@ describe('ingredientRowViewOf — the glyph and ⋮ names (item 6, namelessLineC
         expect(first?.standIn).toBe(true);
         expect(first?.displayName).toBe('Private ingredient');
         expect(first?.labels.actionsTrigger).toBe('Actions for 2 tbsp Private ingredient');
-        expect(first?.labels.glyphTrigger).toBe('About 2 tbsp Private ingredient');
+        expect(first?.openLabel).toBe('Edit 2 tbsp Private ingredient');
         expect(second?.labels.actionsTrigger).toBe('Actions for 1 cup Private ingredient');
     });
 });
@@ -245,18 +268,19 @@ describe('ingredientRowViewOf — Change food (item 4, system change 5)', () => 
         expect(focus.request).toHaveBeenCalledWith(key, 'name');
     });
 
-    it('during Change food the row has no Change food, Add details or Edit details, so Remove is direct', () => {
+    it('during Change food the ⋯ offers no Change food, Food details, Add details or Edit details', () => {
         const values = withLineKeys([bound({ variant: FLAT_SELECT })]);
         const key = keyOf(values[0]);
         const { row } = onlyRow({ lines: [bound({ variant: FLAT_SELECT })], entry: { changing: new Set([key]) } });
 
         expect(row.changing).toBe(true);
         expect(row.presentation.nameMode).toBe('entry');
-        expect(row.presentation.slot2).toEqual({ kind: 'direct', action: 'remove' });
-        expect(row.actions).toEqual([]);
+        expect(row.actions.map((action) => action.id)).toEqual(['edit']);
+        expect(row.destructiveAction?.id).toBe('remove');
+        expect(row.secondLine).toEqual({ kind: 'none' });
     });
 
-    it('Cancel abandons the entry and hands focus back to the row’s ⋮, where Change food was chosen', () => {
+    it('Cancel abandons the entry and hands focus back to the row’s open control', () => {
         const abandon = vi.fn<IngredientEntry['abandon']>();
         const key = keyOf(withLineKeys([bound()])[0]);
         const { row, focus } = onlyRow({ lines: [bound()], entry: { changing: new Set([key]), abandon } });
@@ -264,24 +288,21 @@ describe('ingredientRowViewOf — Change food (item 4, system change 5)', () => 
         row.entryField.onCancel?.();
 
         expect(abandon).toHaveBeenCalledWith({ kind: 'line', key });
-        expect(focus.request).toHaveBeenCalledWith(key, 'actions');
+        expect(focus.request).toHaveBeenCalledWith(key, 'open');
     });
 
-    it('Escape on rows 1 and 2 puts back what the line holds and leaves focus in the field', () => {
+    it('Escape on rows 1 and 2 in entry puts back what the line holds and returns focus to the row', () => {
         const abandon = vi.fn<IngredientEntry['abandon']>();
-        const { rows, focus, values } = rowsOf({
-            lines: [bound({ isUserEntered: true, resolutionStatus: undefined, name: 'pinch of love' }), nameless()],
-            entry: { abandon },
-        });
+        const lines = [bound({ isUserEntered: true, resolutionStatus: undefined, name: 'pinch of love' }), nameless()];
+        const keys = withLineKeys(lines).map((line) => line.key);
+        const { rows, focus, values } = rowsOf({ lines, entry: { abandon, changing: new Set(keys) } });
 
         for (const [index, row] of rows.entries()) {
             row.entryField.onAbandon?.();
 
             expect(abandon).toHaveBeenLastCalledWith({ kind: 'line', key: keyOf(values.ingredients[index]) });
+            expect(focus.request).toHaveBeenLastCalledWith(keyOf(values.ingredients[index]), 'open');
         }
-
-        expect(focus.request).not.toHaveBeenCalled();
-        expect(focus.requestTrailing).not.toHaveBeenCalled();
     });
 
     it('focus leaving a row in Change food ends the entry without moving focus', () => {
@@ -306,20 +327,22 @@ describe('ingredientRowViewOf — Change food (item 4, system change 5)', () => 
 });
 
 describe('ingredientRowViewOf — the ⋮ items on the other rows (ingredientStatusExplanation rows 1, 2; item 1)', () => {
-    it('row 1’s Find a food for this moves into the row’s own entry field', () => {
-        const focusEntry = vi.fn<IngredientEntry['focus']>();
+    it('row 1’s Find a food for this puts the quiet row into its food search, on the cook’s own words', () => {
+        const beginChange = vi.fn<IngredientEntry['beginChange']>();
         const { row, focus, values } = onlyRow({
             lines: [bound({ isUserEntered: true, resolutionStatus: undefined, name: 'pinch of love' })],
-            entry: { focus: focusEntry },
+            entry: { beginChange },
         });
         const key = keyOf(values.ingredients[0]);
         const find = actionOf(row, 'findFood');
 
         expect(find.label).toBe('Find a food for this');
+        expect(row.presentation.nameMode).toBe('entry');
+        expect(row.inEntry).toBe(false);
 
         find.onSelect();
 
-        expect(focusEntry).toHaveBeenCalledWith({ kind: 'line', key });
+        expect(beginChange).toHaveBeenCalledWith(key);
         expect(focus.request).toHaveBeenCalledWith(key, 'name');
     });
 
@@ -388,14 +411,14 @@ describe('ingredientRowViewOf — Add details and Edit details (blueprint decisi
 describe('ingredientRowViewOf — Remove (§2d, V1 sign-off item 11, item 4’s busy rule)', () => {
     const three = [bound({ name: 'flour' }), bound({ name: 'sugar' }), bound({ name: 'salt' })];
 
-    it('removes that line and hands focus to the next row’s glyph', () => {
+    it('removes that line and hands focus to the next row’s open control', () => {
         const dispatch = vi.fn<IngredientRowEditor['dispatch']>();
         const { rows, focus, values } = rowsOf({ lines: three, editor: { dispatch } });
 
         rows[1]?.onRemove();
 
         expect(dispatch).toHaveBeenCalledWith({ kind: 'removeIngredient', key: keyOf(values.ingredients[1]) });
-        expect(focus.request).toHaveBeenCalledWith(keyOf(values.ingredients[2]), 'glyph');
+        expect(focus.request).toHaveBeenCalledWith(keyOf(values.ingredients[2]), 'open');
         expect(focus.requestTrailing).not.toHaveBeenCalled();
     });
 
@@ -423,7 +446,7 @@ describe('ingredientRowViewOf — Remove (§2d, V1 sign-off item 11, item 4’s 
         expect(first.actions.map((action) => action.id)).not.toContain('remove');
     });
 
-    it('the ⋮ menu’s Remove ingredient does the same as the direct one', () => {
+    it('the ⋯ menu’s Remove ingredient removes the line: Remove is never a row button', () => {
         const dispatch = vi.fn<IngredientRowEditor['dispatch']>();
         const { rows, values } = rowsOf({ lines: three, editor: { dispatch } });
         const [first] = rows;
@@ -483,19 +506,18 @@ describe('ingredientRowViewOf — rows 6 and 7: None of these (ingredientStatusE
             panel.onNoneOfThese();
 
             expect(beginChange).toHaveBeenCalledWith(key);
-            expect(focus.requestAfterGlyphPanel).toHaveBeenCalledWith({ key, control: 'name' });
+            expect(focus.request).toHaveBeenCalledWith(key, 'name');
             expect(close).toHaveBeenCalledOnce();
         },
     );
 });
 
 describe('ingredientRowViewOf — the notes the line itself carries (U25, U28)', () => {
-    it('U28: a row with no food says so before any submit, and marks its name invalid', () => {
+    it('U28: a row with no food says so before any submit: its attention line, and its entry field when open', () => {
         const { row } = onlyRow({ lines: [nameless()] });
 
+        expect(row.secondLine).toMatchObject({ kind: 'attention', text: m.rowStateNoMatch, opens: 'entry' });
         expect(row.noFoodNote).toBe(m.ingredientNoFoodNote);
-        expect(row.nameInvalid).toBe(true);
-        expect(row.describedBy.name).toContain(ingredientNoFoodNoteId(0));
         expect(row.entryField.invalid).toBe(true);
         expect(row.entryField.describedBy).toContain(ingredientNoFoodNoteId(0));
     });
@@ -504,7 +526,7 @@ describe('ingredientRowViewOf — the notes the line itself carries (U25, U28)',
         const { row } = onlyRow({ lines: [bound()] });
 
         expect(row.noFoodNote).toBeUndefined();
-        expect(row.nameInvalid).toBe(false);
+        expect(row.secondLine).toEqual({ kind: 'none' });
         expect(row.entryField.invalid).toBe(false);
     });
 
@@ -512,26 +534,27 @@ describe('ingredientRowViewOf — the notes the line itself carries (U25, U28)',
         const { row } = onlyRow({ lines: [bound({ unit: 'blorp' })] });
 
         expect(row.unitNote).toEqual(expect.any(String));
-        expect(row.unitCanonical).toBe(false);
         expect(row.describedBy.unit).toBe(ingredientUnitNoteId(0));
     });
 
-    it('U25: a canonical unit has no note; a subjective one is told apart from canonical', () => {
+    // The row editor no longer styles an unknown unit (the inline strip's italic went with it): the note is the mark.
+    it('U25: a canonical unit has no note; a subjective one is told apart from an unknown one, in words', () => {
         const { rows } = rowsOf({ lines: [bound({ unit: 'cup' }), bound({ unit: 'handful' })] });
         const [cup, handful] = rows;
 
         expect(cup?.unitNote).toBeUndefined();
-        expect(cup?.unitCanonical).toBe(true);
         expect(cup?.describedBy.unit).toBeUndefined();
-        expect(handful?.unitCanonical).toBe(false);
+        expect(handful?.unitNote).toEqual(expect.any(String));
+        expect(handful?.unitNote).not.toBe(onlyRow({ lines: [bound({ unit: 'blorp' })] }).row.unitNote);
     });
 });
 
 describe('ingredientRowViewOf — what a refusal and a pick say on the row (R7, item 1, item 4)', () => {
-    it('R7: after a refused save, a pending row-2 field says its trimmed text and is invalid', () => {
+    it('R7: after a refused save, a pending row-2 field says its trimmed text and is invalid, keeping no food', () => {
+        const key = keyOf(withLineKeys([nameless()])[0]);
         const { row } = onlyRow({
             lines: [nameless()],
-            entry: { isPending: () => true, textOf: () => '  smoked flour ' },
+            entry: { isPending: () => true, textOf: () => '  smoked flour ', changing: new Set([key]) },
             editor: { pendingRefused: true },
         });
 
@@ -580,8 +603,8 @@ describe('ingredientRowViewOf — what a refusal and a pick say on the row (R7, 
 });
 
 describe('ingredientRowViewOf — Try again for a failed lookup (V1 sign-off item 4)', () => {
-    it('asks the retry for the row’s binding, and the glyph is busy while it runs', () => {
-        const { row, retry, values } = onlyRow({
+    it('asks the retry for the row’s binding, and the row says it is looking it up while it runs', () => {
+        const { row, retry, values, focus } = onlyRow({
             lines: [bound({ resolutionStatus: FoodResolutionStatus.FAILED })],
             retrying: new Set(['ing_brisket']),
         });
@@ -589,29 +612,30 @@ describe('ingredientRowViewOf — Try again for a failed lookup (V1 sign-off ite
         row.onRetryLookup();
 
         expect(retry).toHaveBeenCalledWith('ing_brisket', keyOf(values.ingredients[0]));
+        // The attention line gives way while the ask runs: focus goes to the row's open control, never the page.
+        expect(focus.request).toHaveBeenCalledWith(keyOf(values.ingredients[0]), 'open');
         expect(row.retrying).toBe(true);
-        expect(row.glyphBusy).toBe(true);
+        expect(row.secondLine).toEqual({ kind: 'working', text: m.rowStateLookingUp });
     });
 });
 
 describe('ingredientRowViewOf — the row’s field edits', () => {
-    it('each edit changes that line’s own field and nothing else (U26, U27)', () => {
+    // §7.5.2: no group field in the row editor; groups are set at the section level (`ingredientGroups.test.ts`).
+    it('each edit changes that line’s own field and nothing else (U26)', () => {
         const { rows, onChange, values } = rowsOf({ lines: [bound({ name: 'flour' }), bound({ name: 'sugar' })] });
         const second = rows[1];
 
         second?.edit.unit('cup');
         second?.edit.preparation('sifted');
-        second?.edit.groupLabel('For the crust');
         second?.edit.quantityLow('3');
 
-        const [unit, preparation, group, quantity] = onChange.mock.calls.map(([next]) => next.ingredients);
+        const [unit, preparation, quantity] = onChange.mock.calls.map(([next]) => next.ingredients);
 
         expect(unit?.[1]).toEqual({ ...values.ingredients[1], unit: 'cup' });
         expect(preparation?.[1]).toEqual({ ...values.ingredients[1], preparation: 'sifted' });
-        expect(group?.[1]).toEqual({ ...values.ingredients[1], groupLabel: 'For the crust' });
         expect(quantity?.[1]?.quantity).toBe(3);
 
-        for (const next of [unit, preparation, group, quantity]) {
+        for (const next of [unit, preparation, quantity]) {
             expect(next?.[0]).toEqual(values.ingredients[0]);
         }
     });
@@ -639,12 +663,274 @@ describe('ingredientRowViewOf — each field edit is one draft transition', () =
         ['quantityHigh', '', { kind: 'setIngredientQuantityHigh', index: 1, value: undefined }],
         ['unit', 'tbsp', { kind: 'updateIngredientAt', index: 1, patch: { unit: 'tbsp' } }],
         ['preparation', 'sliced', { kind: 'updateIngredientAt', index: 1, patch: { preparation: 'sliced' } }],
-        ['groupLabel', 'Sauce', { kind: 'updateIngredientAt', index: 1, patch: { groupLabel: 'Sauce' } }],
     ] as const)('the %s field edits its own line', (field, text, action) => {
         const { rows, onChange, values } = rowsOf({ lines: [bound({ name: 'flour' }), bound({ name: 'sugar' })] });
 
         rows[1]?.edit[field](text);
 
         expect(onChange).toHaveBeenCalledExactlyOnceWith(applyDraftAction(values, action));
+    });
+});
+
+describe('ingredientRowViewOf — the read row (build spec §7.5.1)', () => {
+    it('reads amount first, then the name and the preparation; a healthy row has no second line', () => {
+        const { row } = onlyRow({
+            lines: [bound({ quantity: 2, quantityHigh: 2.5, unit: 'kg', preparation: 'trimmed' })],
+        });
+
+        expect(row.amountText).toBe('2–2.5 kg');
+        expect(row.prepText).toBe('trimmed');
+        expect(row.secondLine).toEqual({ kind: 'none' });
+        expect(row.openLabel).toBe('Edit 2–2.5 kg beef brisket');
+    });
+
+    it('a line with no amount leaves the amount column empty: never an invented "1" (F5)', () => {
+        const { row } = onlyRow({ lines: [bound({ quantity: Number.NaN, unit: undefined, preparation: '  ' })] });
+
+        expect(row.amountText).toBe('');
+        expect(row.prepText).toBeUndefined();
+        expect(row.openLabel).toBe('Edit beef brisket');
+    });
+
+    it('a row that needs the cook says why in an attention line named for its food (SC 2.5.3)', () => {
+        const { row } = onlyRow({ lines: [bound({ resolutionStatus: FoodResolutionStatus.AMBIGUOUS })] });
+
+        expect(row.secondLine).toEqual({
+            kind: 'attention',
+            text: m.rowStateChooseMatch,
+            label: 'Choose a match: beef brisket',
+            opens: 'panel',
+        });
+    });
+
+    it('a line with no food: its attention line starts the food search in the row', () => {
+        const beginChange = vi.fn<IngredientEntry['beginChange']>();
+        const { row, focus, values } = onlyRow({ lines: [nameless()], entry: { beginChange } });
+        const key = keyOf(values.ingredients[0]);
+
+        expect(row.secondLine.kind === 'attention' && row.secondLine.opens).toBe('entry');
+
+        row.onBeginEntry();
+
+        expect(beginChange).toHaveBeenCalledWith(key);
+        expect(focus.request).toHaveBeenCalledWith(key, 'name');
+    });
+
+    it('a row being looked up says so, as words and not a control', () => {
+        const { row } = onlyRow({ lines: [bound({ resolutionStatus: FoodResolutionStatus.PENDING })] });
+
+        expect(row.secondLine).toEqual({ kind: 'working', text: m.rowStateLookingUp });
+    });
+
+    it('a quantity pair the submit refused shows a note under the row', () => {
+        const { row } = onlyRow({
+            lines: [bound({ quantity: 2, quantityHigh: 1e8 })],
+            errors: { ingredients: 'ingredientsQuantityInvalid' },
+        });
+
+        expect(row.amountInvalidNote).toBe(m.rowAmountInvalid);
+    });
+
+    it('the open control opens THAT row’s editor', () => {
+        const { rows, values, lineEditor } = rowsOf({ lines: [bound({ name: 'flour' }), bound({ name: 'sugar' })] });
+
+        rows[1]?.onOpen();
+
+        expect(lineEditor.open).toHaveBeenCalledWith(keyOf(values.ingredients[1]));
+        expect(rows[1]?.editorOpen).toBe(false);
+    });
+
+    it('marks the row whose editor is open', () => {
+        const key = keyOf(withLineKeys([bound()])[0]);
+        const { row } = onlyRow({ lines: [bound()], openKey: key });
+
+        expect(row.editorOpen).toBe(true);
+    });
+});
+
+describe('ingredientRowViewOf — the ⋯ (build spec §7.5.1)', () => {
+    const SAUCE = [
+        bound({ name: 'salt' }),
+        bound({ name: 'oil', groupLabel: 'Sauce' }),
+        bound({ name: 'garlic', groupLabel: 'Sauce' }),
+        bound({ name: 'lemon', groupLabel: 'Sauce' }),
+    ];
+    const ids = (row: IngredientRowView | undefined): string[] => [
+        ...(row?.actions.map((action) => action.id) ?? []),
+        ...(row?.destructiveAction === undefined ? [] : [row.destructiveAction.id]),
+    ];
+
+    it('a resolved row mid-group: Edit · Food details · Change food · Move to group… · Move up · Move down · Remove', () => {
+        const { rows } = rowsOf({
+            lines: SAUCE,
+            groupCount: 1,
+            lookup: { state: 'found', catalog: { caloriesPer100g: 9 } },
+        });
+
+        expect(ids(rows[2])).toEqual([
+            'edit',
+            'foodDetails',
+            'changeFood',
+            'moveToGroup',
+            'moveUp',
+            'moveDown',
+            'remove',
+        ]);
+        expect(rows[2]?.actions.map((action) => action.label)).toEqual([
+            m.rowEdit,
+            m.rowFoodDetails,
+            m.statusActionChangeFood,
+            m.rowMoveToGroup,
+            m.rowMoveUp,
+            m.rowMoveDown,
+        ]);
+    });
+
+    it('offers each move only where it moves the row: never greyed, never across a group', () => {
+        const { rows } = rowsOf({ lines: SAUCE, groupCount: 1 });
+
+        expect(ids(rows[0])).not.toContain('moveUp');
+        expect(ids(rows[0])).not.toContain('moveDown');
+        expect(ids(rows[1])).not.toContain('moveUp');
+        expect(ids(rows[1])).toContain('moveDown');
+        expect(ids(rows[3])).toContain('moveUp');
+        expect(ids(rows[3])).not.toContain('moveDown');
+    });
+
+    it('an ungrouped list with no group offers no Move to group…', () => {
+        const { rows } = rowsOf({ lines: [bound({ name: 'a' }), bound({ name: 'b' })] });
+
+        expect(ids(rows[0])).not.toContain('moveToGroup');
+    });
+
+    it('a row that needs a choice offers no Food details: its attention line opens its panel', () => {
+        const { row } = onlyRow({ lines: [bound({ resolutionStatus: FoodResolutionStatus.AMBIGUOUS })] });
+
+        expect(ids(row)).toEqual(['edit', 'remove']);
+    });
+
+    it('a resolved food with no figures offers no Food details (§7.5.1 "Resolved, no figures")', () => {
+        const { row } = onlyRow({ lines: [bound()], lookup: { state: 'found', catalog: {} } });
+
+        expect(ids(row)).not.toContain('foodDetails');
+        expect(ids(row)).toContain('changeFood');
+    });
+
+    it('each item does its job on THAT row', () => {
+        const { rows, values, onChange, lineEditor, openFoodDetails, openMoveToGroup, focus } = rowsOf({
+            lines: SAUCE,
+            groupCount: 1,
+        });
+        const row = rows[2];
+        const key = keyOf(values.ingredients[2]);
+
+        if (row === undefined) {
+            throw new Error('no row');
+        }
+
+        actionOf(row, 'edit').onSelect();
+        expect(lineEditor.open).toHaveBeenCalledWith(key);
+
+        actionOf(row, 'foodDetails').onSelect();
+        expect(openFoodDetails).toHaveBeenCalledWith(key);
+
+        actionOf(row, 'moveToGroup').onSelect();
+        expect(openMoveToGroup).toHaveBeenCalledWith(key);
+
+        actionOf(row, 'moveUp').onSelect();
+        expect(onChange).toHaveBeenLastCalledWith(
+            applyDraftAction(values, { kind: 'moveIngredient', key, direction: 'up' }),
+        );
+        expect(focus.request).toHaveBeenLastCalledWith(key, 'actions');
+
+        actionOf(row, 'moveDown').onSelect();
+        expect(onChange).toHaveBeenLastCalledWith(
+            applyDraftAction(values, { kind: 'moveIngredient', key, direction: 'down' }),
+        );
+    });
+});
+
+describe('ingredientRowViewOf — the row editor (build spec §7.5.2)', () => {
+    it('names the food with its calories per 100 g when food publishes them', () => {
+        const { row } = onlyRow({ lines: [bound()], lookup: { state: 'found', catalog: { caloriesPer100g: 282 } } });
+
+        expect(row.lineEditor.food).toBe('beef brisket · 282 cal per 100 g');
+        expect(row.lineEditor.title).toBe('beef brisket');
+    });
+
+    it('names the food alone while its figures are not known', () => {
+        expect(onlyRow({ lines: [bound()] }).row.lineEditor.food).toBe('beef brisket');
+    });
+
+    it('holds the amount, the unit and the preparation as the cook typed them; an absent amount is empty', () => {
+        const { row } = onlyRow({ lines: [bound({ quantity: Number.NaN, unit: 'handful', preparation: 'torn' })] });
+
+        expect(row.lineEditor).toMatchObject({ amountLow: '', amountHigh: '', unit: 'handful', prep: 'torn' });
+        expect(row.lineEditor.unitNote).toEqual(expect.any(String));
+    });
+
+    it('shows the range when the line states one, or once the cook asks for one', () => {
+        expect(onlyRow({ lines: [bound({ quantity: 2, quantityHigh: 3 })] }).row.lineEditor.rangeShown).toBe(true);
+        expect(onlyRow({ lines: [bound()] }).row.lineEditor.rangeShown).toBe(false);
+    });
+
+    it('Remove range clears the upper bound and hides the field', () => {
+        const { row, onChange, values, lineEditor } = onlyRow({ lines: [bound({ quantity: 2, quantityHigh: 3 })] });
+        const key = keyOf(values.ingredients[0]);
+
+        row.lineEditor.onRemoveRange();
+
+        expect(onChange).toHaveBeenCalledWith(
+            applyDraftAction(values, { kind: 'setIngredientQuantityHigh', index: 0, value: undefined }),
+        );
+        expect(lineEditor.hideRange).toHaveBeenCalledWith(key);
+    });
+
+    it('typing in the upper bound keeps it shown, so emptying it mid-edit does not take the field away', () => {
+        const { row, values, lineEditor } = onlyRow({ lines: [bound({ quantity: 2, quantityHigh: 3 })] });
+
+        row.lineEditor.onAmountHigh('');
+
+        expect(lineEditor.showRange).toHaveBeenCalledWith(keyOf(values.ingredients[0]));
+    });
+
+    it('suggests the units that start with what the unit field holds', () => {
+        expect(onlyRow({ lines: [bound({ unit: 'tabl' })] }).row.lineEditor.unitSuggestions).toContain('tablespoon');
+    });
+
+    it('Change closes the editor and puts the row into its food search', () => {
+        const beginChange = vi.fn<IngredientEntry['beginChange']>();
+        const { row, values, lineEditor, focus } = onlyRow({ lines: [bound()], entry: { beginChange } });
+        const key = keyOf(values.ingredients[0]);
+
+        row.lineEditor.onChangeFood?.();
+
+        expect(lineEditor.close).toHaveBeenCalled();
+        expect(beginChange).toHaveBeenCalledWith(key);
+        expect(focus.request).toHaveBeenCalledWith(key, 'name');
+    });
+
+    it('offers no Change where the row’s own state forbids it (a shortlist row: its panel is the remedy)', () => {
+        expect(
+            onlyRow({ lines: [bound({ resolutionStatus: FoodResolutionStatus.AMBIGUOUS })] }).row.lineEditor
+                .onChangeFood,
+        ).toBeUndefined();
+    });
+
+    it('Done closes the editor and returns focus to the row', () => {
+        const { row, values, lineEditor, focus } = onlyRow({ lines: [bound()] });
+
+        row.lineEditor.onDone();
+
+        expect(lineEditor.close).toHaveBeenCalled();
+        expect(focus.request).toHaveBeenCalledWith(keyOf(values.ingredients[0]), 'open');
+    });
+
+    it('gives each field an id of its own line, so two rows never share a label target', () => {
+        const { rows } = rowsOf({ lines: [bound({ name: 'a' }), bound({ name: 'b' })] });
+        const [first, second] = rows;
+
+        expect(first?.lineEditor.ids.amount).not.toBe(second?.lineEditor.ids.amount);
+        expect(new Set(Object.values(first?.lineEditor.ids ?? {})).size).toBe(4);
     });
 });

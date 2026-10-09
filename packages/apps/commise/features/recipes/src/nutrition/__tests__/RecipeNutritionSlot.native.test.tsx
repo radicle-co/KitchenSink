@@ -24,7 +24,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
-import { RecipeNutritionSlot } from '../RecipeNutritionSlot.native.js';
+import { RecipeNutritionSlot } from '../RecipeNutritionSlot.js';
 
 afterEach(cleanup);
 

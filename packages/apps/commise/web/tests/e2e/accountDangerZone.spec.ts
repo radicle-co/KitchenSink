@@ -60,7 +60,12 @@ test.describe('account danger zone — closure vs erasure (CR-002/U4b)', () => {
                     visibility: 'private',
                 }),
                 // Already public + published — survives regardless, so it is NOT offered.
-                makeRecipeDetail({ id: 'rec_pub', ownerId: viewerId, title: 'My Public Recipe', visibility: 'public' }),
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-00000000001b',
+                    ownerId: viewerId,
+                    title: 'My Public Recipe',
+                    visibility: 'public',
+                }),
             ],
         });
 

@@ -21,7 +21,8 @@ appId: io.commise.mobile
 - tapOn: 'Title'
 - inputText: 'Maestro Row Editor'
 
-# The probe food, then an amount the cook chose.
+# The probe food, then an amount the cook chose, set in the row editor (UI overhaul slice 8, build spec §7.5.2: a sheet
+# on a phone).
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
@@ -34,14 +35,17 @@ appId: io.commise.mobile
       timeout: 30000
 - tapOn: 'Flour, your food'
 - scrollUntilVisible:
-      element: 'Ingredient 1 quantity'
+      element: 'Edit Flour'
       direction: DOWN
       timeout: 30000
-- tapOn: 'Ingredient 1 quantity'
-- eraseText
+- tapOn: 'Edit Flour'
+- tapOn: 'Amount'
 - inputText: '3'
-- tapOn: 'Ingredient 1 unit'
+- tapOn: 'Unit'
 - inputText: 'cups'
+- hideKeyboard
+- tapOn: 'Done'
+- assertVisible: 'Edit 3 cups Flour'
 
 # US7: Change food keeps the cook's amount and unit. The field opens on the food's name with the caret at its end
 # (`Combobox.native.tsx`'s focus request), so the name is erased before the search is typed.
@@ -59,10 +63,8 @@ appId: io.commise.mobile
       visible:
           text: 'Actions for boneless skinless chicken breasts'
       timeout: 30000
-- assertVisible:
-      text: '3'
-      below: 'Ingredient 1 name'
-- assertVisible: 'cups'
+# The pick moved the food, not the cook's amount and unit: the row reads them first.
+- assertVisible: 'Edit 3 cups boneless skinless chicken breasts'
 
 # R7: Change food again and type, but choose nothing. A step first, so the only thing Publish can refuse is the
 # held text (a new recipe has no steps, and an empty Steps section would be refused too).

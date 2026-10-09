@@ -92,10 +92,16 @@ for (const colorScheme of SCHEMES) {
             await mockRecipeApi(page, {
                 viewerId,
                 tier: 'premium',
-                recipes: [makeRecipeDetail({ id: 'rec_own', ownerId: viewerId, title: 'Weeknight Pasta' })],
+                recipes: [
+                    makeRecipeDetail({
+                        id: 'ec000000-0000-4000-8000-000000000017',
+                        ownerId: viewerId,
+                        title: 'Weeknight Pasta',
+                    }),
+                ],
             });
 
-            await page.goto(route('/recipes/rec_own/edit'));
+            await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000017/edit'));
             await expect(page.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeVisible();
 
             await expect(page.getByRole('button', { name: 'Paste a list' })).toHaveCount(0);

@@ -42,7 +42,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
-import { RecipeNutritionBoundary } from '../RecipeNutritionBoundary.native.js';
+import { RecipeNutritionBoundary } from '../RecipeNutritionBoundary.js';
 import { NUTRITION_FOOD_UNAVAILABLE, selectRecipeCalorieState } from '../model.js';
 
 afterEach(cleanup);

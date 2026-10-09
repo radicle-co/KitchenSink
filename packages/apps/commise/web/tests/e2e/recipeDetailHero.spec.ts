@@ -46,14 +46,14 @@ async function openRecipeWithPhotos(page: Page): Promise<void> {
         tier: 'premium',
         recipes: [
             makeRecipeDetail({
-                id: 'rec_hero',
+                id: 'ec000000-0000-4000-8000-00000000000f',
                 ownerId: viewerId,
                 title: TITLE,
                 coverPhotoUrl: `${PHOTO_ORIGIN}/p0.thumb.png`,
                 photos: [0, 1, 2].map((index) => ({
                     id: `pho_hero_${String(index)}`,
-                    recipeId: 'rec_hero',
-                    key: `recipes/rec_hero/p${String(index)}.png`,
+                    recipeId: 'ec000000-0000-4000-8000-00000000000f',
+                    key: `recipes/ec000000-0000-4000-8000-00000000000f/p${String(index)}.png`,
                     url: `${PHOTO_ORIGIN}/p${String(index)}.png`,
                     contentType: 'image/png',
                     order: index + 1,
@@ -63,7 +63,7 @@ async function openRecipeWithPhotos(page: Page): Promise<void> {
         ],
     });
 
-    await page.goto(route('/recipes/rec_hero'));
+    await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000000f'));
 }
 
 test.describe('recipe-detail hero', () => {
@@ -140,10 +140,16 @@ test.describe('recipe-detail hero', () => {
         await mockRecipeApi(page, {
             viewerId,
             tier: 'premium',
-            recipes: [makeRecipeDetail({ id: 'rec_bare', ownerId: viewerId, title: 'Weeknight Dal' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000006',
+                    ownerId: viewerId,
+                    title: 'Weeknight Dal',
+                }),
+            ],
         });
 
-        await page.goto(route('/recipes/rec_bare'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000006'));
 
         // The title still renders (the hero box keeps its full height, so nothing is truncated or jumped).
         await expect(page.getByRole('heading', { level: 1, name: 'Weeknight Dal' })).toBeVisible();

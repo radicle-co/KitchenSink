@@ -3,10 +3,10 @@
  * `docs/design/rowEditorOpenDecisions.md` items 1, 4, 8 and 11, R7), shared by the web and native leaves.
  *
  * Every request is a LEVEL: it stands until the control reports that it has taken focus, so a control that mounts
- * after the request (a field on another wizard step, a row's glyph after a Remove) still takes it. Where a request
- * comes from is `rowFocus.ts`'s pure rules; this hook holds the levels, reacts to each settled commit once, and holds
- * the two requests that must wait for a surface to be gone: a success from the authored-food Sheet, whose own focus
- * return on web comes after its close (item 1), and row 6's None of these, which waits for the glyph's panel.
+ * after the request (the next row's open control after a Remove) still takes it. Where a request comes from is
+ * `rowFocus.ts`'s pure rules; this hook holds the levels, reacts to each settled commit once, and holds the two requests
+ * that must wait for a surface to be gone: a success from the authored-food Sheet, whose own focus return on web comes
+ * after its close (item 1).
  *
  * @pattern Mediator — between the row controls that ask for focus and the controls that take it
  */
@@ -34,22 +34,15 @@ export interface EntryFieldFocus extends ControlFocus {
     readonly listRequested: boolean;
 }
 
-/** A row glyph's focus request, and its panel's close. */
-export interface GlyphFocus extends ControlFocus {
-    /** The glyph's panel has gone: a request that waited for it moves now. */
-    readonly onPanelDismissed: () => void;
-}
-
 /** The field group's focus levels. */
 export interface RowFocus {
     readonly name: (key: IngredientLineKey) => EntryFieldFocus;
-    readonly glyph: (key: IngredientLineKey) => GlyphFocus;
+    /** The row's open control ("Edit {amount} {food}"), which every row has. */
+    readonly open: (key: IngredientLineKey) => ControlFocus;
     readonly actions: (key: IngredientLineKey) => ControlFocus;
     readonly trailing: EntryFieldFocus;
     readonly request: (key: IngredientLineKey, control: RowFocusControl) => void;
     readonly requestTrailing: () => void;
-    /** A request that waits for its row's glyph panel to be gone, or the panel's own focus return would win. */
-    readonly requestAfterGlyphPanel: (request: RowFocusRequest) => void;
     /**
      * The authored-food Sheet has gone: a success's focus moves now (item 1).
      *
@@ -71,7 +64,6 @@ export function useRowFocus(
     const [request, setRequest] = useState<RowFocusRequest | undefined>(undefined);
     const [trailingRequested, setTrailingRequested] = useState(false);
     const [afterAuthoredSheet, setAfterAuthoredSheet] = useState<SettledFocus | undefined>(undefined);
-    const [afterGlyphPanel, setAfterGlyphPanel] = useState<RowFocusRequest | undefined>(undefined);
     const [seenSettled, setSeenSettled] = useState(rowEditor.settled);
     const pendingTarget = rowEditor.pendingFocusRequested ? rowEditor.entry.pending?.target : undefined;
     const pendingKey = pendingTarget?.kind === 'line' ? pendingTarget.key : undefined;
@@ -114,16 +106,7 @@ export function useRowFocus(
                 }
             },
         }),
-        glyph: (key) => ({
-            requested: isFocusRequested(request, key, 'glyph'),
-            onHandled: clear,
-            onPanelDismissed: () => {
-                if (afterGlyphPanel?.key === key) {
-                    setRequest(afterGlyphPanel);
-                    setAfterGlyphPanel(undefined);
-                }
-            },
-        }),
+        open: (key) => ({ requested: isFocusRequested(request, key, 'open'), onHandled: clear }),
         actions: (key) => ({ requested: isFocusRequested(request, key, 'actions'), onHandled: clear }),
         trailing: {
             requested: trailingRequested || pendingTrailing,
@@ -138,7 +121,6 @@ export function useRowFocus(
         },
         request: (key, control) => setRequest({ key, control }),
         requestTrailing: () => setTrailingRequested(true),
-        requestAfterGlyphPanel: setAfterGlyphPanel,
         authoredSheetDismissed: () => {
             if (afterAuthoredSheet === undefined) {
                 return false;

@@ -8,17 +8,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { formatRgb } from 'culori';
 import { useState, type FC } from 'react';
 
 import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
-const device = vi.hoisted(() => ({ scheme: null as 'light' | 'dark' | null }));
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-vi.mock('react-native', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('react-native')>()),
-    useColorScheme: () => device.scheme,
-}));
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { editorMessages } from '../../editor/messages.js';
@@ -31,7 +30,7 @@ const v = editorMessages.en.visibility;
 
 afterEach(() => {
     cleanup();
-    device.scheme = null;
+    systemScheme.current = null;
 });
 
 interface HarnessProps {
@@ -77,12 +76,12 @@ describe('RecipeVisibilityField (native)', () => {
     });
 
     it.each(['light', 'dark'] as const)('paints the chosen card in the selected fill in the %s scheme', (scheme) => {
-        device.scheme = scheme;
+        systemScheme.current = scheme;
         render(<Harness canGoPrivate />);
         const theme = scheme === 'dark' ? roleDark : role;
 
-        expect(getComputedStyle(radio(v.public)).backgroundColor).toBe(formatRgb(theme.selectedFill));
-        expect(getComputedStyle(radio(v.private)).backgroundColor).toBe(formatRgb(theme.paper));
+        expect(getComputedStyle(radio(v.public)).backgroundColor).toBe(rgb(theme.selectedFill));
+        expect(getComputedStyle(radio(v.private)).backgroundColor).toBe(rgb(theme.paper));
         expect(getComputedStyle(radio(v.public)).minHeight).toBe('56px');
     });
 

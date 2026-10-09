@@ -255,8 +255,8 @@ function applyUpdate(
  */
 function makeRecipe(over: Partial<Recipe> = {}): Recipe {
     const base = {
-        // ⚠️ A slug, so a card grid over it skips its calorie batch — see `E2E_RECIPE_IDS` for why it is not yet a UUID.
-        id: 'rec_seed',
+        // A UUID, as every recipe id in this suite is — see `E2E_RECIPE_IDS`.
+        id: 'ec000000-0000-4000-8000-00000000002c',
         ownerId: 'usr_e2e',
         title: 'Seed Recipe',
         description: 'A seeded recipe.',
@@ -320,11 +320,18 @@ function makeVersionSnapshot(over: Partial<RecipeSnapshot> = {}): RecipeSnapshot
         version: 1,
         title: 'Seed Recipe',
         description: 'A seeded recipe.',
-        steps: [{ id: 'step_seed_1', recipeId: 'rec_seed', stepNumber: 1, instruction: 'Combine and cook.' }],
+        steps: [
+            {
+                id: 'step_seed_1',
+                recipeId: 'ec000000-0000-4000-8000-00000000002c',
+                stepNumber: 1,
+                instruction: 'Combine and cook.',
+            },
+        ],
         ingredients: [
             {
                 id: 'ri_seed_1',
-                recipeId: 'rec_seed',
+                recipeId: 'ec000000-0000-4000-8000-00000000002c',
                 ingredientId: E2E_INGREDIENT_IDS.salt,
                 quantity: { kind: 'exact', value: 1 },
                 unit: 'tsp',
@@ -397,7 +404,7 @@ export function makeRecipeVersion(over: Partial<RecipeVersion> = {}): RecipeVers
 
     return {
         id: `ver_${versionNumber}`,
-        recipeId: 'rec_seed',
+        recipeId: 'ec000000-0000-4000-8000-00000000002c',
         versionNumber,
         snapshot: makeVersionSnapshot({ version: versionNumber }),
         createdBy: 'usr_e2e',
@@ -655,11 +662,12 @@ export const E2E_INGREDIENT_IDS = {
  * `InvalidRequestError` in the browser — the nutrition-batch handler below is never reached, and the spec
  * exercises a schema rejection production can never produce instead of the batch production always sends.
  *
- * ⚠️ THE TRAP IS NOT CLOSED SUITE-WIDE. This mock's own ids are still slugs — `makeRecipe`'s default `rec_seed`, the
- * default seed, and the generated `rec_clone_{n}` / `rec_new_{n}` — as are the explicit ids of most other specs, so
- * every card grid those specs render still skips its calorie request. Migrating them is deliberately a separate
- * change: it alters what the Argos library baselines in `visualRegression.spec.ts` photograph (figures instead of
- * blank slots), and many specs start issuing a batch they never issued, which needs its own CI run to prove.
+ * ⛔ EVERY recipe id in this suite is a UUID now, and a new spec's must be too: the recipe routes answer 404 for a
+ * segment that is not one (`src/lib/recipeRouteId.ts`), so a slug id cannot even open its page. That closed the
+ * calorie trap above suite-wide — `makeRecipe`'s default, the generated clone (`ec100000-…`) and create (`ec200000-…`)
+ * ids, and every spec's explicit ids were migrated together. Two consequences were predicted and are now live: card
+ * grids issue the nutrition batch they used to skip, and the Argos library baselines in `visualRegression.spec.ts`
+ * photograph figures where they had blank slots.
  */
 export const E2E_RECIPE_IDS = {
     paella: 'd1111111-1111-4111-8111-111111111111',
@@ -1093,7 +1101,9 @@ export async function mockRecipeApi(
     // One-shot photo-upload failure countdown (w3/e7): decremented on every presign call while positive.
     let remainingPhotoUploadFailures = options.failPhotoUploads ?? 0;
 
-    const seed = options.recipes ?? [makeRecipeDetail({ id: 'rec_seed', ownerId: viewerId, title: 'Seed Recipe' })];
+    const seed = options.recipes ?? [
+        makeRecipeDetail({ id: 'ec000000-0000-4000-8000-00000000002c', ownerId: viewerId, title: 'Seed Recipe' }),
+    ];
 
     for (const recipe of seed) {
         store.set(recipe.id, recipe);
@@ -1542,7 +1552,7 @@ export async function mockRecipeApi(
                 (ingredient) => ingredient.resolutionStatus === 'RESOLVED_UNAVAILABLE',
             ).length;
             const created = makeRecipeDetail({
-                id: `rec_clone_${nextId++}`,
+                id: `ec100000-0000-4000-8000-${String(nextId++).padStart(12, '0')}`,
                 ownerId: viewerId,
                 title: `${source?.title ?? 'Recipe'} (copy)`,
                 visibility: 'private',
@@ -1737,7 +1747,7 @@ export async function mockRecipeApi(
             if (method === 'POST') {
                 const input = body();
                 const created = makeRecipeDetail({
-                    id: `rec_new_${nextId++}`,
+                    id: `ec200000-0000-4000-8000-${String(nextId++).padStart(12, '0')}`,
                     ownerId: viewerId,
                     title: typeof input['title'] === 'string' ? input['title'] : 'New Recipe',
                     servings: typeof input['servings'] === 'number' ? input['servings'] : 4,

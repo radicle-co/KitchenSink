@@ -16,34 +16,34 @@ test.describe('clone + visibility (T080)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const publicRecipe = makeRecipeDetail({
-            id: 'rec_pub',
+            id: 'ec000000-0000-4000-8000-00000000001b',
             ownerId: 'usr_other',
             title: 'Public Paella',
             visibility: 'public',
         });
         await mockRecipeApi(page, { viewerId, recipes: [publicRecipe] });
 
-        await page.goto(route('/recipes/rec_pub'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000001b'));
         await expect(page.getByRole('heading', { name: 'Public Paella' })).toBeVisible();
 
         await page.getByRole('button', { name: 'Save a copy' }).click();
 
         // A copy needs a real edit before it can be published (FR-005b), so it opens in the editor.
-        await expect(page).toHaveURL(/\/recipes\/rec_clone_[^/]+\/edit/);
+        await expect(page).toHaveURL(/\/recipes\/ec100000-0000-4000-8000-[^/]+\/edit/);
     });
 
     test('a premium owner switches their public recipe to private', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const ownPublic = makeRecipeDetail({
-            id: 'rec_own',
+            id: 'ec000000-0000-4000-8000-000000000017',
             ownerId: viewerId,
             title: 'My Public Dish',
             visibility: 'public',
         });
         await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [ownPublic] });
 
-        await page.goto(route('/recipes/rec_own'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000017'));
         await expect(page.getByRole('heading', { name: 'My Public Dish' })).toBeVisible();
 
         // The visibility change is a secondary owner action, in the ⋯ menu (§6.4).

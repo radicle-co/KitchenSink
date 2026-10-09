@@ -1021,8 +1021,8 @@ function appliedFontFamily(element: Element): string | undefined {
 }
 
 describe('RecipeDetailView (native) — the current step is tellable from the others', () => {
-    it('fills the current step’s numeral with the action colour and shows the here bar; the others do neither', () => {
-        const { container } = render(
+    it('fills the current step’s numeral with the action colour and reports it pressed; the others do neither', () => {
+        render(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
@@ -1042,7 +1042,12 @@ describe('RecipeDetailView (native) — the current step is tellable from the ot
 
         expect(numeral(1)).toBe(cssColor(palette.seafoam));
         expect(numeral(2)).not.toBe(numeral(1));
-        expect(container.querySelectorAll('[data-here-bar]')).toHaveLength(1);
+        expect(screen.getByRole('button', { name: 'Mark step 1 as current' }).getAttribute('aria-pressed')).toBe(
+            'true',
+        );
+        expect(screen.getByRole('button', { name: 'Mark step 2 as current' }).getAttribute('aria-pressed')).toBe(
+            'false',
+        );
     });
 });
 

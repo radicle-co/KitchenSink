@@ -5,7 +5,7 @@ import type { RecipeDetail } from '@kitchensink/recipe-core';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { editorTopChrome, openRecipeEditor } from './utils/recipeEditor';
+import { editorTopChrome, ingredientOpen, openIngredientEditor, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * The food list and the row's name, measured where V3 measured them (`docs/design/v3Evaluation.md`, cases A to F;
@@ -16,6 +16,10 @@ import { editorTopChrome, openRecipeEditor } from './utils/recipeEditor';
  * highlight's ring, and the name's line. Each case places the field where the rule decides something, then reads the
  * boxes. Locators are role and label only; the popup and the bar are reached from a located element inside
  * `evaluate`, because neither has a role of its own.
+ *
+ * REWRITTEN for slice 8's read rows (build spec §7.5.1, §7.5.2): a row's amount, range and unit live in its row editor
+ * (a sheet at 320), its name is read inside its open control, and the list's density is measured as §13 asks: ten
+ * one-line rows on one 390 × 844 screen.
  *
  * REWRITTEN for slice 7: the wizard's header toolbar and its `Next` are gone. The band is now the one-page editor's
  * sticky header (`banner`), and the bar is the action bar around `Save changes` (the probe recipe is published). That
@@ -79,7 +83,7 @@ async function openIngredients(
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
     const recipe = makeRecipeDetail({
-        id: 'rec_geometry',
+        id: 'ec000000-0000-4000-8000-00000000000e',
         ownerId: viewerId,
         title: 'Geometry probe',
         currentVersion: 1,
@@ -331,16 +335,21 @@ test.describe('the food list at 320 px (V3-2, case E)', () => {
         ).toBeLessThanOrEqual(0);
     });
 
-    test('320 px: a range and its unit share one line under the name, and nothing scrolls sideways', async ({
+    test('320 px: in the row editor’s sheet a range’s two bounds share one line, and nothing scrolls sideways', async ({
         page,
     }) => {
-        const ingredients = await openIngredients(page);
-        const low = await ingredients.getByLabel('Ingredient 1 quantity', { exact: true }).boundingBox();
-        const high = await ingredients.getByLabel('Ingredient 1 maximum quantity').boundingBox();
-        const unit = await ingredients.getByLabel('Ingredient 1 unit').boundingBox();
+        await openIngredients(page);
+        const fields = await openIngredientEditor(page, 'Pantry food 2');
+
+        await fields.getByRole('button', { name: 'Add a range' }).click();
+        const low = await fields.getByLabel('Amount', { exact: true }).boundingBox();
+        const high = await fields.getByLabel('Amount, up to').boundingBox();
+        const unit = await fields.getByRole('combobox', { name: 'Unit' }).boundingBox();
 
         expect(high?.y).toBeCloseTo(low?.y ?? Number.NaN, 0);
-        expect(unit?.y).toBeCloseTo(low?.y ?? Number.NaN, 0);
+        // The unit follows on the same line or the next, never under the bounds' own line (§7.5.2: line 1 holds the
+        // amount and the unit, the preparation takes line 2).
+        expect(unit?.y ?? Number.NaN).toBeGreaterThanOrEqual((low?.y ?? Number.NaN) - 32);
         expect(
             await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
         ).toBeLessThanOrEqual(0);
@@ -525,42 +534,83 @@ async function shownInCard(option: Locator): Promise<{ readonly topInside: boole
     });
 }
 
-test.describe('the food name takes the row’s first full line (V3 amendment, case A)', () => {
+test.describe('the read row (build spec §7.5.1)', () => {
     for (const viewport of [
         { width: 1280, height: 800 },
         { width: 390, height: 844 },
     ]) {
-        test(`${String(viewport.width)} px: a record name fills its row’s width and wraps; Change food keeps that line`, async ({
+        test(`${String(viewport.width)} px: a long name wraps to two lines at most beside the amount; Change food keeps the row’s width`, async ({
             page,
         }) => {
             await page.setViewportSize(viewport);
             const ingredients = await openIngredients(page);
-            const name = ingredients.getByRole('group', { name: 'Ingredient 1 name' });
+            const open = ingredientOpen(ingredients, LONG_NAME);
+            const actions = ingredients.getByRole('button', { name: `Actions for ${LONG_NAME}` });
 
-            await expect(name).toHaveText(LONG_NAME);
-            const record = await name.evaluate((element) => {
-                const row = element.parentElement?.getBoundingClientRect();
-                const own = element.getBoundingClientRect();
-                const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight);
+            await expect(open).toContainText(LONG_NAME);
+            const openBox = await open.boundingBox();
+            const actionsBox = await actions.boundingBox();
+            const rowBox = await open.evaluate((element) => element.closest('li')?.getBoundingClientRect().width);
 
-                return { width: own.width, rowWidth: row?.width ?? Number.NaN, height: own.height, lineHeight };
-            });
+            // The open control and the ⋯ share the row: nothing else takes width from the name.
+            expect((openBox?.width ?? 0) + (actionsBox?.width ?? 0) + 8).toBeGreaterThanOrEqual((rowBox ?? 0) - 1);
+            // Clamped to two lines, then truncated (§7.5.1): a row is 64 px at most for two lines, plus its padding.
+            expect(openBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(2 * 24 + 24 + 1);
 
-            expect(record.width).toBeCloseTo(record.rowWidth, 0);
-
-            if (viewport.width < 640) {
-                // The 72-character name needs more than one line at a phone's width: it wraps rather than clips.
-                expect(record.height).toBeGreaterThan(record.lineHeight * 1.5);
-            }
-
-            await ingredients.getByRole('button', { name: `Actions for ${LONG_NAME}` }).click();
+            await actions.click();
             await page.getByRole('menuitem', { name: 'Change food' }).click();
-            const entry = ingredients.getByRole('combobox', { name: 'Ingredient 1 name' });
-            const cancel = ingredients.getByRole('button', { name: `Cancel, keep ${LONG_NAME}` });
-            const entryBox = await entry.boundingBox();
-            const cancelBox = await cancel.boundingBox();
+            const entryBox = await ingredients.getByRole('combobox', { name: 'Ingredient 1 name' }).boundingBox();
+            const cancelBox = await ingredients
+                .getByRole('button', { name: `Cancel, keep ${LONG_NAME}` })
+                .boundingBox();
 
-            expect((entryBox?.width ?? 0) + (cancelBox?.width ?? 0) + 16).toBeGreaterThanOrEqual(record.rowWidth - 1);
+            expect(
+                (entryBox?.width ?? 0) + (cancelBox?.width ?? 0) + (actionsBox?.width ?? 0) + 24,
+            ).toBeGreaterThanOrEqual((rowBox ?? 0) - 1);
         });
     }
+
+    test.describe('390 × 844 (§13: ten one-line rows on one screen)', () => {
+        test.use({ viewport: { width: 390, height: 844 } });
+
+        test('a one-line row is 48 px or less, and ten of them fit between the chrome and the action bar', async ({
+            page,
+        }) => {
+            const ingredients = await openIngredients(page);
+            const heights: number[] = [];
+
+            // Rows 2 to 11 are one line each ("Pantry food N"); row 1's long name is the two-line case above.
+            for (let index = 2; index <= 11; index += 1) {
+                const row = ingredientOpen(ingredients, `Pantry food ${String(index)}`);
+                const height = await row.evaluate(
+                    (element) => element.closest('li')?.getBoundingClientRect().height ?? 0,
+                );
+
+                heights.push(height);
+            }
+
+            for (const height of heights) {
+                // 48 px and the 1 px hairline divider.
+                expect(height).toBeLessThanOrEqual(49);
+            }
+
+            const band = await editorTopChrome(page);
+            const bar = await page.getByRole('button', { name: 'Save changes' }).evaluate((element) => {
+                let node: Element | null = element;
+
+                while (
+                    node !== null &&
+                    getComputedStyle(node).position !== 'sticky' &&
+                    getComputedStyle(node).position !== 'fixed'
+                ) {
+                    node = node.parentElement;
+                }
+
+                return (node ?? element).getBoundingClientRect().height;
+            });
+            const room = 844 - band.height - bar;
+
+            expect(heights.reduce((sum, height) => sum + height, 0)).toBeLessThanOrEqual(room);
+        });
+    });
 });

@@ -18,17 +18,21 @@ import {
     type RecipeVisibility,
 } from '@kitchensink/recipe-core';
 
-import { lineDisplayName } from '../detail/lineName.js';
-import { fillTemplate } from '../list/model.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
-import type { IngredientLineNameMessages } from '../messages.js';
 import type { DraftAction, ResolvedRecipeFormIngredient } from './draftAction.js';
+import {
+    groupLabelOf,
+    moveIngredient,
+    moveIngredientToGroup,
+    placeIngredient,
+    removeIngredientGroup,
+    renameIngredientGroup,
+} from './ingredientGroups.js';
 import { withLineBinding } from './lineBinding.js';
 import type { IngredientLineKey } from './lineKey.js';
 import { settleIngredientLines, type LookupRetry } from './ingredientStatus.js';
 import type { IngredientNutrition } from './nutritionLookup.js';
 import { resolutionStatusWordKey } from './statusWord.js';
-import { computeTotalTime } from './totalTime.js';
 import { isResolvedIngredientId } from './validate.js';
 import type { RecipeFormErrors } from './validate.js';
 import type { RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './values.js';
@@ -40,7 +44,7 @@ export type RecipeFormMode = 'create' | 'edit';
 /**
  * Props shared by every extracted field-group leaf (`RecipeBasicsFields`, `RecipeIngredientsFields`,
  * `RecipeInstructionsFields`, `RecipeVisibilityField`, in both their `.tsx` and `.native.tsx` forms).
- * A section is a pure `values -> JSX` slice with no form-level chrome, so it composes under a `Wizard.Step` (w3).
+ * A section is a pure `values -> JSX` slice with no form-level chrome, so it composes inside an editor `EditorSection`.
  */
 export interface RecipeFormSectionProps {
     /** The full editable form state — sections read only the slice they render. */
@@ -138,6 +142,13 @@ export interface IngredientsPasteView {
 /** A blank instruction step: empty instruction, no timer. */
 export const blankStep = (): RecipeFormStep => ({ instruction: '' });
 
+/** A picked line without a group of its own: an add field's placement decides its group (§7.5.5). Pure. */
+const withoutGroup = (line: ResolvedRecipeFormIngredient): ResolvedRecipeFormIngredient => {
+    const { groupLabel: _placed, ...rest } = line;
+
+    return rest;
+};
+
 /**
  * Apply one {@link DraftAction} — the SINGLE entry point for every recipe-draft transition.
  *
@@ -160,7 +171,24 @@ export const blankStep = (): RecipeFormStep => ({ instruction: '' });
 export const applyDraftAction = (values: RecipeFormValues, action: DraftAction): RecipeFormValues => {
     switch (action.kind) {
         case 'appendResolvedIngredient':
-            return appendResolvedIngredient(values, action.key, action.line);
+            return action.placement === undefined
+                ? appendResolvedIngredient(values, action.key, action.line)
+                : {
+                      ...values,
+                      ingredients: placeIngredient(values.ingredients, {
+                          ...withoutGroup(action.line),
+                          ...(action.placement.group === undefined ? {} : { groupLabel: action.placement.group }),
+                          key: action.key,
+                      }),
+                  };
+        case 'moveIngredient':
+            return moveIngredient(values, action.key, action.direction);
+        case 'moveIngredientToGroup':
+            return moveIngredientToGroup(values, action.key, action.group);
+        case 'renameIngredientGroup':
+            return renameIngredientGroup(values, action.from, action.to);
+        case 'removeIngredientGroup':
+            return removeIngredientGroup(values, action.label);
         case 'removeAt':
             return { ...values, [action.field]: values[action.field].filter((_, i) => i !== action.index) };
         case 'updateIngredientAt':
@@ -331,10 +359,10 @@ const appendResolvedIngredient = (
     key: IngredientLineKey,
     line: ResolvedRecipeFormIngredient,
 ): RecipeFormValues => {
-    // ⛔ Through `sectionLabelOf`, so a cleared or padded label is never propagated onto the next line — the
+    // ⛔ Through `groupLabelOf` (`./ingredientGroups.ts`), so a cleared or padded label is never propagated onto the next line — the
     // draft's spelling of "ungrouped" is the same one the fold and the wire use.
     const last = values.ingredients[values.ingredients.length - 1];
-    const groupLabel = last === undefined ? undefined : sectionLabelOf(last);
+    const groupLabel = last === undefined ? undefined : groupLabelOf(last);
 
     return {
         ...values,
@@ -347,27 +375,6 @@ const appendResolvedIngredient = (
             { ...(groupLabel === undefined ? {} : { groupLabel }), ...line, key },
         ],
     };
-};
-
-/**
- * The section a DRAFT line belongs to — trimmed, with blank read as ungrouped. Pure.
- *
- * ⛔ THE DRAFT NEEDS THIS AND THE WIRE'S `.trim()` CANNOT SUPPLY IT. A cook who clears the section field
- * leaves `''` in the draft, not `undefined`, so a raw comparison splits that line into a section of its own
- * and both leaves render an EMPTY HEADING above it. And `'Dry '` beside `'Dry'` renders two headings a
- * reader cannot tell apart — the very state `0030_ingredient_preparation_and_group.sql` makes the wire trim
- * to prevent, arriving one layer EARLIER, where the wire has not run yet.
- *
- * `toCreateRecipeInput` applies the same rule on the way out, so what the editor SHOWS and what the recipe
- * SAVES are the same grouping.
- *
- * @param line - The draft ingredient line.
- * @returns The trimmed label, or `undefined` when the line is ungrouped.
- */
-const sectionLabelOf = (line: RecipeFormIngredient): string | undefined => {
-    const label = line.groupLabel?.trim();
-
-    return label === undefined || label === '' ? undefined : label;
 };
 
 /** One ingredient line as a section renders it: the line itself, plus its index in `values.ingredients`. */
@@ -412,7 +419,7 @@ export interface RecipeIngredientSection {
  */
 export const ingredientSections = (values: RecipeFormValues): readonly RecipeIngredientSection[] =>
     values.ingredients.reduce<RecipeIngredientSection[]>((sections, line, index) => {
-        const label = sectionLabelOf(line);
+        const label = groupLabelOf(line);
         const previous = sections[sections.length - 1];
         const entry: RecipeIngredientSectionLine = { line, index };
 
@@ -728,7 +735,7 @@ export const unitClassNote = (messages: RecipeFormMessages, unit?: string): stri
  * honest, instead of hiding it or dropping it.
  *
  * ⛔ It reads `isResolvedIngredientId` — the SAME predicate `validateRecipeForm` blocks on — rather than a
- * second `!== null` check. A leaf marking a different set of rows from the set that blocks the wizard is
+ * second `!== null` check. A leaf marking a different set of rows from the set that blocks Publish is
  * the drift one shared predicate exists to prevent, and an empty-string id is the case that separates them.
  *
  * @param messages - The resolved form messages for the active locale.
@@ -747,92 +754,3 @@ export const unresolvedLineNote = (messages: RecipeFormMessages, line: RecipeFor
  */
 export const resolutionStatusLabel = (messages: RecipeFormMessages, status: FoodResolutionStatus): string =>
     messages[resolutionStatusWordKey(status)];
-
-/** One label/value pair on the Review step (U33). */
-export interface RecipeReviewRow {
-    /** The row's localized label — also the row's accessible name on native. */
-    readonly label: string;
-    /** The row's rendered value, already localized and already formatted. */
-    readonly value: string;
-}
-
-/**
- * The Review step's rows, in display order (U33) — the ONE statement of what a cook sees on the last step,
- * shared by both platform leaves so a field cannot appear on one platform and not the other.
- *
- * ⛔ Every optional field STATES its absence rather than dropping its row. A row that vanishes is
- * indistinguishable from a row the cook has not scrolled to, and "did I set a difficulty?" is exactly the
- * question this step exists to answer. The ONE exception is the pending-photo row, which is omitted when it
- * would read zero: it describes an OPERATION that is not going to happen, on a step whose job is to scan.
- *
- * ⛔ Meal type, tags and dietary flags are three SEPARATE rows because they are three separate axes. The
- * mockup folded two of them into one array; rendering them as one row here would be the display half of the
- * same mistake.
- *
- * Pure — it formats, it does not fetch, and it reads only `values`.
- *
- * @param values - The draft being reviewed.
- * @param messages - The resolved form messages for the active locale.
- * @returns The rows to render, in order.
- */
-export const reviewRows = (values: RecipeFormValues, messages: RecipeFormMessages): RecipeReviewRow[] => {
-    const orNotStated = (value: string): string => (value.trim() === '' ? messages.reviewNotStated : value.trim());
-    const minutes = (value: number): string => fillTemplate(messages.durationMinutes, { minutes: value });
-    const list = (values_: readonly string[]): string =>
-        values_.length === 0 ? messages.reviewNone : values_.join(', ');
-
-    return [
-        { label: messages.reviewTitle, value: orNotStated(values.title) },
-        { label: messages.reviewDescription, value: orNotStated(values.description) },
-        { label: messages.reviewCuisine, value: orNotStated(values.cuisine) },
-        {
-            label: messages.reviewDifficulty,
-            value:
-                values.difficulty === undefined
-                    ? messages.reviewNotStated
-                    : (difficultyOptions(messages).find((option) => option.value === values.difficulty)?.label ??
-                      messages.reviewNotStated),
-        },
-        {
-            label: messages.reviewMealType,
-            value:
-                values.mealType === undefined
-                    ? messages.reviewNotStated
-                    : (mealTypeOptions(messages).find((option) => option.value === values.mealType)?.label ??
-                      messages.reviewNotStated),
-        },
-        { label: messages.reviewServings, value: String(values.servings) },
-        { label: messages.reviewPrepTime, value: minutes(values.prepTimeMinutes) },
-        { label: messages.reviewCookTime, value: minutes(values.cookTimeMinutes) },
-        {
-            label: messages.reviewTotalTime,
-            value: minutes(computeTotalTime(values.prepTimeMinutes, values.cookTimeMinutes)),
-        },
-        { label: messages.reviewTags, value: list(values.tags) },
-        { label: messages.reviewDietaryFlags, value: list(values.dietaryFlags) },
-        { label: messages.reviewIngredientCount, value: String(values.ingredients.length) },
-        { label: messages.reviewStepCount, value: String(values.steps.length) },
-        {
-            label: messages.reviewVisibility,
-            value: values.visibility === 'private' ? messages.reviewVisibilityPrivate : messages.reviewVisibilityPublic,
-        },
-        // The one omitted-when-empty row — see this function's own doc.
-        ...(values.photos.length === 0
-            ? []
-            : [{ label: messages.reviewPendingPhotos, value: String(values.photos.length) }]),
-    ];
-};
-
-/**
- * One ingredient line as the Review step names it — `2 tbsp Olive oil`, or just `Olive oil` when the line
- * states no amount (R40 makes that legal), or `2 tbsp Private ingredient` when the read withheld its name
- * (plan 002 R9). Pure.
- *
- * @param line - The draft line.
- * @param lineNames - The stand-ins for a line with no name.
- * @returns The line's display string.
- */
-export const reviewIngredientLabel = (line: RecipeFormIngredient, lineNames: IngredientLineNameMessages): string =>
-    [quantityInputValue(line.quantity), line.unit ?? '', lineDisplayName(line, lineNames)]
-        .filter((part) => part !== '')
-        .join(' ');

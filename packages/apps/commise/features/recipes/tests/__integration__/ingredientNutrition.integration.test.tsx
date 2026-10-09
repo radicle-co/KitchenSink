@@ -123,8 +123,11 @@ describe('the editor’s nutrition read (integration)', () => {
             },
         ]);
 
-        await userEvent.setup().click(screen.getByRole('button', { name: 'About Arborio rice' }));
-        const panel = screen.getByRole('dialog', { name: 'Arborio rice' });
+        // A matched row is quiet (build spec §7.5.1): its panel opens from ⋯ Food details.
+        const user = userEvent.setup();
+        await user.click(screen.getByRole('button', { name: 'Actions for Arborio rice' }));
+        await user.click(screen.getByRole('menuitem', { name: en.rowFoodDetails }));
+        const panel = await screen.findByRole('dialog', { name: 'Arborio rice' });
         expect(panel.textContent).toContain(en.nutritionBasis);
         expect(within(panel).getByText(en.nutritionProteinLabel).nextElementSibling?.textContent).toBe('2.7 g');
     });
@@ -141,8 +144,9 @@ describe('the editor’s nutrition read (integration)', () => {
         renderEditor(fetchDouble);
 
         await screen.findByText(en.nutritionLoadFailed, {}, { timeout: 10_000 });
-        await user.click(screen.getByRole('button', { name: 'About Arborio rice' }));
-        const panel = screen.getByRole('dialog', { name: 'Arborio rice' });
+        await user.click(screen.getByRole('button', { name: 'Actions for Arborio rice' }));
+        await user.click(screen.getByRole('menuitem', { name: en.rowFoodDetails }));
+        const panel = await screen.findByRole('dialog', { name: 'Arborio rice' });
         await user.click(within(panel).getByRole('button', { name: en.statusActionRetry }));
 
         await waitFor(() => expect(within(panel).getByText(en.nutritionBasis)).toBeTruthy());

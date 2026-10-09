@@ -14,7 +14,7 @@ import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
-const RECIPE_ID = 'rec_resume';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000026';
 
 /** Sign in, seed one published recipe the viewer owns, and open its editor. */
 async function openPublished(page: Page) {

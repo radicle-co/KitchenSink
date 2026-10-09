@@ -2,9 +2,10 @@ import { clerkMiddleware } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 import { localeFromPathname, negotiateLocale, withLocalePath } from '@/lib/i18n';
+import { notARecipeRewrite } from '@/lib/recipeRouteId';
 
-// ⚠️ DELIBERATE — this middleware ONLY negotiates + redirects the LOCALE (Next.js App Router i18n:
-// `/{locale}/…`). Route PROTECTION is done at the RESOURCE — each protected page reads `auth()` and
+// ⚠️ DELIBERATE — this middleware negotiates + redirects the LOCALE (Next.js App Router i18n: `/{locale}/…`), and
+// rewrites a recipe path whose id is not a recipe id to the 404 — routing, never authorization. Route PROTECTION is done at the RESOURCE — each protected page reads `auth()` and
 // redirects unauthenticated users to `/{locale}/sign-in`. It is deliberately NOT done here via
 // `createRouteMatcher` + `auth.protect()`: Clerk deprecated that middleware-gate pattern after a
 // middleware route-matching BYPASS advisory (GHSA-vqx2-fgx2-5wq9, 2026-04), so a middleware-only gate
@@ -34,9 +35,20 @@ export default clerkMiddleware((_auth, req) => {
         return NextResponse.next();
     }
 
-    // Already locale-prefixed → pass through.
+    // Already locale-prefixed → pass through, unless it is a recipe route whose id is not a recipe id. That one is
+    // rewritten to a path no route matches, so the global not-found answers 404 — the page's own `notFound()` streams
+    // under `[locale]/loading.tsx` and would answer 200 (see `lib/recipeRouteId.ts`).
     if (localeFromPathname(pathname)) {
-        return NextResponse.next();
+        const notARecipe = notARecipeRewrite(pathname);
+
+        if (notARecipe === undefined) {
+            return NextResponse.next();
+        }
+
+        const url = req.nextUrl.clone();
+        url.pathname = notARecipe;
+
+        return NextResponse.rewrite(url);
     }
 
     // Locale-less page request → redirect to the negotiated locale's path.

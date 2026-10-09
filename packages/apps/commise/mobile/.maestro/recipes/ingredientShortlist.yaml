@@ -30,14 +30,14 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 
-# The glyph, named for the line. The panel never opens by itself.
+# The attention line, named for the line (UI overhaul slice 8, build spec §7.5.1). The panel never opens by itself.
 - scrollUntilVisible:
-      element: 'About apple sauce'
+      element: 'Choose a match: apple sauce'
       direction: DOWN
       timeout: 20000
 - assertNotVisible: 'None of these — search for a different food'
 - tapOn:
-      text: 'About apple sauce'
+      text: 'Choose a match: apple sauce'
       index: 0
 
 # Row 7's own explanation, and the shortlist the food search finds for the line's words.

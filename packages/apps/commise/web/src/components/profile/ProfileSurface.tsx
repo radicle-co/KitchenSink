@@ -16,6 +16,8 @@
  * @pattern Composition root over the Profile render leaves — the read, the editor and the router meet here and nowhere
  *     below
  */
+import { useAuth, useUser } from '@clerk/nextjs';
+import { profileMutations } from '@commise/features-account';
 import { initialsFor } from '@commise/features-core';
 import {
     DisplayNameSheet,
@@ -25,19 +27,21 @@ import {
     ProfileValueRow,
     profileMessages,
     profileReadOf,
+    useDisplayNameEditor,
 } from '@commise/features-account/profile';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
+import { useMutation } from '@tanstack/react-query';
 import { useId, type FC } from 'react';
 
 import { AccountCloseForm } from '@/components/auth/AccountCloseForm';
 import { AccountEraseForm } from '@/components/auth/AccountEraseForm';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { ShortcutSwitchRow } from '@/components/profile/ShortcutSwitchRow';
-import { useDisplayNameEditor } from '@/components/profile/useDisplayNameEditor';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { createProfileServiceClient } from '@/lib/identityServiceClient';
 import { withBasePath } from '@/lib/basePath';
 
 /** The Profile page. */
@@ -49,7 +53,14 @@ export const ProfileSurface: FC = () => {
     const query = useUserProfile();
     const read = profileReadOf(query);
     const saved = read.status === 'ready' ? read.displayName : '';
-    const editor = useDisplayNameEditor(saved);
+    const { user } = useUser();
+    const { getToken } = useAuth();
+    // The token is minted per call: a session token lives about a minute, so one captured at render would be stale for
+    // a cook who typed slowly.
+    const update = useMutation(
+        profileMutations(createProfileServiceClient(async () => (await getToken()) ?? '')).update(),
+    );
+    const editor = useDisplayNameEditor({ saved, user, update });
     const sourcesPath = `/${locale}/legal/sources`;
     const homePath = `/${locale}`;
 

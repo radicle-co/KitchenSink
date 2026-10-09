@@ -18,6 +18,7 @@ import { useId, type FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { profileMessages } from './messages.js';
+import { DISPLAY_NAME_MAX_LENGTH } from './model.js';
 import type { DisplayNameSheetProps } from './props.js';
 
 /** The display-name sheet. */
@@ -58,6 +59,7 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
                     autoComplete="name"
                     autoCapitalize="words"
                     enterKeyHint="done"
+                    maxLength={DISPLAY_NAME_MAX_LENGTH}
                     invalid={failed}
                     {...(failed ? { describedBy: errorId } : {})}
                     onSubmit={() => {

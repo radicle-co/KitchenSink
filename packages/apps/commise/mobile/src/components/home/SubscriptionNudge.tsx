@@ -23,14 +23,10 @@ import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
-import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../../i18n/messages.js';
-
-/** Action glyph size — the design-system Button pairs every label with an icon. */
-const ACTION_ICON_SIZE = 16;
 
 /** Props for `SubscriptionNudge`. */
 export interface SubscriptionNudgeProps {
@@ -69,19 +65,12 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
             footer={
                 <View style={styles.actions}>
                     <View style={styles.action}>
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="clock" size={ACTION_ICON_SIZE} color={palette.charcoal} />}
-                            onPress={onDismiss}
-                        >
+                        <Button variant="secondary" icon="clock" onPress={onDismiss}>
                             {home.nudge.dismiss}
                         </Button>
                     </View>
                     <View style={styles.action}>
-                        <Button
-                            icon={<Feather name="arrow-right" size={ACTION_ICON_SIZE} color={palette.white} />}
-                            onPress={onDismiss}
-                        >
+                        <Button icon="chevronRight" onPress={onDismiss}>
                             {home.nudge.upgrade}
                         </Button>
                     </View>

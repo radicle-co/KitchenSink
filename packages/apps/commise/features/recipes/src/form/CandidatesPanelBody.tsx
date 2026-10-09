@@ -23,7 +23,6 @@ import { LiveRegion } from '@commise/ui/live-region';
 import type { FC, ReactElement } from 'react';
 
 import type { CandidatesPanelBody as Body, CandidatesPanelBodyProps } from './candidatesPanel.js';
-import { RetryIcon, SearchIcon } from './icons.js';
 import { recipeFormMessages } from './messages.js';
 
 /** Rows 6 and 7's panel body: the candidates, a pick per candidate, and None of these. */
@@ -40,7 +39,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                         {body.groups.map((group) => (
                             <div key={group.key} className="flex w-full flex-col">
                                 {group.heading && (
-                                    <p aria-hidden className="px-3 pt-2 text-caption font-semibold text-slate">
+                                    <p aria-hidden className="px-3 pt-2 text-caption font-semibold text-ink-muted">
                                         {group.label}
                                     </p>
                                 )}
@@ -55,11 +54,11 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                                                     blocked: option.blocked,
                                                     onClick: () => onPick(option.candidateId),
                                                 })}
-                                                className={`w-full rounded-lg px-3 py-2 text-left text-body-sm text-charcoal transition hover:bg-pearl ${BUSY_CONTROL_CLASS}`}
+                                                className={`w-full rounded-lg px-3 py-2 text-left text-body-sm text-ink transition hover:bg-ink/6 ${BUSY_CONTROL_CLASS}`}
                                             >
                                                 {option.name}
                                                 {option.summary !== undefined && (
-                                                    <span className="block text-caption text-slate">
+                                                    <span className="block text-caption text-ink-muted">
                                                         {option.summary}
                                                     </span>
                                                 )}
@@ -69,7 +68,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                                 </ul>
                             </div>
                         ))}
-                        <p role="status" className={line === '' ? 'sr-only' : 'text-caption text-slate'}>
+                        <p role="status" className={line === '' ? 'sr-only' : 'text-caption text-ink-muted'}>
                             {line}
                         </p>
                     </>
@@ -80,7 +79,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                 return (
                     <>
                         <p role="alert">{body.text}</p>
-                        <Button variant="secondary" icon={<RetryIcon />} onPress={onRetryRead}>
+                        <Button variant="secondary" icon="refreshCw" onPress={onRetryRead}>
                             {m.statusActionRetry}
                         </Button>
                     </>
@@ -88,12 +87,12 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
             case 'loading':
             case 'offline':
                 return (
-                    <p role="status" className="text-slate">
+                    <p role="status" className="text-ink-muted">
                         {body.text}
                     </p>
                 );
             case 'empty':
-                return <p className="text-slate">{body.text}</p>;
+                return <p className="text-ink-muted">{body.text}</p>;
         }
     };
 
@@ -101,10 +100,10 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
         <div className="flex flex-col items-start gap-2">
             <p>{view.explanation}</p>
             {contentOf(view.body)}
-            <LiveRegion politeness="assertive" occurrence={view.alertOccurrence} className="text-error-dark">
+            <LiveRegion politeness="assertive" occurrence={view.alertOccurrence} className="text-danger-text">
                 {view.alert}
             </LiveRegion>
-            <Button variant="secondary" icon={<SearchIcon />} onPress={onNoneOfThese}>
+            <Button variant="secondary" icon="search" onPress={onNoneOfThese}>
                 {m.statusActionNoneOfThese}
             </Button>
         </div>

@@ -41,12 +41,12 @@ const VersionListHeader: FC<{
     readonly onBack?: () => void;
 }> = ({ heading, backLabel, onBack }) => (
     <div className="flex items-center justify-between gap-3">
-        <h1 className="font-display text-heading-lg font-semibold text-charcoal">{heading}</h1>
+        <h1 className="font-display text-heading-lg font-semibold text-ink">{heading}</h1>
         {onBack !== undefined && (
             <button
                 type="button"
                 onClick={onBack}
-                className="rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
+                className="rounded-full px-4 py-1.5 text-body-sm font-medium text-action-text transition hover:bg-action/10"
             >
                 {backLabel}
             </button>
@@ -76,7 +76,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
         return (
             <section aria-label={versionList.heading} className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
                 <VersionListHeader heading={versionList.heading} backLabel={versionList.backToRecipe} onBack={onBack} />
-                <p className="text-body-md text-slate">{versionList.empty}</p>
+                <p className="text-body-md text-ink-muted">{versionList.empty}</p>
             </section>
         );
     }
@@ -85,7 +85,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
         <section aria-label={versionList.heading} className="mx-auto flex max-w-2xl flex-col gap-4 px-4 py-8">
             <VersionListHeader heading={versionList.heading} backLabel={versionList.backToRecipe} onBack={onBack} />
             {restoreErrorText !== undefined && (
-                <p role="alert" className="rounded-2xl bg-error/10 px-4 py-3 text-body-sm text-error-dark">
+                <p role="alert" className="rounded-2xl bg-danger/10 px-4 py-3 text-body-sm text-danger-text">
                     {restoreErrorText}
                 </p>
             )}
@@ -99,22 +99,22 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                     return (
                         <li
                             key={version.id}
-                            className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border"
+                            className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-paper p-4 shadow-sm ring-1 ring-line-divider"
                         >
-                            <span className="font-display font-semibold text-charcoal">
+                            <span className="font-display font-semibold text-ink">
                                 {fillTemplate(versionList.versionLabel, { version: version.versionNumber })}
                             </span>
-                            <span className="text-body-sm text-slate">
+                            <span className="text-body-sm text-ink-muted">
                                 {formatVersionTimestamp(version.createdAt, locale)}
                             </span>
                             {attribution !== undefined && (
-                                <span className="w-full text-body-sm text-slate">{attribution}</span>
+                                <span className="w-full text-body-sm text-ink-muted">{attribution}</span>
                             )}
                             {!hasPrior ? (
-                                <span className="w-full text-body-sm text-slate">{versionList.initialVersion}</span>
+                                <span className="w-full text-body-sm text-ink-muted">{versionList.initialVersion}</span>
                             ) : (
                                 changedFields.length > 0 && (
-                                    <span className="w-full text-body-sm text-slate">
+                                    <span className="w-full text-body-sm text-ink-muted">
                                         {fillTemplate(versionList.changedFields, {
                                             fields: formatChangedFieldNames(changedFields, conflict),
                                         })}
@@ -122,10 +122,10 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                 )
                             )}
                             {version.changeSummary !== undefined && version.changeSummary.length > 0 && (
-                                <span className="w-full text-body-sm text-slate">{version.changeSummary}</span>
+                                <span className="w-full text-body-sm text-ink-muted">{version.changeSummary}</span>
                             )}
                             {onToggleCompare !== undefined && (
-                                <label className="flex items-center gap-1.5 text-body-sm text-slate">
+                                <label className="flex items-center gap-1.5 text-body-sm text-ink-muted">
                                     <input
                                         type="checkbox"
                                         aria-label={fillTemplate(versionList.compareAction, {
@@ -142,7 +142,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                 </label>
                             )}
                             {isCurrent ? (
-                                <span className="ml-auto rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-ocean-dark">
+                                <span className="ml-auto rounded-full bg-action/10 px-3 py-1 text-caption font-medium text-action-text">
                                     {versionList.currentBadge}
                                 </span>
                             ) : (
@@ -154,7 +154,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                                 version: version.versionNumber,
                                             })}
                                             onClick={() => onPreview(version.versionNumber)}
-                                            className="rounded-full px-4 py-1.5 text-body-sm font-medium text-slate transition hover:bg-slate/10"
+                                            className="rounded-full px-4 py-1.5 text-body-sm font-medium text-ink-muted transition hover:bg-slate/10"
                                         >
                                             {versionList.preview}
                                         </button>
@@ -168,14 +168,14 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                             busy: isRestoring,
                                             onClick: () => onRestore(version.versionNumber),
                                         })}
-                                        className={`rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10 ${BUSY_CONTROL_CLASS}`}
+                                        className={`rounded-full px-4 py-1.5 text-body-sm font-medium text-action-text transition hover:bg-action/10 ${BUSY_CONTROL_CLASS}`}
                                     >
                                         {versionList.restore}
                                     </button>
                                 </div>
                             )}
                             {isBusy && (
-                                <span role="status" className="w-full text-body-sm text-slate">
+                                <span role="status" className="w-full text-body-sm text-ink-muted">
                                     {fillTemplate(versionList.restoringStatus, { version: version.versionNumber })}
                                 </span>
                             )}

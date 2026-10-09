@@ -3,14 +3,13 @@
 /**
  * @module @commise/ui/button — the web design-system {@link Button}.
  *
- * A presentational, labelled action control styled to the Commise mockups: a pill with an icon + text and a real visible
- * surface for every tier (filled primary CTA, bordered secondary, bordered error-toned destructive) — never
- * naked text. Consumes the shared {@link ButtonProps} contract; the native leaf (`Button.native.tsx`)
- * mirrors it. Classes reference `@commise/ui` design tokens exposed as Tailwind utilities by the consuming
- * app's theme.
+ * A presentational, labelled action control: the Registry glyph for its meaning beside its label, on the surface its
+ * tier and size select (`buttonSurfaceClass`, `docs/design/uiOverhaul/buildSpec.md` §1.10). Consumes the shared
+ * {@link ButtonProps} contract; the native leaf (`Button.native.tsx`) mirrors it.
  *
- * The icon is wrapped `aria-hidden`, so it is always decorative and the visible label (`children`) owns the
- * accessible name — keeping name-based selection (RTL / Playwright / Maestro) stable regardless of glyph.
+ * The glyph is drawn at the 20 px inline size in `currentColor`, so it always takes its label's colour, inside an
+ * `aria-hidden` slot: the visible label (`children`) owns the accessible name. A ghost button may have no glyph; then
+ * the slot exists only while busy, to hold the spinner.
  *
  * Two behaviours are shared with the native leaf but expressed in the web idiom:
  *  - **Touch target** — a `min-h-11` (44px) floor at base for comfortable touch, RESET at `md:` so the
@@ -23,16 +22,17 @@
  * `'use client'`: the focus request is an effect, and feature leaves that render this button are reachable from App
  * Router server pages through their package's index (caught by `next build`, not by typecheck).
  *
- * @pattern Value Object contract (`ButtonProps`) rendered as a `props → JSX` leaf, composed with the
- *     `PressScale` Decorator — the tier is a discriminated `variant`, never a boolean that switches behaviour.
+ * @pattern Discriminated union (`ButtonProps`, illegal tier/glyph/tone combinations unrepresentable) rendered
+ *     through the `buttonSurfaceClass` style recipe, composed with the `PressScale` Decorator.
  * @pattern Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken. It is the one
  *     reason this leaf holds a ref: `.focus()` has no declarative form.
  */
 import { useEffect, useEffectEvent, useRef, type FC } from 'react';
 
+import { Icon } from '../icon/Icon.js';
 import { PressScale } from '../pressScale/index.js';
 import { busyControlProps } from './busyControlProps.js';
-import type { ButtonProps } from './props.js';
+import { surfaceOf, type ButtonProps } from './props.js';
 import { buttonSurfaceClass } from './surfaceClass.js';
 
 /**
@@ -43,8 +43,8 @@ import { buttonSurfaceClass } from './surfaceClass.js';
 const Spinner: FC = () => (
     <svg
         className="animate-spin"
-        width="1em"
-        height="1em"
+        width="20"
+        height="20"
         viewBox="0 0 24 24"
         fill="none"
         aria-hidden="true"
@@ -55,20 +55,24 @@ const Spinner: FC = () => (
     </svg>
 );
 
-/** The Commise design-system button — icon + label, one visible surface per tier. */
-export const Button: FC<ButtonProps> = ({
-    variant = 'primary',
-    icon,
-    children,
-    onPress,
-    type = 'button',
-    disabled = false,
-    busy = false,
-    accessibilityLabel,
-    width = 'auto',
-    focusRequested = false,
-    onFocusRequestHandled,
-}) => {
+/** The Commise design-system button — the meaning's glyph + label, one surface per tier and size. */
+export const Button: FC<ButtonProps> = (props) => {
+    const {
+        icon,
+        children,
+        size = 'md',
+        onPress,
+        type = 'button',
+        disabled = false,
+        busy = false,
+        accessibilityLabel,
+        width = 'auto',
+        focusRequested = false,
+        onFocusRequestHandled,
+    } = props;
+    const { variant, tone } = surfaceOf(props);
+    const surface =
+        variant === 'destructive' ? buttonSurfaceClass(variant, size, tone) : buttonSurfaceClass(variant, size);
     const node = useRef<HTMLButtonElement>(null);
     // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
     const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
@@ -92,11 +96,13 @@ export const Button: FC<ButtonProps> = ({
                 {...busyControlProps({ busy, blocked: disabled, onClick: () => onPress?.() })}
                 aria-label={accessibilityLabel}
                 // `fill`: the wrapper stretches, so the button takes its whole width; `justify-center` centres the label.
-                className={width === 'fill' ? `${buttonSurfaceClass(variant)} w-full` : buttonSurfaceClass(variant)}
+                className={width === 'fill' ? `${surface} w-full` : surface}
             >
-                <span aria-hidden="true" className="inline-flex shrink-0 items-center">
-                    {busy ? <Spinner /> : icon}
-                </span>
+                {busy || icon !== undefined ? (
+                    <span aria-hidden="true" className="inline-flex shrink-0 items-center">
+                        {busy || icon === undefined ? <Spinner /> : <Icon name={icon} size={20} />}
+                    </span>
+                ) : null}
                 <span>{children}</span>
             </button>
         </PressScale>

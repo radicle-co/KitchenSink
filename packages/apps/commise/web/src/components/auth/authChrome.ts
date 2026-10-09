@@ -13,32 +13,32 @@
 export const pageContainer = 'mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8';
 
 /** The page heading — the display type of the recipe-list heading, so surfaces read as one product. */
-export const pageHeading = 'font-display text-display-md font-bold text-charcoal';
+export const pageHeading = 'font-display text-display-md font-bold text-ink';
 
 /** A card section grouping related controls. */
-export const sectionCard = 'flex flex-col gap-4 rounded-2xl bg-card p-6 shadow-sm';
+export const sectionCard = 'flex flex-col gap-4 rounded-2xl bg-paper p-6 shadow-sm';
 
 /** A section sub-heading inside a {@link sectionCard}. */
-export const sectionHeading = 'font-display text-heading-md font-semibold text-charcoal';
+export const sectionHeading = 'font-display text-heading-md font-semibold text-ink';
 
 /** The label+control vertical group wrapper. */
 export const fieldGroup = 'flex flex-col gap-1';
 
 /** A field's visible label. */
-export const fieldLabel = 'text-body-sm font-medium text-slate';
+export const fieldLabel = 'text-body-sm font-medium text-ink-muted';
 
 /** A text input / control surface — full-width, tokenised, seafoam focus ring (the recipe-form field). */
 export const field =
-    'w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam';
+    'w-full rounded-lg border border-line-divider bg-paper px-3 py-2 text-body-md text-ink outline-none focus:ring-2 focus:ring-focus-ring';
 
 /** Inline error / alert text tone. */
-export const errorText = 'text-body-sm text-error-dark';
+export const errorText = 'text-body-sm text-danger-text';
 
 /** A definition list rendering resolved identity facts (term + value rows). */
 export const detailList = 'grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-body-md';
 
 /** A definition-list term. */
-export const detailTerm = 'font-medium text-slate';
+export const detailTerm = 'font-medium text-ink-muted';
 
 /** A definition-list value. */
-export const detailValue = 'text-charcoal';
+export const detailValue = 'text-ink';

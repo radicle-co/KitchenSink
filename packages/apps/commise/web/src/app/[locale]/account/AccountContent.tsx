@@ -77,7 +77,7 @@ export async function AccountContent({
                             {account.editHeading}
                         </h2>
                         {profile === undefined ? (
-                            <p role="status" className="text-body-md text-slate">
+                            <p role="status" className="text-body-md text-ink-muted">
                                 {account.loadError}
                             </p>
                         ) : (

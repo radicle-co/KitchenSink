@@ -850,8 +850,8 @@ describe('RecipeFilterBar (web) — text contrast (WCAG 2.1 AA)', () => {
         renderBar();
 
         // Placeholder copy is TEXT a reader reads — the field's only visible instruction before they type — so
-        // it owes the same 4.5:1 as body copy; `mist` measured 1.90:1 on this `bg-white` field. `placeholder:`
-        // is just another Tailwind variant, measured as its own state (the base `text-charcoal` on the same
+        // it owes the same 4.5:1 as body copy; `mist` measured 1.90:1 on this `bg-paper` field. `placeholder:`
+        // is just another Tailwind variant, measured as its own state (the base `text-ink` on the same
         // element is the VALUE colour and would mask the defect).
         const search = screen.getByLabelText('Search ingredients');
 
@@ -868,7 +868,7 @@ describe('RecipeFilterBar (web) — text contrast (WCAG 2.1 AA)', () => {
  * OUTSIDE the border box, so neither the field's white fill nor the selected chip's seafoam fill is what the
  * reader sees the ring against.
  *
- * All three rings shipped as `ring-seafoam-light`, which measures 2.58:1 there — under the 3:1 SC 1.4.11 floor
+ * All three rings shipped as `ring-focus-ring`, which measures 2.58:1 there — under the 3:1 SC 1.4.11 floor
  * a focus indicator owes (#114). Keyboard-only viewers have nothing else telling them where they are, and the
  * chips are the bar's primary control, so the ring is not decoration.
  */
@@ -1127,7 +1127,12 @@ describe('RecipeFilterBar (web) — the trigger, on a phone', () => {
         const classes = screen.getByRole('button', { name: 'Filters' }).className.split(/\s+/u);
 
         expect(classes).toEqual(
-            expect.arrayContaining(['min-h-11', 'rounded-[calc(var(--spacing)*5.5)]', 'bg-white', 'border-border']),
+            expect.arrayContaining([
+                'min-h-11',
+                'rounded-[calc(var(--spacing)*5.5)]',
+                'bg-paper',
+                'border-line-divider',
+            ]),
         );
     });
 
@@ -1140,7 +1145,7 @@ describe('RecipeFilterBar (web) — the trigger, on a phone', () => {
         const classes = badge.className.split(/\s+/u);
 
         expect(classes).toEqual(
-            expect.arrayContaining(['min-h-5.5', 'min-w-5.5', 'py-0.5', 'bg-seafoam', 'text-white']),
+            expect.arrayContaining(['min-h-5.5', 'min-w-5.5', 'py-0.5', 'bg-action', 'text-on-action']),
         );
         expect(classes.some((name) => /^h-/u.test(name))).toBe(false);
     });

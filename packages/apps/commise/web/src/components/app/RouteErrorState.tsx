@@ -28,8 +28,8 @@ export const RouteErrorState: FC<RouteErrorStateProps> = ({ onRetry }) => {
 
     return (
         <div role="alert" className="mx-auto flex w-full max-w-4xl flex-col items-start gap-3 py-12">
-            <p className="text-heading-sm font-semibold text-charcoal">{boundary.error.title}</p>
-            <p className="text-body-sm text-slate">{boundary.error.description}</p>
+            <p className="text-heading-sm font-semibold text-ink">{boundary.error.title}</p>
+            <p className="text-body-sm text-ink-muted">{boundary.error.description}</p>
             <button type="button" onClick={onRetry}>
                 {boundary.error.retry}
             </button>

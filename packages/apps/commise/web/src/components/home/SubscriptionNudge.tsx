@@ -18,7 +18,9 @@ import * as Dialog from '@radix-ui/react-dialog';
 import type { JSX } from 'react';
 
 import { useMessages } from '@commise/i18n/react';
+import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
+import { Icon } from '@commise/ui/icon';
 
 import { webMessages } from '@/i18n/messages';
 
@@ -59,7 +61,7 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onDismiss()}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     aria-modal="true"
                     onCloseAutoFocus={onCloseAutoFocus}
@@ -72,23 +74,21 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                     // Tailwind's own ramp, 2rem is `p-8` — which is what keeps this foot equal to the literal
                     // `2rem` in the `calc()` beside it. Change one and you must change the other, or the sheet
                     // goes asymmetric. See `@commise/ui/tokens/themeCss`.
-                    className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-2xl bg-white p-8 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl"
+                    className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-2xl bg-paper p-8 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl"
                 >
-                    <Dialog.Title className="font-display text-lg font-semibold text-charcoal">
+                    <Dialog.Title className="font-display text-lg font-semibold text-ink">
                         {home.nudge.title}
                     </Dialog.Title>
-                    <p className="text-sm text-slate">{home.nudge.body}</p>
+                    <p className="text-sm text-ink-muted">{home.nudge.body}</p>
                     <div className="flex justify-end gap-3">
-                        <Dialog.Close type="button" className="rounded-full px-4 py-2 text-sm font-medium text-slate">
+                        {/* A Radix slot, so it wears the Button surface rather than being one; `clock` is mobile's "later" glyph. */}
+                        <Dialog.Close type="button" className={buttonSurfaceClass('secondary')}>
+                            <Icon name="clock" size={20} />
                             {home.nudge.dismiss}
                         </Dialog.Close>
-                        <button
-                            type="button"
-                            onClick={onDismiss}
-                            className="rounded-full bg-seafoam px-5 py-2 text-sm font-semibold text-white"
-                        >
+                        <Button icon="chevronRight" onPress={onDismiss}>
                             {home.nudge.upgrade}
-                        </button>
+                        </Button>
                     </div>
                 </Dialog.Content>
             </Dialog.Portal>

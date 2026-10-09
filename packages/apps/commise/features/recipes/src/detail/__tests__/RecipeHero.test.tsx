@@ -58,6 +58,16 @@ describe('RecipeHero (web) — cover absent (the deliberate fallback)', () => {
         expect(screen.getByRole('img', { name: 'No photo yet' })).toBeTruthy();
     });
 
+    // The empty-state glyph size (spec §8, 48 px). Slice 2 first moved it onto the Registry at 24, a visible shrink
+    // from the 64 px inline SVG it replaced that `recipeDetailDesktop.png` caught.
+    it('draws the placeholder glyph at the 48 px empty-state size', () => {
+        render(<RecipeHero title="Herb Risotto" photos={[]} />);
+
+        const glyph = screen.getByRole('img', { name: 'No photo yet' }).querySelector('svg.lucide-image');
+
+        expect(glyph?.getAttribute('width')).toBe('48');
+    });
+
     it('renders NO <img> element at all (an empty src would paint a broken-image glyph)', () => {
         const { container } = renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
 
@@ -75,9 +85,8 @@ describe('RecipeHero (web) — cover absent (the deliberate fallback)', () => {
     it('paints the placeholder with the brand hero gradient rather than an empty grey box', () => {
         const { container } = renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
 
-        // `GradientSurface gradient="hero"` composes the beach-glow CSS gradient from the shared token.
-        const surface = container.querySelector('[style*="linear-gradient"]');
-        expect(surface).not.toBeNull();
+        // `GradientSurface gradient="hero"` paints the canvas wash through the themed `bg-hero` utility (D15).
+        expect(container.querySelector('.bg-hero')).not.toBeNull();
     });
 });
 

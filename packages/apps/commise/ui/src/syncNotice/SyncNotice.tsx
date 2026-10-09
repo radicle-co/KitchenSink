@@ -21,9 +21,9 @@ export const SyncNotice: FC<SyncNoticeProps> = ({ state, regionLabel }) => (
     // text already in place is not reliably read out — the same reason `RefreshNotice` mounts its own empty.
     <div role="status" aria-label={regionLabel} className="px-4">
         {state.kind !== 'hidden' && (
-            <div className="rounded-2xl bg-pearl px-4 py-3">
-                <p className="text-body-sm font-semibold text-charcoal">{state.title}</p>
-                <p className="text-body-sm text-slate">{state.body}</p>
+            <div className="rounded-2xl bg-surface-muted px-4 py-3">
+                <p className="text-body-sm font-semibold text-ink">{state.title}</p>
+                <p className="text-body-sm text-ink-muted">{state.body}</p>
             </div>
         )}
     </div>

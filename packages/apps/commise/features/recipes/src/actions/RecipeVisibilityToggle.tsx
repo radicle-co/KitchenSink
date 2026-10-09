@@ -36,7 +36,7 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
 
     const pill = (active: boolean) =>
         `relative cursor-pointer rounded-full px-4 py-1.5 text-body-sm font-medium transition ${
-            active ? 'bg-card text-charcoal shadow-sm' : 'text-slate'
+            active ? 'bg-paper text-ink shadow-sm' : 'text-ink-muted'
         }`;
     // The radio is a transparent overlay filling its pill, so the semantic control is the click/tap target
     // itself (directly actionable for pointer users + E2E via `getByRole('radio')`) with the pill label
@@ -45,7 +45,7 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
 
     return (
         <fieldset aria-label={messages.groupLabel} className="flex flex-col gap-2">
-            <div className="inline-flex w-fit gap-1 rounded-full bg-pearl p-1">
+            <div className="inline-flex w-fit gap-1 rounded-full bg-surface-muted p-1">
                 <label className={pill(visibility === RecipeVisibility.PUBLIC)}>
                     <input
                         type="radio"
@@ -74,12 +74,12 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
                 </label>
             </div>
             {showReason && (
-                <p id={reasonId} className="text-body-sm text-warning-dark">
+                <p id={reasonId} className="text-body-sm text-attention">
                     {disabledReason}
                 </p>
             )}
             {error && (
-                <p role="alert" className="text-body-sm text-error-dark">
+                <p role="alert" className="text-body-sm text-danger-text">
                     {messages.error}
                 </p>
             )}

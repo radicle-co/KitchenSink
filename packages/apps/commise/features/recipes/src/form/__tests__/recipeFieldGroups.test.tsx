@@ -329,7 +329,7 @@ describe('the recipe field groups (web) — tinted chip + badge text is WCAG-AA 
         // Measuring it over plain white would flatter both states and let a failing hover through (which is
         // exactly what happened: ocean-dark over `seafoam/20` is 4.90:1 on white but only 4.41:1 once the
         // chip's own `/10` is underneath it).
-        expect(chip.className, 'the chip’s tint the × is measured against').toContain('bg-seafoam/10');
+        expect(chip.className, 'the chip’s tint the × is measured against').toContain('bg-action/10');
         const surface = compositeOver(tintOf(palette.seafoam, 0.1), palette.white);
 
         expect(utilityContrast(remove.className, { surface }), '× glyph at rest').toBeGreaterThanOrEqual(4.5);
@@ -345,7 +345,7 @@ describe('the recipe field groups (web) — tinted chip + badge text is WCAG-AA 
  * as load-bearing as the label — and it is governed by SC 1.4.11 (3:1, a non-text UI component boundary), not
  * by the 4.5:1 text floor.
  *
- * Every ring here shipped as `ring-seafoam-light`, which measures 2.78:1 on the form's own `bg-card` sections
+ * Every ring here shipped as `ring-focus-ring`, which measures 2.78:1 on the form's own `bg-paper` sections
  * and 2.45:1 on the tag chip's seafoam tint (#114). The token is deliberately NOT being darkened — it is the
  * light teal of `semantic.primary`, and the lightness a ring needs would collapse it into `seafoam` (palette
  * JSDoc) — so the fix is to point these rings at `seafoam`, and the measurement is what pins that.
@@ -355,7 +355,7 @@ describe('the recipe field groups (web) — tinted chip + badge text is WCAG-AA 
  * and the chip's tint is not.
  */
 describe('the recipe field groups (web) — focus rings clear the 3:1 SC 1.4.11 floor', () => {
-    /** The form's fields all sit inside `bg-card` sections, so that is the surface every ring is drawn on. */
+    /** The form's fields all sit inside `bg-paper` sections, so that is the surface every ring is drawn on. */
     const CARD = semantic.card;
 
     it('rings the text and numeric fields legibly against the card they sit on', () => {
@@ -424,9 +424,9 @@ describe('the recipe field groups (web) — focus rings clear the 3:1 SC 1.4.11 
             throw new Error('Expected the "Remove quick" control to sit inside its chip.');
         }
 
-        // Two surfaces deep: the ring is drawn on the chip's `bg-seafoam/10`, itself over the white field.
+        // Two surfaces deep: the ring is drawn on the chip's `bg-action/10`, itself over the white field.
         // Measuring it against a nominal white overstates the ratio by 0.57 — enough to hide a failure.
-        expect(chip.className, 'the chip tint the ring is measured against').toContain('bg-seafoam/10');
+        expect(chip.className, 'the chip tint the ring is measured against').toContain('bg-action/10');
         const surface = compositeOver(tintOf(palette.seafoam, 0.1), CARD);
 
         expect(ringContrast(remove.className, { surface }), '× remove focus ring on the chip tint') //
@@ -676,11 +676,11 @@ describe('the recipe field groups (web) — B8 error accessibility wiring (aria-
 });
 
 describe('the recipe field groups (web) — difficulty picker', () => {
-    /** The difficulty chips sit inside a `bg-card` section, so that is the surface behind them. */
+    /** The difficulty chips sit inside a `bg-paper` section, so that is the surface behind them. */
     const CARD = semantic.card;
 
-    // REGRESSION: the selected chip layered `bg-seafoam text-white` on top of a base that already set
-    // `bg-white text-charcoal`. Tailwind orders utilities by its own EMISSION order, not by the order they
+    // REGRESSION: the selected chip layered `bg-action text-on-action` on top of a base that already set
+    // `bg-paper text-ink`. Tailwind orders utilities by its own EMISSION order, not by the order they
     // appear in the class attribute, so `.bg-white` (emitted later) beat `.bg-seafoam` while `.text-white`
     // (emitted later) beat `.text-charcoal` — the selected label rendered white-on-white, invisible in every
     // browser, in dev and in prod. Worse, `values.difficulty === option.value` is `undefined === undefined`
@@ -1051,7 +1051,10 @@ describe('the recipe field groups (web) — ingredients', () => {
                 }),
             });
 
-            return screen.getByText(resolutionStatusLabel(recipeFormMessages.en, status)).className;
+            // UI-overhaul slice 2: the badge's words sit in a span inside it, so its look is on the parent.
+            return (
+                screen.getByText(resolutionStatusLabel(recipeFormMessages.en, status)).parentElement?.className ?? ''
+            );
         };
 
         const review = classOf(FoodResolutionStatus.NEEDS_REVIEW);
@@ -1464,9 +1467,9 @@ describe('the recipe field groups (web) — every action button carries an icon 
         // Secondary actions read as buttons via a border.
         expect(screen.getByRole('button', { name: 'Add step' }).className).toContain('border');
 
-        // Destructive remove actions are error-toned.
+        // Destructive remove actions carry the danger label (UI-overhaul slice 2: the `danger` roles).
         for (const name of ['Remove ingredient 1', 'Remove step 1'] as const) {
-            expect(screen.getByRole('button', { name }).className).toContain('error');
+            expect(screen.getByRole('button', { name }).className).toContain('text-danger-text');
         }
     });
 
@@ -2108,8 +2111,8 @@ describe('the recipe field groups (web) — preparation, section and unit class 
 
         // ⛔ THE ASSERTION THAT ACTUALLY WENT RED. The note was already absent before the ruling (the
         // prefix rule withheld it, because `t` begins `teaspoon`), so only the STYLING can see the change:
-        // the field wore `text-slate italic` — the unrecognised look — while saying nothing was wrong.
-        expect(field.className).toContain('text-charcoal');
+        // the field wore `text-ink-muted italic` — the unrecognised look — while saying nothing was wrong.
+        expect(field.className).toContain('text-ink');
         expect(field.className).not.toContain('italic');
         // The cook's spelling survives byte-for-byte: canonicalising for a verdict never rewrites the field.
         expect(field.value).toBe(unit);

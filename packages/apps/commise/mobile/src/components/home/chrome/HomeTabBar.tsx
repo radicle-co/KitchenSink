@@ -6,17 +6,17 @@
  * real tabs (`accessibilityRole="tab"`, selected state); gated destinations are non-interactive and announced
  * as "…, coming soon" (never a tab that navigates nowhere). The active destination is the selected tab.
  *
- * Each tab pairs the mockup's glyph (the shared {@link NAV_ICONS} registry, drawn from Feather) with its text
+ * Each tab pairs the mockup's glyph (the shared `NAV_ITEM_GLYPH` registry, drawn by `@commise/ui/icon`) with its text
  * label — icon AND label, as the mockup's bottom bar has it. The glyph is decorative: the label alone owns the
  * accessible name. The bottom safe-area inset is padded so the bar clears the home indicator.
  */
-import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
 import { palette } from '@commise/ui';
+import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import type { JSX } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ChromeIcon, NAV_ICONS } from './icons.js';
 import type { MobileMessages } from '../../../i18n/messages.js';
 
 /** The chrome copy slice this bar renders. */
@@ -77,7 +77,7 @@ export function HomeTabBar({
                             accessibilityLabel={`${label}, ${chrome.comingSoonSuffix}`}
                             style={styles.tab}
                         >
-                            <ChromeIcon name={NAV_ICONS[item.id]} color={palette.slate} size={TAB_ICON_SIZE} />
+                            <Icon name={NAV_ITEM_GLYPH[item.id]} tone="inkMuted" size={TAB_ICON_SIZE} />
                             <Text style={styles.labelDisabled}>{label}</Text>
                         </View>
                     );
@@ -94,11 +94,11 @@ export function HomeTabBar({
                         onPress={() => onSelect(item.id)}
                         style={styles.tab}
                     >
-                        <ChromeIcon
-                            name={NAV_ICONS[item.id]}
+                        <Icon
+                            name={NAV_ITEM_GLYPH[item.id]}
                             // The glyph shares the active tab with its LABEL, so it shares the label's
                             // text-grade colour rather than drifting to a second green.
-                            color={selected ? palette['ocean-dark'] : palette.slate}
+                            tone={selected ? 'actionText' : 'inkMuted'}
                             size={TAB_ICON_SIZE}
                         />
                         <Text style={selected ? styles.labelActive : styles.label}>{label}</Text>

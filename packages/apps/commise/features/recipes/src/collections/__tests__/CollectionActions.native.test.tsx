@@ -8,13 +8,14 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { computedContrast } from '@commise/test-utils';
-import { glass, palette } from '@commise/ui';
+import { palette, role } from '@commise/ui/colors';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { cssColor } from '../../__tests__/cssColor.js';
 import { pillOf } from '../../__tests__/dsPill.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionActions } from '../CollectionActions.native.js';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { CollectionActionsProps } from '../model.js';
 
 afterEach(cleanup);
@@ -122,25 +123,25 @@ describe('CollectionActions (native) — Clone Collection is the DS secondary su
         expect(pillOf(screen.getByRole('button', { name: 'Clone Collection' }))).toBeTruthy();
     });
 
-    it('paints the DS secondary surface — a coral OUTLINE over glass, NOT the old solid coral fill', () => {
+    it('paints the DS secondary surface — neutral paper with a lineControl edge, never coral', () => {
         renderActions();
         const style = window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone Collection' })));
 
-        // The tier's own surface, from the tier's own token: `glass.subtle`'s solid fallback (RN cannot blur).
-        expect(style.backgroundColor).toBe(glass.subtle.fallback);
-        // Coral survives as the DS tier's accent EDGE — the mockups' secondary button — never as the fill.
-        expect(style.borderTopColor).toBe(cssColor(palette.coral));
-        expect(style.borderTopWidth).toBe('2px');
+        // ⚠️ REWRITTEN in UI-overhaul slice 2: the owner overruled coral on every control, so the DS secondary tier is
+        // neutral — `paper`, a 1 pt `lineControl` edge, an `ink` label.
+        expect(style.backgroundColor).toBe(cssColor(role.paper));
+        expect(style.borderTopColor).toBe(cssColor(role.lineControl));
+        expect(style.borderTopWidth).toBe('1px');
         // The regression this replaces: a bespoke solid coral fill that read as destructive.
         expect(style.backgroundColor).not.toBe(cssColor(palette.coral));
     });
 
-    it('labels in the tier foreground colour — slate, not the old white-on-coral', () => {
+    it('labels in the tier foreground colour — ink on the neutral surface', () => {
         renderActions();
 
         // A leftover white label on the now-glass surface would be invisible; coral-as-text is 2.40:1. The
         // tier labels in slate (5.24:1), identically to the web leaf.
-        expect(window.getComputedStyle(screen.getByText('Clone Collection')).color).toBe(cssColor(palette.slate));
+        expect(window.getComputedStyle(screen.getByText('Clone Collection')).color).toBe(cssColor(role.ink));
         expect(window.getComputedStyle(screen.getByText('Clone Collection')).color).not.toBe(cssColor(palette.white));
     });
 
@@ -279,14 +280,18 @@ describe('CollectionActions (native) — the seafoam TEXT labels clear the AA bo
         expect(computedContrast(screen.getByText('Save changes')), 'Save changes label').toBeGreaterThanOrEqual(4.5);
     });
 
-    it('keeps the Pull Updates BORDER seafoam — a 3:1 control boundary, not a text colour', () => {
+    /**
+     * REWRITTEN in slice 2: the seafoam border this pinned was the hand-built control's boundary. Pull Updates is now
+     * the secondary Button, whose boundary is the `lineControl` edge (3:1 against paper and canvas, measured by
+     * `buttonSurfaceClass`'s suite). The counterweight survives: the control still draws a visible edge.
+     */
+    it('keeps a visible control boundary on Pull Updates — the secondary Button’s lineControl edge', () => {
         renderActions({ isCloned: true });
 
-        // The counterweight: the fix must demote the LABEL only. Flattening the outline too would erase the
-        // control's affordance to satisfy a floor that never governed it.
-        expect(
-            window.getComputedStyle(screen.getByRole('button', { name: 'Pull Updates from Source' })).borderTopColor,
-        ).toBe(cssColor(palette.seafoam));
+        const edge = window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Pull Updates from Source' })));
+
+        expect(edge.borderTopWidth).toBe('1px');
+        expect(edge.borderTopColor).toBe(cssColor(role.lineControl));
     });
 });
 
@@ -299,5 +304,29 @@ describe('CollectionActions (native) — premium gate is the boolean prop only',
 
         expect(source).not.toMatch(/premium/i);
         expect(source).not.toMatch(/\btier\b/i);
+    });
+});
+
+describe('CollectionActions (native) — the design-system Button (UI overhaul slice 2)', () => {
+    it('adds recipes through a primary plus Button', () => {
+        renderActions();
+
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Add Recipes' }), 'primary', 'plus');
+    });
+
+    it('pulls updates through a secondary refreshCw Button', () => {
+        renderActions({ isCloned: true });
+
+        expectNativeDesignSystemButton(
+            screen.getByRole('button', { name: 'Pull Updates from Source' }),
+            'secondary',
+            'refresh-cw',
+        );
+    });
+
+    it('saves visibility through a ghost check Button', () => {
+        renderActions({ visibility: RecipeVisibility.PUBLIC, pendingVisibility: RecipeVisibility.PRIVATE });
+
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Save changes' }), 'ghost', 'check');
     });
 });

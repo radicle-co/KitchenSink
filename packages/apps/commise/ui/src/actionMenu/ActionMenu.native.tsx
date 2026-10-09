@@ -20,19 +20,36 @@
 import { useEffect, useEffectEvent, useState, type FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '../icon/Icon.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { Sheet } from '../sheet/Sheet.native.js';
-import { palette } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import type { ActionMenuItem, ActionMenuProps } from './props.js';
+import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
 
 /** The native target floor the spec sets (§3a, 2.5.8: 48 × 48 dp). */
 const TARGET_DP = 48;
 
-const ITEM_TONE: Readonly<Record<NonNullable<ActionMenuItem['tone']>, string>> = {
-    default: palette.charcoal,
-    destructive: palette['error-dark'],
+/** One menu item: its glyph and label, in the role of its place in the menu. */
+const MenuItem: FC<{
+    readonly item: ActionMenuItem;
+    readonly tone: 'ink' | 'dangerText';
+    readonly onChoose: (id: string) => void;
+}> = ({ item, tone, onChoose }) => {
+    const { colors, wash } = useTheme();
+
+    return (
+        <Pressable
+            accessibilityRole="menuitem"
+            accessibilityLabel={item.label}
+            onPress={() => onChoose(item.id)}
+            style={({ pressed }) => [styles.item, pressed && { backgroundColor: wash }]}
+        >
+            {item.icon === undefined ? null : <Icon name={item.icon} size={20} tone={tone} />}
+            <Text style={[styles.itemLabel, { color: colors[tone] }]}>{item.label}</Text>
+        </Pressable>
+    );
 };
 
 /** The row-actions menu. */
@@ -41,13 +58,15 @@ export const ActionMenu: FC<ActionMenuProps> = ({
     title,
     closeLabel,
     items,
+    destructiveItem,
     focusRequested = false,
     onFocusRequestHandled,
     unavailable = false,
 }) => {
     const [open, setOpen] = useState(false);
-    // The items the open sheet shows: the list as it was when the sheet opened.
-    const [shown, setShown] = useState(items);
+    const { colors, wash } = useTheme();
+    // What the open sheet shows: the actions as they were when the sheet opened.
+    const [shown, setShown] = useState<ActionMenuSnapshot>({ items, destructiveItem });
     // The chosen item's key, waiting for the sheet to go.
     const [heldKey, setHeldKey] = useState<string | undefined>(undefined);
     // The dismissals with nothing chosen: each one returns the cursor to the trigger.
@@ -73,7 +92,17 @@ export const ActionMenu: FC<ActionMenuProps> = ({
         }
 
         setHeldKey(undefined);
-        items.find((item) => item.key === heldKey)?.onSelect();
+        actionNamed(items, destructiveItem, heldKey)?.onSelect();
+    };
+
+    const choose = (id: string): void => {
+        // A second tap while the sheet slides out is not a second choice.
+        if (heldKey !== undefined) {
+            return;
+        }
+
+        setHeldKey(id);
+        setOpen(false);
     };
 
     return (
@@ -90,14 +119,14 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                         return;
                     }
 
-                    setShown(items);
+                    setShown({ items, destructiveItem });
                     setOpen(true);
                 }}
-                style={({ pressed }) => [styles.trigger, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.trigger, pressed && { backgroundColor: wash }]}
             >
-                <Text aria-hidden style={[styles.glyph, unavailable && styles.unavailable]}>
-                    {'⋮'}
-                </Text>
+                <View style={unavailable ? styles.unavailable : null}>
+                    <Icon name="ellipsis" size={24} />
+                </View>
             </Pressable>
             <Sheet
                 open={open}
@@ -108,27 +137,19 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                 size="content"
             >
                 <View collapsable={false} accessibilityRole="menu">
-                    {shown.map((item) => (
-                        <Pressable
-                            key={item.key}
-                            accessibilityRole="menuitem"
-                            accessibilityLabel={item.label}
-                            onPress={() => {
-                                // A second tap while the sheet slides out is not a second choice.
-                                if (heldKey !== undefined) {
-                                    return;
-                                }
-
-                                setHeldKey(item.key);
-                                setOpen(false);
-                            }}
-                            style={({ pressed }) => [styles.item, pressed && styles.pressed]}
-                        >
-                            <Text style={[styles.itemLabel, { color: ITEM_TONE[item.tone ?? 'default'] }]}>
-                                {item.label}
-                            </Text>
-                        </Pressable>
+                    {shown.items.map((item) => (
+                        <MenuItem key={item.id} item={item} tone="ink" onChoose={choose} />
                     ))}
+                    {shown.destructiveItem === undefined ? null : (
+                        <>
+                            <View
+                                collapsable={false}
+                                role="separator"
+                                style={[styles.divider, { backgroundColor: colors.lineDivider }]}
+                            />
+                            <MenuItem item={shown.destructiveItem} tone="dangerText" onChoose={choose} />
+                        </>
+                    )}
                 </View>
             </Sheet>
         </>
@@ -143,10 +164,15 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderRadius: TARGET_DP / 2,
     },
-    pressed: { backgroundColor: palette.pearl },
-    glyph: { fontSize: nativeTokens.fontSize.bodyLg, color: palette.charcoal },
     // The web leaf's `aria-disabled:opacity-60`, so unavailable reads to the eye too.
     unavailable: { opacity: 0.6 },
-    item: { minHeight: TARGET_DP, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
-    itemLabel: { fontSize: nativeTokens.fontSize.bodyMd },
+    item: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: nativeTokens.spacing[2],
+        minHeight: TARGET_DP,
+        paddingHorizontal: nativeTokens.spacing[2],
+    },
+    itemLabel: nativeTokens.type.body,
+    divider: { height: 1, marginVertical: nativeTokens.spacing[1] },
 });

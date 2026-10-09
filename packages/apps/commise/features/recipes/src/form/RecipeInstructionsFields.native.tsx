@@ -8,9 +8,7 @@
 import { Button } from '@commise/ui/button';
 import { DurationField } from '@commise/ui/duration-field';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { TextInput } from '@commise/ui/text-input';
-import { Feather } from '@expo/vector-icons';
 import type { FC, ReactElement } from 'react';
 import { Text, View } from 'react-native';
 
@@ -61,7 +59,7 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
                 <View style={styles.rowAction}>
                     <Button
                         variant="destructive"
-                        icon={<Feather name="trash-2" size={16} color={palette['error-dark']} />}
+                        icon="trash"
                         onPress={() => onChange(applyDraftAction(values, { kind: 'removeAt', field: 'steps', index }))}
                     >
                         {fillTemplate(m.removeStep, { number })}
@@ -85,7 +83,7 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
             <View style={styles.addAction}>
                 <Button
                     variant="secondary"
-                    icon={<Feather name="plus" size={16} color={palette.charcoal} />}
+                    icon="plus"
                     onPress={() => onChange(applyDraftAction(values, { kind: 'addStep' }))}
                 >
                     {m.addStep}

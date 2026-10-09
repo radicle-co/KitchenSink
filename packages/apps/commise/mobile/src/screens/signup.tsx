@@ -15,12 +15,11 @@
  */
 import { useClerk, useSignUp } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
-import { Input } from '@commise/ui/input';
+import { FieldLabel, Input } from '@commise/ui/input';
 import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
-import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -92,28 +91,32 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                     <Text style={styles.heading}>{t.createHeading}</Text>
 
                     <View style={styles.fields}>
-                        <Input
-                            label={t.emailLabel}
-                            placeholder={t.emailPlaceholder}
-                            value={email}
-                            onChangeText={setEmail}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoComplete="email"
-                            textContentType="emailAddress"
-                            returnKeyType="next"
-                        />
-                        <Input
-                            label={t.passwordLabel}
-                            placeholder={t.passwordPlaceholder}
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                            autoComplete="new-password"
-                            textContentType="newPassword"
-                            returnKeyType="go"
-                            onSubmitEditing={() => void handleSignUp()}
-                        />
+                        <View style={styles.field}>
+                            <FieldLabel forId="signup-email" label={t.emailLabel} />
+                            <Input
+                                id="signup-email"
+                                placeholder={t.emailPlaceholder}
+                                value={email}
+                                onChangeText={setEmail}
+                                inputMode="email"
+                                autoCapitalize="none"
+                                autoComplete="email"
+                                enterKeyHint="next"
+                            />
+                        </View>
+                        <View style={styles.field}>
+                            <FieldLabel forId="signup-password" label={t.passwordLabel} />
+                            <Input
+                                id="signup-password"
+                                placeholder={t.passwordPlaceholder}
+                                value={password}
+                                onChangeText={setPassword}
+                                secret
+                                autoComplete="new-password"
+                                enterKeyHint="go"
+                                onSubmit={() => void handleSignUp()}
+                            />
+                        </View>
                     </View>
 
                     {error ? (
@@ -122,22 +125,13 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                         </Text>
                     ) : null}
 
-                    <Button
-                        icon={<Feather name="user-plus" size={16} color={palette.white} />}
-                        busy={busy}
-                        disabled={!signUp}
-                        onPress={() => void handleSignUp()}
-                    >
+                    <Button icon="userPlus" busy={busy} disabled={!signUp} onPress={() => void handleSignUp()}>
                         {t.createAccountAction}
                     </Button>
 
                     <View style={styles.toggle}>
                         <Text style={styles.togglePrompt}>{t.haveAccountPrompt}</Text>
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="log-in" size={16} color={palette.charcoal} />}
-                            onPress={onBack}
-                        >
+                        <Button variant="secondary" icon="logIn" onPress={onBack}>
                             {t.signInLink}
                         </Button>
                     </View>
@@ -148,6 +142,8 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
 }
 
 const styles = StyleSheet.create({
+    // A label and its field are one group: closer to each other than to the next field (spec §1.6).
+    field: { gap: nativeTokens.spacing[1] },
     // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
     // fill here occludes the whole canvas and restores the flat page the wireframes never had.
     safe: { flex: 1, backgroundColor: 'transparent' },

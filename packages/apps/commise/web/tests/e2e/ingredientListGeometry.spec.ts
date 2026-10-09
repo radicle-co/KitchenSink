@@ -274,7 +274,7 @@ test.describe('the food list keeps clear of the header band at desktop width (V3
         expect(frame.popup.bottom).toBeLessThanOrEqual(frame.viewportHeight - 8 + 0.5);
     });
 
-    test('1280 px: the keyboard’s active option has a pearl fill and a seafoam ring (V3-4, case F)', async ({
+    test('1280 px: the keyboard’s active option has a linen (surfaceMuted) fill and a seafoam ring (V3-4, case F)', async ({
         page,
     }) => {
         const field = await middleField(page, await openIngredients(page));
@@ -292,7 +292,8 @@ test.describe('the food list keeps clear of the header band at desktop width (V3
             return { background: style.backgroundColor, ring: style.boxShadow };
         });
 
-        expect(paint.background).toBe('rgb(245, 245, 245)');
+        // The `surfaceMuted` role: pearl became linen (#F3EEE6) in the owner's D11 warm greys.
+        expect(paint.background).toBe('rgb(243, 238, 230)');
         expect(paint.ring).toContain('rgb(49, 128, 122)');
         expect(paint.ring).toContain('inset');
     });

@@ -34,7 +34,8 @@
  *
  * @pattern Adapter over the house Radix `Dialog` for the slide-over drawer.
  */
-import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { Icon } from '@commise/ui/icon';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import * as Dialog from '@radix-ui/react-dialog';
 import Link from 'next/link';
@@ -42,7 +43,7 @@ import type { JSX } from 'react';
 
 import type { WebMessages } from '@/i18n/messages';
 
-import { HomeIcon } from './icons';
+import { CONTROL_GLYPH } from './chromeGlyphs';
 import { homeNavHref } from './navHref';
 
 /** The chrome copy slice this drawer renders. */
@@ -87,7 +88,7 @@ export function HomeMobileNav({
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/30 backdrop-blur-[2px] lg:hidden" />
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim backdrop-blur-[2px] lg:hidden" />
                 <Dialog.Content
                     aria-label={chrome.primaryNavLabel}
                     onCloseAutoFocus={onCloseAutoFocus}
@@ -101,12 +102,12 @@ export function HomeMobileNav({
                     className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/20 bg-hero shadow-[var(--shadow-xl)] lg:hidden"
                 >
                     <div className="flex items-center justify-between p-6">
-                        <span className="font-display text-xl font-bold text-charcoal">{chrome.wordmark}</span>
+                        <span className="font-display text-xl font-bold text-ink">{chrome.wordmark}</span>
                         <Dialog.Close
                             aria-label={chrome.closeNav}
-                            className="rounded-full p-1 text-slate transition-colors hover:text-charcoal"
+                            className="rounded-full p-1 text-ink-muted transition-colors hover:text-ink"
                         >
-                            <HomeIcon name="collapse-left" className="size-6" />
+                            <Icon name={CONTROL_GLYPH.collapse} size={24} />
                         </Dialog.Close>
                     </div>
 
@@ -122,10 +123,10 @@ export function HomeMobileNav({
                                         role="link"
                                         aria-disabled="true"
                                         aria-label={`${label}, ${chrome.comingSoonSuffix}`}
-                                        // Contrast (WCAG 2.1 AA, #113): opaque `slate` (5.24:1); `text-slate/60` was 2.41:1.
-                                        className="flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-slate"
+                                        // Contrast (WCAG 2.1 AA, #113): opaque `slate` (5.24:1); `text-ink-muted` was 2.41:1.
+                                        className="flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-ink-muted"
                                     >
-                                        <HomeIcon name={item.id} className="size-6 shrink-0" />
+                                        <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
                                         <span className="font-medium">{label}</span>
                                     </span>
                                 );
@@ -142,11 +143,11 @@ export function HomeMobileNav({
                                             ? // The gradient pill stays seafoam (a non-text accent); the
                                               // FOREGROUND — which colours the visible label — is `ocean-dark`
                                               // (see the palette JSDoc in `@commise/ui`).
-                                              'bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-ocean-dark'
-                                            : 'text-slate hover:bg-white/40 hover:text-charcoal'
+                                              'bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-action-text'
+                                            : 'text-ink-muted hover:bg-paper/40 hover:text-ink'
                                     }`}
                                 >
-                                    <HomeIcon name={item.id} className="size-6 shrink-0" />
+                                    <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
                                     <span className="font-medium">{label}</span>
                                 </Link>
                             );

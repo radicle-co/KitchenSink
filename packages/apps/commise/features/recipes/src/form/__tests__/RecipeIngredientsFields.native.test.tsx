@@ -14,11 +14,8 @@ import { createElement, useState, type FC } from 'react';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { AccessibilityInfo, type ViewProps } from 'react-native';
-import { palette, tint } from '@commise/ui';
+import { role } from '@commise/ui/colors';
 
-// Feather needs the Expo font runtime, absent under jsdom (see `recipeFieldGroups.native.test.tsx` for the full
-// rationale). A decorative no-op is enough: the Button primitive hides the glyph from the a11y tree.
-vi.mock('@expo/vector-icons', () => ({ Feather: () => null }));
 // Rows 6 and 7's panel searches the line's words through the progressive food search. This suite pins the panel's frame,
 // not that search, which `RecipeIngredientsFields.rowEditor` and `rowEditor.integration` own.
 vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
@@ -188,7 +185,7 @@ describe('RecipeIngredientsFields (native) — an unresolved row surfaces its re
         renderLeaf({ values: valuesWith(withLineKeys([UNRESOLVED])) });
 
         const caution = document.createElement('div');
-        caution.style.backgroundColor = tint(palette.warning, 0.25);
+        caution.style.backgroundColor = role.attentionTint;
         // The chip is a `View` holding the words' `Text`, so the fill is on the words' parent.
         expect(chipBackground(en.ingredientNoFoodNote)).toBe(caution.style.backgroundColor);
     });
@@ -459,8 +456,10 @@ describe('RecipeIngredientsFields (native) — status tone parity with the web l
  */
 describe('RecipeIngredientsFields (native) — plan 002 V1 row states', () => {
     const fill = (template: string, food: string): string => template.replace('{food}', food);
-    const CAUTION = tint(palette.warning, 0.25);
-    const NEUTRAL = palette.pearl;
+    // UI-overhaul slice 2: the design system's `attention` badge status.
+    const CAUTION = role.attentionTint;
+    // The quiet badge fill is the `surfaceMuted` role (linen, D11).
+    const NEUTRAL = role.surfaceMuted;
 
     const STATES = [
         {

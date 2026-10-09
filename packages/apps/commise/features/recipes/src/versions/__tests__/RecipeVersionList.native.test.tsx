@@ -388,7 +388,7 @@ describe('RecipeVersionList (native) — the compare checkbox announces its chec
  * `palette['ocean-dark']` would keep passing if the palette re-themed that token to near-white.
  *
  * Both controls sit directly on the row's opaque `palette.white` card (this leaf paints no tint behind either,
- * unlike the web badge's `bg-seafoam/10`), so white is the surface a reader actually sees behind them. See the
+ * unlike the web badge's `bg-action/10`), so white is the surface a reader actually sees behind them. See the
  * palette JSDoc in `@commise/ui`'s `tokens/colors.ts` for the seafoam-as-text rule.
  */
 describe('RecipeVersionList (native) — WCAG AA text contrast (SC 1.4.3)', () => {

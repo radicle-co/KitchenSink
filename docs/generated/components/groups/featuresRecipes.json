@@ -4,85 +4,18 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 109,
-        "implementations": 198,
-        "props": 778,
-        "documentedComponents": 109,
-        "implementationsWithModuleDoc": 198,
-        "implementationsWithComponentDoc": 115,
-        "documentedProps": 673,
+        "components": 93,
+        "implementations": 181,
+        "props": 782,
+        "documentedComponents": 93,
+        "implementationsWithModuleDoc": 181,
+        "implementationsWithComponentDoc": 98,
+        "documentedProps": 677,
         "classifiedComponents": 74,
         "componentsWithPatternTag": 26,
-        "crossPlatformComponents": 89
+        "crossPlatformComponents": 88
     },
     "components": [
-        {
-            "id": "featuresRecipes/actions/CloneIcon",
-            "name": "CloneIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/actions",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web",
-                "native"
-            ],
-            "crossPlatform": true,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "CloneIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes/actions — the recipe-action glyphs (web).\n\nHand-inlined stroked line icons, mirroring the `form/` and `wizard/` slices' convention (and the native\nleaf's `Feather` names one-to-one) rather than adding an icon dependency for a fixed, tiny set.\n\nEach glyph is **decorative**: the design-system `Button` wraps whatever it is handed in an `aria-hidden`\nslot, and the glyph carries `aria-hidden` itself as well, so it never contributes to the control's\naccessible name — the visible label owns that, which is what keeps name-based selection (RTL, Playwright,\nMaestro) stable.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/actions — the recipe-action glyphs (web)."
-                        }
-                    ],
-                    "description": "Copy — the CLONE affordance's glyph, everywhere it appears.\n\nIt lives here, shared, for the same reason the clone controls share one DS tier: \"what a clone action looks\nlike\" is ONE decision. The product has three clone affordances (the recipe-detail footer, the\ncollection-actions rail, and each public-discovery result card) and they previously disagreed on colour,\nshape and glyph. Re-typing the paths per call site is exactly how they drift apart again.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "CloneIcon",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/icons.native.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes/actions — the recipe-action glyphs (React Native leaf of `icons.tsx`).\n\nThe native idiom of the same glyph set: `@expo/vector-icons` `Feather` names, matched one-to-one to the web\nleaf's hand-inlined paths. The design-system `Button` hides whatever it is handed from the accessibility\ntree, so these are decorative and the visible label owns the accessible name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/actions — the recipe-action glyphs (React Native leaf of `icons.tsx`)."
-                        }
-                    ],
-                    "description": "Copy — the CLONE affordance's glyph, everywhere it appears.\n\nShared for the same reason the clone controls share one DS tier: \"what a clone action looks like\" is ONE\ndecision, and the product has three clone affordances that previously disagreed on colour, shape and glyph.\n\nThe colour is the DS `Button`'s `secondary` FOREGROUND (`palette.charcoal`), because the native Button makes\nthe CALLER supply the icon's colour while owning the label's — so a per-call-site literal is a standing\ninvitation for the glyph and its label to end up different colours. Single-sourcing it here means the three\nclone controls can only be wrong together, and only in one place. (If the `secondary` tier is ever re-toned\n— see the open `semantic.secondary === palette.coral` question — this constant moves with it.)",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
         {
             "id": "featuresRecipes/actions/MoreActionsMenu",
             "name": "MoreActionsMenu",
@@ -92,8 +25,7 @@
             "dir": "packages/apps/commise/features/recipes/src/actions",
             "kind": "unclassified",
             "patterns": [
-                "Menu button (WAI-ARIA disclosure) with a Facade over the DOM's imperative dismissal model — outside-click\n    through `contains()` and focus-return through `focus()`, neither of which React expresses declaratively.",
-                "Menu button (WAI-ARIA disclosure) with no Facade to build — React Native has no pointer \"outside click\",\n    so dismissal is ordinary state and this leaf stays a pure `props → JSX` surface."
+                "Composite — the panel lays out the caller's actions and owns where the destructive one goes"
             ],
             "platforms": [
                 "web",
@@ -108,15 +40,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/MoreActionsMenu.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — web \"More\" overflow menu (C4 wireframe parity).\n\nA minimal, keyboard-accessible disclosure that groups the recipe-detail header's SECONDARY owner actions\n(version history, delete, visibility) behind a single trigger, matching the wireframe's `[Edit] [More]`\nheader — Edit stays a primary, always-visible control outside this menu; everything else moves behind it.\nThe panel carries `role=\"menu\"` and the trigger `aria-haspopup=\"menu\"` / `aria-expanded`. Its content mixes\ntrue actions (buttons/links) with the visibility radiogroup — not uniform `menuitem`s — so this\ndeliberately does NOT implement full ARIA-menu roving-tabindex/arrow-key navigation, which would conflict\nwith the nested radiogroup's own semantics; every action stays reachable by ordinary Tab order instead.\n\nThis is intentionally lighter than the Radix `AlertDialog` the delete confirmation uses (see\n`RecipeDeleteDialog`): a non-modal disclosure needs no focus trap or portal, so hand-rolling open/close +\nEscape + outside-click stays proportionate to a cosmetic control rather than pulling in a whole menu\nlibrary. Open/close is local, ephemeral UI state — not business logic — so it is owned here (a headless\nmenu primitive) rather than lifted into the composing container; the component performs no navigation or\nmutation of its own, it only discloses whatever `children` the caller supplies (Composite/slot pattern).",
+                    "moduleDoc": "@commise/features-recipes — the web \"More actions\" overflow on the recipe detail (C4 wireframe parity).\n\nThe owner's SECONDARY actions (version history, visibility, delete) behind one `⋯` trigger named for the recipe;\nEdit stays the always-visible primary outside it. The panel is the design system's Popover — portaled, and\ncollision-aware against the page's chrome, so at a phone width it opens clear of the shell's bottom tab bar\ninstead of under it (finding D2) — and the destructive action is a structural slot drawn last, after a divider.\n\n⚠️ The panel is a non-modal `dialog`, not a `menu`: its content is links, buttons and the visibility radio group,\nand `role=\"menu\"` around that content (what this leaf used to claim) promised a roving-focus model it did not and\ncould not provide. Ordinary Tab order reaches every action. Turning visibility into menu items is the detail\nredesign of slice 6, which needs a ruling on what a cook without the premium plan is offered.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — web \"More\" overflow menu (C4 wireframe parity)."
+                            "text": "@commise/features-recipes — the web \"More actions\" overflow on the recipe detail (C4 wireframe parity)."
                         },
                         {
                             "name": "pattern",
-                            "text": "Menu button (WAI-ARIA disclosure) with a Facade over the DOM's imperative dismissal model — outside-click\n    through `contains()` and focus-return through `focus()`, neither of which React expresses declaratively."
+                            "text": "Composite — the panel lays out the caller's actions and owns where the destructive one goes"
                         }
                     ],
                     "description": "",
@@ -130,13 +62,29 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The secondary actions rendered inside the menu panel while it is open.",
+                            "description": "The secondary actions rendered inside the panel while it is open.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "destructive",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The one destructive action, if any: drawn last, after a divider (spec §1.11).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "recipeTitle",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe the actions act on, which names the trigger.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         }
                     ],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
+                    "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
@@ -148,15 +96,15 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/MoreActionsMenu.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — native \"More\" overflow menu (C4 wireframe parity).\n\nThe React Native leaf of `MoreActionsMenu` — same controlled-by-\nnothing, self-contained disclosure contract: a `[More]` trigger that reveals its `children` (the secondary\nowner actions — version history, delete, visibility) in an inline panel below it, mirroring the wireframe's\n`[Edit] [More]` header pattern. There is no on-device analog to a pointer \"outside click\", so dismissal here\nis simply re-pressing the trigger (the web leaf additionally supports Escape + outside-click, both web-only\naffordances). Open/close is local, ephemeral UI state owned by this headless menu primitive — not business\nlogic — so it stays here rather than in the composing screen.",
+                    "moduleDoc": "@commise/features-recipes — the native \"More actions\" overflow on the recipe detail (C4 wireframe parity).\n\nThe React Native leaf of `MoreActionsMenu`: a `⋯` trigger named for the recipe (44 pt on iOS, 48 dp on Android)\nthat reveals its actions in an INLINE panel below it, and announces collapsed and expanded. The destructive action\nis a structural slot drawn last, after a divider. There is no pointer \"outside\" on device, so the panel closes when\nthe trigger is pressed again. Open/close is local, ephemeral UI state, so it stays here.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — native \"More\" overflow menu (C4 wireframe parity)."
+                            "text": "@commise/features-recipes — the native \"More actions\" overflow on the recipe detail (C4 wireframe parity)."
                         },
                         {
                             "name": "pattern",
-                            "text": "Menu button (WAI-ARIA disclosure) with no Facade to build — React Native has no pointer \"outside click\",\n    so dismissal is ordinary state and this leaf stays a pure `props → JSX` surface."
+                            "text": "Composite — the panel lays out the caller's actions and owns where the destructive one goes"
                         }
                     ],
                     "description": "",
@@ -170,7 +118,25 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The secondary actions rendered inside the menu panel while it is open.",
+                            "description": "The secondary actions rendered inside the panel while it is open.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "destructive",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The one destructive action, if any: drawn last, after a divider (spec §1.11).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
+                        },
+                        {
+                            "name": "recipeTitle",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe the actions act on, which names the trigger.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         }
                     ],
@@ -315,8 +281,7 @@
             "dir": "packages/apps/commise/features/recipes/src/actions",
             "kind": "presentational",
             "patterns": [
-                "Adapter over the design-system `DialogFrame` — the platform expression of the web leaf's Radix\n    `AlertDialog` adapter, with the same controlled `props → JSX` contract.",
-                "Adapter over the house Radix `AlertDialog` — Radix owns the focus trap, Escape-to-dismiss and background\n    inert, so this leaf hand-rolls none of it and stays a controlled `props → JSX` render."
+                "Adapter over the design-system `ConfirmDialog` — the recipe's copy on the house confirmation"
             ],
             "platforms": [
                 "web",
@@ -331,15 +296,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeDeleteDialog.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — web recipe delete-confirmation dialog (T068 building block).\n\nControlled, presentational confirmation modal built on Radix `AlertDialog` (B6/CR-003 — mirrors\n`PullUpdatesDialog`'s `Dialog` usage, the semantic `alertdialog` variant for a destructive-action\nconfirmation): Radix owns the focus trap, Escape-to-dismiss, and background inert, so this component\nhand-rolls none of that (no `role=\"alertdialog\"` div). Renders nothing while `open` is false; when open it\nnames the recipe and offers cancel/confirm. `deleting` disables the confirm action and marks it busy so an\nin-flight delete cannot be double-submitted. It performs NO mutation — the composing app wires the delete\nmutation to `onConfirm`. `onOpenChange` maps every Radix close path (Escape, backdrop) onto the same\n`onCancel` the explicit Cancel control uses — one exit path, not two.\n\nFocus-return is handled explicitly, NOT left to Radix's default: `AlertDialog.Content` wraps\n`Dialog.Content`, whose built-in `onCloseAutoFocus` only restores focus to an OWNED `*.Trigger` (see\n`PullUpdatesDialog`'s module doc for the underlying Radix behavior). The \"Delete\" control that opens this\ndialog lives in the composing container (a sibling button, not an owned `AlertDialog.Trigger`), so that\ndefault silently focuses nothing. `useReturnFocusOnClose` (`@commise/ui/dialog-focus`) owns the repair for\nevery such surface: it snapshots `document.activeElement` at the render where `open` flips true — BEFORE\n`AlertDialog.Content` (and its own autofocus-on-mount, onto the Cancel action per the alertdialog pattern)\never commits — and returns the `onCloseAutoFocus` handler that restores it.",
+                    "moduleDoc": "@commise/features-recipes — web recipe delete-confirmation dialog (T068 building block; spec §6.5).\n\nThe recipe's delete confirmation, as the design system's `ConfirmDialog`: it names the recipe, offers \"Delete recipe\"\n(the filled destructive tone, `trash`) and \"Keep recipe\" (where focus opens), spins the confirm while `deleting`, says\n\"Deleting…\" politely, and shows a failure inside the dialog (B17). It performs NO mutation — the composing app wires\nthe delete to `onConfirm` — and every close path (Escape, the Keep button) is the one `onCancel`.\n\nFocus returns to the sibling control that opened it on close (`ConfirmDialog`'s `useReturnFocusOnClose`).\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — web recipe delete-confirmation dialog (T068 building block)."
+                            "text": "@commise/features-recipes — web recipe delete-confirmation dialog (T068 building block; spec §6.5)."
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over the house Radix `AlertDialog` — Radix owns the focus trap, Escape-to-dismiss and background\n    inert, so this leaf hand-rolls none of it and stays a controlled `props → JSX` render."
+                            "text": "Adapter over the design-system `ConfirmDialog` — the recipe's copy on the house confirmation"
                         }
                     ],
                     "description": "",
@@ -414,15 +379,15 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeDeleteDialog.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — native recipe delete-confirmation dialog (T068 building block).\n\nThe React Native leaf of `RecipeDeleteDialog` — same controlled,\npresentational contract: renders nothing while closed; when open it is an `alert`-role surface that names\nthe recipe and offers cancel/confirm, with the confirm action disabled and marked busy while `deleting`.\n\nBOTH actions are the design-system {@link Button}, so they carry the DS palette, the 44pt touch floor, the\nreduce-motion-safe press scale, and — for confirm — a real in-place `ActivityIndicator` plus the\ndisabled + `accessibilityState.busy` in-flight guard that used to be hand-rolled here as an opacity tweak.\n\nNote the web leaf's cancel deliberately is NOT the `Button` component: Radix's `AlertDialog.Cancel` owns its\nown element (it wires the close behaviour onto it), so web wears the DS surface via the shared class recipe\ninstead. There is no Radix on native — the cancel is an ordinary control — so this leaf uses the real\ncomponent for both, which is strictly better than mirroring a web-only constraint.\n\nCancel stays ENABLED while a delete is in flight: if the mutation hangs, disabling both actions would trap\nthe viewer in a modal with no way out.\n\nThe window, the scrim, the safe area, the keyboard, the capped card that scrolls and the title are the design\nsystem's `DialogFrame` (`docs/design/compactHeightLayout.md` §9), as an interrupting `alert`.",
+                    "moduleDoc": "@commise/features-recipes — native recipe delete-confirmation dialog (T068 building block; spec §6.5).\n\nThe recipe's delete confirmation, as the design system's `ConfirmDialog`: it names the recipe, offers \"Delete recipe\"\n(the filled destructive tone, `trash`) and \"Keep recipe\" (where focus opens), spins the confirm while `deleting`, says\n\"Deleting…\" politely, and shows a failure inside the dialog (B17). It performs NO mutation — the composing app wires\nthe delete to `onConfirm` — and every close path (Escape, the Keep button) is the one `onCancel`.\n\nThe screen-reader cursor opens on Keep, and Keep stays enabled while a delete is in flight: if the mutation hangs, a\ndialog with no way out would trap the cook.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — native recipe delete-confirmation dialog (T068 building block)."
+                            "text": "@commise/features-recipes — native recipe delete-confirmation dialog (T068 building block; spec §6.5)."
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over the design-system `DialogFrame` — the platform expression of the web leaf's Radix\n    `AlertDialog` adapter, with the same controlled `props → JSX` contract."
+                            "text": "Adapter over the design-system `ConfirmDialog` — the recipe's copy on the house confirmation"
                         }
                     ],
                     "description": "",
@@ -488,7 +453,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
+                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -945,7 +910,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CloneInfoPanel.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — web clone-info panel (W5 Task 8 building block).\n\nPresentational (pure props → JSX) render of the collection-view wireframe's \"CLONE INFO\" panel (C5): the\nsource collection's `@owner / \"name\"` attribution, the date this collection was cloned, and a View Source\ncontrol. Rendered by the composing container ONLY when the collection is a clone (W5 Task 12) — this leaf\nassumes it is always given clone props and holds no \"not a clone\" branch of its own. It fetches nothing\nand performs no mutations; the View Source interaction is delegated upward.\n\nView Source labels in `ocean-dark`, not `seafoam`: seafoam as a FOREGROUND is 4.02:1 on this white panel and\n3.57:1 under its own `hover:bg-seafoam/10` tint, both below the 4.5:1 body-text floor. The tint stays seafoam\n— see the palette JSDoc in `@commise/ui` for that (single, authoritative) accent-vs-text rule.",
+                    "moduleDoc": "@commise/features-recipes — web clone-info panel (W5 Task 8 building block).\n\nPresentational (pure props → JSX) render of the collection-view wireframe's \"CLONE INFO\" panel (C5): the\nsource collection's `@owner / \"name\"` attribution, the date this collection was cloned, and a View Source\ncontrol. Rendered by the composing container ONLY when the collection is a clone (W5 Task 12) — this leaf\nassumes it is always given clone props and holds no \"not a clone\" branch of its own. It fetches nothing\nand performs no mutations; the View Source interaction is delegated upward.\n\nView Source labels in `ocean-dark`, not `seafoam`: seafoam as a FOREGROUND is 4.02:1 on this white panel and\n3.57:1 under its own `hover:bg-action/10` tint, both below the 4.5:1 body-text floor. The tint stays seafoam\n— see the palette JSDoc in `@commise/ui` for that (single, authoritative) accent-vs-text rule.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1122,7 +1087,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionActions.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — web collection-actions sidebar (W5 Task 7 building block).\n\nPresentational (pure props → JSX) render of the collection-view wireframe's right-rail \"COLLECTION\nACTIONS\" panel: Add Recipes (FR-009), Pull Updates from Source (shown only for a cloned collection,\nFR-011), Clone Collection, and a two-stage, `canGoPrivate`-gated Public/Private visibility toggle with a\nSave action (C1, FR-010). Composes the same controlled-radio-group + specification-result shape as the\nsibling `RecipeVisibilityToggle`: `canGoPrivate`\narrives as a plain boolean (the composing container's policy-fn result) and `disabledReason` as\nalready-localized copy — the gate is that one boolean prop; this component holds no eligibility logic of\nits own. It fetches nothing and performs no mutations; every interaction is delegated upward.\n\n## Clone Collection is the design-system `Button` (`secondary`) — why, and why its siblings are NOT (yet)\n\nThis panel's Clone painted a solid-coral pill while the discovery card's clone painted a coral OUTLINE and\nthe recipe-detail clone painted a third variant: one action, three hand-rolled answers. The premise under\nall of them fails on inspection — no mockup contains a clone action at all, and the mockups never FILL a\nbutton coral (their coral button form is `border-2 border-coral text-coral` over glass, filling only on\nhover). Coral's documented role is the danger register (\"Destructive/secondary actions, highlights, warm\naccents\"), which the mockups spend on the Danger Zone and the allergy warning, and `palette.coral` (#E8917A)\nsits one hue from `palette.error` (#C05238) — so a filled-coral pill announced a safe, additive, reversible\naction in the language of destruction. Clone is a quiet SECONDARY action, so all three call sites now wear\nthe DS `secondary` tier and cannot drift apart again.\n\nPull Updates and Save changes LABEL in `ocean-dark`, not `seafoam`: seafoam as a FOREGROUND is 4.02:1 on this\nwhite panel and 3.57:1 under `hover:bg-seafoam/10`, both below the 4.5:1 body-text floor. Pull Updates' seafoam\nRING is untouched — a control boundary needs 3:1 (SC 1.4.11), which seafoam clears. See the palette JSDoc in\n`@commise/ui` for that (single, authoritative) accent-vs-text rule.\n\nThe sibling controls in this panel — Add Recipes (`bg-seafoam`), Pull Updates (a seafoam ring), Save changes\n(a bare text control) — are deliberately left hand-rolled in this change, and NOT because they are fine. They are\nblocked on a decision one layer down: `semantic.secondary` IS `palette.coral` and Tamagui's `light.secondary`\nis coral, yet the DS `secondary` tier renders a grey-bordered white pill while EVERY non-primary button in\nthe mockups is coral-outlined. Until that tier is resolved, \"Pull Updates\" has no DS tier that matches its\nseafoam ring, and migrating it would bake today's answer into three more call sites. Clone moved anyway\nbecause its defect is independent of that question: it was in the WRONG REGISTER, not merely the wrong tone.",
+                    "moduleDoc": "@commise/features-recipes — web collection-actions sidebar (W5 Task 7 building block).\n\nPresentational (pure props → JSX) render of the collection-view wireframe's right-rail \"COLLECTION\nACTIONS\" panel: Add Recipes (FR-009), Pull Updates from Source (shown only for a cloned collection,\nFR-011), Clone Collection, and a two-stage, `canGoPrivate`-gated Public/Private visibility toggle with a\nSave action (C1, FR-010). Composes the same controlled-radio-group + specification-result shape as the\nsibling `RecipeVisibilityToggle`: `canGoPrivate`\narrives as a plain boolean (the composing container's policy-fn result) and `disabledReason` as\nalready-localized copy — the gate is that one boolean prop; this component holds no eligibility logic of\nits own. It fetches nothing and performs no mutations; every interaction is delegated upward.\n\n## Clone Collection is the design-system `Button` (`secondary`) — why, and why its siblings are NOT (yet)\n\nThis panel's Clone painted a solid-coral pill while the discovery card's clone painted a coral OUTLINE and\nthe recipe-detail clone painted a third variant: one action, three hand-rolled answers. The premise under\nall of them fails on inspection — no mockup contains a clone action at all, and the mockups never FILL a\nbutton coral (their coral button form is `border-2 border-coral text-coral` over glass, filling only on\nhover). Coral's documented role is the danger register (\"Destructive/secondary actions, highlights, warm\naccents\"), which the mockups spend on the Danger Zone and the allergy warning, and `palette.coral` (#E8917A)\nsits one hue from `palette.error` (#C05238) — so a filled-coral pill announced a safe, additive, reversible\naction in the language of destruction. Clone is a quiet SECONDARY action, so all three call sites now wear\nthe DS `secondary` tier and cannot drift apart again.\n\nPull Updates and Save changes LABEL in `ocean-dark`, not `seafoam`: seafoam as a FOREGROUND is 4.02:1 on this\nwhite panel and 3.57:1 under `hover:bg-action/10`, both below the 4.5:1 body-text floor. Pull Updates' seafoam\nRING is untouched — a control boundary needs 3:1 (SC 1.4.11), which seafoam clears. See the palette JSDoc in\n`@commise/ui` for that (single, authoritative) accent-vs-text rule.\n\nThe sibling controls in this panel — Add Recipes (`bg-action`), Pull Updates (a seafoam ring), Save changes\n(a bare text control) — are deliberately left hand-rolled in this change, and NOT because they are fine. They are\nblocked on a decision one layer down: `semantic.secondary` IS `palette.coral` and Tamagui's `light.secondary`\nis coral, yet the DS `secondary` tier renders a grey-bordered white pill while EVERY non-primary button in\nthe mockups is coral-outlined. Until that tier is resolved, \"Pull Updates\" has no DS tier that matches its\nseafoam ring, and migrating it would bake today's answer into three more call sites. Clone moved anyway\nbecause its defect is independent of that question: it was in the WRONG REGISTER, not merely the wrong tone.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1803,7 +1768,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionHeader.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — web collection-header view (W5 Task 6 building block).\n\nPresentational (pure props → JSX) render of the collection-view wireframe's header zone: the collection\nname with its Edit/Delete affordances (C4), a visibility badge, the recipe count, source attribution for\na cloned collection, and its last-pulled date — plus the web-only Back affordance (C6). It fetches\nnothing and performs no mutations; every interaction is delegated upward.\n\nThe three READ foregrounds here — Back, Rename, and the visibility badge — label in `ocean-dark`, not\n`seafoam` (4.02:1 on white, 3.57:1 on the badge's own `bg-seafoam/10`, both under the 4.5:1 body-text floor).\nThe badge's tint stays seafoam; see the palette JSDoc in `@commise/ui` for that accent-vs-text rule.",
+                    "moduleDoc": "@commise/features-recipes — web collection-header view (W5 Task 6 building block).\n\nPresentational (pure props → JSX) render of the collection-view wireframe's header zone: the collection\nname with its Edit/Delete affordances (C4), a visibility badge, the recipe count, source attribution for\na cloned collection, and its last-pulled date — plus the web-only Back affordance (C6). It fetches\nnothing and performs no mutations; every interaction is delegated upward.\n\nThe three READ foregrounds here — Back, Rename, and the visibility badge — label in `ocean-dark`, not\n`seafoam` (4.02:1 on white, 3.57:1 on the badge's own `bg-action/10`, both under the 4.5:1 body-text floor).\nThe badge's tint stays seafoam; see the palette JSDoc in `@commise/ui` for that accent-vs-text rule.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2663,7 +2628,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionRecipePicker.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — web collection recipe-picker frame (the ADD half of T072 / FR-009).\n\nThe picker lists the caller's OWN recipes and adds them, one at a time, to a single named collection. This is its\nFRAME — heading, Done and the search field — a controlled, presentational view that fetches nothing and stays\nmounted around whichever body the composing app's read boundary renders: `CollectionRecipePickerCandidates` once\nthe candidates settle, or `CollectionRecipePickerLoading` / `CollectionRecipePickerLoadError` while they are\npending or failed. So the search field keeps its focus and value, and Done stays reachable, in every state.\n\nThe two bare text controls (Done here, Retry in the load-error body) label in `ocean-dark`, not `seafoam`: seafoam\nas a FOREGROUND is 4.02:1 on the white card and 3.57:1 under its own `hover:bg-seafoam/10` tint, both below the\n4.5:1 body-text floor. The tint itself stays seafoam — see the palette JSDoc in `@commise/ui` for that (single,\nauthoritative) accent-vs-text rule.",
+                    "moduleDoc": "@commise/features-recipes — web collection recipe-picker frame (the ADD half of T072 / FR-009).\n\nThe picker lists the caller's OWN recipes and adds them, one at a time, to a single named collection. This is its\nFRAME — heading, Done and the search field — a controlled, presentational view that fetches nothing and stays\nmounted around whichever body the composing app's read boundary renders: `CollectionRecipePickerCandidates` once\nthe candidates settle, or `CollectionRecipePickerLoading` / `CollectionRecipePickerLoadError` while they are\npending or failed. So the search field keeps its focus and value, and Done stays reachable, in every state.\n\nThe two bare text controls (Done here, Retry in the load-error body) label in `ocean-dark`, not `seafoam`: seafoam\nas a FOREGROUND is 4.02:1 on the white card and 3.57:1 under its own `hover:bg-action/10` tint, both below the\n4.5:1 body-text floor. The tint itself stays seafoam — see the palette JSDoc in `@commise/ui` for that (single,\nauthoritative) accent-vs-text rule.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3305,7 +3270,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/PullUpdatesDialog.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — native Pull-Updates preview dialog (W5 Task 10, C2 / FR-011).\n\nThe React Native leaf of `PullUpdatesDialog`: a\n{@link FullScreenSheet} rendering the SAME controlled, presentational contract as the web leaf — same\nstate precedence, same localized copy, so the two platforms can't drift. `onRequestClose` (the Android\nhardware-back / web-Escape path RN provides) is wired straight to `onCancel`, the same callback the\nexplicit Cancel control uses — one exit path, not two, mirroring the web leaf's `onOpenChange`→`onCancel`\nwiring.\n\nThe modal window and its safe-area padding belong to `FullScreenSheet`, not here. This leaf previously\nhand-rolled `<Modal presentationStyle=\"fullScreen\">` over a flat `padding: 20` surface, which on an\nedge-to-edge Android device drew the heading UNDER the status bar — fully occluded, and therefore absent\nfrom the accessibility hierarchy, which is how Maestro's `collectionsPull` flow caught it — and put the\nCancel/Pull row UNDER the navigation bar's own tap targets.\n\nA discriminated three-way state (mutually exclusive, matching {@link PullUpdatesDialogProps}'s JSDoc):\n(1) a `progressbar` affordance while `isLoadingPreview`, or before any `diff` has arrived; (2) an `alert`\nfor a failed preview/commit — `'drift'` (409, the previewed diff went stale) is deliberately NOT a dead\nend: the counts are hidden (they're no longer trustworthy) but Cancel/back still close the dialog, so the\ncomposing container (W5 Task 12) can re-run the preview; (3) the loaded `diff` — added/removed/unchanged\nCOUNTS only (this block never resolves recipe titles, it only received ids), the \"not overwritten\" note,\nand the count-templated Pull action, disabled while `isCommitting` or when there is nothing to add.",
+                    "moduleDoc": "@commise/features-recipes — native Pull-Updates preview dialog (W5 Task 10, C2 / FR-011).\n\nThe React Native leaf of `PullUpdatesDialog`: a\n{@link FullScreenSheet} rendering the SAME controlled, presentational contract as the web leaf — same\nstate precedence, same localized copy, so the two platforms can't drift. `onRequestClose` (the Android\nhardware-back / web-Escape path RN provides) is wired straight to `onCancel`, the same callback the\nexplicit Cancel control uses — one exit path, not two, mirroring the web leaf's `onOpenChange`→`onCancel`\nwiring.\n\nThe modal window and its safe-area padding belong to `FullScreenSheet`, not here. This leaf previously\nhand-rolled `<Modal presentationStyle=\"fullScreen\">` over a flat `padding: 20` surface, which on an\nedge-to-edge Android device drew the heading UNDER the status bar — fully occluded, and therefore absent\nfrom the accessibility hierarchy, which is how Maestro's `collectionsPull` flow caught it — and put the\nCancel/Pull row UNDER the navigation bar's own tap targets.\n\nA discriminated three-way state (mutually exclusive, matching {@link PullUpdatesDialogProps}'s JSDoc):\n(1) a `progressbar` affordance while `isLoadingPreview`, or before any `diff` has arrived; (2) an `alert`\nfor a failed preview/commit — `'drift'` (409, the previewed diff went stale) is deliberately NOT a dead\nend: the counts are hidden (they're no longer trustworthy) but Cancel/back still close the dialog, so the\ncomposing container (W5 Task 12) can re-run the preview; (3) the loaded `diff` — added/removed/unchanged\nCOUNTS only (this block never resolves recipe titles, it only received ids), the \"not overwritten\" note,\nand the count-templated Pull action, busy while `isCommitting`, disabled when there is nothing to add.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3701,7 +3666,7 @@
                             "text": "@commise/features-recipes — web recipe-widget card shell (skeleton building block)."
                         }
                     ],
-                    "description": "Section container for the recipe Home widget on web. The accessible name is the\nwidget title so assistive tech can navigate between Home widgets by heading.\n\nDeliberately carries NO surface of its own — no background, shadow, or ring. The mockup's\nsection-level Home widgets (Recent Recipes, This Week's Meals) are a heading row plus their grid\ndirectly on the page background, and the U8 frosted-glass treatment lives on each CARD inside.\nAn opaque `bg-card` (#FFFFFF) here would sit between the page and `glass.card`'s translucent\nrgba(255,255,255,0.85), rendering the glass and its saturate() as flat white-on-white — the brand\nsurface would be present in the DOM yet invisible on screen. (The roadmap placeholders are a\ndifferent shape: they ARE cards, via `PlaceholderWidgetCard`.)",
+                    "description": "Section container for the recipe Home widget on web. The accessible name is the\nwidget title so assistive tech can navigate between Home widgets by heading.\n\nDeliberately carries NO surface of its own — no background, shadow, or ring. The mockup's\nsection-level Home widgets (Recent Recipes, This Week's Meals) are a heading row plus their grid\ndirectly on the page background, and the U8 frosted-glass treatment lives on each CARD inside.\nAn opaque `bg-paper` (#FFFFFF) here would sit between the page and `glass.card`'s translucent\nrgba(255,255,255,0.85), rendering the glass and its saturate() as flat white-on-white — the brand\nsurface would be present in the DOM yet invisible on screen. (The roadmap placeholders are a\ndifferent shape: they ARE cards, via `PlaceholderWidgetCard`.)",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -7998,48 +7963,6 @@
             ]
         },
         {
-            "id": "featuresRecipes/form/AlertIcon",
-            "name": "AlertIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/form",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "AlertIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24×24) matching the mockups — a plus for the \"add\"\nactions, a trash for \"remove\", a check for submit, an x for cancel. Hand-inlined rather than a new icon\ndependency: the set is fixed and tiny, so a dependency would cost more than it saves (YAGNI), and these\nmirror the native leaf's Feather names one-to-one.\n\nEach glyph is **decorative**: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it\ncarries `aria-hidden` itself as well, so it never contributes to the button's accessible name (the label\nowns that). Consumers pass the element to `Button`'s `icon` prop.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Alert — slot 1's state glyph on a row the cook can act on (plan 002 V1). A triangle, distinct by SHAPE from Info.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "featuresRecipes/form/AuthoredFoodSheet",
             "name": "AuthoredFoodSheet",
             "group": "featuresRecipes",
@@ -8378,48 +8301,6 @@
             ]
         },
         {
-            "id": "featuresRecipes/form/CheckIcon",
-            "name": "CheckIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/form",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "CheckIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24×24) matching the mockups — a plus for the \"add\"\nactions, a trash for \"remove\", a check for submit, an x for cancel. Hand-inlined rather than a new icon\ndependency: the set is fixed and tiny, so a dependency would cost more than it saves (YAGNI), and these\nmirror the native leaf's Feather names one-to-one.\n\nEach glyph is **decorative**: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it\ncarries `aria-hidden` itself as well, so it never contributes to the button's accessible name (the label\nowns that). Consumers pass the element to `Button`'s `icon` prop.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Check — the primary submit (create / save).",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "featuresRecipes/form/ChipInput",
             "name": "ChipInput",
             "group": "featuresRecipes",
@@ -8719,48 +8600,6 @@
             ]
         },
         {
-            "id": "featuresRecipes/form/InfoIcon",
-            "name": "InfoIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/form",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "InfoIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24×24) matching the mockups — a plus for the \"add\"\nactions, a trash for \"remove\", a check for submit, an x for cancel. Hand-inlined rather than a new icon\ndependency: the set is fixed and tiny, so a dependency would cost more than it saves (YAGNI), and these\nmirror the native leaf's Feather names one-to-one.\n\nEach glyph is **decorative**: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it\ncarries `aria-hidden` itself as well, so it never contributes to the button's accessible name (the label\nowns that). Consumers pass the element to `Button`'s `icon` prop.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Info — slot 1's state glyph on a row with nothing to fix (plan 002 V1). A circle, distinct by SHAPE from Alert.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "featuresRecipes/form/NutritionPanelBody",
             "name": "NutritionPanelBody",
             "group": "featuresRecipes",
@@ -8870,48 +8709,6 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/form/PlusIcon",
-            "name": "PlusIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/form",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "PlusIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24×24) matching the mockups — a plus for the \"add\"\nactions, a trash for \"remove\", a check for submit, an x for cancel. Hand-inlined rather than a new icon\ndependency: the set is fixed and tiny, so a dependency would cost more than it saves (YAGNI), and these\nmirror the native leaf's Feather names one-to-one.\n\nEach glyph is **decorative**: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it\ncarries `aria-hidden` itself as well, so it never contributes to the button's accessible name (the label\nowns that). Consumers pass the element to `Button`'s `icon` prop.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Plus — the \"add ingredient / add step\" actions, and the recipes FAB.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -9543,90 +9340,6 @@
             ]
         },
         {
-            "id": "featuresRecipes/form/RetryIcon",
-            "name": "RetryIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/form",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RetryIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24×24) matching the mockups — a plus for the \"add\"\nactions, a trash for \"remove\", a check for submit, an x for cancel. Hand-inlined rather than a new icon\ndependency: the set is fixed and tiny, so a dependency would cost more than it saves (YAGNI), and these\nmirror the native leaf's Feather names one-to-one.\n\nEach glyph is **decorative**: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it\ncarries `aria-hidden` itself as well, so it never contributes to the button's accessible name (the label\nowns that). Consumers pass the element to `Button`'s `icon` prop.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Retry — the \"Try again\" actions (a failed nutrition read, a failed lookup).",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/form/SearchIcon",
-            "name": "SearchIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/form",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "SearchIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24×24) matching the mockups — a plus for the \"add\"\nactions, a trash for \"remove\", a check for submit, an x for cancel. Hand-inlined rather than a new icon\ndependency: the set is fixed and tiny, so a dependency would cost more than it saves (YAGNI), and these\nmirror the native leaf's Feather names one-to-one.\n\nEach glyph is **decorative**: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it\ncarries `aria-hidden` itself as well, so it never contributes to the button's accessible name (the label\nowns that). Consumers pass the element to `Button`'s `icon` prop.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "A magnifier: search for a different food (row 6's None of these).",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "featuresRecipes/form/ShortlistPanel",
             "name": "ShortlistPanel",
             "group": "featuresRecipes",
@@ -9905,48 +9618,6 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/form/TrashIcon",
-            "name": "TrashIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/form",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "TrashIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24×24) matching the mockups — a plus for the \"add\"\nactions, a trash for \"remove\", a check for submit, an x for cancel. Hand-inlined rather than a new icon\ndependency: the set is fixed and tiny, so a dependency would cost more than it saves (YAGNI), and these\nmirror the native leaf's Feather names one-to-one.\n\nEach glyph is **decorative**: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it\ncarries `aria-hidden` itself as well, so it never contributes to the button's accessible name (the label\nowns that). Consumers pass the element to `Button`'s `icon` prop.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/form/icons — the recipe-form action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Trash — the \"remove ingredient / remove step\" destructive actions.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
                     }
                 }
             ]
@@ -13985,342 +13656,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/widget/RecipeHomeWidget.native.tsx"
                         }
                     ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/wizard/ArrowLeftIcon",
-            "name": "ArrowLeftIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/wizard",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ArrowLeftIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/wizard",
-                    "moduleDoc": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24x24), matching `../form/icons.tsx`'s convention\n(fixed, tiny set — a dependency would cost more than it saves, YAGNI) and mirroring the native leaf's\nFeather names one-to-one (`save`, `eye`, `chevron-left`, `chevron-right`).\n\nEach glyph is decorative: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it carries\n`aria-hidden` itself too, so it never contributes to the button's accessible name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Arrow-left — the sticky header's BACK affordance (U32), which below `lg` replaces the overflow menu's\n`Cancel` item. Deliberately distinct from {@link ChevronLeftIcon}: the chevron means \"one step back inside\nthis wizard\", the arrow means \"leave the wizard\". Mirrors the native leaf's `Feather` name `arrow-left`.\n\n⚠️ This REPLACED `EyeIcon` (the deleted Preview action) rather than being added beside it — the sheet's\nexport count is pinned by `oneFileOneThing.test.ts`'s icon-set ruling, so a net addition here is a gate\nfailure, not a silent growth.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/wizard/CheckIcon",
-            "name": "CheckIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/wizard",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "CheckIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/wizard",
-                    "moduleDoc": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24x24), matching `../form/icons.tsx`'s convention\n(fixed, tiny set — a dependency would cost more than it saves, YAGNI) and mirroring the native leaf's\nFeather names one-to-one (`save`, `eye`, `chevron-left`, `chevron-right`).\n\nEach glyph is decorative: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it carries\n`aria-hidden` itself too, so it never contributes to the button's accessible name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Check — the footer \"Publish\" primary (mirrors the native leaf's `Feather` name `check`).",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/wizard/ChevronLeftIcon",
-            "name": "ChevronLeftIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/wizard",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ChevronLeftIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/wizard",
-                    "moduleDoc": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24x24), matching `../form/icons.tsx`'s convention\n(fixed, tiny set — a dependency would cost more than it saves, YAGNI) and mirroring the native leaf's\nFeather names one-to-one (`save`, `eye`, `chevron-left`, `chevron-right`).\n\nEach glyph is decorative: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it carries\n`aria-hidden` itself too, so it never contributes to the button's accessible name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Chevron-left — the footer \"Prev\" nav.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/wizard/ChevronRightIcon",
-            "name": "ChevronRightIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/wizard",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ChevronRightIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/wizard",
-                    "moduleDoc": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24x24), matching `../form/icons.tsx`'s convention\n(fixed, tiny set — a dependency would cost more than it saves, YAGNI) and mirroring the native leaf's\nFeather names one-to-one (`save`, `eye`, `chevron-left`, `chevron-right`).\n\nEach glyph is decorative: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it carries\n`aria-hidden` itself too, so it never contributes to the button's accessible name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Chevron-right — the footer \"Next\" nav.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/wizard/MinusIcon",
-            "name": "MinusIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/wizard",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "MinusIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/wizard",
-                    "moduleDoc": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24x24), matching `../form/icons.tsx`'s convention\n(fixed, tiny set — a dependency would cost more than it saves, YAGNI) and mirroring the native leaf's\nFeather names one-to-one (`save`, `eye`, `chevron-left`, `chevron-right`).\n\nEach glyph is decorative: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it carries\n`aria-hidden` itself too, so it never contributes to the button's accessible name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Minus — the details dialog's \"Remove details\" (mirrors the native leaf's `Feather` name `minus`).",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/wizard/MoreVerticalIcon",
-            "name": "MoreVerticalIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/wizard",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "MoreVerticalIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/wizard",
-                    "moduleDoc": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24x24), matching `../form/icons.tsx`'s convention\n(fixed, tiny set — a dependency would cost more than it saves, YAGNI) and mirroring the native leaf's\nFeather names one-to-one (`save`, `eye`, `chevron-left`, `chevron-right`).\n\nEach glyph is decorative: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it carries\n`aria-hidden` itself too, so it never contributes to the button's accessible name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "More-vertical (kebab) — the header's overflow (\"More actions\") trigger (U6). Three stacked dots; mirrors\nthe native leaf's `Feather` name `more-vertical`. Decorative like the rest of the set: `aria-hidden`, so the\ntrigger's own `aria-label` owns the accessible name. Rendered directly (not via {@link Glyph}) because the\ndots are `<circle>`s, not a single stroked path.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/wizard/RefreshIcon",
-            "name": "RefreshIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/wizard",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RefreshIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/wizard",
-                    "moduleDoc": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24x24), matching `../form/icons.tsx`'s convention\n(fixed, tiny set — a dependency would cost more than it saves, YAGNI) and mirroring the native leaf's\nFeather names one-to-one (`save`, `eye`, `chevron-left`, `chevron-right`).\n\nEach glyph is decorative: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it carries\n`aria-hidden` itself too, so it never contributes to the button's accessible name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Refresh — the parse review's \"try the unfinished lines again\" action.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/wizard/SaveIcon",
-            "name": "SaveIcon",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/wizard",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "SaveIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/wizard",
-                    "moduleDoc": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web).\n\nSmall, hand-inlined stroked line icons (Feather set, 24x24), matching `../form/icons.tsx`'s convention\n(fixed, tiny set — a dependency would cost more than it saves, YAGNI) and mirroring the native leaf's\nFeather names one-to-one (`save`, `eye`, `chevron-left`, `chevron-right`).\n\nEach glyph is decorative: the shared `@commise/ui` Button already wraps it `aria-hidden`, and it carries\n`aria-hidden` itself too, so it never contributes to the button's accessible name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/wizard/icons — the wizard chrome's action-button glyphs (web)."
-                        }
-                    ],
-                    "description": "Save — the \"Save Draft\" top-bar action.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {

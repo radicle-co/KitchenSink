@@ -49,17 +49,17 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
                                     type="button"
                                     onClick={() => onSelect(collection.id)}
                                     aria-label={collection.name}
-                                    className="flex w-full flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-md"
+                                    className="flex w-full flex-col gap-1 rounded-2xl bg-paper p-5 text-left shadow-sm ring-1 ring-line-divider transition hover:-translate-y-0.5 hover:shadow-md"
                                 >
-                                    {/* `group-hover:text-ocean-dark`, not seafoam: at 20px/600 this name is NOT
+                                    {/* `group-hover:text-action-text`, not seafoam: at 20px/600 this name is NOT
                                         WCAG "large text" (which needs ≥18.66px BOLD), so the 4.5:1 body floor
                                         governs the hovered state too — seafoam scored 4.02:1, i.e. pointing at a
                                         card made its own title harder to read. */}
-                                    <span className="font-display text-heading-md font-semibold text-charcoal transition-colors group-hover:text-ocean-dark">
+                                    <span className="font-display text-heading-md font-semibold text-ink transition-colors group-hover:text-action-text">
                                         {collection.name}
                                     </span>
                                     {collection.description !== undefined && collection.description.length > 0 && (
-                                        <span className="text-body-sm text-slate">{collection.description}</span>
+                                        <span className="text-body-sm text-ink-muted">{collection.description}</span>
                                     )}
                                 </button>
                             </li>

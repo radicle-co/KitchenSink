@@ -23,7 +23,6 @@ import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { Sheet } from '@commise/ui/sheet';
 import { TextInput } from '@commise/ui/text-input';
-import { Feather } from '@expo/vector-icons';
 import { useState, type FC, type ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View, type TextInput as NativeTextInput } from 'react-native';
 
@@ -247,11 +246,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ing
                 closeLabel={m.filtersClose}
                 size="content"
                 footer={
-                    <Button
-                        icon={<Feather name="check" size={16} color={palette.white} />}
-                        width="fill"
-                        onPress={() => onOpenChange(false)}
-                    >
+                    <Button icon="check" width="fill" onPress={() => onOpenChange(false)}>
                         {m.filtersDone}
                     </Button>
                 }

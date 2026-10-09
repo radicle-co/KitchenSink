@@ -21,7 +21,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
-import { CloneIcon } from '../actions/icons.js';
 import { collectionMessages } from './messages.js';
 import type { CollectionActionsProps } from './model.js';
 
@@ -56,33 +55,21 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
     return (
         <View collapsable={false} accessibilityLabel={actions.heading} style={styles.container}>
             <View style={styles.buttonStack}>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={actions.addRecipes}
-                    onPress={onAddRecipes}
-                    style={styles.primaryButton}
-                >
-                    <Text style={styles.primaryLabel}>{actions.addRecipes}</Text>
-                </Pressable>
+                <Button icon="plus" onPress={onAddRecipes}>
+                    {actions.addRecipes}
+                </Button>
                 {isCloned && (
                     <View style={styles.actionGroup}>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={actions.pullUpdates}
-                            aria-busy={isPulling || undefined}
-                            disabled={isPulling}
-                            onPress={onPullUpdates}
-                            style={[styles.secondaryButton, isPulling && styles.buttonDisabled]}
-                        >
-                            <Text style={styles.secondaryLabel}>{actions.pullUpdates}</Text>
-                        </Pressable>
+                        <Button variant="secondary" icon="refreshCw" busy={isPulling} onPress={onPullUpdates}>
+                            {actions.pullUpdates}
+                        </Button>
                         {isPulling && <Text style={styles.statusLabel}>{actions.pullingLabel}</Text>}
                     </View>
                 )}
                 <View style={styles.actionGroup}>
                     {/* `busy` supplies the in-place `ActivityIndicator`, the disabled in-flight guard (so the
                         clone cannot be double-fired), and the `accessibilityState.busy` announcement. */}
-                    <Button variant="secondary" icon={<CloneIcon />} busy={isCloning} onPress={onClone}>
+                    <Button variant="secondary" icon="copyPlus" busy={isCloning} onPress={onClone}>
                         {actions.cloneCollection}
                     </Button>
                     {isCloning && <Text style={styles.statusLabel}>{actions.cloningLabel}</Text>}
@@ -125,17 +112,11 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
                     </Pressable>
                 </View>
                 {showReason && <Text style={styles.reason}>{disabledReason}</Text>}
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={actions.saveVisibility}
-                    disabled={!canSave}
-                    onPress={onSaveVisibility}
-                    style={styles.saveButton}
-                >
-                    <Text style={[styles.saveLabel, !canSave && styles.saveLabelDisabled]}>
+                <View style={styles.saveAction}>
+                    <Button variant="ghost" icon="check" disabled={!canSave} onPress={onSaveVisibility}>
                         {actions.saveVisibility}
-                    </Text>
-                </Pressable>
+                    </Button>
+                </View>
             </View>
         </View>
     );
@@ -143,32 +124,13 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
 
 const styles = StyleSheet.create({
     container: { gap: 16, padding: 20, borderRadius: 16, backgroundColor: palette.white },
-    buttonStack: { gap: 8 },
+    // Every action hugs its label (RN stretches a column's children; the DS Button carries no self-alignment).
+    buttonStack: { gap: 8, alignItems: 'flex-start' },
     // `alignItems: 'flex-start'` keeps the pill hugging its label rather than stretching to the rail's full
     // width — the job the removed `alignSelf: 'flex-start'` on the hand-rolled clone surface did. (RN stretches
     // a column's children by default; the DS Button carries no self-alignment of its own.) Mirrors the web
     // leaf's `items-start`.
     actionGroup: { gap: 4, alignItems: 'flex-start' },
-    primaryButton: {
-        alignSelf: 'flex-start',
-        backgroundColor: palette.seafoam,
-        borderRadius: 999,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-    },
-    primaryLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
-    secondaryButton: {
-        alignSelf: 'flex-start',
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: palette.seafoam,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-    },
-    // `ocean-dark`, not `seafoam`: seafoam as a text FOREGROUND is 4.02:1 on this panel's white surface, under
-    // the 4.5:1 body-text floor. `secondaryButton`'s seafoam BORDER above is a 3:1 control boundary and stays.
-    secondaryLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
-    buttonDisabled: { opacity: 0.6 },
     statusLabel: { fontSize: 13, color: palette.slate },
     wrap: { gap: 8 },
     segment: {
@@ -185,7 +147,5 @@ const styles = StyleSheet.create({
     optionLabel: { fontSize: 14, fontWeight: '500', color: palette.slate },
     optionLabelActive: { color: palette.charcoal, fontWeight: '600' },
     reason: { fontSize: 13, color: palette['warning-dark'] },
-    saveButton: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 16 },
-    saveLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
-    saveLabelDisabled: { color: palette.slate },
+    saveAction: { alignSelf: 'flex-start' },
 });

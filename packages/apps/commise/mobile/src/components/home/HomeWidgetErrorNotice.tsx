@@ -51,7 +51,7 @@ export function HomeWidgetErrorNotice(): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-    // The native projection of web's `text-body-sm text-slate` — sourced from the SHARED tokens, so the two
+    // The native projection of web's `text-body-sm text-ink-muted` — sourced from the SHARED tokens, so the two
     // platforms' failure copy reads at the same weight in the layout rather than drifting apart by hand.
     notice: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
 });

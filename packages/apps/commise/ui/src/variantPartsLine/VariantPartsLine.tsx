@@ -26,9 +26,9 @@ import type { VariantPartsLineProps, VariantPartsTone } from './props.js';
 import { PART_SEPARATOR, partRuns } from './variantPartsText.js';
 
 const TONE_CLASS: Readonly<Record<VariantPartsTone, string>> = {
-    // `slate` on white is 5.24:1.
-    secondary: 'text-body-sm text-slate',
-    primary: 'text-body-md text-charcoal',
+    // `inkMuted` on `paper`, in either theme (`darkTheme.md` §3.1).
+    secondary: 'text-body-sm text-ink-muted',
+    primary: 'text-body-md text-ink',
 };
 
 /** The dotted line: phrasing content, so it fits inside a button, an option or a sentence. The caller places it. */
@@ -39,7 +39,7 @@ export const VariantPartsLine: FC<VariantPartsLineProps> = ({ parts, tone }) => 
             <Fragment key={index}>
                 {index === 0 ? null : (
                     <>
-                        {/* The dot takes the text colour: `mist` is 1.90:1, and the dot does the separating. */}
+                        {/* The dot takes the text colour: a divider tone is under 3:1, and the dot does the separating. */}
                         <span aria-hidden="true">{PART_SEPARATOR}</span>
                         <span className="sr-only">,</span>{' '}
                     </>

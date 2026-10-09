@@ -20,7 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
-import { palette } from '@commise/ui';
+import { role } from '@commise/ui/colors';
 import { accountDangerMessages } from '@commise/features-account/danger';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
@@ -130,16 +130,15 @@ describe('AccountDangerZone (native) — closure vs erasure are distinct', () =>
 });
 
 describe('AccountDangerZone (native) — design-system surfaces (U4b)', () => {
-    it('paints the close trigger as the coral-outlined secondary tier, on palette', () => {
+    it('paints the close trigger as the neutral secondary tier, on the role tokens', () => {
         render(<AccountDangerZone />);
 
         const trigger = screen.getByRole('button', { name: close.trigger });
 
-        // The label is the tier's slate — NOT the off-palette `#2C3E50` the hand-rolled Pressable used, and
-        // not the mockups' coral-as-text (2.40:1, below the WCAG-AA floor the DS tier holds at 5.24:1).
-        expect(window.getComputedStyle(screen.getByText(close.trigger)).color).toBe(rgb(palette.slate));
-        // …and its surface carries the design system's own accent edge, not an inlined mist hex.
-        expect(borderColours(trigger)).toContain(rgb(palette.coral));
+        // ⚠️ REWRITTEN in UI-overhaul slice 2 (the owner overruled coral on every control): the label is the tier's
+        // `ink` — NOT the off-palette `#2C3E50` the hand-rolled Pressable used — on the `lineControl` edge.
+        expect(window.getComputedStyle(screen.getByText(close.trigger)).color).toBe(rgb(role.ink));
+        expect(borderColours(trigger)).toContain(rgb(role.lineControl));
     });
 
     it('paints the erase trigger as the destructive tier, on palette', () => {
@@ -147,9 +146,9 @@ describe('AccountDangerZone (native) — design-system surfaces (U4b)', () => {
 
         const trigger = screen.getByRole('button', { name: erase.trigger });
 
-        // `palette.error`, NOT the off-palette `#E74C3C`.
-        expect(window.getComputedStyle(screen.getByText(erase.trigger)).color).toBe(rgb(palette['error-dark']));
-        expect(borderColours(trigger)).toContain(rgb(palette.error));
+        // The `dangerText` role, NOT the off-palette `#E74C3C`, on the neutral destructive surface.
+        expect(window.getComputedStyle(screen.getByText(erase.trigger)).color).toBe(rgb(role.dangerText));
+        expect(borderColours(trigger)).toContain(rgb(role.lineControl));
     });
 
     it('clears the 44pt touch floor on both triggers (U4 / RC-3)', () => {

@@ -7,9 +7,10 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import { TextInput } from '@commise/ui/text-input';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { collectionMessages } from './messages.js';
 import type { CollectionFormProps } from './model.js';
@@ -53,24 +54,12 @@ export const CollectionForm: FC<CollectionFormProps> = ({
                 </Text>
             )}
             <View style={styles.actions}>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={submitLabel}
-                    disabled={submitting}
-                    onPress={onSubmit}
-                    style={[styles.primaryButton, submitting && styles.disabled]}
-                >
-                    <Text style={styles.primaryLabel}>{submitLabel}</Text>
-                </Pressable>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={form.cancel}
-                    disabled={submitting}
-                    onPress={onCancel}
-                    style={styles.ghostButton}
-                >
-                    <Text style={styles.ghostLabel}>{form.cancel}</Text>
-                </Pressable>
+                <Button icon="check" busy={submitting} onPress={onSubmit}>
+                    {submitLabel}
+                </Button>
+                <Button variant="ghost" disabled={submitting} onPress={onCancel}>
+                    {form.cancel}
+                </Button>
             </View>
         </View>
     );
@@ -99,9 +88,4 @@ const styles = StyleSheet.create({
     },
     error: { color: palette['error-dark'], fontSize: 13 },
     actions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
-    primaryButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 24 },
-    disabled: { opacity: 0.6 },
-    primaryLabel: { color: palette.white, fontWeight: '600', fontSize: 15 },
-    ghostButton: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16 },
-    ghostLabel: { color: palette.slate, fontWeight: '500', fontSize: 14 },
 });

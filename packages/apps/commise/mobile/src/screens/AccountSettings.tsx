@@ -21,7 +21,6 @@ import { Button } from '@commise/ui/button';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
-import { Feather } from '@expo/vector-icons';
 import { useState, type JSX } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -49,11 +48,7 @@ export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps = {
             <ScrollView contentContainerStyle={styles.container}>
                 {onBack ? (
                     <View style={styles.backRow}>
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="arrow-left" size={16} color={palette.charcoal} />}
-                            onPress={onBack}
-                        >
+                        <Button variant="secondary" icon="chevronLeft" onPress={onBack}>
                             {t.backAction}
                         </Button>
                     </View>

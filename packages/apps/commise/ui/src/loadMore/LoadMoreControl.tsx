@@ -32,14 +32,14 @@ export const LoadMoreControl: FC<LoadMoreControlProps> = ({ hasMore, loading, fa
 
     return (
         <div className="flex flex-col items-center gap-2">
-            <p id={messageId} role="alert" className="text-center text-body-sm text-slate empty:sr-only">
+            <p id={messageId} role="alert" className="text-center text-body-sm text-ink-muted empty:sr-only">
                 {showFailure ? labels.failed : ''}
             </p>
             <button
                 type="button"
                 {...busyControlProps({ busy: loading, onClick: onLoadMore })}
                 aria-describedby={showFailure ? messageId : undefined}
-                className={`inline-flex min-h-11 items-center justify-center rounded-full bg-pearl px-6 py-2.5 text-body-sm font-semibold text-charcoal transition hover:bg-mist/40 md:min-h-0 ${BUSY_CONTROL_CLASS}`}
+                className={`inline-flex min-h-11 items-center justify-center rounded-full bg-surface-muted px-6 py-2.5 text-body-sm font-semibold text-ink transition hover:bg-ink/6 md:min-h-0 ${BUSY_CONTROL_CLASS}`}
             >
                 {loading ? labels.loadingMore : failed ? labels.retry : labels.loadMore}
             </button>

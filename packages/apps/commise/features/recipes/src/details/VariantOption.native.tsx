@@ -6,7 +6,7 @@
  * variant (React Native has no listbox option). It shows the parts, the `Current` word under them, and the calories
  * at the end, which wrap under the parts below 12rem of room, scaled by the text size. A tap commits.
  */
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
@@ -54,7 +54,7 @@ export const VariantOption: FC<VariantOptionProps> = ({
     >
         {hasCheckColumn && (
             <View style={styles.check} aria-hidden>
-                {isCurrent && <Feather name="check" size={16} color={palette['ocean-dark']} />}
+                {isCurrent && <Icon name="check" size={16} tone="actionText" />}
             </View>
         )}
         <View style={styles.body}>

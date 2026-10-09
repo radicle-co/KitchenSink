@@ -17,16 +17,27 @@
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { palette, tint } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { StandInProps } from './props.js';
 
 /** The stand-in chip: dashed, and as wide as its words allow. */
-export const StandIn: FC<StandInProps> = ({ tone, children }) => (
-    <View style={[styles.chip, tone === 'caution' ? styles.cautionChip : styles.neutralChip]}>
-        <Text style={[styles.label, tone === 'caution' ? styles.cautionLabel : styles.neutralLabel]}>{children}</Text>
-    </View>
-);
+export const StandIn: FC<StandInProps> = ({ tone, children }) => {
+    const { colors } = useTheme();
+
+    return (
+        <View
+            style={[
+                styles.chip,
+                tone === 'caution'
+                    ? { borderColor: colors.attention, backgroundColor: colors.attentionTint }
+                    : { borderColor: colors.inkMuted, backgroundColor: colors.paper },
+            ]}
+        >
+            <Text style={[styles.label, { color: tone === 'caution' ? colors.ink : colors.inkMuted }]}>{children}</Text>
+        </View>
+    );
+};
 
 const styles = StyleSheet.create({
     chip: {
@@ -38,11 +49,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[2],
         paddingVertical: 2,
     },
-    // `slate` on white is 5.24:1.
-    neutralChip: { borderColor: palette.slate, backgroundColor: palette.white },
-    // ⛔ `warning` is a FILL under a charcoal label, never a text colour; the border is `warning-dark`.
-    cautionChip: { borderColor: palette['warning-dark'], backgroundColor: tint(palette.warning, 0.25) },
+    // Colours come from the theme at render: neutral is an `inkMuted` edge and label on `paper`; caution is the
+    // `attention` edge on the `attentionTint` fill under an `ink` label (the tint is a FILL, never a text colour).
     label: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', flexShrink: 1 },
-    neutralLabel: { color: palette.slate },
-    cautionLabel: { color: palette.charcoal },
 });

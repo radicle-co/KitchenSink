@@ -37,7 +37,7 @@ export interface RecipeCalorieSkeletonProps {
  * lands in the space the skeleton already held. `inline-block` keeps it in the row's flex flow exactly as the
  * chip's `<span>` sits there.
  */
-const SHIMMER_CLASS = 'inline-block h-4 w-14 animate-pulse rounded bg-pearl motion-reduce:animate-none';
+const SHIMMER_CLASS = 'inline-block h-4 w-14 animate-pulse rounded bg-surface-muted motion-reduce:animate-none';
 
 /**
  * The in-flight placeholder for one recipe's calorie figure.

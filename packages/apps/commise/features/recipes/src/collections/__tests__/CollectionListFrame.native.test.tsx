@@ -9,6 +9,7 @@ import { fireEvent } from '@testing-library/dom';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionListFrame } from '../CollectionListFrame.native.js';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
 vi.mock('react-native', async (importOriginal) => {
@@ -83,5 +84,17 @@ describe('CollectionListFrame (native) — N1: the frame’s name is said once, 
 
         expect(screen.getAllByRole('heading', { name: 'Collections' })).toHaveLength(1);
         expect(screen.queryAllByLabelText('Collections')).toEqual([]);
+    });
+});
+
+describe('CollectionListFrame (native) — the design-system Button (UI overhaul slice 2)', () => {
+    it('creates through a primary plus Button', () => {
+        render(
+            <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
+                <Text>boundary content</Text>
+            </CollectionListFrame>,
+        );
+
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'New collection' }), 'primary', 'plus');
     });
 });

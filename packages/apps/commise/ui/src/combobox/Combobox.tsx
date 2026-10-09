@@ -38,7 +38,8 @@
  *   scrolls when the lines and that floor are taller than it (1.4.4, V3-3). The active option scrolls into view in the
  *   card as well as in the listbox.
  * - An option shows its label and its variant's parts, all presentation: an option holds no control (APG). The active
- *   option takes the details dialog's pearl fill and seafoam ring (V3-4).
+ *   option takes the `surfaceMuted` fill (linen since D11; it was pearl) and the `selectedEdge` ring the details
+ *   dialog's active row takes (V3-4).
  * - The web field has no clear button: Escape on a closed list clears it, through the host.
  * - ⛔ No transition classes, so `prefers-reduced-motion` has nothing to suppress.
  *
@@ -201,7 +202,7 @@ const stampText = (text: string): Middleware => ({
  */
 const statusLine = (line: ComboboxStatus, loadingIcon: ReactNode): ReactNode =>
     line.kind === 'loading' ? (
-        <p className="flex shrink-0 items-center gap-2 px-3 py-2 text-body-sm text-slate">
+        <p className="flex shrink-0 items-center gap-2 px-3 py-2 text-body-sm text-ink-muted">
             {loadingIcon !== undefined && (
                 <span aria-hidden className="inline-flex shrink-0">
                     {loadingIcon}
@@ -210,7 +211,7 @@ const statusLine = (line: ComboboxStatus, loadingIcon: ReactNode): ReactNode =>
             <span className="min-w-0 break-words">{line.label}</span>
         </p>
     ) : (
-        <p className="shrink-0 break-words px-3 py-2 text-body-sm text-slate">{line.text}</p>
+        <p className="shrink-0 break-words px-3 py-2 text-body-sm text-ink-muted">{line.text}</p>
     );
 
 /**
@@ -435,7 +436,7 @@ export const Combobox: FC<ComboboxProps> = ({
             setActiveKey(undefined);
         },
         className:
-            'min-w-0 flex-1 border-b border-slate bg-transparent px-1 py-2 text-body-md text-charcoal outline-none placeholder:text-slate focus-visible:border-seafoam focus-visible:ring-2 focus-visible:ring-seafoam',
+            'min-w-0 flex-1 border-b border-line-control bg-transparent px-1 py-2 text-body-md text-ink outline-none placeholder:text-ink-muted focus-visible:border-focus-ring focus-visible:ring-2 focus-visible:ring-focus-ring',
     });
     const activeDescendant = inputProps['aria-activedescendant'];
     // The listbox mounts only while it has options; downshift is told so, and checks its ref only when it does.
@@ -452,12 +453,12 @@ export const Combobox: FC<ComboboxProps> = ({
                 'aria-label': option.accessibleName,
                 'aria-disabled': option.busy === true || undefined,
                 'aria-busy': option.busy === true || undefined,
-                className: `flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl px-3 py-1 aria-selected:bg-pearl aria-selected:ring-2 aria-selected:ring-inset aria-selected:ring-seafoam ${BUSY_CONTROL_CLASS}`,
+                className: `flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl px-3 py-1 aria-selected:bg-surface-muted aria-selected:ring-2 aria-selected:ring-inset aria-selected:ring-selected-edge ${BUSY_CONTROL_CLASS}`,
             })}
         >
             {/* `min-w-0`: a column that cannot shrink below its parts line is how a dot came to start a line. */}
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="break-words text-body-md text-charcoal">{option.label}</span>
+                <span className="break-words text-body-md text-ink">{option.label}</span>
                 {option.detailParts !== undefined && <VariantPartsLine parts={option.detailParts} tone="secondary" />}
             </span>
         </li>
@@ -467,7 +468,7 @@ export const Combobox: FC<ComboboxProps> = ({
         <div>
             <div className="flex items-center gap-2">
                 {leadingIcon !== undefined && (
-                    <span aria-hidden className="inline-flex shrink-0 text-slate">
+                    <span aria-hidden className="inline-flex shrink-0 text-ink-muted">
                         {leadingIcon}
                     </span>
                 )}
@@ -482,7 +483,7 @@ export const Combobox: FC<ComboboxProps> = ({
                         type="button"
                         aria-label={cancel.name}
                         onClick={cancel.onPress}
-                        className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-slate hover:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
+                        className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                         {cancel.text}
                     </button>
@@ -503,7 +504,7 @@ export const Combobox: FC<ComboboxProps> = ({
                 <div
                     ref={setFloating}
                     style={floatingStyles}
-                    className={`z-50 flex ${popupHeightClass} ${POPUP_WIDTH} flex-col overflow-y-auto rounded-2xl bg-card p-1 shadow-lg`}
+                    className={`z-50 flex ${popupHeightClass} ${POPUP_WIDTH} flex-col overflow-y-auto rounded-2xl bg-paper-overlay p-1 shadow-lg`}
                 >
                     {status !== undefined && statusLine(status, loadingIcon)}
                     {listShown && (
@@ -517,7 +518,7 @@ export const Combobox: FC<ComboboxProps> = ({
                                             <li
                                                 role="presentation"
                                                 aria-hidden
-                                                className="px-3 pt-2 text-caption font-semibold text-slate"
+                                                className="px-3 pt-2 text-caption font-semibold text-ink-muted"
                                             >
                                                 {group.label}
                                             </li>

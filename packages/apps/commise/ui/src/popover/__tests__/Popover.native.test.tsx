@@ -35,12 +35,7 @@ afterEach(cleanup);
 
 const renderPopover = (): void => {
     render(
-        <Popover
-            triggerLabel="About Kale"
-            triggerIcon={<Text>i</Text>}
-            title="Kale"
-            closeLabel="Close details for Kale"
-        >
+        <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close details for Kale">
             <Text>No match for this.</Text>
         </Popover>,
     );
@@ -90,7 +85,7 @@ describe('Popover (native)', () => {
 
     it('hands its content a close action that closes the sheet', () => {
         render(
-            <Popover triggerLabel="About Kale" triggerIcon={<Text>i</Text>} title="Kale" closeLabel="Close Kale">
+            <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close Kale">
                 {(close) => (
                     <Text accessibilityRole="button" onPress={close}>
                         Do it
@@ -107,14 +102,27 @@ describe('Popover (native)', () => {
 
     it('reads BUSY on the trigger while its work runs', () => {
         render(
-            <Popover triggerLabel="About Kale" triggerIcon={<Text>i</Text>} title="Kale" closeLabel="Close Kale" busy>
+            <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close Kale" busy>
                 <Text>Body</Text>
             </Popover>,
         );
 
         expect(trigger().getAttribute('aria-busy')).toBe('true');
         // V1 sign-off 3b: busy to the eye too — the glyph gives way to a spinner in the same box.
-        expect(screen.queryByText('i')).toBeNull();
+        expect(trigger().querySelector('[data-commise-stub="icon"]')).toBeNull();
+    });
+
+    // UI-overhaul slice 2: the glyph is a meaning from the icon Registry, so no host draws its own.
+    it('draws the Registry glyph for the meaning it is given, while idle', () => {
+        render(
+            <Popover triggerLabel="About Kale" triggerIcon="triangleAlert" title="Kale" closeLabel="Close Kale">
+                <Text>Body</Text>
+            </Popover>,
+        );
+
+        expect(trigger().querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe(
+            'triangle-alert',
+        );
     });
 
     it('does not move the screen-reader cursor on mount (nothing was closed yet)', () => {
@@ -131,7 +139,7 @@ describe('Popover (native)', () => {
         const requested = (focusRequested: boolean, onFocusRequestHandled = vi.fn()) => (
             <Popover
                 triggerLabel="About Kale"
-                triggerIcon={<Text>i</Text>}
+                triggerIcon="info"
                 title="Kale"
                 closeLabel="Close Kale"
                 focusRequested={focusRequested}
@@ -180,7 +188,7 @@ describe('Popover (native) — once it is gone', () => {
         render(
             <Popover
                 triggerLabel="About Kale"
-                triggerIcon={<Text>i</Text>}
+                triggerIcon="info"
                 title="Kale"
                 closeLabel="Close Kale"
                 onDismissed={onDismissed}

@@ -45,7 +45,7 @@ import { palette, tint } from '@commise/ui';
 import { useBottomEdge } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { Modal } from '@commise/ui/modal';
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
 import { useState, type FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -85,7 +85,7 @@ export const SpeedDial: FC<SpeedDialNativeProps> = ({ triggerLabel, menuLabel, d
                 {/* An icon, not a "+" character: flex centres the line box but ink is placed by the baseline,
                     so the glyph paints low — and the off-token leading that used to accompany it compounded
                     the offset on both platforms. */}
-                <Feather name="plus" size={24} color={palette.white} />
+                <Icon name="plus" size={24} tone="paper" />
             </Pressable>
             {open && (
                 // Gating the whole `Modal` on `open` — not just its `visible` prop: react-native-web keeps a

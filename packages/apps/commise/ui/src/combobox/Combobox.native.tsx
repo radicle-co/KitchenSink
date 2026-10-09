@@ -39,7 +39,7 @@ import { FieldRevealContext } from '../fieldReveal/fieldRevealContext.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
-import { palette } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { VariantPartsLine } from '../variantPartsLine/VariantPartsLine.native.js';
 import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
@@ -58,8 +58,10 @@ const REVEAL_BELOW_DP = LIST_MARGIN_DP + LIST_PADDING_DP + 3 * TARGET_DP;
 const RELEASE_NOTHING = (): void => undefined;
 
 /** One status line, drawn still: a `loading` line is the host's glyph and its label, a note its text. */
-const StatusLine: FC<{ readonly line: ComboboxStatus; readonly loadingIcon: ReactNode }> = ({ line, loadingIcon }) =>
-    line.kind === 'loading' ? (
+const StatusLine: FC<{ readonly line: ComboboxStatus; readonly loadingIcon: ReactNode }> = ({ line, loadingIcon }) => {
+    const { colors } = useTheme();
+
+    return line.kind === 'loading' ? (
         <View style={[styles.status, styles.loadingLine]}>
             {loadingIcon !== undefined && (
                 // Decorative: the label says what is happening.
@@ -67,11 +69,12 @@ const StatusLine: FC<{ readonly line: ComboboxStatus; readonly loadingIcon: Reac
                     {loadingIcon}
                 </View>
             )}
-            <Text style={[styles.statusText, styles.loadingLabel]}>{line.label}</Text>
+            <Text style={[styles.statusText, styles.loadingLabel, { color: colors.inkMuted }]}>{line.label}</Text>
         </View>
     ) : (
-        <Text style={[styles.status, styles.statusText]}>{line.text}</Text>
+        <Text style={[styles.status, styles.statusText, { color: colors.inkMuted }]}>{line.text}</Text>
     );
+};
 
 /** The combobox. */
 export const Combobox: FC<ComboboxProps> = ({
@@ -99,6 +102,7 @@ export const Combobox: FC<ComboboxProps> = ({
     alertOccurrence,
 }) => {
     const [open, setOpen] = useState(false);
+    const { colors, wash } = useTheme();
     // Whether the field's last blur closed an open list: the list a blur closes is reopened by the field's next focus
     // (below), while a close the field chose — a pick — and a focus no list ever followed stay shut. A refocus on
     // standing text must not strand the panel closed: on native the input method, the reveal's scroll and an
@@ -166,10 +170,14 @@ export const Combobox: FC<ComboboxProps> = ({
             onPress={() => {
                 choose(option);
             }}
-            style={({ pressed }) => [styles.option, pressed && styles.pressed, option.busy === true && styles.busy]}
+            style={({ pressed }) => [
+                styles.option,
+                pressed && { backgroundColor: wash },
+                option.busy === true && styles.busy,
+            ]}
         >
             <View style={styles.optionText}>
-                <Text style={styles.optionLabel}>{option.label}</Text>
+                <Text style={[styles.optionLabel, { color: colors.ink }]}>{option.label}</Text>
                 {option.detailParts !== undefined && <VariantPartsLine parts={option.detailParts} tone="secondary" />}
             </View>
         </Pressable>
@@ -193,7 +201,7 @@ export const Combobox: FC<ComboboxProps> = ({
                     aria-invalid={invalid || undefined}
                     autoCorrect={false}
                     placeholder={placeholder}
-                    placeholderTextColor={palette.slate}
+                    placeholderTextColor={colors.inkMuted}
                     value={value}
                     onChangeText={(text) => {
                         onValueChange(text);
@@ -212,7 +220,7 @@ export const Combobox: FC<ComboboxProps> = ({
                         closedByBlur.current = open;
                         setOpen(false);
                     }}
-                    style={styles.field}
+                    style={[styles.field, { borderBottomColor: colors.inkMuted, color: colors.ink }]}
                 />
                 {clear !== undefined && value !== '' && (
                     <Pressable
@@ -221,7 +229,7 @@ export const Combobox: FC<ComboboxProps> = ({
                         onPress={() => {
                             onValueChange('');
                         }}
-                        style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+                        style={({ pressed }) => [styles.iconButton, pressed && { backgroundColor: wash }]}
                     >
                         {clear.icon}
                     </Pressable>
@@ -231,9 +239,9 @@ export const Combobox: FC<ComboboxProps> = ({
                         accessibilityRole="button"
                         accessibilityLabel={cancel.name}
                         onPress={cancel.onPress}
-                        style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}
+                        style={({ pressed }) => [styles.textButton, pressed && { backgroundColor: wash }]}
                     >
-                        <Text style={styles.textButtonLabel}>{cancel.text}</Text>
+                        <Text style={[styles.textButtonLabel, { color: colors.inkMuted }]}>{cancel.text}</Text>
                     </Pressable>
                 )}
             </View>
@@ -244,13 +252,20 @@ export const Combobox: FC<ComboboxProps> = ({
                 {alertAnnouncement}
             </LiveRegion>
             {popupShown && (
-                <View collapsable={false} accessibilityLabel={listLabel} style={styles.list}>
+                <View
+                    collapsable={false}
+                    accessibilityLabel={listLabel}
+                    style={[styles.list, { backgroundColor: colors.paperOverlay }]}
+                >
                     {status !== undefined && <StatusLine line={status} loadingIcon={loadingIcon} />}
                     {listShown &&
                         groups.map((group) => (
                             <View key={group.key}>
                                 {group.label !== undefined && (
-                                    <Text accessibilityRole="header" style={styles.groupLabel}>
+                                    <Text
+                                        accessibilityRole="header"
+                                        style={[styles.groupLabel, { color: colors.inkMuted }]}
+                                    >
                                         {group.label}
                                     </Text>
                                 )}
@@ -274,16 +289,13 @@ const styles = StyleSheet.create({
         minWidth: 0,
         minHeight: TARGET_DP,
         borderBottomWidth: 1,
-        // `slate`, not `mist`: the underline is what says the field is editable, so it owes 3:1 (1.4.11).
-        borderBottomColor: palette.slate,
+        // `inkMuted` (applied at render), not a divider: the underline says the field is editable, so it owes 3:1.
         paddingHorizontal: nativeTokens.spacing[1],
         fontSize: nativeTokens.fontSize.bodyMd,
-        color: palette.charcoal,
     },
     list: {
         marginTop: LIST_MARGIN_DP,
         borderRadius: nativeTokens.radius.md,
-        backgroundColor: palette.white,
         paddingVertical: LIST_PADDING_DP,
     },
     groupLabel: {
@@ -291,7 +303,6 @@ const styles = StyleSheet.create({
         paddingTop: nativeTokens.spacing[2],
         fontSize: nativeTokens.fontSize.caption,
         fontWeight: '600',
-        color: palette.slate,
     },
     iconButton: { minWidth: TARGET_DP, minHeight: TARGET_DP, alignItems: 'center', justifyContent: 'center' },
     leadingIcon: { flexShrink: 0 },
@@ -303,7 +314,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[3],
         borderRadius: nativeTokens.radius.full,
     },
-    textButtonLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.slate },
+    textButtonLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500' },
     option: {
         minHeight: TARGET_DP,
         flexDirection: 'row',
@@ -314,15 +325,14 @@ const styles = StyleSheet.create({
     },
     // `minWidth: 0`: a column that cannot shrink below its parts line is how a dot came to start a line.
     optionText: { flex: 1, minWidth: 0 },
-    pressed: { backgroundColor: palette.pearl },
     busy: { opacity: 0.6 },
-    optionLabel: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.charcoal },
+    optionLabel: { fontSize: nativeTokens.fontSize.bodyMd },
     status: {
         gap: nativeTokens.spacing[1],
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
     },
-    statusText: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+    statusText: { fontSize: nativeTokens.fontSize.bodySm },
     loadingLine: { flexDirection: 'row', alignItems: 'center' },
     // `minWidth: 0` and `flexShrink: 1`: the label wraps beside its glyph rather than pushing the row past 320 px.
     loadingLabel: { flexShrink: 1, minWidth: 0 },

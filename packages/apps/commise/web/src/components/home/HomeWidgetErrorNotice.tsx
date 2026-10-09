@@ -59,7 +59,7 @@ export function HomeWidgetErrorNotice(): JSX.Element {
     // Mobile's `HomeWidgetErrorNotice` makes the IDENTICAL call (`role="status"` + an Android polite live
     // region), so the two platforms cannot disagree about how loudly a broken widget speaks.
     return (
-        <p role="status" className="text-body-sm text-slate">
+        <p role="status" className="text-body-sm text-ink-muted">
             {home.surface.widgetError}
         </p>
     );

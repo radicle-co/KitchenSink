@@ -20,6 +20,9 @@ import { AccessibilityInfo, type Modal as ModalType } from 'react-native';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { formatRgb } from 'culori';
+
+import { role } from '../../tokens/colors.js';
 import { ActionMenu } from '../ActionMenu.native.js';
 import type { ActionMenuItem, ActionMenuProps } from '../props.js';
 
@@ -67,10 +70,8 @@ const renderMenu = () => {
             triggerLabel="Actions for Saffron"
             title="Saffron"
             closeLabel="Close actions for Saffron"
-            items={[
-                { key: 'tryAgain', label: 'Try again', onSelect: tryAgain },
-                { key: 'remove', label: 'Remove ingredient', onSelect: remove, tone: 'destructive' },
-            ]}
+            items={[{ id: 'tryAgain', label: 'Try again', onSelect: tryAgain }]}
+            destructiveItem={{ id: 'remove', label: 'Remove ingredient', onSelect: remove }}
         />,
     );
 
@@ -126,7 +127,7 @@ describe('ActionMenu (native)', () => {
                 triggerLabel="Actions for beef brisket"
                 title="beef brisket"
                 closeLabel="Close actions for beef brisket"
-                items={onSelect === undefined ? [] : [{ key: 'remove', label: 'Remove ingredient', onSelect }]}
+                items={onSelect === undefined ? [] : [{ id: 'remove', label: 'Remove ingredient', onSelect }]}
             />
         );
 
@@ -171,7 +172,7 @@ describe('ActionMenu (native)', () => {
                     triggerLabel="Actions for beef brisket"
                     title="beef brisket"
                     closeLabel="Close actions for beef brisket"
-                    items={[{ key: 'editDetails', label: 'Edit details', onSelect: editDetails }]}
+                    items={[{ id: 'editDetails', label: 'Edit details', onSelect: editDetails }]}
                 />,
             );
             fireEvent.click(screen.getByRole('button', { name: 'Actions for beef brisket' }));
@@ -223,7 +224,7 @@ describe('ActionMenu (native)', () => {
 
     it('keeps the items it opened with while open, and shows the new ones at the next opening', () => {
         const items = (labels: readonly string[]): readonly ActionMenuItem[] =>
-            labels.map((label) => ({ key: label, label, onSelect: vi.fn() }));
+            labels.map((label) => ({ id: label, label, onSelect: vi.fn() }));
         const menu = (props: Pick<ActionMenuProps, 'items'>) => (
             <ActionMenu
                 triggerLabel="Actions for beef brisket"
@@ -253,7 +254,7 @@ describe('ActionMenu (native)', () => {
                 triggerLabel="Actions for Saffron"
                 title="Saffron"
                 closeLabel="Close actions for Saffron"
-                items={[{ key: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }]}
+                items={[{ id: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }]}
                 focusRequested
                 onFocusRequestHandled={onFocusRequestHandled}
             />,
@@ -272,7 +273,7 @@ describe('ActionMenu (native)', () => {
                 triggerLabel="Actions for Saffron"
                 title="Saffron"
                 closeLabel="Close actions for Saffron"
-                items={[{ key: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }]}
+                items={[{ id: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }]}
                 unavailable
             />,
         );
@@ -282,5 +283,71 @@ describe('ActionMenu (native)', () => {
 
         expect(trigger.getAttribute('aria-disabled')).toBe('true');
         expect(screen.queryByRole('menuitem')).toBeNull();
+    });
+});
+
+/**
+ * Slice 2 of the UI overhaul (blueprint Part B, ActionMenu): the trigger is the `ellipsis` glyph, and the destructive
+ * item is a separate field drawn last, after a divider, in the danger label.
+ */
+describe('ActionMenu (native) — the overhaul contract', () => {
+    it('draws the ellipsis glyph in its trigger', () => {
+        const { trigger } = renderMenu();
+
+        expect(trigger.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe('ellipsis');
+    });
+
+    it('places the destructive item last, after a divider, in the danger label', () => {
+        const { trigger } = renderMenu();
+        fireEvent.click(trigger);
+
+        const menu = screen.getByRole('menu');
+        const parts = [...menu.children].map((child) => child.getAttribute('role'));
+
+        expect(parts).toStrictEqual(['menuitem', 'separator', 'menuitem']);
+        expect(getComputedStyle(screen.getByText('Remove ingredient')).color).toBe(formatRgb(role.dangerText));
+        expect(getComputedStyle(screen.getByText('Try again')).color).toBe(formatRgb(role.ink));
+    });
+
+    it('runs the destructive item the host renders now, once the sheet is gone', () => {
+        const opened = vi.fn();
+        const current = vi.fn();
+        const menu = (onSelect: () => void) => (
+            <ActionMenu
+                triggerLabel="Actions for Saffron"
+                title="Saffron"
+                closeLabel="Close actions for Saffron"
+                items={[{ id: 'changeFood', label: 'Change food', onSelect: vi.fn() }]}
+                destructiveItem={{ id: 'remove', label: 'Remove ingredient', onSelect }}
+            />
+        );
+        state.os = 'ios';
+        const { rerender } = render(menu(opened));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Remove ingredient' }));
+        rerender(menu(current));
+        act(() => state.modal?.onDismiss?.());
+
+        expect(current).toHaveBeenCalledTimes(1);
+        expect(opened).not.toHaveBeenCalled();
+    });
+
+    it('draws an item’s glyph before its label', () => {
+        render(
+            <ActionMenu
+                triggerLabel="Actions for Saffron"
+                title="Saffron"
+                closeLabel="Close actions for Saffron"
+                items={[{ id: 'history', label: 'Version history', icon: 'clock', onSelect: vi.fn() }]}
+            />,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+
+        expect(
+            screen
+                .getByRole('menuitem', { name: 'Version history' })
+                .querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName'],
+        ).toBe('clock');
     });
 });

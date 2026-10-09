@@ -164,10 +164,6 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'One node handle, the inline bar, to move focus to its first control when the window leaves the Sheet layout and the open Sheet closes. `.focus()` has no declarative form, and the control that held focus is gone with the Sheet.',
     },
-    'featuresRecipes/actions/MoreActionsMenu': {
-        verdict: 'sanctioned',
-        why: 'Two DOM node handles: the panel, for `contains(event.target)` outside-click dismissal, and the trigger, for `focus()` on Escape. Neither `.contains()` nor `.focus()` has a declarative form.',
-    },
     'web/components/recipes/RecipeCreateContainer': {
         verdict: 'sanctioned-adjacent',
         why: 'A file-input handle (resetting `.value` is the only way to re-fire `change` for the same file), sanctioned; plus an Object-URL ledger swept on unmount. `createObjectURL`/`revokeObjectURL` is a two-call browser API whose lifetime React does not model, and the ledger is never read to drive rendering.',
@@ -340,8 +336,14 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  *
  * ⚠️ It went 126 → 125 with UI-overhaul slice 0 (E2): the `recipes/[id]/not-found.tsx` route segment was deleted, since
  * a segment boundary never caught an unmatched URL and nothing beneath it threw `notFound()`.
+ *
+ * ⚠️ It went 125 → 107 with UI-overhaul slice 2. Twenty-two inline glyph components left with the sheets the Icon
+ * Registry replaced (`form/icons`, `wizard/icons`, `actions/icons`, `auth/icons` and both chrome sheets), a shape §11.2
+ * puts out of scope. Thirteen components arrived or were rewritten; nine state their layer, and four do not because
+ * they hold local layout or announcement state and are not pure renders: `Stepper`, `TextArea`, `RecipeCover`,
+ * `SearchField`.
  */
-const LAYER_UNSTATED_CENSUS = 125;
+const LAYER_UNSTATED_CENSUS = 107;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.
@@ -594,14 +596,16 @@ describe('CLAUDE.md rule 2, as amended — every in-scope component names the pa
         ).toEqual([]);
     });
 
-    // The key is the full catalogue id, PATH-BEARING, and this tree is why. `CheckIcon` exists three times,
-    // twice inside one group; a `group/name` key would transfer one component's record to another — the
-    // silent-silencing failure the code-quality toolchain's boundaries ratchet documents for its own key choice.
-    it('keys components by a path-bearing id, because three components here are named CheckIcon', () => {
-        const checkIcons = components.filter((component) => component.id.endsWith('/CheckIcon'));
+    // The key is the full catalogue id, PATH-BEARING, and this tree is why: component NAMES repeat. A name-only key
+    // would transfer one component's record to another — the silent-silencing failure the code-quality toolchain's
+    // boundaries ratchet documents for its own key choice. ⚠️ REWRITTEN in UI-overhaul slice 2: the case this used to
+    // pin, three `CheckIcon` glyphs (two inside one group), went with the inline glyph sheets the Icon Registry
+    // replaced; `HomeGreeting` (web and mobile) is the repeat the tree holds now.
+    it('keys components by a path-bearing id, because component names repeat (HomeGreeting is two components)', () => {
+        const greetings = components.filter((component) => component.id.endsWith('/HomeGreeting'));
 
-        expect(checkIcons.length).toBeGreaterThanOrEqual(3);
-        expect(new Set(checkIcons.map((component) => component.id)).size).toBe(checkIcons.length);
+        expect(greetings.length).toBeGreaterThanOrEqual(2);
+        expect(new Set(components.map((component) => component.id)).size).toBe(components.length);
     });
 
     it('leaves no in-scope component without a usable pattern entry', () => {

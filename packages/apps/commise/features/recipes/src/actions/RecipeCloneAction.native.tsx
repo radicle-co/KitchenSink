@@ -38,7 +38,6 @@ import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { CloneIcon } from './icons.js';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeCloneActionProps } from './model.js';
 
@@ -49,7 +48,7 @@ export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({ canClone, clonin
         <View style={styles.wrap}>
             {/* `busy` supplies the in-place `ActivityIndicator`, the disabled in-flight guard (so the clone
                 cannot be double-fired), and the `accessibilityState.busy` announcement VoiceOver/TalkBack read. */}
-            <Button variant="secondary" icon={<CloneIcon />} disabled={!canClone} busy={cloning} onPress={onClone}>
+            <Button variant="secondary" icon="copyPlus" disabled={!canClone} busy={cloning} onPress={onClone}>
                 {clone.clone}
             </Button>
             {cloning && <Text style={styles.attribution}>{clone.cloningLabel}</Text>}

@@ -41,18 +41,18 @@ export const RecipeReviewFields: FC<RecipeReviewFieldsProps> = ({ values }) => {
     return (
         <section aria-label={m.reviewHeading} className={sectionCard}>
             <h2 className={sectionHeading}>{m.reviewHeading}</h2>
-            <dl className="flex flex-col gap-2 text-body-sm text-charcoal">
+            <dl className="flex flex-col gap-2 text-body-sm text-ink">
                 {reviewRows(values, m).map((row) => (
                     <div key={row.label} className="flex justify-between gap-3">
-                        <dt className="font-medium text-slate">{row.label}</dt>
+                        <dt className="font-medium text-ink-muted">{row.label}</dt>
                         <dd className="text-right">{row.value}</dd>
                     </div>
                 ))}
             </dl>
             {values.ingredients.length === 0 ? (
-                <p className="text-body-sm text-slate">{m.reviewNoIngredients}</p>
+                <p className="text-body-sm text-ink-muted">{m.reviewNoIngredients}</p>
             ) : (
-                <ul aria-label={m.ingredientsHeading} className="flex flex-col gap-1 text-body-sm text-charcoal">
+                <ul aria-label={m.ingredientsHeading} className="flex flex-col gap-1 text-body-sm text-ink">
                     {values.ingredients.map((line, index) => (
                         // Index-keyed deliberately: a draft line has no stable identity of its own (an
                         // unresolved line's `ingredientId` is `null`, and two lines may share a catalog id),

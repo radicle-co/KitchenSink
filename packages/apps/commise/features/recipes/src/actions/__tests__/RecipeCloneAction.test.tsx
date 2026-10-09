@@ -110,13 +110,11 @@ describe('RecipeCloneAction (web) — design-system surface', () => {
         renderClone();
         const className = screen.getByRole('button', { name: 'Clone' }).className;
 
-        // The regression was a solid `bg-coral` pill at REST, which read as destructive. The DS secondary
-        // tier does carry coral — as the mockups' accent OUTLINE (`border-coral`) over glass, and as the
-        // hover fill only — so the invariant is "no resting coral fill", not "no coral".
-        expect(className).not.toContain('bg-coral');
-        expect(className).toContain('border-coral');
-        // The surface must be a real DS one, not "no surface at all" (the bare-text regression).
-        expect(className).toContain('from-white/80');
+        // ⚠️ REWRITTEN in UI-overhaul slice 2: the owner overruled coral on every control, so the DS secondary tier is
+        // now neutral (paper, a lineControl edge, an ink label) and NO coral survives, at rest or on hover.
+        expect(className).not.toMatch(/coral/u);
+        // The replacement must be a real DS surface, not "no surface at all" (the bare-text regression).
+        expect(className).toContain('border-line-control');
     });
 
     it('pairs the label with a decorative icon that never joins the accessible name', () => {

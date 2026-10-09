@@ -9,7 +9,6 @@ import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { renderWithProviders } from '@commise/test-utils';
 
 import { HomeTopBar } from '../../../src/components/home/chrome/HomeTopBar.js';
-import { CONTROL_ICONS } from '../../../src/components/home/chrome/icons.js';
 import { mobileMessages } from '../../../src/i18n/messages.js';
 
 afterEach(cleanup);
@@ -142,8 +141,8 @@ describe('HomeTopBar (mobile) — avatar geometry', () => {
 describe('HomeTopBar (mobile) — search + notifications affordances (mockup parity)', () => {
     /** The affordance and the glyph the mockup pairs it with. */
     const affordances = [
-        { label: chrome.search, icon: CONTROL_ICONS.search },
-        { label: chrome.notifications, icon: CONTROL_ICONS.notifications },
+        { label: chrome.search, icon: 'search' },
+        { label: chrome.notifications, icon: 'bell' },
     ] as const;
 
     it('renders both mockup affordances with their glyph', () => {

@@ -7,7 +7,8 @@
  * Radix Popover owns the APG behaviour: the trigger carries `aria-haspopup="dialog"`, `aria-expanded` and
  * `aria-controls`; Escape and an outside press close the panel. Escape and Close return focus to the trigger, and an
  * outside press leaves it where the cook put it (Radix's own rule, which `onDismissed` leaves in force).
- * The panel flips and shifts to stay on screen (`collisionPadding`), so at 320 px it never causes horizontal scroll.
+ * The panel flips and shifts to stay on screen (`collisionPadding`), so at 320 px it never causes horizontal scroll, and
+ * it keeps clear of the page's own chrome by reading the `PopupInsetsContext` reader as it opens (finding D2).
  *
  * - The trigger is 44 × 44 px (spec §3, 2.5.8) and its glyph is `aria-hidden`: `triggerLabel` alone names it.
  * - ⛔ No transition classes: the panel appears and disappears without motion, so `prefers-reduced-motion` has
@@ -22,8 +23,10 @@
  * @pattern Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken
  */
 import * as RadixPopover from '@radix-ui/react-popover';
-import { useEffect, useEffectEvent, useId, useRef, useState, type FC } from 'react';
+import { useContext, useEffect, useEffectEvent, useId, useRef, useState, type FC } from 'react';
 
+import { Icon } from '../icon/Icon.js';
+import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
 import type { PopoverProps } from './props.js';
 
 /**
@@ -52,6 +55,9 @@ export const Popover: FC<PopoverProps> = ({
 }) => {
     const titleId = useId();
     const [open, setOpen] = useState(false);
+    // The page's chrome as it was when the panel opened, so it keeps clear of a bar along the foot (finding D2).
+    const readInsets = useContext(PopupInsetsContext);
+    const [insets, setInsets] = useState<PopupInsets>({ top: 0, bottom: 0 });
     const triggerNode = useRef<HTMLButtonElement>(null);
     // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
     const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
@@ -70,16 +76,25 @@ export const Popover: FC<PopoverProps> = ({
     };
 
     return (
-        <RadixPopover.Root open={open} onOpenChange={setOpen}>
+        <RadixPopover.Root
+            open={open}
+            onOpenChange={(next) => {
+                if (next) {
+                    setInsets(readInsets());
+                }
+
+                setOpen(next);
+            }}
+        >
             <RadixPopover.Trigger
                 ref={triggerNode}
                 aria-label={triggerLabel}
                 aria-busy={busy || undefined}
                 aria-describedby={describedBy}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-charcoal transition hover:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
                 <span aria-hidden="true" className="inline-flex">
-                    {busy ? <Spinner /> : triggerIcon}
+                    {busy ? <Spinner /> : <Icon name={triggerIcon} size={20} />}
                 </span>
             </RadixPopover.Trigger>
             <RadixPopover.Portal>
@@ -88,34 +103,27 @@ export const Popover: FC<PopoverProps> = ({
                     side="bottom"
                     align="end"
                     sideOffset={4}
-                    collisionPadding={8}
+                    collisionPadding={{ top: insets.top + 8, bottom: insets.bottom + 8, left: 8, right: 8 }}
                     // Radix makes its focus return after this handler; a host's request raised here is taken after
                     // render, so it lands last.
                     onCloseAutoFocus={() => {
                         onDismissed?.();
                     }}
-                    className="z-50 flex w-[min(20rem,calc(100vw-1rem))] items-start gap-2 rounded-2xl bg-card py-2 pl-4 pr-2 shadow-lg"
+                    className="z-50 flex w-[min(20rem,calc(100vw-1rem))] items-start gap-2 rounded-2xl bg-paper-overlay py-2 pl-4 pr-2 shadow-lg"
                 >
                     <div className="min-w-0 flex-1 pt-2">
-                        <h2 id={titleId} className="break-words text-body-sm font-semibold text-charcoal">
+                        <h2 id={titleId} className="break-words text-body-sm font-semibold text-ink">
                             {title}
                         </h2>
-                        <div className="mt-1 break-words pb-2 text-body-sm text-charcoal">
+                        <div className="mt-1 break-words pb-2 text-body-sm text-ink">
                             {typeof children === 'function' ? children(close) : children}
                         </div>
                     </div>
                     <RadixPopover.Close
                         aria-label={closeLabel}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate transition hover:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
-                        <svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none">
-                            <path
-                                d="M5 5l10 10M15 5L5 15"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                            />
-                        </svg>
+                        <Icon name="x" size={20} />
                     </RadixPopover.Close>
                 </RadixPopover.Content>
             </RadixPopover.Portal>

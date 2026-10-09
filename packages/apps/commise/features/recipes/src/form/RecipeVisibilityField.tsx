@@ -15,7 +15,7 @@ export const RecipeVisibilityField: FC<Omit<RecipeFormSectionProps, 'errors'>> =
     const m = useMessages(recipeFormMessages);
 
     return (
-        <label className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-sm">
+        <label className="flex items-center gap-3 rounded-2xl bg-paper p-4 shadow-sm">
             <input
                 type="checkbox"
                 aria-label={m.visibilityLabel}
@@ -23,7 +23,7 @@ export const RecipeVisibilityField: FC<Omit<RecipeFormSectionProps, 'errors'>> =
                 onChange={(event) => onChange({ ...values, visibility: event.target.checked ? 'private' : 'public' })}
                 className="size-5 accent-seafoam"
             />
-            <span className="text-body-md text-charcoal">{m.visibilityLabel}</span>
+            <span className="text-body-md text-ink">{m.visibilityLabel}</span>
         </label>
     );
 };

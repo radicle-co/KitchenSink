@@ -37,7 +37,7 @@ import { servingsAnnouncement, type ServingScaleControlProps } from './model.js'
 
 /** Shared surface for the two step buttons: 44px touch floor, DS pill, visible unavailable state. */
 const stepButton =
-    'flex min-h-11 min-w-11 items-center justify-center rounded-full border border-slate text-body-lg font-medium text-charcoal transition hover:bg-pearl aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:bg-transparent sm:min-h-9 sm:min-w-9';
+    'flex min-h-11 min-w-11 items-center justify-center rounded-full border border-line-control text-body-lg font-medium text-ink transition hover:bg-ink/6 aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:bg-transparent sm:min-h-9 sm:min-w-9';
 
 export const ServingScaleControl: FC<ServingScaleControlProps> = ({ servings, baseServings, onServingsChange }) => {
     const { detail } = useMessages(recipeMessages);
@@ -93,7 +93,7 @@ export const ServingScaleControl: FC<ServingScaleControlProps> = ({ servings, ba
 
                     setDraft(null);
                 }}
-                className="w-14 rounded-lg border border-border bg-card py-1 text-center font-display text-2xl font-bold text-charcoal"
+                className="w-14 rounded-lg border border-line-divider bg-paper py-1 text-center font-display text-2xl font-bold text-ink"
             />
             <button
                 type="button"

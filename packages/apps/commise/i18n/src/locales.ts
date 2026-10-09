@@ -21,3 +21,10 @@ export const SUPPORTED_LOCALES: readonly Locale[] = ['en'];
 export function isSupportedLocale(value: string): boolean {
     return SUPPORTED_LOCALES.includes(value);
 }
+
+/**
+ * The pseudo-locale (`en-XA`, the CLDR private-use tag for pseudo-English): English, accented and grown by 35%, so a
+ * layout that only fits English shows it (`./pseudo.ts`). It is deliberately NOT in {@link SUPPORTED_LOCALES} — that
+ * list is mobile's too. The web app routes it only in a build made with `COMMISE_PSEUDO_LOCALE=1`.
+ */
+export const PSEUDO_LOCALE: Locale = 'en-XA';

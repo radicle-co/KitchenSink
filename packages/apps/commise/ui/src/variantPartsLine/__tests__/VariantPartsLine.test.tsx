@@ -124,7 +124,7 @@ describe('VariantPartsLine (web)', () => {
     it('never truncates, and breaks an unbroken string only when it overflows, without shrinking its host', () => {
         // Positive control: the check sees a clamp and a truncation.
         expect(truncates('block line-clamp-2')).toBe(true);
-        expect(truncates('truncate text-slate')).toBe(true);
+        expect(truncates('truncate text-ink-muted')).toBe(true);
 
         const line = renderLine({ parts: BRISKET, tone: 'secondary' });
 
@@ -143,10 +143,10 @@ describe('VariantPartsLine (web)', () => {
         const primary = renderLine({ parts: ['point end'], tone: 'primary' }).className;
 
         expect(secondary).toContain('text-body-sm');
-        expect(secondary).toContain('text-slate');
+        expect(secondary).toContain('text-ink-muted');
         expect(primary).toContain('text-body-md');
-        expect(primary).toContain('text-charcoal');
-        expect(secondary).not.toContain('text-charcoal');
-        expect(primary).not.toContain('text-slate');
+        expect(primary).toContain('text-ink');
+        expect(secondary.split(/\s+/u)).not.toContain('text-ink');
+        expect(primary.split(/\s+/u)).not.toContain('text-ink-muted');
     });
 });

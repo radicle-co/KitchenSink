@@ -11,6 +11,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { CollectionListFrame } from '../CollectionListFrame.js';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 
 afterEach(cleanup);
 
@@ -59,5 +60,17 @@ describe('CollectionListFrame (web)', () => {
         );
 
         expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Collections' }));
+    });
+});
+
+describe('CollectionListFrame (web) — the design-system Button (UI overhaul slice 2)', () => {
+    it('creates through a primary plus Button', () => {
+        render(
+            <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
+                <p>boundary content</p>
+            </CollectionListFrame>,
+        );
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'New collection' }), 'primary', 'plus');
     });
 });

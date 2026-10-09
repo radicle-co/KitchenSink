@@ -50,7 +50,7 @@ export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
         <RatingSection average={average} ratingCount={ratingCount}>
             <div className="flex flex-col gap-3">
                 <fieldset role="radiogroup" aria-label={rating.groupLabel} className="flex flex-col gap-2">
-                    <legend className="text-body-sm font-medium text-charcoal">{rating.rateHeading}</legend>
+                    <legend className="text-body-sm font-medium text-ink">{rating.rateHeading}</legend>
                     <div className="flex items-center gap-1">
                         {STAR_VALUES.map((value) => {
                             const optionLabel = formatStarOptionLabel(value, starLabels, locale);
@@ -98,20 +98,20 @@ export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
                     <button
                         type="button"
                         {...busyControlProps({ busy: pending, onClick: onRemove })}
-                        className={`w-fit text-body-sm font-medium text-error-dark ${BUSY_CONTROL_CLASS}`}
+                        className={`w-fit text-body-sm font-medium text-danger-text ${BUSY_CONTROL_CLASS}`}
                     >
                         {rating.removeLabel}
                     </button>
                 )}
 
                 {pending && (
-                    <span role="status" aria-label={rating.submittingLabel} className="text-body-sm text-slate">
+                    <span role="status" aria-label={rating.submittingLabel} className="text-body-sm text-ink-muted">
                         {rating.submittingLabel}
                     </span>
                 )}
 
                 {error !== undefined && (
-                    <p role="alert" className="text-body-sm text-error-dark">
+                    <p role="alert" className="text-body-sm text-danger-text">
                         {error === 'notAvailable' ? rating.errorNotAvailable : rating.errorGeneric}
                     </p>
                 )}

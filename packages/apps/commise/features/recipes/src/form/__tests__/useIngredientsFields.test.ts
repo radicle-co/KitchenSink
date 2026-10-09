@@ -384,7 +384,7 @@ describe('useIngredientsFields — a settled failure, across the step’s lifeti
         act(() => row()?.entryField.onTextChange());
         act(() =>
             row()
-                ?.actions.find((item) => item.key === 'changeFood')
+                ?.actions.find((item) => item.id === 'changeFood')
                 ?.onSelect(),
         );
         act(() => row()?.entryField.onCancel());
@@ -401,7 +401,7 @@ describe('useIngredientsFields — a settled failure, across the step’s lifeti
 
         act(() =>
             rowsOf(result.current)[0]
-                ?.actions.find((item) => item.key === 'changeFood')
+                ?.actions.find((item) => item.id === 'changeFood')
                 ?.onSelect(),
         );
 

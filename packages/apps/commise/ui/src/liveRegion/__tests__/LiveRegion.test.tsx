@@ -80,7 +80,7 @@ describe('LiveRegion (web)', () => {
         ['two regions', 1],
     ])('%s: a region with nothing to say takes no space, and keeps its classes once it speaks', (_case, occurrence) => {
         const { rerender } = render(
-            <LiveRegion politeness="assertive" occurrence={occurrence} className="text-error-dark">
+            <LiveRegion politeness="assertive" occurrence={occurrence} className="text-danger-text">
                 {''}
             </LiveRegion>,
         );
@@ -90,13 +90,13 @@ describe('LiveRegion (web)', () => {
         );
 
         rerender(
-            <LiveRegion politeness="assertive" occurrence={occurrence} className="text-error-dark">
+            <LiveRegion politeness="assertive" occurrence={occurrence} className="text-danger-text">
                 The change didn’t save.
             </LiveRegion>,
         );
 
         expect(screen.getAllByRole('alert').map((region) => region.className)).toEqual(
-            occurrence === undefined ? ['text-error-dark'] : ['text-error-dark', 'sr-only'],
+            occurrence === undefined ? ['text-danger-text'] : ['text-danger-text', 'sr-only'],
         );
     });
 });

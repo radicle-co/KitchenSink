@@ -59,7 +59,7 @@ export const RecipeDiscoveryResults: FC<RecipeDiscoveryResultsProps> = ({
         body = (
             <div className="flex flex-col gap-4">
                 {/* S5 — the header names the query these results belong to; a bare list shows just the count. */}
-                <p className="text-body-sm font-medium text-slate">
+                <p className="text-body-sm font-medium text-ink-muted">
                     {formatDiscoveryResultsSummary({ count: results.length, query, searching }, discovery, locale)}
                 </p>
                 <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

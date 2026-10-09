@@ -11,7 +11,7 @@
  *
  * @pattern Adapter over the design-system `Sheet` — the leaf maps each statechart state to the sheet's slots
  */
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
@@ -108,7 +108,7 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                               onPress={details.onClearQuery}
                               style={styles.clear}
                           >
-                              <Feather name="x" size={20} color={palette.slate} />
+                              <Icon name="x" size={20} tone="inkMuted" />
                           </Pressable>
                       )}
                   </View>
@@ -120,19 +120,11 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
         details.onRemove === undefined ? undefined : (
             <View style={styles.footer}>
                 {state.name === 'detailsNoneLeft' && (
-                    <Button
-                        variant="secondary"
-                        icon={<Feather name="x" size={16} color={palette.charcoal} />}
-                        onPress={details.onClose}
-                    >
+                    <Button variant="secondary" icon="x" onPress={details.onClose}>
                         {copy.dismiss}
                     </Button>
                 )}
-                <Button
-                    variant="secondary"
-                    icon={<Feather name="minus" size={16} color={palette.charcoal} />}
-                    onPress={details.onRemove}
-                >
+                <Button variant="secondary" icon="minus" onPress={details.onRemove}>
                     {copy.remove}
                 </Button>
             </View>
@@ -160,11 +152,7 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                             {copy.loadFailed}
                         </Text>
                         <View style={styles.retry}>
-                            <Button
-                                variant="secondary"
-                                icon={<Feather name="refresh-cw" size={16} color={palette.charcoal} />}
-                                onPress={details.onRetry}
-                            >
+                            <Button variant="secondary" icon="refreshCw" onPress={details.onRetry}>
                                 {copy.retry}
                             </Button>
                         </View>

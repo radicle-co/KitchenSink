@@ -31,6 +31,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import type { HomeNavItemId } from '@commise/features-core';
+import { SnackbarHost } from '@commise/ui/snackbar';
 import type { FC, ReactNode } from 'react';
 
 import { DEFAULT_SHELL_SURFACE_ID, type ShellSurfaceId } from '@/components/app/shellSurfaces';
@@ -94,7 +95,8 @@ export const AppShell: FC<AppShellProps> = ({
             displayName={displayName}
             focusedTask={focusedTask}
         >
-            {children}
+            {/* The app's one snackbar host, inside the shell's popup insets so a snackbar sits above the tab bar. */}
+            <SnackbarHost>{children}</SnackbarHost>
         </HomeChrome>
     );
 };

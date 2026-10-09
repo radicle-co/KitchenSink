@@ -10,13 +10,13 @@
  * Gated destinations render exactly as they do in the sidebar: non-interactive, `aria-disabled`, with a
  * "coming soon" accessible name — never a tab that navigates to a 404.
  */
-import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { Icon } from '@commise/ui/icon';
 import Link from 'next/link';
-import type { JSX } from 'react';
+import type { JSX, Ref } from 'react';
 
 import type { WebMessages } from '@/i18n/messages';
 
-import { HomeIcon } from './icons';
 import { homeNavHref } from './navHref';
 
 /** The chrome copy slice this bar renders. */
@@ -32,6 +32,8 @@ export interface HomeTabBarProps {
     readonly liveCapabilities: readonly string[];
     /** The currently active destination (Home, for this surface) — marked `aria-current`. */
     readonly activeId: HomeNavItemId | null;
+    /** Receives the laid-out bar, so the shell can tell its popups what the bar covers (`tabBarInsets`). */
+    readonly ref?: Ref<HTMLElement>;
 }
 
 /**
@@ -40,11 +42,12 @@ export interface HomeTabBarProps {
  * @param props - The chrome copy, locale, live capabilities, and active destination.
  * @returns The fixed bottom navigation (hidden at `lg`+).
  */
-export function HomeTabBar({ chrome, locale, liveCapabilities, activeId }: HomeTabBarProps): JSX.Element {
+export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, ref }: HomeTabBarProps): JSX.Element {
     const destinations = resolveHomeNav(liveCapabilities);
 
     return (
         <nav
+            ref={ref}
             aria-label={chrome.tabNavLabel}
             // The bar grows by the device's bottom safe-area inset and pads its foot by the same amount, so the
             // 64px (`4rem`) icon row sits clear ABOVE the home indicator rather than being squished under it.
@@ -63,14 +66,14 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId }: HomeT
                             type="button"
                             aria-disabled="true"
                             aria-label={`${label}, ${chrome.comingSoonSuffix}`}
-                            // Contrast (WCAG 2.1 AA, #113): the OPAQUE `slate` (5.24:1), not `text-slate/50` — that
+                            // Contrast (WCAG 2.1 AA, #113): the OPAQUE `slate` (5.24:1), not `text-ink-muted` — that
                             // composited to 2.05:1 on the frosted bar. The control still reads as inactive from
                             // `cursor-not-allowed`, `aria-disabled` and the "coming soon" name, and the ACTIVE tab
-                            // stays distinct because it is `text-ocean-dark`. Matches the native tab bar, which
+                            // stays distinct because it is `text-action-text`. Matches the native tab bar, which
                             // already used the opaque tone.
-                            className="flex flex-1 cursor-not-allowed flex-col items-center gap-1 py-2 text-slate"
+                            className="flex flex-1 cursor-not-allowed flex-col items-center gap-1 py-2 text-ink-muted"
                         >
-                            <HomeIcon name={item.id} className="size-6" />
+                            <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
                             <span className="text-xs">{label}</span>
                         </button>
                     );
@@ -86,10 +89,10 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId }: HomeT
                         className={`flex flex-1 flex-col items-center gap-1 py-2 ${
                             // The active colour reaches the `text-xs` LABEL as well as the glyph, so it must be a
                             // text-grade token: `ocean-dark` (see the palette JSDoc in `@commise/ui`).
-                            isActive ? 'text-ocean-dark' : 'text-slate'
+                            isActive ? 'text-action-text' : 'text-ink-muted'
                         }`}
                     >
-                        <HomeIcon name={item.id} className="size-6" />
+                        <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
                         <span className={`text-xs ${isActive ? 'font-semibold' : ''}`}>{label}</span>
                     </Link>
                 );

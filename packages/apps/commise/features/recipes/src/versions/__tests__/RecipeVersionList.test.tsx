@@ -388,7 +388,7 @@ describe('RecipeVersionList (web) — WCAG AA text contrast (SC 1.4.3)', () => {
     it('the "Current version" badge label is legible on its own tinted pill', () => {
         renderList({ versions: threeVersions, currentVersion: 3 });
 
-        // The badge paints its own tint and sits on the row's `bg-card` (white), so the default surface applies.
+        // The badge paints its own tint and sits on the row's `bg-paper` (white), so the default surface applies.
         expect(
             utilityContrast(screen.getByText('Current version').className),
             '"Current version" badge label on its tinted pill',

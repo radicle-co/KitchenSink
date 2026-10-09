@@ -17,6 +17,7 @@ import userEvent from '@testing-library/user-event';
 
 import { ringContrast, utilityContrast } from '@commise/test-utils';
 import { semantic } from '@commise/ui';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 
 import { CollectionRecipePicker } from '../CollectionRecipePicker.js';
 import { CollectionRecipePickerCandidates } from '../CollectionRecipePickerCandidates.js';
@@ -269,18 +270,18 @@ describe('CollectionRecipePicker (web) — adding', () => {
         renderPicker({ addFailed: true });
         const className = screen.getByRole('alert').className;
 
-        // The banner labelled itself `text-error-dark` (#B1442B) but filled with `bg-coral/10` (#E8917A): two
+        // The banner labelled itself `text-danger-text` (#B1442B) but filled with `bg-coral/10` (#E8917A): two
         // adjacent-but-different hues in one element, and coral is a brand ACCENT, not the failure register.
-        expect(className).toContain('text-error-dark');
-        expect(className).toContain('bg-error/10');
+        expect(className).toContain('text-danger-text');
+        expect(className).toContain('bg-danger/10');
         expect(className).not.toContain('coral');
     });
 });
 
 /**
  * The picker's two bare TEXT controls (Done, Retry) are read, so they carry the 4.5:1 body-text floor — not
- * the 3:1 accent floor `seafoam` clears. Both painted `text-seafoam`: 4.02:1 on the white card at rest and
- * 3.57:1 the moment `hover:bg-seafoam/10` lands, so the pointer alone made a failing label worse. `@commise/ui`'s
+ * the 3:1 accent floor `seafoam` clears. Both painted `text-action-text`: 4.02:1 on the white card at rest and
+ * 3.57:1 the moment `hover:bg-action/10` lands, so the pointer alone made a failing label worse. `@commise/ui`'s
  * palette JSDoc states once, authoritatively, where seafoam IS still the right token.
  *
  * The ratio is MEASURED off the rendered class list rather than asserted as a spelling: an
@@ -310,7 +311,7 @@ describe('CollectionRecipePicker (web) — text controls clear the AA body-text 
  * its search field's focus ring is drawn on — not the field's own white fill, because a Tailwind ring is a
  * spread box-shadow OUTSIDE the border box.
  *
- * The ring shipped as `ring-seafoam-light` (2.58:1), under the 3:1 SC 1.4.11 floor (#114).
+ * The ring shipped as `ring-focus-ring` (2.58:1), under the 3:1 SC 1.4.11 floor (#114).
  */
 describe('CollectionRecipePicker (web) — the search field’s focus ring clears the 3:1 SC 1.4.11 floor', () => {
     it('rings the search box legibly against the page it sits on', () => {
@@ -334,5 +335,13 @@ describe('CollectionRecipePicker (web) — the search field’s focus ring clear
                 surface: semantic.background,
             }),
         ).toBeGreaterThan(ringContrast('ring-2 ring-seafoam-light', { surface: semantic.background }));
+    });
+});
+
+describe('CollectionRecipePicker (web) — the design-system Button (UI overhaul slice 2)', () => {
+    it('offers a new recipe through a primary plus Button when the caller owns none', () => {
+        renderPicker({ recipes: [], query: '' });
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'New recipe' }), 'primary', 'plus');
     });
 });

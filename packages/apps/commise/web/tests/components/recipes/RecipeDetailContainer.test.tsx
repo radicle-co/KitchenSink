@@ -535,13 +535,14 @@ describe('RecipeDetailContainer', () => {
             // The dialog is closed until the owner triggers it.
             expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
 
-            await user.click(await screen.findByRole('button', { name: 'More' }));
+            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
             await user.click(screen.getByRole('button', { name: 'Delete recipe' }));
 
             const dialog = screen.getByRole('alertdialog');
             expect(dialog).toBeInTheDocument();
 
-            await user.click(screen.getByRole('button', { name: 'Delete' }));
+            // The dialog's confirm repeats the trigger's verb (spec §6.5), so it is found inside the dialog.
+            await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete recipe' }));
 
             expect(deleteSpy).toHaveBeenCalledWith('rec_1');
             await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes'));
@@ -558,7 +559,7 @@ describe('RecipeDetailContainer', () => {
 
             // Wait for the ready (non-owner) render before asserting the owner-only controls are absent.
             await screen.findByRole('button', { name: 'Clone' });
-            expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: /^More actions for /u })).not.toBeInTheDocument();
             expect(screen.queryByRole('button', { name: 'Delete recipe' })).not.toBeInTheDocument();
         });
 
@@ -571,11 +572,12 @@ describe('RecipeDetailContainer', () => {
             vi.spyOn(client, 'deleteRecipe').mockRejectedValue(new Error('network down'));
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-            await user.click(await screen.findByRole('button', { name: 'More' }));
+            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
             await user.click(screen.getByRole('button', { name: 'Delete recipe' }));
-            await user.click(screen.getByRole('button', { name: 'Delete' }));
+            // The dialog's confirm repeats the trigger's verb (spec §6.5), so it is found inside the dialog.
+            await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete recipe' }));
 
-            expect(await screen.findByText('We couldn’t delete this recipe. Please try again.')).toBeInTheDocument();
+            expect(await screen.findByText('We couldn’t delete this recipe. Try again.')).toBeInTheDocument();
         });
     });
 
@@ -590,7 +592,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            await user.click(await screen.findByRole('button', { name: 'More' }));
+            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
             await user.click(screen.getByRole('radio', { name: 'Public' }));
 
             expect(
@@ -692,7 +694,7 @@ describe('RecipeDetailContainer', () => {
                 'href',
                 '/en/recipes/rec_1/edit',
             );
-            await user.click(screen.getByRole('button', { name: 'More' }));
+            await user.click(screen.getByRole('button', { name: /^More actions for /u }));
             expect(screen.getByRole('link', { name: 'Version history' })).toHaveAttribute(
                 'href',
                 '/en/recipes/rec_1/versions',
@@ -735,7 +737,7 @@ describe('RecipeDetailContainer', () => {
             expect(edit.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
             // ...and the More trigger travels WITH it, so the C4 `[Edit] [More]` pair is not split in half.
-            const more = screen.getByRole('button', { name: 'More' });
+            const more = screen.getByRole('button', { name: /^More actions for /u });
             expect(more.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         });
 
@@ -778,7 +780,7 @@ describe('RecipeDetailContainer', () => {
             const user = userEvent.setup();
             renderOwnerDetail();
 
-            await user.click(await screen.findByRole('button', { name: 'More' }));
+            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
             const history = screen.getByRole('link', { name: 'Version history' });
 
             expect(history).toHaveAttribute('href', '/en/recipes/rec_1/versions');
@@ -793,15 +795,16 @@ describe('RecipeDetailContainer', () => {
             expect(back.className).toBe(buttonSurfaceClass('secondary'));
         });
 
-        it('renders the delete trigger as the DS DESTRUCTIVE Button (error tone + touch floor)', async () => {
+        it('renders the delete trigger as the DS DESTRUCTIVE Button (danger label + touch floor)', async () => {
             const user = userEvent.setup();
             renderOwnerDetail();
 
-            await user.click(await screen.findByRole('button', { name: 'More' }));
+            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
             const trigger = screen.getByRole('button', { name: 'Delete recipe' });
 
             expect(trigger.className).toContain('min-h-11');
-            expect(trigger.className).toContain('error');
+            // UI-overhaul slice 2: the inline destructive tier is the `dangerText` role on the neutral surface.
+            expect(trigger.className).toContain('text-danger-text');
             // The dialog contract is preserved: the trigger still announces that it opens one.
             expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
         });
@@ -810,7 +813,7 @@ describe('RecipeDetailContainer', () => {
             const user = userEvent.setup();
             renderOwnerDetail();
 
-            await user.click(await screen.findByRole('button', { name: 'More' }));
+            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
 
             // Every owner control carries the DS pill geometry. A control with an empty/near-empty className is
             // exactly the "reads as plain text" failure the design system exists to prevent. The radius is read
@@ -849,7 +852,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            await user.click(await screen.findByRole('button', { name: 'More' }));
+            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
             await user.click(screen.getByRole('radio', { name: 'Public' }));
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
@@ -865,7 +868,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            await user.click(await screen.findByRole('button', { name: 'More' }));
+            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
             expect(screen.getByRole('radio', { name: 'Private' })).toBeDisabled();
             expect(screen.getByText(/premium/i)).toBeInTheDocument();
         });
@@ -880,7 +883,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            await user.click(await screen.findByRole('button', { name: 'More' }));
+            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
             expect(screen.getByRole('radio', { name: 'Private' })).toBeEnabled();
         });
 
@@ -894,7 +897,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            await user.click(await screen.findByRole('button', { name: 'More' }));
+            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
             expect(screen.getByRole('radio', { name: 'Private' })).toBeDisabled();
         });
     });

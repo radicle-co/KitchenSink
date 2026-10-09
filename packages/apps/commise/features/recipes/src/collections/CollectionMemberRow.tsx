@@ -56,16 +56,16 @@ export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSe
                         aria-label={removeLabel}
                         onClick={() => onRemove(member.id)}
                         // The tint is the ERROR token, not coral — see `CollectionHeader.tsx`'s Delete for the
-                        // same web-only drift: `text-error-dark` (#B1442B) paired with a `bg-coral/10` (#E8917A)
+                        // same web-only drift: `text-danger-text` (#B1442B) paired with a `bg-coral/10` (#E8917A)
                         // hover put a brand accent in the destructive register.
-                        className="shrink-0 rounded-full px-3 py-1 text-body-sm font-medium text-error-dark transition hover:bg-error/10"
+                        className="shrink-0 rounded-full px-3 py-1 text-body-sm font-medium text-danger-text transition hover:bg-danger/10"
                     >
                         {detail.removeCta}
                     </button>
                 </div>
-                <span className="w-fit text-caption font-medium text-slate">{sourceLabel}</span>
+                <span className="w-fit text-caption font-medium text-ink-muted">{sourceLabel}</span>
                 {member.authorHandle !== undefined && (
-                    <p className="text-body-sm text-slate">
+                    <p className="text-body-sm text-ink-muted">
                         {fillTemplate(detail.byAuthor, { handle: member.authorHandle })}
                     </p>
                 )}

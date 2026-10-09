@@ -16,15 +16,15 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: '${E2E_RECIPE_SALAD}'
-# RecipeDetailScreen: Edit + the "More" overflow trigger sit together in the detail's TITLE BAND, beside the
-# recipe name (C4 wireframe parity); the owner-only delete trigger lives behind "More". They used to sit at
+# RecipeDetailScreen: Edit + the "More actions for {title}" ⋯ trigger sit together in the detail's TITLE BAND, beside the
+# recipe name (C4 wireframe parity); the owner-only delete trigger lives behind that ⋯. They used to sit at
 # the foot of the scrolling detail, which is why the scroll below still exists — the band is near the top but
 # below the hero image, so it is not guaranteed to be in the first viewport.
 - scrollUntilVisible:
-      element: 'More'
+      element: 'More actions for .*'
       direction: DOWN
       timeout: 20000
-- tapOn: 'More'
+- tapOn: 'More actions for .*'
 - scrollUntilVisible:
       element: 'Delete recipe'
       direction: DOWN
@@ -36,10 +36,12 @@ appId: io.commise.mobile
 # defect this flow should catch: the dialog was briefly an INLINE block left at the foot of the ScrollView
 # while its trigger moved to the title band, so tapping Delete opened a confirmation off-screen — and a
 # scroll-until-found step would have hunted it down and reported success. Same reasoning, same shape as
-# `pinnedActionBar.yaml`'s own note. 'Delete' is the confirm's exact text; the trigger/title are
-# 'Delete recipe', which Maestro's full-string match won't confuse with 'Delete'.
-- assertVisible: 'Delete'
-- tapOn: 'Delete'
+# `pinnedActionBar.yaml`'s own note. The confirm repeats the trigger's verb, "Delete recipe" (spec §6.5), so it is
+# the one BELOW the dialog's title — the trigger sits in the title band, above the centred dialog.
+- assertVisible: 'Keep recipe'
+- tapOn:
+      text: 'Delete recipe'
+      below: 'Delete this recipe\?'
 
 # ⛔ THE ASSERTION THAT MAKES THIS FLOW A DELETE TEST. Returning to the list proves navigation, nothing more:
 # `assertVisible: 'Recipes'` is satisfied by a delete that answered 500 and by one that silently no-op'd,

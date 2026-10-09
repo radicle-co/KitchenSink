@@ -23,14 +23,14 @@ import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { TextInput } from '@commise/ui/text-input';
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
 import type { FC, ReactElement } from 'react';
 import { Text, View } from 'react-native';
 
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.native.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
+import { rowBadgeStatus, rowGlyphIcon } from './ingredientRowPolicy.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.native.js';
 import { fillTemplate } from '../list/model.js';
 import {
@@ -119,7 +119,7 @@ const GlyphPanelBody: FC<RowDrawing & { readonly row: IngredientRowView; readonl
                     <View style={styles.addAction}>
                         <Button
                             variant="secondary"
-                            icon={<Feather name="refresh-cw" size={16} color={palette.charcoal} />}
+                            icon="refreshCw"
                             accessibilityLabel={fillTemplate(m.statusActionRetryLookupLabel, { food: row.triggerFood })}
                             onPress={() => {
                                 close();
@@ -163,14 +163,14 @@ const RowName: FC<RowDrawing & { readonly row: IngredientRowView }> = ({ row, m,
                     // PLATFORM-FORK: native has no `aria-describedby`, so a refused field says its row sentence in its
                     // own alert (`useSpokenRefusal`); on web the sentence describes the field.
                     {...rowEntryFieldOf(speak(row.entryField, row.line.key, row.pendingText), entryCopy)}
-                    loadingIcon={<Feather name="search" size={16} color={palette.slate} />}
+                    loadingIcon={<Icon name="search" size={16} tone="inkMuted" />}
                     // Item 4: a row in Change food has Cancel instead.
                     {...(row.changing
                         ? {}
                         : {
                               clear: {
                                   label: m.ingredientEntryClear,
-                                  icon: <Feather name="x" size={18} color={palette.slate} />,
+                                  icon: <Icon name="x" size={20} tone="inkMuted" />,
                               },
                           })}
                 />
@@ -236,7 +236,7 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
                 // `IngredientRowView.noFoodNote`. The design system's `StatusBadge` (namelessLineCopy §2c); it takes no
                 // id and no role, so this wrapper `View` carries both.
                 <View id={ingredientNoFoodNoteId(row.index)} role="note">
-                    <StatusBadge tone={presentation.tone}>{row.noFoodNote}</StatusBadge>
+                    <StatusBadge status={rowBadgeStatus(presentation.tone)}>{row.noFoodNote}</StatusBadge>
                 </View>
             )}
             {/* R42's two bounds, sharing the ONE unit field that follows, with empty meaning absent (R40). */}
@@ -301,18 +301,12 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
             />
             {presentation.statusWord !== undefined && (
                 // The status word, from the row policy, as the design system's chip.
-                <StatusBadge tone={presentation.tone}>{m[presentation.statusWord]}</StatusBadge>
+                <StatusBadge status={rowBadgeStatus(presentation.tone)}>{m[presentation.statusWord]}</StatusBadge>
             )}
             {/* Slot 1 — the state glyph, opened by a TAP into a bottom sheet (R32, §8e "moved"). */}
             <Popover
                 triggerLabel={row.labels.glyphTrigger}
-                triggerIcon={
-                    <Feather
-                        name={presentation.glyph === 'alert' ? 'alert-triangle' : 'info'}
-                        size={20}
-                        color={palette.charcoal}
-                    />
-                }
+                triggerIcon={rowGlyphIcon(presentation.glyph)}
                 title={row.displayName}
                 closeLabel={row.labels.glyphClose}
                 busy={row.glyphBusy}
@@ -329,6 +323,7 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
                     title={row.displayName}
                     closeLabel={row.labels.actionsClose}
                     items={row.actions}
+                    destructiveItem={row.destructiveAction}
                     focusRequested={row.actionsFocus.requested}
                     onFocusRequestHandled={row.actionsFocus.onHandled}
                     unavailable={row.busy}
@@ -336,11 +331,7 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
             ) : (
                 // Slot 2 — one action is the control itself, never a one-item menu (§3a); it is always Remove.
                 <View style={styles.rowAction}>
-                    <Button
-                        variant="destructive"
-                        icon={<Feather name="trash-2" size={16} color={palette['error-dark']} />}
-                        onPress={row.onRemove}
-                    >
+                    <Button variant="destructive" icon="trash" onPress={row.onRemove}>
                         {fillTemplate(m.removeIngredient, { number })}
                     </Button>
                 </View>
@@ -412,11 +403,11 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                         { ...speak(trailing.entryField, 'newLine', trailing.pendingText), describedBy: undefined },
                         model.entryCopy,
                     )}
-                    leadingIcon={<Feather name="plus" size={16} color={palette.slate} />}
-                    loadingIcon={<Feather name="search" size={16} color={palette.slate} />}
+                    leadingIcon={<Icon name="plus" size={16} tone="inkMuted" />}
+                    loadingIcon={<Icon name="search" size={16} tone="inkMuted" />}
                     clear={{
                         label: m.ingredientEntryClear,
-                        icon: <Feather name="x" size={18} color={palette.slate} />,
+                        icon: <Icon name="x" size={20} tone="inkMuted" />,
                     }}
                 />
                 {trailing.busyText !== undefined && <Text style={styles.unitNote}>{trailing.busyText}</Text>}
@@ -467,11 +458,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     <View style={styles.panelStack}>
                         <Text style={styles.emptyText}>{m.nutritionLoadFailed}</Text>
                         <View style={styles.addAction}>
-                            <Button
-                                variant="secondary"
-                                icon={<Feather name="refresh-cw" size={16} color={palette.charcoal} />}
-                                onPress={nutrition.retry}
-                            >
+                            <Button variant="secondary" icon="refreshCw" onPress={nutrition.retry}>
                                 {m.statusActionRetry}
                             </Button>
                         </View>

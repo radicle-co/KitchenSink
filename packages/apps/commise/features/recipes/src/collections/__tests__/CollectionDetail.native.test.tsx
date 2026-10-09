@@ -13,6 +13,7 @@ import type { Collection } from '@kitchensink/recipe-core';
 import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionDetail } from '../CollectionDetail.native.js';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { CollectionDetailViewProps, CollectionWithRecipes } from '../model.js';
 
 afterEach(cleanup);
@@ -163,5 +164,21 @@ describe('CollectionDetail (native) — N1: the members’ name is said once, by
 
         expect(screen.getAllByRole('heading', { name: 'Recipes' })).toHaveLength(1);
         expect(screen.queryAllByLabelText('Recipes')).toEqual([]);
+    });
+});
+
+describe('CollectionDetail (native) — the design-system Button (UI overhaul slice 2)', () => {
+    it('adds a recipe through a primary plus Button, and loads more through a secondary chevronDown one', () => {
+        const members = Array.from({ length: 8 }, (_, index) =>
+            makeCollectionMemberRecipe({ id: `rec_${index + 1}`, title: `Recipe ${index + 1}` }),
+        );
+        renderDetail({ collection: makeCollectionWithRecipes({ recipes: members }) });
+
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Add a recipe' }), 'primary', 'plus');
+        expectNativeDesignSystemButton(
+            screen.getByRole('button', { name: 'Load more (4 more)' }),
+            'secondary',
+            'chevron-down',
+        );
     });
 });

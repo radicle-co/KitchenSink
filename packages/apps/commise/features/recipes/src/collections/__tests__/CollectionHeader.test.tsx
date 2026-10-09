@@ -95,10 +95,10 @@ describe('CollectionHeader (web) — Back affordance (C6)', () => {
 /**
  * Delete is painted in the ERROR register — with the error hue, not coral.
  *
- * The control already labelled itself `text-error-dark` (#B1442B) but tinted its hover with `bg-coral/10`
+ * The control already labelled itself `text-danger-text` (#B1442B) but tinted its hover with `bg-coral/10`
  * (#E8917A) — two adjacent-but-different hues inside one control, and the wrong one for a destructive action:
  * coral is a brand accent (the mockups spend it on tags and warm highlights), `error` is the destructive
- * token, and the design system's own `destructive` Button tier already tints with `hover:bg-error/10`. The
+ * token, and the design system's own `destructive` Button tier already tints with `hover:bg-danger/10`. The
  * native leaf never had the coral at all (`palette.error` text, no tint), so this was a WEB-ONLY drift.
  */
 describe('CollectionHeader (web) — Delete stays in the error register', () => {
@@ -106,8 +106,8 @@ describe('CollectionHeader (web) — Delete stays in the error register', () => 
         renderHeader();
         const className = screen.getByRole('button', { name: 'Delete' }).className;
 
-        expect(className).toContain('text-error-dark');
-        expect(className).toContain('hover:bg-error/10');
+        expect(className).toContain('text-danger-text');
+        expect(className).toContain('hover:bg-danger/10');
         expect(className).not.toContain('coral');
     });
 
@@ -124,8 +124,8 @@ describe('CollectionHeader (web) — Delete stays in the error register', () => 
 /**
  * Three seafoam FOREGROUNDS in this header are read as text — Back, Rename, and the visibility badge — so all
  * three carry the 4.5:1 body-text floor, not the 3:1 accent floor `seafoam` clears. Measured: 4.02:1 for Back
- * and Rename on white, 3.57:1 for Rename once `hover:bg-seafoam/10` lands, and 3.57:1 for the badge, whose own
- * `bg-seafoam/10` tint is composited before the ratio is taken. See `@commise/ui`'s palette JSDoc for the one
+ * and Rename on white, 3.57:1 for Rename once `hover:bg-action/10` lands, and 3.57:1 for the badge, whose own
+ * `bg-action/10` tint is composited before the ratio is taken. See `@commise/ui`'s palette JSDoc for the one
  * authoritative statement of where seafoam remains correct (this badge's TINT is one of those places).
  */
 describe('CollectionHeader (web) — the seafoam text foregrounds clear the AA body-text floor', () => {
@@ -160,7 +160,7 @@ describe('CollectionHeader (web) — the seafoam text foregrounds clear the AA b
 
         // The counterweight: the fix must demote the LABEL only. Dropping the tint would erase the badge's
         // own affordance to satisfy a floor that applies to its text, not to its fill.
-        expect(screen.getByText('Public').className).toContain('bg-seafoam/10');
+        expect(screen.getByText('Public').className).toContain('bg-action/10');
     });
 });
 

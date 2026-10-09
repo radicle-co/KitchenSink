@@ -16,6 +16,7 @@ import { recipeVersionMessages } from '../messages.js';
 import { recipeMessages } from '../../messages.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { VersionPreviewModal } from '../VersionPreviewModal.native.js';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { BRISKET_FLAT_HALF_PARTS, BRISKET_FLAT_HALF_SPOKEN } from '../../detail/__fixtures__/variantLines.js';
 
@@ -541,5 +542,18 @@ describe('VersionPreviewModal (native) — a variant-bound line (curated U15)', 
         const marker = screen.getByText(recipeVersionMessages.en.preview.lineCannotRestore);
 
         expect(line.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+});
+
+describe('VersionPreviewModal (native) — the design-system Button (UI overhaul slice 2)', () => {
+    it('restores through a primary rotateCcw Button and keeps the current version through a secondary x one', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        expectNativeDesignSystemButton(
+            screen.getByRole('button', { name: 'Restore this version' }),
+            'primary',
+            'rotate-ccw',
+        );
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Keep current version' }), 'secondary', 'x');
     });
 });

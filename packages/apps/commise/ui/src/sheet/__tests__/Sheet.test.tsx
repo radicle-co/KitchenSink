@@ -113,7 +113,7 @@ describe('Sheet (web)', () => {
         expect(close.className).toContain('w-12');
         // The house focus ring (`Wizard.tsx`): the browser's outline is replaced, never removed without one.
         expect(close.className).toContain('focus-visible:ring-2');
-        expect(close.className).toContain('focus-visible:ring-seafoam');
+        expect(close.className).toContain('focus-visible:ring-focus-ring');
 
         await user.click(close);
 

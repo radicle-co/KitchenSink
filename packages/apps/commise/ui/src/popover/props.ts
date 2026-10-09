@@ -10,6 +10,8 @@
  */
 import type { ReactNode } from 'react';
 
+import type { IconName } from '../icon/props.js';
+
 /** Props for the `Popover` leaves (web and native). */
 export interface PopoverProps {
     /**
@@ -17,8 +19,8 @@ export interface PopoverProps {
      * list of identical names is unusable by voice control and by a screen-reader rotor.
      */
     readonly triggerLabel: string;
-    /** The glyph drawn in the trigger. Decorative: the leaf hides it from assistive tech. */
-    readonly triggerIcon: ReactNode;
+    /** The meaning the trigger's glyph draws, from the icon Registry. Decorative: the leaf hides it. */
+    readonly triggerIcon: IconName;
     /** The panel's heading: it names the web dialog and titles the native sheet. */
     readonly title: string;
     /** The accessible name of the panel's Close control. House form: "Close {thing}". */

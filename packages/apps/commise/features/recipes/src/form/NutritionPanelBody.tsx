@@ -14,7 +14,6 @@ import { Button } from '@commise/ui/button';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
 
-import { RetryIcon } from './icons.js';
 import { recipeFormMessages, type RecipeFormMessages } from './messages.js';
 import type { LineFigures } from './nutrition.js';
 import { nutritionFigureRows } from './nutritionFigureRows.js';
@@ -39,7 +38,7 @@ const FigureList: FC<{
         <dl className="mt-1 grid grid-cols-[auto_auto] justify-start gap-x-4 gap-y-0.5">
             {nutritionFigureRows(figures, m, locale, dashMissing).map((row) => (
                 <div key={row.label} className="contents">
-                    <dt className="text-slate">{row.label}</dt>
+                    <dt className="text-ink-muted">{row.label}</dt>
                     <dd className="font-medium">{row.value}</dd>
                 </div>
             ))}
@@ -58,7 +57,7 @@ export const NutritionPanelBody: FC<NutritionPanelBodyProps> = ({ state, onRetry
             return (
                 <div className="flex flex-col items-start gap-2">
                     <p>{m.nutritionLoadFailed}</p>
-                    <Button variant="secondary" icon={<RetryIcon />} onPress={onRetry}>
+                    <Button variant="secondary" icon="refreshCw" onPress={onRetry}>
                         {m.statusActionRetry}
                     </Button>
                 </div>
@@ -77,9 +76,9 @@ export const NutritionPanelBody: FC<NutritionPanelBodyProps> = ({ state, onRetry
         case 'figures':
             return (
                 <div>
-                    <p className="text-caption text-slate">{m.nutritionBasis}</p>
+                    <p className="text-caption text-ink-muted">{m.nutritionBasis}</p>
                     <FigureList figures={state.figures} dashMissing m={m} />
-                    {state.partial && <p className="mt-1 text-caption text-slate">{m.nutritionFieldUnpublished}</p>}
+                    {state.partial && <p className="mt-1 text-caption text-ink-muted">{m.nutritionFieldUnpublished}</p>}
                 </div>
             );
     }

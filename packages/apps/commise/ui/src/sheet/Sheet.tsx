@@ -34,7 +34,7 @@ import { useVisualViewportKeyboard } from './useVisualViewportKeyboard.js';
  */
 const CONTENT =
     'fixed inset-x-0 top-[var(--sheet-visible-top,0px)] z-50 flex h-[var(--sheet-visible-height,100dvh)] w-full ' +
-    'flex-col bg-card sm:inset-x-auto sm:left-1/2 ' +
+    'flex-col bg-paper-overlay sm:inset-x-auto sm:left-1/2 ' +
     'sm:top-[calc(var(--sheet-visible-top,0px)+var(--sheet-visible-height,100%)/2)] ' +
     'sm:max-h-[min(85vh,var(--sheet-visible-height,85vh))] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 ' +
     'sm:rounded-2xl sm:shadow-lg';
@@ -73,7 +73,7 @@ export const Sheet: FC<SheetProps> = ({
     return (
         <Dialog.Root open={open} onOpenChange={onOpenChange}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     aria-modal="true"
                     aria-labelledby={[titleId, ...labelledBy].join(' ')}

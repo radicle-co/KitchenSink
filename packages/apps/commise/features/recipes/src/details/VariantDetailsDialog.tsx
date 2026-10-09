@@ -18,6 +18,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { Button } from '@commise/ui/button';
+import { Icon } from '@commise/ui/icon';
 import { focusOnArrival } from '@commise/ui/dialog-focus';
 import { OfflineReadSlot } from '@commise/ui/offline-notice';
 import { Sheet } from '@commise/ui/sheet';
@@ -27,7 +28,6 @@ import { useCallback, useId, useState, type FC, type KeyboardEvent, type ReactNo
 import { fillTemplate } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { recipeNutritionMessages } from '../nutrition/messages.js';
-import { MinusIcon, RefreshIcon, XIcon } from '../wizard/icons.js';
 import { type DetailsTextMessages, caloriesLabel, dialogViewOf, variantOptionName } from './detailsText.js';
 import { type VariantRow, rowsOfPlan } from './groupVariants.js';
 import type { VariantDetailsDialogProps } from './props.js';
@@ -190,10 +190,10 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
         ? {
               heading: (
                   <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                      <label htmlFor={searchId} className="text-body-sm font-medium text-charcoal">
+                      <label htmlFor={searchId} className="text-body-sm font-medium text-ink">
                           {fillTemplate(copy.searchLabelOther, { count: total })}
                       </label>
-                      <span className="text-caption text-slate">{copy.caloriesBasis}</span>
+                      <span className="text-caption text-ink-muted">{copy.caloriesBasis}</span>
                   </span>
               ),
               controls: (
@@ -211,7 +211,7 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                           value={details.query}
                           onChange={(event) => details.onQueryChange(event.target.value)}
                           onKeyDown={onSearchKey}
-                          className="h-12 min-w-0 flex-1 rounded-md border border-slate px-3 text-body-md text-charcoal focus:outline-none focus:ring-2 focus:ring-seafoam"
+                          className="h-12 min-w-0 flex-1 rounded-md border border-line-control px-3 text-body-md text-ink focus:outline-none focus:ring-2 focus:ring-focus-ring"
                       />
                       {details.query !== '' && (
                           <button
@@ -222,9 +222,9 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                                   event.currentTarget.parentElement?.querySelector('input')?.focus();
                                   details.onClearQuery();
                               }}
-                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-slate hover:bg-pearl focus:outline-none focus:ring-2 focus:ring-seafoam"
+                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-ink/6 focus:outline-none focus:ring-2 focus:ring-focus-ring"
                           >
-                              <XIcon />
+                              <Icon name="x" size={20} />
                           </button>
                       )}
                   </span>
@@ -237,11 +237,11 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                 {/* `fill`: full width below 640 px, content width at the end of the `sm` row (§S8.2 Footer, R9). */}
                 {state.name === 'detailsNoneLeft' && (
-                    <Button variant="secondary" icon={<XIcon />} onPress={details.onClose} width="fill">
+                    <Button variant="secondary" icon="x" onPress={details.onClose} width="fill">
                         {copy.dismiss}
                     </Button>
                 )}
-                <Button variant="secondary" icon={<MinusIcon />} onPress={details.onRemove} width="fill">
+                <Button variant="secondary" icon="minus" onPress={details.onRemove} width="fill">
                     {copy.remove}
                 </Button>
             </div>
@@ -253,14 +253,14 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                 return (
                     <div className="flex flex-col gap-2 px-4">
                         {/* Shown here, said once by the status region below (§S12 row 17). */}
-                        <p aria-hidden="true" className="text-body-sm text-slate">
+                        <p aria-hidden="true" className="text-body-sm text-ink-muted">
                             {copy.loading}
                         </p>
                         {[0, 1, 2].map((index) => (
                             <div
                                 key={index}
                                 aria-hidden="true"
-                                className="h-12 rounded-md bg-pearl motion-safe:animate-pulse"
+                                className="h-12 rounded-md bg-surface-muted motion-safe:animate-pulse"
                             />
                         ))}
                     </div>
@@ -268,11 +268,11 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
             case 'error':
                 return (
                     <div className="flex flex-col items-start gap-3 px-4">
-                        <p role="alert" className="text-body-md text-charcoal">
+                        <p role="alert" className="text-body-md text-ink">
                             {copy.loadFailed}
                         </p>
                         <div ref={focusWhenMounted}>
-                            <Button variant="secondary" icon={<RefreshIcon />} onPress={details.onRetry}>
+                            <Button variant="secondary" icon="refreshCw" onPress={details.onRetry}>
                                 {copy.retry}
                             </Button>
                         </div>
@@ -286,14 +286,10 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                 );
             case 'noVariants':
                 return (
-                    <p className="px-4 text-body-md text-charcoal">
-                        {fillTemplate(copy.noVariants, { food: foodName })}
-                    </p>
+                    <p className="px-4 text-body-md text-ink">{fillTemplate(copy.noVariants, { food: foodName })}</p>
                 );
             case 'detailsNoneLeft':
-                return (
-                    <p className="px-4 text-body-md text-charcoal">{fillTemplate(copy.noneLeft, { food: foodName })}</p>
-                );
+                return <p className="px-4 text-body-md text-ink">{fillTemplate(copy.noneLeft, { food: foodName })}</p>;
             case 'combined':
                 return (
                     <div ref={focusListArrival} id={listboxId} role="listbox" aria-labelledby={foodId}>
@@ -304,7 +300,7 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                 );
             case 'noMatches':
                 return (
-                    <p className="px-4 text-body-md text-charcoal">
+                    <p className="px-4 text-body-md text-ink">
                         {fillTemplate(copy.noMatches, { query: state.query, count: state.total })}
                     </p>
                 );
@@ -323,7 +319,7 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                                     <p
                                         id={headerId}
                                         role="presentation"
-                                        className={`px-4 pb-2 text-body-sm font-semibold text-charcoal first-letter:uppercase ${top}`}
+                                        className={`px-4 pb-2 text-body-sm font-semibold text-ink first-letter:uppercase ${top}`}
                                     >
                                         {group.key}
                                     </p>
@@ -354,18 +350,18 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
             footer={footer}
         >
             <div className="flex flex-col gap-1 px-4 pb-4">
-                <p id={foodId} className="text-body-md font-semibold text-charcoal first-letter:uppercase">
+                <p id={foodId} className="text-body-md font-semibold text-ink first-letter:uppercase">
                     {foodName}
                 </p>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                    <p id={introId} className="text-body-sm text-slate">
+                    <p id={introId} className="text-body-sm text-ink-muted">
                         {copy.intro}
                     </p>
-                    {state.name === 'combined' && <p className="text-caption text-slate">{copy.caloriesBasis}</p>}
+                    {state.name === 'combined' && <p className="text-caption text-ink-muted">{copy.caloriesBasis}</p>}
                 </div>
                 {currentLine !== undefined && (
-                    <p id={currentId} className="text-body-sm text-slate">
-                        <span className="font-semibold text-charcoal">{currentLine.before}</span>
+                    <p id={currentId} className="text-body-sm text-ink-muted">
+                        <span className="font-semibold text-ink">{currentLine.before}</span>
                         <VariantPartsLine parts={currentLine.parts} tone="secondary" />
                         {currentLine.after}
                     </p>

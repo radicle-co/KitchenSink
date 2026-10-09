@@ -29,7 +29,7 @@ afterEach(cleanup);
 const renderCard = () =>
     renderWithProviders(
         <PlaceholderWidgetCard title="Today's Nutrition">
-            <div className="h-4 w-full bg-pearl" />
+            <div className="h-4 w-full bg-surface-muted" />
         </PlaceholderWidgetCard>,
     );
 
@@ -72,7 +72,7 @@ describe('PlaceholderWidgetCard (web)', () => {
         // Deliberate: `MealPlanWidgetSkeleton` passes REAL weekday names among its shapes, and `aria-hidden` on
         // an ancestor cannot be undone by a descendant — so hiding is the caller's call, per shape. The three
         // real skeletons are checked for it below. (This shell's JSDoc used to claim the opposite.)
-        const shape = container.querySelector('.bg-pearl');
+        const shape = container.querySelector('.bg-surface-muted');
 
         expect(shape).not.toBeNull();
         expect(shape?.closest('[aria-hidden="true"]')).toBeNull();
@@ -127,7 +127,7 @@ describe.each(Object.entries(SKELETONS))('%s skeleton (web)', (_id, { Component,
     it('hides EVERY grey shape from assistive tech (a picture of a layout is not content)', () => {
         const { container } = renderWithProviders(<Component />);
 
-        const shapes = [...container.querySelectorAll('[class*="bg-pearl"], [class*="border-pearl"]')];
+        const shapes = [...container.querySelectorAll('[class*="bg-surface-muted"], [class*="border-pearl"]')];
 
         expect(shapes.length, 'the skeleton paints no shapes at all').toBeGreaterThan(0);
 

@@ -34,7 +34,7 @@ describe('RecipeDiscoveryLoadError (web)', () => {
 
         const alert = screen.getByRole('alert');
 
-        for (const surfaceClass of ['rounded-2xl', 'bg-card', 'shadow-sm']) {
+        for (const surfaceClass of ['rounded-2xl', 'bg-paper', 'shadow-sm']) {
             expect(alert.classList.contains(surfaceClass)).toBe(true);
         }
     });
@@ -56,7 +56,7 @@ describe('RecipeDiscoveryLoadError (web)', () => {
         expect(utilityContrast(retry.className, { surface: semantic.card }), 'at rest').toBeGreaterThanOrEqual(4.5);
         expect(
             utilityContrast(retry.className, { surface: semantic.card, variant: 'hover' }),
-            'under hover:bg-seafoam/10',
+            'under hover:bg-action/10',
         ).toBeGreaterThanOrEqual(4.5);
     });
 });

@@ -247,7 +247,7 @@ describe('ParseJobReview (web) — editing one line', () => {
 
     /**
      * ⛔ THE SOLID-FILL CONTROL, which is the one a regression realistically reintroduces. This row's submit
-     * shipped as `bg-seafoam` with `text-ocean-dark` — 1.33:1 against SC 1.4.3's 4.5:1 — because the parse
+     * shipped as `bg-action` with `text-action-text` — 1.33:1 against SC 1.4.3's 4.5:1 — because the parse
      * flow hand-rolls its pills instead of using the `Button` primitive, and nothing in this file measured
      * contrast at all.
      *

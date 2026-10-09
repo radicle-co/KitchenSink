@@ -25,7 +25,7 @@ export const RecipeBrowseRailResults: FC<RecipeBrowseRailResultsProps> = ({
     const discovery = useMessages(discoveryMessages);
 
     if (results.length === 0) {
-        return <p className="text-body-sm text-slate">{discovery.railEmpty}</p>;
+        return <p className="text-body-sm text-ink-muted">{discovery.railEmpty}</p>;
     }
 
     return (

@@ -2,14 +2,14 @@
     "schemaVersion": 1,
     "counts": {
         "ambiguous-layer-signal": 9,
-        "boolean-prop-selects-subtree": 2,
+        "boolean-prop-selects-subtree": 6,
         "cross-platform-props-diverge": 11,
         "missing-component-doc": 128,
         "missing-module-doc": 29,
-        "platform-singleton": 33,
-        "ref-api": 9,
-        "unclassified-layer": 125,
-        "undocumented-prop": 101
+        "platform-singleton": 18,
+        "ref-api": 8,
+        "unclassified-layer": 107,
+        "undocumented-prop": 111
     },
     "findings": [
         {
@@ -41,6 +41,26 @@
             ]
         },
         {
+            "rule": "boolean-prop-selects-subtree",
+            "severity": "review",
+            "component": "designSystem/button/Button",
+            "sourcePath": "packages/apps/commise/ui/src/button/Button.native.tsx",
+            "message": "a boolean prop selects between two rendered subtrees — behaviour switch, or display derivation?",
+            "evidence": [
+                "busy"
+            ]
+        },
+        {
+            "rule": "boolean-prop-selects-subtree",
+            "severity": "review",
+            "component": "designSystem/button/Button",
+            "sourcePath": "packages/apps/commise/ui/src/button/Button.tsx",
+            "message": "a boolean prop selects between two rendered subtrees — behaviour switch, or display derivation?",
+            "evidence": [
+                "busy"
+            ]
+        },
+        {
             "rule": "ref-api",
             "severity": "violation",
             "component": "designSystem/button/Button",
@@ -58,6 +78,66 @@
             "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
             "evidence": [
                 "useRef"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/button/Button",
+            "sourcePath": "packages/apps/commise/ui/src/button/Button.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "variant"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/button/Button",
+            "sourcePath": "packages/apps/commise/ui/src/button/Button.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "variant"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/chip/Chip",
+            "sourcePath": "packages/apps/commise/ui/src/chip/Chip.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "kind"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/chip/Chip",
+            "sourcePath": "packages/apps/commise/ui/src/chip/Chip.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "kind"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/chip/ChipRow",
+            "sourcePath": "packages/apps/commise/ui/src/chip/ChipRow.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "mode"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/chip/ChipRow",
+            "sourcePath": "packages/apps/commise/ui/src/chip/ChipRow.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "mode"
             ]
         },
         {
@@ -155,14 +235,20 @@
             ]
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "designSystem/input/Input",
-            "sourcePath": "packages/apps/commise/ui/src/input/Input.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "native"
-            ]
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "designSystem/input/Stepper",
+            "sourcePath": "packages/apps/commise/ui/src/input/Stepper.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "designSystem/input/TextArea",
+            "sourcePath": "packages/apps/commise/ui/src/input/TextArea.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
         },
         {
             "rule": "platform-singleton",
@@ -205,6 +291,26 @@
             ]
         },
         {
+            "rule": "boolean-prop-selects-subtree",
+            "severity": "review",
+            "component": "designSystem/popover/Popover",
+            "sourcePath": "packages/apps/commise/ui/src/popover/Popover.native.tsx",
+            "message": "a boolean prop selects between two rendered subtrees — behaviour switch, or display derivation?",
+            "evidence": [
+                "busy"
+            ]
+        },
+        {
+            "rule": "boolean-prop-selects-subtree",
+            "severity": "review",
+            "component": "designSystem/popover/Popover",
+            "sourcePath": "packages/apps/commise/ui/src/popover/Popover.tsx",
+            "message": "a boolean prop selects between two rendered subtrees — behaviour switch, or display derivation?",
+            "evidence": [
+                "busy"
+            ]
+        },
+        {
             "rule": "ref-api",
             "severity": "violation",
             "component": "designSystem/popover/Popover",
@@ -212,6 +318,42 @@
             "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
             "evidence": [
                 "useRef"
+            ]
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "designSystem/recipeCover/RecipeCover",
+            "sourcePath": "packages/apps/commise/ui/src/recipeCover/RecipeCover.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "designSystem/searchField/SearchField",
+            "sourcePath": "packages/apps/commise/ui/src/searchField/SearchField.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/segmentedControl/SegmentedControl",
+            "sourcePath": "packages/apps/commise/ui/src/segmentedControl/SegmentedControl.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "form"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/segmentedControl/SegmentedControl",
+            "sourcePath": "packages/apps/commise/ui/src/segmentedControl/SegmentedControl.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "form"
             ]
         },
         {
@@ -329,12 +471,57 @@
             ]
         },
         {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/snackbar/UndoSnackbar",
+            "sourcePath": "packages/apps/commise/ui/src/snackbar/UndoSnackbar.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "action",
+                "message"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/snackbar/UndoSnackbar",
+            "sourcePath": "packages/apps/commise/ui/src/snackbar/UndoSnackbar.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "action",
+                "message"
+            ]
+        },
+        {
             "rule": "unclassified-layer",
             "severity": "gap",
             "component": "designSystem/surface/GlassCard",
             "sourcePath": "packages/apps/commise/ui/src/surface/GlassCard.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/testing/LucideGlyphStub",
+            "sourcePath": "packages/apps/commise/ui/src/testing/lucideNativeGlyph.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/testing/LucideGlyphStub",
+            "sourcePath": "packages/apps/commise/ui/src/testing/lucideNativeGlyph.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "color",
+                "fill",
+                "glyph",
+                "size"
+            ]
         },
         {
             "rule": "platform-singleton",
@@ -367,14 +554,6 @@
             ]
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/actions/CloneIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/actions/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "featuresRecipes/actions/MoreActionsMenu",
@@ -389,16 +568,6 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/actions/MoreActionsMenu.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
-        },
-        {
-            "rule": "ref-api",
-            "severity": "violation",
-            "component": "featuresRecipes/actions/MoreActionsMenu",
-            "sourcePath": "packages/apps/commise/features/recipes/src/actions/MoreActionsMenu.tsx",
-            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
-            "evidence": [
-                "useRef"
-            ]
         },
         {
             "rule": "unclassified-layer",
@@ -1484,24 +1653,6 @@
             ]
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/form/AlertIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/form/AlertIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "featuresRecipes/form/AuthoredFoodSheet",
@@ -1546,24 +1697,6 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/form/CheckIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/form/CheckIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
             "component": "featuresRecipes/form/CuisineSelect",
             "sourcePath": "packages/apps/commise/features/recipes/src/form/CuisineSelect.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
@@ -1600,24 +1733,6 @@
             ]
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/form/InfoIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/form/InfoIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "featuresRecipes/form/NutritionPanelBody",
@@ -1636,24 +1751,6 @@
             "evidence": [
                 "state"
             ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/form/PlusIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/form/PlusIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
         },
         {
             "rule": "unclassified-layer",
@@ -1688,42 +1785,6 @@
             "evidence": []
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/form/RetryIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/form/RetryIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/form/SearchIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/form/SearchIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "ambiguous-layer-signal",
             "severity": "review",
             "component": "featuresRecipes/form/ShortlistPanel",
@@ -1737,24 +1798,6 @@
             "component": "featuresRecipes/form/ShortlistPanel",
             "sourcePath": "packages/apps/commise/features/recipes/src/form/ShortlistPanel.tsx",
             "message": "the docblock names BOTH layers; the catalogue resolved it to orchestration",
-            "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/form/TrashIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/form/TrashIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },
         {
@@ -2192,150 +2235,6 @@
             "evidence": [
                 "recipesPromise"
             ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/wizard/ArrowLeftIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/wizard/ArrowLeftIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/wizard/CheckIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/wizard/CheckIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/wizard/ChevronLeftIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/wizard/ChevronLeftIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/wizard/ChevronRightIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/wizard/ChevronRightIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/wizard/MinusIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/wizard/MinusIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/wizard/MoreVerticalIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/wizard/MoreVerticalIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/wizard/RefreshIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/wizard/RefreshIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/wizard/SaveIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/wizard/SaveIcon",
-            "sourcePath": "packages/apps/commise/features/recipes/src/wizard/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
         },
         {
             "rule": "boolean-prop-selects-subtree",
@@ -3368,22 +3267,6 @@
             ]
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/auth/AlertTriangleIcon",
-            "sourcePath": "packages/apps/commise/web/src/components/auth/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/auth/CheckIcon",
-            "sourcePath": "packages/apps/commise/web/src/components/auth/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "web/components/auth/LoginButton",
@@ -3424,40 +3307,6 @@
             "sourcePath": "packages/apps/commise/web/src/components/auth/LogoutButton.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/auth/LogOutIcon",
-            "sourcePath": "packages/apps/commise/web/src/components/auth/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/auth/TrashIcon",
-            "sourcePath": "packages/apps/commise/web/src/components/auth/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/home/chrome/HomeIcon",
-            "sourcePath": "packages/apps/commise/web/src/components/home/chrome/icons.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "web/components/home/chrome/HomeIcon",
-            "sourcePath": "packages/apps/commise/web/src/components/home/chrome/icons.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "name"
-            ]
         },
         {
             "rule": "unclassified-layer",
@@ -3662,14 +3511,6 @@
             "severity": "gap",
             "component": "mobile/components/AuthGate",
             "sourcePath": "packages/apps/commise/mobile/src/components/AuthGate.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "mobile/components/home/chrome/ChromeIcon",
-            "sourcePath": "packages/apps/commise/mobile/src/components/home/chrome/icons.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },

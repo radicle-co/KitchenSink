@@ -27,15 +27,15 @@ export const DataSourcesSettingsLink: FC<DataSourcesSettingsLinkProps> = ({ href
 
     return (
         <section aria-labelledby={headingId} className={className}>
-            <h2 id={headingId} className="font-display text-heading-md font-semibold text-charcoal">
+            <h2 id={headingId} className="font-display text-heading-md font-semibold text-ink">
                 {messages.settingsHeading}
             </h2>
-            <p className="text-body-sm text-slate">{messages.settingsSummary}</p>
+            <p className="text-body-sm text-ink-muted">{messages.settingsSummary}</p>
             <Link
                 // Typed routes: the host owns the route and passes its address; the cast reads the accepted type off
                 // `Link` itself, as `RecipeSourceTabs` does.
                 href={href as ComponentProps<typeof Link>['href']}
-                className="inline-block py-1 text-body-sm font-medium text-ocean-dark underline underline-offset-2"
+                className="inline-block py-1 text-body-sm font-medium text-action-text underline underline-offset-2"
             >
                 {messages.title}
             </Link>

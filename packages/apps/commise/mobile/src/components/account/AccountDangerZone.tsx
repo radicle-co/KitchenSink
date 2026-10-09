@@ -37,7 +37,6 @@ import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { nativeTokens } from '@commise/ui/native';
-import { Feather } from '@expo/vector-icons';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
@@ -47,9 +46,6 @@ import { useSignOutAndVerify } from '../../hooks/useSignOutAndVerify.js';
 import { useDeleteAccount } from '../../hooks/useDeleteAccount.js';
 import { mobileMessages } from '../../i18n/messages.js';
 import { SignOutButton } from './SignOutButton.js';
-
-/** Trigger glyph size — the DS Button pairs every label with an icon. */
-const TRIGGER_ICON_SIZE = 16;
 
 /**
  * The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state.
@@ -163,12 +159,7 @@ export function AccountDangerZone(): JSX.Element {
             {/* Recoverable closure — the calmer bordered tier, so it never competes with the erasure. Its
                 `busy` state is the DS spinner (the control is disabled while in flight, so an in-progress
                 closure cannot be double-fired) AND the localized busy label. */}
-            <Button
-                variant="secondary"
-                icon={<Feather name="user-x" size={TRIGGER_ICON_SIZE} color={palette.charcoal} />}
-                busy={deleteAccount.isPending}
-                onPress={() => setCloseOpen(true)}
-            >
+            <Button variant="secondary" icon="userX" busy={deleteAccount.isPending} onPress={() => setCloseOpen(true)}>
                 {deleteAccount.isPending ? close.busyLabel : close.trigger}
             </Button>
             {deleteAccount.isError ? (
@@ -179,26 +170,21 @@ export function AccountDangerZone(): JSX.Element {
 
             {/* Irreversible erasure — the destructive tier. It opens the phrase-gated dialog; the erasure's
                 own in-flight state belongs to that dialog's confirm control, not to this trigger. */}
-            <Button
-                variant="destructive"
-                icon={<Feather name="trash-2" size={TRIGGER_ICON_SIZE} color={palette['error-dark']} />}
-                onPress={() => setEraseOpen(true)}
-            >
+            <Button variant="destructive" icon="trash" onPress={() => setEraseOpen(true)}>
                 {erase.trigger}
             </Button>
 
             <ConfirmDialog
                 open={closeOpen}
                 title={close.title}
-                description={close.description}
-                confirmLabel={close.confirm}
-                cancelLabel={close.cancel}
-                destructive
+                body={close.description}
+                confirm={{ label: close.confirm, icon: 'userX' }}
+                keep={{ label: close.cancel }}
                 onConfirm={() => {
                     setCloseOpen(false);
                     deleteAccount.mutate();
                 }}
-                onCancel={() => setCloseOpen(false)}
+                onKeep={() => setCloseOpen(false)}
             />
 
             {eraseOpen && <AccountEraseFlow onClose={() => setEraseOpen(false)} onExitFailed={handleEraseExitFailed} />}

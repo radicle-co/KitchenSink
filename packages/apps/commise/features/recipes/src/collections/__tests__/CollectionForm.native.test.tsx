@@ -12,6 +12,7 @@ import { palette } from '@commise/ui';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionForm } from '../CollectionForm.native.js';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { CollectionFormProps } from '../model.js';
 
 afterEach(cleanup);
@@ -128,5 +129,14 @@ describe('CollectionForm (native) — N1: the card’s name is said once, by its
 
         expect(screen.getAllByRole('heading', { name: title })).toHaveLength(1);
         expect(screen.queryAllByLabelText(title)).toEqual([]);
+    });
+});
+
+describe('CollectionForm (native) — the design-system Button (UI overhaul slice 2)', () => {
+    it('submits through a primary check Button and cancels through a ghost one', () => {
+        renderForm();
+
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Create' }), 'primary', 'check');
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Cancel' }), 'ghost', null);
     });
 });

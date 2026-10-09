@@ -35,7 +35,9 @@
  *     `open` is the caller's, so this leaf stays a controlled `props → JSX` render.
  */
 import { useMessages } from '@commise/i18n/react';
+import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
+import { Icon } from '@commise/ui/icon';
 import * as Dialog from '@radix-ui/react-dialog';
 import { type FC } from 'react';
 
@@ -71,37 +73,36 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     // loading" rather than risking a misleading zero-count flash before the first preview resolves.
     const showLoading = isLoadingPreview || (diff === undefined && error === undefined);
     const showDiff = !showLoading && error === undefined && diff !== undefined;
-    const canConfirm = diff !== undefined && diff.added.length > 0 && !isCommitting;
 
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onCancel()}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     onCloseAutoFocus={onCloseAutoFocus}
-                    className="fixed left-1/2 top-1/2 z-50 flex w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl bg-card p-6 shadow-lg"
+                    className="fixed left-1/2 top-1/2 z-50 flex w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl bg-paper p-6 shadow-lg"
                 >
                     <div className="flex flex-col gap-1">
-                        <Dialog.Title className="font-display text-heading-lg font-semibold text-charcoal">
+                        <Dialog.Title className="font-display text-heading-lg font-semibold text-ink">
                             {pull.title}
                         </Dialog.Title>
-                        {attribution !== undefined && <p className="text-body-sm text-slate">{attribution}</p>}
+                        {attribution !== undefined && <p className="text-body-sm text-ink-muted">{attribution}</p>}
                     </div>
 
                     {showLoading && (
-                        <p role="status" aria-label={pull.loadingLabel} className="text-body-md text-slate">
+                        <p role="status" aria-label={pull.loadingLabel} className="text-body-md text-ink-muted">
                             {pull.loadingLabel}
                         </p>
                     )}
 
                     {!showLoading && error !== undefined && (
-                        <p role="alert" className="text-body-md text-error-dark">
+                        <p role="alert" className="text-body-md text-danger-text">
                             {error === 'drift' ? pull.driftMessage : pull.genericErrorMessage}
                         </p>
                     )}
 
                     {showDiff && diff !== undefined && (
-                        <div className="flex flex-col gap-2 text-body-md text-slate">
+                        <div className="flex flex-col gap-2 text-body-md text-ink-muted">
                             <p>{fillTemplate(pull.addedCount, { count: diff.added.length })}</p>
                             <p>{fillTemplate(pull.removedCount, { count: diff.removed.length })}</p>
                             <p>{fillTemplate(pull.unchangedCount, { count: diff.unchanged.length })}</p>
@@ -111,19 +112,22 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                     )}
 
                     <div className="flex items-center justify-end gap-3">
-                        <Dialog.Close className="rounded-full px-4 py-2 text-body-sm font-medium text-slate transition hover:bg-pearl">
+                        {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. */}
+                        <Dialog.Close className={buttonSurfaceClass('secondary')}>
+                            <Icon name="x" size={20} />
                             {pull.cancel}
                         </Dialog.Close>
                         {showDiff && diff !== undefined && (
-                            <button
-                                type="button"
-                                onClick={onConfirm}
-                                disabled={!canConfirm}
-                                aria-busy={isCommitting || undefined}
-                                className="rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:opacity-60"
+                            // Busy keeps focus on the control just pressed (the Button's `busy`); nothing to pull is a
+                            // rule the press did not cause, so it disables natively.
+                            <Button
+                                icon="check"
+                                busy={isCommitting}
+                                disabled={diff.added.length === 0}
+                                onPress={onConfirm}
                             >
                                 {fillTemplate(pull.confirm, { count: diff.added.length })}
-                            </button>
+                            </Button>
                         )}
                     </div>
                 </Dialog.Content>

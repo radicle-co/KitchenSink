@@ -121,7 +121,8 @@ describe('web tokens — the glass hairline is emitted, not re-spelled', () => {
     });
 
     it('emits one edge per tier and no others (no hand-added glass colours)', () => {
-        const emitted = themeCss().match(/--color-glass-[\w-]+/g) ?? [];
+        // Distinct names: the dark block overrides the same properties (`themeCssDark.test.ts`), it adds none.
+        const emitted = [...new Set(themeCss().match(/--color-glass-[\w-]+/g) ?? [])];
 
         expect(emitted).toEqual(Object.keys(glass).map((tier) => `--color-glass-${tier}-edge`));
     });
@@ -169,7 +170,8 @@ describe('web tokens — the page-canvas gradient is emitted into a real namespa
     });
 
     it('emits ONLY the canvas gradient, so the CTA/scrim ramps keep one representation each', () => {
-        const emitted = themeCss().match(/--background-image-[\w-]+/g) ?? [];
+        // Distinct names: the dark block overrides `--background-image-hero` rather than adding a second ramp.
+        const emitted = [...new Set(themeCss().match(/--background-image-[\w-]+/g) ?? [])];
 
         // `brand` already reaches the web as the Button's `from-seafoam to-ocean-dark` classes and `scrim` as
         // the recipe-detail cover's own classes. Emitting them here too would be a SECOND web path for the
@@ -203,24 +205,24 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-sand: #FAF6F0;
               --color-ocean-dark: #2A6B65;
               --color-charcoal: #2D3436;
-              --color-slate: #636E72;
-              --color-mist: #B2BEC3;
-              --color-pearl: #F5F5F5;
+              --color-slate: #6B645C;
+              --color-mist: #C9C1B6;
+              --color-pearl: #F3EEE6;
               --color-white: #FFFFFF;
               --color-success: #4CAF7C;
               --color-warning: #F5B041;
-              --color-warning-dark: #966400;
+              --color-warning-dark: #8C5A00;
               --color-error: #C05238;
               --color-error-dark: #B1442B;
               --color-premium: #D4A574;
-              --color-pewter: #858F93;
+              --color-pewter: #8A847C;
               --color-honey: #A86A12;
               --color-background: #FAF6F0;
               --color-foreground: #2D3436;
               --color-card: #FFFFFF;
               --color-primary: #5BA8A0;
               --color-secondary: #E8917A;
-              --color-muted: #F5F5F5;
+              --color-muted: #F3EEE6;
               --color-accent: #8ECAE6;
               --color-destructive: #C05238;
               --color-border: rgba(178, 190, 195, 0.3);
@@ -262,9 +264,9 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-canvas: #FAF6F0;
               --color-paper: #FFFFFF;
               --color-ink: #2D3436;
-              --color-ink-muted: #636E72;
-              --color-line-control: #858F93;
-              --color-line-divider: #B2BEC3;
+              --color-ink-muted: #6B645C;
+              --color-line-control: #8A847C;
+              --color-line-divider: #C9C1B6;
               --color-action: #31807A;
               --color-action-text: #2A6B65;
               --color-selected-fill: #E2EDEC;
@@ -272,10 +274,20 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-here-bar: #31807A;
               --color-focus-ring: #2A6B65;
               --color-rating: #A86A12;
-              --color-attention: #966400;
+              --color-attention: #8C5A00;
               --color-attention-tint: rgba(245, 176, 65, 0.2);
               --color-danger: #C05238;
               --color-danger-text: #B1442B;
+              --color-paper-raised: #FFFFFF;
+              --color-paper-overlay: #FFFFFF;
+              --color-surface-muted: #F3EEE6;
+              --color-inverse: #2D3436;
+              --color-inverse-ink: #FFFFFF;
+              --color-inverse-action: #5BA8A0;
+              --color-photo-chip: rgba(255, 255, 255, 0.92);
+              --color-scrim: rgba(45, 52, 54, 0.4);
+              --color-on-action: #FFFFFF;
+              --color-action-pressed: #2A6B65;
               --text-large-title: clamp(1.75rem, 1.5rem + 1.6667cqi, 2.5rem);
               --text-large-title--line-height: 1.15;
               --text-large-title--font-weight: 700;
@@ -316,6 +328,59 @@ describe('web tokens — generated theme.css artifact', () => {
               --container-list: 48rem;
               --container-detail: 72rem;
               --container-page: 90rem;
+              --color-cover-seafoam: #E6F0EF;
+              --color-cover-coral: #FAE9E4;
+              --color-cover-sky: #DFF0F8;
+              --color-cover-premium: #F6EBE0;
+              --color-cover-success: #E2F2EA;
+              --color-cover-warning: #FDEFD9;
+              --color-pro-fill: #D4A574;
+              --color-pro-ink: #2D3436;
+          }
+
+          @media (prefers-color-scheme: dark) {
+              :root {
+                  --color-canvas: #141210;
+                  --color-paper: #1E1B18;
+                  --color-paper-raised: #272320;
+                  --color-paper-overlay: #302C28;
+                  --color-surface-muted: #2B2825;
+                  --color-ink: #EDE9E4;
+                  --color-ink-muted: #B6B0A9;
+                  --color-line-control: #857F79;
+                  --color-line-divider: #3B3734;
+                  --color-action: #31807A;
+                  --color-action-text: #7DC7C0;
+                  --color-on-action: #FFFFFF;
+                  --color-action-pressed: #2A6B65;
+                  --color-selected-fill: #243935;
+                  --color-selected-edge: #65B5AE;
+                  --color-here-bar: #65B5AE;
+                  --color-focus-ring: #7DC7C0;
+                  --color-rating: #EAA950;
+                  --color-attention: #EFBA64;
+                  --color-attention-tint: rgba(245, 176, 65, 0.2);
+                  --color-danger: #C05238;
+                  --color-danger-text: #EC8E76;
+                  --color-inverse: #EDE9E4;
+                  --color-inverse-ink: #2D3436;
+                  --color-inverse-action: #2A6B65;
+                  --color-photo-chip: rgba(48, 44, 40, 0.92);
+                  --color-scrim: rgba(0, 0, 0, 0.6);
+                  --color-cover-seafoam: #22312E;
+                  --color-cover-coral: #4A352E;
+                  --color-cover-sky: #374245;
+                  --color-cover-premium: #46392C;
+                  --color-cover-success: #283C2E;
+                  --color-cover-warning: #4D3C21;
+                  --color-glass-card-edge: rgba(255, 255, 255, 0.12);
+                  --color-glass-subtle-edge: rgba(255, 255, 255, 0.12);
+                  --background-image-hero: linear-gradient(135deg, #141210 0%, #101714 50%, #0F181A 100%);
+              }
+          }
+
+          :root {
+              color-scheme: light dark;
           }
           "
         `);

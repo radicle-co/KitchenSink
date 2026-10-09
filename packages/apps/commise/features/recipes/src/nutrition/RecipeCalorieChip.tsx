@@ -36,7 +36,7 @@ export interface RecipeCalorieChipProps {
 /**
  * A stale figure differs from a fresh one in TWO channels, deliberately.
  *
- * The italic is the sighted reader's cue (subtle, and it leaves the `text-slate` meta colour — and therefore
+ * The italic is the sighted reader's cue (subtle, and it leaves the `text-ink-muted` meta colour — and therefore
  * the AA contrast the meta row was tuned to — untouched); the caveat in the accessible name is everyone
  * else's. Marking staleness by styling ALONE would implement only the sighted half of KTD-3b's "serve stale,
  * MARKED", which is the same half-fix that let a cached figure reach a reader unannounced for two releases.

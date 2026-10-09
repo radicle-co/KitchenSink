@@ -25,13 +25,14 @@
  * each control keeps its accessible name (the label, plus "coming soon" when gated), so a screen-reader user
  * gets the same nav whether the rail is expanded or collapsed.
  */
-import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { Icon } from '@commise/ui/icon';
 import Link from 'next/link';
 import type { JSX } from 'react';
 
 import type { WebMessages } from '@/i18n/messages';
 
-import { HomeIcon } from './icons';
+import { CONTROL_GLYPH } from './chromeGlyphs';
 import { homeNavHref } from './navHref';
 
 /** The chrome copy slice this sidebar renders. */
@@ -83,13 +84,11 @@ export function HomeSidebar({
                         aria-hidden={!collapsed}
                         aria-label={collapsed ? chrome.logoAlt : undefined}
                         role={collapsed ? 'img' : undefined}
-                        className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-gradient-to-br from-seafoam to-ocean-dark font-display text-lg font-bold text-white"
+                        className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-gradient-to-br from-seafoam to-ocean-dark font-display text-lg font-bold text-on-action"
                     >
                         C
                     </span>
-                    {!collapsed && (
-                        <span className="font-display text-xl font-bold text-charcoal">{chrome.wordmark}</span>
-                    )}
+                    {!collapsed && <span className="font-display text-xl font-bold text-ink">{chrome.wordmark}</span>}
                 </div>
             </div>
 
@@ -107,13 +106,13 @@ export function HomeSidebar({
                                 type="button"
                                 aria-disabled="true"
                                 aria-label={`${label}, ${chrome.comingSoonSuffix}`}
-                                // Contrast (WCAG 2.1 AA, #113): opaque `slate` (5.24:1). `text-slate/60` composited to
+                                // Contrast (WCAG 2.1 AA, #113): opaque `slate` (5.24:1). `text-ink-muted` composited to
                                 // 2.41:1 — the token passed while the pixel did not. Inactive is communicated by
                                 // `cursor-not-allowed` + the announced "coming soon" name, not by dimming the text
                                 // below legibility.
-                                className="flex w-full cursor-not-allowed items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-left text-slate"
+                                className="flex w-full cursor-not-allowed items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-left text-ink-muted"
                             >
-                                <HomeIcon name={item.id} className="size-6 shrink-0" />
+                                <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
                                 {!collapsed && <span className="font-medium">{label}</span>}
                             </button>
                         );
@@ -135,11 +134,11 @@ export function HomeSidebar({
                                     ? // The rail, the gradient pill and the glyph tint stay seafoam — non-text
                                       // accents. The FOREGROUND is `ocean-dark`, because this class colours the
                                       // visible label too (see the palette JSDoc in `@commise/ui`).
-                                      'border-l-[3px] border-seafoam bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-ocean-dark'
-                                    : 'text-slate hover:bg-white/10 hover:text-charcoal'
+                                      'border-l-[3px] border-selected-edge bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-action-text'
+                                    : 'text-ink-muted hover:bg-paper/10 hover:text-ink'
                             }`}
                         >
-                            <HomeIcon name={item.id} className="size-6 shrink-0" />
+                            <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
                             {!collapsed && <span className="font-medium">{label}</span>}
                         </Link>
                     );
@@ -151,12 +150,11 @@ export function HomeSidebar({
                 onClick={onToggleCollapse}
                 aria-label={collapsed ? chrome.expandNav : chrome.collapseNav}
                 aria-pressed={collapsed}
-                className="flex items-center justify-center border-t border-white/20 p-4 text-slate transition-colors hover:text-charcoal"
+                className="flex items-center justify-center border-t border-white/20 p-4 text-ink-muted transition-colors hover:text-ink"
             >
-                <HomeIcon
-                    name="collapse-left"
-                    className={`size-6 transition-transform ${collapsed ? 'rotate-180' : ''}`}
-                />
+                <span className={`inline-flex transition-transform ${collapsed ? 'rotate-180' : ''}`}>
+                    <Icon name={CONTROL_GLYPH.collapse} size={24} />
+                </span>
             </button>
         </div>
     );

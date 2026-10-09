@@ -18,35 +18,43 @@ import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
-import { palette } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { RefreshNoticeProps } from './props.js';
 
 /** The failed-refresh notice: a silent region until a refresh fails, then the message and its retry. */
-export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRetry, labels }) => (
-    <>
-        <LiveRegion politeness="polite" visuallyHidden>
-            {failed && !refreshing ? labels.failed : ''}
-        </LiveRegion>
-        {failed && (
-            <View style={styles.row}>
-                <Text style={styles.message}>{labels.failed}</Text>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={labels.retry}
-                    accessibilityHint={labels.failed}
-                    accessibilityState={{ busy: refreshing, disabled: refreshing }}
-                    aria-busy={refreshing || undefined}
-                    disabled={refreshing}
-                    onPress={onRetry}
-                    style={[styles.button, refreshing && styles.busy]}
-                >
-                    <Text style={styles.label}>{labels.retry}</Text>
-                </Pressable>
-            </View>
-        )}
-    </>
-);
+export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRetry, labels }) => {
+    const { colors } = useTheme();
+
+    return (
+        <>
+            <LiveRegion politeness="polite" visuallyHidden>
+                {failed && !refreshing ? labels.failed : ''}
+            </LiveRegion>
+            {failed && (
+                <View style={[styles.row, { backgroundColor: colors.surfaceMuted }]}>
+                    <Text style={[styles.message, { color: colors.inkMuted }]}>{labels.failed}</Text>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={labels.retry}
+                        accessibilityHint={labels.failed}
+                        accessibilityState={{ busy: refreshing, disabled: refreshing }}
+                        aria-busy={refreshing || undefined}
+                        disabled={refreshing}
+                        onPress={onRetry}
+                        style={[
+                            styles.button,
+                            { backgroundColor: colors.canvas, borderColor: colors.lineDivider },
+                            refreshing && styles.busy,
+                        ]}
+                    >
+                        <Text style={[styles.label, { color: colors.ink }]}>{labels.retry}</Text>
+                    </Pressable>
+                </View>
+            )}
+        </>
+    );
+};
 
 const styles = StyleSheet.create({
     row: {
@@ -55,16 +63,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: nativeTokens.spacing[2],
-        backgroundColor: palette.pearl,
         borderRadius: nativeTokens.radius.lg,
         paddingHorizontal: nativeTokens.spacing[4],
         paddingVertical: nativeTokens.spacing[2],
     },
-    message: { flexShrink: 1, fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+    message: { flexShrink: 1, fontSize: nativeTokens.fontSize.bodySm },
     button: {
-        backgroundColor: palette.sand,
-        // A `mist` hairline, as on web: the `sand` fill is ~1:1 against the `pearl` row.
-        borderColor: palette.mist,
+        // A `lineDivider` hairline, as on web: the `canvas` fill is ~1:1 against the `surfaceMuted` row.
         borderWidth: StyleSheet.hairlineWidth,
         borderRadius: nativeTokens.radius.full,
         paddingVertical: nativeTokens.spacing[2],
@@ -73,5 +78,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     busy: { opacity: 0.6 },
-    label: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.charcoal },
+    label: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
 });

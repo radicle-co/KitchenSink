@@ -17,6 +17,7 @@
  * @pattern Mediator — between the host's row-editor controllers and the row controls, through `useIngredientsFields`
  */
 import { ActionMenu } from '@commise/ui/action-menu';
+import { Icon } from '@commise/ui/icon';
 import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
 import { Popover } from '@commise/ui/popover';
@@ -26,6 +27,7 @@ import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
 
+import { rowBadgeStatus, rowGlyphIcon } from './ingredientRowPolicy.js';
 import { errorText, fieldChrome, sectionCard, sectionHeading, sizedField } from './formSectionStyles.js';
 import { fillTemplate } from '../list/model.js';
 import {
@@ -48,7 +50,6 @@ import { nutritionPanelOf } from './nutritionPanel.js';
 import { rowEntryFieldOf, type RowEntryFieldCopy } from './rowEntryField.js';
 import { trailingEntryFieldOf } from './trailingEntryField.js';
 import { NutritionPanelBody } from './NutritionPanelBody.js';
-import { AlertIcon, InfoIcon, PlusIcon, RetryIcon, SearchIcon, TrashIcon } from './icons.js';
 import { ShortlistPanel } from './ShortlistPanel.js';
 import { recipeFormMessages } from './messages.js';
 import { quantityInputValue, type RecipeIngredientsFieldsProps } from './props.js';
@@ -97,7 +98,7 @@ const GlyphPanelBody: FC<RowDrawing & { readonly row: IngredientRowView; readonl
                     <p>{m.statusExplainFailed}</p>
                     <Button
                         variant="secondary"
-                        icon={<RetryIcon />}
+                        icon="refreshCw"
                         accessibilityLabel={fillTemplate(m.statusActionRetryLookupLabel, { food: row.triggerFood })}
                         onPress={() => {
                             close();
@@ -129,7 +130,10 @@ const RowName: FC<RowDrawing & { readonly row: IngredientRowView }> = ({ row, m,
     if (row.presentation.nameMode === 'entry') {
         return (
             <div className="min-w-0 basis-full">
-                <Combobox {...rowEntryFieldOf(row.entryField, entryCopy)} loadingIcon={<SearchIcon />} />
+                <Combobox
+                    {...rowEntryFieldOf(row.entryField, entryCopy)}
+                    loadingIcon={<Icon name="search" size={16} />}
+                />
             </div>
         );
     }
@@ -152,7 +156,7 @@ const RowName: FC<RowDrawing & { readonly row: IngredientRowView }> = ({ row, m,
             aria-describedby={row.describedBy.name}
             className="min-w-0 basis-full"
         >
-            <span className="line-clamp-2 break-words text-body-md text-charcoal">{row.line.name}</span>
+            <span className="line-clamp-2 break-words text-body-md text-ink">{row.line.name}</span>
         </div>
     );
 };
@@ -184,7 +188,9 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
                     <VariantPartsLine parts={row.variantParts} tone="secondary" />
                 </span>
             )}
-            {row.busyText !== undefined && <span className="basis-full text-caption text-slate">{row.busyText}</span>}
+            {row.busyText !== undefined && (
+                <span className="basis-full text-caption text-ink-muted">{row.busyText}</span>
+            )}
             {row.pendingText !== undefined && (
                 <span id={ingredientPendingTextId(line.key)} className={`basis-full ${errorText}`}>
                     {row.pendingText}
@@ -200,7 +206,7 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
                 // `IngredientRowView.noFoodNote`. The chip is the design system's `StatusBadge` (namelessLineCopy §2c);
                 // it takes no id and no role, so this wrapper carries both, as `StandIn`'s wrapper carries its id.
                 <span id={ingredientNoFoodNoteId(row.index)} role="note">
-                    <StatusBadge tone={presentation.tone}>{row.noFoodNote}</StatusBadge>
+                    <StatusBadge status={rowBadgeStatus(presentation.tone)}>{row.noFoodNote}</StatusBadge>
                 </span>
             )}
             {/* The two bounds of R42's ranged quantity, sharing the ONE unit field that follows. An emptied field
@@ -219,7 +225,7 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
                 />
                 {/* Punctuation, not copy — the same EN DASH `formatQuantity` prints between the bounds on the read
                     surface. Hidden from assistive tech: each input already carries its own accessible name. */}
-                <span aria-hidden className="shrink-0 text-slate">
+                <span aria-hidden className="shrink-0 text-ink-muted">
                     –
                 </span>
                 <input
@@ -238,11 +244,11 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
                     aria-describedby={row.describedBy.unit}
                     value={line.unit ?? ''}
                     onChange={(event) => row.edit.unit(event.target.value)}
-                    className={`${fieldChrome} w-28 min-w-16 ${row.unitCanonical ? 'text-charcoal' : 'text-slate italic'}`}
+                    className={`${fieldChrome} w-28 min-w-16 ${row.unitCanonical ? 'text-ink' : 'text-ink-muted italic'}`}
                 />
             </div>
             {row.unitNote !== undefined && (
-                <span id={ingredientUnitNoteId(row.index)} className="text-caption text-slate">
+                <span id={ingredientUnitNoteId(row.index)} className="text-caption text-ink-muted">
                     {row.unitNote}
                 </span>
             )}
@@ -273,13 +279,13 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
                 // The status word, from the row policy. Plain text announced with the row: `StatusBadge` is the design
                 // system's chip, so its tones (and W2's charcoal-on-tint contrast rule) live once.
                 <span id={ingredientStatusWordId(line.key)}>
-                    <StatusBadge tone={presentation.tone}>{m[presentation.statusWord]}</StatusBadge>
+                    <StatusBadge status={rowBadgeStatus(presentation.tone)}>{m[presentation.statusWord]}</StatusBadge>
                 </span>
             )}
             {/* Slot 1 — the state glyph (R24, R25). Opened by activation only (R32, §6d). */}
             <Popover
                 triggerLabel={row.labels.glyphTrigger}
-                triggerIcon={presentation.glyph === 'alert' ? <AlertIcon /> : <InfoIcon />}
+                triggerIcon={rowGlyphIcon(presentation.glyph)}
                 title={row.displayName}
                 closeLabel={row.labels.glyphClose}
                 busy={row.glyphBusy}
@@ -298,13 +304,14 @@ const IngredientRow: FC<RowDrawing & { readonly row: IngredientRowView }> = (pro
                     title={row.displayName}
                     closeLabel={row.labels.actionsClose}
                     items={row.actions}
+                    destructiveItem={row.destructiveAction}
                     focusRequested={row.actionsFocus.requested}
                     onFocusRequestHandled={row.actionsFocus.onHandled}
                     unavailable={row.busy}
                 />
             ) : (
                 // Slot 2 — one action is the control itself, never a one-item menu (§3a); it is always Remove.
-                <Button variant="destructive" icon={<TrashIcon />} onPress={row.onRemove}>
+                <Button variant="destructive" icon="trash" onPress={row.onRemove}>
                     {/* Icon-only on cramped phone rows (`sr-only`), full label from sm up (`sm:not-sr-only`). The label
                         stays in the accessibility tree, so the button's accessible name is unchanged. */}
                     <span className="sr-only sm:not-sr-only">{fillTemplate(m.removeIngredient, { number })}</span>
@@ -341,7 +348,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 </p>
             )}
             {model.sections.length === 0 ? (
-                <p className="text-body-sm text-slate">{m.noIngredients}</p>
+                <p className="text-body-sm text-ink-muted">{m.noIngredients}</p>
             ) : (
                 <ul className="flex flex-col gap-3">
                     {model.sections.flatMap((section) => [
@@ -353,7 +360,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                             ? []
                             : [
                                   <li key={section.key} role="presentation">
-                                      <h3 className="text-body-sm font-semibold text-charcoal">{section.label}</h3>
+                                      <h3 className="text-body-sm font-semibold text-ink">{section.label}</h3>
                                   </li>,
                               ]),
                         // Keyed by the line's identity, never its index: an index key hands this row's DOM — its
@@ -367,11 +374,11 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             <div className="flex flex-col gap-1">
                 <Combobox
                     {...trailingEntryFieldOf(trailing.entryField, model.entryCopy)}
-                    leadingIcon={<PlusIcon />}
-                    loadingIcon={<SearchIcon />}
+                    leadingIcon={<Icon name="plus" size={16} />}
+                    loadingIcon={<Icon name="search" size={16} />}
                 />
                 {trailing.busyText !== undefined && (
-                    <span className="text-caption text-slate">{trailing.busyText}</span>
+                    <span className="text-caption text-ink-muted">{trailing.busyText}</span>
                 )}
                 {trailing.pendingText !== undefined && (
                     <span id={trailingPendingTextId} className={errorText}>
@@ -400,25 +407,25 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             {/* One details dialog, for the line whose `⋮` opened it. Its own focus return goes back to that `⋮`
                 (§S8.8): the menu put focus there before it opened the dialog. */}
             <VariantDetailsDialog open={model.details.open} foodName={model.details.foodName} details={details.model} />
-            <div className="flex flex-col gap-1 rounded-xl bg-pearl/60 px-4 py-3">
+            <div className="flex flex-col gap-1 rounded-xl bg-surface-muted px-4 py-3">
                 {nutrition.read === 'loading' && (
                     // Not a partial total: nothing has answered yet, so say so rather than show a figure.
-                    <p role="status" className="text-body-sm text-slate">
+                    <p role="status" className="text-body-sm text-ink-muted">
                         {m.nutritionLoading}
                     </p>
                 )}
                 {nutrition.read === 'failed' && (
                     // ⛔ No figure beside the failure: a total built from no catalog lines reads as a fact (REVIEW F3).
                     <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-caption text-slate">{m.nutritionLoadFailed}</p>
-                        <Button variant="secondary" icon={<RetryIcon />} onPress={nutrition.retry}>
+                        <p className="text-caption text-ink-muted">{m.nutritionLoadFailed}</p>
+                        <Button variant="secondary" icon="refreshCw" onPress={nutrition.retry}>
                             {m.statusActionRetry}
                         </Button>
                     </div>
                 )}
                 {nutrition.read === 'ready' && (
                     <>
-                        <p className="text-body-sm font-medium text-charcoal">
+                        <p className="text-body-sm font-medium text-ink">
                             {fillTemplate(m.nutritionTotalTemplate, {
                                 calories: total.calories,
                                 protein: total.proteinG,
@@ -426,11 +433,11 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                                 fat: total.fatG,
                             })}
                         </p>
-                        {!total.isComplete && <p className="text-caption text-slate">{m.nutritionPartialNotice}</p>}
+                        {!total.isComplete && <p className="text-caption text-ink-muted">{m.nutritionPartialNotice}</p>}
                         {/* R38 — a total computed from the low end of `2–3 cups` is up to a third under, and says so
                             here rather than reading as an exact figure. */}
                         {model.rangeNotice !== undefined && (
-                            <p className="text-caption text-slate">{model.rangeNotice}</p>
+                            <p className="text-caption text-ink-muted">{model.rangeNotice}</p>
                         )}
                     </>
                 )}

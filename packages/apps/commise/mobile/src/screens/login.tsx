@@ -11,12 +11,11 @@
  */
 import { useClerk, useSignIn } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
-import { Input } from '@commise/ui/input';
+import { FieldLabel, Input } from '@commise/ui/input';
 import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
-import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -154,43 +153,49 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
 
                     {onCredentials ? (
                         <View style={styles.fields}>
-                            <Input
-                                label={t.emailLabel}
-                                placeholder={t.emailPlaceholder}
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                autoComplete="email"
-                                textContentType="emailAddress"
-                                returnKeyType="next"
-                            />
-                            <Input
-                                label={t.passwordLabel}
-                                placeholder={t.passwordPlaceholder}
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry
-                                autoComplete="password"
-                                textContentType="password"
-                                returnKeyType="go"
-                                onSubmitEditing={() => void handleSignIn()}
-                            />
+                            <View style={styles.field}>
+                                <FieldLabel forId="signin-email" label={t.emailLabel} />
+                                <Input
+                                    id="signin-email"
+                                    placeholder={t.emailPlaceholder}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    inputMode="email"
+                                    autoCapitalize="none"
+                                    autoComplete="email"
+                                    enterKeyHint="next"
+                                />
+                            </View>
+                            <View style={styles.field}>
+                                <FieldLabel forId="signin-password" label={t.passwordLabel} />
+                                <Input
+                                    id="signin-password"
+                                    placeholder={t.passwordPlaceholder}
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    secret
+                                    autoComplete="current-password"
+                                    enterKeyHint="go"
+                                    onSubmit={() => void handleSignIn()}
+                                />
+                            </View>
                         </View>
                     ) : (
                         <View style={styles.fields}>
                             <Text style={styles.prompt}>{t.codePrompt}</Text>
-                            <Input
-                                label={t.codeLabel}
-                                placeholder={t.codePlaceholder}
-                                value={code}
-                                onChangeText={setCode}
-                                keyboardType="number-pad"
-                                autoComplete="one-time-code"
-                                textContentType="oneTimeCode"
-                                returnKeyType="done"
-                                onSubmitEditing={() => void handleVerifyCode()}
-                            />
+                            <View style={styles.field}>
+                                <FieldLabel forId="signin-code" label={t.codeLabel} />
+                                <Input
+                                    id="signin-code"
+                                    placeholder={t.codePlaceholder}
+                                    value={code}
+                                    onChangeText={setCode}
+                                    inputMode="numeric"
+                                    autoComplete="one-time-code"
+                                    enterKeyHint="done"
+                                    onSubmit={() => void handleVerifyCode()}
+                                />
+                            </View>
                         </View>
                     )}
 
@@ -201,7 +206,7 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
                     ) : null}
 
                     <Button
-                        icon={<Feather name={onCredentials ? 'log-in' : 'check'} size={16} color={palette.white} />}
+                        icon={onCredentials ? 'logIn' : 'check'}
                         busy={busy}
                         disabled={!signIn}
                         onPress={() => void (onCredentials ? handleSignIn() : handleVerifyCode())}
@@ -211,11 +216,7 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
 
                     <View style={styles.toggle}>
                         <Text style={styles.togglePrompt}>{t.noAccountPrompt}</Text>
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="user-plus" size={16} color={palette.charcoal} />}
-                            onPress={onSignUp}
-                        >
+                        <Button variant="secondary" icon="userPlus" onPress={onSignUp}>
                             {t.signUpLink}
                         </Button>
                     </View>
@@ -226,6 +227,8 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
 }
 
 const styles = StyleSheet.create({
+    // A label and its field are one group: closer to each other than to the next field (spec §1.6).
+    field: { gap: nativeTokens.spacing[1] },
     // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
     // fill here occludes the whole canvas and restores the flat page the wireframes never had.
     safe: { flex: 1, backgroundColor: 'transparent' },

@@ -15,7 +15,7 @@ export const CollectionRecipePickerLoading: FC = () => {
     // zero-height (nothing for a sighted viewer, and Playwright resolves it as `hidden`) AND silent,
     // because a live region announces its CONTENT, not its label.
     return (
-        <p role="status" aria-label={picker.loadingLabel} className="text-body-md text-slate">
+        <p role="status" aria-label={picker.loadingLabel} className="text-body-md text-ink-muted">
             {picker.loadingLabel}
         </p>
     );

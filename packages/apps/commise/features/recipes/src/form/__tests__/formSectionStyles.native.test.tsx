@@ -27,6 +27,9 @@
  * ⚠️ These two properties are load-bearing TOGETHER. A floor without `flexWrap` overflows the card instead of
  * wrapping; `flexWrap` without a floor is today's bug. Each assertion below fails on its own.
  */
+import { role } from '@commise/ui/colors';
+import { FIELD_PADDING, fieldGeometry } from '@commise/ui/input';
+import { nativeTokens } from '@commise/ui/native';
 import { describe, expect, it } from 'vitest';
 
 import { styles } from '../formSectionStyles.native.js';
@@ -70,5 +73,32 @@ describe('ingredient row geometry', () => {
         // gone entirely on a 360dp device. The shrink is what makes the fit robust rather than lucky.
         expect(styles.rowNarrow.flexShrink).toBeGreaterThan(0);
         expect(styles.rowNarrow.minWidth).toBeLessThan(styles.rowNarrow.width);
+    });
+});
+
+/**
+ * UI-overhaul slice 2 (finding N1): the recipe form's native fields take the design-system field geometry
+ * (`@commise/ui/input`'s `fieldGeometry`) instead of raw sizes, so a recipe field and an `Input` cannot drift apart.
+ * The design system no longer bakes a colour into it (D15); this form still paints the light roles statically until
+ * slice 7 rebuilds it.
+ */
+describe('the native recipe-form field geometry (N1)', () => {
+    it('draws every field on the design-system field surface', () => {
+        expect(styles.input).toEqual(
+            expect.objectContaining({
+                ...fieldGeometry,
+                borderColor: role.lineControl,
+                color: role.ink,
+                backgroundColor: role.paper,
+            }),
+        );
+    });
+
+    it('labels every field in the label role, in inkMuted', () => {
+        expect(styles.fieldLabel).toEqual({ ...nativeTokens.type.label, color: role.inkMuted });
+    });
+
+    it('keeps the multi-line field at the input’s geometry, three body lines tall at rest', () => {
+        expect(styles.multiline.minHeight).toBe(3 * (nativeTokens.type.body.lineHeight ?? 0) + 2 * FIELD_PADDING + 2);
     });
 });

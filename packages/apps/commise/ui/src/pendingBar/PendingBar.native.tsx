@@ -18,7 +18,7 @@
 import { useEffect, useState, type FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { palette } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { PENDING_BAR_DELAY_MS } from './pendingDelay.js';
 import type { PendingBarProps } from './props.js';
@@ -29,6 +29,7 @@ export const PendingBar: FC<PendingBarProps> = ({ pending }) => (pending ? <Dela
 /** The bar, shown once it has been mounted for the delay. Mounted only while pending. */
 const DelayedBar: FC = () => {
     const [shown, setShown] = useState(false);
+    const { colors } = useTheme();
 
     useEffect(() => {
         const timer = setTimeout(() => setShown(true), PENDING_BAR_DELAY_MS);
@@ -42,7 +43,7 @@ const DelayedBar: FC = () => {
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             pointerEvents="none"
-            style={styles.bar}
+            style={[styles.bar, { backgroundColor: colors.action }]}
         />
     ) : null;
 };
@@ -55,6 +56,5 @@ const styles = StyleSheet.create({
         top: -(nativeTokens.spacing[2] + nativeTokens.spacing[1] / 2),
         height: nativeTokens.spacing[1],
         borderRadius: nativeTokens.radius.full,
-        backgroundColor: palette.seafoam,
     },
 });

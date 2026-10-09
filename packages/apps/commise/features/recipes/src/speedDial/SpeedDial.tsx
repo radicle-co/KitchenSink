@@ -51,8 +51,8 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useState, type ComponentPropsWithoutRef, type FC, type KeyboardEvent } from 'react';
 
 import { enterTransitionClassName } from '@commise/ui/motion';
+import { Icon } from '@commise/ui/icon';
 
-import { PlusIcon } from '../form/icons.js';
 import { type SpeedDialProps } from './model.js';
 
 /**
@@ -132,12 +132,12 @@ export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions
                 <DropdownMenu.Trigger
                     aria-label={triggerLabel}
                     onKeyDown={onTriggerKeyDown}
-                    className="flex h-14 w-14 items-center justify-center rounded-full bg-seafoam text-white shadow-lg transition hover:bg-ocean-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean-dark focus-visible:ring-offset-2"
+                    className="flex h-14 w-14 items-center justify-center rounded-full bg-action text-on-action shadow-lg transition hover:bg-ocean-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean-dark focus-visible:ring-offset-2"
                 >
                     {/* An SVG, not the text "+": flex centres the LINE BOX but ink is placed by the BASELINE,
                     so a "+" character paints ~1.7px low and no centring property can correct it. This
                     glyph's extents are symmetric about the viewBox centre, matching the mockup. */}
-                    <PlusIcon className="size-6" />
+                    <Icon name="plus" size={24} />
                 </DropdownMenu.Trigger>
 
                 {/* ⛔ NOT portalled, deliberately. `DropdownMenu.Portal` would move the content to `document.body`
@@ -202,7 +202,7 @@ export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions
                     // here that is inserted on open — an always-rendered wrapper would have played its keyframe
                     // once, at list render, over an empty box. `motion-safe:` is the gate, so a reduce-motion
                     // viewer gets no animation and no hidden from-state.
-                    className={`${enterTransitionClassName} flex min-w-48 flex-col items-stretch gap-1 rounded-2xl border border-border bg-card p-2 shadow-lg`}
+                    className={`${enterTransitionClassName} flex min-w-48 flex-col items-stretch gap-1 rounded-2xl border border-line-divider bg-paper p-2 shadow-lg`}
                 >
                     {actions.map((action) => (
                         <DropdownMenu.Item
@@ -215,7 +215,7 @@ export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions
                             // roving focus marks the active item with that attribute, and a `:focus-visible`
                             // ring would go unpainted for a keyboard user arrowing through the list — the
                             // affordance would exist in the stylesheet and never appear on screen.
-                            className="min-h-11 cursor-pointer whitespace-nowrap rounded-xl px-4 py-2 text-left text-body-sm font-medium text-charcoal transition data-[highlighted]:bg-pearl data-[highlighted]:outline-none data-[highlighted]:ring-2 data-[highlighted]:ring-seafoam focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
+                            className="min-h-11 cursor-pointer whitespace-nowrap rounded-xl px-4 py-2 text-left text-body-sm font-medium text-ink transition data-[highlighted]:bg-ink/6 data-[highlighted]:outline-none data-[highlighted]:ring-2 data-[highlighted]:ring-focus-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         >
                             {action.label}
                         </DropdownMenu.Item>

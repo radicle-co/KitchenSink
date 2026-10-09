@@ -13,7 +13,6 @@ import { compositeOver, computedContrast, contrastRatio, renderWithProviders } f
 import { palette } from '@commise/ui';
 
 import { HomeTabBar } from '../../../src/components/home/chrome/HomeTabBar.js';
-import { NAV_ICONS } from '../../../src/components/home/chrome/icons.js';
 import { mobileMessages } from '../../../src/i18n/messages.js';
 
 afterEach(cleanup);
@@ -90,6 +89,16 @@ describe('HomeTabBar (mobile)', () => {
         }
     });
 
+    /** The Lucide glyph each destination draws (the mockup's pairing: house, open book, calendar, cart, chart, person). */
+    const TAB_GLYPH: Readonly<Record<(typeof HOME_NAV_ITEMS)[number]['id'], string>> = {
+        home: 'house',
+        recipes: 'book-open',
+        'meal-plan': 'calendar',
+        grocery: 'shopping-cart',
+        nutrition: 'chart-column',
+        profile: 'user',
+    };
+
     it('pairs every tab — reachable and gated — with its mapped glyph (mockup parity)', () => {
         renderTabBar();
 
@@ -99,7 +108,7 @@ describe('HomeTabBar (mobile)', () => {
             const glyph = tab.querySelector('[data-commise-stub="icon"]');
 
             expect(glyph, `no glyph on the ${item.id} tab`).not.toBeNull();
-            expect(glyph?.getAttribute('data-icon-name')).toBe(NAV_ICONS[item.id]);
+            expect(glyph?.getAttribute('data-icon-name')).toBe(TAB_GLYPH[item.id]);
         }
     });
 
@@ -155,6 +164,6 @@ describe('HomeTabBar (mobile)', () => {
         renderTabBar();
 
         const mealPlan = screen.getByRole('tab', { name: `Meal Plan, ${chrome.comingSoonSuffix}` });
-        expect(window.getComputedStyle(within(mealPlan).getByText('Meal Plan')).color).toBe('rgb(99, 110, 114)');
+        expect(window.getComputedStyle(within(mealPlan).getByText('Meal Plan')).color).toBe('rgb(107, 100, 92)'); // `slate` after D11 (#6B645C)
     });
 });

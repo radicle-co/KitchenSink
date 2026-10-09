@@ -15,12 +15,14 @@ import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
-import { palette } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { LoadMoreControlProps } from './props.js';
 
 /** The explicit next-page control, with its busy and failed states. */
 export const LoadMoreControl: FC<LoadMoreControlProps> = ({ hasMore, loading, failed, onLoadMore, labels }) => {
+    const { colors } = useTheme();
+
     if (!hasMore) {
         return null;
     }
@@ -30,7 +32,7 @@ export const LoadMoreControl: FC<LoadMoreControlProps> = ({ hasMore, loading, fa
 
     return (
         <View style={styles.footer}>
-            <LiveRegion politeness="assertive" style={styles.message}>
+            <LiveRegion politeness="assertive" style={[styles.message, { color: colors.inkMuted }]}>
                 {showFailure ? labels.failed : ''}
             </LiveRegion>
             <Pressable
@@ -41,9 +43,9 @@ export const LoadMoreControl: FC<LoadMoreControlProps> = ({ hasMore, loading, fa
                 aria-busy={loading || undefined}
                 disabled={loading}
                 onPress={onLoadMore}
-                style={[styles.button, loading && styles.busy]}
+                style={[styles.button, { backgroundColor: colors.surfaceMuted }, loading && styles.busy]}
             >
-                <Text style={styles.label}>{label}</Text>
+                <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
             </Pressable>
         </View>
     );
@@ -51,9 +53,8 @@ export const LoadMoreControl: FC<LoadMoreControlProps> = ({ hasMore, loading, fa
 
 const styles = StyleSheet.create({
     footer: { alignItems: 'center', gap: nativeTokens.spacing[2], marginTop: nativeTokens.spacing[2] },
-    message: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate, textAlign: 'center' },
+    message: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center' },
     button: {
-        backgroundColor: palette.pearl,
         borderRadius: nativeTokens.radius.full,
         paddingVertical: 10,
         paddingHorizontal: nativeTokens.spacing[5],
@@ -61,5 +62,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     busy: { opacity: 0.6 },
-    label: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.charcoal },
+    label: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
 });

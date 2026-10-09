@@ -71,8 +71,8 @@ describe('CloneInfoPanel (web) — unresolved source owner', () => {
 
 /**
  * View Source is a bare TEXT control — the reader reads its label, so it carries the 4.5:1 body-text floor,
- * not the 3:1 accent floor `seafoam` clears. It painted `text-seafoam`: 4.02:1 on this white panel at rest and
- * 3.57:1 once `hover:bg-seafoam/10` lands. See `@commise/ui`'s palette JSDoc for where seafoam IS still right.
+ * not the 3:1 accent floor `seafoam` clears. It painted `text-action-text`: 4.02:1 on this white panel at rest and
+ * 3.57:1 once `hover:bg-action/10` lands. See `@commise/ui`'s palette JSDoc for where seafoam IS still right.
  */
 describe('CloneInfoPanel (web) — View Source clears the AA body-text floor', () => {
     it('keeps the View Source label legible at rest AND over its hover tint', () => {

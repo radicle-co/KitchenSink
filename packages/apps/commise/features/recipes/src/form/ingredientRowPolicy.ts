@@ -30,6 +30,7 @@
  * @pattern Specification — the row's presentation as a function of the line's state
  * @pattern Visitor — an exhaustive `switch` over `FoodResolutionStatus`
  */
+import type { IconName } from '@commise/ui/icon';
 import { FoodResolutionStatus, type IngredientVariant } from '@kitchensink/recipe-core';
 
 import { isStandInName } from '../detail/lineName.js';
@@ -106,8 +107,29 @@ type IngredientRowSlot2 =
  */
 type IngredientRowStatusWord = 'statusFreeform' | ResolutionStatusWordKey;
 
-/** How the status word reads (`@commise/ui/status-badge`'s tone). */
+/** How the row's status reads: `caution` for something the cook can act on, `neutral` otherwise. */
 type IngredientRowTone = 'neutral' | 'caution';
+
+/**
+ * The design-system badge status a row's status word draws as (`@commise/ui/status-badge`, which names statuses rather
+ * than tones). Pure.
+ *
+ * @param tone - The row's tone.
+ * @returns `attention` for a caution row, `note` otherwise.
+ */
+export const rowBadgeStatus = (tone: IngredientRowTone): 'note' | 'attention' =>
+    tone === 'caution' ? 'attention' : 'note';
+
+/** The icon Registry meaning slot 1's state glyph draws: the two are told apart by SHAPE (plan 002 V1). */
+const ROW_GLYPH_ICON: Readonly<Record<IngredientRowGlyph, IconName>> = { alert: 'triangleAlert', info: 'info' };
+
+/**
+ * The icon Registry meaning a row's state glyph draws (`@commise/ui/icon`). Pure.
+ *
+ * @param glyph - The row's state glyph.
+ * @returns The triangle for an actionable row, the circle for a quiet one.
+ */
+export const rowGlyphIcon = (glyph: IngredientRowGlyph): IconName => ROW_GLYPH_ICON[glyph];
 
 /** Everything a row shows, decided once. */
 export interface IngredientRowPresentation {

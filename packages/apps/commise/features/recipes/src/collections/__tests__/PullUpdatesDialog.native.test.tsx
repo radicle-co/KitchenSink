@@ -13,6 +13,7 @@ import type { PullDiff } from '@kitchensink/recipe-service-client';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PullUpdatesDialog } from '../PullUpdatesDialog.native.js';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { PullUpdatesDialogProps } from '../model.js';
 
 afterEach(cleanup);
@@ -160,5 +161,14 @@ describe('PullUpdatesDialog (native) — dismissal', () => {
         await user.keyboard('{Escape}');
 
         expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('PullUpdatesDialog (native) — the design-system Button (UI overhaul slice 2)', () => {
+    it('pulls through a primary check Button and cancels through a secondary x one, the ConfirmDialog’s Keep', () => {
+        render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff })} />);
+
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Pull 2 Recipes' }), 'primary', 'check');
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Cancel' }), 'secondary', 'x');
     });
 });

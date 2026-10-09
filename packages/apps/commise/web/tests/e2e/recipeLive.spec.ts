@@ -32,7 +32,7 @@ test.describe('recipe live backend (no mocks)', () => {
         // sits behind the "More" overflow menu (C4).
         await page.getByRole('button', { name: 'Mediterranean Grilled Lamb' }).click();
         await expect(page.getByRole('heading', { name: 'Mediterranean Grilled Lamb' })).toBeVisible();
-        await page.getByRole('button', { name: 'More', exact: true }).click();
+        await page.getByRole('button', { name: /^More actions for /u }).click();
         await expect(page.getByRole('button', { name: 'Delete recipe' })).toBeVisible();
     });
 });

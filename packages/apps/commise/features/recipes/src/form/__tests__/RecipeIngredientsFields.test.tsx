@@ -48,6 +48,18 @@ import { seedLineKey } from '../lineKey.js';
 import type { IngredientNutrition } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
 import { applyDraftAction } from '../props.js';
+
+/** The design-system status badge around a word (UI-overhaul slice 2: the words sit in a span inside the badge). */
+function badgeAround(word: string): HTMLElement {
+    const badge = screen.getByText(word).parentElement;
+
+    if (badge === null) {
+        throw new Error(`no badge around ${word}`);
+    }
+
+    return badge;
+}
+
 import type { IngredientRowEditor } from '../../hooks/useIngredientRowEditor.js';
 
 const ROW_EDITOR = makeIngredientRowEditor();
@@ -191,15 +203,15 @@ describe('RecipeIngredientsFields (web) — the states', () => {
     ])('STATUS: gives %s the ACTIONABLE warning tint, not the neutral one', (_label, status) => {
         renderLeaf({ values: valuesWith(withLineKeys([{ ...RESOLVED, resolutionStatus: status }])) });
 
-        const badge = screen.getByText(
+        // UI-overhaul slice 2: the badge is the design system's `attention` status — its words sit in a span inside it.
+        const badge = badgeAround(
             status === FoodResolutionStatus.NEEDS_REVIEW ? en.statusNeedsReview : en.statusFoodRemoved,
         );
 
-        expect(badge.className).toContain('bg-warning/25');
-        expect(badge.className).not.toContain('bg-pearl');
-        // ⛔ CHARCOAL on the tint, never `warning` as a foreground — `colors.ts` records that #F5B041 is a
-        // light FILL taking a charcoal label and is far under 4.5:1 as text on near-white.
-        expect(badge.className).toContain('text-charcoal');
+        expect(badge.className).toContain('bg-attention-tint');
+        expect(badge.className).not.toContain('bg-surface-muted');
+        // ⛔ INK on the tint, never the attention colour as a foreground: it measured under 4.5:1 on its own tint.
+        expect(badge.className).toContain('text-ink');
     });
 
     it('STATUS: leaves a NON-actionable status neutral, so the warning tint keeps meaning something', () => {
@@ -211,10 +223,10 @@ describe('RecipeIngredientsFields (web) — the states', () => {
             ),
         });
 
-        const badge = screen.getByText(en.statusPendingVerification);
+        const badge = badgeAround(en.statusPendingVerification);
 
-        expect(badge.className).toContain('bg-pearl');
-        expect(badge.className).not.toContain('bg-warning/25');
+        expect(badge.className).toContain('bg-surface-muted');
+        expect(badge.className).not.toContain('bg-attention-tint');
     });
 });
 
@@ -227,10 +239,10 @@ describe('RecipeIngredientsFields (web) — an unresolved row surfaces its reaso
     it('wears the design system\u2019s CAUTION chip (`StatusBadge`), not a hand-rolled one (namelessLineCopy §2c)', () => {
         renderLeaf({ values: valuesWith(withLineKeys([UNRESOLVED])) });
 
-        const chip = screen.getByText(en.ingredientNoFoodNote);
-        expect(chip.className).toContain('bg-warning/25');
-        expect(chip.className).toContain('text-charcoal');
-        // The primitive's radius rule (half the ONE-LINE height), which a hand-rolled `rounded-full` breaks on wrap.
+        const chip = badgeAround(en.ingredientNoFoodNote);
+        expect(chip.className).toContain('bg-attention-tint');
+        expect(chip.className).toContain('text-ink');
+        // The primitive's `sm` radius: a badge is not pressable, so never a pill.
         expect(chip.className).not.toContain('rounded-full');
     });
 
@@ -635,8 +647,8 @@ describe('RecipeIngredientsFields (web) — plan 002 V1 row states', () => {
             return;
         }
 
-        const badge = screen.getByText(word);
-        expect(badge.className).toContain(tone === 'caution' ? 'bg-warning/25' : 'bg-pearl');
+        const badge = badgeAround(word);
+        expect(badge.className).toContain(tone === 'caution' ? 'bg-attention-tint' : 'bg-surface-muted');
     });
 
     it.each(STATES.filter(hasPanel))(
@@ -1244,7 +1256,7 @@ describe('RecipeIngredientsFields (web) — plan 002 V1 row states', () => {
  * V1 sign-off W-1 (2026-10-01): every sized row field rendered FULL WIDTH, because the shared `field` string carries
  * `w-full` and Tailwind emits `.w-full` after `.w-24`/`.w-28`/`.w-40`/`.w-48`, so it won regardless of class order
  * (rows were 376 px tall at 1280 px). A sized field must never carry `w-full`; the same CSS-order rule applies to the
- * unit field's text colour, which must carry ONE colour, not `text-charcoal` beside `text-slate`.
+ * unit field's text colour, which must carry ONE colour, not `text-ink` beside `text-ink-muted`.
  */
 describe('RecipeIngredientsFields (web) — sized fields carry ONE width (W-1)', () => {
     it.each([
@@ -1265,8 +1277,8 @@ describe('RecipeIngredientsFields (web) — sized fields carry ONE width (W-1)',
         renderLeaf({ values: valuesWith(withLineKeys([{ ...RESOLVED, unit: 'blorp' }])) });
         const classes = screen.getByLabelText('Ingredient 1 unit').className.split(/\s+/);
 
-        expect(classes).toContain('text-slate');
-        expect(classes).not.toContain('text-charcoal');
+        expect(classes).toContain('text-ink-muted');
+        expect(classes).not.toContain('text-ink');
     });
 });
 

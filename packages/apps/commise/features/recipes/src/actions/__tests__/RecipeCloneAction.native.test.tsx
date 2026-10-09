@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { glass, palette } from '@commise/ui';
+import { palette, role } from '@commise/ui/colors';
 
 import { cssColor } from '../../__tests__/cssColor.js';
 import { pillOf } from '../../__tests__/dsPill.js';
@@ -89,25 +89,25 @@ describe('RecipeCloneAction (native) — design-system surface', () => {
         expect(pillOf(screen.getByRole('button', { name: 'Clone' }))).toBeTruthy();
     });
 
-    it('paints the DS secondary surface — a coral OUTLINE over glass, NOT the old coral fill', () => {
+    it('paints the DS secondary surface — neutral paper with a lineControl edge, never coral', () => {
         renderClone();
         const style = window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone' })));
 
-        // The tier's own surface, from the tier's own token: `glass.subtle`'s solid fallback (RN cannot blur).
-        expect(style.backgroundColor).toBe(glass.subtle.fallback);
-        // Coral survives as the DS tier's accent EDGE — the mockups' secondary button — never as the fill.
-        expect(style.borderTopColor).toBe(cssColor(palette.coral));
-        expect(style.borderTopWidth).toBe('2px');
+        // ⚠️ REWRITTEN in UI-overhaul slice 2: the owner overruled coral on every control, so the DS secondary tier is
+        // neutral — `paper`, a 1 pt `lineControl` edge, an `ink` label.
+        expect(style.backgroundColor).toBe(cssColor(role.paper));
+        expect(style.borderTopColor).toBe(cssColor(role.lineControl));
+        expect(style.borderTopWidth).toBe('1px');
         // The regression this replaces: a bespoke solid coral fill that read as destructive.
         expect(style.backgroundColor).not.toBe(cssColor(palette.coral));
     });
 
-    it('labels in the tier foreground colour — slate, not white-on-coral', () => {
+    it('labels in the tier foreground colour — ink on the neutral surface', () => {
         renderClone();
 
         // A leftover white label on the now-glass surface would be invisible; coral-as-text is 2.40:1. The
         // tier labels in slate (5.24:1), identically to the web leaf.
-        expect(window.getComputedStyle(screen.getByText('Clone')).color).toBe(cssColor(palette.slate));
+        expect(window.getComputedStyle(screen.getByText('Clone')).color).toBe(cssColor(role.ink));
         expect(window.getComputedStyle(screen.getByText('Clone')).color).not.toBe(cssColor(palette.white));
     });
 

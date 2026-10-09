@@ -50,7 +50,8 @@ describe('ProfileContent — SSR identity fetch resilience + U3 shell', () => {
         expect(screen.getByText('ada@example.com')).toBeInTheDocument();
         // The U3 change: the surface now renders inside the shared navigation chrome (was a bare <main>).
         expect(screen.getAllByRole('navigation').length).toBeGreaterThan(0);
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        // The app's snackbar host keeps its own, empty, status region mounted (UI-overhaul slice 2); no OTHER may appear.
+        expect(screen.queryAllByRole('status').filter((region) => region.textContent !== '')).toHaveLength(0);
     });
 
     it('degrades to a recoverable state (no throw) when the identity fetch rejects (ECONNREFUSED)', async () => {
@@ -58,7 +59,9 @@ describe('ProfileContent — SSR identity fetch resilience + U3 shell', () => {
 
         renderWithProviders(await ProfileContent({ accessToken: 'tok', locale: 'en' }));
 
-        expect(screen.getByRole('status')).toHaveTextContent(/couldn’t load your profile/i);
+        // The one status that SAYS something; the snackbar host's own region stays mounted and empty.
+        const [notice] = screen.getAllByRole('status').filter((region) => region.textContent !== '');
+        expect(notice).toHaveTextContent(/couldn’t load your profile/i);
         // The page still renders its heading + a way out, inside the nav chrome, rather than crashing SSR.
         expect(screen.getByRole('heading', { name: 'Profile' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();

@@ -9,7 +9,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { palette, tint } from '@commise/ui';
 import { TextInput } from '@commise/ui/text-input';
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
 import type { FC } from 'react';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -69,7 +69,7 @@ export const ChipInput: FC<ChipInputProps> = ({ label, values, onChange, placeho
                             {/* Contrast (WCAG 2.1 AA): the `×` is the chip's removal affordance and takes the
                                 same tone as the label beside it — seafoam on the chip tint is 3.66:1, and a
                                 seafoam × next to an ocean-dark label would render one chip in two greens. */}
-                            <Feather name="x" size={14} color={palette['ocean-dark']} />
+                            <Icon name="x" size={16} tone="actionText" />
                         </Pressable>
                     </View>
                 ))}
@@ -94,7 +94,7 @@ export const ChipInput: FC<ChipInputProps> = ({ label, values, onChange, placeho
                     onPress={commit}
                     style={styles.addButton}
                 >
-                    <Feather name="plus" size={16} color={palette.charcoal} />
+                    <Icon name="plus" size={16} tone="ink" />
                 </Pressable>
             </View>
         </View>

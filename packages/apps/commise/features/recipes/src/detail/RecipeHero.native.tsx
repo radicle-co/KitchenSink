@@ -45,11 +45,10 @@
  *     shared gradient and geometry tokens so the two cannot drift.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { mediaBoxHeight } from '@commise/ui/layout';
 import { GradientSurface } from '@commise/ui/surface';
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
 import type { FC } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
@@ -58,9 +57,6 @@ import type { RecipeHeroProps } from './model.js';
 import { PhotoCarousel } from './PhotoCarousel.native.js';
 
 export type { RecipeHeroProps };
-
-/** The placeholder glyph's size — large enough to read as an intentional icon, not a stray mark. */
-const PLACEHOLDER_GLYPH_SIZE = 40;
 
 /** The recipe-detail hero (native): the photo carousel, or its deliberate compact no-photo fallback. */
 export const RecipeHero: FC<RecipeHeroProps> = ({ title, photos }) => {
@@ -81,7 +77,7 @@ export const RecipeHero: FC<RecipeHeroProps> = ({ title, photos }) => {
                         { height: mediaBoxHeight(nativeTokens.mediaHeight.heroPlaceholder, windowHeight) },
                     ]}
                 >
-                    <Feather name="image" size={PLACEHOLDER_GLYPH_SIZE} color={palette.slate} />
+                    <Icon name="image" size={48} tone="inkMuted" />
                 </View>
             </GradientSurface>
         );

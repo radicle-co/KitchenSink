@@ -15,12 +15,12 @@ export function AccountStateNotice({ message }: AccountStateNoticeProps) {
         <div
             role="alert"
             aria-labelledby="account-state-title"
-            className="flex flex-col gap-2 rounded-2xl border border-error/40 bg-error/10 p-6"
+            className="flex flex-col gap-2 rounded-2xl border border-danger/40 bg-danger/10 p-6"
         >
-            <h2 id="account-state-title" className="font-display text-heading-md font-semibold text-error-dark">
+            <h2 id="account-state-title" className="font-display text-heading-md font-semibold text-danger-text">
                 {message.title}
             </h2>
-            <p className="text-body-md text-charcoal">{message.body}</p>
+            <p className="text-body-md text-ink">{message.body}</p>
         </div>
     );
 }

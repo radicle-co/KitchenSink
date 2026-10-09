@@ -206,6 +206,9 @@ export default defineConfig({
                   PORT: String(PORT),
                   ...serviceUrlEnv(SERVICE_URLS),
                   ...(BASE_PATH ? { PREVIEW_BASE_PATH: BASE_PATH } : {}),
+                  // Routes the `en-XA` pseudo-locale `controlLabels.spec.ts` lays the app out in. Reaches a server
+                  // this config BUILDS (`dev`); under `start`, CI's `build` job sets it (`pseudoLocaleBuildGate`).
+                  COMMISE_PSEUDO_LOCALE: '1',
               },
               // Readiness probe: the localized sign-in page returns 200 (`/sign-in` 307s to `/{locale}`).
               // Derived from ORIGIN — the one place this run's own address is decided — rather than

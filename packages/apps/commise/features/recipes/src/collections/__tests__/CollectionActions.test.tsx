@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { utilityContrast } from '@commise/test-utils';
 import { buttonSurfaceClass } from '@commise/ui/button';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 
 import { RecipeCloneAction } from '../../actions/RecipeCloneAction.js';
 import { CollectionActions } from '../CollectionActions.js';
@@ -123,7 +124,7 @@ describe('CollectionActions (web) — Clone Collection', () => {
 /**
  * Clone Collection IS the design-system Button — the SAME `secondary` tier the recipe-detail clone wears.
  *
- * This control painted a solid-coral pill (`bg-coral … text-white`) while its sibling clone affordance on the
+ * This control painted a solid-coral pill (`bg-coral … text-on-action`) while its sibling clone affordance on the
  * discovery card painted a coral OUTLINE and the detail clone painted a solid — three hand-rolled answers to
  * one question. The premise under all of them is false: no mockup contains a clone action at all, and the
  * mockups never FILL a button coral (their coral button form is `border-2 border-coral text-coral` over glass,
@@ -157,12 +158,11 @@ describe('CollectionActions (web) — Clone Collection is the DS secondary surfa
         renderActions();
         const className = screen.getByRole('button', { name: 'Clone Collection' }).className;
 
-        // The DS secondary tier IS coral-outlined glass (the mockups' own secondary button), so coral is
-        // expected on the border. What must never come back is the solid coral FILL at rest.
-        expect(className).not.toContain('bg-coral');
-        expect(className).toContain('border-coral');
+        // ⚠️ REWRITTEN in UI-overhaul slice 2: the owner overruled coral on every control, so the DS secondary tier is
+        // now neutral (paper, a lineControl edge, an ink label) and NO coral survives, at rest or on hover.
+        expect(className).not.toMatch(/coral/u);
         // The replacement must be a real DS surface, not "no surface at all" (the bare-text regression).
-        expect(className).toContain('from-white/80');
+        expect(className).toContain('border-line-control');
     });
 
     // E2 I12 — rewritten from "reset for the mouse at md": the DS Button now resets its floor only for a fine
@@ -290,8 +290,8 @@ describe('CollectionActions (web) — visibility toggle, free viewer (canGoPriva
 
 /**
  * Pull Updates and Save changes are TEXT controls, so their labels carry the 4.5:1 body-text floor — not the
- * 3:1 accent floor `seafoam` clears. Both painted `text-seafoam`: 4.02:1 on this white panel at rest, falling
- * to 3.57:1 the moment `hover:bg-seafoam/10` lands. Pull Updates' seafoam RING is a different question and
+ * 3:1 accent floor `seafoam` clears. Both painted `text-action-text`: 4.02:1 on this white panel at rest, falling
+ * to 3.57:1 the moment `hover:bg-action/10` lands. Pull Updates' seafoam RING is a different question and
  * deliberately survives — a control boundary needs only 3:1 (SC 1.4.11), which seafoam clears. See
  * `@commise/ui`'s palette JSDoc for the one authoritative statement of that split.
  */
@@ -316,12 +316,17 @@ describe('CollectionActions (web) — the seafoam TEXT controls clear the AA bod
         );
     });
 
-    it('keeps Pull Updates’ seafoam RING — a 3:1 control boundary, not a text colour', () => {
+    /**
+     * REWRITTEN in slice 2: the seafoam ring this pinned was the hand-built control's boundary. Pull Updates is now
+     * the secondary Button, whose boundary is the `lineControl` edge; that edge must still clear the 3:1 a control
+     * boundary needs (SC 1.4.11), and `buttonSurfaceClass`'s own suite measures it. Here: the edge is still drawn.
+     */
+    it('keeps a visible control boundary on Pull Updates — the secondary Button’s lineControl edge', () => {
         renderActions({ isCloned: true });
 
-        // The counterweight: the fix must demote the LABEL only. Flattening the ring too would erase the
-        // control's affordance to satisfy a floor that never applied to it.
-        expect(screen.getByRole('button', { name: 'Pull Updates from Source' }).className).toContain('ring-seafoam');
+        expect(screen.getByRole('button', { name: 'Pull Updates from Source' }).className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(['border', 'border-line-control']),
+        );
     });
 });
 
@@ -334,5 +339,29 @@ describe('CollectionActions (web) — premium gate is the boolean prop only', ()
 
         expect(source).not.toMatch(/premium/i);
         expect(source).not.toMatch(/\btier\b/i);
+    });
+});
+
+describe('CollectionActions (web) — the design-system Button (UI overhaul slice 2)', () => {
+    it('adds recipes through a primary plus Button', () => {
+        renderActions();
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Add Recipes' }), 'primary', 'plus');
+    });
+
+    it('pulls updates through a secondary refreshCw Button', () => {
+        renderActions({ isCloned: true });
+
+        expectDesignSystemButton(
+            screen.getByRole('button', { name: 'Pull Updates from Source' }),
+            'secondary',
+            'refresh-cw',
+        );
+    });
+
+    it('saves visibility through a ghost check Button', () => {
+        renderActions({ visibility: RecipeVisibility.PUBLIC, pendingVisibility: RecipeVisibility.PRIVATE });
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Save changes' }), 'ghost', 'check');
     });
 });

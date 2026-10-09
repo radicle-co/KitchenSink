@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 import { defineConfig, type Plugin } from 'vitest/config';
 
+import { lucideNativeStub } from './src/testing/lucideNativeStub.js';
+
 const stubDir = fileURLToPath(new URL('./test/stubs', import.meta.url));
 
 /**
@@ -46,12 +48,13 @@ function preferNativeLeaves(): Plugin {
  * default (web) run excludes them. `npm test` runs both.
  */
 export default defineConfig({
-    plugins: [preferNativeLeaves()],
+    // `lucide-react-native/icons/*` draws through `react-native-svg`, which has no jsdom runtime.
+    plugins: [preferNativeLeaves(), lucideNativeStub()],
     test: {
         globals: true,
         environment: 'jsdom',
         // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
-        setupFiles: [jsdomPolyfillsSetup],
+        setupFiles: [jsdomPolyfillsSetup, './src/testing/screenReaderShim.native.ts'],
         passWithNoTests: true,
         include: ['**/__tests__/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
@@ -64,6 +67,8 @@ export default defineConfig({
             // gradient/blur rendering is emulator-only (Maestro).
             'expo-linear-gradient': path.join(stubDir, 'expoLinearGradientStub.tsx'),
             'expo-blur': path.join(stubDir, 'expoBlurStub.tsx'),
+            // `RecipeCover` draws photos through `expo-image`, a native module with no jsdom runtime.
+            'expo-image': path.join(stubDir, 'expoImageStub.tsx'),
             // The sheet pads by the device's window insets, which a native module reports; the stub serves fixed
             // non-zero insets so those assertions stay falsifiable.
             'react-native-safe-area-context': fileURLToPath(

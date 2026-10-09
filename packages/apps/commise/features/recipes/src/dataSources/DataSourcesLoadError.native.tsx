@@ -6,9 +6,7 @@
  * live region (`DataSourcesScreen.native.tsx`), because Android speaks only a change to a region it already holds, and
  * this leaf mounts with the failure (`LiveRegion`'s own rule).
  */
-import { Feather } from '@expo/vector-icons';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -27,12 +25,7 @@ export const DataSourcesLoadError: FC<DataSourcesLoadErrorNativeProps> = ({ onRe
 
     return (
         <View style={styles.action}>
-            <Button
-                variant="secondary"
-                icon={<Feather name="refresh-cw" size={16} color={palette.charcoal} />}
-                onPress={onRetry}
-                busy={retrying}
-            >
+            <Button variant="secondary" icon="refreshCw" onPress={onRetry} busy={retrying}>
                 {messages.retry}
             </Button>
         </View>

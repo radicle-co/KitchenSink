@@ -46,34 +46,34 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     return (
         <Dialog.Root open={open} onOpenChange={(next) => (next ? undefined : onCancel())}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
-                <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-card p-6 shadow-lg">
-                    <Dialog.Title className="font-display text-heading-lg font-semibold text-charcoal">
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
+                <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-paper p-6 shadow-lg">
+                    <Dialog.Title className="font-display text-heading-lg font-semibold text-ink">
                         {erase.title}
                     </Dialog.Title>
-                    <Dialog.Description className="text-body-md leading-relaxed text-error-dark">
+                    <Dialog.Description className="text-body-md leading-relaxed text-danger-text">
                         {erase.warning}
                     </Dialog.Description>
-                    <p className="text-body-sm leading-relaxed text-slate">{erase.distinction}</p>
+                    <p className="text-body-sm leading-relaxed text-ink-muted">{erase.distinction}</p>
 
                     <section aria-labelledby="erase-donate-heading" className="flex flex-col gap-2">
-                        <h3 id="erase-donate-heading" className="text-body-md font-semibold text-charcoal">
+                        <h3 id="erase-donate-heading" className="text-body-md font-semibold text-ink">
                             {erase.donateHeading}
                         </h3>
-                        <p className="text-body-sm leading-relaxed text-slate">{erase.donateHelp}</p>
+                        <p className="text-body-sm leading-relaxed text-ink-muted">{erase.donateHelp}</p>
                         {recipesLoading ? (
-                            <p role="status" className="text-body-sm text-slate">
+                            <p role="status" className="text-body-sm text-ink-muted">
                                 {erase.recipesLoadingLabel}
                             </p>
                         ) : recipesError ? (
-                            <p className="text-body-sm text-slate">{erase.recipesError}</p>
+                            <p className="text-body-sm text-ink-muted">{erase.recipesError}</p>
                         ) : donatableRecipes.length === 0 ? (
-                            <p className="text-body-sm text-slate">{erase.donateEmpty}</p>
+                            <p className="text-body-sm text-ink-muted">{erase.donateEmpty}</p>
                         ) : (
                             <ul className="flex flex-col gap-1" role="list">
                                 {donatableRecipes.map((recipe) => (
                                     <li key={recipe.id}>
-                                        <label className="flex items-center gap-2 text-body-sm text-charcoal">
+                                        <label className="flex items-center gap-2 text-body-sm text-ink">
                                             <input
                                                 type="checkbox"
                                                 checked={selected.has(recipe.id)}
@@ -88,10 +88,10 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                     </section>
 
                     <div className="flex flex-col gap-1">
-                        <label htmlFor="erase-phrase" className="text-body-sm font-medium text-charcoal">
+                        <label htmlFor="erase-phrase" className="text-body-sm font-medium text-ink">
                             {erase.phraseLabel}
                         </label>
-                        <p id="erase-phrase-prompt" className="text-body-sm text-slate">
+                        <p id="erase-phrase-prompt" className="text-body-sm text-ink-muted">
                             {erase.phrasePrompt.replace('{phrase}', ACCOUNT_ERASURE_CONFIRMATION_PHRASE)}
                         </p>
                         <input
@@ -101,7 +101,7 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                             onChange={(event) => onPhraseChange(event.target.value)}
                             aria-describedby="erase-phrase-prompt"
                             autoComplete="off"
-                            className="rounded-lg border border-slate/30 px-3 py-2 text-body-md text-charcoal"
+                            className="rounded-lg border border-line-control px-3 py-2 text-body-md text-ink"
                         />
                     </div>
 
@@ -109,7 +109,7 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                         <Dialog.Close asChild>
                             <button
                                 type="button"
-                                className="rounded-full px-4 py-2 text-body-sm font-medium text-slate transition hover:bg-pearl"
+                                className="rounded-full px-4 py-2 text-body-sm font-medium text-ink-muted transition hover:bg-ink/6"
                             >
                                 {erase.cancel}
                             </button>
@@ -119,15 +119,15 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                             onClick={onConfirm}
                             disabled={!canConfirm}
                             aria-busy={submitting || undefined}
-                            className="rounded-full bg-error px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+                            className="rounded-full bg-danger px-5 py-2 text-body-sm font-semibold text-on-action shadow-sm transition hover:opacity-90 disabled:opacity-50"
                         >
                             {erase.confirm}
                         </button>
                     </div>
 
-                    {submitting && <p className="text-body-sm text-slate">{erase.busyLabel}</p>}
+                    {submitting && <p className="text-body-sm text-ink-muted">{erase.busyLabel}</p>}
                     {submitError && !submitting && (
-                        <p role="alert" className="text-body-sm text-error-dark">
+                        <p role="alert" className="text-body-sm text-danger-text">
                             {erase.error}
                         </p>
                     )}

@@ -41,6 +41,6 @@ export function HomeGreeting(): JSX.Element {
 
 const styles = StyleSheet.create({
     container: { paddingHorizontal: 16, paddingTop: 8, gap: 4 },
-    greeting: { fontFamily: DISPLAY_FONT_BOLD, fontSize: 28, fontWeight: '700', color: palette.charcoal },
+    greeting: { fontFamily: DISPLAY_FONT_BOLD, fontSize: 28, color: palette.charcoal },
     date: { fontSize: 14, color: palette.slate },
 });

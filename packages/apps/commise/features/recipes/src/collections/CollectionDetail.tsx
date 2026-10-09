@@ -22,6 +22,7 @@
  * remounting it, key it by `collection.id` so the reveal count resets for the new collection's member list.
  */
 import { useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
 import { useState, type FC } from 'react';
 
 import { CollectionMemberRow } from './CollectionMemberRow.js';
@@ -52,23 +53,19 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     return (
         <section aria-label={detail.membersHeading} className="flex flex-col gap-3">
             {errorMessage !== undefined && (
-                <p role="alert" className="rounded-2xl bg-error/10 px-4 py-3 text-body-sm text-error-dark">
+                <p role="alert" className="rounded-2xl bg-danger/10 px-4 py-3 text-body-sm text-danger-text">
                     {errorMessage}
                 </p>
             )}
-            <div className="flex items-center justify-between gap-4">
-                <h2 className="font-display text-heading-lg font-semibold text-charcoal">{detail.membersHeading}</h2>
-                <button
-                    type="button"
-                    onClick={onAddRecipe}
-                    className="rounded-full bg-seafoam px-5 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
-                >
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <h2 className="font-display text-heading-lg font-semibold text-ink">{detail.membersHeading}</h2>
+                <Button icon="plus" onPress={onAddRecipe}>
                     {detail.addRecipeCta}
-                </button>
+                </Button>
             </div>
             {recipes.length === 0 ? (
-                <div className="rounded-2xl bg-card p-6 text-body-md text-slate shadow-sm">
-                    <p className="font-medium text-charcoal">{detail.emptyTitle}</p>
+                <div className="rounded-2xl bg-paper p-6 text-body-md text-ink-muted shadow-sm">
+                    <p className="font-medium text-ink">{detail.emptyTitle}</p>
                     <p>{detail.emptyBody}</p>
                 </div>
             ) : (
@@ -87,15 +84,17 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                     </ul>
                     {remainingCount > 0 && (
                         // W5/C7 — client-side member-list windowing (no member-pagination endpoint).
-                        <button
-                            type="button"
-                            onClick={() =>
-                                setRevealCount((count) => Math.min(recipes.length, count + MEMBER_WINDOW_SIZE))
-                            }
-                            className="self-center rounded-full bg-pearl px-6 py-2.5 text-body-sm font-semibold text-charcoal transition hover:bg-mist/40"
-                        >
-                            {fillTemplate(detail.loadMore, { count: remainingCount })}
-                        </button>
+                        <div className="self-center">
+                            <Button
+                                variant="secondary"
+                                icon="chevronDown"
+                                onPress={() =>
+                                    setRevealCount((count) => Math.min(recipes.length, count + MEMBER_WINDOW_SIZE))
+                                }
+                            >
+                                {fillTemplate(detail.loadMore, { count: remainingCount })}
+                            </Button>
+                        </div>
                     )}
                 </>
             )}

@@ -12,6 +12,8 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
+import { PopupInsetsContext } from '@commise/ui/popup-insets';
+import { useContext, useState, type JSX } from 'react';
 
 import { webMessages } from '@/i18n/messages';
 
@@ -344,5 +346,72 @@ describe('HomeChrome — the desktop-vs-narrow nav cutover', () => {
         // A drawer that hid at a width where its trigger is shown would open onto nothing; one that opens
         // must still trap focus, which is the behaviour the tablet width now newly depends on.
         expect(drawer.contains(document.activeElement)).toBe(true);
+    });
+});
+
+/**
+ * UI-overhaul slice 2 (finding D2): the shell publishes its bottom tab bar to the design system's popups through
+ * `@commise/ui/popup-insets`, so a menu opened near the foot of a phone screen keeps clear of the bar.
+ */
+describe('HomeChrome — the popups keep clear of the tab bar', () => {
+    /** A surface that reads the insets its popups would read, when asked. */
+    function InsetsProbe(): JSX.Element {
+        const readInsets = useContext(PopupInsetsContext);
+        const [read, setRead] = useState('');
+
+        return (
+            <button type="button" onClick={() => setRead(JSON.stringify(readInsets()))}>
+                {`read ${read}`}
+            </button>
+        );
+    }
+
+    it('hands a popup the tab bar’s strip of the viewport', async () => {
+        const user = userEvent.setup();
+        render(
+            <HomeChrome
+                chrome={chrome}
+                pageTitle={chrome.pageTitles.home}
+                locale="en"
+                liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
+                activeId="home"
+                displayName="Jane Doe"
+            >
+                <InsetsProbe />
+            </HomeChrome>,
+        );
+        const bar = screen.getAllByRole('navigation', { name: chrome.tabNavLabel }).at(-1);
+
+        if (bar === undefined) {
+            throw new Error('no tab bar');
+        }
+
+        bar.getBoundingClientRect = () =>
+            DOMRect.fromRect({ x: 0, y: window.innerHeight - 64, width: 390, height: 64 });
+
+        await user.click(screen.getByRole('button', { name: /^read/u }));
+
+        expect(screen.getByRole('button', { name: /^read/u }).textContent).toBe('read {"top":0,"bottom":64}');
+    });
+
+    it('hands a popup no chrome on a focused task, which has no tab bar', async () => {
+        const user = userEvent.setup();
+        render(
+            <HomeChrome
+                chrome={chrome}
+                pageTitle={chrome.pageTitles.home}
+                locale="en"
+                liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
+                activeId="home"
+                displayName="Jane Doe"
+                focusedTask
+            >
+                <InsetsProbe />
+            </HomeChrome>,
+        );
+
+        await user.click(screen.getByRole('button', { name: /^read/u }));
+
+        expect(screen.getByRole('button', { name: /^read/u }).textContent).toBe('read {"top":0,"bottom":0}');
     });
 });

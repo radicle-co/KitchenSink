@@ -34,7 +34,7 @@
 // ⛔ NO `px-*` HERE. This renders inside `AppShell`'s `<main>`, which already supplies `px-4 md:px-6`, so a
 // second `px-4` doubled the gutter to 32px a side — at 320 that leaves 256px of content. The section keeps
 // `mx-auto max-w-3xl` because centering is its own job; the gutter is the shell's.
-import { busyControlProps } from '@commise/ui/button';
+import { Button, busyControlProps } from '@commise/ui/button';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useId } from 'react';
@@ -101,12 +101,12 @@ const OptionCard: FC<ConflictOptionCardProps & { readonly busy: boolean }> = ({
             {...busyControlProps({ busy: busy && !disabled, blocked: disabled, onClick: onChoose })}
             aria-label={title}
             aria-describedby={descriptionId}
-            className={`flex flex-1 flex-col gap-1 rounded-2xl bg-card p-5 text-left shadow-sm ring-1 ring-border transition hover:bg-pearl disabled:hover:bg-card aria-disabled:hover:bg-card ${UNAVAILABLE_CLASS}`}
+            className={`flex flex-1 flex-col gap-1 rounded-2xl bg-paper p-5 text-left shadow-sm ring-1 ring-line-divider transition hover:bg-ink/6 disabled:hover:bg-paper aria-disabled:hover:bg-paper ${UNAVAILABLE_CLASS}`}
         >
-            <span aria-hidden="true" className="font-display text-body-lg font-semibold text-charcoal">
+            <span aria-hidden="true" className="font-display text-body-lg font-semibold text-ink">
                 {title}
             </span>
-            <span id={descriptionId} className="text-body-sm text-slate">
+            <span id={descriptionId} className="text-body-sm text-ink-muted">
                 {description}
             </span>
         </button>
@@ -126,7 +126,7 @@ const DiscardAndCloseButton: FC<DiscardAndCloseProps> = ({ label, onDiscardAndCl
         type="button"
         onClick={onDiscardAndClose}
         aria-label={label}
-        className="self-start text-body-sm font-semibold text-slate transition hover:text-charcoal"
+        className="self-start text-body-sm font-semibold text-ink-muted transition hover:text-ink"
     >
         <span aria-hidden="true">{'‹ '}</span>
         {label}
@@ -141,9 +141,9 @@ const DiscardAndCloseButton: FC<DiscardAndCloseProps> = ({ label, onDiscardAndCl
  * replacement for it).
  */
 const VersionSideCard: FC<VersionSideCardProps> = ({ heading, savedLine }) => (
-    <div className="flex-1 rounded-2xl bg-card p-4 ring-1 ring-border">
-        <p className="text-caption font-semibold uppercase tracking-wide text-charcoal">{heading}</p>
-        {savedLine !== undefined && <p className="text-body-sm text-slate">{savedLine}</p>}
+    <div className="flex-1 rounded-2xl bg-paper p-4 ring-1 ring-line-divider">
+        <p className="text-caption font-semibold uppercase tracking-wide text-ink">{heading}</p>
+        {savedLine !== undefined && <p className="text-body-sm text-ink-muted">{savedLine}</p>}
     </div>
 );
 
@@ -164,9 +164,9 @@ const SideValue: FC<SideValueProps> = ({ children, parts }) => (
  * on wording or behavior. `role="alert"` (mirrors `RecipeDeleteDialog`'s own alert-role warning surfaces).
  */
 const StaleBaseWarning: FC<StaleBaseWarningProps> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => (
-    <div role="alert" className="flex flex-col gap-2 rounded-2xl bg-warning/15 p-4 ring-1 ring-warning">
-        <p className="text-body-sm text-charcoal">{warning}</p>
-        <label className="flex items-center gap-2 text-body-sm font-medium text-charcoal">
+    <div role="alert" className="flex flex-col gap-2 rounded-2xl bg-attention-tint p-4 ring-1 ring-warning">
+        <p className="text-body-sm text-ink">{warning}</p>
+        <label className="flex items-center gap-2 text-body-sm font-medium text-ink">
             <input
                 type="checkbox"
                 checked={confirmed}
@@ -212,8 +212,8 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
         return (
             <section aria-label={conflict.mergeHeading} className="mx-auto flex max-w-3xl flex-col gap-4 py-8">
                 <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
-                <h2 className="font-display text-heading-lg font-semibold text-charcoal">{conflict.mergeHeading}</h2>
-                <p className="text-body-md text-slate">{conflict.mergeExplanation}</p>
+                <h2 className="font-display text-heading-lg font-semibold text-ink">{conflict.mergeHeading}</h2>
+                <p className="text-body-md text-ink-muted">{conflict.mergeExplanation}</p>
                 {staleWarning}
                 <div className="flex flex-col gap-3">
                     {diff.rows.map((row) => {
@@ -226,12 +226,12 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                 role="radiogroup"
                                 // The name carries a variant's parts (R27); the legend stays the plain label (R25).
                                 aria-label={conflictRowName(row, conflict)}
-                                className="flex flex-col gap-2 rounded-2xl bg-card p-4 ring-1 ring-border"
+                                className="flex flex-col gap-2 rounded-2xl bg-paper p-4 ring-1 ring-line-divider"
                             >
-                                <legend className="text-caption uppercase tracking-wide text-slate">{label}</legend>
+                                <legend className="text-caption uppercase tracking-wide text-ink-muted">{label}</legend>
                                 {/* Server FIRST, then Yours (X7). */}
                                 {(['theirs', 'mine'] as const).map((side) => (
-                                    <label key={side} className="flex items-start gap-2 text-body-md text-charcoal">
+                                    <label key={side} className="flex items-start gap-2 text-body-md text-ink">
                                         <input
                                             type="radio"
                                             name={row.key}
@@ -249,35 +249,28 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         );
                     })}
                 </div>
-                <p aria-live="polite" className="text-body-sm font-medium text-charcoal">
+                <p aria-live="polite" className="text-body-sm font-medium text-ink">
                     {formatMergeSummary(selections, conflict, locale)}
                 </p>
                 {!view.hasSelection && (
-                    <p role="status" className="text-body-sm text-slate">
+                    <p role="status" className="text-body-sm text-ink-muted">
                         {conflict.mergeNoSelectionHint}
                     </p>
                 )}
                 <div className="flex flex-wrap gap-3">
-                    <button
-                        type="button"
-                        // The selection and stale-base gates are rules the press did not cause; a resolve in
-                        // flight follows the press, so Save keeps focus (`busyControlProps` owns the precedence).
-                        {...busyControlProps({
-                            busy: isResolving,
-                            blocked: view.mergeBlocked,
-                            onClick: () => onMerge(selections),
-                        })}
-                        className={`rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:hover:bg-seafoam aria-disabled:hover:bg-seafoam ${UNAVAILABLE_CLASS}`}
+                    {/* The selection and stale-base gates are rules the press did not cause (`disabled`); a resolve in
+                        flight follows the press, so Save keeps focus (the Button's `busy` owns that precedence). */}
+                    <Button
+                        icon="check"
+                        busy={isResolving}
+                        disabled={view.mergeBlocked}
+                        onPress={() => onMerge(selections)}
                     >
                         {conflict.mergeSubmit}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={view.leaveMerge}
-                        className="rounded-full px-5 py-2 text-body-sm font-semibold text-charcoal ring-1 ring-border transition hover:bg-card"
-                    >
+                    </Button>
+                    <Button variant="secondary" icon="chevronLeft" onPress={view.leaveMerge}>
                         {conflict.mergeBack}
-                    </button>
+                    </Button>
                 </div>
             </section>
         );
@@ -286,13 +279,13 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     return (
         <section aria-label={conflict.heading} className="mx-auto flex max-w-3xl flex-col gap-4 py-8">
             <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
-            <h2 className="font-display text-heading-lg font-semibold text-charcoal">{conflict.heading}</h2>
-            <p className="text-body-md text-slate">{conflict.explanation}</p>
+            <h2 className="font-display text-heading-lg font-semibold text-ink">{conflict.heading}</h2>
+            <p className="text-body-md text-ink-muted">{conflict.explanation}</p>
 
             {/* Per-side banner (X3) — server is ALWAYS first (X7). */}
-            <div className="flex flex-col gap-1 rounded-2xl bg-card p-4 ring-1 ring-border">
-                <p className="text-body-md text-charcoal">{formatServerBanner(server, now, conflict, locale)}</p>
-                <p className="text-body-md text-charcoal">{conflict.mineBanner}</p>
+            <div className="flex flex-col gap-1 rounded-2xl bg-paper p-4 ring-1 ring-line-divider">
+                <p className="text-body-md text-ink">{formatServerBanner(server, now, conflict, locale)}</p>
+                <p className="text-body-md text-ink">{conflict.mineBanner}</p>
             </div>
 
             {/* Two-column per-side summary cards (wireframe gap #2) — server ALWAYS first (X7). */}
@@ -343,30 +336,30 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             {/* Changed-only diff panel with per-row markers + legend (W7 Task 4 / X1). */}
             {diff.rows.length > 0 ? (
                 <section aria-label={conflict.changedFieldsHeading} className="flex flex-col gap-3">
-                    <h3 className="font-display text-heading-sm font-semibold text-charcoal">
+                    <h3 className="font-display text-heading-sm font-semibold text-ink">
                         {conflict.changedFieldsHeading}
                     </h3>
                     <ul className="flex flex-col gap-2">
                         {diff.rows.map((row) => (
                             <li
                                 key={row.key}
-                                className="flex flex-col gap-2 rounded-2xl bg-card p-3 ring-1 ring-border"
+                                className="flex flex-col gap-2 rounded-2xl bg-paper p-3 ring-1 ring-line-divider"
                             >
                                 <div className="flex items-center gap-2">
                                     <span
                                         role="img"
                                         aria-label={conflictMarkerLabel(row.marker, conflict)}
-                                        className="font-mono text-body-sm text-slate"
+                                        className="font-mono text-body-sm text-ink-muted"
                                     >
                                         {conflictMarkerGlyph(row.marker, conflict)}
                                     </span>
-                                    <span className="text-caption uppercase tracking-wide text-slate">
+                                    <span className="text-caption uppercase tracking-wide text-ink-muted">
                                         {conflictRowLabel(row, conflict)}
                                     </span>
                                 </div>
                                 {row.base !== undefined && (
                                     <SideValue parts={conflictSideParts(row, 'base')}>
-                                        <span className="text-body-sm text-slate">
+                                        <span className="text-body-sm text-ink-muted">
                                             {fillTemplate(conflict.wasValueLabel, { value: row.base })}
                                         </span>
                                     </SideValue>
@@ -374,7 +367,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                 {/* Server value FIRST, then Yours (X7). */}
                                 {(['theirs', 'mine'] as const).map((side) => (
                                     <SideValue key={side} parts={conflictSideParts(row, side)}>
-                                        <span className="text-body-sm text-charcoal">
+                                        <span className="text-body-sm text-ink">
                                             {conflictOptionLabel(row, side, conflict)}
                                         </span>
                                     </SideValue>
@@ -382,7 +375,10 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                             </li>
                         ))}
                     </ul>
-                    <ul aria-label={conflict.legendHeading} className="flex flex-wrap gap-3 text-caption text-slate">
+                    <ul
+                        aria-label={conflict.legendHeading}
+                        className="flex flex-wrap gap-3 text-caption text-ink-muted"
+                    >
                         {LEGEND_MARKERS.map((marker) => (
                             <li key={marker}>
                                 {fillTemplate(conflict.legendEntryTemplate, {
@@ -396,7 +392,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             ) : (
                 // Defensive — Task 2 already fast-paths a genuinely phantom-empty diff away from this view,
                 // so this should not normally be reached; a blank panel is never an acceptable fallback.
-                <p role="status" className="text-body-md text-slate">
+                <p role="status" className="text-body-md text-ink-muted">
                     {conflict.noDifferencesMessage}
                 </p>
             )}

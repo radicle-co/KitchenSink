@@ -44,6 +44,9 @@ Values below are the SHIPPED `@commise/ui` tokens, and the archive is held to th
 (`packages/tools/test-utils/src/__tests__/mockupContrast.test.ts`) — see
 "Accessibility corrections applied to this archive" below.
 
+The warm greys (`slate`, `mist`, `pearl` as linen, `pewter`) and `warning-dark` carry the owner's D11 values and
+`docs/design/uiOverhaul/darkTheme.md` §1, applied to every screen's declarations on 2026-10-08.
+
 | Token                   | Hex       | Name               | Label it carries as a fill               |
 | ----------------------- | --------- | ------------------ | ---------------------------------------- |
 | `--color-seafoam`       | `#31807A` | Primary dark       | `white` (4.67:1)                         |
@@ -53,17 +56,17 @@ Values below are the SHIPPED `@commise/ui` tokens, and the archive is held to th
 | `--color-sky`           | `#8ECAE6` | Tertiary accent    | `charcoal` (7.09:1)                      |
 | `--color-white`         | `#FFFFFF` | Surface            | surface                                  |
 | `--color-charcoal`      | `#2D3436` | Text primary       | `white` (12.68:1)                        |
-| `--color-slate`         | `#636E72` | Text secondary     | —                                        |
-| `--color-mist`          | `#B2BEC3` | Borders/dividers   | hairline only — never text               |
-| `--color-pearl`         | `#F5F5F5` | Muted backgrounds  | surface                                  |
+| `--color-slate`         | `#6B645C` | Text secondary     | —                                        |
+| `--color-mist`          | `#C9C1B6` | Borders/dividers   | hairline only — never text               |
+| `--color-pearl`         | `#F3EEE6` | Muted backgrounds  | surface                                  |
 | `--color-ocean-dark`    | `#2A6B65` | Teal TEXT on light | `white` (6.20:1)                         |
 | `--color-success`       | `#4CAF7C` | Success            | `charcoal` (4.67:1)                      |
 | `--color-warning`       | `#F5B041` | Warning FILL       | `charcoal` (6.74:1)                      |
-| `--color-warning-dark`  | `#966400` | Warning TEXT       | on `white` (5.10:1) — a foreground       |
+| `--color-warning-dark`  | `#8C5A00` | Warning TEXT       | on `white` (5.87:1) — a foreground       |
 | `--color-error`         | `#C05238` | Error FILL         | `white` (4.66:1)                         |
 | `--color-error-dark`    | `#B1442B` | Error TEXT         | `white` (5.63:1)                         |
 | `--color-premium`       | `#D4A574` | Premium/gold       | `charcoal` (5.70:1)                      |
-| `--color-pewter`        | `#858F93` | Control edge       | edge only — 3.31:1 on white, never text  |
+| `--color-pewter`        | `#8A847C` | Control edge       | edge only — 3.70:1 on white, never text  |
 | `--color-honey`         | `#A86A12` | Rating star        | graphic only — 4.43:1, never text        |
 
 ### Semantic Colors
@@ -75,7 +78,7 @@ Values below are the SHIPPED `@commise/ui` tokens, and the archive is held to th
 | `--card`        | `#FFFFFF`                  |
 | `--primary`     | `#5BA8A0`                  |
 | `--secondary`   | `#E8917A`                  |
-| `--muted`       | `#F5F5F5`                  |
+| `--muted`       | `#F3EEE6`                  |
 | `--accent`      | `#8ECAE6`                  |
 | `--destructive` | `#C05238`                  |
 | `--border`      | `rgba(178, 190, 195, 0.3)` |

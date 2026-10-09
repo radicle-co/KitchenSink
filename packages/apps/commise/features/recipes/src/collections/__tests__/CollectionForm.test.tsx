@@ -11,6 +11,7 @@ import userEvent from '@testing-library/user-event';
 
 import { ringContrast } from '@commise/test-utils';
 import { semantic } from '@commise/ui';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 
 import { CollectionForm } from '../CollectionForm.js';
 import type { CollectionFormProps } from '../model.js';
@@ -164,10 +165,10 @@ describe('CollectionForm (web) — submitting state', () => {
 });
 
 /**
- * The form IS a `bg-card` panel, so its name field's focus ring is drawn on the card — the field's own white
+ * The form IS a `bg-paper` panel, so its name field's focus ring is drawn on the card — the field's own white
  * fill is irrelevant, because a Tailwind ring is a spread box-shadow OUTSIDE the border box.
  *
- * The ring shipped as `ring-seafoam-light` (2.78:1 on the card), under the 3:1 SC 1.4.11 floor a focus
+ * The ring shipped as `ring-focus-ring` (2.78:1 on the card), under the 3:1 SC 1.4.11 floor a focus
  * indicator owes (#114). This form has exactly ONE field and `outline-none`, so the ring is the whole of the
  * keyboard affordance.
  */
@@ -204,5 +205,14 @@ describe('CollectionForm (web) — the name field’s focus ring clears the 3:1 
                 surface: semantic.card,
             }),
         ).toBeGreaterThan(ringContrast('ring-2 ring-seafoam-light', { surface: semantic.card }));
+    });
+});
+
+describe('CollectionForm (web) — the design-system Button (UI overhaul slice 2)', () => {
+    it('submits through a primary check Button and cancels through the ghost surface', () => {
+        renderForm();
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Create' }), 'primary', 'check');
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Cancel' }), 'ghost', null);
     });
 });

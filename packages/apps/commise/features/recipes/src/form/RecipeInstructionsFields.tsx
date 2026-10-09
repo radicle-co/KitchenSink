@@ -11,7 +11,6 @@ import type { FC, ReactElement } from 'react';
 
 import { errorText, field, sectionCard, sectionHeading } from './formSectionStyles.js';
 import { fillTemplate } from '../list/model.js';
-import { PlusIcon, TrashIcon } from './icons.js';
 import { recipeFormMessages } from './messages.js';
 import { stepsErrorId } from './fieldErrorIds.js';
 import { applyDraftAction, type RecipeFormSectionProps } from './props.js';
@@ -31,7 +30,7 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
             // I1: the row WRAPS and the instruction field takes a whole line, so at 320 px it is never squeezed beside
             // the timer and Remove (it was about 12 px wide). The same row shape as the native leaf's.
             <li key={index} className="flex flex-wrap items-end gap-3">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-seafoam text-body-sm font-semibold text-white">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-action text-body-sm font-semibold text-on-action">
                     {number}
                 </span>
                 <input
@@ -65,7 +64,7 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
                 />
                 <Button
                     variant="destructive"
-                    icon={<TrashIcon />}
+                    icon="trash"
                     onPress={() => onChange(applyDraftAction(values, { kind: 'removeAt', field: 'steps', index }))}
                 >
                     {/* Icon-only on cramped phone rows (`sr-only`), full label from sm up — see the ingredient
@@ -85,14 +84,14 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
                 </p>
             )}
             {stepRows.length === 0 ? (
-                <p className="text-body-sm text-slate">{m.noSteps}</p>
+                <p className="text-body-sm text-ink-muted">{m.noSteps}</p>
             ) : (
                 <ol className="flex flex-col gap-3">{stepRows}</ol>
             )}
             <div className="self-start">
                 <Button
                     variant="secondary"
-                    icon={<PlusIcon />}
+                    icon="plus"
                     onPress={() => onChange(applyDraftAction(values, { kind: 'addStep' }))}
                 >
                     {m.addStep}

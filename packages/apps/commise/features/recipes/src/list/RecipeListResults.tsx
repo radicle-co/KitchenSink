@@ -9,6 +9,7 @@
  * narrowing, or the populated grid — and the create dial wherever {@link shouldShowCreateDial} keeps it.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import type { FC, ReactElement } from 'react';
 
@@ -41,13 +42,9 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
                 {!narrowed && (
                     // Empty-state CTA — the SOLE create control here (the dial is suppressed on a true empty library so
                     // there are never two competing create affordances).
-                    <button
-                        type="button"
-                        onClick={onCreateRecipe}
-                        className="rounded-full bg-seafoam px-5 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
-                    >
+                    <Button icon="plus" onPress={onCreateRecipe}>
                         {list.emptyCreateCta}
-                    </button>
+                    </Button>
                 )}
             </div>
         );
@@ -55,7 +52,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
         const count = formatRecipeCount(recipes.length, { one: list.countOne, other: list.countOther }, locale);
         body = (
             <div className="flex flex-col gap-4">
-                <p className="text-body-sm font-medium text-slate">{count}</p>
+                <p className="text-body-sm font-medium text-ink-muted">{count}</p>
                 <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {recipes.map((recipe) => (
                         <li key={recipe.id}>
@@ -86,8 +83,8 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
                         // minimum; `md:py-1 md:min-h-0` restores the desktop chip density exactly.
                         className={`inline-flex min-h-11 items-center rounded-full px-3 py-1.5 text-body-sm font-medium transition md:min-h-0 md:py-1 ${
                             filters.active.length === 0
-                                ? 'bg-seafoam text-white'
-                                : 'bg-pearl text-slate hover:bg-mist/40'
+                                ? 'bg-action text-on-action'
+                                : 'bg-surface-muted text-ink-muted hover:bg-ink/6'
                         }`}
                     >
                         {list.filterAll}
@@ -102,7 +99,9 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
                                 aria-pressed={active}
                                 onClick={() => filters.onToggle(value)}
                                 className={`inline-flex min-h-11 items-center rounded-full px-3 py-1.5 text-body-sm font-medium transition md:min-h-0 md:py-1 ${
-                                    active ? 'bg-seafoam text-white' : 'bg-pearl text-slate hover:bg-mist/40'
+                                    active
+                                        ? 'bg-action text-on-action'
+                                        : 'bg-surface-muted text-ink-muted hover:bg-ink/6'
                                 }`}
                             >
                                 {filterChipLabel(value, list.filterQuick)}

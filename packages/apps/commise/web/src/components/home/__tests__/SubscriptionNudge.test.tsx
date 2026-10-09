@@ -19,6 +19,8 @@ import { act, cleanup, render, renderHook, screen } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
+import { buttonSurfaceClass } from '@commise/ui/button';
+
 import { SubscriptionNudge } from '../SubscriptionNudge';
 import { useOncePerSessionNudge } from '../useOncePerSessionNudge';
 
@@ -184,5 +186,21 @@ describe('useOncePerSessionNudge (web)', () => {
         act(() => result.current.trigger());
 
         expect(result.current.visible).toBe(true);
+    });
+});
+
+describe('SubscriptionNudge — the design-system Button (UI overhaul slice 2)', () => {
+    const tokensOf = (className: string): string[] => className.split(/\s+/u);
+
+    it('upgrades through a primary chevronRight Button and dismisses through a secondary clock one, as mobile does', () => {
+        render(<SubscriptionNudge open onDismiss={() => undefined} />);
+
+        const upgrade = screen.getByRole('button', { name: 'See plans' });
+        const dismiss = screen.getByRole('button', { name: 'Maybe later' });
+
+        expect(tokensOf(upgrade.className)).toEqual(expect.arrayContaining(tokensOf(buttonSurfaceClass('primary'))));
+        expect(upgrade.querySelector('svg.lucide-chevron-right')).not.toBeNull();
+        expect(tokensOf(dismiss.className)).toEqual(expect.arrayContaining(tokensOf(buttonSurfaceClass('secondary'))));
+        expect(dismiss.querySelector('svg.lucide-clock')).not.toBeNull();
     });
 });

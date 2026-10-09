@@ -18,11 +18,11 @@ export const RecipeBrowseRailLoadError: FC<RecipeBrowseRailLoadErrorProps> = ({ 
 
     return (
         <div role="alert" className="flex flex-wrap items-center gap-2">
-            <p className="text-body-sm text-slate">{discovery.railError}</p>
+            <p className="text-body-sm text-ink-muted">{discovery.railError}</p>
             <button
                 type="button"
                 onClick={onRetry}
-                className="inline-flex min-h-11 items-center rounded-full px-3 py-1 text-body-sm font-semibold text-ocean-dark transition hover:bg-mist/20 md:min-h-0"
+                className="inline-flex min-h-11 items-center rounded-full px-3 py-1 text-body-sm font-semibold text-action-text transition hover:bg-ink/6 md:min-h-0"
             >
                 {discovery.retry}
             </button>

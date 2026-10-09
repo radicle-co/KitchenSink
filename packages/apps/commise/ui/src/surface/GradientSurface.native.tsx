@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { FC } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 
+import { useTheme } from '../theme/useTheme.native.js';
 import { gradient as gradientTokens, toNativeGradient } from '../tokens/gradients.js';
 import type { GradientSurfaceProps } from './props.js';
 
@@ -23,7 +24,9 @@ export const GradientSurface: FC<GradientSurfaceProps> = ({
     style,
     accessibilityLabel,
 }) => {
-    const spec = toNativeGradient(gradientTokens[gradient]);
+    const { hero } = useTheme();
+    // The canvas wash comes from the theme (D15); the brand and scrim ramps are the same in both themes.
+    const spec = toNativeGradient(gradient === 'hero' ? hero : gradientTokens[gradient]);
 
     return (
         <LinearGradient

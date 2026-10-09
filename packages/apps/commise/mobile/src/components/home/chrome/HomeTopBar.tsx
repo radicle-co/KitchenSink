@@ -18,11 +18,12 @@
  */
 import { initialsFor } from '@commise/features-core';
 import { palette } from '@commise/ui';
+import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import type { JSX } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ChromeIcon, CONTROL_ICONS } from './icons.js';
+import { CONTROL_ICONS } from './chromeGlyphs.js';
 import { DISPLAY_FONT_SEMIBOLD } from '../../../theme/fonts.js';
 import type { MobileMessages } from '../../../i18n/messages.js';
 
@@ -60,7 +61,7 @@ export function HomeTopBar({ chrome, displayName, onOpenAccount }: HomeTopBarPro
                     accessibilityLabel={`${chrome.search}, ${chrome.comingSoonSuffix}`}
                     style={styles.affordance}
                 >
-                    <ChromeIcon name={CONTROL_ICONS.search} color={palette.charcoal} />
+                    <Icon name={CONTROL_ICONS.search} />
                 </View>
 
                 <View
@@ -69,7 +70,7 @@ export function HomeTopBar({ chrome, displayName, onOpenAccount }: HomeTopBarPro
                     accessibilityLabel={`${chrome.notifications}, ${chrome.comingSoonSuffix}`}
                     style={styles.affordance}
                 >
-                    <ChromeIcon name={CONTROL_ICONS.notifications} color={palette.charcoal} />
+                    <Icon name={CONTROL_ICONS.notifications} />
                 </View>
 
                 <Pressable
@@ -104,7 +105,6 @@ const styles = StyleSheet.create({
     title: {
         fontFamily: DISPLAY_FONT_SEMIBOLD,
         fontSize: nativeTokens.fontSize.bodyLg,
-        fontWeight: '600',
         color: palette.charcoal,
     },
     // The trailing affordance cluster (search, notifications, avatar) — the mockup's top-right group.

@@ -71,7 +71,7 @@ export const CollectionFormContainer: FC<CollectionFormContainerProps> = (props)
                 <p
                     role="status"
                     aria-label={collections.form.loadingLabel}
-                    className="px-4 py-8 text-body-md text-slate"
+                    className="px-4 py-8 text-body-md text-ink-muted"
                 >
                     {collections.form.loadingLabel}
                 </p>

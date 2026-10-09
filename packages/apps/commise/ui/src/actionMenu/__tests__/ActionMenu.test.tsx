@@ -11,12 +11,18 @@
  * it opens records the trigger as the place to return to (`ingredientSpecialization.md` §S7, web); a press on the
  * trigger does nothing while a chosen item waits; an open menu keeps the items it opened with; a host's focus request
  * moves focus to the trigger; and an unavailable trigger opens nothing.
+ *
+ * ⚠️ Slice 2 of the UI overhaul (blueprint Part B, ActionMenu): an item has an `id` and may carry a Registry glyph; the
+ * trigger is always the `ellipsis` (⋯ — the vertical ⋮ is retired, spec §1.7); and "destructive last, after a divider"
+ * is STRUCTURAL — a separate `destructiveItem` field rather than a `tone` on any item. The menu keeps clear of the
+ * page's chrome by reading the `PopupInsetsContext` reader when it opens.
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type JSX } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
 import { Sheet } from '../../sheet/Sheet.js';
 import { ActionMenu } from '../ActionMenu.js';
 import type { ActionMenuItem, ActionMenuProps } from '../props.js';
@@ -38,10 +44,8 @@ const renderMenu = () => {
             triggerLabel="Actions for Saffron"
             title="Saffron"
             closeLabel="Close actions for Saffron"
-            items={[
-                { key: 'tryAgain', label: 'Try again', onSelect: tryAgain },
-                { key: 'remove', label: 'Remove ingredient', onSelect: remove, tone: 'destructive' },
-            ]}
+            items={[{ id: 'tryAgain', label: 'Try again', onSelect: tryAgain }]}
+            destructiveItem={{ id: 'remove', label: 'Remove ingredient', onSelect: remove }}
         />,
     );
 
@@ -115,7 +119,7 @@ describe('ActionMenu (web)', () => {
                 triggerLabel="Actions for beef brisket"
                 title="beef brisket"
                 closeLabel="Close actions for beef brisket"
-                items={onSelect === undefined ? [] : [{ key: 'remove', label: 'Remove ingredient', onSelect }]}
+                items={onSelect === undefined ? [] : [{ id: 'remove', label: 'Remove ingredient', onSelect }]}
             />
         );
 
@@ -158,7 +162,7 @@ describe('ActionMenu (web)', () => {
                     triggerLabel="Actions for Saffron"
                     title="Saffron"
                     closeLabel="Close actions for Saffron"
-                    items={[{ key: 'changeFood', label: 'Change food', onSelect: changeFood }]}
+                    items={[{ id: 'changeFood', label: 'Change food', onSelect: changeFood }]}
                 />,
             );
             const trigger = screen.getByRole('button', { name: 'Actions for Saffron' });
@@ -182,9 +186,7 @@ describe('ActionMenu (web)', () => {
                             triggerLabel="Actions for beef brisket"
                             title="beef brisket"
                             closeLabel="Close actions for beef brisket"
-                            items={[
-                                { key: 'editDetails', label: 'Edit details', onSelect: () => setDetailsOpen(true) },
-                            ]}
+                            items={[{ id: 'editDetails', label: 'Edit details', onSelect: () => setDetailsOpen(true) }]}
                         />
                         <Sheet
                             open={detailsOpen}
@@ -219,7 +221,7 @@ describe('ActionMenu (web)', () => {
             // Synchronous events, so nothing between the choice and the menu's own dismissal has run yet.
             fireEvent.click(screen.getByRole('menuitem', { name: 'Remove ingredient' }));
             fireEvent.pointerDown(trigger, { button: 0, pointerType: 'mouse' });
-            fireEvent.keyDown(trigger, { key: 'Enter' });
+            fireEvent.keyDown(trigger, { id: 'Enter' });
 
             expect(screen.queryByRole('menu')).toBeNull();
             expect(remove).not.toHaveBeenCalled();
@@ -238,7 +240,7 @@ describe('ActionMenu (web)', () => {
     it('keeps the items it opened with while it stays open, and shows the new ones at the next opening', async () => {
         const user = userEvent.setup();
         const items = (labels: readonly string[]): readonly ActionMenuItem[] =>
-            labels.map((label) => ({ key: label, label, onSelect: vi.fn() }));
+            labels.map((label) => ({ id: label, label, onSelect: vi.fn() }));
         const menu = (props: Pick<ActionMenuProps, 'items'>) => (
             <ActionMenu
                 triggerLabel="Actions for beef brisket"
@@ -269,7 +271,7 @@ describe('ActionMenu (web)', () => {
                 triggerLabel="Actions for Saffron"
                 title="Saffron"
                 closeLabel="Close actions for Saffron"
-                items={[{ key: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }]}
+                items={[{ id: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }]}
                 focusRequested
                 onFocusRequestHandled={onFocusRequestHandled}
             />,
@@ -286,7 +288,7 @@ describe('ActionMenu (web)', () => {
                 triggerLabel="Actions for Saffron"
                 title="Saffron"
                 closeLabel="Close actions for Saffron"
-                items={[{ key: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }]}
+                items={[{ id: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }]}
                 unavailable
             />,
         );
@@ -300,5 +302,104 @@ describe('ActionMenu (web)', () => {
         expect(trigger.hasAttribute('disabled')).toBe(false);
         expect(document.activeElement).toBe(trigger);
         expect(screen.queryByRole('menu')).toBeNull();
+    });
+});
+
+describe('ActionMenu (web) — the overhaul contract', () => {
+    it('draws the ellipsis glyph in its 44px trigger', () => {
+        const { trigger } = renderMenu();
+
+        expect(trigger.querySelector('svg.lucide-ellipsis')).not.toBeNull();
+    });
+
+    it('places the destructive item last, after a divider, in the danger label', async () => {
+        const user = userEvent.setup();
+        const { trigger } = renderMenu();
+        await user.click(trigger);
+
+        const menu = screen.getByRole('menu');
+        const parts = [...menu.children].map((child) => child.getAttribute('role'));
+
+        expect(parts).toStrictEqual(['menuitem', 'separator', 'menuitem']);
+        expect(menu.lastElementChild?.textContent).toBe('Remove ingredient');
+        expect(menu.lastElementChild?.className).toContain('text-danger-text');
+        expect(menu.firstElementChild?.className).toContain('text-ink');
+    });
+
+    it('draws no divider when there is no destructive item', async () => {
+        const user = userEvent.setup();
+        render(
+            <ActionMenu
+                triggerLabel="Actions for Saffron"
+                title="Saffron"
+                closeLabel="Close actions for Saffron"
+                items={[{ id: 'changeFood', label: 'Change food', onSelect: vi.fn() }]}
+            />,
+        );
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+
+        expect(screen.queryByRole('separator')).toBeNull();
+    });
+
+    it('runs the destructive item the host renders now, once the menu has gone', async () => {
+        const user = userEvent.setup();
+        const opened = vi.fn();
+        const current = vi.fn();
+        const menu = (onSelect: () => void) => (
+            <ActionMenu
+                triggerLabel="Actions for Saffron"
+                title="Saffron"
+                closeLabel="Close actions for Saffron"
+                items={[{ id: 'changeFood', label: 'Change food', onSelect: vi.fn() }]}
+                destructiveItem={{ id: 'remove', label: 'Remove ingredient', onSelect }}
+            />
+        );
+        const { rerender } = render(menu(opened));
+
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+        rerender(menu(current));
+        await user.click(screen.getByRole('menuitem', { name: 'Remove ingredient' }));
+
+        expect(current).toHaveBeenCalledTimes(1);
+        expect(opened).not.toHaveBeenCalled();
+        expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('draws an item’s glyph before its label', async () => {
+        const user = userEvent.setup();
+        render(
+            <ActionMenu
+                triggerLabel="Actions for Saffron"
+                title="Saffron"
+                closeLabel="Close actions for Saffron"
+                items={[{ id: 'history', label: 'Version history', icon: 'clock', onSelect: vi.fn() }]}
+            />,
+        );
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+
+        expect(
+            screen.getByRole('menuitem', { name: 'Version history' }).querySelector('svg.lucide-clock'),
+        ).not.toBeNull();
+    });
+
+    it('reads the page’s chrome insets when it opens, to keep clear of a bar along the foot', async () => {
+        const user = userEvent.setup();
+        const readInsets = vi.fn(() => ({ top: 0, bottom: 64 }));
+        render(
+            <PopupInsetsContext value={readInsets}>
+                <ActionMenu
+                    triggerLabel="Actions for Saffron"
+                    title="Saffron"
+                    closeLabel="Close actions for Saffron"
+                    items={[{ id: 'changeFood', label: 'Change food', onSelect: vi.fn() }]}
+                />
+            </PopupInsetsContext>,
+        );
+
+        expect(readInsets).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+
+        expect(readInsets).toHaveBeenCalled();
     });
 });

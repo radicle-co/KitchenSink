@@ -142,9 +142,11 @@ const onlyRow = (setup: Setup) => {
     return { ...built, row };
 };
 
-/** The action a row's `⋮` menu offers under `key`. */
+/** The action a row's `⋯` menu offers under `key`: one of its actions, or its destructive one. */
 const actionOf = (row: IngredientRowView, key: string) => {
-    const action = row.actions.find((each) => each.key === key);
+    const action = [...row.actions, ...(row.destructiveAction === undefined ? [] : [row.destructiveAction])].find(
+        (each) => each.id === key,
+    );
 
     if (action === undefined) {
         throw new Error(`the row offers no ${key}`);
@@ -406,6 +408,19 @@ describe('ingredientRowViewOf — Remove (§2d, V1 sign-off item 11, item 4’s 
         expect(dispatch).toHaveBeenCalledWith({ kind: 'removeIngredient', key: keyOf(values.ingredients[2]) });
         expect(focus.requestTrailing).toHaveBeenCalledOnce();
         expect(focus.request).not.toHaveBeenCalled();
+    });
+
+    // UI-overhaul slice 2: the design-system menu draws its destructive action last, after a divider, as its own field.
+    it('offers the ⋯ menu’s Remove ingredient as its destructive action, never among its actions', () => {
+        const { rows } = rowsOf({ lines: three });
+        const [first] = rows;
+
+        if (first === undefined) {
+            throw new Error('no first row');
+        }
+
+        expect(first.destructiveAction?.id).toBe('remove');
+        expect(first.actions.map((action) => action.id)).not.toContain('remove');
     });
 
     it('the ⋮ menu’s Remove ingredient does the same as the direct one', () => {

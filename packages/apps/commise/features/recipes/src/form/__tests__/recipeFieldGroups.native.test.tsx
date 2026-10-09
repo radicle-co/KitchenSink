@@ -17,22 +17,6 @@ import { compositeOver, computedContrast, contrastRatio, placeholderContrast } f
 import { palette } from '@commise/ui';
 import { CUISINES, FoodResolutionStatus } from '@kitchensink/recipe-core';
 
-// What each Feather glyph was asked to draw. A Feather colour arrives as a PROP, not a style, so
-// react-native-web compiles no rule for jsdom to compute — recording the prop is the only way an icon's
-// colour stays assertable (see the contrast describe below).
-const featherCalls = vi.hoisted(() => [] as { readonly name: string; readonly color: string }[]);
-
-// The native leaf renders its button glyphs via `@expo/vector-icons` (Feather), which needs the Expo font
-// runtime — absent under jsdom. Stub it to a decorative no-op; the Button primitive hides the icon from the
-// accessibility tree regardless, so what Feather draws is irrelevant to these behavioural/a11y assertions.
-// The stub still renders NOTHING — it only records the props it was handed.
-vi.mock('@expo/vector-icons', () => ({
-    Feather: ({ name, color }: { readonly name: string; readonly color: string }) => {
-        featherCalls.push({ name, color });
-
-        return null;
-    },
-}));
 // react-native-web does not implement `sendAccessibilityEvent`, which the ingredient rows call to move the
 // screen-reader cursor after a Remove (`@commise/ui/popover`'s focus request, V1 sign-off item 11).
 vi.mock('react-native', async (importOriginal) => {
@@ -96,17 +80,18 @@ const FieldGroups: FC<FieldGroupsProps> = ({
     </>
 );
 afterEach(cleanup);
-afterEach(() => {
-    featherCalls.length = 0;
-});
-
 /**
- * The DISTINCT colours every Feather glyph named `name` was drawn in, in first-seen order. Distinct-and-whole
- * rather than "the first one": several chips draw the same glyph, so `toEqual([token])` proves that EVERY one
- * of them carries the token (and that at least one rendered) instead of measuring whichever came first.
+ * The DISTINCT colours every glyph named `name` on screen is drawn in, in document order. A glyph's colour arrives as a
+ * PROP, not a style, so it is read off the icon Registry's test stand-in (`lucideNativeStub`, which publishes the Lucide
+ * name and colour it was drawn with). Distinct-and-whole rather than "the first one": several chips draw the same
+ * glyph, so `toEqual([token])` proves that EVERY one of them carries the token (and that at least one rendered).
  */
-const featherColors = (name: string): readonly string[] => [
-    ...new Set(featherCalls.filter((call) => call.name === name).map((call) => call.color)),
+const glyphColors = (root: ParentNode, name: string): readonly string[] => [
+    ...new Set(
+        [...root.querySelectorAll<HTMLElement>(`[data-commise-stub="icon"][data-icon-name="${name}"]`)].map(
+            (glyph) => glyph.dataset['iconColor'] ?? '',
+        ),
+    ),
 ];
 
 const noop = () => undefined;
@@ -260,16 +245,13 @@ describe('the recipe field groups (native) — tinted chip + badge text is WCAG-
     it('draws the chip’s × remove glyph in the same legible tone as the label beside it', () => {
         renderForm({ values: filledValues({ tags: ['quick'], dietaryFlags: [] }) });
 
-        // The form's Cancel button draws an `x` of its own (charcoal), so forget what the first paint drew and
-        // provoke a repaint of JUST this field — typing in the draft is local ChipInput state, so the only `x`
-        // recorded afterwards is this chip's remove glyph.
-        featherCalls.length = 0;
-        fireEvent.change(screen.getByLabelText('Tags'), { target: { value: 'e' } });
+        // The form's Cancel button draws an `x` of its own (charcoal), so the read is scoped to the chip itself.
+        const chip = screen.getByRole('button', { name: /quick/u });
 
         // The glyph's colour is a PROP, so there is no computed style to read — assert the token AND the ratio
         // it buys, so the number stays load-bearing rather than the spelling. Leaving the × seafoam while the
         // label moves would also render one chip in two greens.
-        expect(featherColors('x'), 'chip remove glyph colour').toEqual([palette['ocean-dark']]);
+        expect(glyphColors(chip, 'x'), 'chip remove glyph colour').toEqual([palette['ocean-dark']]);
         expect(
             contrastRatio(palette['ocean-dark'], chipSurface('quick')),
             'chip remove glyph over the chip tint',
@@ -279,9 +261,8 @@ describe('the recipe field groups (native) — tinted chip + badge text is WCAG-
     it('makes the SELECTED cuisine option — label AND check — legible on its highlight', () => {
         renderForm({ values: filledValues({ cuisine: 'Italian' }) });
 
-        // The submit button draws a `check` glyph of its own (white, on its filled background), so forget what
-        // the closed form drew: after this point the only `check` on screen is the selected row's affordance.
-        featherCalls.length = 0;
+        // The submit button draws a `check` glyph of its own (white, on its filled background), so the read is
+        // scoped to the selected row.
         fireEvent.click(screen.getByRole('button', { name: 'Cuisine' }));
 
         // The selected row paints its own pearl highlight, so that (not white) is what its label sits on.
@@ -292,7 +273,7 @@ describe('the recipe field groups (native) — tinted chip + badge text is WCAG-
             computedContrast(within(option).getByText('Italian'), { surface }),
             'selected cuisine label',
         ).toBeGreaterThanOrEqual(4.5);
-        expect(featherColors('check'), 'selected cuisine check colour').toEqual([palette['ocean-dark']]);
+        expect(glyphColors(option, 'check'), 'selected cuisine check colour').toEqual([palette['ocean-dark']]);
         expect(
             contrastRatio(palette['ocean-dark'], surface),
             'selected cuisine check over its highlight',

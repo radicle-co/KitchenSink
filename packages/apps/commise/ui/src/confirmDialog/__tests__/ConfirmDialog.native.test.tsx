@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createElement, type ComponentProps } from 'react';
+import { AccessibilityInfo } from 'react-native';
 import type {
     KeyboardAvoidingView as KeyboardAvoidingViewType,
     Modal as ModalType,
@@ -25,6 +26,8 @@ vi.mock('react-native', async (importOriginal) => {
 
     return {
         ...actual,
+        // react-native-web does not implement `sendAccessibilityEvent`; the focus on Keep reads its calls.
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
         Modal: (props: ComponentProps<typeof ModalType>) => {
             state.modal = props;
 
@@ -47,11 +50,11 @@ function baseProps(overrides: Partial<ConfirmDialogProps> = {}): ConfirmDialogPr
     return {
         open: true,
         title: 'Discard unsaved changes?',
-        description: 'You have unsaved changes. Leaving now will discard them.',
-        confirmLabel: 'Discard changes',
-        cancelLabel: 'Keep editing',
+        body: 'You have unsaved changes. Leaving now will discard them.',
+        confirm: { label: 'Discard changes', icon: 'trash' },
+        keep: { label: 'Keep editing' },
         onConfirm: vi.fn(),
-        onCancel: vi.fn(),
+        onKeep: vi.fn(),
         ...overrides,
     };
 }
@@ -80,13 +83,13 @@ describe('ConfirmDialog (native)', () => {
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
 
-    it('cancelling calls onCancel', () => {
-        const onCancel = vi.fn();
-        render(<ConfirmDialog {...baseProps({ onCancel })} />);
+    it('cancelling calls onKeep', () => {
+        const onKeep = vi.fn();
+        render(<ConfirmDialog {...baseProps({ onKeep })} />);
 
         fireEvent.click(screen.getByLabelText('Keep editing'));
 
-        expect(onCancel).toHaveBeenCalledTimes(1);
+        expect(onKeep).toHaveBeenCalledTimes(1);
     });
 
     // A Modal's window on iOS is portrait only unless it says otherwise (WCAG 2.2 SC 1.3.4).
@@ -141,5 +144,68 @@ describe('ConfirmDialog (native) — N1: the alert’s name is said once, by its
             headings[0],
         );
         expect(screen.queryAllByLabelText('Discard unsaved changes?')).toEqual([]);
+    });
+});
+
+/** Slice 2 of the UI overhaul (blueprint Part B, ConfirmDialog; spec §6.5) — the native half of the web leaf's cases. */
+describe('ConfirmDialog (native) — the overhaul contract', () => {
+    it('draws the confirm as the filled destructive tone with its glyph, and Keep as secondary with an x', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        const confirm = screen.getByRole('button', { name: 'Discard changes' });
+        const keep = screen.getByRole('button', { name: 'Keep editing' });
+
+        expect(confirm.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe('trash');
+        expect(keep.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe('x');
+    });
+
+    it('puts Keep first, so a stacked pair reads destructive on top only through its layout', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        const names = screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'));
+
+        expect(names.indexOf('Keep editing')).toBeLessThan(names.indexOf('Discard changes'));
+    });
+
+    it('moves the screen-reader cursor to Keep when it opens', () => {
+        vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
+        render(<ConfirmDialog {...baseProps()} />);
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
+            screen.getByRole('button', { name: 'Keep editing' }),
+            'focus',
+        );
+    });
+
+    it('while busy, spins the confirm and cannot fire again, says so, and Keep can still close it', () => {
+        const onConfirm = vi.fn();
+        const onKeep = vi.fn();
+        render(<ConfirmDialog {...baseProps({ busy: true, busyLabel: 'Discarding…', onConfirm, onKeep })} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+        expect(screen.getByRole('button', { name: 'Discard changes' }).getAttribute('aria-busy')).toBe('true');
+        expect(screen.getByText('Discarding…')).toBeTruthy();
+        expect(onConfirm).not.toHaveBeenCalled();
+        expect(onKeep).toHaveBeenCalledOnce();
+    });
+
+    it('shows a failure inside the dialog, but not while a retry is in flight', () => {
+        const { rerender } = render(<ConfirmDialog {...baseProps({ error: 'We couldn’t discard. Try again.' })} />);
+
+        expect(screen.getByText('We couldn’t discard. Try again.')).toBeTruthy();
+
+        rerender(<ConfirmDialog {...baseProps({ error: 'We couldn’t discard. Try again.', busy: true })} />);
+
+        expect(screen.queryByText('We couldn’t discard. Try again.')).toBeNull();
+    });
+
+    it('stacks its buttons, destructive on top, in a dialog narrower than 400pt', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        const actions = screen.getByRole('button', { name: 'Keep editing' }).parentElement as HTMLElement;
+
+        expect(getComputedStyle(actions).flexDirection).toBe('column-reverse');
     });
 });

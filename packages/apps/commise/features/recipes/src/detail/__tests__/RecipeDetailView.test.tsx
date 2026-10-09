@@ -161,7 +161,7 @@ describe('RecipeDetailView (web) — seafoam-as-text below the hero is WCAG-AA l
         );
 
         // The not-done marker is an OUTLINED circle whose numeral is the only thing in it — seafoam on the
-        // page surface is 4.02:1. The `border-seafoam` ring stays seafoam (a 3:1 graphic, which it clears).
+        // page surface is 4.02:1. The `border-selected-edge` ring stays seafoam (a 3:1 graphic, which it clears).
         const numeral = within(screen.getByRole('checkbox', { name: 'Mark step 1 complete' })).getByText('1');
 
         expect(utilityContrast(numeral.className), 'not-done step numeral').toBeGreaterThanOrEqual(4.5);
@@ -704,7 +704,7 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
         );
 
         // Unchecked, the box paints no fill and holds no glyph, so its OUTLINE is the entire affordance — a
-        // UI component under SC 1.4.11, floor 3:1. `border-mist` was 1.90:1, failing even that lower bar.
+        // UI component under SC 1.4.11, floor 3:1. `border-line-divider` was 1.90:1, failing even that lower bar.
         // The native leaf was demoted to slate in the U4 pass and carries a comment saying exactly this; the
         // web half was never brought along, which is the drift this asserts shut.
         const visual = screen.getByRole('checkbox', { name: /Olive oil/ }).firstElementChild;

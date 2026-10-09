@@ -95,7 +95,6 @@ const styles = StyleSheet.create({
     heading: {
         fontFamily: nativeTokens.fontFace.display.bold,
         fontSize: nativeTokens.fontSize.displayMd,
-        fontWeight: '700',
         color: palette.charcoal,
     },
     search: {

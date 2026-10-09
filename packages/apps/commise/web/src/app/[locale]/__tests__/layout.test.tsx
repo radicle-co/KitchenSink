@@ -28,7 +28,7 @@ import { assert, describe, expect, it, vi } from 'vitest';
 import type { ReactElement, ReactNode } from 'react';
 import { isValidElement } from 'react';
 
-import { SUPPORTED_LOCALES } from '@/lib/i18n';
+import { ROUTABLE_LOCALES } from '@/lib/i18n';
 
 vi.mock('@vercel/analytics/next', () => ({ Analytics: vi.fn((): null => null) }));
 vi.mock('next/navigation', () => ({
@@ -124,7 +124,7 @@ describe('the locale root layout mounts Vercel Web Analytics', () => {
         // The layout is per-locale, and `generateStaticParams` renders one tree per locale — a guard placed
         // behind a locale check would silently leave other locales untracked (or, worse, leave one locale on
         // the unredacted leaf).
-        for (const locale of SUPPORTED_LOCALES) {
+        for (const locale of ROUTABLE_LOCALES) {
             const element = await renderLayout(locale);
 
             expect(
@@ -134,7 +134,7 @@ describe('the locale root layout mounts Vercel Web Analytics', () => {
             expect(collectElementsByType(element, Analytics), `locale ${locale} mounts the RAW leaf`).toHaveLength(0);
         }
 
-        expect(generateStaticParams().map(({ locale }) => locale)).toEqual([...SUPPORTED_LOCALES]);
+        expect(generateStaticParams().map(({ locale }) => locale)).toEqual([...ROUTABLE_LOCALES]);
     });
 });
 

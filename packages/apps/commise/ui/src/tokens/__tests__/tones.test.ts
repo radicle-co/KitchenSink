@@ -11,8 +11,8 @@
 import { wcagContrast, converter } from 'culori';
 import { describe, expect, it } from 'vitest';
 
-import { palette, role, tint } from '../colors.js';
-import { difficultyTone, statusTone } from '../tones.js';
+import { palette, role, roleDark, tint } from '../colors.js';
+import { difficultyTone, difficultyToneDark, proTone, statusTone, statusToneDark } from '../tones.js';
 
 const toRgb = converter('rgb');
 
@@ -44,12 +44,12 @@ describe('difficultyTone', () => {
         expect(wcagContrast(text, over(fill, role.canvas))).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 
-    // ⚠️ MEASURED SPEC GAP (flagged to `staff-ux-engineer`, not tuned here): §1.4's Medium pair is 4.65:1 over paper
-    // and 4.37:1 over the sand canvas. Until the design answers, the difficulty badge is a `paper`-surface tone.
-    it('medium does NOT clear the floor over the canvas — the badge belongs on paper', () => {
+    // REWRITTEN in slice 2: the gap this pinned (Medium 4.37:1 over the canvas) is closed by `darkTheme.md` §1's
+    // `attention` #8C5A00 (5.00:1), so the difficulty badge may sit on the canvas as well as on paper.
+    it('medium also clears the floor over the canvas', () => {
         const { fill, text } = difficultyTone.medium;
 
-        expect(wcagContrast(text, over(fill, role.canvas))).toBeLessThan(AA_NORMAL_TEXT);
+        expect(wcagContrast(text, over(fill, role.canvas))).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 
     // §1.4: "`error` is never used for difficulty". Hard is coral, and coral is not the destructive red.
@@ -77,7 +77,7 @@ describe('statusTone', () => {
     // §1.4: neutral — `pearl` fill, `ink` text, never amber — told apart by the icon, not by colour (SC 1.4.1).
     it('is neutral for every status, and the icon tells them apart', () => {
         expect(statusTone).toEqual({
-            draft: { fill: palette.pearl, text: role.ink, icon: 'pencil-line' },
+            draft: { fill: palette.pearl, text: role.ink, icon: 'pencilLine' },
             private: { fill: palette.pearl, text: role.ink, icon: 'lock' },
             public: { fill: palette.pearl, text: role.ink, icon: 'globe' },
         });
@@ -111,3 +111,46 @@ function over(color: string, backdrop: string): string {
 
     return `rgb(${channel(rgb.r, beneath.r)}, ${channel(rgb.g, beneath.g)}, ${channel(rgb.b, beneath.b)})`;
 }
+
+/**
+ * The dark tones (`docs/design/uiOverhaul/darkTheme.md` §2): the difficulty fills at 18% (15% in light), labelled in
+ * the dark text roles, and the status tones on the dark `surfaceMuted`. Measured over dark paper and the dark canvas.
+ */
+describe('the dark tones', () => {
+    it('uses the spec’s dark tints and labels', () => {
+        expect(difficultyToneDark).toEqual({
+            easy: { fill: tint(palette.success, 0.18), text: roleDark.actionText },
+            medium: { fill: tint(palette.warning, 0.18), text: roleDark.attention },
+            hard: { fill: tint(palette.coral, 0.18), text: roleDark.ink },
+        });
+        expect(statusToneDark.draft).toEqual({ fill: roleDark.surfaceMuted, text: roleDark.ink, icon: 'pencilLine' });
+    });
+
+    it.each(['easy', 'medium', 'hard'] as const)(
+        '%s reads on its tint over dark paper and the dark canvas',
+        (level) => {
+            const { fill, text } = difficultyToneDark[level];
+
+            expect(wcagContrast(text, over(fill, roleDark.paper))).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+            expect(wcagContrast(text, over(fill, roleDark.canvas))).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        },
+    );
+
+    it.each(['draft', 'private', 'public'] as const)('the %s status reads in dark', (status) => {
+        const { fill, text } = statusToneDark[status];
+
+        expect(wcagContrast(text, fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    });
+
+    it('takes the light status fill from the surfaceMuted role (linen), not a palette entry', () => {
+        expect(statusTone.public.fill).toBe(role.surfaceMuted);
+    });
+});
+
+/** The PRO badge: one fixed pair in both themes (`darkTheme.md` §2, "Premium (PRO)"), so it is not re-themed. */
+describe('proTone', () => {
+    it('is premium under charcoal, in both themes', () => {
+        expect(proTone).toEqual({ fill: palette.premium, text: palette.charcoal });
+        expect(wcagContrast(proTone.text, proTone.fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    });
+});

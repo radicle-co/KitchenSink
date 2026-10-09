@@ -68,7 +68,7 @@ export async function ProfileContent({
                 <AccountStateGate>
                     <div className={pageContainer}>
                         <h1 className={pageHeading}>{copy.title}</h1>
-                        <p role="status" className="text-body-md text-slate">
+                        <p role="status" className="text-body-md text-ink-muted">
                             {copy.loadError}
                         </p>
                         <div className="flex justify-start">

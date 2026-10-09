@@ -9,6 +9,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { FIELD_CLASS } from '../../input/fieldClass.js';
 import { DurationField } from '../DurationField.js';
 import type { DurationFieldProps } from '../props.js';
 
@@ -99,5 +100,18 @@ describe('DurationField (web)', () => {
 
         expect(screen.getByText('h').getAttribute('aria-hidden')).toBe('true');
         expect(screen.getByText('min').getAttribute('aria-hidden')).toBe('true');
+    });
+
+    // UI-overhaul slice 2: the boxes take the Input rules (`FIELD_CLASS`) rather than a geometry of their own.
+    it('draws each box on the shared field surface, and the label in the FieldLabel role', () => {
+        renderField();
+
+        for (const box of [hours(), minutes()]) {
+            expect(box.className.split(/\s+/u)).toEqual(expect.arrayContaining(FIELD_CLASS.split(' ')));
+        }
+
+        expect(screen.getByText('Timer (optional)').className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(['text-label', 'text-ink-muted']),
+        );
     });
 });

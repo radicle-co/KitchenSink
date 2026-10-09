@@ -82,7 +82,7 @@ const BackToRecipeLink: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
             onClick={onBack}
             // `ocean-dark` foreground over a seafoam hover tint: the label is text a reader reads, the tint is a
             // non-text accent (see the palette JSDoc in `@commise/ui`).
-            className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
+            className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-action-text transition hover:bg-action/10"
         >
             {versionList.backToRecipe}
         </button>
@@ -96,7 +96,7 @@ const VersionsLoading: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
     return (
         <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
             <BackToRecipeLink onBack={onBack} />
-            <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-slate">
+            <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-ink-muted">
                 {recipes.versions.loadingLabel}
             </p>
         </div>

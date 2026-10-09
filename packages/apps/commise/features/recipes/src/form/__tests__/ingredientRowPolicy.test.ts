@@ -17,13 +17,15 @@ import { FoodResolutionStatus, type UnresolvedFoodReasonCode } from '@kitchensin
 
 import {
     detailsEntryOf,
-    rowPresentationOf,
-    rowVariantParts,
     type IngredientRowAction,
     type IngredientRowPresentation,
+    rowBadgeStatus,
+    rowGlyphIcon,
     type RowFacts,
-    type RowPolicyLine,
     type RowFigures,
+    type RowPolicyLine,
+    rowPresentationOf,
+    rowVariantParts,
 } from '../ingredientRowPolicy.js';
 
 interface Case {
@@ -810,5 +812,21 @@ describe('detailsEntryOf (the mode the details dialog opens in, §S7)', () => {
 
     it('Edit details on a line with no variant falls back to add', () => {
         expect(detailsEntryOf('editDetails', undefined)).toEqual({ mode: 'add' });
+    });
+});
+
+/** UI-overhaul slice 2: the status word draws as the design-system badge's line statuses, which name no free tone. */
+describe('rowBadgeStatus', () => {
+    it('draws a caution row’s word as an attention badge, and a neutral row’s as a note', () => {
+        expect(rowBadgeStatus('caution')).toBe('attention');
+        expect(rowBadgeStatus('neutral')).toBe('note');
+    });
+});
+
+/** UI-overhaul slice 2: slot 1's state glyph draws through the icon Registry — told apart by SHAPE (plan 002 V1). */
+describe('rowGlyphIcon', () => {
+    it('draws an actionable row’s glyph as the triangle, and a quiet row’s as the circle', () => {
+        expect(rowGlyphIcon('alert')).toBe('triangleAlert');
+        expect(rowGlyphIcon('info')).toBe('info');
     });
 });

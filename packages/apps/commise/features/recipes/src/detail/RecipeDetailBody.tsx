@@ -52,9 +52,9 @@ import {
     type RecipeDetailBodyProps,
 } from './model.js';
 
-const statCards = 'grid grid-cols-2 gap-4 rounded-2xl bg-card p-6 shadow-sm sm:grid-cols-4';
-const statValue = 'font-display text-2xl font-bold text-charcoal';
-const statLabel = 'text-caption uppercase tracking-wide text-slate';
+const statCards = 'grid grid-cols-2 gap-4 rounded-2xl bg-paper p-6 shadow-sm sm:grid-cols-4';
+const statValue = 'font-display text-2xl font-bold text-ink';
+const statLabel = 'text-caption uppercase tracking-wide text-ink-muted';
 
 /**
  * The pure `props → JSX` detail render: one responsibility, no state, no fetching, no ref. Everything it
@@ -151,7 +151,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     <h1
                         ref={titleRef}
                         tabIndex={-1}
-                        className="min-w-0 break-words font-display text-2xl font-bold leading-tight text-charcoal sm:text-4xl"
+                        className="min-w-0 break-words font-display text-2xl font-bold leading-tight text-ink sm:text-4xl"
                     >
                         {recipe.title}
                     </h1>
@@ -170,7 +170,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                 // `ocean-dark` (5.51:1) keeps the seafoam badge's identity; the coral
                                 // badge takes slate (4.67:1), matching the native leaf and the card chip.
                                 className={`rounded-full px-3 py-1 text-body-sm font-medium ${
-                                    index % 2 === 0 ? 'bg-seafoam/10 text-ocean-dark' : 'bg-coral/15 text-slate'
+                                    index % 2 === 0 ? 'bg-action/10 text-action-text' : 'bg-coral/15 text-ink-muted'
                                 }`}
                             >
                                 {badge}
@@ -187,7 +187,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                     // Contrast (WCAG AA): slate at rest (4.67:1); the hover tint deepens
                                     // to `coral/25`, where slate would fall to 4.26:1 — so hover darkens
                                     // the LABEL to charcoal (10.31:1) rather than leaving it behind.
-                                    className="inline-flex min-h-11 items-center rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-slate transition hover:bg-coral/25 hover:text-charcoal md:min-h-0"
+                                    className="inline-flex min-h-11 items-center rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-ink-muted transition hover:bg-coral/25 hover:text-ink md:min-h-0"
                                 >
                                     {tag}
                                 </button>
@@ -195,7 +195,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                         ))}
                     </ul>
                 )}
-                <p className="text-body-lg leading-relaxed text-slate">{recipe.description}</p>
+                <p className="text-body-lg leading-relaxed text-ink-muted">{recipe.description}</p>
             </header>
 
             {refreshNotice !== undefined && (
@@ -247,11 +247,11 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                 be told, in the same breath, that the cook times beside them did NOT double. `role="status"`
                 so it is announced when it appears rather than discovered by sighted scanning alone. */}
             {scaled.scaling.isScaled && (
-                <div role="status" className="flex flex-col gap-1 rounded-2xl bg-pearl px-4 py-3">
-                    <p className="text-body-sm text-charcoal">
+                <div role="status" className="flex flex-col gap-1 rounded-2xl bg-surface-muted px-4 py-3">
+                    <p className="text-body-sm text-ink">
                         {fillTemplate(detail.scaledNotice, { original: recipe.servings })}
                     </p>
-                    <p className="text-body-sm font-medium text-charcoal">{detail.scaledTimingCaveat}</p>
+                    <p className="text-body-sm font-medium text-ink">{detail.scaledTimingCaveat}</p>
                 </div>
             )}
 
@@ -260,7 +260,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     ref={ingredientsHeadingRef}
                     tabIndex={-1}
                     aria-describedby={saysRecovered ? recoveredDescriptionId : undefined}
-                    className="font-display text-heading-lg font-semibold text-charcoal"
+                    className="font-display text-heading-lg font-semibold text-ink"
                 >
                     {detail.ingredientsHeading}
                 </h2>
@@ -319,11 +319,11 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     inline re-link picker either — no shortlist exists for a withdrawn food, and it would
                     duplicate the editor on a read surface. */}
                 {removedFoodNotice(recipe.ingredients, detail) !== undefined && (
-                    <p role="note" className="rounded-2xl bg-warning/25 px-4 py-3 text-body-sm text-charcoal">
+                    <p role="note" className="rounded-2xl bg-attention-tint px-4 py-3 text-body-sm text-ink">
                         {removedFoodNotice(recipe.ingredients, detail)}
                     </p>
                 )}
-                <ul className="flex flex-col divide-y divide-border rounded-2xl bg-card p-2 shadow-sm">
+                <ul className="flex flex-col divide-y divide-border rounded-2xl bg-paper p-2 shadow-sm">
                     {scaled.ingredients.map((ingredient) => {
                         const label = formatQuantity(ingredient.quantity, locale, ingredient.unit);
                         const checked = checkedIngredients?.has(ingredient.ingredientId) ?? false;
@@ -359,11 +359,11 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                         aria-hidden
                                         className={`flex size-8 items-center justify-center rounded border-2 transition sm:size-6 ${
                                             checked
-                                                ? 'border-seafoam bg-seafoam text-white'
+                                                ? 'border-selected-edge bg-action text-on-action'
                                                 : // Unchecked, the outline IS the affordance (no fill, no
                                                   // glyph) — a UI component owing 3:1 under SC 1.4.11, where
                                                   // `mist` was 1.90:1. Mirrors the native leaf's U4 fix.
-                                                  'border-slate bg-transparent'
+                                                  'border-line-control bg-transparent'
                                         }`}
                                     >
                                         {checked && <span>✓</span>}
@@ -379,7 +379,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                     The quantity leads the name's line (mockup frame 1). The row is top-aligned, and
                                     `pt-2.5` centres that first 24 px line on the 44 px checkbox (`sm:pt-0`: both are
                                     24 px from `sm`), so the checkbox stays by the first line however many follow. */}
-                                <span className="min-w-0 flex-1 break-words pt-2.5 text-charcoal sm:pt-0">
+                                <span className="min-w-0 flex-1 break-words pt-2.5 text-ink sm:pt-0">
                                     {label !== '' && (
                                         <>
                                             <span className="font-medium">{label}</span>{' '}
@@ -412,19 +412,21 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                     {ingredient.preparation !== undefined && ingredient.preparation.length > 0 && (
                                         <>
                                             {' '}
-                                            <span className="text-body-sm text-slate">{ingredient.preparation}</span>
+                                            <span className="text-body-sm text-ink-muted">
+                                                {ingredient.preparation}
+                                            </span>
                                         </>
                                     )}
                                     {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
                                         <>
                                             {' '}
-                                            <span className="text-body-sm text-slate">{ingredient.notes}</span>
+                                            <span className="text-body-sm text-ink-muted">{ingredient.notes}</span>
                                         </>
                                     )}
                                     {ingredient.isUserEntered && (
                                         <>
                                             {' '}
-                                            <StatusBadge tone="neutral">{detail.userEnteredBadge}</StatusBadge>
+                                            <StatusBadge status="note">{detail.userEnteredBadge}</StatusBadge>
                                         </>
                                     )}
                                     {/* U14 — the LINE the verification gate contradicted. The caution tone: this
@@ -437,7 +439,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                     {isLineNeedsReview(ingredient) && (
                                         <>
                                             {' '}
-                                            <StatusBadge tone="caution">{detail.needsReviewBadge}</StatusBadge>
+                                            <StatusBadge status="attention">{detail.needsReviewBadge}</StatusBadge>
                                         </>
                                     )}
                                     {/* U13 (D7/R9) — the gate ABSTAINED over materially-different candidates.
@@ -446,7 +448,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                     {isLineAmbiguous(ingredient) && (
                                         <>
                                             {' '}
-                                            <StatusBadge tone="caution">{detail.ambiguousBadge}</StatusBadge>
+                                            <StatusBadge status="attention">{detail.ambiguousBadge}</StatusBadge>
                                         </>
                                     )}
                                     {/* The removed-food badge, caution tone like needs-review — a cook can act on
@@ -460,7 +462,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                         !allLinesFoodRemoved(recipe.ingredients) && (
                                             <>
                                                 {' '}
-                                                <StatusBadge tone="caution">{detail.removedFoodBadge}</StatusBadge>
+                                                <StatusBadge status="attention">{detail.removedFoodBadge}</StatusBadge>
                                             </>
                                         )}
                                 </span>
@@ -471,9 +473,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
             </section>
 
             <section aria-label={detail.instructionsHeading} className="flex flex-col gap-3">
-                <h2 className="font-display text-heading-lg font-semibold text-charcoal">
-                    {detail.instructionsHeading}
-                </h2>
+                <h2 className="font-display text-heading-lg font-semibold text-ink">{detail.instructionsHeading}</h2>
                 <ol className="flex flex-col gap-4">
                     {recipe.steps.map((step) => {
                         const done = checkedSteps?.has(step.stepNumber) ?? false;
@@ -496,13 +496,15 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                 >
                                     {/* Contrast (WCAG 2.1 AA): in the not-done state the NUMERAL is the only
                                         thing in the circle and a reader reads it, so it takes `ocean-dark`
-                                        (6.20:1) instead of seafoam (4.02:1). The `border-seafoam` ring stays
+                                        (6.20:1) instead of seafoam (4.02:1). The `border-selected-edge` ring stays
                                         seafoam — a boundary is a 3:1 graphic, which it clears. See
                                         `@commise/ui`'s palette JSDoc for the one statement of that split. */}
                                     <span
                                         aria-hidden
                                         className={`flex size-8 items-center justify-center rounded-full text-body-sm font-semibold transition ${
-                                            done ? 'bg-seafoam text-white' : 'border-2 border-seafoam text-ocean-dark'
+                                            done
+                                                ? 'bg-action text-on-action'
+                                                : 'border-2 border-selected-edge text-action-text'
                                         }`}
                                     >
                                         {done ? '✓' : step.stepNumber}
@@ -510,7 +512,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                 </button>
                                 <div className="flex flex-col gap-1 pt-1">
                                     <span
-                                        className={`leading-relaxed text-charcoal ${done ? 'line-through opacity-60' : ''}`}
+                                        className={`leading-relaxed text-ink ${done ? 'line-through opacity-60' : ''}`}
                                     >
                                         {step.instruction}
                                     </span>
@@ -521,7 +523,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                             <span role="img" aria-label={detail.stepTimerIcon}>
                                                 ⏱
                                             </span>
-                                            <span className="text-body-sm font-medium text-ocean-dark">{timer}</span>
+                                            <span className="text-body-sm font-medium text-action-text">{timer}</span>
                                         </span>
                                     )}
                                 </div>
@@ -532,8 +534,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
             </section>
 
             <section aria-label={detail.nutritionHeading} className="flex flex-col gap-3">
-                <h2 className="font-display text-heading-lg font-semibold text-charcoal">{detail.nutritionHeading}</h2>
-                <dl className="grid grid-cols-2 gap-4 rounded-2xl bg-card p-6 shadow-sm sm:grid-cols-4">
+                <h2 className="font-display text-heading-lg font-semibold text-ink">{detail.nutritionHeading}</h2>
+                <dl className="grid grid-cols-2 gap-4 rounded-2xl bg-paper p-6 shadow-sm sm:grid-cols-4">
                     <div className="flex flex-col items-center gap-1 text-center">
                         <dd className={statValue}>{recipe.nutrition.calories}</dd>
                         <dt className={statLabel}>{detail.caloriesLabel}</dt>
@@ -557,36 +559,38 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                         <dt className={statLabel}>{detail.fatLabel}</dt>
                     </div>
                 </dl>
-                {!recipe.nutrition.isComplete && <p className="text-body-sm text-slate">{detail.nutritionPartial}</p>}
+                {!recipe.nutrition.isComplete && (
+                    <p className="text-body-sm text-ink-muted">{detail.nutritionPartial}</p>
+                )}
                 {/* R38 — a DIFFERENT admission from the partial notice above: that one says some lines were
                     left out, this one says a counted line was counted at one end of the amount the recipe
                     actually states. Both can be true at once, so both render. */}
-                {rangeNotice !== undefined && <p className="text-body-sm text-slate">{rangeNotice}</p>}
+                {rangeNotice !== undefined && <p className="text-body-sm text-ink-muted">{rangeNotice}</p>}
                 {/* KTD-3b — some figures came from saved food data because the food database could not be
                     reached. Neutral, like the two above: it is a disclosure, not something the cook can act
                     on. Present from first render with the data, so it is NOT a live region (WCAG 4.1.3). */}
-                {staleNotice !== undefined && <p className="text-body-sm text-slate">{staleNotice}</p>}
+                {staleNotice !== undefined && <p className="text-body-sm text-ink-muted">{staleNotice}</p>}
                 {/* U14 — a THIRD admission, and the only one that is our own doubt rather than a gap in the
                     data. The catalog HAD these lines' figures; the verification gate read them against the
                     cook's own wording, disagreed, and we withheld them. `role="note"` so the sentence reaches
                     a screen reader as a remark rather than as loose prose, and a warning tone because unlike
                     the two above it is ACTIONABLE: re-pick the food. */}
                 {reviewNotice !== undefined && (
-                    <p role="note" className="text-body-sm font-medium text-charcoal">
+                    <p role="note" className="text-body-sm font-medium text-ink">
                         {reviewNotice}
                     </p>
                 )}
                 {/* §S15: two sentences, each with its own condition. The link follows sentence 1 in the same line;
                     it is a route in this app, so it opens in the same tab. */}
                 {hasCatalogNutrition(recipe.ingredients) && (
-                    <p className="text-caption text-slate">
+                    <p className="text-caption text-ink-muted">
                         {detail.nutritionSourceNote}
                         {dataSourcesHref !== undefined && (
                             <>
                                 {' '}
                                 <Link
                                     href={dataSourcesHref as ComponentProps<typeof Link>['href']}
-                                    className="inline-block py-1 text-ocean-dark underline underline-offset-2"
+                                    className="inline-block py-1 text-action-text underline underline-offset-2"
                                 >
                                     {detail.nutritionSourcesLink}
                                 </Link>
@@ -595,7 +599,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     </p>
                 )}
                 {hasUserEnteredIngredients(recipe.ingredients) && (
-                    <p className="text-caption text-slate">{detail.nutritionCustomNote}</p>
+                    <p className="text-caption text-ink-muted">{detail.nutritionCustomNote}</p>
                 )}
             </section>
 
@@ -610,13 +614,13 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                 {recipe.currentVersion > 1 && (
                     <span
                         aria-label={fillTemplate(detail.versionLabel, { version: recipe.currentVersion })}
-                        className="rounded-full bg-pearl px-3 py-1 text-caption font-medium text-slate"
+                        className="rounded-full bg-surface-muted px-3 py-1 text-caption font-medium text-ink-muted"
                     >
                         {fillTemplate(detail.versionBadge, { version: recipe.currentVersion })}
                     </span>
                 )}
                 {/* Same tint-on-tint contrast contract as the hero badge row: seafoam tint, `ocean-dark` text. */}
-                <span className="rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-ocean-dark">
+                <span className="rounded-full bg-action/10 px-3 py-1 text-caption font-medium text-action-text">
                     {recipe.visibility === RecipeVisibility.PUBLIC ? detail.visibilityPublic : detail.visibilityPrivate}
                 </span>
             </footer>

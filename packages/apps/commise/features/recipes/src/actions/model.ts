@@ -76,6 +76,10 @@ export interface RecipeCloneActionProps {
  * composing app supplies; the menu owns no business logic, only its own open/closed UI state.
  */
 export interface MoreActionsMenuProps {
-    /** The secondary actions rendered inside the menu panel while it is open. */
+    /** The recipe the actions act on, which names the trigger. */
+    readonly recipeTitle: string;
+    /** The secondary actions rendered inside the panel while it is open. */
     readonly children: ReactNode;
+    /** The one destructive action, if any: drawn last, after a divider (spec §1.11). */
+    readonly destructive?: ReactNode;
 }

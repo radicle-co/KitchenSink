@@ -282,7 +282,7 @@ describe('VersionCompareView (web) — reorder-only ingredient diff', () => {
 /**
  * Measured, not eyeballed — see `RecipeVersionList.test.tsx`'s contrast block and the palette JSDoc in
  * `@commise/ui`'s `tokens/colors.ts` for the one authoritative statement of the seafoam-as-text rule. The
- * panel's own `bg-card` is white, so the default surface is the one this control actually sits on.
+ * panel's own `bg-paper` is white, so the default surface is the one this control actually sits on.
  */
 describe('VersionCompareView (web) — WCAG AA text contrast (SC 1.4.3)', () => {
     const reorderedB = makeVersion({

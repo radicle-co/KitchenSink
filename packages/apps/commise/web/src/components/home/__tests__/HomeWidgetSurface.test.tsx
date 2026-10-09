@@ -188,7 +188,8 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         // mid-session, so a plain <p> (what web shipped) told a screen-reader user nothing at all. It is a
         // POLITE `status`, not an assertive `alert` — see `HomeWidgetErrorNotice.test.tsx`. Same failure,
         // same treatment, both platforms (FR-044 / §14).
-        expect(screen.getByRole('status')).toBeTruthy();
+        // The one status that SAYS something: the app's snackbar host keeps its own, empty, mounted (UI-overhaul slice 2).
+        expect(screen.getAllByRole('status').filter((region) => region.textContent !== '')).toHaveLength(1);
         expect(screen.queryByRole('alert')).toBeNull();
         expect(reportError).toHaveBeenCalledWith(expect.any(Error), { widget: RECIPE_HOME_WIDGET_ID });
 
@@ -224,7 +225,8 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         });
 
         expect(screen.queryByText('This section couldn’t load.')).toBeNull();
-        expect(screen.queryByRole('status')).toBeNull();
+        // The app's snackbar host keeps its own status region mounted; no OTHER status may appear here.
+        expect(screen.queryAllByRole('status').filter((region) => region.textContent !== '')).toHaveLength(0);
         expect(screen.queryByRole('alert')).toBeNull();
 
         consoleError.mockRestore();

@@ -8,7 +8,7 @@
  * consuming form tests assert.
  *
  * A focus indicator is a non-text UI component boundary, so its floor is the 3:1 of SC 1.4.11 — not the 4.5:1
- * of body text. It is measured against the surface the ring is DRAWN ON (the `sectionCard`'s `bg-card`), never
+ * of body text. It is measured against the surface the ring is DRAWN ON (the `sectionCard`'s `bg-paper`), never
  * against the field's own white fill: a Tailwind `ring-*` is a spread box-shadow OUTSIDE the border box, so
  * the fill is not what a reader sees the ring against. `ringContrast` is the reader that encodes that.
  */
@@ -24,9 +24,9 @@ const AA_UI_COMPONENT = 3;
 
 describe('authChrome — the field focus ring clears the 3:1 SC 1.4.11 floor', () => {
     it('sits on the section card, which is what the ring is measured against', () => {
-        // Load-bearing: if the card stops being `bg-card`, the surface below is the wrong backdrop and this
+        // Load-bearing: if the card stops being `bg-paper`, the surface below is the wrong backdrop and this
         // test starts measuring a pair no reader sees.
-        expect(sectionCard).toContain('bg-card');
+        expect(sectionCard).toContain('bg-paper');
     });
 
     it('rings the auth field legibly against the card it sits on', () => {

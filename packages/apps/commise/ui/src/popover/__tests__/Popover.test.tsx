@@ -13,6 +13,7 @@ import { useState, type FC } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PopoverProps } from '../props.js';
+import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
 import { Popover } from '../Popover.js';
 
 afterEach(cleanup);
@@ -22,7 +23,7 @@ const renderPopover = (overrides: Partial<PopoverProps> = {}): void => {
         <div>
             <Popover
                 triggerLabel="About Kale"
-                triggerIcon={<span>i</span>}
+                triggerIcon="info"
                 title="Kale"
                 closeLabel="Close details for Kale"
                 {...overrides}
@@ -116,18 +117,61 @@ describe('Popover (web)', () => {
         expect(trigger().className).toContain('w-11');
     });
 
+    // Slice 2: the focus ring is the `focusRing` role every design-system control draws (3:1 on paper, canvas and
+    // pearl, measured in `surfaceClass.test.ts`), not the seafoam ring it predates; the glyph is `ink`.
+    it('draws the focusRing role on its trigger and its Close, and an ink trigger glyph', async () => {
+        const user = userEvent.setup();
+        renderPopover();
+
+        expect(trigger().className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(['text-ink', 'focus-visible:ring-focus-ring']),
+        );
+
+        await user.click(trigger());
+
+        expect(screen.getByRole('button', { name: 'Close details for Kale' }).className.split(/\s+/u)).toContain(
+            'focus-visible:ring-focus-ring',
+        );
+    });
+
     it('hides the glyph from assistive tech: the label alone names the control', () => {
-        renderPopover({ triggerIcon: <svg data-glyph="info" /> });
+        renderPopover({ triggerIcon: 'info' });
 
         expect(trigger().textContent).toBe('');
         expect(trigger().querySelector('[aria-hidden="true"]')).not.toBeNull();
+    });
+
+    // UI-overhaul slice 2: the glyph is a meaning from the icon Registry, so no host draws its own.
+    it('draws the Registry glyph for the meaning it is given', () => {
+        renderPopover({ triggerIcon: 'triangleAlert' });
+
+        expect(trigger().querySelector('svg.lucide-triangle-alert')).not.toBeNull();
+    });
+
+    // UI-overhaul slice 2 (finding D2): the panel keeps clear of the page's own chrome, read as it opens.
+    it('reads the page’s chrome insets when it opens', async () => {
+        const user = userEvent.setup();
+        const readInsets = vi.fn(() => ({ top: 0, bottom: 64 }));
+        render(
+            <PopupInsetsContext value={readInsets}>
+                <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close Kale">
+                    Body
+                </Popover>
+            </PopupInsetsContext>,
+        );
+
+        expect(readInsets).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('button', { name: 'About Kale' }));
+
+        expect(readInsets).toHaveBeenCalled();
     });
 
     it('hands its content a close action: an action inside the panel closes it, and focus returns to the trigger', async () => {
         const user = userEvent.setup();
         const act = vi.fn();
         render(
-            <Popover triggerLabel="About Kale" triggerIcon={<span />} title="Kale" closeLabel="Close Kale">
+            <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close Kale">
                 {(close) => (
                     <button
                         type="button"
@@ -158,7 +202,7 @@ describe('Popover (web)', () => {
     });
 
     it('shows busy to the EYE too: the glyph gives way to a spinner in the same box (V1 sign-off 3b)', () => {
-        renderPopover({ triggerIcon: <span>i</span>, busy: true });
+        renderPopover({ triggerIcon: 'info', busy: true });
 
         expect(trigger().textContent).not.toContain('i');
         expect(trigger().querySelector('svg')).not.toBeNull();
@@ -171,7 +215,7 @@ describe('Popover (web)', () => {
                 <span id="status-word">Resolution failed</span>
                 <Popover
                     triggerLabel="About Kale"
-                    triggerIcon={<span />}
+                    triggerIcon="info"
                     title="Kale"
                     closeLabel="Close Kale"
                     describedBy="status-word"
@@ -188,10 +232,10 @@ describe('Popover (web)', () => {
         const user = userEvent.setup();
         render(
             <div>
-                <Popover triggerLabel="About Kale" triggerIcon={<span />} title="Kale" closeLabel="Close Kale">
+                <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close Kale">
                     <p>Kale body</p>
                 </Popover>
-                <Popover triggerLabel="About Leek" triggerIcon={<span />} title="Leek" closeLabel="Close Leek">
+                <Popover triggerLabel="About Leek" triggerIcon="info" title="Leek" closeLabel="Close Leek">
                     <p>Leek body</p>
                 </Popover>
             </div>,
@@ -213,7 +257,7 @@ describe('Popover (web) — a focus request', () => {
         <div>
             <Popover
                 triggerLabel="About Kale"
-                triggerIcon={<span>i</span>}
+                triggerIcon="info"
                 title="Kale"
                 closeLabel="Close Kale"
                 focusRequested={focusRequested}
@@ -265,7 +309,7 @@ const DismissingHost: FC<{ readonly onDismissed: () => void }> = ({ onDismissed 
         <div>
             <Popover
                 triggerLabel="About Kale"
-                triggerIcon={<span>i</span>}
+                triggerIcon="info"
                 title="Kale"
                 closeLabel="Close details for Kale"
                 onDismissed={() => {
@@ -277,7 +321,7 @@ const DismissingHost: FC<{ readonly onDismissed: () => void }> = ({ onDismissed 
             </Popover>
             <Popover
                 triggerLabel="About Garlic"
-                triggerIcon={<span>i</span>}
+                triggerIcon="info"
                 title="Garlic"
                 closeLabel="Close details for Garlic"
                 focusRequested={requested}

@@ -123,7 +123,8 @@ describe('RecipeCard (native)', () => {
         expect(pips).toHaveLength(5);
 
         for (const pip of pips) {
-            expect(window.getComputedStyle(pip).color).toBe('rgb(99, 110, 114)');
+            // `slate` after D11's warm greys (#6B645C).
+            expect(window.getComputedStyle(pip).color).toBe('rgb(107, 100, 92)');
         }
     });
 
@@ -279,7 +280,8 @@ describe('RecipeCard (native) — merged fields (CR-002 / L2·L3)', () => {
     it('renders tag chips with a slate (AA-legible) text colour, not the 2.2:1 coral', () => {
         renderCard(<RecipeCard recipe={model({ tags: ['grill'] })} />);
 
-        expect(window.getComputedStyle(screen.getByText('grill')).color).toBe('rgb(99, 110, 114)');
+        // `slate` after D11's warm greys (#6B645C).
+        expect(window.getComputedStyle(screen.getByText('grill')).color).toBe('rgb(107, 100, 92)');
     });
 
     // The cuisine and visibility chips share ONE `styles.chip` (tint + text tone), so both are measured: a
@@ -397,7 +399,7 @@ describe('RecipeCard (native) — labels on FILLED accents (WCAG 2.1 AA, #113)',
         renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);
 
         // The tint used to be spelled `rgba(61, 139, 133, 0.1)` by hand. That is the pre-#113 seafoam, so the
-        // token move left web's `bg-seafoam/10` and this chip painting two DIFFERENT teals — a divergence no
+        // token move left web's `bg-action/10` and this chip painting two DIFFERENT teals — a divergence no
         // ratio assertion catches, because both still cleared the floor.
         expect(window.getComputedStyle(screen.getByText('Mediterranean')).backgroundColor).toBe(
             tint(palette.seafoam, 0.1),

@@ -96,7 +96,7 @@ test.describe('recipe CRUD (T079)', () => {
 
         // W2/D1 — the detail is no longer a dead end: the owner's version-history entry point is reachable,
         // behind the "More" overflow menu (C4 — Edit stays the sole primary header control).
-        await page.getByRole('button', { name: 'More', exact: true }).click();
+        await page.getByRole('button', { name: /^More actions for /u }).click();
         await expect(page.getByRole('link', { name: 'Version history' })).toBeVisible();
         // W2/D5 — ingredient checkboxes are real, trackable controls (not decorative).
         const saltCheckbox = page.getByRole('checkbox', { name: /Salt/ });
@@ -137,12 +137,16 @@ test.describe('recipe CRUD (T079)', () => {
         await expect(page.getByRole('radio', { name: 'Hard' })).not.toBeChecked();
 
         // DELETE — the delete affordance lives on the recipe's detail page, not the editor, so return to it
-        // first; it is behind the "More" overflow menu (C4). Confirm the destructive dialog, then land back
+        // first; it is behind the ⋯ "More actions" overflow (C4). Confirm the destructive dialog, then land back
         // on the list without the recipe.
         await page.goto(route(`/recipes/${createdId}`));
-        await page.getByRole('button', { name: 'More', exact: true }).click();
+        await page.getByRole('button', { name: /^More actions for /u }).click();
         await page.getByRole('button', { name: 'Delete recipe' }).click();
-        await page.getByRole('button', { name: 'Delete', exact: true }).click();
+        // The dialog's confirm repeats the trigger's verb (spec §6.5), so it is found inside the dialog.
+        await page
+            .getByRole('alertdialog', { name: 'Delete this recipe?' })
+            .getByRole('button', { name: 'Delete recipe' })
+            .click();
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille (edited)' })).toHaveCount(0);
     });

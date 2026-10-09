@@ -11,7 +11,6 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
-import { RefreshIcon } from '../wizard/icons.js';
 import { dataSourcesMessages } from './messages.js';
 import type { DataSourcesLoadErrorProps } from './model.js';
 
@@ -27,10 +26,10 @@ export const DataSourcesLoadError: FC<DataSourcesLoadErrorProps> = ({ onRetry, r
     return (
         <div className="flex flex-col items-start gap-3">
             {/* The alert is the message alone, so the button's label is not read out as part of it. */}
-            <p key={failures} role="alert" className="text-body-md text-charcoal">
+            <p key={failures} role="alert" className="text-body-md text-ink">
                 {messages.loadFailed}
             </p>
-            <Button variant="secondary" icon={<RefreshIcon />} onPress={onRetry} busy={retrying}>
+            <Button variant="secondary" icon="refreshCw" onPress={onRetry} busy={retrying}>
                 {messages.retry}
             </Button>
         </div>

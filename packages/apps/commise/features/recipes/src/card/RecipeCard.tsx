@@ -26,6 +26,7 @@
  * - The cover is the FULL-SIZE original (up to 5 MB) painted into a small tile (FOLLOW-UP-CR-001-A).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { Icon } from '@commise/ui/icon';
 import { glass, toWebGlass } from '@commise/ui';
 import { PressScale } from '@commise/ui/press-scale';
 import { useContext, type FC } from 'react';
@@ -49,32 +50,10 @@ import { recipeCardViewOf } from './recipeCardView.js';
  * defect. See the filled-accent contract in `@commise/ui`'s `tokens/colors.ts` for the one statement of it.
  */
 const TONE_CLASS: Record<DifficultyTone, string> = {
-    success: 'bg-success text-charcoal',
-    warning: 'bg-warning text-charcoal',
-    error: 'bg-error text-white',
+    success: 'bg-success text-ink',
+    warning: 'bg-warning text-ink',
+    error: 'bg-danger text-on-action',
 };
-
-const ClockIcon: FC = () => (
-    <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-        />
-    </svg>
-);
-
-const PeopleIcon: FC = () => (
-    <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-        />
-    </svg>
-);
 
 const STAR_PATH =
     'M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z';
@@ -99,7 +78,7 @@ const CardCover: FC = () => {
     const { recipe, cover } = useCardView();
 
     return (
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-2xl bg-pearl">
+        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-2xl bg-surface-muted">
             {recipe.coverPhotoUrl !== undefined ? (
                 // FOLLOW-UP-CR-001-A: full-size original into a thumbnail-sized tile (no derived variants).
                 //
@@ -115,7 +94,7 @@ const CardCover: FC = () => {
                     aria-label={cover.noPhotoLabel}
                     // A labelled `role="img"` is a MEANINGFUL graphic, so it is `slate`, not the `mist`
                     // hairline tone — see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
-                    className="flex h-full w-full items-center justify-center text-slate"
+                    className="flex h-full w-full items-center justify-center text-ink-muted"
                 >
                     <svg aria-hidden="true" className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
@@ -133,7 +112,7 @@ const CardCover: FC = () => {
                     // `premium` is the brand GOLD. A white label on it is 2.23:1, and darkening the gold far
                     // enough to carry one turns it bronze — so the badge takes `charcoal` (5.70:1) and the
                     // gold survives intact. Same pairing on the native leaf's `pro` style.
-                    className="absolute right-2 top-2 rounded-full bg-premium px-2 py-1 text-caption font-semibold text-charcoal"
+                    className="absolute right-2 top-2 rounded-full bg-premium px-2 py-1 text-caption font-semibold text-ink"
                 >
                     {cover.pro.text}
                 </span>
@@ -146,7 +125,7 @@ const CardCover: FC = () => {
 const CardTitle: FC = () => {
     const { recipe } = useCardView();
 
-    return <h3 className="line-clamp-2 font-display text-heading-md font-semibold text-charcoal">{recipe.title}</h3>;
+    return <h3 className="line-clamp-2 font-display text-heading-md font-semibold text-ink">{recipe.title}</h3>;
 };
 
 /** The meta row: total time · servings · nutrition slot · difficulty · cuisine (each only when present). */
@@ -155,13 +134,13 @@ const CardMeta: FC = () => {
     const nutrition = useContext(RecipeCardNutritionContext);
 
     return (
-        <div className="flex flex-wrap items-center gap-3 text-body-sm text-slate">
+        <div className="flex flex-wrap items-center gap-3 text-body-sm text-ink-muted">
             <span aria-label={meta.timeLabel} className="flex items-center gap-1">
-                <ClockIcon />
+                <Icon name="clock" size={16} />
                 {meta.duration}
             </span>
             <span aria-label={meta.servingsLabel} className="flex items-center gap-1">
-                <PeopleIcon />
+                <Icon name="users" size={16} />
                 {recipe.servings}
             </span>
             {nutrition}
@@ -175,7 +154,7 @@ const CardMeta: FC = () => {
             {recipe.cuisine !== undefined && (
                 // Contrast (WCAG 2.1 AA): the seafoam tint stays; the label a reader READS takes `ocean-dark`
                 // (see `@commise/ui`'s palette JSDoc — seafoam-as-text on its own `/10` is 3.57:1).
-                <span className="rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-ocean-dark">
+                <span className="rounded-full bg-action/10 px-2 py-0.5 text-caption font-medium text-action-text">
                     {recipe.cuisine}
                 </span>
             )}
@@ -198,22 +177,22 @@ const CardBadges: FC = () => {
             {badges.version !== undefined && (
                 <span
                     aria-label={badges.version.label}
-                    className="rounded-full bg-pearl px-2 py-0.5 text-caption font-medium text-slate"
+                    className="rounded-full bg-surface-muted px-2 py-0.5 text-caption font-medium text-ink-muted"
                 >
                     {badges.version.text}
                 </span>
             )}
             {badges.status.kind === 'draft' ? (
-                <span className="rounded-full bg-warning px-2 py-0.5 text-caption font-semibold text-charcoal">
+                <span className="rounded-full bg-warning px-2 py-0.5 text-caption font-semibold text-ink">
                     {badges.status.text}
                 </span>
             ) : (
                 // Same tint-on-tint contrast contract as the cuisine badge above.
-                <span className="rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-ocean-dark">
+                <span className="rounded-full bg-action/10 px-2 py-0.5 text-caption font-medium text-action-text">
                     {badges.status.text}
                 </span>
             )}
-            <span className="text-caption text-slate">{badges.timestamp}</span>
+            <span className="text-caption text-ink-muted">{badges.timestamp}</span>
         </div>
     );
 };
@@ -223,7 +202,7 @@ const CardRating: FC = () => {
     const { rating } = useCardView();
 
     if (rating.kind === 'unrated') {
-        return <span className="text-body-sm text-slate">{rating.text}</span>;
+        return <span className="text-body-sm text-ink-muted">{rating.text}</span>;
     }
 
     return (
@@ -249,7 +228,7 @@ const CardTags: FC = () => {
                 // Contrast (WCAG AA): coral-as-text over the coral tint is 2.21:1, less than half the 4.5:1
                 // floor. The LABEL demotes to slate (4.85:1) and the warm tint stays, which is exactly the
                 // fix the native leaf already carries — the two now agree again.
-                <li key={tag} className="rounded-full bg-coral/10 px-2 py-0.5 text-caption font-medium text-slate">
+                <li key={tag} className="rounded-full bg-coral/10 px-2 py-0.5 text-caption font-medium text-ink-muted">
                     {tag}
                 </li>
             ))}
@@ -278,7 +257,7 @@ const DefaultCardContent: FC = () => (
 // "Recent Recipes" grid and the recipe-list grid) paint it as glass over the page's beach-glow background:
 // `bg-gradient-to-br from-white/70 to-white/50 backdrop-blur-[16px] saturate-[140%] border border-white/30 …
 // hover:border-white/40`. So the opaque `bg-card` fill is gone (it would paint OVER the translucency and
-// cancel the treatment) and the `ring-1 ring-border` hairline is now the tier's translucent-white border.
+// cancel the treatment) and the `ring-1 ring-line-divider` hairline is now the tier's translucent-white border.
 //
 // The hairline is `border-glass-card-edge` — the `--color-glass-card-edge` custom property emitted from the
 // SAME `glass.card.border` token the native leaf consumes as `cardGlass.border`. It was previously the literal

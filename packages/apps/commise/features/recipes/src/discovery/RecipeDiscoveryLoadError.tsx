@@ -17,12 +17,12 @@ export const RecipeDiscoveryLoadError: FC<RecipeDiscoveryLoadErrorProps> = ({ on
     const discovery = useMessages(discoveryMessages);
 
     return (
-        <div role="alert" className="rounded-2xl bg-card p-6 text-body-md text-slate shadow-sm">
-            <p className="font-medium text-charcoal">{discovery.errorTitle}</p>
+        <div role="alert" className="rounded-2xl bg-paper p-6 text-body-md text-ink-muted shadow-sm">
+            <p className="font-medium text-ink">{discovery.errorTitle}</p>
             <button
                 type="button"
                 onClick={onRetry}
-                className="mt-3 inline-flex min-h-11 items-center rounded-full px-4 py-2 text-body-sm font-semibold text-ocean-dark transition hover:bg-seafoam/10 md:min-h-0"
+                className="mt-3 inline-flex min-h-11 items-center rounded-full px-4 py-2 text-body-sm font-semibold text-action-text transition hover:bg-action/10 md:min-h-0"
             >
                 {discovery.retry}
             </button>

@@ -60,7 +60,7 @@ describe('SpeedDial (web) — closed', () => {
     it('keeps the seafoam FAB surface the list already shipped', () => {
         const { trigger } = renderDial();
 
-        expect(trigger.className).toContain('bg-seafoam');
+        expect(trigger.className).toContain('bg-action');
         expect(trigger.className).toContain('hover:bg-ocean-dark');
     });
 

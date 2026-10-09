@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { lucideNativeStub } from '@commise/ui/testing/lucide-native';
 import { defineConfig, type Plugin } from 'vitest/config';
 
 /**
@@ -49,7 +50,8 @@ function preferNativeLeaves(): Plugin {
  * both.
  */
 export default defineConfig({
-    plugins: [preferNativeLeaves()],
+    // `lucide-react-native/icons/*` draws through `react-native-svg`, which has no jsdom runtime.
+    plugins: [preferNativeLeaves(), lucideNativeStub()],
     // `__DEV__` is a React Native global (injected by the RN runtime) that jsdom lacks; `expo-modules-core`
     // reads it at import time. Define it so any expo module that slips into the graph does not abort on a
     // `ReferenceError: __DEV__ is not defined` (setup.native.ts also sets it on globalThis as a belt-and-braces
@@ -60,7 +62,7 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'jsdom',
-        setupFiles: [jsdomPolyfillsSetup, './tests/setup.native.ts'],
+        setupFiles: [jsdomPolyfillsSetup, '@commise/ui/testing/screen-reader-shim', './tests/setup.native.ts'],
         // Above `ASYNC_UTIL_TIMEOUT_MS` (`@commise/test-utils/async-util-budget`).
         testTimeout: 15_000,
         include: ['tests/**/*.native.test.tsx'],
@@ -88,10 +90,6 @@ export default defineConfig({
         dedupe: ['react-native-web'],
         alias: {
             'react-native': 'react-native-web',
-            // `@expo/vector-icons` ships extensionless internal ESM imports that Vitest's strict Node ESM
-            // cannot resolve, and pulls `expo-modules-core` (which touches `__DEV__`). Icons are decorative in
-            // these tests, so stub the whole module — this unblocks the mobile `.native` screen suite locally.
-            '@expo/vector-icons': path.resolve(import.meta.dirname, 'tests/stubs/expoVectorIcons.tsx'),
             // `expo-image` (used by the B11 native card/detail leaves) imports `expo-modules-core`'s native
             // module, absent under jsdom — stub it to react-native-web's Image (same approach as
             // features-recipes' own native config).

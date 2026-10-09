@@ -21,8 +21,8 @@ export const RouteNotFoundState: FC = () => {
         // A 404 is a page, not an interruption (`specShellAndLists.md` §N): its title is the page's one `h1`, and nothing
         // here is announced as an alert.
         <div className="mx-auto flex w-full max-w-4xl flex-col items-start gap-3 py-12">
-            <h1 className="text-heading-sm font-semibold text-charcoal">{boundary.notFound.title}</h1>
-            <p className="text-body-sm text-slate">{boundary.notFound.description}</p>
+            <h1 className="text-heading-sm font-semibold text-ink">{boundary.notFound.title}</h1>
+            <p className="text-body-sm text-ink-muted">{boundary.notFound.description}</p>
             <Link href={`/${locale}` as Route}>{boundary.notFound.backHome}</Link>
         </div>
     );

@@ -64,7 +64,7 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
     return (
         <section aria-label={discovery.heading} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
             <header>
-                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-charcoal">
+                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-ink">
                     {discovery.heading}
                 </h1>
             </header>
@@ -89,17 +89,17 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                     placeholder={discovery.searchPlaceholder}
                     value={searchValue}
                     onChange={(event) => onSearchChange(event.target.value)}
-                    // Placeholder text is TEXT: `placeholder:text-slate`, never `mist` (palette JSDoc, `@commise/ui`'s
-                    // `tokens/colors.ts`). The `border-border` hairline stays `mist`-derived.
-                    className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam"
+                    // Placeholder text is TEXT: `placeholder:text-ink-muted`, never `mist` (palette JSDoc, `@commise/ui`'s
+                    // `tokens/colors.ts`). The `border-line-divider` hairline stays `mist`-derived.
+                    className="w-full rounded-full border border-line-divider bg-paper px-5 py-3 text-body-md text-ink shadow-sm outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-focus-ring"
                 />
                 {showRecentSearches && (
                     <section
                         aria-label={discovery.recentSearchesLabel}
-                        className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm"
+                        className="flex flex-col gap-2 rounded-2xl border border-line-divider bg-paper p-3 shadow-sm"
                     >
                         <div className="flex items-center justify-between gap-3">
-                            <p className="text-caption font-semibold uppercase tracking-wide text-slate">
+                            <p className="text-caption font-semibold uppercase tracking-wide text-ink-muted">
                                 {discovery.recentSearchesLabel}
                             </p>
                             <button
@@ -108,7 +108,7 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                                 onClick={recentSearches.onClear}
                                 // Touch floor `min-h-11` (44px) at base — the native leaf carries the same 44pt floor —
                                 // reset at `md:` so the desktop density of this small header control is unchanged.
-                                className="inline-flex min-h-11 items-center rounded-full px-2 py-1 text-caption font-semibold text-ocean-dark transition hover:bg-mist/20 md:min-h-0"
+                                className="inline-flex min-h-11 items-center rounded-full px-2 py-1 text-caption font-semibold text-action-text transition hover:bg-ink/6 md:min-h-0"
                             >
                                 {discovery.clearRecentSearches}
                             </button>
@@ -120,7 +120,7 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                                         type="button"
                                         aria-label={fillTemplate(discovery.recentSearchLabel, { query })}
                                         onClick={() => recentSearches.onSelect(query)}
-                                        className="inline-flex min-h-11 w-full items-center rounded-lg px-2 py-2 text-left text-body-sm text-charcoal transition hover:bg-pearl md:min-h-0"
+                                        className="inline-flex min-h-11 w-full items-center rounded-lg px-2 py-2 text-left text-body-sm text-ink transition hover:bg-ink/6 md:min-h-0"
                                     >
                                         {query}
                                     </button>
@@ -135,7 +135,7 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                 <button
                     type="button"
                     onClick={onExitToBrowse}
-                    className="inline-flex min-h-11 items-center self-start rounded-full px-3 py-1 text-body-sm font-semibold text-ocean-dark transition hover:bg-mist/20 md:min-h-0"
+                    className="inline-flex min-h-11 items-center self-start rounded-full px-3 py-1 text-body-sm font-semibold text-action-text transition hover:bg-ink/6 md:min-h-0"
                 >
                     {discovery.backToBrowse}
                 </button>
@@ -155,7 +155,9 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                                 // Touch floor `min-h-11` at base, reset at `md:` — the same treatment the list's facet
                                 // chips and the native leaf's `styles.sortChip` (`minHeight: 44`) carry.
                                 className={`inline-flex min-h-11 items-center rounded-full px-3 py-1 text-body-sm font-medium transition md:min-h-0 ${
-                                    checked ? 'bg-charcoal text-white' : 'bg-pearl text-slate hover:bg-mist/40'
+                                    checked
+                                        ? 'bg-charcoal text-on-action'
+                                        : 'bg-surface-muted text-ink-muted hover:bg-ink/6'
                                 }`}
                             >
                                 {discoverySortLabel(option, discovery)}

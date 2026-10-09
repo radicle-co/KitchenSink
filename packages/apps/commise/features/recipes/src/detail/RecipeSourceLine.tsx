@@ -38,11 +38,11 @@ export const RecipeSourceLine: FC<RecipeSourceLineProps> = ({ sourceUrl, sourceA
 
     return (
         <section aria-label={detail.sourceHeading} className="flex flex-wrap items-baseline gap-2 px-1">
-            <span className="text-caption uppercase tracking-wide text-slate">{detail.sourceHeading}</span>
+            <span className="text-caption uppercase tracking-wide text-ink-muted">{detail.sourceHeading}</span>
             {/* `min-w-0 break-words`: attribution is unbounded user text (`z.string().min(1)`, no ceiling),
                 so it must yield the row's width rather than push the link off the edge. */}
             {attribution !== undefined && (
-                <span className="min-w-0 break-words text-body-sm text-charcoal">{attribution}</span>
+                <span className="min-w-0 break-words text-body-sm text-ink">{attribution}</span>
             )}
             {safe !== null && (
                 <a
@@ -55,7 +55,7 @@ export const RecipeSourceLine: FC<RecipeSourceLineProps> = ({ sourceUrl, sourceA
                     // Contrast (WCAG AA): `ocean-dark` on the page surface is 6.20:1 — the same split the
                     // rest of the detail applies to seafoam-as-TEXT. Underlined, so the affordance is not
                     // carried by colour alone (SC 1.4.1).
-                    className="min-w-0 break-all text-body-sm font-medium text-ocean-dark underline underline-offset-2"
+                    className="min-w-0 break-all text-body-sm font-medium text-action-text underline underline-offset-2"
                 >
                     {safe.host}
                 </a>

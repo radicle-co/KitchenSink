@@ -37,7 +37,7 @@ import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { useBackIntercept } from '@commise/ui/back-intercept';
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
 import { createContext, useContext, type FC, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -104,12 +104,11 @@ const WizardRoot: FC<WizardProps> = (props) => {
             <ConfirmDialog
                 open={discard.open}
                 title={m.discardTitle}
-                description={m.discardBody}
-                confirmLabel={m.discardConfirm}
-                cancelLabel={m.discardCancel}
-                destructive
+                body={m.discardBody}
+                confirm={{ label: m.discardConfirm, icon: 'trash' }}
+                keep={{ label: m.discardCancel }}
                 onConfirm={discard.confirm}
-                onCancel={discard.keepEditing}
+                onKeep={discard.keepEditing}
             />
         </WizardContext.Provider>
     );
@@ -225,7 +224,7 @@ const WizardHeader: FC = () => {
                 onPress={model.requestCancel}
                 style={styles.backControl}
             >
-                <Feather name="arrow-left" size={22} color={palette.charcoal} />
+                <Icon name="chevronLeft" size={24} tone="ink" />
             </Pressable>
             <Text accessibilityRole="header" numberOfLines={1} style={styles.headerTitle}>
                 {model.values.title.trim() === '' ? m.untitledRecipe : model.values.title.trim()}
@@ -282,40 +281,24 @@ const WizardControls: FC = () => {
             )}
             <View style={styles.controlsRow}>
                 {prev !== null ? (
-                    <Button
-                        variant="secondary"
-                        icon={<Feather name="chevron-left" size={16} color={palette.charcoal} />}
-                        onPress={model.requestGoPrev}
-                    >
+                    <Button variant="secondary" icon="chevronLeft" onPress={model.requestGoPrev}>
                         {fillTemplate(m.prevLabel, { name: m.stepNames[prev] })}
                     </Button>
                 ) : (
                     <View />
                 )}
-                <Button
-                    variant="secondary"
-                    icon={<Feather name="save" size={16} color={palette.charcoal} />}
-                    busy={model.submitting}
-                    onPress={model.saveDraft}
-                >
+                <Button variant="secondary" icon="save" busy={model.submitting} onPress={model.saveDraft}>
                     {m.saveDraft}
                 </Button>
                 {/* The primary's own slot, with an auto start margin: a lone item on a wrapped line of this
                     `space-between` row would otherwise sit at the START edge, away from the thumb. */}
                 <View style={styles.primarySlot}>
                     {next !== null ? (
-                        <Button
-                            icon={<Feather name="chevron-right" size={16} color={palette.white} />}
-                            onPress={model.requestGoNext}
-                        >
+                        <Button icon="chevronRight" onPress={model.requestGoNext}>
                             {fillTemplate(m.nextLabel, { name: m.stepNames[next] })}
                         </Button>
                     ) : (
-                        <Button
-                            icon={<Feather name="check" size={16} color={palette.white} />}
-                            busy={model.submitting}
-                            onPress={model.requestPublish}
-                        >
+                        <Button icon="check" busy={model.submitting} onPress={model.requestPublish}>
                             {m.publish}
                         </Button>
                     )}

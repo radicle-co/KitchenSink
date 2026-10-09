@@ -173,7 +173,7 @@ describe('HomeTopBar — avatar structure', () => {
      * @returns The painted element.
      */
     const paintedDisc = (control: HTMLElement): Element => {
-        const painted = control.querySelector('[class*="bg-seafoam"]');
+        const painted = control.querySelector('[class*="bg-action"]');
 
         expect(painted, 'nothing inside the account control paints the avatar fill').not.toBeNull();
 
@@ -190,7 +190,7 @@ describe('HomeTopBar — avatar structure', () => {
         // sharing a box with the 32px disc silently repaints the disc at 44px. The floor must therefore live
         // on a box that paints nothing, and the disc must carry no floor of its own.
         expect(disc).not.toBe(control);
-        expect(control.className).not.toContain('bg-seafoam');
+        expect(control.className).not.toContain('bg-action');
         expect(disc.className).not.toContain('min-h-');
         expect(disc.className).not.toContain('min-w-');
     });

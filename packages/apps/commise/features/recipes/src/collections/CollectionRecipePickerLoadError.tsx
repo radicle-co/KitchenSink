@@ -16,11 +16,11 @@ export const CollectionRecipePickerLoadError: FC<CollectionRecipePickerLoadError
 
     return (
         <div role="alert" className={pickerStateCard}>
-            <p className="font-medium text-charcoal">{picker.errorTitle}</p>
+            <p className="font-medium text-ink">{picker.errorTitle}</p>
             <button
                 type="button"
                 onClick={onRetry}
-                className="mt-3 rounded-full px-4 py-2 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
+                className="mt-3 rounded-full px-4 py-2 text-body-sm font-medium text-action-text transition hover:bg-action/10"
             >
                 {picker.retry}
             </button>

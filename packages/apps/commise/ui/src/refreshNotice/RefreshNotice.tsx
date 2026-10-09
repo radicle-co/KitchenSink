@@ -11,7 +11,7 @@
  * announced again. A successful refresh removes the row; where focus goes then is the surface's decision, because
  * only the surface knows what it would land on.
  *
- * The button carries a `mist` hairline: its `sand` fill is ~1:1 against the `pearl` row, so without it a text-only
+ * The button carries a `lineDivider` hairline: its `canvas` fill is ~1:1 against the `surfaceMuted` row, so without it a text-only
  * control reads as bold text rather than something pressable. Decorative — the visible label is what identifies it.
  *
  * A presentational leaf: the caller derives `failed` and `refreshing` from its query.
@@ -34,15 +34,15 @@ export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRe
                 {failed && !refreshing ? labels.failed : ''}
             </p>
             {failed && (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-pearl px-4 py-2">
-                    <p id={messageId} className="text-body-sm text-slate">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface-muted px-4 py-2">
+                    <p id={messageId} className="text-body-sm text-ink-muted">
                         {labels.failed}
                     </p>
                     <button
                         type="button"
                         {...busyControlProps({ busy: refreshing, onClick: onRetry })}
                         aria-describedby={messageId}
-                        className={`inline-flex min-h-11 items-center justify-center rounded-full border border-mist bg-sand px-4 py-2 text-body-sm font-semibold text-charcoal transition hover:bg-mist/40 md:min-h-0 ${BUSY_CONTROL_CLASS}`}
+                        className={`inline-flex min-h-11 items-center justify-center rounded-full border border-line-divider bg-canvas px-4 py-2 text-body-sm font-semibold text-ink transition hover:bg-ink/6 md:min-h-0 ${BUSY_CONTROL_CLASS}`}
                     >
                         {labels.retry}
                     </button>

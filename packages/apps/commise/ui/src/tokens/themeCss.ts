@@ -33,9 +33,11 @@
  * Do not add a `--spacing-*` block back, and do not "fix" a size by defining the missing step. Any new token
  * family must be checked against Tailwind's namespace list first, and covered by the compiled-output test.
  */
-import { palette, role, semantic } from './colors.js';
+import { palette, role, roleDark, semantic } from './colors.js';
+import { coverTint, coverTintDark } from './covers.js';
+import { proTone } from './tones.js';
 import { kebab, pxToRemUnit } from './emit.js';
-import { glass, gradient, gradientCss } from './gradients.js';
+import { glass, glassEdgeDark, gradient, gradientCss, heroDark } from './gradients.js';
 import { containerThreshold, contentWidth, viewportThreshold } from './layout.js';
 import { radius } from './radius.js';
 import { shadows } from './shadows.js';
@@ -139,6 +141,31 @@ function layoutDeclarations(): readonly string[] {
 }
 
 /**
+ * The dark theme (`docs/design/uiOverhaul/darkTheme.md` §6): one `prefers-color-scheme: dark` override of the same
+ * custom properties the `@theme` block declares — every role from `roleDark`, the cover tints, the glass edges and the
+ * canvas wash — then `color-scheme: light dark` so form controls and scrollbars follow. Unlayered `:root` rules beat
+ * Tailwind's `@layer theme` declarations, and every role utility reads `var(--color-*)`, so this block IS the theme
+ * switch; no component carries a `dark:` variant. Pure.
+ */
+function darkThemeLines(): readonly string[] {
+    return [
+        '',
+        '@media (prefers-color-scheme: dark) {',
+        '    :root {',
+        ...declarations('color', roleDark).map((line) => `    ${line}`),
+        ...declarations('color-cover', coverTintDark).map((line) => `    ${line}`),
+        ...Object.keys(glass).map((tier) => `        --color-glass-${tier}-edge: ${glassEdgeDark};`),
+        `        --background-image-hero: ${gradientCss(heroDark)};`,
+        '    }',
+        '}',
+        '',
+        ':root {',
+        '    color-scheme: light dark;',
+        '}',
+    ];
+}
+
+/**
  * Compose the full Tailwind v4 `theme.css` contents. Pure — the same tokens always yield the same string.
  *
  * @returns The stylesheet text, newline-terminated, ready to write to `dist/theme.css`.
@@ -169,7 +196,10 @@ export function themeCss(): string {
         ...declarations('color', role),
         ...typeRoleDeclarations(),
         ...layoutDeclarations(),
+        ...declarations('color-cover', coverTint),
+        ...declarations('color-pro', { fill: proTone.fill, ink: proTone.text }),
         '}',
+        ...darkThemeLines(),
     ];
 
     return lines.join('\n') + '\n';

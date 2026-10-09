@@ -36,7 +36,6 @@ import { useEffect, useRef, useState, type FC, type ReactElement } from 'react';
 import { useIngredientPressLanding } from '../hooks/useIngredientPressLanding.js';
 import { fillTemplate } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
-import { CheckIcon } from '../wizard/icons.js';
 import { filterBarViewOf, type FacetChipView, type FacetGroupView } from './filterBarView.js';
 import { filterMessages } from './messages.js';
 import type { FilterAction, RecipeFilterBarProps } from './model.js';
@@ -51,22 +50,22 @@ const INLINE_ONLY = 'hidden flex-col gap-3 [@media(min-width:40rem)_and_(min-hei
 const SHEET_LAYOUT_ONLY = '[@media(min-width:40rem)_and_(min-height:30rem)]:hidden';
 /** The native trigger's look (§S8.1a): white, the house border, a 44 px floor and a radius of half that. */
 const TRIGGER =
-    'inline-flex min-h-11 items-center gap-2 rounded-[calc(var(--spacing)*5.5)] border border-border bg-white px-4 ' +
-    'text-body-sm font-semibold text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam';
+    'inline-flex min-h-11 items-center gap-2 rounded-[calc(var(--spacing)*5.5)] border border-line-divider bg-paper px-4 ' +
+    'text-body-sm font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
 /** The count badge: a 22 px floor in rem with padding, so it grows with the text (E2 I10). */
 const BADGE =
-    'inline-flex min-h-5.5 min-w-5.5 items-center justify-center rounded-full bg-seafoam px-1 py-0.5 text-overline ' +
-    'font-bold text-white';
+    'inline-flex min-h-5.5 min-w-5.5 items-center justify-center rounded-full bg-action px-1 py-0.5 text-overline ' +
+    'font-bold text-on-action';
 
 const CHIP_BASE =
-    'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-body-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam';
-const CHIP_SELECTED = 'border-seafoam bg-seafoam text-white';
+    'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-body-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
+const CHIP_SELECTED = 'border-selected-edge bg-action text-on-action';
 /**
  * An ingredient chip removes itself, and at the cap it is the only way forward (spec §S8.1a): a trailing × the eye
  * reads (its accessible name already says "Remove {name}") and a 44 px touch height.
  */
 const INGREDIENT_CHIP = 'inline-flex min-h-11 items-center gap-1.5';
-const CHIP_UNSELECTED = 'border-border bg-card text-charcoal hover:border-seafoam-light';
+const CHIP_UNSELECTED = 'border-line-divider bg-paper text-ink hover:border-seafoam-light';
 
 export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ingredientSearch, onFilterAction }) => {
     const m = useMessages(filterMessages);
@@ -136,7 +135,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ing
 
     const group = (label: string, children: readonly ReactElement[]): ReactElement => (
         <div role="group" aria-label={label} className="flex flex-col gap-1.5">
-            <span className="text-caption font-semibold uppercase tracking-wide text-slate">{label}</span>
+            <span className="text-caption font-semibold uppercase tracking-wide text-ink-muted">{label}</span>
             <div className="flex flex-wrap gap-2">{children}</div>
         </div>
     );
@@ -170,7 +169,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ing
                             <p
                                 ref={fullNoteRef}
                                 tabIndex={-1}
-                                className="rounded-md text-body-sm text-slate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
+                                className="rounded-md text-body-sm text-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                             >
                                 {fillTemplate(m.ingredientFilterFull, { max: facet.search.max })}
                             </p>
@@ -183,9 +182,9 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ing
                                     placeholder={m.ingredientSearchPlaceholder}
                                     value={ingredientSearch.query}
                                     onChange={(event) => ingredientSearch.onQueryChange(event.target.value)}
-                                    // Placeholder text is TEXT: `placeholder:text-slate`, never `mist` (palette JSDoc,
-                                    // `@commise/ui`'s `tokens/colors.ts`). The `border-border` hairline stays `mist`-derived.
-                                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam"
+                                    // Placeholder text is TEXT: `placeholder:text-ink-muted`, never `mist` (palette JSDoc,
+                                    // `@commise/ui`'s `tokens/colors.ts`). The `border-line-divider` hairline stays `mist`-derived.
+                                    className="w-full rounded-lg border border-line-divider bg-paper px-3 py-2 text-body-md text-ink outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-focus-ring"
                                 />
 
                                 {/* The label is the region's CONTENT, not only its `aria-label`: an empty `role="status"`
@@ -196,7 +195,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ing
                             no-matches copy — nothing was searched — and deliberately not a `role="status"`,
                             because it is guidance about the input rather than the outcome of a request. */}
                                 {facet.search.kind === 'tooShort' && (
-                                    <p className="text-body-sm text-slate">
+                                    <p className="text-body-sm text-ink-muted">
                                         {fillTemplate(minimumCopy.tooShort, { minimum: facet.search.minimum })}
                                     </p>
                                 )}
@@ -205,14 +204,14 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ing
                                     <p
                                         role="status"
                                         aria-label={m.ingredientSearching}
-                                        className="text-body-sm text-slate"
+                                        className="text-body-sm text-ink-muted"
                                     >
                                         {m.ingredientSearching}
                                     </p>
                                 )}
 
                                 {facet.search.kind === 'results' && facet.search.isError && (
-                                    <p role="alert" className="text-body-sm text-error-dark">
+                                    <p role="alert" className="text-body-sm text-danger-text">
                                         {m.ingredientSearchError}
                                     </p>
                                 )}
@@ -220,7 +219,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ing
                                 {facet.search.kind === 'results' &&
                                     !facet.search.isError &&
                                     facet.results.length === 0 && (
-                                        <p className="text-body-sm text-slate">{m.ingredientNoMatches}</p>
+                                        <p className="text-body-sm text-ink-muted">{m.ingredientNoMatches}</p>
                                     )}
 
                                 {facet.results.length > 0 && (
@@ -237,7 +236,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ing
                                                         name: ingredient.name,
                                                     })}
                                                     onClick={() => pressIngredient(action)}
-                                                    className="w-full rounded-lg px-3 py-2 text-left text-body-md text-charcoal transition hover:bg-pearl"
+                                                    className="w-full rounded-lg px-3 py-2 text-left text-body-md text-ink transition hover:bg-ink/6"
                                                 >
                                                     {ingredient.name}
                                                 </button>
@@ -282,7 +281,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ing
                         onClick={() => onFilterAction({ kind: 'clearAll' })}
                         // The LABEL is `ocean-dark` while the FOCUS RING stays seafoam — that split is the
                         // palette rule (see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`), not drift.
-                        className="rounded-full px-3.5 py-1.5 text-body-sm font-semibold text-ocean-dark underline-offset-2 transition-colors motion-reduce:transition-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
+                        className="rounded-full px-3.5 py-1.5 text-body-sm font-semibold text-action-text underline-offset-2 transition-colors motion-reduce:transition-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                         {bar.clearAllLabel}
                     </button>
@@ -325,7 +324,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({ facets, filters, ing
                     closeLabel={m.filtersClose}
                     size="content"
                     footer={
-                        <Button icon={<CheckIcon />} width="fill" onPress={() => setOpen(false)}>
+                        <Button icon="check" width="fill" onPress={() => setOpen(false)}>
                             {m.filtersDone}
                         </Button>
                     }

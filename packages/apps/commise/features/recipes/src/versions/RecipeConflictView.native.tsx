@@ -19,6 +19,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import { VariantPartsLine, type VariantPartsLineProps } from '@commise/ui/variant-parts-line';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -186,10 +187,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     ) : null;
 
     if (view.merging) {
-        // `isResolving` (concurrency/double-submit fix) is combined with, not a replacement for, the existing
-        // selection + stale-base gates — any one of the three blocks the submit.
-        const mergeDisabled = view.mergeBlocked || isResolving;
-
         return (
             <View style={styles.container}>
                 <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
@@ -234,23 +231,23 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         {conflict.mergeNoSelectionHint}
                     </Text>
                 )}
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={conflict.mergeSubmit}
-                    disabled={mergeDisabled}
-                    onPress={() => onMerge(selections)}
-                    style={[styles.chooseButton, mergeDisabled && styles.chooseButtonDisabled]}
-                >
-                    <Text style={styles.chooseLabel}>{conflict.mergeSubmit}</Text>
-                </Pressable>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={conflict.mergeBack}
-                    onPress={view.leaveMerge}
-                    style={styles.secondaryButton}
-                >
-                    <Text style={styles.secondaryLabel}>{conflict.mergeBack}</Text>
-                </Pressable>
+                {/* `isResolving` is combined with, not a replacement for, the selection + stale-base gates: any one of
+                    the three blocks the submit (the Button's busy also refuses the press). */}
+                <View style={styles.action}>
+                    <Button
+                        icon="check"
+                        busy={isResolving}
+                        disabled={view.mergeBlocked}
+                        onPress={() => onMerge(selections)}
+                    >
+                        {conflict.mergeSubmit}
+                    </Button>
+                </View>
+                <View style={styles.action}>
+                    <Button variant="secondary" icon="chevronLeft" onPress={view.leaveMerge}>
+                        {conflict.mergeBack}
+                    </Button>
+                </View>
             </View>
         );
     }
@@ -455,24 +452,5 @@ const styles = StyleSheet.create({
     },
     radioDotChecked: { borderColor: palette.seafoam, backgroundColor: palette.seafoam },
     optionLabel: { fontSize: 15, color: palette.charcoal, flexShrink: 1 },
-    chooseButton: {
-        alignSelf: 'flex-start',
-        backgroundColor: palette.seafoam,
-        borderRadius: 999,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        marginTop: 4,
-    },
-    chooseButtonDisabled: { opacity: 0.5 },
-    chooseLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
-    secondaryButton: {
-        alignSelf: 'flex-start',
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.5)',
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        marginTop: 4,
-    },
-    secondaryLabel: { color: palette.charcoal, fontWeight: '600', fontSize: 14 },
+    action: { alignSelf: 'flex-start', marginTop: 4 },
 });

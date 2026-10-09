@@ -99,6 +99,7 @@
  *     and their rects are read at each placement and on each resize
  */
 import { Button } from '@commise/ui/button';
+import { Icon } from '@commise/ui/icon';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { PopupInsetsContext } from '@commise/ui/popup-insets';
 import { usePinnedFooter } from '@commise/ui/pinned-footer';
@@ -108,15 +109,6 @@ import { createContext, useCallback, useContext, useEffect, useState, type FC, t
 import { fillTemplate } from '../list/model.js';
 import { recipeFormMessages } from '../form/messages.js';
 import type { RecipeWizardStep } from '../form/steps.js';
-import {
-    ArrowLeftIcon,
-    CheckIcon,
-    ChevronLeftIcon,
-    ChevronRightIcon,
-    MoreVerticalIcon,
-    SaveIcon,
-    XIcon,
-} from './icons.js';
 import {
     blockedAdvanceErrors,
     deriveRailStepState,
@@ -195,12 +187,11 @@ const WizardRoot: FC<WizardProps> = (props) => {
             <ConfirmDialog
                 open={discard.open}
                 title={m.discardTitle}
-                description={m.discardBody}
-                confirmLabel={m.discardConfirm}
-                cancelLabel={m.discardCancel}
-                destructive
+                body={m.discardBody}
+                confirm={{ label: m.discardConfirm, icon: 'trash' }}
+                keep={{ label: m.discardCancel }}
                 onConfirm={discard.confirm}
-                onCancel={discard.keepEditing}
+                onKeep={discard.keepEditing}
             />
         </WizardContext.Provider>
     );
@@ -214,13 +205,13 @@ const WizardStep: FC<{ readonly step: RecipeWizardStep; readonly children: React
 };
 
 // The marker's NUMERAL is read text (SC 1.4.3, 4.5:1) while its BORDER is a non-text boundary (SC 1.4.11,
-// 3:1) — so `current` keeps `border-seafoam` and takes `text-ocean-dark` for the numeral. See the palette
+// 3:1) — so `current` keeps `border-selected-edge` and takes `text-action-text` for the numeral. See the palette
 // JSDoc in `@commise/ui`'s `tokens/colors.ts` for the one authoritative statement of that split.
 const RAIL_MARKER_CLASS: Record<'completed' | 'current' | 'invalid' | 'upcoming', string> = {
-    completed: 'border-seafoam bg-seafoam text-white',
-    current: 'border-seafoam bg-white text-ocean-dark',
-    invalid: 'border-error bg-error text-white',
-    upcoming: 'border-border bg-white text-slate',
+    completed: 'border-selected-edge bg-action text-on-action',
+    current: 'border-selected-edge bg-paper text-action-text',
+    invalid: 'border-danger bg-danger text-on-action',
+    upcoming: 'border-line-divider bg-paper text-ink-muted',
 };
 
 /** The step-rail: `[1] Details → [2] Ingredients → [3] Instructions → [4] Review`, "Step N of 4" (FR-044). */
@@ -230,7 +221,7 @@ const WizardRail: FC = () => {
 
     return (
         <nav aria-label={m.railLabel} className="flex flex-col gap-2">
-            <p className="text-body-sm text-slate">
+            <p className="text-body-sm text-ink-muted">
                 {fillTemplate(m.stepProgress, { current: model.step, total: WIZARD_TOTAL_STEPS })}
             </p>
             <ol className="flex flex-wrap items-center gap-3">
@@ -255,7 +246,7 @@ const WizardRail: FC = () => {
                                 onClick={() => model.requestGoToStep(s)}
                                 aria-current={railState === 'current' ? 'step' : undefined}
                                 aria-label={fillTemplate(m.railStepLabel, { name, state: stateWord })}
-                                className="flex items-center gap-2 rounded-full px-2 py-1 text-body-sm text-charcoal transition hover:bg-pearl"
+                                className="flex items-center gap-2 rounded-full px-2 py-1 text-body-sm text-ink transition hover:bg-ink/6"
                             >
                                 <span
                                     aria-hidden="true"
@@ -325,9 +316,9 @@ const WizardActionsMenu: FC = () => {
                 aria-expanded={open}
                 aria-label={m.actionsMenu}
                 onClick={() => setOpen((prev) => !prev)}
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-border bg-white px-3 text-charcoal shadow-sm transition hover:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam md:min-h-0 md:py-2.5"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-line-divider bg-paper px-3 text-ink shadow-sm transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring md:min-h-0 md:py-2.5"
             >
-                <MoreVerticalIcon />
+                <Icon name="ellipsis" size={20} />
             </button>
             {open && (
                 <>
@@ -337,16 +328,16 @@ const WizardActionsMenu: FC = () => {
                     <ul
                         role="menu"
                         aria-label={m.actionsMenu}
-                        className="absolute right-0 z-40 mt-2 flex min-w-44 flex-col gap-1 rounded-2xl border border-border bg-card p-1 shadow-lg"
+                        className="absolute right-0 z-40 mt-2 flex min-w-44 flex-col gap-1 rounded-2xl border border-line-divider bg-paper p-1 shadow-lg"
                     >
                         <li role="none">
                             <button
                                 type="button"
                                 role="menuitem"
                                 onClick={() => runAndClose(model.requestCancel)}
-                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-body-sm font-medium text-error-dark transition hover:bg-error/10"
+                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-body-sm font-medium text-danger-text transition hover:bg-danger/10"
                             >
-                                <XIcon />
+                                <Icon name="x" size={20} />
                                 {m.cancel}
                             </button>
                         </li>
@@ -382,16 +373,16 @@ const WizardHeader: FC = () => {
             ref={placeBand}
             role="toolbar"
             aria-label={m.headerLabel}
-            className="sticky top-0 z-20 flex flex-col border-b border-border bg-card px-4 py-3"
+            className="sticky top-0 z-20 flex flex-col border-b border-line-divider bg-paper px-4 py-3"
         >
             <div className="flex items-center justify-between gap-2">
                 <button
                     type="button"
                     aria-label={m.back}
                     onClick={requestCancel}
-                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-charcoal transition hover:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam lg:hidden"
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-ink transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring lg:hidden"
                 >
-                    <ArrowLeftIcon />
+                    <Icon name="chevronLeft" size={20} />
                 </button>
                 {/* Keeps the kebab hard right at `lg` once the back arrow is gone. */}
                 <span className="hidden lg:block" />
@@ -437,7 +428,7 @@ const ResponsiveStepLabel: FC<{ readonly short: string; readonly full: string }>
  * band's row at `lg`, inside the bar's own box.
  */
 const BAR =
-    'flex flex-col gap-2 border-t border-border bg-card px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]';
+    'flex flex-col gap-2 border-t border-line-divider bg-paper px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]';
 
 /**
  * Pinned: fixed to the viewport's foot below `lg`; at `lg`, in the band's flow, and the band supplies the sides and the
@@ -500,7 +491,7 @@ const WizardControls: FC = () => {
             {blocking.length > 0 && (
                 <div role="alert" className="flex flex-col gap-1">
                     {blocking.map((code) => (
-                        <p key={code} className="text-body-sm text-error-dark">
+                        <p key={code} className="text-body-sm text-danger-text">
                             {f.errors[code]}
                         </p>
                     ))}
@@ -511,7 +502,7 @@ const WizardControls: FC = () => {
                     <ControlSlot control="previous">
                         <Button
                             variant="secondary"
-                            icon={<ChevronLeftIcon />}
+                            icon="chevronLeft"
                             onPress={model.requestGoPrev}
                             accessibilityLabel={fillTemplate(m.prevLabel, { name: m.stepNames[prev] })}
                             {...focusFor('previous')}
@@ -528,7 +519,7 @@ const WizardControls: FC = () => {
                 <ControlSlot control="saveDraft">
                     <Button
                         variant="secondary"
-                        icon={<SaveIcon />}
+                        icon="save"
                         busy={model.submitting}
                         onPress={model.saveDraft}
                         accessibilityLabel={m.saveDraft}
@@ -540,7 +531,7 @@ const WizardControls: FC = () => {
                 <ControlSlot control="primary">
                     {next !== null ? (
                         <Button
-                            icon={<ChevronRightIcon />}
+                            icon="chevronRight"
                             onPress={model.requestGoNext}
                             accessibilityLabel={fillTemplate(m.nextLabel, { name: m.stepNames[next] })}
                             {...focusFor('primary')}
@@ -552,7 +543,7 @@ const WizardControls: FC = () => {
                         </Button>
                     ) : (
                         <Button
-                            icon={<CheckIcon />}
+                            icon="check"
                             busy={model.submitting}
                             onPress={model.requestPublish}
                             {...focusFor('primary')}

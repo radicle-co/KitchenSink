@@ -324,7 +324,7 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
             {...(photoError === undefined ? {} : { errorMessage: photoError })}
             addControl={
                 !canAddPhoto ? undefined : (
-                    <label className="inline-flex cursor-pointer items-center rounded-full border border-border px-4 py-2 text-body-sm font-medium text-charcoal transition hover:bg-pearl">
+                    <label className="inline-flex cursor-pointer items-center rounded-full border border-line-divider px-4 py-2 text-body-sm font-medium text-ink transition hover:bg-ink/6">
                         {recipes.photos.addLabel}
                         <input
                             ref={inputRef}
@@ -348,7 +348,7 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
                 <button
                     type="button"
                     onClick={() => router.push(detailRoute)}
-                    className="self-start rounded-full border border-border px-4 py-2 text-body-sm font-medium text-charcoal transition hover:bg-pearl"
+                    className="self-start rounded-full border border-line-divider px-4 py-2 text-body-sm font-medium text-ink transition hover:bg-ink/6"
                 >
                     {recipes.form.photosFinishWithout}
                 </button>

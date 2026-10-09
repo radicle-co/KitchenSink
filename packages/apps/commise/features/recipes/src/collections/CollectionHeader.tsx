@@ -9,7 +9,7 @@
  * nothing and performs no mutations; every interaction is delegated upward.
  *
  * The three READ foregrounds here — Back, Rename, and the visibility badge — label in `ocean-dark`, not
- * `seafoam` (4.02:1 on white, 3.57:1 on the badge's own `bg-seafoam/10`, both under the 4.5:1 body-text floor).
+ * `seafoam` (4.02:1 on white, 3.57:1 on the badge's own `bg-action/10`, both under the 4.5:1 body-text floor).
  * The badge's tint stays seafoam; see the palette JSDoc in `@commise/ui` for that accent-vs-text rule.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -65,7 +65,7 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                 <button
                     type="button"
                     onClick={onBack}
-                    className="self-start text-body-sm font-medium text-ocean-dark transition hover:underline"
+                    className="self-start text-body-sm font-medium text-action-text transition hover:underline"
                 >
                     <span aria-hidden="true">{'‹ '}</span>
                     {header.backToCollections}
@@ -79,7 +79,7 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                 <h1
                     ref={nameRef}
                     tabIndex={-1}
-                    className="min-w-0 grow basis-64 font-display text-display-md font-bold text-charcoal"
+                    className="min-w-0 grow basis-64 font-display text-display-md font-bold text-ink"
                 >
                     <span className="block break-words">{name}</span>
                 </h1>
@@ -87,39 +87,39 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                     <button
                         type="button"
                         onClick={onEdit}
-                        className="rounded-full px-4 py-2 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
+                        className="rounded-full px-4 py-2 text-body-sm font-medium text-action-text transition hover:bg-action/10"
                     >
                         {detail.renameCta}
                     </button>
                     <button
                         type="button"
                         onClick={onDelete}
-                        // The tint is the ERROR token, not coral. This control labels itself `text-error-dark`
+                        // The tint is the ERROR token, not coral. This control labels itself `text-danger-text`
                         // (#B1442B) but used to tint with `bg-coral/10` (#E8917A) — two adjacent-but-different
                         // hues in one control, with a brand accent standing in for the destructive register.
-                        // `hover:bg-error/10` is what the DS `destructive` Button tier already uses, and the
+                        // `hover:bg-danger/10` is what the DS `destructive` Button tier already uses, and the
                         // native leaf (`palette.error`, no tint) never carried the coral, so this was a
                         // WEB-ONLY drift. Delete stays a bare text control pending the DS `secondary`-tier
                         // decision — see `CollectionActions.tsx`.
-                        className="rounded-full px-4 py-2 text-body-sm font-medium text-error-dark transition hover:bg-error/10"
+                        className="rounded-full px-4 py-2 text-body-sm font-medium text-danger-text transition hover:bg-danger/10"
                     >
                         {detail.deleteCta}
                     </button>
                 </div>
             </div>
             {description !== undefined && description.length > 0 && (
-                <p className="text-body-lg text-slate">{description}</p>
+                <p className="text-body-lg text-ink-muted">{description}</p>
             )}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-slate">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-ink-muted">
                 {/* The TINT stays seafoam (a background); only the LABEL moves to `ocean-dark` — seafoam on
                     its own `/10` tint is 3.57:1, under the 4.5:1 body-text floor. */}
-                <span className="rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-ocean-dark">
+                <span className="rounded-full bg-action/10 px-3 py-1 text-caption font-medium text-action-text">
                     {visibilityLabel}
                 </span>
                 <span>{recipeCountLabel}</span>
             </div>
-            {sourceAttribution !== undefined && <p className="text-body-sm text-slate">{sourceAttribution}</p>}
-            {lastPulledLabel !== undefined && <p className="text-body-sm text-slate">{lastPulledLabel}</p>}
+            {sourceAttribution !== undefined && <p className="text-body-sm text-ink-muted">{sourceAttribution}</p>}
+            {lastPulledLabel !== undefined && <p className="text-body-sm text-ink-muted">{lastPulledLabel}</p>}
             {refreshNotice !== undefined && (
                 <RefreshNotice
                     failed={refreshNotice.failed}

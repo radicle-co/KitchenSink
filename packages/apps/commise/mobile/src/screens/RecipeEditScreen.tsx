@@ -38,9 +38,7 @@
 import { RecipeConflictView, recipeVersionMessages, useDiscardGuard } from '@commise/features-recipes';
 import { useRecipeAutoSave, useRecipeEditor } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { Feather } from '@expo/vector-icons';
 import { QueryBoundary } from '@commise/query/boundary';
-import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
@@ -92,11 +90,7 @@ export function RecipeEditScreen(props: RecipeEditScreenProps): JSX.Element {
                     <View style={styles.center}>
                         {back}
                         <Text accessibilityRole="alert">{t.detailError}</Text>
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="refresh-cw" size={16} color={palette.charcoal} />}
-                            onPress={resetErrorBoundary}
-                        >
+                        <Button variant="secondary" icon="refreshCw" onPress={resetErrorBoundary}>
                             {t.detailRetry}
                         </Button>
                     </View>

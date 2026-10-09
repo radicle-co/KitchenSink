@@ -188,19 +188,6 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
         ],
     },
     {
-        kind: 'icon set',
-        why:
-            'RULED ONE THING (§1, 2026-08-15). The unit is "the glyphs this surface draws". An `icons.tsx` is a ' +
-            'sheet of inline SVG leaves — no state, no props beyond size/colour, no branching. ' +
-            'One file per glyph would be 15 files whose entire content is a `<path d="…">`, and the import site ' +
-            'wants the sheet. This is the one place where "one component per file" costs more than it returns.',
-        files: [
-            { file: 'packages/apps/commise/features/recipes/src/form/icons.tsx', classes: 0, components: 8 },
-            { file: 'packages/apps/commise/features/recipes/src/wizard/icons.tsx', classes: 0, components: 9 },
-            { file: 'packages/apps/commise/web/src/components/auth/icons.tsx', classes: 0, components: 4 },
-        ],
-    },
-    {
         kind: 'test double mirroring a third-party module',
         why:
             "RULED ONE THING (§1, 2026-08-15). A double must present its subject's surface to be " +

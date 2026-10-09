@@ -24,7 +24,6 @@ import type { UserUpdateInput, UserProfile } from '@kitchensink/schema-identity'
 
 import { createProfileServiceClient } from '@/lib/identityServiceClient';
 import { authMessages } from '@/components/auth/messages';
-import { CheckIcon } from '@/components/auth/icons';
 import { errorText, field, fieldGroup, fieldLabel } from '@/components/auth/authChrome';
 
 interface AccountEditFormProps {
@@ -104,7 +103,7 @@ export function AccountEditForm({ accessToken, initialProfile }: AccountEditForm
                 </p>
             )}
             <div className="flex justify-end">
-                <Button type="submit" icon={<CheckIcon />} busy={isPending}>
+                <Button type="submit" icon="check" busy={isPending}>
                     {isPending ? edit.saving : edit.save}
                 </Button>
             </div>

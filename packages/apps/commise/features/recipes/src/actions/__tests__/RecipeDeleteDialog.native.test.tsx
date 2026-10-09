@@ -9,7 +9,7 @@ import { fireEvent } from '@testing-library/dom';
 import { createElement, type ComponentProps } from 'react';
 import type { KeyboardAvoidingView as KeyboardAvoidingViewType, ScrollView as ScrollViewType } from 'react-native';
 
-import { glass, palette } from '@commise/ui';
+import { role } from '@commise/ui/colors';
 
 import { cssColor } from '../../__tests__/cssColor.js';
 
@@ -56,7 +56,7 @@ describe('RecipeDeleteDialog (native)', () => {
     it('renders nothing while closed', () => {
         renderDialog({ open: false });
 
-        expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Delete recipe' })).toBeNull();
     });
 
     it('renders an accessible alert that names the recipe when open', () => {
@@ -70,7 +70,7 @@ describe('RecipeDeleteDialog (native)', () => {
         const onConfirm = vi.fn();
         renderDialog({ onConfirm });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Delete recipe' }));
 
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
@@ -79,7 +79,7 @@ describe('RecipeDeleteDialog (native)', () => {
         const onCancel = vi.fn();
         renderDialog({ onCancel });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Keep recipe' }));
 
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
@@ -88,7 +88,7 @@ describe('RecipeDeleteDialog (native)', () => {
         const onConfirm = vi.fn();
         renderDialog({ deleting: true, onConfirm });
 
-        const confirm = screen.getByRole('button', { name: 'Delete' });
+        const confirm = screen.getByRole('button', { name: 'Delete recipe' });
         expect(confirm.getAttribute('aria-disabled')).toBe('true');
 
         fireEvent.click(confirm);
@@ -118,26 +118,28 @@ describe('RecipeDeleteDialog (native) — design-system action controls', () => 
     it('gives BOTH actions the 44pt touch floor', () => {
         renderDialog();
 
-        expect(pill(screen.getByRole('button', { name: 'Delete' }))).toBeDefined();
-        expect(pill(screen.getByRole('button', { name: 'Cancel' }))).toBeDefined();
+        expect(pill(screen.getByRole('button', { name: 'Delete recipe' }))).toBeDefined();
+        expect(pill(screen.getByRole('button', { name: 'Keep recipe' }))).toBeDefined();
     });
 
-    it('paints confirm as the DS destructive tier (error-toned edge), not an ad-hoc red fill', () => {
+    // ⚠️ REWRITTEN in UI-overhaul slice 2: a confirm dialog's destructive action is the DS destructive tier's FILLED
+    // `confirm` tone (spec §6.5, "Delete recipe (filled error)") — the one place the danger fill appears.
+    it('paints confirm as the DS destructive tier’s filled confirm tone, not an ad-hoc red fill', () => {
         renderDialog();
-        const surface = pill(screen.getByRole('button', { name: 'Delete' }))!;
+        const surface = pill(screen.getByRole('button', { name: 'Delete recipe' }))!;
 
-        expect(window.getComputedStyle(surface).borderTopColor).toBe(cssColor(palette.error));
+        expect(window.getComputedStyle(surface).backgroundColor).toBe(cssColor(role.danger));
     });
 
     it('paints cancel as the DS secondary tier, so it never competes with the destructive action', () => {
         renderDialog();
-        const surface = pill(screen.getByRole('button', { name: 'Cancel' }))!;
+        const surface = pill(screen.getByRole('button', { name: 'Keep recipe' }))!;
 
-        // Secondary is the mockups' coral-outlined glass; destructive (asserted above) is the error-toned
-        // outline. They must stay visibly DIFFERENT tiers — same-looking cancel/confirm is the real hazard.
-        expect(window.getComputedStyle(surface).borderTopColor).toBe(cssColor(palette.coral));
-        expect(window.getComputedStyle(surface).backgroundColor).toBe(glass.subtle.fallback);
-        expect(window.getComputedStyle(surface).borderTopColor).not.toBe(cssColor(palette.error));
+        // Secondary is neutral (UI-overhaul slice 2: no coral on any control); destructive (asserted above) is the
+        // danger fill. They must stay visibly DIFFERENT tiers — same-looking cancel/confirm is the real hazard.
+        expect(window.getComputedStyle(surface).borderTopColor).toBe(cssColor(role.lineControl));
+        expect(window.getComputedStyle(surface).backgroundColor).toBe(cssColor(role.paper));
+        expect(window.getComputedStyle(surface).backgroundColor).not.toBe(cssColor(role.danger));
     });
 
     it('swaps the confirm icon for a REAL spinner while deleting (not a label swap)', () => {
@@ -163,14 +165,14 @@ describe('RecipeDeleteDialog (native) — design-system action controls', () => 
         const onConfirm = vi.fn();
         renderDialog({ deleting: true, onConfirm });
 
-        const busyConfirm = screen.getByRole('button', { name: 'Delete' });
+        const busyConfirm = screen.getByRole('button', { name: 'Delete recipe' });
         expect(busyConfirm.getAttribute('aria-disabled')).toBe('true');
         fireEvent.click(busyConfirm);
         expect(onConfirm).not.toHaveBeenCalled();
 
         cleanup();
         renderDialog({ onConfirm });
-        const idleConfirm = screen.getByRole('button', { name: 'Delete' });
+        const idleConfirm = screen.getByRole('button', { name: 'Delete recipe' });
         expect(idleConfirm.getAttribute('aria-disabled')).not.toBe('true');
         fireEvent.click(idleConfirm);
         expect(onConfirm).toHaveBeenCalledTimes(1);
@@ -180,7 +182,7 @@ describe('RecipeDeleteDialog (native) — design-system action controls', () => 
         const onCancel = vi.fn();
         renderDialog({ deleting: true, onCancel });
 
-        const cancel = screen.getByRole('button', { name: 'Cancel' });
+        const cancel = screen.getByRole('button', { name: 'Keep recipe' });
         expect(cancel.getAttribute('aria-disabled')).not.toBe('true');
 
         fireEvent.click(cancel);
@@ -192,7 +194,7 @@ describe('RecipeDeleteDialog (native) — delete error (B17: no silent stop)', (
     it('surfaces the failed-delete copy inside the dialog when error is set', () => {
         renderDialog({ error: true });
 
-        expect(screen.getByText('We couldn\u2019t delete this recipe. Please try again.')).toBeTruthy();
+        expect(screen.getByText('We couldn\u2019t delete this recipe. Try again.')).toBeTruthy();
     });
 
     it('does not show the error while a delete is still in flight', () => {
@@ -208,11 +210,15 @@ describe('RecipeDeleteDialog (native) — a short window', () => {
     it('keeps the copy, both actions and the error in a scroll region inside the alert', () => {
         renderDialog({ error: true });
 
-        const region = screen.getByRole('alert').querySelector('[data-scroll-region]');
+        // The frame is an `alert`, and the failure inside it is an `alert` too (it interrupts: the delete failed).
+        const region = screen
+            .getAllByRole('alert')
+            .map((alert) => alert.querySelector('[data-scroll-region]'))
+            .find((found) => found !== null);
 
-        expect(region).not.toBeNull();
-        expect(region?.contains(screen.getByRole('button', { name: 'Delete' }))).toBe(true);
-        expect(region?.contains(screen.getByRole('button', { name: 'Cancel' }))).toBe(true);
+        expect(region).toBeDefined();
+        expect(region?.contains(screen.getByRole('button', { name: 'Delete recipe' }))).toBe(true);
+        expect(region?.contains(screen.getByRole('button', { name: 'Keep recipe' }))).toBe(true);
         expect(region?.contains(screen.getByText(/couldn\u2019t delete/))).toBe(true);
     });
 
@@ -222,8 +228,8 @@ describe('RecipeDeleteDialog (native) — a short window', () => {
         renderDialog();
 
         for (const action of [
-            screen.getByRole('button', { name: 'Delete' }),
-            screen.getByRole('button', { name: 'Cancel' }),
+            screen.getByRole('button', { name: 'Delete recipe' }),
+            screen.getByRole('button', { name: 'Keep recipe' }),
         ]) {
             expect(action.closest('[data-keyboard-avoider]')).not.toBeNull();
             expect(action.closest('[data-scroll-region]')?.getAttribute('data-scroll-region')).toBe('handled');

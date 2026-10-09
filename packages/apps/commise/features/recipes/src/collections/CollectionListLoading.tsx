@@ -18,10 +18,13 @@ export const CollectionListLoading: FC = () => {
 
     return (
         <div role="status" aria-label={list.loadingLabel} className="flex flex-col gap-3">
-            <p className="text-body-sm font-medium text-slate">{list.loadingLabel}</p>
+            <p className="text-body-sm font-medium text-ink-muted">{list.loadingLabel}</p>
             <div aria-hidden="true" className="flex flex-col gap-3">
                 {[0, 1, 2].map((row) => (
-                    <span key={row} className="h-16 animate-pulse rounded-2xl bg-pearl motion-reduce:animate-none" />
+                    <span
+                        key={row}
+                        className="h-16 animate-pulse rounded-2xl bg-surface-muted motion-reduce:animate-none"
+                    />
                 ))}
             </div>
         </div>

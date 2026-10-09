@@ -32,9 +32,12 @@ import { resolveErrorReporter, type HomeNavItemId } from '@commise/features-core
 import { useMessages } from '@commise/i18n/react';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
 import { BottomChromeFrame } from '@commise/ui/layout';
+import { PopupInsetsContext } from '@commise/ui/popup-insets';
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import type { JSX } from 'react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { View } from 'react-native';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -85,17 +88,23 @@ export function AppRoot(): JSX.Element {
         // Gated destinations are never offered to a select handler (`HomeTabBar` renders them inert).
     };
 
-    // The bar on every top-level destination; the account hub is a pushed task with its own Back.
+    // The bar on every top-level destination; the account hub is a pushed task with its own Back. Its laid-out height
+    // is what the app's popups — the snackbar — keep clear of (`@commise/ui/popup-insets`).
+    const [tabBarHeight, setTabBarHeight] = useState(0);
     const tabBar =
         destination.id === 'account' ? undefined : (
-            <HomeTabBar
-                chrome={home.chrome}
-                liveCapabilities={LIVE_CAPABILITIES}
-                activeId={destination.id}
-                onSelect={selectTab}
-                bottomInset={insets.bottom}
-            />
+            <View onLayout={(event) => setTabBarHeight(event.nativeEvent.layout.height)}>
+                <HomeTabBar
+                    chrome={home.chrome}
+                    liveCapabilities={LIVE_CAPABILITIES}
+                    activeId={destination.id}
+                    onSelect={selectTab}
+                    bottomInset={insets.bottom}
+                />
+            </View>
         );
+    const footHeight = tabBar === undefined ? insets.bottom : tabBarHeight;
+    const readInsets = useCallback(() => ({ top: 0, bottom: footHeight }), [footHeight]);
 
     let content: JSX.Element;
 
@@ -145,21 +154,28 @@ export function AppRoot(): JSX.Element {
                 return true;
             }}
         >
-            <ErrorBoundary
-                fallbackRender={(fallback) => (
-                    <RootErrorFallback
-                        {...fallback}
-                        {...(destination.id === 'home' ? {} : { onBackToHome: () => setDestination({ id: 'home' }) })}
-                    />
-                )}
-                // Leaving the crashed destination clears the failure; staying and pressing Try again resets it too.
-                // Either way TanStack's query errors reset with it, so a failed read refetches instead of re-throwing.
-                resetKeys={[destination.id]}
-                onReset={resetQueryErrors}
-                onError={(error) => reportRootError(error, { boundary: 'root' })}
-            >
-                {content}
-            </ErrorBoundary>
+            {/* The app's one snackbar host (slice 3 moves it inside the navigation container). */}
+            <PopupInsetsContext value={readInsets}>
+                <SnackbarHost>
+                    <ErrorBoundary
+                        fallbackRender={(fallback) => (
+                            <RootErrorFallback
+                                {...fallback}
+                                {...(destination.id === 'home'
+                                    ? {}
+                                    : { onBackToHome: () => setDestination({ id: 'home' }) })}
+                            />
+                        )}
+                        // Leaving the crashed destination clears the failure; staying and pressing Try again resets it too.
+                        // Either way TanStack's query errors reset with it, so a failed read refetches instead of re-throwing.
+                        resetKeys={[destination.id]}
+                        onReset={resetQueryErrors}
+                        onError={(error) => reportRootError(error, { boundary: 'root' })}
+                    >
+                        {content}
+                    </ErrorBoundary>
+                </SnackbarHost>
+            </PopupInsetsContext>
         </BackInterceptProvider>
     );
 }

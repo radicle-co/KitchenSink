@@ -24,26 +24,26 @@ import {
     type RecipeFormSectionProps,
 } from './props.js';
 
-const caption = 'text-caption text-slate';
-const fieldLabel = 'text-body-sm font-medium text-slate';
+const caption = 'text-caption text-ink-muted';
+const fieldLabel = 'text-body-sm font-medium text-ink-muted';
 // Layout and state-independent chrome ONLY — deliberately carries no `bg-*`, `text-<colour>`, or
 // `border-<colour>` utility. Those live in the two mutually-exclusive state consts below.
 //
 // DO NOT fold the resting colours back in here and override them conditionally. Tailwind orders utilities by
 // its own EMISSION order, NOT by the order they appear in the class attribute, so `base + override` resolves
 // to whichever utility Tailwind happened to emit last. That is not hypothetical: this chip shipped with
-// `bg-white`(base) beating `bg-seafoam`(selected) while `text-white`(selected) beat `text-charcoal`(base),
+// `bg-paper`(base) beating `bg-action`(selected) while `text-on-action`(selected) beat `text-ink`(base),
 // rendering the selected label white-on-white in every browser — and because "Not stated" carries
 // `value: undefined`, `undefined === undefined` made a FRESH form open with a blank pill.
 const difficultyChipBase =
-    'relative flex cursor-pointer items-center rounded-full border px-4 py-1.5 text-body-sm transition focus-within:ring-2 focus-within:ring-seafoam';
+    'relative flex cursor-pointer items-center rounded-full border px-4 py-1.5 text-body-sm transition focus-within:ring-2 focus-within:ring-focus-ring';
 // The radio input is a transparent overlay covering its whole chip (not `sr-only`), so the semantic control
 // is itself the click/tap target — directly actionable for pointer users and E2E (`getByRole('radio')`),
 // while the visible chip text renders beneath. `sr-only` would shrink it to a 1px point the visible label
 // then overlays, which pointer-based drivers (Playwright) cannot reach.
 const difficultyRadioOverlay = 'absolute inset-0 cursor-pointer opacity-0';
-const difficultyChipResting = 'border-border bg-white text-charcoal';
-const difficultyChipSelected = 'border-seafoam bg-seafoam text-white';
+const difficultyChipResting = 'border-line-divider bg-paper text-ink';
+const difficultyChipSelected = 'border-selected-edge bg-action text-on-action';
 
 /** Step 1 (minus visibility): title, description, cuisine, meal type, tags, dietary flags, servings, prep/cook time, the read-only computed total, and difficulty. */
 export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
@@ -241,9 +241,9 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                     {m.errors[errors.times]}
                 </p>
             )}
-            <p className="text-body-sm text-slate">
+            <p className="text-body-sm text-ink-muted">
                 <span className="font-medium">{m.totalTimeLabel}</span>{' '}
-                <span className="font-semibold text-charcoal">
+                <span className="font-semibold text-ink">
                     {fillTemplate(m.durationMinutes, { minutes: totalTime })}
                 </span>
             </p>

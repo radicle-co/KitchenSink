@@ -1,90 +1,47 @@
 'use client';
 
 /**
- * @module @commise/features-recipes — web "More" overflow menu (C4 wireframe parity).
+ * @module @commise/features-recipes — the web "More actions" overflow on the recipe detail (C4 wireframe parity).
  *
- * A minimal, keyboard-accessible disclosure that groups the recipe-detail header's SECONDARY owner actions
- * (version history, delete, visibility) behind a single trigger, matching the wireframe's `[Edit] [More]`
- * header — Edit stays a primary, always-visible control outside this menu; everything else moves behind it.
- * The panel carries `role="menu"` and the trigger `aria-haspopup="menu"` / `aria-expanded`. Its content mixes
- * true actions (buttons/links) with the visibility radiogroup — not uniform `menuitem`s — so this
- * deliberately does NOT implement full ARIA-menu roving-tabindex/arrow-key navigation, which would conflict
- * with the nested radiogroup's own semantics; every action stays reachable by ordinary Tab order instead.
+ * The owner's SECONDARY actions (version history, visibility, delete) behind one `⋯` trigger named for the recipe;
+ * Edit stays the always-visible primary outside it. The panel is the design system's Popover — portaled, and
+ * collision-aware against the page's chrome, so at a phone width it opens clear of the shell's bottom tab bar
+ * instead of under it (finding D2) — and the destructive action is a structural slot drawn last, after a divider.
  *
- * This is intentionally lighter than the Radix `AlertDialog` the delete confirmation uses (see
- * `RecipeDeleteDialog`): a non-modal disclosure needs no focus trap or portal, so hand-rolling open/close +
- * Escape + outside-click stays proportionate to a cosmetic control rather than pulling in a whole menu
- * library. Open/close is local, ephemeral UI state — not business logic — so it is owned here (a headless
- * menu primitive) rather than lifted into the composing container; the component performs no navigation or
- * mutation of its own, it only discloses whatever `children` the caller supplies (Composite/slot pattern).
+ * ⚠️ The panel is a non-modal `dialog`, not a `menu`: its content is links, buttons and the visibility radio group,
+ * and `role="menu"` around that content (what this leaf used to claim) promised a roving-focus model it did not and
+ * could not provide. Ordinary Tab order reaches every action. Turning visibility into menu items is the detail
+ * redesign of slice 6, which needs a ruling on what a cook without the premium plan is offered.
  *
- * @pattern Menu button (WAI-ARIA disclosure) with a Facade over the DOM's imperative dismissal model — outside-click
- *     through `contains()` and focus-return through `focus()`, neither of which React expresses declaratively.
+ * @pattern Composite — the panel lays out the caller's actions and owns where the destructive one goes
  */
 import { useMessages } from '@commise/i18n/react';
-import { buttonSurfaceClass } from '@commise/ui/button';
-import { useEffect, useRef, useState, type FC, type KeyboardEvent } from 'react';
+import { Popover } from '@commise/ui/popover';
+import type { FC } from 'react';
 
+import { fillTemplate } from '../list/model.js';
 import { recipeActionMessages } from './messages.js';
 import type { MoreActionsMenuProps } from './model.js';
 
-export const MoreActionsMenu: FC<MoreActionsMenuProps> = ({ children }) => {
+export const MoreActionsMenu: FC<MoreActionsMenuProps> = ({ recipeTitle, children, destructive }) => {
     const { moreMenu } = useMessages(recipeActionMessages);
-    const [open, setOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const triggerRef = useRef<HTMLButtonElement>(null);
-
-    // Outside-click dismiss: only wired while open, and torn down on close/unmount.
-    useEffect(() => {
-        if (!open) {
-            return undefined;
-        }
-
-        const onPointerDown = (event: MouseEvent): void => {
-            if (containerRef.current !== null && !containerRef.current.contains(event.target as Node)) {
-                setOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', onPointerDown);
-
-        return () => document.removeEventListener('mousedown', onPointerDown);
-    }, [open]);
-
-    const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-        if (event.key === 'Escape') {
-            setOpen(false);
-            triggerRef.current?.focus();
-        }
-    };
 
     return (
-        <div ref={containerRef} className="relative inline-block" onKeyDown={onKeyDown}>
-            <button
-                ref={triggerRef}
-                type="button"
-                aria-haspopup="menu"
-                aria-expanded={open}
-                onClick={() => setOpen((prev) => !prev)}
-                // The DS secondary surface (palette, radius, focus ring, 44px touch floor) via the shared
-                // recipe rather than the `Button` COMPONENT: this trigger must own its own `ref` to restore
-                // focus on Escape and to scope the outside-click check, and `Button` forwards no ref.
-                className={buttonSurfaceClass('secondary')}
-            >
-                {moreMenu.trigger}
-            </button>
-            {open && (
-                <div
-                    role="menu"
-                    aria-label={moreMenu.trigger}
-                    // The DS hairline (`border-border`), not the off-tier `border-mist`: `mist` is the palette's
-                    // divider TONE and every other panel edge in the product spells this token. The popover is
-                    // identified by its content and `shadow-lg`, so the rim is decoration under SC 1.4.11.
-                    className="absolute right-0 top-full z-10 mt-2 flex min-w-48 flex-col items-start gap-2 rounded-2xl border border-border bg-card p-3 shadow-lg"
-                >
-                    {children}
-                </div>
-            )}
-        </div>
+        <Popover
+            triggerLabel={fillTemplate(moreMenu.triggerFor, { title: recipeTitle })}
+            triggerIcon="ellipsis"
+            title={moreMenu.title}
+            closeLabel={moreMenu.close}
+        >
+            <div className="flex flex-col items-start gap-2 pt-2">
+                {children}
+                {destructive === undefined ? null : (
+                    <>
+                        <hr className="my-1 w-full border-line-divider" />
+                        {destructive}
+                    </>
+                )}
+            </div>
+        </Popover>
     );
 };

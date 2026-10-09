@@ -362,7 +362,7 @@ describe('RecipeDiscoveryFrame (web) — text contrast (WCAG 2.1 AA)', () => {
         expect(utilityContrast(clear.className, { surface: CARD }), 'at rest on the panel').toBeGreaterThanOrEqual(4.5);
         expect(
             utilityContrast(clear.className, { surface: CARD, variant: 'hover' }),
-            'under its hover:bg-mist/20 tint',
+            'under its hover:bg-ink/6 tint',
         ).toBeGreaterThanOrEqual(4.5);
     });
 
@@ -374,7 +374,7 @@ describe('RecipeDiscoveryFrame (web) — text contrast (WCAG 2.1 AA)', () => {
         expect(utilityContrast(back.className, { surface: PAGE }), 'at rest on the page').toBeGreaterThanOrEqual(4.5);
         expect(
             utilityContrast(back.className, { surface: PAGE, variant: 'hover' }),
-            'under its hover:bg-mist/20 tint',
+            'under its hover:bg-ink/6 tint',
         ).toBeGreaterThanOrEqual(4.5);
     });
 
@@ -382,7 +382,7 @@ describe('RecipeDiscoveryFrame (web) — text contrast (WCAG 2.1 AA)', () => {
         renderFrame();
 
         // The placeholder is the field's only visible instruction before typing, so it owes 4.5:1 like body copy; `mist`
-        // measured 1.90:1. The base `text-charcoal` is the value colour and would mask the defect, so the placeholder
+        // measured 1.90:1. The base `text-ink` is the value colour and would mask the defect, so the placeholder
         // state is measured as its own state.
         const search = screen.getByRole('searchbox', { name: 'Search public recipes' });
 
@@ -394,7 +394,7 @@ describe('RecipeDiscoveryFrame (web) — text contrast (WCAG 2.1 AA)', () => {
 
     /**
      * The frame is a `<section>` on the app background, which is what the search field's focus ring is drawn on (a
-     * Tailwind ring is a spread box-shadow outside the border box). It shipped as `ring-seafoam-light` (2.58:1), under
+     * Tailwind ring is a spread box-shadow outside the border box). It shipped as `ring-focus-ring` (2.58:1), under
      * SC 1.4.11's 3:1 (#114), and with `outline-none` it is a keyboard viewer's only position cue.
      */
     it('rings the search box legibly against the page it sits on, out-measuring the `seafoam-light` it replaced', () => {

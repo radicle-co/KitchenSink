@@ -19,7 +19,6 @@ import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { Button } from '@commise/ui/button';
 import { LiveRegion } from '@commise/ui/live-region';
-import { Feather } from '@expo/vector-icons';
 import type { FC, ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -83,11 +82,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                         <LiveRegion politeness="assertive" style={styles.text}>
                             {body.text}
                         </LiveRegion>
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="refresh-cw" size={16} color={palette.charcoal} />}
-                            onPress={onRetryRead}
-                        >
+                        <Button variant="secondary" icon="refreshCw" onPress={onRetryRead}>
                             {m.statusActionRetry}
                         </Button>
                     </>
@@ -111,11 +106,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
             <LiveRegion politeness="assertive" occurrence={view.alertOccurrence} style={styles.text}>
                 {view.alert}
             </LiveRegion>
-            <Button
-                variant="secondary"
-                icon={<Feather name="search" size={16} color={palette.charcoal} />}
-                onPress={onNoneOfThese}
-            >
+            <Button variant="secondary" icon="search" onPress={onNoneOfThese}>
                 {m.statusActionNoneOfThese}
             </Button>
         </View>

@@ -20,16 +20,17 @@
  * end: the counts are hidden (they're no longer trustworthy) but Cancel/back still close the dialog, so the
  * composing container (W5 Task 12) can re-run the preview; (3) the loaded `diff` — added/removed/unchanged
  * COUNTS only (this block never resolves recipe titles, it only received ids), the "not overwritten" note,
- * and the count-templated Pull action, disabled while `isCommitting` or when there is nothing to add.
+ * and the count-templated Pull action, busy while `isCommitting`, disabled when there is nothing to add.
  *
  * @pattern Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area
  *     padding — the same controlled `props → JSX` contract as the web leaf.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { collectionMessages } from './messages.js';
@@ -63,7 +64,6 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     // loading" rather than risking a misleading zero-count flash before the first preview resolves.
     const showLoading = isLoadingPreview || (diff === undefined && error === undefined);
     const showDiff = !showLoading && error === undefined && diff !== undefined;
-    const canConfirm = diff !== undefined && diff.added.length > 0 && !isCommitting;
 
     return (
         <FullScreenSheet label={pull.title} onRequestClose={onCancel}>
@@ -102,27 +102,13 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                 )}
 
                 <View style={styles.actions}>
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={pull.cancel}
-                        onPress={onCancel}
-                        style={styles.cancelButton}
-                    >
-                        <Text style={styles.cancelLabel}>{pull.cancel}</Text>
-                    </Pressable>
+                    <Button variant="secondary" icon="x" onPress={onCancel}>
+                        {pull.cancel}
+                    </Button>
                     {showDiff && diff !== undefined && (
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={fillTemplate(pull.confirm, { count: diff.added.length })}
-                            aria-busy={isCommitting || undefined}
-                            disabled={!canConfirm}
-                            onPress={onConfirm}
-                            style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
-                        >
-                            <Text style={styles.confirmLabel}>
-                                {fillTemplate(pull.confirm, { count: diff.added.length })}
-                            </Text>
-                        </Pressable>
+                        <Button icon="check" busy={isCommitting} disabled={diff.added.length === 0} onPress={onConfirm}>
+                            {fillTemplate(pull.confirm, { count: diff.added.length })}
+                        </Button>
                     )}
                 </View>
             </>
@@ -139,9 +125,4 @@ const styles = StyleSheet.create({
     note: { fontSize: 13, fontStyle: 'italic', color: palette.slate },
     error: { fontSize: 15, color: palette['error-dark'] },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
-    cancelButton: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },
-    cancelLabel: { color: palette.slate, fontWeight: '500', fontSize: 14 },
-    confirmButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 22 },
-    confirmButtonDisabled: { opacity: 0.6 },
-    confirmLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
 });

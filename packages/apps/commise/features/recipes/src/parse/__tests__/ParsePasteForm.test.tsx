@@ -12,8 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { contrastRatio } from '@commise/test-utils';
-import { palette } from '@commise/ui';
+import { utilityContrast } from '@commise/test-utils';
 
 import { ParsePasteForm } from '../ParsePasteForm.js';
 import { recipeParseMessages } from '../messages.js';
@@ -160,34 +159,19 @@ describe('ParsePasteForm — the way out', () => {
 
     /**
      * ⛔ THE PARSE FLOW HAD NO CONTRAST TEST AT ALL, and that is why a 1.33:1 primary shipped on its entry
-     * control. `utilityContrast` only fires where a test calls it — the `__tests__` roster covers 20+ recipe
-     * components and neither parse file was among them, so the guard that catches this class repo-wide was
-     * never pointed here. The defect was `bg-seafoam` paired with `text-ocean-dark`: 1.33:1 against SC
-     * 1.4.3's 4.5:1, the same shape as the recorded white-on-white difficulty chip.
+     * control (`bg-action` under `text-action-text`). The fix was to use the `Button` primitive.
      *
-     * ⚠️ WHAT THIS CAN AND CANNOT MEASURE. The fix was to use the `Button` primitive, whose surface is a
-     * GRADIENT (`from-seafoam to-ocean-dark`) — and `utilityContrast` resolves a single `bg-*` colour, so it
-     * returns 1 for a gradient rather than a ratio. Asserting `>= 4.5` against that would have failed on a
-     * button that is actually compliant, and "fixing" it by loosening the floor would be worse than no test.
-     * So the label is measured against BOTH STOPS, which is the real question for a gradient: the floor has
-     * to hold at the light end as well as the dark one.
+     * REWRITTEN in UI-overhaul slice 2: the primary surface is ONE flat `action` fill under `onAction` (the gradient
+     * was removed), so `utilityContrast` can measure the label directly, read off the DOM.
      */
-    it('⛔ the action controls clear WCAG 1.4.3 at both ends of their gradient', () => {
+    it('⛔ the action control clears WCAG 1.4.3 on its flat action fill', () => {
         renderForm('2 cups flour');
 
         const submit = screen.getByRole('button', { name: messages.pasteSubmit });
 
-        // Read off the DOM, never re-spelled: a test asserting against a class list it wrote itself measures
-        // the test rather than the button.
         expect(submit.className, 'the submit uses the design-system surface, not a hand-rolled pill').toContain(
-            'from-seafoam',
+            'bg-action',
         );
-
-        for (const stop of [palette.seafoam, palette['ocean-dark']]) {
-            expect(
-                contrastRatio(palette.white, stop),
-                `the white label on the ${stop} end of the primary gradient`,
-            ).toBeGreaterThanOrEqual(4.5);
-        }
+        expect(utilityContrast(submit.className)).toBeGreaterThanOrEqual(4.5);
     });
 });

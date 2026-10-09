@@ -52,13 +52,13 @@ export const RecipeCardGridSkeleton: FC<RecipeCardGridSkeletonProps> = ({
     count = RECIPE_CARD_SKELETON_COUNT,
 }) => (
     <div role="status" aria-label={label} className="flex flex-col gap-4">
-        <p className="text-body-sm font-medium text-slate">{label}</p>
+        <p className="text-body-sm font-medium text-ink-muted">{label}</p>
         <div aria-hidden="true" className={GRID_COLUMNS}>
             {Array.from({ length: count }, (_unused, index) => index).map((key) => (
-                <div key={key} className="flex flex-col gap-3 rounded-2xl bg-card p-4 shadow-sm">
-                    <div className="aspect-[4/3] w-full animate-pulse rounded-xl bg-pearl motion-reduce:animate-none" />
-                    <div className="h-4 w-3/4 animate-pulse rounded bg-pearl motion-reduce:animate-none" />
-                    <div className="h-3 w-1/2 animate-pulse rounded bg-pearl motion-reduce:animate-none" />
+                <div key={key} className="flex flex-col gap-3 rounded-2xl bg-paper p-4 shadow-sm">
+                    <div className="aspect-[4/3] w-full animate-pulse rounded-xl bg-surface-muted motion-reduce:animate-none" />
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-surface-muted motion-reduce:animate-none" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-surface-muted motion-reduce:animate-none" />
                 </div>
             ))}
         </div>

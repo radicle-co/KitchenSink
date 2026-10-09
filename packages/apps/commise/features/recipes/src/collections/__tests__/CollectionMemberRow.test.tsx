@@ -161,10 +161,10 @@ describe('CollectionMemberRow (web) — Remove never repeats the title on screen
 /**
  * Remove is painted in the ERROR register — with the error hue, not coral.
  *
- * The control already labelled itself `text-error-dark` (#B1442B) but tinted its hover with `bg-coral/10`
+ * The control already labelled itself `text-danger-text` (#B1442B) but tinted its hover with `bg-coral/10`
  * (#E8917A) — two adjacent-but-different hues inside one control, and the wrong one for a destructive action:
  * coral is a brand accent (the mockups spend it on tags and warm highlights), `error` is the destructive
- * token, and the design system's own `destructive` Button tier already tints with `hover:bg-error/10`. The
+ * token, and the design system's own `destructive` Button tier already tints with `hover:bg-danger/10`. The
  * native leaf never had the coral at all (`palette.error` text, no tint), so this was a WEB-ONLY drift.
  */
 describe('CollectionMemberRow (web) — Remove stays in the error register', () => {
@@ -172,8 +172,8 @@ describe('CollectionMemberRow (web) — Remove stays in the error register', () 
         renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }) });
         const className = screen.getByRole('button', { name: 'Remove Weeknight Pasta' }).className;
 
-        expect(className).toContain('text-error-dark');
-        expect(className).toContain('hover:bg-error/10');
+        expect(className).toContain('text-danger-text');
+        expect(className).toContain('hover:bg-danger/10');
         expect(className).not.toContain('coral');
     });
 

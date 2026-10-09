@@ -35,7 +35,6 @@ import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { Button } from '@commise/ui/button';
 
 import { createProfileServiceClient } from '@/lib/identityServiceClient';
-import { AlertTriangleIcon } from '@/components/auth/icons';
 import { errorText } from '@/components/auth/authChrome';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 
@@ -75,7 +74,7 @@ export function AccountCloseForm({ accessToken }: AccountCloseFormProps) {
 
     return (
         <>
-            <Button variant="destructive" icon={<AlertTriangleIcon />} onPress={() => setOpen(true)} busy={isPending}>
+            <Button variant="destructive" icon="triangleAlert" onPress={() => setOpen(true)} busy={isPending}>
                 {isPending ? close.busyLabel : close.trigger}
             </Button>
             {error && (
@@ -86,12 +85,11 @@ export function AccountCloseForm({ accessToken }: AccountCloseFormProps) {
             <ConfirmDialog
                 open={open}
                 title={close.title}
-                description={close.description}
-                confirmLabel={close.confirm}
-                cancelLabel={close.cancel}
-                destructive
+                body={close.description}
+                confirm={{ label: close.confirm, icon: 'userX' }}
+                keep={{ label: close.cancel }}
                 onConfirm={handleConfirm}
-                onCancel={() => setOpen(false)}
+                onKeep={() => setOpen(false)}
             />
         </>
     );

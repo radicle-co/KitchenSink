@@ -61,14 +61,14 @@ const ClonePrivateFoodsBanner: FC<{ readonly text: string }> = ({ text }): JSX.E
     }
 
     return (
-        <div className="flex items-start gap-3 rounded-xl bg-warning/15 p-3">
-            <p role="note" className="flex-1 text-body-sm text-charcoal">
+        <div className="flex items-start gap-3 rounded-xl bg-attention-tint p-3">
+            <p role="note" className="flex-1 text-body-sm text-ink">
                 {text}
             </p>
             <button
                 type="button"
                 onClick={() => setDismissed(true)}
-                className="shrink-0 rounded-full bg-card px-3 py-1 text-caption font-medium text-slate"
+                className="shrink-0 rounded-full bg-paper px-3 py-1 text-caption font-medium text-ink-muted"
             >
                 {detail.clonePrivateFoodsDismiss}
             </button>
@@ -86,17 +86,17 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
     const nameId = useId();
 
     return (
-        <li className="rounded-lg border border-border bg-card p-3">
+        <li className="rounded-lg border border-line-divider bg-paper p-3">
             {/* Named by the line's summary (`AmbiguityReviewRowModel.summary`). */}
             <div role="group" aria-labelledby={nameId} className="flex flex-col gap-2">
-                <span id={nameId} className="text-body-sm font-semibold text-charcoal">
+                <span id={nameId} className="text-body-sm font-semibold text-ink">
                     {row.summary}
                 </span>
 
                 {row.groups.map((group) => (
                     <div key={group.key} className="flex flex-col gap-1">
                         {group.label !== undefined && (
-                            <p aria-hidden className="text-caption font-semibold text-slate">
+                            <p aria-hidden className="text-caption font-semibold text-ink-muted">
                                 {group.label}
                             </p>
                         )}
@@ -110,7 +110,7 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
                                             busy: picker.picking,
                                             onClick: () => row.onPick(candidate.pick),
                                         })}
-                                        className={`rounded-full bg-seafoam/10 px-3 py-1 text-body-sm text-ocean-dark transition hover:bg-seafoam/20 ${BUSY_CONTROL_CLASS}`}
+                                        className={`rounded-full bg-action/10 px-3 py-1 text-body-sm text-action-text transition hover:bg-action/20 ${BUSY_CONTROL_CLASS}`}
                                     >
                                         {candidate.name}
                                     </button>
@@ -121,16 +121,16 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
                 ))}
 
                 {/* Shown, not live: the busy chips say it to assistive technology (V3-9). */}
-                {row.adding !== undefined && <p className="text-caption text-slate">{row.adding}</p>}
+                {row.adding !== undefined && <p className="text-caption text-ink-muted">{row.adding}</p>}
 
                 {/* Mounted while empty, so each change of the sentence is spoken (WCAG 4.1.3); after the chips, so a
                     sentence that empties at the end moves none of them (P12). */}
-                <p role="status" className={row.status === '' ? 'sr-only' : 'text-body-sm text-slate'}>
+                <p role="status" className={row.status === '' ? 'sr-only' : 'text-body-sm text-ink-muted'}>
                     {row.status}
                 </p>
 
                 {row.refreshed && (
-                    <p role="status" className="text-caption text-slate">
+                    <p role="status" className="text-caption text-ink-muted">
                         {detail.ambiguousReviewRefreshed}
                     </p>
                 )}
@@ -140,7 +140,7 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
                 <LiveRegion
                     politeness="assertive"
                     occurrence={picker.limitRefusals}
-                    className="text-body-sm text-error-dark"
+                    className="text-body-sm text-danger-text"
                 >
                     {row.alert}
                 </LiveRegion>
@@ -150,7 +150,7 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
                         type="button"
                         aria-label={row.retryLabel}
                         onClick={row.onRetry}
-                        className="self-start rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-ocean-dark"
+                        className="self-start rounded-full bg-action/10 px-3 py-1 text-caption font-medium text-action-text"
                     >
                         {detail.ambiguousReviewRetry}
                     </button>
@@ -191,10 +191,10 @@ const OwnerAmbiguityReview: FC<Pick<AmbiguityReviewProps, 'recipe'>> = ({ recipe
                         onClick={() => setOpen((value) => !value)}
                         aria-expanded={open}
                         aria-label={detail.ambiguousReviewToggle}
-                        className="flex items-center gap-2 rounded-xl border border-border bg-card p-3 text-left"
+                        className="flex items-center gap-2 rounded-xl border border-line-divider bg-paper p-3 text-left"
                     >
-                        <span className="flex-1 text-body-sm font-medium text-charcoal">{notice}</span>
-                        <span className="shrink-0 rounded-full bg-seafoam/10 px-3 py-1 text-caption font-semibold text-ocean-dark">
+                        <span className="flex-1 text-body-sm font-medium text-ink">{notice}</span>
+                        <span className="shrink-0 rounded-full bg-action/10 px-3 py-1 text-caption font-semibold text-action-text">
                             {detail.ambiguousReviewToggle}
                         </span>
                     </button>
@@ -216,7 +216,7 @@ const OwnerAmbiguityReview: FC<Pick<AmbiguityReviewProps, 'recipe'>> = ({ recipe
                     ref={savedRef}
                     role="status"
                     tabIndex={-1}
-                    className={picker.takenAt !== undefined ? 'text-body-sm text-ocean-dark' : 'sr-only'}
+                    className={picker.takenAt !== undefined ? 'text-body-sm text-action-text' : 'sr-only'}
                 >
                     {picker.takenAt !== undefined ? detail.ambiguousReviewSaved : ''}
                 </p>

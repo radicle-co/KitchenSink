@@ -19,12 +19,12 @@ export const RecipeBrowseRailLoading: FC = () => {
 
     return (
         <div role="status" aria-label={discovery.loadingLabel} className="flex flex-col gap-2">
-            <p className="text-body-sm text-slate">{discovery.loadingLabel}</p>
+            <p className="text-body-sm text-ink-muted">{discovery.loadingLabel}</p>
             <RailTrack decorative>
                 {[0, 1, 2].map((card) => (
                     <li
                         key={card}
-                        className="h-56 w-64 shrink-0 animate-pulse rounded-xl bg-mist/20 motion-reduce:animate-none"
+                        className="h-56 w-64 shrink-0 animate-pulse rounded-xl bg-line-divider motion-reduce:animate-none"
                     />
                 ))}
             </RailTrack>

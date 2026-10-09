@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Modal } from '../modal/Modal.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
-import { palette } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import { sheetAnimationType } from './sheetPresentation.js';
 
 /**
@@ -65,6 +65,7 @@ export interface FullScreenSheetProps {
 export const FullScreenSheet: FC<FullScreenSheetProps> = ({ label, onRequestClose, onShow, children }) => {
     const insets = useSafeAreaInsets();
     const reduceMotion = useReduceMotion();
+    const { colors } = useTheme();
 
     return (
         <Modal
@@ -80,6 +81,7 @@ export const FullScreenSheet: FC<FullScreenSheetProps> = ({ label, onRequestClos
                 style={[
                     styles.surface,
                     {
+                        backgroundColor: colors.paper,
                         // Base pad PLUS the device inset on every edge — the whole point of this primitive.
                         paddingTop: SHEET_PADDING + insets.top,
                         paddingBottom: SHEET_PADDING + insets.bottom,
@@ -95,5 +97,5 @@ export const FullScreenSheet: FC<FullScreenSheetProps> = ({ label, onRequestClos
 };
 
 const styles = StyleSheet.create({
-    surface: { flex: 1, backgroundColor: palette.white, gap: 16 },
+    surface: { flex: 1, gap: 16 },
 });

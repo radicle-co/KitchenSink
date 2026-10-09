@@ -14,7 +14,7 @@
  * @pattern Adapter over `FullScreenSheet` — the title takes the reading cursor on `Modal.onShow`, the one moment a
  *     native modal is on screen (a mount effect runs before it is)
  */
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
@@ -54,7 +54,7 @@ export const DataSourcesPage: FC<DataSourcesPageNativeProps> = ({ onRequestClose
                     onPress={onRequestClose}
                     style={styles.close}
                 >
-                    <Feather name="x" size={24} color={palette.charcoal} />
+                    <Icon name="x" size={24} tone="ink" />
                 </Pressable>
             </View>
             <ScrollView contentContainerStyle={styles.body}>

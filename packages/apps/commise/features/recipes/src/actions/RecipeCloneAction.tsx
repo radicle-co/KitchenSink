@@ -40,7 +40,6 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
-import { CloneIcon } from './icons.js';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeCloneActionProps } from './model.js';
 
@@ -52,11 +51,11 @@ export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({ canClone, clonin
         // column would blow it out to the full footer width (the job the old `self-start` utility did).
         <div className="flex flex-col items-start gap-2">
             {/* `busy` supplies the in-place spinner, the in-flight guard (a refused press that keeps focus), and `aria-busy`. */}
-            <Button variant="secondary" icon={<CloneIcon />} onPress={onClone} disabled={!canClone} busy={cloning}>
+            <Button variant="secondary" icon="copyPlus" onPress={onClone} disabled={!canClone} busy={cloning}>
                 {clone.clone}
             </Button>
             {cloning && (
-                <span role="status" className="text-body-sm text-slate">
+                <span role="status" className="text-body-sm text-ink-muted">
                     {clone.cloningLabel}
                 </span>
             )}

@@ -23,7 +23,7 @@ export const DataSourcesList: FC<DataSourcesListProps> = ({ sources }) => {
     const messages = useMessages(dataSourcesMessages);
 
     if (sources.length === 0) {
-        return <p className="text-body-md text-slate">{messages.empty}</p>;
+        return <p className="text-body-md text-ink-muted">{messages.empty}</p>;
     }
 
     return (

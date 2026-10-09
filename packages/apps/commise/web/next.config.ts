@@ -121,6 +121,9 @@ const nextConfig: NextConfig = {
         // `/pr-91` could report as something else.
         NEXT_PUBLIC_DEPLOY_STAGE: deployStageFor(process.env),
         NEXT_PUBLIC_SENTRY_RELEASE: releaseFor(process.env) ?? '',
+        // ⛔ BUILD-GATED pseudo-locale (`src/lib/i18n.ts`): inlined, so only a build MADE with the flag routes `en-XA`.
+        // Anything but exactly '1' inlines '' (`pseudoLocaleBuildGate.test.ts` holds that no deploy sets it).
+        COMMISE_PSEUDO_LOCALE: process.env['COMMISE_PSEUDO_LOCALE'] === '1' ? '1' : '',
     },
     // ⚠️ DELIBERATE — re-home the BARE root onto the preview basePath. After OAuth sign-in, Clerk's
     // SSO-callback completes on a full page load before its Next router is wired, so it navigates

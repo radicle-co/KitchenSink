@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ROADMAP_CAPABILITY_VALUES } from '../capabilities.js';
-import { HOME_NAV_ITEMS, isNavItemReachable, resolveHomeNav } from '../homeNavigation.js';
+import { HOME_NAV_ITEMS, isNavItemReachable, resolveHomeNav, NAV_ITEM_GLYPH } from '../homeNavigation.js';
 import { ROADMAP_WIDGET_SPECS } from '../roadmapWidgets.js';
 
 describe('HOME_NAV_ITEMS', () => {
@@ -110,5 +110,26 @@ describe('resolveHomeNav', () => {
         resolveHomeNav(['recipes']);
 
         expect(HOME_NAV_ITEMS.map((item) => ({ ...item }))).toEqual(before);
+    });
+});
+
+/**
+ * UI-overhaul slice 2: the meaning each destination draws, ONCE for both apps (blueprint slice 3's `NAV_ITEM_GLYPH`,
+ * brought forward when slice 2 moved both chromes onto `@commise/ui/icon`), in the mockup's pairing.
+ */
+describe('NAV_ITEM_GLYPH', () => {
+    it('gives every destination its glyph', () => {
+        expect(NAV_ITEM_GLYPH).toStrictEqual({
+            home: 'house',
+            recipes: 'bookOpen',
+            'meal-plan': 'calendar',
+            grocery: 'shoppingCart',
+            nutrition: 'chartColumn',
+            profile: 'user',
+        });
+    });
+
+    it('covers exactly the nav model’s destinations', () => {
+        expect(Object.keys(NAV_ITEM_GLYPH).sort()).toStrictEqual(HOME_NAV_ITEMS.map((item) => item.id).sort());
     });
 });

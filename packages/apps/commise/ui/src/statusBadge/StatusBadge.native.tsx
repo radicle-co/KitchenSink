@@ -1,64 +1,67 @@
 /**
- * @module @commise/ui/status-badge — the native chip that states a line's status (`Custom`, `Needs review`, …).
+ * @module @commise/ui/status-badge — the native badge that states a status (`Draft`, `Custom`, `Needs review`, …).
  *
- * The same contract as the web leaf. React Native's nested `Text` takes no reliable radius or padding, so the chip is
- * a `View` holding a `Text`, the mechanism `StandIn` uses: the job is kept, the mechanism differs.
+ * React Native's nested `Text` takes no reliable radius or padding, so the badge is a `View` holding the glyph and a
+ * `Text`, the same mechanism as `StandIn` (`docs/design/ingredientSpecialization.md` E2 I1). The same contract as the
+ * web leaf: the words are the content, the badge is filled and never dashed, each status's label clears 4.5:1 on its
+ * fill, the label wraps and is never cut off, and it is 24 pt tall with the `sm` radius.
  *
- * - ⛔ The words are the content: nothing here hides them from the screen reader.
- * - ⛔ Filled, never dashed: the dashed outline is `StandIn`'s mark for words standing in for a missing name.
- * - ⛔ No `numberOfLines`: the label wraps inside the chip and is never truncated.
- * - The radius is half the ONE-LINE height (§S13's rule, E2 I2), computed from the label's declared line height and
- *   the chip's padding. React Native does not scale a radius with the font, so at a large font scale a single line is
- *   a rounded rectangle too. The words always stay inside the curve.
- *
- * A presentational leaf: the caller chooses the words and the tone.
- *
- * @pattern Value Object contract (`StatusBadgeProps`) rendered as a pure `props → JSX` leaf, with the tone as a
- *   display derivation through a `Record` lookup
+ * @pattern Registry consumer — the status picks its pair and glyph from closed `Record`s (`BADGE_GLYPH`, the tones)
  */
 import type { FC } from 'react';
-import { StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { palette, tint } from '../tokens/colors.js';
+import { Icon } from '../icon/Icon.native.js';
+import type { Theme } from '../theme/themeFor.js';
+import { useTheme } from '../theme/useTheme.native.js';
+import { proTone } from '../tokens/tones.js';
 import { nativeTokens } from '../tokens/native.js';
-import type { StatusBadgeProps, StatusBadgeTone } from './props.js';
+import { BADGE_GLYPH, type BadgeStatus, type StatusBadgeProps } from './props.js';
 
-/** The label's leading: the caption ratio over the caption size, so "one line" is a known number. */
-const LABEL_LINE_HEIGHT = nativeTokens.fontSize.caption * nativeTokens.lineHeight.caption;
-/** The chip's vertical padding on each side, the web leaf's `py-0.5`. */
-const PADDING_VERTICAL = 2;
+/**
+ * Each status's fill and label in the current theme: the web leaf's pairs (see its note on the `attention` fallback).
+ * The PRO pair is fixed in both themes (`darkTheme.md` §2); every other pair re-themes. Pure.
+ */
+function badgePair({ colors }: Theme, status: BadgeStatus): { readonly fill: string; readonly text: string } {
+    switch (status) {
+        case 'pro':
+            return proTone;
+        case 'note':
+            return { fill: colors.surfaceMuted, text: colors.inkMuted };
+        case 'attention':
+            return { fill: colors.attentionTint, text: colors.ink };
+        case 'draft':
+        case 'private':
+        case 'public':
+        case 'soon':
+            return { fill: colors.surfaceMuted, text: colors.ink };
+    }
+}
 
 /** The status badge: filled, and as wide as its words allow. */
-export const StatusBadge: FC<StatusBadgeProps> = ({ tone, children }) => (
-    <View style={[styles.chip, CHIP_TONE[tone]]}>
-        <Text style={[styles.label, LABEL_TONE[tone]]}>{children}</Text>
-    </View>
-);
+export const StatusBadge: FC<StatusBadgeProps> = ({ status, children }) => {
+    const glyph = BADGE_GLYPH[status];
+    const pair = badgePair(useTheme(), status);
+
+    return (
+        <View style={[styles.badge, { backgroundColor: pair.fill }]}>
+            {glyph === null ? null : <Icon name={glyph} size={16} tone="ink" />}
+            <Text style={[styles.label, { color: pair.text }]}>{children}</Text>
+        </View>
+    );
+};
 
 const styles = StyleSheet.create({
-    chip: {
+    badge: {
+        flexDirection: 'row',
+        alignItems: 'center',
         alignSelf: 'flex-start',
+        gap: nativeTokens.spacing[1],
         maxWidth: '100%',
-        borderRadius: (LABEL_LINE_HEIGHT + PADDING_VERTICAL * 2) / 2,
+        minHeight: 24,
+        borderRadius: nativeTokens.radius.sm,
         paddingHorizontal: nativeTokens.spacing[2],
-        paddingVertical: PADDING_VERTICAL,
+        paddingVertical: 2,
     },
-    label: {
-        flexShrink: 1,
-        fontSize: nativeTokens.fontSize.caption,
-        lineHeight: LABEL_LINE_HEIGHT,
-    },
-});
-
-/** One fill per tone, so a new tone fails the build here as it does on web. */
-const CHIP_TONE: Readonly<Record<StatusBadgeTone, ViewStyle>> = StyleSheet.create({
-    neutral: { backgroundColor: palette.pearl },
-    // ⛔ `warning` is a FILL under a charcoal label, never a text colour.
-    caution: { backgroundColor: tint(palette.warning, 0.25) },
-});
-
-/** One label colour (and weight) per tone, the web leaf's pairs. */
-const LABEL_TONE: Readonly<Record<StatusBadgeTone, TextStyle>> = StyleSheet.create({
-    neutral: { color: palette.slate },
-    caution: { color: palette.charcoal, fontWeight: '500' },
+    label: { ...nativeTokens.type.caption, flexShrink: 1 },
 });

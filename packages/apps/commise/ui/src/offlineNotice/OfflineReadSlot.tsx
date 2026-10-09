@@ -22,7 +22,7 @@ export const OfflineReadSlot: FC<OfflineReadSlotProps> = ({ message }) => (
     // No title, icon, accent or border — deliberately quieter than the app-wide connectivity banner, so the
     // two read as a hierarchy rather than as two alarms competing on one screen.
     // Contrast: `slate` on `white` is 5.24:1 and on `pearl` 4.81:1, both clearing the 4.5:1 body floor (1.4.3).
-    <p role="status" className="px-4 py-8 text-center text-body-sm text-slate">
+    <p role="status" className="px-4 py-8 text-center text-body-sm text-ink-muted">
         {message}
     </p>
 );

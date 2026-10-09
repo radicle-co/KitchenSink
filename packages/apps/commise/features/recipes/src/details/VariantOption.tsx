@@ -9,9 +9,8 @@
  * the same words.
  */
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
+import { Icon } from '@commise/ui/icon';
 import type { FC, KeyboardEvent } from 'react';
-
-import { CheckIcon } from '../wizard/icons.js';
 
 /** Props of one option. */
 export interface VariantOptionProps {
@@ -64,22 +63,22 @@ export const VariantOption: FC<VariantOptionProps> = ({
         onKeyDown={onKeyDown}
         onFocus={onFocus}
         className={
-            'flex min-h-12 cursor-pointer items-start gap-3 px-4 py-3 outline-none hover:bg-pearl focus-visible:bg-pearl ' +
-            'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-seafoam ' +
-            (active ? 'bg-pearl ring-2 ring-inset ring-seafoam' : '')
+            'flex min-h-12 cursor-pointer items-start gap-3 px-4 py-3 outline-none hover:bg-ink/6 focus-visible:bg-ink/6 ' +
+            'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ' +
+            (active ? 'bg-surface-muted ring-2 ring-inset ring-focus-ring' : '')
         }
     >
         {hasCheckColumn && (
-            <span aria-hidden="true" className="flex w-4 shrink-0 pt-1 text-ocean-dark">
-                {isCurrent && <CheckIcon />}
+            <span aria-hidden="true" className="flex w-4 shrink-0 pt-1 text-action-text">
+                {isCurrent && <Icon name="check" size={16} />}
             </span>
         )}
         <span className="flex min-w-0 flex-[1_1_12rem] flex-wrap items-baseline justify-between gap-x-3">
             <span className="flex min-w-0 flex-[1_1_12rem] flex-col">
                 <VariantPartsLine parts={parts} tone="primary" />
-                {isCurrent && <span className="text-caption font-semibold text-ocean-dark">{currentTag}</span>}
+                {isCurrent && <span className="text-caption font-semibold text-action-text">{currentTag}</span>}
             </span>
-            <span className="ms-auto shrink-0 text-body-sm tabular-nums text-slate">{calories}</span>
+            <span className="ms-auto shrink-0 text-body-sm tabular-nums text-ink-muted">{calories}</span>
         </span>
     </div>
 );

@@ -111,7 +111,7 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
                 <p
                     role="status"
                     aria-label={collections.detail.loadingLabel}
-                    className="px-4 py-8 text-body-md text-slate"
+                    className="px-4 py-8 text-body-md text-ink-muted"
                 >
                     {collections.detail.loadingLabel}
                 </p>

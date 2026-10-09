@@ -17,6 +17,7 @@ import { conflictSideParts, type ConflictDiff } from '../conflictDiff.js';
 import { makeVersionConflictSide } from '../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeConflictView } from '../RecipeConflictView.native.js';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { RecipeConflictViewProps } from '../conflictView.js';
 import type { RecipeMergeSelections } from '../merge.js';
 
@@ -1172,5 +1173,21 @@ describe('RecipeConflictView (native) — N1: each name is said once, by its hea
 
         expect(screen.getAllByRole('heading', { name: 'Merge changes field by field' })).toHaveLength(1);
         expect(screen.queryAllByLabelText('Merge changes field by field')).toEqual([]);
+    });
+});
+
+describe('RecipeConflictView (native) — the design-system Button (UI overhaul slice 2)', () => {
+    it('saves a merge through a primary check Button, and leaves it through a secondary chevronLeft one', () => {
+        freezeClock();
+        renderConflict();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
+
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Save merged version' }), 'primary', 'check');
+        expectNativeDesignSystemButton(
+            screen.getByRole('button', { name: 'Back to options' }),
+            'secondary',
+            'chevron-left',
+        );
     });
 });

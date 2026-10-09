@@ -50,17 +50,17 @@ appId: io.commise.mobile
 - tapOn: '${E2E_RECIPE_LAMB}'
 # Owner-only actions confirm we are the owner — the visibility control renders only for the owner, so without
 # this the assertions below could vacuously pass on a non-owned detail. The owner block is in the detail's
-# TITLE BAND (it used to be at the foot); the visibility control sits behind the "More" overflow there.
+# TITLE BAND (it used to be at the foot); the visibility control sits behind the ⋯ "More actions for {title}" overflow there.
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: DOWN
       timeout: 20000
-# The visibility toggle is a secondary owner action, behind the "More" overflow menu (C4 wireframe parity).
+# The visibility toggle is a secondary owner action, behind the ⋯ overflow menu (C4 wireframe parity).
 - scrollUntilVisible:
-      element: 'More'
+      element: 'More actions for .*'
       direction: DOWN
       timeout: 20000
-- tapOn: 'More'
+- tapOn: 'More actions for .*'
 # Scroll to the "Public" radio (a VISIBLE label) rather than the toggle's group label "Recipe visibility",
 # which is only an accessibility label on the radiogroup container and so isn't a matchable scroll target.
 - scrollUntilVisible:

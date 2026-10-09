@@ -13,6 +13,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import { useFrameCollapsed } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
@@ -55,14 +56,9 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
                 <Text>{narrowed ? list.noMatchTitle : list.emptyTitle}</Text>
                 <Text>{narrowed ? list.noMatchBody : list.emptyBody}</Text>
                 {!narrowed && (
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={list.emptyCreateCta}
-                        onPress={onCreateRecipe}
-                        style={styles.createButton}
-                    >
-                        <Text style={styles.createLabel}>{list.emptyCreateCta}</Text>
-                    </Pressable>
+                    <Button icon="plus" onPress={onCreateRecipe}>
+                        {list.emptyCreateCta}
+                    </Button>
                 )}
             </View>
         );
@@ -162,15 +158,6 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
 const CardSeparator: FC = () => <View style={styles.cardSeparator} />;
 
 const styles = StyleSheet.create({
-    createButton: {
-        backgroundColor: palette.seafoam,
-        borderRadius: nativeTokens.radius.full,
-        paddingVertical: 10,
-        paddingHorizontal: 18,
-        minHeight: 44,
-        justifyContent: 'center',
-    },
-    createLabel: { color: palette.white, fontWeight: '600', fontSize: nativeTokens.fontSize.bodySm },
     emptyBody: { gap: nativeTokens.spacing[3], alignItems: 'flex-start' },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
     chip: {

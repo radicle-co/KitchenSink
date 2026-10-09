@@ -12,7 +12,7 @@
  * `footer` it is handed, because showing it is Recipes' decision (`RecipesScreen.native.test.tsx`).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { Text, View } from 'react-native';
 
@@ -30,7 +30,24 @@ vi.mock('../../src/hooks/useDeleteAccount.js', () => ({
 }));
 vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: () => undefined }), useUser: () => ({ user: null }) }));
 
-vi.mock('../../src/screens/HomeScreen.js', () => ({ HomeScreen: () => <Text>Home screen</Text> }));
+vi.mock('../../src/screens/HomeScreen.js', async () => {
+    const { useSnackbar } = await import('@commise/ui/snackbar');
+
+    return {
+        HomeScreen: () => {
+            const { show } = useSnackbar();
+
+            return (
+                <>
+                    <Text>Home screen</Text>
+                    <Text accessibilityRole="button" onPress={() => show({ message: 'Removed Pasta' })}>
+                        Remove
+                    </Text>
+                </>
+            );
+        },
+    };
+});
 vi.mock('../../src/screens/RecipesScreen.js', () => ({
     RecipesScreen: ({ footer }: { readonly footer?: ReactElement }) => (
         <View>
@@ -160,5 +177,34 @@ describe('AppRoot — a back press nothing else took (M1)', () => {
         fireEvent.click(screen.getByRole('tab', { name: 'Recipes' }));
 
         expect(back.subscriberCount()).toBe(1);
+    });
+});
+
+/**
+ * UI-overhaul slice 2: the native root hosts the app's ONE snackbar (`@commise/ui/snackbar`) and tells it how much of the
+ * foot the tab bar covers, so the snackbar sits 16 pt above the bar.
+ */
+describe('AppRoot — the snackbar host', () => {
+    /** Report a laid-out size to a view, the way react-native-web's ResizeObserver does. */
+    function layOut(element: Element, height: number): void {
+        const handler = (element as Element & { __reactLayoutHandler?: (event: unknown) => void }).__reactLayoutHandler;
+
+        if (handler === undefined) {
+            throw new Error('the view has no layout handler');
+        }
+
+        act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height } } }));
+    }
+
+    it('lets a screen show a snackbar, 16pt above the measured tab bar', () => {
+        renderRoot();
+
+        layOut(tabBar()?.parentElement as Element, 72);
+        fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+
+        const status = screen.getByRole('status');
+
+        expect(status.textContent).toBe('Removed Pasta');
+        expect(getComputedStyle(status).bottom).toBe('88px');
     });
 });

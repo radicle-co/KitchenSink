@@ -20,7 +20,6 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
-import { CloneIcon } from '../actions/icons.js';
 import { RecipeCard } from '../card/RecipeCard.js';
 import { fillTemplate } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
@@ -60,12 +59,12 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
             </button>
             <div className="flex flex-col gap-2 px-4 pb-4 pt-2">
                 {authorHandle !== undefined && (
-                    <p className="text-body-sm text-slate">
+                    <p className="text-body-sm text-ink-muted">
                         {fillTemplate(discovery.byAuthor, { handle: authorHandle })}
                     </p>
                 )}
                 {sourceAttribution !== undefined && (
-                    <p className="text-body-sm text-slate">
+                    <p className="text-body-sm text-ink-muted">
                         {fillTemplate(discovery.attribution, { source: sourceAttribution })}
                     </p>
                 )}
@@ -79,7 +78,7 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
                 <div className="mt-1 flex flex-col items-start">
                     <Button
                         variant="secondary"
-                        icon={<CloneIcon />}
+                        icon="copyPlus"
                         accessibilityLabel={cloneLabel}
                         busy={isCloning}
                         onPress={() => onClone(recipe.id)}

@@ -42,7 +42,6 @@ import { selectDonatableRecipes } from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 
-import { TrashIcon } from '@/components/auth/icons';
 import { authMessages } from '@/components/auth/messages';
 import { errorText } from '@/components/auth/authChrome';
 import { LogoutButton } from '@/components/auth/LogoutButton';
@@ -154,7 +153,7 @@ export function AccountEraseForm() {
 
     return (
         <>
-            <Button variant="destructive" icon={<TrashIcon />} onPress={() => setOpen(true)}>
+            <Button variant="destructive" icon="trash" onPress={() => setOpen(true)}>
                 {erase.trigger}
             </Button>
             {open && <AccountEraseFlow onClose={() => setOpen(false)} onExitFailed={handleExitFailed} />}

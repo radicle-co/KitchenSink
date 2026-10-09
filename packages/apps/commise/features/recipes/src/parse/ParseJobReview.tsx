@@ -20,7 +20,6 @@ import { useState, type FC, type JSX } from 'react';
 
 import type { ParseJobLineView } from '@kitchensink/recipe-service-client';
 
-import { RefreshIcon } from '../wizard/icons.js';
 import { fillTemplate } from '../list/model.js';
 import { recipeParseMessages, type RecipeParseMessages } from './messages.js';
 import { toParseLineModel, toParseSubmissionModel, type ParseJobProgress, type ParseLineTone } from './model.js';
@@ -28,10 +27,10 @@ import type { ParseJobReviewProps, ParseLineRowProps } from './props.js';
 
 /** Tone → the text colour that carries it. Exhaustive, so a new tone cannot render as default body text. */
 const TONE_CLASS: Readonly<Record<ParseLineTone, string>> = {
-    progress: 'text-slate',
-    success: 'text-ocean-dark',
-    warning: 'text-warning-dark',
-    error: 'text-error-dark',
+    progress: 'text-ink-muted',
+    success: 'text-action-text',
+    warning: 'text-attention',
+    error: 'text-danger-text',
 };
 
 /** The settled-of-total readout, in its own live region so a screen reader hears it change. */
@@ -39,7 +38,7 @@ const ParseProgress: FC<{ readonly progress: ParseJobProgress; readonly messages
     progress,
     messages,
 }): JSX.Element => (
-    <p role="status" aria-label={messages.progressLabel} className="text-body-sm text-slate">
+    <p role="status" aria-label={messages.progressLabel} className="text-body-sm text-ink-muted">
         {fillTemplate(messages.progressCount, { settled: progress.settled, total: progress.total })}
     </p>
 );
@@ -77,20 +76,20 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }): 
     }
 
     return (
-        <li aria-label={model.label} className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
+        <li aria-label={model.label} className="flex flex-col gap-2 rounded-lg border border-line-divider bg-paper p-3">
             <div className="flex items-baseline justify-between gap-2">
-                <span className="text-body-sm font-medium text-charcoal">{model.sourceLine}</span>
+                <span className="text-body-sm font-medium text-ink">{model.sourceLine}</span>
                 <span className={`shrink-0 text-caption ${TONE_CLASS[model.tone]}`}>{model.statusLabel}</span>
             </div>
 
-            {model.measure !== undefined && <p className="text-body-sm text-charcoal">{model.measure}</p>}
+            {model.measure !== undefined && <p className="text-body-sm text-ink">{model.measure}</p>}
 
             {model.foods !== undefined && model.foods.length > 0 && (
                 <ul aria-label={messages.lineFoodsLabel} className="flex flex-wrap gap-2">
                     {model.foods.map((food, index) => (
-                        <li key={`${food.name}-${String(index)}`} className="text-body-sm text-ocean-dark">
+                        <li key={`${food.name}-${String(index)}`} className="text-body-sm text-action-text">
                             {food.name}
-                            {food.prep !== null && <span className="text-slate">{` · ${food.prep}`}</span>}
+                            {food.prep !== null && <span className="text-ink-muted">{` · ${food.prep}`}</span>}
                         </li>
                     ))}
                 </ul>
@@ -98,13 +97,13 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }): 
 
             {/* A line that named no foods is a FACT (a heading is a legitimate line), not a failure. */}
             {model.emptyFoodsNotice !== undefined && (
-                <p className="text-body-sm text-slate">{model.emptyFoodsNotice}</p>
+                <p className="text-body-sm text-ink-muted">{model.emptyFoodsNotice}</p>
             )}
 
             {model.reviewReasons.length > 0 && (
                 <ul aria-label={messages.reasonsLabel} className="flex flex-wrap gap-2">
                     {model.reviewReasons.map((reason) => (
-                        <li key={reason} className="rounded-full bg-warning/15 px-3 py-1 text-caption text-charcoal">
+                        <li key={reason} className="rounded-full bg-attention-tint px-3 py-1 text-caption text-ink">
                             {reason}
                         </li>
                     ))}
@@ -118,23 +117,23 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }): 
                 <button
                     type="button"
                     {...busyControlProps({ busy, onClick: () => setDraft(model.sourceLine) })}
-                    className={`self-start rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-ocean-dark ${BUSY_CONTROL_CLASS}`}
+                    className={`self-start rounded-full bg-action/10 px-3 py-1 text-caption font-medium text-action-text ${BUSY_CONTROL_CLASS}`}
                 >
                     {model.editLabel}
                 </button>
             ) : (
                 <div className="flex flex-col gap-2">
                     <label className="flex flex-col gap-1">
-                        <span className="text-caption text-slate">{messages.lineEditLabel}</span>
+                        <span className="text-caption text-ink-muted">{messages.lineEditLabel}</span>
                         <input
                             type="text"
                             value={draft}
                             onChange={(event) => setDraft(event.target.value)}
-                            className="rounded-md border border-border bg-card px-3 py-2 text-body-sm text-charcoal"
+                            className="rounded-md border border-line-divider bg-paper px-3 py-2 text-body-sm text-ink"
                         />
                     </label>
                     {draftAdmission?.refusals.map((refusal) => (
-                        <p key={refusal} role="alert" className="text-caption text-error-dark">
+                        <p key={refusal} role="alert" className="text-caption text-danger-text">
                             {refusal}
                         </p>
                     ))}
@@ -163,13 +162,13 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }): 
                                     edit.submit(line.lineIndex, draft);
                                 },
                             })}
-                            // ⛔ `text-white` (4.67:1), NOT `text-ocean-dark` (1.33:1 — an SC 1.4.3 failure).
+                            // ⛔ `text-on-action` (4.67:1), NOT `text-action-text` (1.33:1 — an SC 1.4.3 failure).
                             // `colors.ts` already specifies white as the seafoam fill's label.
                             // ⚠️ NOT converted to `Button` like the standalone actions in this file: this sits
                             // inside a dense per-line edit row, where the primitive's 44px floor and padding
                             // would reflow every line. The floor is applied here in the house idiom instead —
                             // `min-h-11 md:min-h-0`, touch-sized where a finger is used and compact otherwise.
-                            className={`min-h-11 rounded-full bg-seafoam px-3 py-1 text-caption font-semibold text-white md:min-h-0 ${BUSY_CONTROL_CLASS}`}
+                            className={`min-h-11 rounded-full bg-action px-3 py-1 text-caption font-semibold text-on-action md:min-h-0 ${BUSY_CONTROL_CLASS}`}
                         >
                             {messages.lineEditSubmit}
                         </button>
@@ -179,7 +178,7 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }): 
                                 setPendingText(undefined);
                                 setDraft(undefined);
                             }}
-                            className="rounded-full bg-card px-3 py-1 text-caption font-medium text-slate"
+                            className="rounded-full bg-paper px-3 py-1 text-caption font-medium text-ink-muted"
                         >
                             {messages.lineEditCancel}
                         </button>
@@ -223,7 +222,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
         <button
             type="button"
             onClick={onBack}
-            className="self-start rounded-full bg-card px-4 py-2 text-body-sm font-medium text-slate"
+            className="self-start rounded-full bg-paper px-4 py-2 text-body-sm font-medium text-ink-muted"
         >
             {messages.backAction}
         </button>
@@ -233,18 +232,18 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
         <button
             type="button"
             onClick={onStartOver}
-            className="self-start rounded-full bg-card px-4 py-2 text-body-sm font-medium text-slate"
+            className="self-start rounded-full bg-paper px-4 py-2 text-body-sm font-medium text-ink-muted"
         >
             {messages.startOverAction}
         </button>
     );
 
-    // ⛔ THE `Button` PRIMITIVE. This was `bg-seafoam` with `text-ocean-dark` — 1.33:1, against SC 1.4.3's
+    // ⛔ THE `Button` PRIMITIVE. This was `bg-action` with `text-action-text` — 1.33:1, against SC 1.4.3's
     // 4.5:1 — and 39px tall against the house 44px touch floor. `buttonSurfaceClass` carries both, because
     // both were decided once in the design system rather than per call site.
     const retryControl = (
         <div className="self-start">
-            <Button icon={<RefreshIcon />} busy={retry.busy} onPress={retry.run}>
+            <Button icon="refreshCw" busy={retry.busy} onPress={retry.run}>
                 {messages.retryAction}
             </Button>
         </div>
@@ -253,12 +252,12 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
     const notices = (
         <>
             {retry.notice !== undefined && (
-                <p role="alert" className="text-body-sm text-error-dark">
+                <p role="alert" className="text-body-sm text-danger-text">
                     {retry.notice}
                 </p>
             )}
             {edit.notice !== undefined && (
-                <p role="alert" className="text-body-sm text-error-dark">
+                <p role="alert" className="text-body-sm text-danger-text">
                     {edit.notice}
                 </p>
             )}
@@ -269,7 +268,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
         case 'loading':
             return (
                 <section aria-label={messages.reviewHeading} className="flex flex-col gap-3">
-                    <p role="status" className="text-body-sm text-slate">
+                    <p role="status" className="text-body-sm text-ink-muted">
                         {messages.loading}
                     </p>
                     {back}
@@ -279,7 +278,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
         case 'missing':
             return (
                 <section aria-label={messages.reviewHeading} className="flex flex-col gap-3">
-                    <p role="alert" className="text-body-sm text-error-dark">
+                    <p role="alert" className="text-body-sm text-danger-text">
                         {messages.missing}
                     </p>
                     {startOver}
@@ -290,7 +289,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
         case 'failed':
             return (
                 <section aria-label={messages.reviewHeading} className="flex flex-col gap-3">
-                    <p role="alert" className="text-body-sm text-error-dark">
+                    <p role="alert" className="text-body-sm text-danger-text">
                         {messages.failed}
                     </p>
                     {startOver}
@@ -303,7 +302,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
         case 'expired':
             return (
                 <section aria-label={messages.reviewHeading} className="flex flex-col gap-3">
-                    <p role="alert" className="text-body-sm text-error-dark">
+                    <p role="alert" className="text-body-sm text-danger-text">
                         {messages.expired}
                     </p>
                     {startOver}
@@ -316,9 +315,9 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
         case 'settling':
             return (
                 <section aria-label={messages.reviewHeading} className="flex flex-col gap-3">
-                    <h1 className="text-heading-md font-semibold text-charcoal">{messages.reviewHeading}</h1>
+                    <h1 className="text-heading-md font-semibold text-ink">{messages.reviewHeading}</h1>
                     <ParseProgress progress={state.progress} messages={messages} />
-                    <p className="text-body-sm text-slate">
+                    <p className="text-body-sm text-ink-muted">
                         {state.kind === 'running'
                             ? messages.running
                             : state.kind === 'stalled'
@@ -327,7 +326,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
                     </p>
                     {notices}
                     {retry.busy && (
-                        <p role="status" className="text-body-sm text-slate">
+                        <p role="status" className="text-body-sm text-ink-muted">
                             {messages.retrying}
                         </p>
                     )}
@@ -347,9 +346,9 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
         case 'ready':
             return (
                 <section aria-label={messages.reviewHeading} className="flex flex-col gap-3">
-                    <h1 className="text-heading-md font-semibold text-charcoal">{messages.reviewHeading}</h1>
+                    <h1 className="text-heading-md font-semibold text-ink">{messages.reviewHeading}</h1>
                     <ParseProgress progress={state.progress} messages={messages} />
-                    <p className="text-body-sm text-slate">{messages.ready}</p>
+                    <p className="text-body-sm text-ink-muted">{messages.ready}</p>
                     {notices}
                     <ParseLineList lines={state.job.lines} edit={edit} renderCorrection={renderCorrection} />
                     <div className="flex gap-2">

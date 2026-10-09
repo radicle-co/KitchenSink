@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @module @commise/ui/action-menu — the web `ActionMenu`: a `⋮` menu button over Radix DropdownMenu. Presentational:
+ * @module @commise/ui/action-menu — the web `ActionMenu`: a `⋯` menu button over Radix DropdownMenu. Presentational:
  * the caller supplies every item and what it does.
  *
  * Radix owns the APG Menu Button model §3a requires: Enter / Space / Down open on the first item and Up on the last;
@@ -16,6 +16,9 @@
  *   ⚠️ The native leaf does not visit the trigger when an item was chosen (`rowEditorBlueprint.md` decision 5): there
  *   the cursor would announce the trigger and then the next sheet back to back. On web the dialog's focus return
  *   (`useReturnFocusOnClose`) is the reason the trigger is visited.
+ * - The destructive action is drawn last, after a separator, in the danger label (§1.11).
+ * - The menu keeps clear of the page's chrome: it reads the page's `PopupInsetsContext` reader as it opens and hands
+ *   Radix the bar's extent as collision padding, so with no room below it flips above (spec §1.11, finding D2).
  * - ⛔ No transition classes, so `prefers-reduced-motion` has nothing to suppress.
  *
  * One ref, for what has no declarative form: the trigger, for `.focus()` on a host's focus request and before a held
@@ -25,27 +28,47 @@
  * @pattern Command — the chosen item is held and executed after the menu's dismissal
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { useEffect, useEffectEvent, useRef, useState, type FC } from 'react';
+import { useContext, useEffect, useEffectEvent, useRef, useState, type FC } from 'react';
 
 import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
-import type { ActionMenuItem, ActionMenuProps } from './props.js';
+import { Icon } from '../icon/Icon.js';
+import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
+import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
 
-const ITEM_TONE: Readonly<Record<NonNullable<ActionMenuItem['tone']>, string>> = {
-    default: 'text-charcoal',
-    destructive: 'text-error-dark',
-};
+/** The space the menu keeps from the viewport's edge, and from the page's chrome. */
+const EDGE = 8;
+
+/** An item: a 44 px row, highlighted in `pearl`. */
+const ITEM =
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body outline-none data-[highlighted]:bg-ink/6';
+
+/** One menu item: its glyph and label, in the tone of its place in the menu. */
+const MenuItem: FC<{
+    readonly item: ActionMenuItem;
+    readonly tone: 'text-ink' | 'text-danger-text';
+    readonly onChoose: (id: string) => void;
+}> = ({ item, tone, onChoose }) => (
+    <DropdownMenu.Item onSelect={() => onChoose(item.id)} className={`${ITEM} ${tone}`}>
+        {item.icon === undefined ? null : <Icon name={item.icon} size={20} />}
+        {item.label}
+    </DropdownMenu.Item>
+);
 
 /** The row-actions menu. */
 export const ActionMenu: FC<ActionMenuProps> = ({
     triggerLabel,
     items,
+    destructiveItem,
     focusRequested = false,
     onFocusRequestHandled,
     unavailable = false,
 }) => {
     const [open, setOpen] = useState(false);
-    // The items the open menu shows: the list as it was when the menu opened.
-    const [shown, setShown] = useState(items);
+    // What the open menu shows: the actions as they were when the menu opened.
+    const [shown, setShown] = useState<ActionMenuSnapshot>({ items, destructiveItem });
+    // The page's chrome as it was when the menu opened.
+    const readInsets = useContext(PopupInsetsContext);
+    const [insets, setInsets] = useState<PopupInsets>({ top: 0, bottom: 0 });
     // The chosen item's key, waiting for the menu to go.
     const [heldKey, setHeldKey] = useState<string | undefined>(undefined);
     const triggerNode = useRef<HTMLButtonElement>(null);
@@ -67,7 +90,8 @@ export const ActionMenu: FC<ActionMenuProps> = ({
         }
 
         if (next) {
-            setShown(items);
+            setShown({ items, destructiveItem });
+            setInsets(readInsets());
         }
 
         setOpen(next);
@@ -79,19 +103,15 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                 ref={triggerNode}
                 aria-label={triggerLabel}
                 aria-disabled={unavailable || undefined}
-                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-charcoal transition hover:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam ${BUSY_CONTROL_CLASS}`}
+                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${BUSY_CONTROL_CLASS}`}
             >
-                <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                    <circle cx="12" cy="5" r="2" />
-                    <circle cx="12" cy="12" r="2" />
-                    <circle cx="12" cy="19" r="2" />
-                </svg>
+                <Icon name="ellipsis" size={24} />
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
                 <DropdownMenu.Content
                     align="end"
                     sideOffset={4}
-                    collisionPadding={8}
+                    collisionPadding={{ top: insets.top + EDGE, bottom: insets.bottom + EDGE, left: EDGE, right: EDGE }}
                     onCloseAutoFocus={(event) => {
                         if (heldKey === undefined) {
                             return;
@@ -100,19 +120,19 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                         event.preventDefault();
                         triggerNode.current?.focus();
                         setHeldKey(undefined);
-                        items.find((item) => item.key === heldKey)?.onSelect();
+                        actionNamed(items, destructiveItem, heldKey)?.onSelect();
                     }}
-                    className="z-50 min-w-[12rem] rounded-2xl bg-card p-1 shadow-lg"
+                    className="z-50 min-w-[12rem] rounded-lg bg-paper-overlay p-1 shadow-lg"
                 >
-                    {shown.map((item) => (
-                        <DropdownMenu.Item
-                            key={item.key}
-                            onSelect={() => setHeldKey(item.key)}
-                            className={`flex min-h-11 cursor-pointer items-center rounded-xl px-3 text-body-sm outline-none data-[highlighted]:bg-pearl ${ITEM_TONE[item.tone ?? 'default']}`}
-                        >
-                            {item.label}
-                        </DropdownMenu.Item>
+                    {shown.items.map((item) => (
+                        <MenuItem key={item.id} item={item} tone="text-ink" onChoose={setHeldKey} />
                     ))}
+                    {shown.destructiveItem === undefined ? null : (
+                        <>
+                            <DropdownMenu.Separator className="my-1 h-px bg-line-divider" />
+                            <MenuItem item={shown.destructiveItem} tone="text-danger-text" onChoose={setHeldKey} />
+                        </>
+                    )}
                 </DropdownMenu.Content>
             </DropdownMenu.Portal>
         </DropdownMenu.Root>

@@ -15,6 +15,7 @@ import { AccessibilityInfo } from 'react-native';
 
 import { computedContrast, renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { palette, tint } from '@commise/ui';
+import { role } from '@commise/ui/colors';
 import { NotFoundError, recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
@@ -30,6 +31,13 @@ import { RecipeDetailScreen } from '../../src/screens/RecipeDetailScreen.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
+
+/** `#RRGGBB` → jsdom's `rgb(r, g, b)`. */
+const cssRgb = (hex: string): string => {
+    const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+
+    return `rgb(${r}, ${g}, ${b})`;
+};
 
 // The READ goes through the real hooks over a network-guarded fake client (the recipe is SEEDED into the query cache,
 // so a settled suspense read renders synchronously); only the mutations are doubles.
@@ -326,7 +334,7 @@ describe('RecipeDetailScreen — ready state', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         expect(screen.queryByRole('button', { name: 'Edit recipe' })).toBeNull();
-        expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^More actions for /u })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Delete recipe' })).toBeNull();
     });
 
@@ -369,7 +377,7 @@ describe('RecipeDetailScreen — owner actions', () => {
 
         render(<RecipeDetailScreen recipeId="rec_1" onEdit={onEdit} onViewVersions={onViewVersions} />);
         fireEvent.click(screen.getByRole('button', { name: 'Edit recipe' }));
-        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('button', { name: 'Version history' }));
 
         expect(onEdit).toHaveBeenCalledWith('rec_1');
@@ -396,7 +404,7 @@ describe('RecipeDetailScreen — owner actions', () => {
 
         expect(edit.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-        const more = screen.getByRole('button', { name: 'More' });
+        const more = screen.getByRole('button', { name: /^More actions for /u });
         expect(more.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
@@ -416,9 +424,10 @@ describe('RecipeDetailScreen — owner actions', () => {
         const onDeleted = vi.fn();
 
         render(<RecipeDetailScreen recipeId="rec_1" onDeleted={onDeleted} />);
-        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('button', { name: 'Delete recipe' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+        // The dialog's confirm repeats the trigger's verb (spec §6.5); it is the one inside the alert.
+        fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Delete recipe' }));
 
         expect(mutate).toHaveBeenCalledWith('rec_1', expect.objectContaining({ onSuccess: expect.any(Function) }));
         expect(onDeleted).toHaveBeenCalledTimes(1);
@@ -431,7 +440,7 @@ describe('RecipeDetailScreen — owner actions', () => {
         );
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('radio', { name: 'Public' }));
 
         expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'public' });
@@ -443,10 +452,10 @@ describe('RecipeDetailScreen — owner actions', () => {
         );
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('button', { name: 'Delete recipe' }));
 
-        expect(screen.getByText('We couldn’t delete this recipe. Please try again.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t delete this recipe. Try again.')).toBeTruthy();
     });
 
     it('surfaces a failed visibility change on the toggle (B17: no silent snap-back)', () => {
@@ -455,7 +464,7 @@ describe('RecipeDetailScreen — owner actions', () => {
         );
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
         expect(screen.getByText('We couldn’t change who can see this recipe. Please try again.')).toBeTruthy();
     });
@@ -546,7 +555,7 @@ describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', 
      */
     it('⛔ renders the delete confirmation as an overlay, not a block at the foot of the scroll', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('button', { name: mobileMessages.en.recipes.deleteAction }));
 
         const scrimColour = tint(palette.charcoal, 0.4).replace(/\s/gu, '');
@@ -574,31 +583,37 @@ describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', 
         // or English-only control.
         const t = mobileMessages.en.recipes;
         expect(screen.getByRole('button', { name: t.editAction })).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         expect(screen.getByRole('button', { name: t.versionsAction })).toBeTruthy();
         expect(screen.getByRole('button', { name: t.deleteAction })).toBeTruthy();
     });
 
-    it('paints the primary Edit action with the brand CTA gradient (the DS primary tier)', () => {
+    // REWRITTEN in UI-overhaul slice 2: the DS primary tier is ONE flat `action` fill (the gradient was removed).
+    it('paints the primary Edit action with the DS primary tier’s flat action fill', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        // The DS native `Button` primary surface IS the brand `LinearGradient` — a hand-rolled solid
-        // `Pressable` has no gradient node, so this fails against the pre-U8 markup.
         const edit = screen.getByRole('button', { name: mobileMessages.en.recipes.editAction });
-        expect(edit.querySelector('[data-commise-stub="linear-gradient"]')).not.toBeNull();
+        const painted = [edit, ...Array.from(edit.querySelectorAll<HTMLElement>('*'))].map(
+            (element) => window.getComputedStyle(element).backgroundColor,
+        );
+
+        expect(painted).toContain(cssRgb(role.action));
+        expect(edit.querySelector('[data-commise-stub="linear-gradient"]')).toBeNull();
     });
 
-    it('paints the destructive Delete action as the DS destructive tier (error-toned, not a bare label)', () => {
+    it('paints the destructive Delete action as the DS destructive tier (a danger label, not a bare one)', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
         const pill = pillOf(mobileMessages.en.recipes.deleteAction);
         const style = window.getComputedStyle(pill);
-        // The `palette.error` border on a real white surface — the destructive tier's flat pill. Read from the
-        // TOKEN: the literal `rgb(225, 112, 85)` froze this at the pre-#113 error and made a palette move look
-        // like a regression in the button tier.
-        expect(style.borderTopColor).toBe(rgb(palette.error));
-        expect(style.backgroundColor).toBe('rgb(255, 255, 255)');
+        // ⚠️ REWRITTEN in UI-overhaul slice 2: the inline destructive tier is a `dangerText` label on the neutral
+        // surface (`paper`, a `lineControl` edge). Read from the TOKENS, so a palette move is not a regression here.
+        expect(style.borderTopColor).toBe(rgb(role.lineControl));
+        expect(style.backgroundColor).toBe(rgb(role.paper));
+        expect(window.getComputedStyle(screen.getByText(mobileMessages.en.recipes.deleteAction)).color).toBe(
+            rgb(role.dangerText),
+        );
         // Not the gradient tier.
         expect(
             screen
@@ -609,7 +624,7 @@ describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', 
 
     it('gives every owner action a 44pt touch target', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
         const t = mobileMessages.en.recipes;
 
@@ -625,7 +640,7 @@ describe('RecipeDetailScreen — visibility gating', () => {
         useUserProfileMock.mockReturnValue(profile('usr_1', 'free'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
         expect(screen.getByText('Upgrade to premium to make a recipe private.')).toBeTruthy();
     });

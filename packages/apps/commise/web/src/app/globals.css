@@ -38,11 +38,11 @@
            in a real browser (`tests/e2e/visualRegression.spec.ts`) — a token that exists is not a token that
            renders. Deliberately NOT `background-attachment: fixed`: the wireframes let the ramp span the whole
            body box, so a long page stretches it exactly as they do. */
-        background-color: var(--color-background);
+        background-color: var(--color-canvas);
         background-image: var(--background-image-hero);
         /* Guarantees the ramp fills the viewport even when the document is shorter than one screen. */
         min-height: 100vh;
-        color: var(--color-foreground);
+        color: var(--color-ink);
     }
 }
 

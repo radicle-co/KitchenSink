@@ -111,7 +111,11 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
         <ClientQueryBoundary
             prefetchedKeys={[detail.queryKey]}
             loading={
-                <p role="status" aria-label={recipes.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
+                <p
+                    role="status"
+                    aria-label={recipes.detail.loadingLabel}
+                    className="px-4 py-8 text-body-md text-ink-muted"
+                >
                     {recipes.detail.loadingLabel}
                 </p>
             }
@@ -236,7 +240,23 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
             <Link href={`/${locale}/recipes/${id}/edit` as Route} className={buttonSurfaceClass('primary')}>
                 {recipes.actions.editAction}
             </Link>
-            <MoreActionsMenu>
+            <MoreActionsMenu
+                recipeTitle={recipe.title}
+                // The DS destructive surface on a plain `<button>` rather than the `Button` component, because this
+                // trigger MUST keep `aria-haspopup="dialog"` (it announces that activating it opens the confirmation)
+                // and the DS Button's contract carries no popup hint. It has no in-flight state of its own — the
+                // delete's busy spinner belongs to the dialog's confirm control, which IS a real DS `Button`.
+                destructive={
+                    <button
+                        type="button"
+                        aria-haspopup="dialog"
+                        onClick={() => setDeleteDialogOpen(true)}
+                        className={buttonSurfaceClass('destructive')}
+                    >
+                        {recipes.actions.deleteAction}
+                    </button>
+                }
+            >
                 <Link href={`/${locale}/recipes/${id}/versions` as Route} className={buttonSurfaceClass('secondary')}>
                     {recipes.actions.versionHistory}
                 </Link>
@@ -250,19 +270,6 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                     error={setVisibility.error !== null}
                     onChange={(visibility) => setVisibility.mutate({ id, visibility })}
                 />
-                {/* The DS destructive surface on a plain `<button>` rather than the `Button`
-                    component, because this trigger MUST keep `aria-haspopup="dialog"` (it announces
-                    that activating it opens the confirmation) and the DS Button's contract carries no
-                    popup hint. It has no in-flight state of its own — the delete's busy spinner
-                    belongs to the dialog's confirm control, which IS a real DS `Button`. */}
-                <button
-                    type="button"
-                    aria-haspopup="dialog"
-                    onClick={() => setDeleteDialogOpen(true)}
-                    className={buttonSurfaceClass('destructive')}
-                >
-                    {recipes.actions.deleteAction}
-                </button>
             </MoreActionsMenu>
         </>
     ) : undefined;

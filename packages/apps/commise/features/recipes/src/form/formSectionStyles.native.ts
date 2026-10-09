@@ -8,6 +8,8 @@
  * The web counterpart is `formSectionStyles.ts` (Tailwind class strings).
  */
 import { palette } from '@commise/ui';
+import { role } from '@commise/ui/colors';
+import { FIELD_EDGE, FIELD_PADDING, fieldGeometry } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
 import { StyleSheet } from 'react-native';
 
@@ -24,20 +26,20 @@ export const styles = StyleSheet.create({
     },
     sectionHeading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     field: { gap: 4 },
-    fieldLabel: { fontSize: 13, fontWeight: '500', color: palette.slate },
-    input: {
-        backgroundColor: palette.white,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: border,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        fontSize: 16,
-        color: palette.charcoal,
+    // The design-system field geometry (`@commise/ui/input`, spec §1.11; finding N1), so a recipe field and an `Input`
+    // cannot drift apart.
+    fieldLabel: { ...nativeTokens.type.label, color: role.inkMuted },
+    // ⚠️ Light-only paint, baked into this static sheet: the recipe form is rebuilt in slice 7, which paints its fields
+    // with `fieldPaint(useTheme(), …)` at render. Counted by the colour-role ratchet until then.
+    input: { ...fieldGeometry, borderColor: role.lineControl, color: role.ink, backgroundColor: role.paper },
+    // Three body lines at rest, the `TextArea` floor, with the field's own padding and edge.
+    multiline: {
+        minHeight: 3 * (nativeTokens.type.body.lineHeight ?? 0) + 2 * FIELD_PADDING + 2 * FIELD_EDGE,
+        paddingVertical: FIELD_PADDING,
+        textAlignVertical: 'top',
     },
-    multiline: { minHeight: 88, textAlignVertical: 'top' },
     inputReadOnly: { backgroundColor: palette.pearl },
-    // §3b: a matched ingredient's name, as text on its row's first line (the web leaf's `text-body-md text-charcoal`).
+    // §3b: a matched ingredient's name, as text on its row's first line (the web leaf's `text-body-md text-ink`).
     recordName: {
         fontSize: nativeTokens.fontSize.bodyMd,
         lineHeight: nativeTokens.fontSize.bodyMd * nativeTokens.lineHeight.body,

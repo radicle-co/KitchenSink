@@ -53,7 +53,6 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { canClone, canGoPrivate, isOwner, makeViewer, type RecipeVisibility } from '@kitchensink/recipe-core';
-import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -104,11 +103,7 @@ export function RecipeDetailScreen(props: RecipeDetailScreenProps): JSX.Element 
                     <View style={styles.center}>
                         {back}
                         <Text accessibilityRole="alert">{t.detailError}</Text>
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="refresh-cw" size={16} color={palette.charcoal} />}
-                            onPress={resetErrorBoundary}
-                        >
+                        <Button variant="secondary" icon="refreshCw" onPress={resetErrorBoundary}>
                             {t.detailRetry}
                         </Button>
                     </View>
@@ -238,19 +233,18 @@ function SettledRecipeDetail({
     // press-scale, and the accessible name, so this screen does not hand-roll a parallel pill.
     const ownerHeaderActions = viewerIsOwner ? (
         <>
-            <Button
-                variant="primary"
-                icon={<Feather name="edit-2" size={16} color={palette.white} />}
-                onPress={() => onEdit?.(recipeId)}
-            >
+            <Button variant="primary" icon="pencilLine" onPress={() => onEdit?.(recipeId)}>
                 {t.editAction}
             </Button>
-            <MoreActionsMenu>
-                <Button
-                    variant="secondary"
-                    icon={<Feather name="clock" size={16} color={palette.charcoal} />}
-                    onPress={() => onViewVersions?.(recipeId)}
-                >
+            <MoreActionsMenu
+                recipeTitle={recipe.title}
+                destructive={
+                    <Button variant="destructive" icon="trash" onPress={() => setDeleteOpen(true)}>
+                        {t.deleteAction}
+                    </Button>
+                }
+            >
+                <Button variant="secondary" icon="clock" onPress={() => onViewVersions?.(recipeId)}>
                     {t.versionsAction}
                 </Button>
                 <RecipeVisibilityToggle
@@ -263,13 +257,6 @@ function SettledRecipeDetail({
                     error={setVisibility.error !== null}
                     onChange={changeVisibility}
                 />
-                <Button
-                    variant="destructive"
-                    icon={<Feather name="trash-2" size={16} color={palette['error-dark']} />}
-                    onPress={() => setDeleteOpen(true)}
-                >
-                    {t.deleteAction}
-                </Button>
             </MoreActionsMenu>
         </>
     ) : undefined;

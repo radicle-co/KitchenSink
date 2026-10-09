@@ -21,10 +21,10 @@ import type { FC } from 'react';
 import type { StandInProps, StandInTone } from './props.js';
 
 const TONE_CLASS: Readonly<Record<StandInTone, string>> = {
-    // `slate` on the white card is 5.24:1.
-    neutral: 'border-slate bg-card text-slate',
-    // ⛔ `warning` is a FILL under a charcoal label (10.83:1 over white), never a text colour.
-    caution: 'border-warning-dark bg-warning/25 text-charcoal',
+    // `inkMuted` on `paper`, in either theme (`darkTheme.md` §3.1).
+    neutral: 'border-ink-muted bg-paper text-ink-muted',
+    // ⛔ The attention tint is a FILL under an `ink` label, never a text colour.
+    caution: 'border-attention bg-attention-tint text-ink',
 };
 
 /** The stand-in chip: inline, dashed, and as wide as its words allow. */

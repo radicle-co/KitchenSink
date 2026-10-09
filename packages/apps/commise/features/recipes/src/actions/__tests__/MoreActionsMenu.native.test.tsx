@@ -1,134 +1,103 @@
 /**
- * Native component tests for the "More" overflow menu (C4 wireframe parity), rendered via react-native-web
- * under jsdom. Mirrors the web leaf's closed/open states and action reachability; outside-click/Escape
- * dismissal is a web-only affordance (there is no pointer-outside or keyboard concept to mirror on-device),
- * so this file covers what native actually offers: open via the trigger, every action reachable, and
- * toggling closed by re-pressing the trigger.
+ * The native "More actions" overflow on the recipe detail — an inline disclosure under its `⋯` trigger.
+ *
+ * ⚠️ REWRITTEN in UI-overhaul slice 2 (blueprint Part B): the trigger is the `ellipsis` glyph named "More actions for
+ * {title}", 48 dp square on Android and 44 pt on iOS, announcing its disclosure state; the destructive action is a
+ * structural slot drawn last, after a divider. The panel stays inline (there is no pointer "outside" on device), and
+ * the visibility control inside it keeps its behaviour.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { fireEvent } from '@testing-library/dom';
+import { Platform, Text } from 'react-native';
 
-import { palette, semantic } from '@commise/ui';
-import { nativeTokens } from '@commise/ui/native';
-
-import { cssColor } from '../../__tests__/cssColor.js';
-
-// Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { MoreActionsMenu } from '../MoreActionsMenu.native.js';
 
 afterEach(cleanup);
 
-describe('MoreActionsMenu (native)', () => {
-    it('renders a closed disclosure: the trigger is present, the menu and its actions are not', () => {
-        render(
-            <MoreActionsMenu>
-                <button type="button">Version history</button>
-            </MoreActionsMenu>,
-        );
+const TRIGGER = 'More actions for Lemon tart';
 
-        expect(screen.getByRole('button', { name: 'More' })).toBeTruthy();
-        expect(screen.queryByRole('menu')).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Version history' })).toBeNull();
-    });
+function onPlatform(os: 'ios' | 'android'): () => void {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
 
-    it('opens the menu on trigger press, exposing every action by role and name', async () => {
-        const user = userEvent.setup();
-        render(
-            <MoreActionsMenu>
-                <button type="button">Version history</button>
-                <button type="button">Delete recipe</button>
-            </MoreActionsMenu>,
-        );
+    return () => Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+}
 
-        await user.click(screen.getByRole('button', { name: 'More' }));
-
-        expect(screen.getByRole('menu', { name: 'More' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Version history' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Delete recipe' })).toBeTruthy();
-    });
-
-    it('invokes the child action’s own handler when pressed inside the open menu', async () => {
-        const onSelect = vi.fn();
-        const user = userEvent.setup();
-        render(
-            <MoreActionsMenu>
-                <button type="button" onClick={onSelect}>
+const renderMenu = (onDelete = vi.fn()) =>
+    render(
+        <MoreActionsMenu
+            recipeTitle="Lemon tart"
+            destructive={
+                <Text accessibilityRole="button" onPress={onDelete}>
                     Delete recipe
-                </button>
-            </MoreActionsMenu>,
-        );
+                </Text>
+            }
+        >
+            <Text accessibilityRole="button">Version history</Text>
+        </MoreActionsMenu>,
+    );
 
-        await user.click(screen.getByRole('button', { name: 'More' }));
-        await user.click(screen.getByRole('button', { name: 'Delete recipe' }));
-
-        expect(onSelect).toHaveBeenCalledTimes(1);
-    });
-
-    it('re-pressing the trigger toggles the menu closed', async () => {
-        const user = userEvent.setup();
-        render(
-            <MoreActionsMenu>
-                <button type="button">Version history</button>
-            </MoreActionsMenu>,
-        );
-
-        const trigger = screen.getByRole('button', { name: 'More' });
-        await user.click(trigger);
-        expect(screen.getByRole('menu')).toBeTruthy();
-
-        await user.click(trigger);
-
-        expect(screen.queryByRole('menu')).toBeNull();
-    });
-});
-
-/**
- * The trigger's control quality, which the DS `Button` would normally supply. This trigger deliberately is
- * NOT that component (it must announce disclosure `expanded` state, which `ButtonProps` does not model — see
- * the leaf's own comment), so the properties the DS would have guaranteed are asserted directly here. Without
- * these, "we kept the Pressable for a good reason" quietly becomes "we kept an off-palette 36pt control".
- */
-describe('MoreActionsMenu (native) — trigger control quality', () => {
-    const renderMenu = () =>
-        render(
-            <MoreActionsMenu>
-                <button type="button">Version history</button>
-            </MoreActionsMenu>,
-        );
-
-    it('announces its disclosure state, collapsed then expanded', async () => {
-        const user = userEvent.setup();
+describe('MoreActionsMenu (native)', () => {
+    it('is a collapsed ⋯ trigger named for the recipe, its actions not yet shown', () => {
         renderMenu();
-        const trigger = screen.getByRole('button', { name: 'More' });
 
-        // This is the whole reason the control is not a DS Button — so it must actually be true.
+        const trigger = screen.getByRole('button', { name: TRIGGER });
+
         expect(trigger.getAttribute('aria-expanded')).toBe('false');
-
-        await user.click(trigger);
-
-        expect(screen.getByRole('button', { name: 'More' }).getAttribute('aria-expanded')).toBe('true');
+        expect(trigger.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe('ellipsis');
+        expect(screen.queryByText('Version history')).toBeNull();
     });
 
-    it('meets the 44pt touch floor the DS Button would have guaranteed', () => {
+    it('opens inline, announcing expanded, with the destructive action last after a divider', () => {
         renderMenu();
 
-        expect(window.getComputedStyle(screen.getByRole('button', { name: 'More' })).minHeight).toBe('44px');
+        fireEvent.click(screen.getByRole('button', { name: TRIGGER }));
+
+        const panel = screen.getByRole('group', { name: 'More actions' });
+        const order = [...panel.children].map((child) => child.getAttribute('role') ?? child.textContent);
+
+        expect(screen.getByRole('button', { name: TRIGGER }).getAttribute('aria-expanded')).toBe('true');
+        expect(order).toStrictEqual(['button', 'separator', 'button']);
+        expect(within(panel).getByText('Delete recipe')).toBeTruthy();
     });
 
-    it('wears the DS secondary surface — the shared border token, not an ad-hoc mist hairline', () => {
-        renderMenu();
-        const style = window.getComputedStyle(screen.getByRole('button', { name: 'More' }));
+    it('runs the destructive action’s own handler', () => {
+        const onDelete = vi.fn();
+        renderMenu(onDelete);
 
-        expect(style.borderTopColor).toBe(semantic.border);
-        expect(style.backgroundColor).toBe(cssColor(palette.white));
+        fireEvent.click(screen.getByRole('button', { name: TRIGGER }));
+        fireEvent.click(screen.getByText('Delete recipe'));
+
+        expect(onDelete).toHaveBeenCalledOnce();
     });
 
-    it('rounds the trigger from the radius scale, not a magic 999', () => {
+    it('closes when the trigger is pressed again', () => {
         renderMenu();
 
-        expect(window.getComputedStyle(screen.getByRole('button', { name: 'More' })).borderTopLeftRadius).toBe(
-            `${nativeTokens.radius.full}px`,
-        );
+        fireEvent.click(screen.getByRole('button', { name: TRIGGER }));
+        fireEvent.click(screen.getByRole('button', { name: TRIGGER }));
+
+        expect(screen.queryByText('Version history')).toBeNull();
+    });
+
+    it('sizes the trigger at 44pt on iOS and 48dp on Android', () => {
+        for (const [os, size] of [
+            ['ios', '44px'],
+            ['android', '48px'],
+        ] as const) {
+            const restore = onPlatform(os);
+
+            try {
+                const { unmount } = renderMenu();
+                const style = getComputedStyle(screen.getByRole('button', { name: TRIGGER }));
+
+                expect(style.minWidth, os).toBe(size);
+                expect(style.minHeight, os).toBe(size);
+                unmount();
+            } finally {
+                restore();
+            }
+        }
     });
 });

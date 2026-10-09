@@ -26,7 +26,7 @@ const CommunityAggregate: FC<{ average?: number; ratingCount: number; rating: Re
     const locale = useLocale();
 
     if (average === undefined || ratingCount === 0) {
-        return <p className="text-body-sm text-slate">{rating.unrated}</p>;
+        return <p className="text-body-sm text-ink-muted">{rating.unrated}</p>;
     }
 
     const ratings = formatRatingCount(
@@ -44,7 +44,7 @@ const CommunityAggregate: FC<{ average?: number; ratingCount: number; rating: Re
             {Array.from({ length: STAR_COUNT }, (_value, index) => (
                 <StarShape key={index} filled={fills[index] ?? false} />
             ))}
-            <span aria-hidden className="ml-1 text-body-sm text-slate">
+            <span aria-hidden className="ml-1 text-body-sm text-ink-muted">
                 {formatAverageRating(average, locale)} · {ratings}
             </span>
         </div>
@@ -73,7 +73,7 @@ export const RatingSection: FC<RatingSectionProps> = ({ average, ratingCount, ch
     return (
         <section aria-label={rating.regionLabel} className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4">
             <div className="flex flex-col gap-2">
-                <h2 className="font-display text-heading-md font-semibold text-charcoal">{rating.communityHeading}</h2>
+                <h2 className="font-display text-heading-md font-semibold text-ink">{rating.communityHeading}</h2>
                 <CommunityAggregate average={average} ratingCount={ratingCount} rating={rating} />
             </div>
             {children}

@@ -79,7 +79,7 @@ describe.each(Object.entries(SKELETONS))('%s skeleton', (_id, { Component, title
     it('hides its skeleton shapes from assistive tech (they carry no information)', () => {
         const { container } = renderWithProviders(<Component />);
 
-        const shapes = container.querySelectorAll('.bg-pearl');
+        const shapes = container.querySelectorAll('.bg-surface-muted');
 
         expect(shapes.length).toBeGreaterThan(0);
 

@@ -113,7 +113,7 @@ describe('RecipeListFrame (web) — text contrast (WCAG 2.1 AA)', () => {
         render(frame());
 
         // Placeholder copy is TEXT — the field's only visible instruction before they type — so it owes 4.5:1;
-        // `mist` measured 1.90:1 here. Measured as its own `placeholder:` variant, since the base `text-charcoal`
+        // `mist` measured 1.90:1 here. Measured as its own `placeholder:` variant, since the base `text-ink`
         // is the VALUE colour and would mask the defect.
         expect(
             utilityContrast(screen.getByRole('searchbox', { name: 'Search recipes' }).className, {
@@ -127,7 +127,7 @@ describe('RecipeListFrame (web) — text contrast (WCAG 2.1 AA)', () => {
 
 /**
  * The frame is a `<section>` on the app background, so that is the surface its search field's focus ring is drawn
- * on — a Tailwind `ring-*` is a spread box-shadow OUTSIDE the border box. The ring shipped as `ring-seafoam-light`
+ * on — a Tailwind `ring-*` is a spread box-shadow OUTSIDE the border box. The ring shipped as `ring-focus-ring`
  * (2.58:1), under the 3:1 SC 1.4.11 floor (#114), and `outline-none` makes it the ONLY focus indicator.
  */
 describe('RecipeListFrame (web) — the search field’s focus ring clears the 3:1 SC 1.4.11 floor', () => {

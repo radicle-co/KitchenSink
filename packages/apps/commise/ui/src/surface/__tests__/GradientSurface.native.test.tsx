@@ -5,9 +5,17 @@
  * assert the native gradient path is taken with the single-sourced colours, and that content renders.
  */
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { gradient, toNativeGradient } from '../../tokens/gradients.js';
+import { gradient, heroDark, toNativeGradient } from '../../tokens/gradients.js';
+
+/** The system colour scheme the next render sees. */
+const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
+
+vi.mock('react-native', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('react-native')>()),
+    useColorScheme: () => scheme.current,
+}));
 import { GradientSurface } from '../GradientSurface.native.js';
 
 describe('GradientSurface (native)', () => {
@@ -23,6 +31,16 @@ describe('GradientSurface (native)', () => {
 
         expect(node).not.toBeNull();
         expect(node?.getAttribute('data-colors')).toBe(toNativeGradient(gradient.hero).colors.join('|'));
+    });
+
+    it('paints the DARK hero wash when the system is dark (D15)', () => {
+        scheme.current = 'dark';
+        const { container } = render(<GradientSurface>x</GradientSurface>);
+
+        expect(container.querySelector('[data-commise-stub="linear-gradient"]')?.getAttribute('data-colors')).toBe(
+            toNativeGradient(heroDark).colors.join('|'),
+        );
+        scheme.current = null;
     });
 
     it('paints the brand gradient colours when requested', () => {

@@ -26,12 +26,15 @@ export const DataSourcesSkeleton: FC = () => {
 
     return (
         <div className="flex flex-col gap-3">
-            <p role="status" className="text-caption text-slate">
+            <p role="status" className="text-caption text-ink-muted">
                 {messages.loading}
             </p>
             <div aria-hidden="true" className="flex flex-col gap-3">
                 {PLACEHOLDER_CARDS.map((card) => (
-                    <div key={card} className="h-40 animate-pulse rounded-2xl bg-pearl motion-reduce:animate-none" />
+                    <div
+                        key={card}
+                        className="h-40 animate-pulse rounded-2xl bg-surface-muted motion-reduce:animate-none"
+                    />
                 ))}
             </div>
         </div>

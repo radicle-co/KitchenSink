@@ -18,6 +18,8 @@ import { AccessibilityInfo } from 'react-native';
 import { computedContrast, dialogTitled, headedGroup, queryDialogTitled, queryHeadedGroup } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
+
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
 
@@ -841,14 +843,14 @@ describe('RecipeFilterBar (native) — on the Sheet (§S8.1a)', () => {
         expect(isInScrollRegion(done)).toBe(false);
     });
 
-    // R9 (`docs/design/rowEditorOpenDecisions.md`): Done is the footer's only action, so it is the house primary (the
-    // brand gradient only that tier paints), and it fills the footer.
+    // R9 (`docs/design/rowEditorOpenDecisions.md`): Done is the footer's only action, so it is the house primary, and it
+    // fills the footer. REWRITTEN in UI-overhaul slice 2: the primary is one flat `action` fill, not a gradient.
     it('makes Done the primary design-system button, stretched across the footer', () => {
         renderBar({ facets });
 
         const done = screen.getByRole('button', { name: 'Done' });
 
-        expect(done.querySelector('[data-commise-stub="linear-gradient"]')).not.toBeNull();
+        expectNativeDesignSystemButton(done, 'primary', null);
         expect(done.style.alignSelf).toBe('stretch');
     });
 

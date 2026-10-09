@@ -40,12 +40,13 @@ describe('StandIn (web)', () => {
         const neutral = screen.getByText('Private ingredient').className;
         const caution = screen.getByText('Removed food').className;
 
-        expect(neutral).toContain('text-slate');
-        expect(neutral).not.toContain('bg-warning');
-        expect(caution).toContain('bg-warning/25');
-        // ⛔ `warning` is a fill, never a text colour: the caution label is charcoal.
-        expect(caution).toContain('text-charcoal');
-        expect(caution).not.toMatch(/\btext-warning\b/);
+        // REWRITTEN for D15: the same pairs, spelled as roles so they re-theme.
+        expect(neutral).toContain('text-ink-muted');
+        expect(neutral).not.toContain('bg-attention-tint');
+        expect(caution).toContain('bg-attention-tint');
+        // ⛔ The caution tint is a fill, never a text colour: the caution label is ink.
+        expect(caution).toContain('text-ink');
+        expect(caution).not.toMatch(/\btext-attention-tint\b/);
     });
 
     it('⛔ wraps at spaces inside itself and is never cut off', () => {

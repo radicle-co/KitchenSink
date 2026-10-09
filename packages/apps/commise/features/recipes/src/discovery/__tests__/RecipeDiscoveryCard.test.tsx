@@ -129,13 +129,11 @@ describe('RecipeDiscoveryCard (web) — the clone control is the DS secondary su
         renderCard();
         const className = screen.getByRole('button', { name: cloneName() }).className;
 
-        // The hand-rolled regression was a `bg-coral/10` tint behind a coral edge, invented here. The DS
-        // secondary tier's coral outline over glass IS the mockups' secondary button, so the invariant is
-        // that no coral FILL survives — the accent edge is expected.
-        expect(className).not.toContain('bg-coral');
-        expect(className).toContain('border-coral');
+        // ⚠️ REWRITTEN in UI-overhaul slice 2: the owner overruled coral on every control, so the DS secondary tier is
+        // now neutral (paper, a lineControl edge, an ink label) and NO coral survives, at rest or on hover.
+        expect(className).not.toMatch(/coral/u);
         // The replacement must be a real DS surface, not "no surface at all" (the bare-text regression).
-        expect(className).toContain('from-white/80');
+        expect(className).toContain('border-line-control');
     });
 
     // E2 I12 — rewritten from "reset for the mouse at md": the DS Button now resets its floor only for a fine

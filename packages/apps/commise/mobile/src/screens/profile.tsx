@@ -10,12 +10,11 @@
  * "Account settings" action here (`onOpenAccountSettings`), so destructive actions have a single home.
  */
 import { Button } from '@commise/ui/button';
-import { Input } from '@commise/ui/input';
+import { FieldLabel, Input } from '@commise/ui/input';
 import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
-import { Feather } from '@expo/vector-icons';
 import type { FC, JSX } from 'react';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -120,16 +119,18 @@ function ProfileEditForm({
                 <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                     <SuspensionBanner status={profile.user.status} />
 
-                    <Input
-                        label={t.displayName}
-                        placeholder={t.displayNamePlaceholder}
-                        value={displayName}
-                        onChangeText={setDisplayName}
-                        autoCapitalize="words"
-                        autoComplete="name"
-                        textContentType="name"
-                        returnKeyType="done"
-                    />
+                    <View style={styles.field}>
+                        <FieldLabel forId="profile-display-name" label={t.displayName} />
+                        <Input
+                            id="profile-display-name"
+                            placeholder={t.displayNamePlaceholder}
+                            value={displayName}
+                            onChangeText={setDisplayName}
+                            autoCapitalize="words"
+                            autoComplete="name"
+                            enterKeyHint="done"
+                        />
+                    </View>
 
                     <AvatarField
                         value={avatarUrl}
@@ -145,7 +146,7 @@ function ProfileEditForm({
                     />
 
                     <Button
-                        icon={<Feather name="check" size={16} color={palette.white} />}
+                        icon="check"
                         busy={updateProfile.isPending}
                         // Pin the accessible name so it stays stable while the visible label reads "Saving…"
                         // (busy is announced via `aria-busy`); keeps name-based selection stable.
@@ -156,11 +157,7 @@ function ProfileEditForm({
                     </Button>
 
                     {onOpenAccountSettings ? (
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="settings" size={16} color={palette.charcoal} />}
-                            onPress={onOpenAccountSettings}
-                        >
+                        <Button variant="secondary" icon="settings" onPress={onOpenAccountSettings}>
                             {account.settingsAction}
                         </Button>
                     ) : null}
@@ -171,6 +168,8 @@ function ProfileEditForm({
 }
 
 const styles = StyleSheet.create({
+    // A label and its field are one group: closer to each other than to the next field (spec §1.6).
+    field: { gap: nativeTokens.spacing[1] },
     // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
     // fill here occludes the whole canvas and restores the flat page the wireframes never had.
     safe: { flex: 1, backgroundColor: 'transparent' },

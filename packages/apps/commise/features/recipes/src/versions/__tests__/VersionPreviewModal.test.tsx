@@ -20,6 +20,7 @@ import { recipeVersionMessages } from '../messages.js';
 import { recipeMessages } from '../../messages.js';
 import { VersionPreviewModal } from '../VersionPreviewModal.js';
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 import { BRISKET_FLAT_HALF_PARTS } from '../../detail/__fixtures__/variantLines.js';
 
 afterEach(cleanup);
@@ -543,5 +544,19 @@ describe('VersionPreviewModal (web) — a variant-bound line (curated U15)', () 
         expect(
             (firstPart?.compareDocumentPosition(marker as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
+    });
+});
+
+describe('VersionPreviewModal (web) — the design-system Button (UI overhaul slice 2)', () => {
+    it('restores through a primary Button with the rotateCcw glyph', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Restore this version' }), 'primary', 'rotate-ccw');
+    });
+
+    it('keeps the current version through a secondary x one, the ConfirmDialog’s Keep', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Keep current version' }), 'secondary', 'x');
     });
 });

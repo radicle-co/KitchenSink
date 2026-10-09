@@ -713,7 +713,7 @@ describe('Wizard (web) — the step rail cannot push a step off the screen edge'
  * (4.5:1) — `text-caption` is 12px, nowhere near the large-text exemption. Measured off the marker element's
  * REAL rendered class list (the marker class is a lookup table, so asserting the constant would prove nothing
  * about what rendered), with the marker's own `bg-*` composited. See the palette JSDoc in `@commise/ui`'s
- * `tokens/colors.ts` for when seafoam remains the right token — the marker's `border-seafoam` is one such
+ * `tokens/colors.ts` for when seafoam remains the right token — the marker's `border-selected-edge` is one such
  * non-text site and is deliberately untouched.
  */
 describe('Wizard (web) — WCAG AA rail-marker contrast (SC 1.4.3)', () => {
@@ -735,7 +735,7 @@ describe('Wizard (web) — WCAG AA rail-marker contrast (SC 1.4.3)', () => {
  * the "More actions" trigger's focus ring is drawn on — a Tailwind ring is a spread box-shadow OUTSIDE the
  * border box, so the trigger's own white fill is not what the ring is seen against.
  *
- * The ring shipped as `ring-seafoam-light` (2.58:1), under the 3:1 SC 1.4.11 floor (#114). This trigger is the
+ * The ring shipped as `ring-focus-ring` (2.58:1), under the 3:1 SC 1.4.11 floor (#114). This trigger is the
  * ONLY route to Save Draft and Cancel since U6 demoted them into the overflow menu, and it is an icon-only
  * control with `outline-none` — so a keyboard viewer who cannot see the ring cannot find the menu at all.
  */

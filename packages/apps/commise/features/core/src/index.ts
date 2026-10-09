@@ -52,7 +52,7 @@ export type {
 
 // === Home chrome ===
 
-export { HOME_NAV_ITEMS, isNavItemReachable, resolveHomeNav } from './homeNavigation.js';
+export { HOME_NAV_ITEMS, NAV_ITEM_GLYPH, isNavItemReachable, resolveHomeNav } from './homeNavigation.js';
 export type { HomeNavItem, HomeNavItemId, ResolvedHomeNavItem } from './homeNavigation.js';
 export { formatHomeDate } from './utils/formatDate.js';
 export { initialsFor } from './utils/initials.js';

@@ -45,7 +45,8 @@ describe('PendingBar (web)', () => {
         expect(className).toContain('h-1');
         expect(className).toContain('rounded-full');
         // `seafoam`, not `seafoam-light`: the bar is a graphic that owes 3:1 (SC 1.4.11), and the light tint fails.
-        expect(className).toMatch(/\bbg-seafoam\b(?!-)/);
+        // The `action` role (seafoam in both themes), so the bar re-themes with the rest of the page (D15).
+        expect(className).toMatch(/\bbg-action\b(?!-)/);
         // Still, not moving: a moving bar beside usable results is not covered by SC 2.2.2's loading exemption.
         expect(className).not.toMatch(/animate-(pulse|spin|ping|bounce)/);
     });

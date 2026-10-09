@@ -193,11 +193,11 @@ describe('RecipeCard (web) — U8 brand treatment', () => {
         expect(button.style.backdropFilter).toBe(glassBackdropCss(glass.card));
     });
 
-    it('drops the opaque bg-card fill that the frosted surface replaces', () => {
+    it('drops the opaque bg-paper fill that the frosted surface replaces', () => {
         renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
 
-        // `bg-card` (solid white) would paint OVER the translucent surface and cancel the whole treatment.
-        expect(screen.getByRole('article', { name: 'Herb Risotto' }).className.split(/\s+/)).not.toContain('bg-card');
+        // `bg-paper` (solid white) would paint OVER the translucent surface and cancel the whole treatment.
+        expect(screen.getByRole('article', { name: 'Herb Risotto' }).className.split(/\s+/)).not.toContain('bg-paper');
     });
 
     it('carries the glass hairline from the TOKEN, not a re-spelled Tailwind literal', () => {
@@ -280,7 +280,7 @@ describe('RecipeCard (web) — merged fields (CR-002 / L2·L3)', () => {
     it('gives the CUISINE badge a WCAG-AA legible label over its seafoam tint', () => {
         renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);
 
-        // Same defect as the tag chip above, in the other hue: seafoam-as-text on `bg-seafoam/10` is 3.57:1.
+        // Same defect as the tag chip above, in the other hue: seafoam-as-text on `bg-action/10` is 3.57:1.
         expect(utilityContrast(screen.getByText('Mediterranean').className), 'cuisine badge').toBeGreaterThanOrEqual(
             4.5,
         );
@@ -390,7 +390,7 @@ describe('RecipeCard (web) — non-text graphics stay legible (WCAG 2.1 AA)', ()
 
         // A `role="img"` carrying a localized `aria-label` is a MEANINGFUL graphic, not a decorative rule — so
         // it owes at least the 3:1 of SC 1.4.11, and it is the only thing drawn in the tile. `mist` measured
-        // 1.74:1 against the `bg-pearl` tile it is painted on (the placeholder itself paints no background, so
+        // 1.74:1 against the `bg-surface-muted` tile it is painted on (the placeholder itself paints no background, so
         // the tile IS its surface), which clears nothing.
         const placeholder = screen.getByRole('img', { name: 'No photo yet' });
 
@@ -414,7 +414,7 @@ const DIFFICULTY_PILLS: readonly {
 
 describe('RecipeCard (web) — labels on FILLED accents (WCAG 2.1 AA, #113)', () => {
     // Every one of these is a label on an OPAQUE brand fill, which is the pairing #113 found broken across ~35
-    // call sites: `text-white` reads 2.72:1 on `bg-success`, 2.23:1 on `bg-premium` and 1.88:1 on `bg-warning`.
+    // call sites: `text-on-action` reads 2.72:1 on `bg-success`, 2.23:1 on `bg-premium` and 1.88:1 on `bg-warning`.
     // The three difficulty tones share ONE map, so measuring all three is what stops a "fix" that repairs the
     // tone under test and leaves its neighbours illegible.
     it.each(DIFFICULTY_PILLS)('reads the $label difficulty pill on its filled $tone fill', ({ difficulty, label }) => {

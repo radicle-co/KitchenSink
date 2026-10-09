@@ -44,13 +44,13 @@ import { webMessages } from '@/i18n/messages';
  * The greeting line's typography, stated ONCE so the real line and the reserved placeholder cannot drift into
  * different heights (which is what would reintroduce a layout shift at hydration).
  */
-const GREETING_LINE = 'mb-1 font-display text-3xl font-bold text-charcoal';
+const GREETING_LINE = 'mb-1 font-display text-3xl font-bold text-ink';
 
 /** The date line's typography — same single-statement reason as {@link GREETING_LINE}. */
-const DATE_LINE = 'text-slate';
+const DATE_LINE = 'text-ink-muted';
 
 /** The skeleton shape utilities: the repo's reserved `pearl` skeleton fill (see `RecipeCardGridSkeleton`). */
-const PLACEHOLDER_BAR = 'max-w-full rounded-md bg-pearl';
+const PLACEHOLDER_BAR = 'max-w-full rounded-md bg-surface-muted';
 
 /**
  * The Home greeting header.

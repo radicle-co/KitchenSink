@@ -10,6 +10,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { role } from '../../tokens/colors.js';
 import { DurationField } from '../DurationField.native.js';
 import type { DurationFieldProps } from '../props.js';
 
@@ -103,4 +104,24 @@ describe('DurationField (native)', () => {
         expect(screen.getByText('min').getAttribute('aria-hidden')).toBe('true');
         expect(hours().getAttribute('inputmode')).toBe('numeric');
     });
+
+    // UI-overhaul slice 2: the boxes take the Input rules (`fieldStyle.ts`) rather than a geometry of their own.
+    it('draws each box on the shared field geometry: 12 radius, a lineControl edge, 48 tall', () => {
+        renderField();
+
+        for (const box of [hours(), minutes()]) {
+            const style = getComputedStyle(box);
+
+            expect(style.borderTopLeftRadius).toBe('12px');
+            expect(style.borderTopColor).toBe(rgb(role.lineControl));
+            expect(style.minHeight).toBe('48px');
+        }
+    });
 });
+
+/** `#RRGGBB` → jsdom's `rgb(r, g, b)`. */
+function rgb(hex: string): string {
+    const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+
+    return `rgb(${r}, ${g}, ${b})`;
+}

@@ -69,7 +69,7 @@ describe('HomeSidebar', () => {
         // reader can resolve — so it is measured STOP BY STOP, each stop composited over the surface, and both
         // asserted (the darker 0.12 end is the worse case at 3.49:1, the 0.08 end 3.67:1 — both under the
         // 4.5:1 body floor for seafoam). The class colours the icon AND the visible label span, and the label
-        // is text a reader reads, so it takes `ocean-dark`; the `border-seafoam` rail and the gradient itself
+        // is text a reader reads, so it takes `ocean-dark`; the `border-selected-edge` rail and the gradient itself
         // are non-text accents and stay (see the palette JSDoc in `@commise/ui`).
         expect(active.className, 'the measured stops must still be the ones the pill paints').toContain(
             'from-seafoam/[0.12] to-seafoam/[0.08]',
@@ -160,7 +160,7 @@ describe('HomeSidebar — gated destination labels stay legible (#113)', () => {
     it('names a gated destination in an OPAQUE tone, not an alpha-dimmed one', () => {
         renderSidebar();
 
-        // `text-slate/60` measures 2.41:1 once composited onto the surface: the TOKEN passes (slate is
+        // `text-ink-muted` measures 2.41:1 once composited onto the surface: the TOKEN passes (slate is
         // 5.24:1 on white) and the rendered pixel does not, which is exactly why an alpha suffix on a text
         // colour is unauditable by inspection. These controls are deliberately focusable and announced (so a
         // user can discover what is coming), which is what puts them past SC 1.4.3's "inactive component"

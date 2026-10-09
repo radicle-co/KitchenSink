@@ -77,12 +77,12 @@ export function PlaceholderWidgetCard({ title, children }: PlaceholderWidgetCard
         >
             <section aria-labelledby={headingId} className="flex flex-col gap-4">
                 <div className="flex items-center justify-between gap-3">
-                    <h3 id={headingId} className="font-semibold tracking-tight text-charcoal">
+                    <h3 id={headingId} className="font-semibold tracking-tight text-ink">
                         {title}
                     </h3>
-                    {/* Not `bg-pearl`: that shade is reserved for skeleton SHAPES, which are aria-hidden. The
+                    {/* Not `bg-surface-muted`: that shade is reserved for skeleton SHAPES, which are aria-hidden. The
                         badge is real content and must stay exposed, so it is visually distinct from the shapes. */}
-                    <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-medium text-slate">
+                    <span className="rounded-full bg-paper/70 px-2 py-0.5 text-xs font-medium text-ink-muted">
                         {home.roadmap.comingSoon}
                     </span>
                 </div>

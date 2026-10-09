@@ -72,18 +72,18 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     onCloseAutoFocus={onCloseAutoFocus}
-                    className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col gap-4 overflow-y-auto bg-card p-6 shadow-lg"
+                    className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col gap-4 overflow-y-auto bg-paper p-6 shadow-lg"
                 >
                     <div className="flex items-center justify-between gap-3">
-                        <Dialog.Title className="font-display text-heading-lg font-semibold text-charcoal">
+                        <Dialog.Title className="font-display text-heading-lg font-semibold text-ink">
                             {heading}
                         </Dialog.Title>
                         <Dialog.Close
                             aria-label={compare.close}
-                            className="rounded-full p-1.5 text-slate transition hover:bg-pearl"
+                            className="rounded-full p-1.5 text-ink-muted transition hover:bg-ink/6"
                         >
                             ×
                         </Dialog.Close>
@@ -93,12 +93,12 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                         <>
                             <section
                                 aria-label={compare.diffSummaryHeading}
-                                className="flex flex-col gap-2 rounded-2xl bg-pearl p-4"
+                                className="flex flex-col gap-2 rounded-2xl bg-surface-muted p-4"
                             >
-                                <h3 className="font-display text-body-md font-semibold text-charcoal">
+                                <h3 className="font-display text-body-md font-semibold text-ink">
                                     {compare.diffSummaryHeading}
                                 </h3>
-                                <dl className="flex flex-col gap-1 text-body-sm text-charcoal">
+                                <dl className="flex flex-col gap-1 text-body-sm text-ink">
                                     <div>{fillTemplate(compare.added, { count: diff.summary.added })}</div>
                                     <div>{fillTemplate(compare.removed, { count: diff.summary.removed })}</div>
                                     <div>{fillTemplate(compare.modified, { count: diff.summary.modified })}</div>
@@ -106,12 +106,12 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                             </section>
 
                             {state === 'unchanged' ? (
-                                <p className="text-body-md text-slate">{compare.noChanges}</p>
+                                <p className="text-body-md text-ink-muted">{compare.noChanges}</p>
                             ) : (
                                 versionA !== undefined &&
                                 versionB !== undefined && (
                                     <div className="flex flex-col gap-3">
-                                        <div className="grid grid-cols-1 gap-3 text-caption font-medium uppercase tracking-wide text-slate md:grid-cols-2">
+                                        <div className="grid grid-cols-1 gap-3 text-caption font-medium uppercase tracking-wide text-ink-muted md:grid-cols-2">
                                             <span>
                                                 {fillTemplate(versionList.versionLabel, {
                                                     version: versionB.versionNumber,
@@ -127,17 +127,17 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                                             {rows.map((row) => (
                                                 <li
                                                     key={row.key}
-                                                    className="flex flex-col gap-1 rounded-2xl bg-pearl p-3"
+                                                    className="flex flex-col gap-1 rounded-2xl bg-surface-muted p-3"
                                                 >
-                                                    <span className="text-caption font-medium uppercase tracking-wide text-slate">
+                                                    <span className="text-caption font-medium uppercase tracking-wide text-ink-muted">
                                                         {row.label}
                                                     </span>
-                                                    <div className="grid grid-cols-1 gap-3 text-body-sm text-charcoal md:grid-cols-2">
+                                                    <div className="grid grid-cols-1 gap-3 text-body-sm text-ink md:grid-cols-2">
                                                         <span>{row.valueB}</span>
                                                         <span>{row.valueA}</span>
                                                     </div>
                                                     {row.tally !== undefined && showFullDiff && (
-                                                        <span className="text-caption text-slate">
+                                                        <span className="text-caption text-ink-muted">
                                                             {formatCollectionTally(row.tally, compare)}
                                                         </span>
                                                     )}
@@ -148,7 +148,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => setShowFullDiff((current) => !current)}
-                                                className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
+                                                className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-action-text transition hover:bg-action/10"
                                             >
                                                 {showFullDiff ? compare.hideFullDiff : compare.showFullDiff}
                                             </button>

@@ -153,8 +153,10 @@ export interface IngredientRowView {
     readonly labels: IngredientRowLabels;
     /** The entry combobox's input (`rowEntryFieldOf`), for a row whose name is in entry mode. */
     readonly entryField: RowEntryFieldInput;
-    /** Slot 2's menu items, remedy first (§3a). */
+    /** Slot 2's menu items, remedy first (§3a), without the destructive one. */
     readonly actions: readonly ActionMenuItem[];
+    /** Slot 2's destructive menu item (Remove), which the menu draws last, after a divider. */
+    readonly destructiveAction: ActionMenuItem | undefined;
     readonly glyphFocus: GlyphFocus;
     readonly actionsFocus: ControlFocus;
     /** Rows 6 and 7's panel props, closing the glyph's panel with `close`. */
@@ -251,6 +253,21 @@ interface RowActionTarget {
     readonly onRemove: () => void;
 }
 
+/**
+ * Slot 2's menu: its actions in policy order, with Remove taken out as the menu's destructive item. Pure.
+ *
+ * @param actions - The policy's actions for the row.
+ * @param itemOf - Builds one menu item.
+ * @returns The menu's actions and its destructive one.
+ */
+const menuOf = (
+    actions: readonly IngredientRowAction[],
+    itemOf: (action: IngredientRowAction) => ActionMenuItem,
+): Pick<IngredientRowView, 'actions' | 'destructiveAction'> => ({
+    actions: actions.filter((action) => action !== 'remove').map(itemOf),
+    destructiveAction: actions.includes('remove') ? itemOf('remove') : undefined,
+});
+
 /** One of slot 2's menu items. Pure. */
 const actionItemOf = (action: IngredientRowAction, row: RowActionTarget, ctx: IngredientRowContext): ActionMenuItem => {
     const { m, rowEditor, focus } = ctx;
@@ -260,7 +277,7 @@ const actionItemOf = (action: IngredientRowAction, row: RowActionTarget, ctx: In
     switch (action) {
         case 'changeFood':
             return {
-                key: action,
+                id: action,
                 label: m.statusActionChangeFood,
                 onSelect: () => {
                     ctx.moveOn();
@@ -270,7 +287,7 @@ const actionItemOf = (action: IngredientRowAction, row: RowActionTarget, ctx: In
             };
         case 'findFood':
             return {
-                key: action,
+                id: action,
                 label: m.statusActionFindFood,
                 onSelect: () => {
                     entry.focus(target);
@@ -279,7 +296,7 @@ const actionItemOf = (action: IngredientRowAction, row: RowActionTarget, ctx: In
             };
         case 'createOwnFood':
             return {
-                key: action,
+                id: action,
                 label: m.createCustomFoodIconLabel,
                 // §5a: the form shows the name it will create, the text the cook typed or the line's own.
                 onSelect: () => rowEditor.authoredFood.open(entry.textOf(target).trim(), target),
@@ -287,7 +304,7 @@ const actionItemOf = (action: IngredientRowAction, row: RowActionTarget, ctx: In
         case 'addDetails':
         case 'editDetails':
             return {
-                key: action,
+                id: action,
                 label:
                     action === 'addDetails'
                         ? ctx.shared.ingredientDetails.actionAdd
@@ -307,7 +324,7 @@ const actionItemOf = (action: IngredientRowAction, row: RowActionTarget, ctx: In
                 },
             };
         case 'remove':
-            return { key: action, label: m.statusActionRemove, tone: 'destructive', onSelect: row.onRemove };
+            return { id: action, label: m.statusActionRemove, onSelect: row.onRemove };
     }
 };
 
@@ -434,12 +451,9 @@ export const ingredientRowViewOf = (
             naming: rowEditor.naming,
             limitRefusals: rowEditor.limitRefusals,
         },
-        actions:
-            presentation.slot2.kind === 'menu'
-                ? presentation.slot2.actions.map((action) =>
-                      actionItemOf(action, { line, target, displayName, onRemove }, ctx),
-                  )
-                : [],
+        ...menuOf(presentation.slot2.kind === 'menu' ? presentation.slot2.actions : [], (action) =>
+            actionItemOf(action, { line, target, displayName, onRemove }, ctx),
+        ),
         glyphFocus: focus.glyph(line.key),
         actionsFocus: focus.actions(line.key),
         shortlist: (close) => ({

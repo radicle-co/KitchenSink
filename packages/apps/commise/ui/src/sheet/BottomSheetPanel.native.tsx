@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
-import { palette } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import { displayFontFace, fontSize, radius, spacing } from '../tokens/scale.js';
 import { isToolbarCollapsed } from './onScreenKeyboard.js';
 import type { SheetProps } from './props.js';
@@ -61,6 +61,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     onClose,
 }) => {
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
     const { width } = useWindowDimensions();
     const keyboardShown = useKeyboardShown();
     const collapsed = toolbar !== undefined && isToolbarCollapsed(keyboardShown, true);
@@ -73,7 +74,10 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     // bottom inset in both places, and reports its height from either, so the decision reads the same footer.
     const footerView =
         footer === undefined || collapsed ? null : (
-            <View style={[styles.footer, endPadding]} onLayout={pinning.onFooterLayout}>
+            <View
+                style={[styles.footer, endPadding, { borderTopColor: colors.lineDivider }]}
+                onLayout={pinning.onFooterLayout}
+            >
                 {footer}
             </View>
         );
@@ -84,6 +88,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
             aria-modal
             style={[
                 styles.sheet,
+                { backgroundColor: colors.paperOverlay },
                 sheetWidthStyle(width),
                 size === 'full' ? styles.full : styles.content,
                 {
@@ -96,7 +101,11 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
         >
             <View style={styles.titleRow} {...panHandlers} onLayout={pinning.onTopLayout}>
                 <View style={styles.titleBox}>
-                    <Text ref={titleRef} accessibilityRole="header" style={collapsed ? visuallyHidden : styles.title}>
+                    <Text
+                        ref={titleRef}
+                        accessibilityRole="header"
+                        style={collapsed ? visuallyHidden : [styles.title, { color: colors.ink }]}
+                    >
                         {title}
                     </Text>
                     {collapsed ? toolbar.heading : null}
@@ -107,7 +116,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                     onPress={onClose}
                     style={styles.close}
                 >
-                    <Text aria-hidden style={styles.closeGlyph}>
+                    <Text aria-hidden style={[styles.closeGlyph, { color: colors.inkMuted }]}>
                         ×
                     </Text>
                 </Pressable>
@@ -129,7 +138,6 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
 
 const styles = StyleSheet.create({
     sheet: {
-        backgroundColor: palette.white,
         borderTopLeftRadius: radius.lg,
         borderTopRightRadius: radius.lg,
         overflow: 'hidden',
@@ -144,9 +152,9 @@ const styles = StyleSheet.create({
         paddingTop: spacing[1],
     },
     titleBox: { flex: 1, minWidth: 0, paddingTop: spacing[3] },
-    title: { fontFamily: displayFontFace.semibold, fontSize: fontSize.headingMd, color: palette.charcoal },
+    title: { fontFamily: displayFontFace.semibold, fontSize: fontSize.headingMd },
     close: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-    closeGlyph: { fontSize: 24, lineHeight: 24, color: palette.slate },
+    closeGlyph: { fontSize: 24, lineHeight: 24 },
     toolbar: { paddingHorizontal: SHEET_EDGE_PADDING_DP, paddingTop: spacing[2], gap: spacing[2] },
     scrollContent: {
         paddingHorizontal: SHEET_EDGE_PADDING_DP,
@@ -155,7 +163,6 @@ const styles = StyleSheet.create({
     },
     footer: {
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: palette.mist,
         paddingHorizontal: SHEET_EDGE_PADDING_DP,
         paddingTop: SHEET_EDGE_PADDING_DP,
     },

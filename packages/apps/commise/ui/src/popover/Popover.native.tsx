@@ -21,7 +21,8 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { Sheet } from '../sheet/Sheet.native.js';
-import { palette } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
+import { Icon } from '../icon/Icon.native.js';
 import type { PopoverProps } from './props.js';
 
 /** The native target floor the spec sets (§3, 2.5.8: 48 × 48 dp). */
@@ -39,6 +40,7 @@ export const Popover: FC<PopoverProps> = ({
     onFocusRequestHandled,
     onDismissed,
 }) => {
+    const { colors, wash } = useTheme();
     const [open, setOpen] = useState(false);
     const [closes, setCloses] = useState(0);
     const triggerFocus = useScreenReaderFocusOnSignal<View>(closes);
@@ -74,10 +76,10 @@ export const Popover: FC<PopoverProps> = ({
                 onPress={() => {
                     onOpenChange(true);
                 }}
-                style={({ pressed }) => [styles.trigger, pressed && styles.triggerPressed]}
+                style={({ pressed }) => [styles.trigger, pressed && { backgroundColor: wash }]}
             >
                 <View aria-hidden style={styles.glyph}>
-                    {busy ? <ActivityIndicator color={palette.charcoal} /> : triggerIcon}
+                    {busy ? <ActivityIndicator color={colors.ink} /> : <Icon name={triggerIcon} size={20} />}
                 </View>
             </Pressable>
             <Sheet
@@ -106,6 +108,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderRadius: TARGET_DP / 2,
     },
-    triggerPressed: { backgroundColor: palette.pearl },
     glyph: { alignItems: 'center', justifyContent: 'center' },
 });

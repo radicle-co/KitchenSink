@@ -18,8 +18,9 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import { useState, type FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { CollectionMemberRow } from './CollectionMemberRow.native.js';
 import { collectionMessages } from './messages.js';
@@ -55,14 +56,9 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                 <Text accessibilityRole="header" style={styles.sectionHeading}>
                     {detail.membersHeading}
                 </Text>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={detail.addRecipeCta}
-                    onPress={onAddRecipe}
-                    style={styles.addButton}
-                >
-                    <Text style={styles.addLabel}>{detail.addRecipeCta}</Text>
-                </Pressable>
+                <Button icon="plus" onPress={onAddRecipe}>
+                    {detail.addRecipeCta}
+                </Button>
             </View>
             {recipes.length === 0 ? (
                 <View style={styles.card}>
@@ -85,18 +81,17 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                     ))}
                     {remainingCount > 0 && (
                         // W5/C7 — client-side member-list windowing (no member-pagination endpoint).
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={fillTemplate(detail.loadMore, { count: remainingCount })}
-                            onPress={() =>
-                                setRevealCount((count) => Math.min(recipes.length, count + MEMBER_WINDOW_SIZE))
-                            }
-                            style={styles.loadMore}
-                        >
-                            <Text style={styles.loadMoreLabel}>
+                        <View style={styles.loadMore}>
+                            <Button
+                                variant="secondary"
+                                icon="chevronDown"
+                                onPress={() =>
+                                    setRevealCount((count) => Math.min(recipes.length, count + MEMBER_WINDOW_SIZE))
+                                }
+                            >
                                 {fillTemplate(detail.loadMore, { count: remainingCount })}
-                            </Text>
-                        </Pressable>
+                            </Button>
+                        </View>
                     )}
                 </>
             )}
@@ -111,8 +106,6 @@ const styles = StyleSheet.create({
     description: { fontSize: 15, color: palette.slate },
     sectionHeading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     membersHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-    addButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
-    addLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
     errorBanner: { fontSize: 13, color: palette['error-dark'] },
     card: {
         backgroundColor: palette.white,
@@ -123,13 +116,5 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     emptyTitle: { fontSize: 15, fontWeight: '600', color: palette.charcoal },
-    loadMore: {
-        alignSelf: 'center',
-        backgroundColor: palette.pearl,
-        borderRadius: 999,
-        paddingVertical: 10,
-        paddingHorizontal: 24,
-        marginTop: 8,
-    },
-    loadMoreLabel: { fontSize: 14, fontWeight: '600', color: palette.charcoal },
+    loadMore: { alignSelf: 'center', marginTop: 8 },
 });

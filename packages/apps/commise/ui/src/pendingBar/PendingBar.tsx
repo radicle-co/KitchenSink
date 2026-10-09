@@ -29,7 +29,7 @@ export const PendingBar: FC<PendingBarProps> = ({ pending }) =>
     pending ? (
         <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 -top-3.5 h-1 rounded-full bg-seafoam animate-pending-bar-reveal"
+            className="pointer-events-none absolute inset-x-0 -top-3.5 h-1 rounded-full bg-action animate-pending-bar-reveal"
             style={{ animationDelay: `${PENDING_BAR_DELAY_MS}ms` }}
         />
     ) : null;

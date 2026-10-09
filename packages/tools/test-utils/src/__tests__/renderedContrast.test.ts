@@ -5,7 +5,7 @@
  * list measured as whichever token came first — is pinned here.
  */
 import { describe, expect, it } from 'vitest';
-import { palette } from '@commise/ui/colors';
+import { palette, role } from '@commise/ui/colors';
 
 import { compositeOver, contrastRatio } from '../contrast.js';
 import { computedContrast, placeholderContrast, ringContrast, utilityContrast } from '../renderedContrast.js';
@@ -276,5 +276,28 @@ describe('placeholderContrast', () => {
 
     it('refuses to measure an input that paints no placeholder colour', () => {
         expect(() => placeholderContrast(document.createElement('input'))).toThrow(/placeholderTextColor/);
+    });
+});
+
+/**
+ * The colour ROLES (`@commise/ui/colors` `role`, emitted as `--color-{kebab}`) are the overhaul's vocabulary for
+ * screens (spec §1.4), so a utility naming a role is a colour utility exactly as a palette name is.
+ */
+describe('the readers resolve colour roles as well as palette names', () => {
+    it('measures a role-coloured label on a role-coloured fill', () => {
+        expect(utilityContrast('bg-paper text-ink-muted')).toBeCloseTo(contrastRatio(role.inkMuted, role.paper), 5);
+    });
+
+    it('measures a role-coloured focus ring over its surface', () => {
+        expect(
+            ringContrast('focus-visible:ring-2 focus-visible:ring-focus-ring', { surface: role.canvas }),
+        ).toBeCloseTo(contrastRatio(role.focusRing, role.canvas), 5);
+    });
+
+    it('still skips a type-role utility that shares the text- prefix', () => {
+        expect(utilityContrast('text-label text-danger-text')).toBeCloseTo(
+            contrastRatio(role.dangerText, '#FFFFFF'),
+            5,
+        );
     });
 });

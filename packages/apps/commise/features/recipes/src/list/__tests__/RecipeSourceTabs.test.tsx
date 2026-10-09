@@ -148,7 +148,7 @@ describe('RecipeSourceTabs (web) — the ACTIVE tab', () => {
             'active source-tab label',
         ).toBeGreaterThanOrEqual(4.5);
         // The 2px seafoam indicator is a non-text graphic on the 3:1 floor, and it is what reads as "selected".
-        expect(active.className, 'the seafoam selection underline must survive').toContain('border-seafoam');
+        expect(active.className, 'the seafoam selection underline must survive').toContain('border-selected-edge');
         expect(
             utilityContrast(active.className, { surface: semantic.background, foreground: 'border' }),
             'active source-tab underline',

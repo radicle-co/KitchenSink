@@ -48,7 +48,7 @@ test.describe('clone + visibility (T080)', () => {
         await expect(page.getByRole('heading', { name: 'My Public Dish' })).toBeVisible();
 
         // The visibility toggle is a secondary owner action, behind the "More" overflow menu (C4).
-        await page.getByRole('button', { name: 'More', exact: true }).click();
+        await page.getByRole('button', { name: /^More actions for /u }).click();
         const privateOption = page.getByRole('radio', { name: 'Private' });
         await expect(privateOption).toBeEnabled();
 

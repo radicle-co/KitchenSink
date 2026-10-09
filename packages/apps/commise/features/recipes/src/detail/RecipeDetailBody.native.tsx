@@ -345,18 +345,18 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                                     <Text style={styles.ingredientNotes}>{ingredient.notes}</Text>
                                 )}
                                 {ingredient.isUserEntered && (
-                                    <StatusBadge tone="neutral">{detail.userEnteredBadge}</StatusBadge>
+                                    <StatusBadge status="note">{detail.userEnteredBadge}</StatusBadge>
                                 )}
                                 {/* U14 — the LINE the verification gate contradicted. Mirrors the web leaf: the
                                     caution tone, and no accessibility role — the text is content of the row and is
                                     announced with it. */}
                                 {isLineNeedsReview(ingredient) && (
-                                    <StatusBadge tone="caution">{detail.needsReviewBadge}</StatusBadge>
+                                    <StatusBadge status="attention">{detail.needsReviewBadge}</StatusBadge>
                                 )}
                                 {/* U13 (D7/R9) — the same caution tone as needs-review; the pick lives in the
                                     batched review surface below (the figure still counts, R23). */}
                                 {isLineAmbiguous(ingredient) && (
-                                    <StatusBadge tone="caution">{detail.ambiguousBadge}</StatusBadge>
+                                    <StatusBadge status="attention">{detail.ambiguousBadge}</StatusBadge>
                                 )}
                                 {/* The food's author withdrew it. Caution tone like needs-review — the cook can act
                                     (re-match the line in the editor). Suppressed when every line is removed (a
@@ -365,7 +365,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                                 {isLineFoodRemoved(ingredient) &&
                                     !isStandInName(ingredient) &&
                                     !allLinesFoodRemoved(recipe.ingredients) && (
-                                        <StatusBadge tone="caution">{detail.removedFoodBadge}</StatusBadge>
+                                        <StatusBadge status="attention">{detail.removedFoodBadge}</StatusBadge>
                                     )}
                             </View>
                         </View>
@@ -542,7 +542,6 @@ const styles = StyleSheet.create({
     title: {
         fontFamily: nativeTokens.fontFace.display.bold,
         fontSize: nativeTokens.fontSize.displayMd,
-        fontWeight: '700',
         color: palette.charcoal,
     },
     badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },

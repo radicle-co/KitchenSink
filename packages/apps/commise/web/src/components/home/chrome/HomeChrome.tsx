@@ -18,7 +18,8 @@
  * here.
  */
 import type { HomeNavItemId } from '@commise/features-core';
-import { useState, type JSX, type ReactNode } from 'react';
+import { PopupInsetsContext } from '@commise/ui/popup-insets';
+import { useCallback, useState, type JSX, type ReactNode } from 'react';
 
 import type { WebMessages } from '@/i18n/messages';
 
@@ -26,6 +27,7 @@ import { HomeMobileNav } from './HomeMobileNav';
 import { HomeSidebar } from './HomeSidebar';
 import { HomeTabBar } from './HomeTabBar';
 import { HomeTopBar } from './HomeTopBar';
+import { tabBarInsets } from './tabBarInsets';
 
 /** Props for {@link HomeChrome}. */
 export interface HomeChromeProps {
@@ -78,6 +80,10 @@ export function HomeChrome({
 }: HomeChromeProps): JSX.Element {
     const [collapsed, setCollapsed] = useState(false);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
+    // The laid-out tab bar, held as state by a callback ref, and the reader the design system's popups call as they
+    // place themselves (finding D2). A new reader only when the bar node changes.
+    const [tabBar, setTabBar] = useState<HTMLElement | null>(null);
+    const readInsets = useCallback(() => tabBarInsets(tabBar), [tabBar]);
 
     return (
         // The shell is TRANSPARENT so the `body` beach-glow canvas shows through (issue #145). It used to
@@ -124,12 +130,18 @@ export function HomeChrome({
                             : '@container/main flex-1 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-6 medium:px-6 nav:px-8 lg:pb-6'
                     }
                 >
-                    {children}
+                    <PopupInsetsContext value={readInsets}>{children}</PopupInsetsContext>
                 </main>
             </div>
 
             {!focusedTask && (
-                <HomeTabBar chrome={chrome} locale={locale} liveCapabilities={liveCapabilities} activeId={activeId} />
+                <HomeTabBar
+                    ref={setTabBar}
+                    chrome={chrome}
+                    locale={locale}
+                    liveCapabilities={liveCapabilities}
+                    activeId={activeId}
+                />
             )}
 
             <HomeMobileNav

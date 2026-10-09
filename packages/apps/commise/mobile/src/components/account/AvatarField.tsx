@@ -15,7 +15,7 @@
 import { Button } from '@commise/ui/button';
 import { palette, semantic } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
 import { Image } from 'expo-image';
 import type { FC } from 'react';
 import { useState } from 'react';
@@ -140,15 +140,10 @@ export const AvatarField: FC<AvatarFieldProps> = ({ value, onChange, messages })
                         accessibilityRole="image"
                         accessibilityLabel={messages.imageLabel}
                     >
-                        <Feather name="user" size={28} color={palette.slate} />
+                        <Icon name="user" size={24} tone="inkMuted" />
                     </View>
                 )}
-                <Button
-                    variant="secondary"
-                    icon={<Feather name="camera" size={16} color={palette.charcoal} />}
-                    busy={busy}
-                    onPress={() => void pickAndUpload()}
-                >
+                <Button variant="secondary" icon="camera" busy={busy} onPress={() => void pickAndUpload()}>
                     {messages.changeAction}
                 </Button>
             </View>

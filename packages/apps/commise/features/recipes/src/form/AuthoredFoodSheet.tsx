@@ -25,6 +25,7 @@ import {
     refusedPressProps,
 } from '@commise/ui/button';
 import { Sheet } from '@commise/ui/sheet';
+import { Icon } from '@commise/ui/icon';
 import { useId, type FC, type JSX } from 'react';
 
 import type { AuthoredFoodDraft } from '../hooks/authoredFoodCreate.model.js';
@@ -37,11 +38,10 @@ import {
     type AuthoredFoodSheetProps,
     type OpenAuthoredFoodState,
 } from './authoredFoodSheet.model.js';
-import { CheckIcon, XIcon } from './icons.js';
 import { recipeFormMessages } from './messages.js';
 
 const INPUT =
-    'w-full rounded-lg border border-slate bg-card px-3 py-2 text-body-sm text-charcoal outline-none focus-visible:ring-2 focus-visible:ring-seafoam read-only:opacity-60 aria-[invalid=true]:border-error-dark';
+    'w-full rounded-lg border border-line-control bg-paper px-3 py-2 text-body-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-focus-ring read-only:opacity-60 aria-[invalid=true]:border-error-dark';
 
 /** The form, the sheet's content while open. */
 const FormBody: FC<{
@@ -60,7 +60,7 @@ const FormBody: FC<{
 
         return (
             <div key={name} className="flex flex-col gap-1">
-                <label className="flex flex-col gap-1 text-body-sm text-slate">
+                <label className="flex flex-col gap-1 text-body-sm text-ink-muted">
                     {label}
                     <input
                         type="text"
@@ -76,7 +76,7 @@ const FormBody: FC<{
                     />
                 </label>
                 {error !== undefined && (
-                    <p id={errorId} className="text-caption text-error-dark">
+                    <p id={errorId} className="text-caption text-danger-text">
                         {authoredFieldErrorText(copy, error)}
                     </p>
                 )}
@@ -97,25 +97,25 @@ const FormBody: FC<{
         >
             {field('name', copy.nameLabel, 'text')}
             <fieldset className="flex flex-col gap-2">
-                <legend className="text-caption font-semibold text-slate">{copy.per100gHint}</legend>
+                <legend className="text-caption font-semibold text-ink-muted">{copy.per100gHint}</legend>
                 <div className="grid grid-cols-2 gap-2">
                     {authoredMacroFields(copy).map(({ field: name, label }) => field(name, label, 'decimal'))}
                 </div>
             </fieldset>
             {/* The one line telling the cook this is theirs alone until promotion (D9a/U11). */}
-            <p className="text-caption text-slate">{copy.privateHint}</p>
+            <p className="text-caption text-ink-muted">{copy.privateHint}</p>
             {submitting && (
-                <p role="status" className="text-body-sm text-slate">
+                <p role="status" className="text-body-sm text-ink-muted">
                     {copy.submitting}
                 </p>
             )}
             {state.kind === 'open' && state.submitFailed && (
-                <p role="alert" className="text-body-sm text-error-dark">
+                <p role="alert" className="text-body-sm text-danger-text">
                     {statusAuthorFailed}
                 </p>
             )}
             <div className="flex flex-wrap items-center gap-2">
-                <Button type="submit" icon={<CheckIcon />} busy={submitting}>
+                <Button type="submit" icon="check" busy={submitting}>
                     {copy.submit}
                 </Button>
                 <button
@@ -123,7 +123,7 @@ const FormBody: FC<{
                     {...refusedPressProps({ unavailable: submitting, onClick: props.onCancel })}
                     className={`${buttonSurfaceClass('secondary')} ${BUSY_CONTROL_CLASS}`}
                 >
-                    <XIcon />
+                    <Icon name="x" size={20} />
                     {copy.cancel}
                 </button>
             </div>
@@ -140,11 +140,11 @@ const DuplicateBody: FC<{
 
     return (
         <div className="flex flex-col gap-3">
-            <p role="status" className="text-body-sm text-charcoal">
+            <p role="status" className="text-body-sm text-ink">
                 {fillTemplate(copy.duplicateNotice, { name: state.draft.name })}
             </p>
             {state.reuseFailed && (
-                <p role="alert" className="text-body-sm text-error-dark">
+                <p role="alert" className="text-body-sm text-danger-text">
                     {copy.duplicateReuseFailed}
                 </p>
             )}
@@ -155,7 +155,7 @@ const DuplicateBody: FC<{
                     {...busyControlProps({ busy: state.reusePending, onClick: props.onReuse })}
                     className={`${buttonSurfaceClass('primary')} ${BUSY_CONTROL_CLASS}`}
                 >
-                    <CheckIcon />
+                    <Icon name="check" size={20} />
                     {copy.duplicateReuse}
                 </button>
                 <button
@@ -163,7 +163,7 @@ const DuplicateBody: FC<{
                     {...refusedPressProps({ unavailable: state.reusePending, onClick: props.onCancel })}
                     className={`${buttonSurfaceClass('secondary')} ${BUSY_CONTROL_CLASS}`}
                 >
-                    <XIcon />
+                    <Icon name="x" size={20} />
                     {copy.cancel}
                 </button>
             </div>

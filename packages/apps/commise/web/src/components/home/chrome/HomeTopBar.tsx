@@ -40,13 +40,14 @@
  * (`screenHome`) and the native leaf already use.
  */
 import { initialsFor } from '@commise/features-core';
+import { Icon } from '@commise/ui/icon';
 import Link from 'next/link';
 import type { Route } from 'next';
 import type { JSX } from 'react';
 
 import type { WebMessages } from '@/i18n/messages';
 
-import { HomeIcon } from './icons';
+import { CONTROL_GLYPH } from './chromeGlyphs';
 
 /** The chrome copy slice this bar renders. */
 type ChromeMessages = WebMessages['home']['chrome'];
@@ -100,12 +101,12 @@ export function HomeTopBar({ chrome, pageTitle, locale, displayName, onOpenNav }
                     //
                     // Tailwind v4 scans this file as TEXT, comments included, so the retired class is
                     // DESCRIBED rather than spelled — writing it verbatim regenerates the dead utility.
-                    className="-ml-2 min-h-11 min-w-11 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl lg:hidden"
+                    className="-ml-2 min-h-11 min-w-11 rounded-full p-2 text-ink transition-colors hover:bg-ink/6 lg:hidden"
                 >
-                    <HomeIcon name="menu" className="size-6" />
+                    <Icon name={CONTROL_GLYPH.menu} size={24} />
                 </button>
                 {/* Plain text, NOT a heading — the page's own content owns the single `<h1>` (module doc). */}
-                <p className="text-lg font-semibold text-charcoal">{pageTitle}</p>
+                <p className="text-lg font-semibold text-ink">{pageTitle}</p>
             </div>
 
             <div className="flex items-center gap-1">
@@ -114,9 +115,9 @@ export function HomeTopBar({ chrome, pageTitle, locale, displayName, onOpenNav }
                     aria-label={chrome.search}
                     // 44px mobile touch-target floor, reset at md. The control is the mockup's 40px icon
                     // button (`p-2` + 24px glyph), so on mobile this floor is what reaches 44px.
-                    className="min-h-11 min-w-11 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl md:min-h-0 md:min-w-0"
+                    className="min-h-11 min-w-11 rounded-full p-2 text-ink transition-colors hover:bg-ink/6 md:min-h-0 md:min-w-0"
                 >
-                    <HomeIcon name="search" className="size-6" />
+                    <Icon name={CONTROL_GLYPH.search} size={24} />
                 </button>
 
                 {/* No count badge — there is no notifications service in v1, and a fabricated number is
@@ -124,9 +125,9 @@ export function HomeTopBar({ chrome, pageTitle, locale, displayName, onOpenNav }
                 <button
                     type="button"
                     aria-label={chrome.notifications}
-                    className="min-h-11 min-w-11 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl md:min-h-0 md:min-w-0"
+                    className="min-h-11 min-w-11 rounded-full p-2 text-ink transition-colors hover:bg-ink/6 md:min-h-0 md:min-w-0"
                 >
-                    <HomeIcon name="notifications" className="size-6" />
+                    <Icon name={CONTROL_GLYPH.notifications} size={24} />
                 </button>
 
                 <Link
@@ -147,9 +148,9 @@ export function HomeTopBar({ chrome, pageTitle, locale, displayName, onOpenNav }
                 >
                     {/* The painted disc — the mockup's `w-8 h-8` circle (`screenHome`), and the same 32px
                         the native leaf's `styles.avatar` paints. */}
-                    <span className="flex size-8 items-center justify-center rounded-full bg-seafoam text-sm font-semibold text-white">
+                    <span className="flex size-8 items-center justify-center rounded-full bg-action text-sm font-semibold text-on-action">
                         {initials === '' ? (
-                            <HomeIcon name="profile" className="size-5" />
+                            <Icon name={CONTROL_GLYPH.profile} size={20} />
                         ) : (
                             <span aria-hidden="true">{initials}</span>
                         )}

@@ -82,10 +82,10 @@ describe('CollectionListResults (web) — populated state', () => {
 /**
  * The card's hover colour-shift is a TEXT colour, and the collection name is the thing a reader reads. At
  * 20px/600 it is NOT WCAG "large text" (which needs 18.66px BOLD, i.e. ≥700), so the 4.5:1 body floor applies
- * to the hovered state exactly as it does at rest. `group-hover:text-seafoam` scored 4.02:1 on the white card —
+ * to the hovered state exactly as it does at rest. `group-hover:text-action-text` scored 4.02:1 on the white card —
  * so pointing at a card made its own title HARDER to read, which is the inverse of the affordance's intent.
  *
- * Both states are measured off the rendered class list, so neither the resting `text-charcoal` nor the hover
+ * Both states are measured off the rendered class list, so neither the resting `text-ink` nor the hover
  * colour can drift under the floor, and a re-theme of either token moves the test with it.
  */
 describe('CollectionListResults (web) — the collection name clears the AA body-text floor in BOTH states', () => {

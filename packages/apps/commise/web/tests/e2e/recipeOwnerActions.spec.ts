@@ -113,14 +113,16 @@ test.describe('recipe-detail owner actions', () => {
         await expect(page.getByText('Step 1 of 4')).toBeVisible();
     });
 
-    test('the More menu discloses a DS-surfaced Version history link that opens the versions route', async ({
-        page,
-    }) => {
+    test('the ⋯ menu discloses a DS-surfaced Version history link that opens the versions route', async ({ page }) => {
         await openOwnRecipe(page);
 
-        // The secondary actions are behind the overflow trigger — which is itself a DS surface, not bare text.
-        const more = page.getByRole('button', { name: 'More', exact: true });
-        await expectDesignSystemSurface(more);
+        // The secondary actions are behind the overflow trigger: the `⋯` glyph, named for the recipe, a 44px target
+        // (UI-overhaul slice 2; it used to be a "More" text pill).
+        const more = page.getByRole('button', { name: `More actions for ${RECIPE_TITLE}` });
+        await expect(more).toBeVisible();
+        const target = await more.boundingBox();
+        expect(target?.width ?? 0).toBeGreaterThanOrEqual(44);
+        expect(target?.height ?? 0).toBeGreaterThanOrEqual(44);
         // The trigger announces that it discloses a menu, and starts collapsed.
         await expect(more).toHaveAttribute('aria-expanded', 'false');
         await expect(page.getByRole('link', { name: 'Version history' })).toHaveCount(0);
@@ -128,7 +130,9 @@ test.describe('recipe-detail owner actions', () => {
         await more.click();
         await expect(more).toHaveAttribute('aria-expanded', 'true');
 
-        const versionHistory = page.getByRole('menu', { name: 'More' }).getByRole('link', { name: 'Version history' });
+        const versionHistory = page
+            .getByRole('dialog', { name: 'More actions' })
+            .getByRole('link', { name: 'Version history' });
         await expectDesignSystemSurface(versionHistory);
 
         await versionHistory.click();
@@ -137,12 +141,53 @@ test.describe('recipe-detail owner actions', () => {
         await expect(page.getByRole('heading', { name: 'Version history' })).toBeVisible();
     });
 
+    /**
+     * Finding D2 (`docs/design/uiOverhaul/evaluateRecipeAndWizard.md`): at 390 px the menu opened UNDER the fixed bottom
+     * tab bar, hiding most of "Delete recipe" (SC 2.4.11). Its whole box must now sit above the bar, even parked where a
+     * placement that ignored the bar would overlap it.
+     */
+    test('at 390px the ⋯ panel opens clear of the bottom tab bar (D2)', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 700 });
+        await openOwnRecipe(page);
+
+        const trigger = page.getByRole('button', { name: `More actions for ${RECIPE_TITLE}` });
+        const panel = page.getByRole('dialog', { name: 'More actions' });
+        // The sidebar shares the name and is hidden below 840 px; the visible one is the tab bar.
+        const bar = page.getByRole('navigation', { name: 'Main' }).filter({ visible: true });
+
+        // Measure the panel once, then park the trigger where a panel placed BELOW it would still fit inside the
+        // viewport but end under the bar. Only a panel that knows the bar's extent flips above from there: this is the
+        // placement that made D2, and the one that proves the shell's insets reach the popup.
+        await trigger.click();
+        const panelHeight = (await panel.boundingBox())?.height ?? 0;
+        await page.keyboard.press('Escape');
+        const barTop = (await bar.boundingBox())?.y ?? 0;
+        await trigger.evaluate((element, gap) => {
+            const box = element.getBoundingClientRect();
+            window.scrollBy(0, box.bottom - (window.innerHeight - gap));
+        }, panelHeight + 24);
+
+        await trigger.click();
+        const deleteTrigger = panel.getByRole('button', { name: 'Delete recipe' });
+        await expect(deleteTrigger).toBeVisible();
+
+        const box = await panel.boundingBox();
+
+        expect(panelHeight, 'the panel was measured').toBeGreaterThan(0);
+        expect(box, 'the panel is on screen').not.toBeNull();
+        expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(barTop);
+        // And nothing under the bar intercepts the press that reaches Delete.
+        await deleteTrigger.click({ trial: true });
+    });
+
     test('Delete confirms in an alertdialog, then deletes and returns to the recipes list', async ({ page }) => {
         await openOwnRecipe(page);
 
-        await page.getByRole('button', { name: 'More', exact: true }).click();
+        await page.getByRole('button', { name: /^More actions for /u }).click();
 
-        const deleteTrigger = page.getByRole('menu', { name: 'More' }).getByRole('button', { name: 'Delete recipe' });
+        const deleteTrigger = page
+            .getByRole('dialog', { name: 'More actions' })
+            .getByRole('button', { name: 'Delete recipe' });
         await expectDesignSystemSurface(deleteTrigger);
         // The trigger announces the dialog it opens — the reason it stays a plain `<button>` on the DS surface
         // rather than the DS `Button` component (which carries no popup hint).
@@ -152,13 +197,16 @@ test.describe('recipe-detail owner actions', () => {
 
         // A destructive action confirms in an ALERTDIALOG (not a plain dialog), and the confirmation NAMES the
         // recipe — an unnamed "are you sure?" is how the wrong recipe gets deleted.
-        const dialog = page.getByRole('alertdialog', { name: 'Delete recipe' });
+        const dialog = page.getByRole('alertdialog', { name: 'Delete this recipe?' });
         await expect(dialog).toBeVisible();
         await expect(dialog.getByText(new RegExp(RECIPE_TITLE))).toBeVisible();
 
         // Both dialog controls are DS surfaces too (they were each re-typing their own pill before).
-        await expectDesignSystemSurface(dialog.getByRole('button', { name: 'Cancel' }));
-        const confirm = dialog.getByRole('button', { name: 'Delete', exact: true });
+        // Verb buttons, focus on the safe one (spec §6.5): "Keep recipe" holds focus as the dialog opens.
+        const keep = dialog.getByRole('button', { name: 'Keep recipe' });
+        await expectDesignSystemSurface(keep);
+        await expect(keep).toBeFocused();
+        const confirm = dialog.getByRole('button', { name: 'Delete recipe' });
         await expectDesignSystemSurface(confirm);
 
         await confirm.click();
@@ -195,7 +243,7 @@ test.describe('recipe-detail owner actions', () => {
 
         // Every owner control is ABSENT — not disabled, not hidden-but-clickable.
         await expect(page.getByRole('link', { name: 'Edit recipe' })).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'More', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /^More actions for /u })).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Delete recipe' })).toHaveCount(0);
         await expect(page.getByRole('link', { name: 'Version history' })).toHaveCount(0);
     });

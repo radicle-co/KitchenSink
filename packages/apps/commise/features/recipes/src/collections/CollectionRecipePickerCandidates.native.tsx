@@ -5,6 +5,7 @@
  * device trait (see the ⚠️ note at the control), with re-activation suppressed in the handler.
  */
 import { useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
@@ -54,14 +55,11 @@ export const CollectionRecipePickerCandidates: FC<CollectionRecipePickerCandidat
                         <View style={styles.stateCard}>
                             <Text style={styles.stateTitle}>{picker.emptyTitle}</Text>
                             <Text style={styles.stateBody}>{picker.emptyBody}</Text>
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={picker.createRecipe}
-                                onPress={onCreateRecipe}
-                                style={styles.primaryButton}
-                            >
-                                <Text style={styles.primaryLabel}>{picker.createRecipe}</Text>
-                            </Pressable>
+                            <View style={styles.createAction}>
+                                <Button icon="plus" onPress={onCreateRecipe}>
+                                    {picker.createRecipe}
+                                </Button>
+                            </View>
                         </View>
                     )
                 ) : (

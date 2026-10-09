@@ -12,7 +12,7 @@ import type { ConfirmDialogProps } from '../props.js';
  *
  * Covers: closed renders nothing; open renders an accessible alertdialog naming the title/description;
  * confirm/cancel wire to their callbacks; Escape-dismiss (Radix's own `onOpenChange`) also routes to
- * `onCancel` — a single exit path, not two; the destructive tier is a visually distinct affordance; and
+ * `onKeep` — a single exit path, not two; the destructive tier is a visually distinct affordance; and
  * focus-return to the SIBLING control that opened it, on every one of the three exit paths.
  *
  * ⛔ The focus cases are a BEHAVIOUR this leaf did not have. Radix restores focus on close only to an OWNED
@@ -33,7 +33,7 @@ function SiblingTriggered(overrides: Partial<ConfirmDialogProps> = {}): JSX.Elem
                 Open
             </button>
             <button type="button">Unrelated sibling</button>
-            <ConfirmDialog {...baseProps({ ...overrides, open, onCancel: () => setOpen(false) })} />
+            <ConfirmDialog {...baseProps({ ...overrides, open, onKeep: () => setOpen(false) })} />
         </>
     );
 }
@@ -50,11 +50,11 @@ function baseProps(overrides: Partial<ConfirmDialogProps> = {}): ConfirmDialogPr
     return {
         open: true,
         title: 'Discard unsaved changes?',
-        description: 'You have unsaved changes. Leaving now will discard them.',
-        confirmLabel: 'Discard changes',
-        cancelLabel: 'Keep editing',
+        body: 'You have unsaved changes. Leaving now will discard them.',
+        confirm: { label: 'Discard changes', icon: 'trash' },
+        keep: { label: 'Keep editing' },
         onConfirm: vi.fn(),
-        onCancel: vi.fn(),
+        onKeep: vi.fn(),
         ...overrides,
     };
 }
@@ -83,24 +83,24 @@ describe('ConfirmDialog (web)', () => {
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
 
-    it('the explicit cancel action calls onCancel', async () => {
+    it('the Keep action calls onKeep', async () => {
         const user = userEvent.setup();
-        const onCancel = vi.fn();
-        render(<ConfirmDialog {...baseProps({ onCancel })} />);
+        const onKeep = vi.fn();
+        render(<ConfirmDialog {...baseProps({ onKeep })} />);
 
         await user.click(screen.getByRole('button', { name: 'Keep editing' }));
 
-        expect(onCancel).toHaveBeenCalledTimes(1);
+        expect(onKeep).toHaveBeenCalledTimes(1);
     });
 
-    it('Escape-dismissal also calls onCancel (one exit path, not two)', async () => {
+    it('Escape-dismissal also calls onKeep (one exit path, not two)', async () => {
         const user = userEvent.setup();
-        const onCancel = vi.fn();
-        render(<ConfirmDialog {...baseProps({ onCancel })} />);
+        const onKeep = vi.fn();
+        render(<ConfirmDialog {...baseProps({ onKeep })} />);
 
         await user.keyboard('{Escape}');
 
-        expect(onCancel).toHaveBeenCalledTimes(1);
+        expect(onKeep).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -158,5 +158,99 @@ describe('ConfirmDialog (web) — focus-return to the sibling control that opene
 
         await focusToSettle();
         expect(document.activeElement).toBe(document.body);
+    });
+});
+
+/**
+ * Slice 2 of the UI overhaul (blueprint Part B, ConfirmDialog; spec §6.5): verb buttons with glyphs, focus that opens
+ * on the safe one, the filled destructive tone, buttons that stack below a 400 px dialog, and the busy and failed
+ * states a destructive request goes through.
+ */
+describe('ConfirmDialog (web) — the overhaul contract', () => {
+    const tokensOf = (element: Element): readonly string[] => element.className.split(/\s+/u);
+
+    it('opens with focus on Keep, the non-destructive action', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep editing' }));
+    });
+
+    it('draws the confirm in the filled destructive tone with its glyph, and Keep as secondary with an x', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        const confirm = screen.getByRole('button', { name: 'Discard changes' });
+        const keep = screen.getByRole('button', { name: 'Keep editing' });
+
+        expect(tokensOf(confirm)).toContain('bg-danger');
+        expect(confirm.querySelector('svg.lucide-trash')).not.toBeNull();
+        expect(tokensOf(keep)).toEqual(expect.arrayContaining(['bg-paper', 'border-line-control']));
+        expect(keep.querySelector('svg.lucide-x')).not.toBeNull();
+    });
+
+    it('draws Keep with the glyph it is given', () => {
+        render(<ConfirmDialog {...baseProps({ keep: { label: 'Keep editing', icon: 'pencilLine' } })} />);
+
+        expect(
+            screen.getByRole('button', { name: 'Keep editing' }).querySelector('svg.lucide-pencil-line'),
+        ).not.toBeNull();
+    });
+
+    it('stacks its buttons below a 400px dialog, destructive on top, and sets them side by side above it, Keep first', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        const dialog = screen.getByRole('alertdialog');
+        const actions = screen.getByRole('button', { name: 'Keep editing' }).parentElement as HTMLElement;
+
+        expect(tokensOf(dialog)).toContain('@container/dialog');
+        expect(tokensOf(actions)).toEqual(
+            expect.arrayContaining(['flex-col-reverse', '@[25rem]/dialog:flex-row', '@[25rem]/dialog:justify-end']),
+        );
+        expect([...actions.querySelectorAll('button')].map((button) => button.textContent)).toStrictEqual([
+            'Keep editing',
+            'Discard changes',
+        ]);
+    });
+
+    it('fills each button across the stacked dialog', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        expect(tokensOf(screen.getByRole('button', { name: 'Keep editing' }))).toContain('w-full');
+        expect(tokensOf(screen.getByRole('button', { name: 'Discard changes' }))).toContain('w-full');
+    });
+
+    it('while busy, spins the confirm and cannot fire again, says so, and Keep stays able to close it', async () => {
+        const user = userEvent.setup();
+        const onConfirm = vi.fn();
+        const onKeep = vi.fn();
+        render(<ConfirmDialog {...baseProps({ busy: true, busyLabel: 'Discarding…', onConfirm, onKeep })} />);
+
+        const confirm = screen.getByRole('button', { name: 'Discard changes' });
+
+        expect(confirm.getAttribute('aria-busy')).toBe('true');
+        expect(screen.getByRole('status').textContent).toBe('Discarding…');
+
+        await user.click(confirm);
+        await user.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+        expect(onConfirm).not.toHaveBeenCalled();
+        expect(onKeep).toHaveBeenCalledOnce();
+    });
+
+    it('shows a failure inside the dialog as an alert, but not while a retry is in flight', () => {
+        const { rerender } = render(<ConfirmDialog {...baseProps({ error: 'We couldn’t discard. Try again.' })} />);
+
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t discard. Try again.');
+
+        rerender(<ConfirmDialog {...baseProps({ error: 'We couldn’t discard. Try again.', busy: true })} />);
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('titles the dialog in the section title role', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        expect(tokensOf(screen.getByRole('heading', { name: 'Discard unsaved changes?' }))).toContain(
+            'text-section-title',
+        );
     });
 });

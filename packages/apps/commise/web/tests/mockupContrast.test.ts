@@ -7,7 +7,7 @@
  *
  * #113 moved two palette tiers in OKLCH and gave the pastel tiers dark labels, because a white label on a
  * filled accent was measuring as low as 1.88:1. The mockups were left behind: they still declared the
- * PRE-#113 hexes and still paired `text-white` with every fill (35 white labels against 4 charcoal), so all
+ * PRE-#113 hexes and still paired `text-on-action` with every fill (35 white labels against 4 charcoal), so all
  * six pastel/mid tiers failed AA on the page a designer or an agent opens to answer "what should this look
  * like?". A stale visual contract is not a cosmetic problem — it is a REGRESSION GENERATOR: every future
  * "match the mockups" pass faithfully re-introduces the defect the product just fixed, and does so with the
@@ -93,7 +93,7 @@ const ACCENT_FILLS: readonly string[] = [
 /**
  * The colour the mockups' own base layer gives text that declares none: their `@layer base` rule is
  * `body { color: var(--color-charcoal) }`. Modelling it explicitly is what keeps an unlabelled span on a
- * filled accent from being silently skipped — inheriting charcoal onto `bg-seafoam` is a real 2.72:1.
+ * filled accent from being silently skipped — inheriting charcoal onto `bg-action` is a real 2.72:1.
  */
 const INHERITED_LABEL = 'charcoal';
 
@@ -102,7 +102,7 @@ const COLOR_TOKEN = /--color-([a-z-]+):\s*(#[0-9a-fA-F]{3,8})/g;
 
 /**
  * A RESTING-state Tailwind colour utility: the role, the tier it names, and an optional `/NN` opacity —
- * `bg-coral`, `text-white`, `from-white/12`, `to-seafoam/8`.
+ * `bg-coral`, `text-on-action`, `from-white/12`, `to-seafoam/8`.
  *
  * Variant-prefixed utilities (`hover:bg-coral`) do NOT match, on purpose: this file measures the resting
  * pair. Non-colour utilities that share a prefix (`text-sm`, `bg-gradient-to-br`, `to-transparent`) match the
@@ -196,7 +196,7 @@ describe('docs/mockups — canvas gradient parity with @commise/ui', () => {
  *
  * A gradient background is a moving target for contrast: the ramp's terminal tint is the darkest point of the
  * page, so a foreground that passes on flat sand can fail at the far corner. This repo has a documented
- * history of exactly that class of defect (a `text-seafoam` tier measuring ~2.2:1 across ~37 sites, white on
+ * history of exactly that class of defect (a `text-action-text` tier measuring ~2.2:1 across ~37 sites, white on
  * coral at 2.40), so replacing a flat canvas with a ramp is not allowed to be a contrast regression.
  *
  * The stops are read from the TOKEN, so re-toning the ramp re-runs the measurement automatically. Only
@@ -375,7 +375,7 @@ function violationsIn(screen: string): readonly Violation[] {
  *
  * A `currentColor` SVG is included because it is coloured by the very `text-*` utility this walk resolves:
  * the mockups' circular quick-action buttons are icon-ONLY, so skipping them would have missed
- * `text-white` on `bg-sky` (1.79:1) and on `bg-warning` (1.88:1) — under even the 3:1 graphic floor.
+ * `text-on-action` on `bg-sky` (1.79:1) and on `bg-warning` (1.88:1) — under even the 3:1 graphic floor.
  */
 function contrastUseOf(element: Element): ContrastUse | undefined {
     if (ownText(element) !== '') {
@@ -402,7 +402,7 @@ function ownText(element: Element): string {
  * The opaque colour(s) a reader sees behind the element's text, and the accent FILL the chain bottoms out on.
  *
  * The walk climbs self → ancestors, collecting each level's background layers, and stops at the first OPAQUE
- * one. Translucent layers above it are then composited back down, so a `text-charcoal` label on a
+ * one. Translucent layers above it are then composited back down, so a `text-ink` label on a
  * `from-white/12` glass pane over `bg-charcoal` is measured against the ~#464c4e a reader actually sees
  * rather than against charcoal. A gradient contributes ALL its stops as alternative backdrops, and the caller
  * scores the worst of them — a label that is legible at one end of a gradient and not the other is illegible.

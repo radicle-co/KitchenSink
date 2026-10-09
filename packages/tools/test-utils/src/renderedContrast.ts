@@ -32,7 +32,7 @@
  * Every function here is pure apart from reading the DOM, which {@link computedContrast} documents.
  */
 import { parse } from 'culori';
-import { palette } from '@commise/ui/colors';
+import { palette, role } from '@commise/ui/colors';
 
 import { compositeOver, contrastRatio } from './contrast.js';
 
@@ -46,6 +46,20 @@ import { compositeOver, contrastRatio } from './contrast.js';
  * palette entry — so none of them is mistaken for a colour.
  */
 const COLOR_UTILITY = /^(?:([a-z-]+):)?(text|bg|border|ring)-([a-z-]+?)(?:\/(\d{1,3}))?$/;
+
+/**
+ * Every colour a utility can name: the palette, and the colour ROLES (spec §1.4) under the kebab-case name the theme
+ * emits them as (`inkMuted` → `ink-muted`, so `text-ink-muted`). The two name sets do not overlap.
+ */
+const NAMED_COLOURS: Readonly<Record<string, string>> = {
+    ...palette,
+    ...Object.fromEntries(
+        Object.entries(role).map(([name, value]) => [
+            name.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`),
+            value,
+        ]),
+    ),
+};
 
 /** The CSS notation jsdom reports for "no background painted here". */
 const TRANSPARENT = 'rgba(0, 0, 0, 0)';
@@ -101,7 +115,7 @@ function colorUtilities(className: string, prefix: 'text' | 'bg' | 'border' | 'r
         .map((token) => COLOR_UTILITY.exec(token))
         .filter((match): match is RegExpExecArray => match !== null && match[2] === prefix)
         .map((match) => ({ variant: match[1], name: match[3] as string, alphaPercent: match[4] }))
-        .filter(({ name }) => name in palette);
+        .filter(({ name }) => name in NAMED_COLOURS);
 }
 
 /**
@@ -123,7 +137,7 @@ function candidates(
 
 /** The palette colour a resolved utility names, with its `/NN` suffix applied as hex alpha. Pure. */
 function colorOf({ name, alphaPercent }: ColorUtility): string {
-    const color = palette[name as keyof typeof palette];
+    const color = NAMED_COLOURS[name] as string;
 
     return alphaPercent === undefined ? color : `${color}${toHexAlpha(Number.parseInt(alphaPercent, 10) / 100)}`;
 }

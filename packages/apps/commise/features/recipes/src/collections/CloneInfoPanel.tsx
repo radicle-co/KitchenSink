@@ -8,7 +8,7 @@
  * and performs no mutations; the View Source interaction is delegated upward.
  *
  * View Source labels in `ocean-dark`, not `seafoam`: seafoam as a FOREGROUND is 4.02:1 on this white panel and
- * 3.57:1 under its own `hover:bg-seafoam/10` tint, both below the 4.5:1 body-text floor. The tint stays seafoam
+ * 3.57:1 under its own `hover:bg-action/10` tint, both below the 4.5:1 body-text floor. The tint stays seafoam
  * — see the palette JSDoc in `@commise/ui` for that (single, authoritative) accent-vs-text rule.
  */
 import { useMessages } from '@commise/i18n/react';
@@ -41,14 +41,14 @@ export const CloneInfoPanel: FC<CloneInfoPanelProps> = ({
     const clonedOnLabel = fillTemplate(cloneInfo.clonedOn, { date: formatCollectionDate(clonedAt, locale) });
 
     return (
-        <section aria-label={cloneInfo.heading} className="flex flex-col gap-2 rounded-2xl bg-card p-5 shadow-sm">
-            <h2 className="text-caption font-semibold uppercase tracking-wide text-slate">{cloneInfo.heading}</h2>
-            <p className="text-body-sm text-charcoal">{attribution}</p>
-            <p className="text-body-sm text-slate">{clonedOnLabel}</p>
+        <section aria-label={cloneInfo.heading} className="flex flex-col gap-2 rounded-2xl bg-paper p-5 shadow-sm">
+            <h2 className="text-caption font-semibold uppercase tracking-wide text-ink-muted">{cloneInfo.heading}</h2>
+            <p className="text-body-sm text-ink">{attribution}</p>
+            <p className="text-body-sm text-ink-muted">{clonedOnLabel}</p>
             <button
                 type="button"
                 onClick={() => onViewSource(sourceCollectionId)}
-                className="self-start rounded-full px-4 py-2 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
+                className="self-start rounded-full px-4 py-2 text-body-sm font-medium text-action-text transition hover:bg-action/10"
             >
                 {cloneInfo.viewSource}
             </button>

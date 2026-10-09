@@ -10,6 +10,7 @@ import { fireEvent } from '@testing-library/dom';
 
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 import { RecipeListResults } from '../RecipeListResults.native.js';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { RecipeListResultsProps } from '../model.js';
 
 /** The frame's collapse (compact height AND a keyboard open), served by the test: jsdom has neither. */
@@ -257,5 +258,17 @@ describe('RecipeListResults (native) — collapsed (compact height, keyboard ope
 
         expect(screen.getByLabelText('Quick filters')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+    });
+});
+
+describe('RecipeListResults (native) — the design-system Button (UI overhaul slice 2)', () => {
+    it('offers the first recipe through a primary plus Button', () => {
+        render(results({ recipes: [] }));
+
+        expectNativeDesignSystemButton(
+            screen.getByRole('button', { name: 'Create your first recipe' }),
+            'primary',
+            'plus',
+        );
     });
 });

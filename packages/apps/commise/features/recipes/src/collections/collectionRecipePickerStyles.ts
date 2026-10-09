@@ -7,4 +7,4 @@
  */
 
 /** The white state card a settled failure, an empty library and an empty search all render on. */
-export const pickerStateCard = 'rounded-2xl bg-card p-6 text-body-md text-slate shadow-sm';
+export const pickerStateCard = 'rounded-2xl bg-paper p-6 text-body-md text-ink-muted shadow-sm';

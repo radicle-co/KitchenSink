@@ -33,7 +33,7 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
             {/* The heading sits on the page canvas, which already carries the beach-glow wash: a second gradient
                 band around it was a box in a box (`docs/design/uiOverhaul/buildSpec.md` §1.6). */}
             <header className="flex items-center justify-between gap-4">
-                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-charcoal">
+                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-ink">
                     {list.heading}
                 </h1>
             </header>
@@ -48,9 +48,9 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
                 placeholder={list.searchPlaceholder}
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
-                // Placeholder text is TEXT: `placeholder:text-slate`, never `mist` (palette JSDoc,
-                // `@commise/ui`'s `tokens/colors.ts`). The `border-border` hairline stays `mist`-derived.
-                className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam"
+                // Placeholder text is TEXT: `placeholder:text-ink-muted`, never `mist` (palette JSDoc,
+                // `@commise/ui`'s `tokens/colors.ts`). The `border-line-divider` hairline stays `mist`-derived.
+                className="w-full rounded-full border border-line-divider bg-paper px-5 py-3 text-body-md text-ink shadow-sm outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-focus-ring"
             />
 
             {children}

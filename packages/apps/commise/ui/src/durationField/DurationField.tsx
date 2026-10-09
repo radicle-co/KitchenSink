@@ -12,12 +12,12 @@
  */
 import { useId, type FC } from 'react';
 
+import { FIELD_CLASS } from '../input/fieldClass.js';
 import { durationBoxes, durationFromBoxes } from './duration.js';
 import type { DurationFieldProps } from './props.js';
 
-/** The box chrome: a 48 px rectangle, the form inputs' border and focus ring. */
-const box =
-    'h-12 w-16 rounded-lg border border-border bg-white px-3 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam';
+/** The box chrome: the shared field surface (the Input rules, spec §1.11), narrowed to a number's width. */
+const box = `w-20 text-ink ${FIELD_CLASS}`;
 
 export const DurationField: FC<DurationFieldProps> = ({
     label,
@@ -33,7 +33,7 @@ export const DurationField: FC<DurationFieldProps> = ({
 
     return (
         <div role="group" aria-labelledby={labelId} className="flex flex-col gap-1">
-            <span id={labelId} className="text-body-sm font-medium text-slate">
+            <span id={labelId} className="text-label text-ink-muted">
                 {label}
             </span>
             <div className="flex items-center gap-2">
@@ -47,7 +47,7 @@ export const DurationField: FC<DurationFieldProps> = ({
                     onChange={(event) => onChange(durationFromBoxes(event.target.value, shown.minutes))}
                     className={box}
                 />
-                <span aria-hidden="true" className="text-body-sm text-slate">
+                <span aria-hidden="true" className="text-meta text-ink-muted">
                     {hoursUnit}
                 </span>
                 <input
@@ -60,7 +60,7 @@ export const DurationField: FC<DurationFieldProps> = ({
                     onChange={(event) => onChange(durationFromBoxes(shown.hours, event.target.value))}
                     className={box}
                 />
-                <span aria-hidden="true" className="text-body-sm text-slate">
+                <span aria-hidden="true" className="text-meta text-ink-muted">
                     {minutesUnit}
                 </span>
             </div>

@@ -98,7 +98,9 @@ describe('AccountContent — SSR identity-fetch resilience', () => {
         // boundary — matching the `/profile` route's shipped degradation contract (and B19's for /recipes).
         expect(screen.getByRole('heading', { name: 'Account Settings' })).toBeTruthy();
         expect(screen.getAllByRole('navigation').length).toBeGreaterThan(0);
-        expect(screen.getByRole('status')).toHaveTextContent(/couldn’t load your profile/i);
+        // The one status that SAYS something; the snackbar host's own region stays mounted and empty.
+        const [notice] = screen.getAllByRole('status').filter((region) => region.textContent !== '');
+        expect(notice).toHaveTextContent(/couldn’t load your profile/i);
         // The edit form needs the profile it could not load, so it is absent…
         expect(screen.queryByText('edit-form-stub')).toBeNull();
         // …but the danger zone needs NO profile: a user must still be able to close or erase their account

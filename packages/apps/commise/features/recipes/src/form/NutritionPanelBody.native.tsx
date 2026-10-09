@@ -8,8 +8,6 @@
  * @pattern Visitor — an exhaustive `switch` over `NutritionPanelState`
  */
 import { Button } from '@commise/ui/button';
-import { palette } from '@commise/ui';
-import { Feather } from '@expo/vector-icons';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
 import { Text, View } from 'react-native';
@@ -60,11 +58,7 @@ export const NutritionPanelBody: FC<NutritionPanelBodyProps> = ({ state, onRetry
                 <View style={styles.panelStack}>
                     <Text style={styles.panelText}>{m.nutritionLoadFailed}</Text>
                     <View style={styles.addAction}>
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="refresh-cw" size={16} color={palette.charcoal} />}
-                            onPress={onRetry}
-                        >
+                        <Button variant="secondary" icon="refreshCw" onPress={onRetry}>
                             {m.statusActionRetry}
                         </Button>
                     </View>

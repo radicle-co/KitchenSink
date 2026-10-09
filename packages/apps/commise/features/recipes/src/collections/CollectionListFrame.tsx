@@ -12,6 +12,7 @@
  */
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
 import { collectionMessages } from './messages.js';
@@ -23,17 +24,13 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({ onCreate, he
 
     return (
         <section aria-label={list.heading} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
-            <header className="flex items-center justify-between gap-4">
-                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-charcoal">
+            <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-ink">
                     {list.heading}
                 </h1>
-                <button
-                    type="button"
-                    onClick={onCreate}
-                    className="rounded-full bg-seafoam px-5 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
-                >
+                <Button icon="plus" onPress={onCreate}>
                     {list.createCta}
-                </button>
+                </Button>
             </header>
             {children}
         </section>

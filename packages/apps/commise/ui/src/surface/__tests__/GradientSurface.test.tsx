@@ -35,11 +35,14 @@ describe('GradientSurface (web)', () => {
         expect(screen.getByText('hero content')).toBeDefined();
     });
 
-    it('paints the hero gradient by default', () => {
+    // REWRITTEN for D15: the canvas wash is the `bg-hero` utility, whose `--background-image-hero` the dark block
+    // overrides, rather than an inline light gradient that no theme could reach.
+    it('paints the hero wash by default through the themed bg-hero utility', () => {
         const { container } = render(<GradientSurface>x</GradientSurface>);
         const surface = container.firstElementChild as HTMLElement;
 
-        expect(asColours(surface.style.backgroundImage)).toBe(asColours(gradientCss(gradient.hero)));
+        expect(surface.className.split(/\s+/u)).toContain('bg-hero');
+        expect(surface.style.backgroundImage).toBe('');
     });
 
     it('paints the brand gradient when requested (the same seafoam→ocean-dark the CTA uses)', () => {

@@ -11,6 +11,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import type { Collection } from '@kitchensink/recipe-core';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 
 import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
 import { CollectionDetail } from '../CollectionDetail.js';
@@ -177,5 +178,21 @@ describe('CollectionDetail (web) — mutation error (B17: no frozen no-op)', () 
         renderDetail({ error: undefined });
 
         expect(screen.queryByRole('alert')).toBeNull();
+    });
+});
+
+describe('CollectionDetail (web) — the design-system Button (UI overhaul slice 2)', () => {
+    it('adds a recipe through a primary plus Button, and loads more through a secondary chevronDown one', () => {
+        const members = Array.from({ length: 8 }, (_, index) =>
+            makeCollectionMemberRecipe({ id: `rec_${index + 1}`, title: `Recipe ${index + 1}` }),
+        );
+        renderDetail({ collection: makeCollectionWithRecipes({ recipes: members }) });
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Add a recipe' }), 'primary', 'plus');
+        expectDesignSystemButton(
+            screen.getByRole('button', { name: 'Load more (4 more)' }),
+            'secondary',
+            'chevron-down',
+        );
     });
 });

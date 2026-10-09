@@ -19,7 +19,6 @@ import { LiveRegion } from '@commise/ui/live-region';
 import { useScreenReaderFocusOnMount } from '@commise/ui/screen-reader-focus';
 import { Sheet } from '@commise/ui/sheet';
 import { TextInput } from '@commise/ui/text-input';
-import { Feather } from '@expo/vector-icons';
 import type { FC, JSX } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -89,19 +88,10 @@ const FormBody: FC<{
                 {state.kind === 'open' && state.submitFailed ? statusAuthorFailed : ''}
             </LiveRegion>
             <View style={styles.actions}>
-                <Button
-                    icon={<Feather name="check" size={16} color={palette.white} />}
-                    busy={submitting}
-                    onPress={props.onSubmit}
-                >
+                <Button icon="check" busy={submitting} onPress={props.onSubmit}>
                     {copy.submit}
                 </Button>
-                <Button
-                    variant="secondary"
-                    icon={<Feather name="x" size={16} color={palette.charcoal} />}
-                    disabled={submitting}
-                    onPress={props.onCancel}
-                >
+                <Button variant="secondary" icon="x" disabled={submitting} onPress={props.onCancel}>
                     {copy.cancel}
                 </Button>
             </View>
@@ -126,19 +116,10 @@ const DuplicateBody: FC<{
                 {state.reuseFailed ? copy.duplicateReuseFailed : ''}
             </LiveRegion>
             <View style={styles.actions}>
-                <Button
-                    icon={<Feather name="check" size={16} color={palette.white} />}
-                    busy={state.reusePending}
-                    onPress={props.onReuse}
-                >
+                <Button icon="check" busy={state.reusePending} onPress={props.onReuse}>
                     {copy.duplicateReuse}
                 </Button>
-                <Button
-                    variant="secondary"
-                    icon={<Feather name="x" size={16} color={palette.charcoal} />}
-                    disabled={state.reusePending}
-                    onPress={props.onCancel}
-                >
+                <Button variant="secondary" icon="x" disabled={state.reusePending} onPress={props.onCancel}>
                     {copy.cancel}
                 </Button>
             </View>

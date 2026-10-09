@@ -23,11 +23,11 @@
  * the DS `secondary` tier and cannot drift apart again.
  *
  * Pull Updates and Save changes LABEL in `ocean-dark`, not `seafoam`: seafoam as a FOREGROUND is 4.02:1 on this
- * white panel and 3.57:1 under `hover:bg-seafoam/10`, both below the 4.5:1 body-text floor. Pull Updates' seafoam
+ * white panel and 3.57:1 under `hover:bg-action/10`, both below the 4.5:1 body-text floor. Pull Updates' seafoam
  * RING is untouched — a control boundary needs 3:1 (SC 1.4.11), which seafoam clears. See the palette JSDoc in
  * `@commise/ui` for that (single, authoritative) accent-vs-text rule.
  *
- * The sibling controls in this panel — Add Recipes (`bg-seafoam`), Pull Updates (a seafoam ring), Save changes
+ * The sibling controls in this panel — Add Recipes (`bg-action`), Pull Updates (a seafoam ring), Save changes
  * (a bare text control) — are deliberately left hand-rolled in this change, and NOT because they are fine. They are
  * blocked on a decision one layer down: `semantic.secondary` IS `palette.coral` and Tamagui's `light.secondary`
  * is coral, yet the DS `secondary` tier renders a grey-bordered white pill while EVERY non-primary button in
@@ -36,12 +36,11 @@
  * because its defect is independent of that question: it was in the WRONG REGISTER, not merely the wrong tone.
  */
 import { useMessages } from '@commise/i18n/react';
-import { BUSY_CONTROL_CLASS, busyControlProps, Button } from '@commise/ui/button';
+import { Button } from '@commise/ui/button';
 import { useId, type FC } from 'react';
 
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
-import { CloneIcon } from '../actions/icons.js';
 import { collectionMessages } from './messages.js';
 import type { CollectionActionsProps } from './model.js';
 
@@ -75,32 +74,24 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
 
     const pill = (active: boolean) =>
         `relative cursor-pointer rounded-full px-4 py-1.5 text-body-sm font-medium transition ${
-            active ? 'bg-card text-charcoal shadow-sm' : 'text-slate'
+            active ? 'bg-paper text-ink shadow-sm' : 'text-ink-muted'
         }`;
     const radioOverlay = 'absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed';
 
     return (
-        <section aria-label={actions.heading} className="flex flex-col gap-4 rounded-2xl bg-card p-5 shadow-sm">
+        <section aria-label={actions.heading} className="flex flex-col gap-4 rounded-2xl bg-paper p-5 shadow-sm">
             <div className="flex flex-col gap-2">
-                <button
-                    type="button"
-                    onClick={onAddRecipes}
-                    className="rounded-full bg-seafoam px-5 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark"
-                >
+                <Button icon="plus" onPress={onAddRecipes}>
                     {actions.addRecipes}
-                </button>
+                </Button>
                 {isCloned && (
                     <div className="flex flex-col gap-1">
-                        <button
-                            type="button"
-                            // The control just pressed goes busy, so it keeps focus (see `busyControlProps`).
-                            {...busyControlProps({ busy: isPulling, onClick: onPullUpdates })}
-                            className={`rounded-full px-5 py-2.5 text-body-sm font-medium text-ocean-dark ring-1 ring-seafoam transition hover:bg-seafoam/10 ${BUSY_CONTROL_CLASS}`}
-                        >
+                        {/* The control just pressed goes busy, so it keeps focus (the Button's `busy`). */}
+                        <Button variant="secondary" icon="refreshCw" busy={isPulling} onPress={onPullUpdates}>
                             {actions.pullUpdates}
-                        </button>
+                        </Button>
                         {isPulling && (
-                            <span role="status" className="text-body-sm text-slate">
+                            <span role="status" className="text-body-sm text-ink-muted">
                                 {actions.pullingLabel}
                             </span>
                         )}
@@ -108,11 +99,11 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
                 )}
                 <div className="flex flex-col items-start gap-1">
                     {/* `busy` supplies the in-place spinner, the in-flight guard (a refused press that keeps focus), and `aria-busy`. */}
-                    <Button variant="secondary" icon={<CloneIcon />} onPress={onClone} busy={isCloning}>
+                    <Button variant="secondary" icon="copyPlus" onPress={onClone} busy={isCloning}>
                         {actions.cloneCollection}
                     </Button>
                     {isCloning && (
-                        <span role="status" className="text-body-sm text-slate">
+                        <span role="status" className="text-body-sm text-ink-muted">
                             {actions.cloningLabel}
                         </span>
                     )}
@@ -120,7 +111,7 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
             </div>
 
             <fieldset aria-label={actions.visibilityGroupLabel} className="flex flex-col gap-2">
-                <div className="inline-flex w-fit gap-1 rounded-full bg-pearl p-1">
+                <div className="inline-flex w-fit gap-1 rounded-full bg-surface-muted p-1">
                     <label className={pill(pendingVisibility === RecipeVisibility.PUBLIC)}>
                         <input
                             type="radio"
@@ -149,18 +140,15 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
                     </label>
                 </div>
                 {showReason && (
-                    <p id={reasonId} className="text-body-sm text-warning-dark">
+                    <p id={reasonId} className="text-body-sm text-attention">
                         {disabledReason}
                     </p>
                 )}
-                <button
-                    type="button"
-                    onClick={onSaveVisibility}
-                    disabled={!canSave}
-                    className="self-start rounded-full px-4 py-2 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10 disabled:cursor-not-allowed disabled:text-slate disabled:hover:bg-transparent"
-                >
-                    {actions.saveVisibility}
-                </button>
+                <div className="self-start">
+                    <Button variant="ghost" icon="check" disabled={!canSave} onPress={onSaveVisibility}>
+                        {actions.saveVisibility}
+                    </Button>
+                </div>
             </fieldset>
         </section>
     );

@@ -31,7 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Modal } from '../modal/Modal.native.js';
 import { KeyboardAvoider } from '../keyboardAvoider/KeyboardAvoider.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
-import { palette, tint } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import type { SheetProps } from './props.js';
 import { BottomSheetPanel } from './BottomSheetPanel.native.js';
 import { sheetAnimationType } from './sheetPresentation.js';
@@ -50,6 +50,7 @@ export const Sheet: FC<SheetProps> = ({
 }) => {
     const reduceMotion = useReduceMotion();
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
     const [shown, setShown] = useState(0);
     const { opens, closes } = useOpenEdges(open);
     // iOS: the close whose `onDismiss` has arrived. A repeated report of one close sets the same value, so it is not a
@@ -88,7 +89,7 @@ export const Sheet: FC<SheetProps> = ({
                     : undefined
             }
         >
-            <View style={[styles.backdrop, { paddingTop: insets.top }]}>
+            <View style={[styles.backdrop, { paddingTop: insets.top, backgroundColor: colors.scrim }]}>
                 <Pressable aria-hidden accessible={false} style={StyleSheet.absoluteFill} onPress={close} />
                 <KeyboardAvoider style={styles.avoider}>
                     <BottomSheetPanel
@@ -111,7 +112,7 @@ export const Sheet: FC<SheetProps> = ({
 };
 
 const styles = StyleSheet.create({
-    backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: tint(palette.charcoal, 0.4) },
+    backdrop: { flex: 1, justifyContent: 'flex-end' },
     // `box-none`: a tap outside the sheet passes through this layer to the scrim beneath it.
     avoider: { flex: 1, width: '100%', justifyContent: 'flex-end', alignItems: 'center', pointerEvents: 'box-none' },
 });

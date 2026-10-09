@@ -209,7 +209,7 @@ export function RecipeWidgetSlot(): JSX.Element {
                 href={`/${locale}/recipes` as Route}
                 aria-label={home.surface.seeAllRecipes}
                 // `ocean-dark`, not `seafoam`: this is text a reader reads (see the palette JSDoc in `@commise/ui`).
-                className="self-end text-sm font-medium text-ocean-dark"
+                className="self-end text-sm font-medium text-action-text"
             >
                 {home.surface.seeAllRecipes}
             </Link>

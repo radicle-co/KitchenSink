@@ -3,7 +3,7 @@ import type { Route } from 'next';
 import { notFound, redirect } from 'next/navigation';
 
 import { HomeWidgetSurface } from '@/components/home/HomeWidgetSurface';
-import { isSupportedLocale } from '@/lib/i18n';
+import { isRoutableLocale } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +33,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     // and `/sitemap.xml`, so those requests arrive here as a `locale` with no `clerkMiddleware()` run. Next
     // renders this page alongside the layout, so the layout's `notFound()` set the 404 while `auth()` here
     // still threw — a server error reported to Sentry on every favicon fetch.
-    if (!isSupportedLocale(locale)) {
+    if (!isRoutableLocale(locale)) {
         notFound();
     }
 

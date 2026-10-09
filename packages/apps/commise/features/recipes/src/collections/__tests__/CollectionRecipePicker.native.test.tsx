@@ -22,6 +22,7 @@ import { palette } from '@commise/ui';
 import { cssColor, tintOf } from '../../__tests__/cssColor.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionRecipePicker } from '../CollectionRecipePicker.native.js';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { CollectionRecipePickerCandidates } from '../CollectionRecipePickerCandidates.native.js';
 import { CollectionRecipePickerLoadError } from '../CollectionRecipePickerLoadError.native.js';
 import { CollectionRecipePickerLoading } from '../CollectionRecipePickerLoading.native.js';
@@ -320,5 +321,13 @@ describe('CollectionRecipePicker (native) — N1: the picker’s name is said on
 
         expect(screen.getAllByRole('heading', { name: 'Add recipes to Weeknight Dinners' })).toHaveLength(1);
         expect(screen.queryAllByLabelText('Add recipes to Weeknight Dinners')).toEqual([]);
+    });
+});
+
+describe('CollectionRecipePicker (native) — the design-system Button (UI overhaul slice 2)', () => {
+    it('offers a new recipe through a primary plus Button when the caller owns none', () => {
+        renderPicker({ recipes: [], query: '' });
+
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'New recipe' }), 'primary', 'plus');
     });
 });

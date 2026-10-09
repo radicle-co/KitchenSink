@@ -17,7 +17,8 @@
 import type { FC } from 'react';
 import { StyleSheet, Text, type TextStyle } from 'react-native';
 
-import { palette } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
+import type { Role } from '../tokens/colors.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { VariantPartsLineProps, VariantPartsTone } from './props.js';
 import { PART_SEPARATOR, partRuns, spokenVariantParts } from './variantPartsText.js';
@@ -31,26 +32,34 @@ function shownPart(part: string): string {
         .join('');
 }
 
+/** Each tone's colour role, so a new tone fails the build here as well. */
+const TONE_ROLE: Readonly<Record<VariantPartsTone, Role>> = { secondary: 'inkMuted', primary: 'ink' };
+
 /** The dotted line, in one wrapping `Text`. */
-export const VariantPartsLine: FC<VariantPartsLineProps> = ({ parts, tone }) => (
-    <Text accessibilityLabel={spokenVariantParts(parts)} style={TONE_STYLE[tone]}>
-        {parts.map(shownPart).join(`${PART_SEPARATOR} `)}
-    </Text>
-);
+export const VariantPartsLine: FC<VariantPartsLineProps> = ({ parts, tone }) => {
+    const { colors } = useTheme();
+
+    return (
+        <Text
+            accessibilityLabel={spokenVariantParts(parts)}
+            style={[TONE_STYLE[tone], { color: colors[TONE_ROLE[tone]] }]}
+        >
+            {parts.map(shownPart).join(`${PART_SEPARATOR} `)}
+        </Text>
+    );
+};
 
 /**
  * One style per tone, so a new tone fails the build here as it does on web. Each sets the body leading, size × 1.5
  * (E2 I14): web inherits the body's 1.5, and React Native's default of about 1.2 read tight over up to eight lines.
  */
 const TONE_STYLE: Readonly<Record<VariantPartsTone, TextStyle>> = StyleSheet.create({
-    // `slate` on white is 5.24:1. The dot takes the text colour.
+    // `inkMuted` (the theme's, at render). The dot takes the text colour.
     secondary: {
-        color: palette.slate,
         fontSize: nativeTokens.fontSize.bodySm,
         lineHeight: nativeTokens.fontSize.bodySm * nativeTokens.lineHeight.body,
     },
     primary: {
-        color: palette.charcoal,
         fontSize: nativeTokens.fontSize.bodyMd,
         lineHeight: nativeTokens.fontSize.bodyMd * nativeTokens.lineHeight.body,
     },

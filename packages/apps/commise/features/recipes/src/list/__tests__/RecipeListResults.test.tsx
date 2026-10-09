@@ -21,6 +21,7 @@ import userEvent from '@testing-library/user-event';
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 import { RecipeListResults } from '../RecipeListResults.js';
 import type { RecipeListResultsProps } from '../model.js';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 
 afterEach(cleanup);
 
@@ -242,5 +243,13 @@ describe('RecipeListResults (web) — the deferred calorie figure', () => {
 
         expect(renderNutrition.mock.calls.map(([recipeId]) => recipeId)).toEqual(['rec_1', 'rec_2', 'rec_3']);
         expect(screen.getByText('kcal for rec_2')).toBeTruthy();
+    });
+});
+
+describe('RecipeListResults (web) — the design-system Button (UI overhaul slice 2)', () => {
+    it('offers the first recipe through a primary plus Button', () => {
+        render(results({ recipes: [] }));
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Create your first recipe' }), 'primary', 'plus');
     });
 });

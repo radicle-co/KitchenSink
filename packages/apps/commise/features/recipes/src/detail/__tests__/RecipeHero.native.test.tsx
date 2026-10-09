@@ -128,6 +128,15 @@ describe('RecipeHero (native) — cover absent (the deliberate fallback)', () =>
         expect(screen.getByLabelText('No photo yet')).toBeTruthy();
     });
 
+    it('draws the placeholder glyph at the 48 pt empty-state size (spec §8)', () => {
+        renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
+
+        const glyph = screen.getByLabelText('No photo yet').querySelector<HTMLElement>('[data-commise-stub="icon"]');
+
+        expect(glyph?.dataset['iconName']).toBe('image');
+        expect(glyph?.dataset['iconSize']).toBe('48');
+    });
+
     it('renders NO image element at all (an empty source paints a broken-image glyph)', () => {
         const { container } = renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
 

@@ -50,7 +50,7 @@ import { RECIPE_SOURCE_TABS, sourceTabLabel, type RecipeListTabControl } from '.
  * `ocean-dark` keeps the hue family and clears the floor (asserted in the tests, so a re-theme cannot quietly
  * drop it back under).
  *
- * The wider `ring-seafoam-light` usage this once called out as "a separate, pre-existing gap" is CLOSED (#114):
+ * The wider `ring-focus-ring` usage this once called out as "a separate, pre-existing gap" is CLOSED (#114):
  * all 15 of those call sites now ring `seafoam` (4.67:1 on white, 4.34:1 on the `sand` page), so this strip is
  * a darker member of the same hue family rather than the app's only compliant ring. It stays `ocean-dark`
  * because the tab strip's own `pearl`/`white` folder fills are the lightest surfaces any ring in the app sits
@@ -68,12 +68,12 @@ const BASE =
  * 3:1 SC 1.4.11 floor a 2px indicator owes. See the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`; do
  * not "fix" it to one colour.
  */
-const SELECTED = 'border-b-2 border-seafoam bg-white text-ocean-dark shadow-sm';
+const SELECTED = 'border-b-2 border-selected-edge bg-paper text-action-text shadow-sm';
 
 /**
  * The inactive source, and the whole of the affordance fix.
  *
- * It used to be `border-transparent text-slate hover:text-charcoal` — no box, no fill, and the ONLY signal
+ * It used to be `border-transparent text-ink-muted hover:text-ink` — no box, no fill, and the ONLY signal
  * that it was pressable was a hover colour, which does not exist on a touch device at all. So a viewer on a
  * phone saw two words and no control. It now rests as a visible folder tab: a `pearl` fill and a `slate`
  * hairline, both present WITHOUT a pointer.
@@ -86,7 +86,7 @@ const SELECTED = 'border-b-2 border-seafoam bg-white text-ocean-dark shadow-sm';
  *  - hover deepens the fill to `mist/40` (composited over the page, since a `hover:bg-*` REPLACES the resting
  *    fill rather than stacking on it) and the label to `charcoal`; the hairline stays slate at 3.94:1 there.
  */
-const UNSELECTED = 'border-b border-slate bg-pearl text-slate hover:bg-mist/40 hover:text-charcoal';
+const UNSELECTED = 'border-b border-line-control bg-surface-muted text-ink-muted hover:bg-ink/6 hover:text-ink';
 
 /** Props for {@link RecipeSourceTabs}. */
 export interface RecipeSourceTabsProps {
@@ -104,7 +104,7 @@ export const RecipeSourceTabs: FC<RecipeSourceTabsProps> = ({ tab }) => {
     const { list } = useMessages(recipeMessages);
 
     return (
-        <nav aria-label={list.tabsLabel} className="flex gap-2 border-b border-border">
+        <nav aria-label={list.tabsLabel} className="flex gap-2 border-b border-line-divider">
             {RECIPE_SOURCE_TABS.map((value) => {
                 const selected = tab.active === value;
 

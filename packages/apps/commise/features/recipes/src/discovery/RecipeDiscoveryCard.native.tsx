@@ -20,7 +20,6 @@ import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { CloneIcon } from '../actions/icons.js';
 import { RecipeCard } from '../card/RecipeCard.js';
 import { fillTemplate } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
@@ -75,7 +74,7 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
                 <View style={styles.cloneWrap}>
                     <Button
                         variant="secondary"
-                        icon={<CloneIcon />}
+                        icon="copyPlus"
                         accessibilityLabel={cloneLabel}
                         busy={isCloning}
                         onPress={() => onClone(recipe.id)}

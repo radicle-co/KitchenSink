@@ -11,7 +11,6 @@
  *
  * Both actions sit stacked at full width in the bottom third, within thumb reach, the primary on top.
  */
-import { Feather } from '@expo/vector-icons';
 import type { FallbackProps } from 'react-error-boundary';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -47,18 +46,11 @@ export const RootErrorFallback: FC<RootErrorFallbackProps> = ({ resetErrorBounda
                 </Text>
             </View>
             <View style={styles.actions}>
-                <Button
-                    icon={<Feather name="refresh-cw" size={16} color={palette.white} />}
-                    onPress={resetErrorBoundary}
-                >
+                <Button icon="refreshCw" onPress={resetErrorBoundary}>
                     {common.retry}
                 </Button>
                 {onBackToHome === undefined ? null : (
-                    <Button
-                        variant="secondary"
-                        icon={<Feather name="home" size={16} color={palette.charcoal} />}
-                        onPress={onBackToHome}
-                    >
+                    <Button variant="secondary" icon="house" onPress={onBackToHome}>
                         {common.backToHome}
                     </Button>
                 )}

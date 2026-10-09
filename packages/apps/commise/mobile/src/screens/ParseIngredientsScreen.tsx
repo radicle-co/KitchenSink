@@ -97,15 +97,14 @@ export function ParseIngredientsScreen({ onCreated, onBack }: ParseIngredientsSc
             <ConfirmDialog
                 open={confirmingExit}
                 title={common.discard.title}
-                description={common.discard.body}
-                confirmLabel={common.discard.confirm}
-                cancelLabel={common.discard.cancel}
-                destructive
+                body={common.discard.body}
+                confirm={{ label: common.discard.confirm, icon: 'trash' }}
+                keep={{ label: common.discard.cancel }}
                 onConfirm={() => {
                     setConfirmingExit(false);
                     onBack();
                 }}
-                onCancel={() => setConfirmingExit(false)}
+                onKeep={() => setConfirmingExit(false)}
             />
         </>
     );

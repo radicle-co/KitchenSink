@@ -26,7 +26,7 @@ const ExternalLink: FC<{ readonly link: DataSourceLink; readonly children: React
         aria-label={link.accessibleName}
         // Contrast (WCAG AA): `ocean-dark` on the card is 6.20:1. Underlined, so the affordance is not carried by
         // colour alone (SC 1.4.1). `py-1` lifts the target toward SC 2.5.8's 24 px.
-        className="inline-block py-1 text-body-sm font-medium text-ocean-dark underline underline-offset-2"
+        className="inline-block py-1 text-body-sm font-medium text-action-text underline underline-offset-2"
     >
         {children}
         <span aria-hidden="true"> ↗</span>
@@ -36,8 +36,8 @@ const ExternalLink: FC<{ readonly link: DataSourceLink; readonly children: React
 /** One term and its value; the term sits above its value below 24rem of card width, and beside it from 24rem. */
 const Entry: FC<{ readonly term: string; readonly children: ReactNode }> = ({ term, children }) => (
     <div className="flex flex-col gap-0.5 @sm:flex-row @sm:gap-3">
-        <dt className="shrink-0 text-caption font-semibold text-slate @sm:w-20">{term}</dt>
-        <dd className="min-w-0 text-body-sm text-charcoal">{children}</dd>
+        <dt className="shrink-0 text-caption font-semibold text-ink-muted @sm:w-20">{term}</dt>
+        <dd className="min-w-0 text-body-sm text-ink">{children}</dd>
     </div>
 );
 
@@ -57,13 +57,13 @@ export const DataSourceCard: FC<DataSourceCardProps> = ({ source }) => {
             aria-labelledby={headingId}
             // `break-word`: a source's own long words (Livsmedelsdatabasen, Bundeslebensmittelschlüssel) must wrap at
             // 320 px and 200% text, where the text box is 128 px wide (§S16, "everything wraps").
-            className="flex flex-col gap-2 rounded-2xl bg-card p-4 shadow-sm [overflow-wrap:break-word]"
+            className="flex flex-col gap-2 rounded-2xl bg-paper p-4 shadow-sm [overflow-wrap:break-word]"
         >
-            <h2 id={headingId} className="font-display text-heading-sm font-semibold text-charcoal">
+            <h2 id={headingId} className="font-display text-heading-sm font-semibold text-ink">
                 {card.heading}
             </h2>
-            {card.fullName !== undefined && <p className="text-body-md text-charcoal">{card.fullName}</p>}
-            <p className="text-body-sm text-slate">{source.publisher}</p>
+            {card.fullName !== undefined && <p className="text-body-md text-ink">{card.fullName}</p>}
+            <p className="text-body-sm text-ink-muted">{source.publisher}</p>
             <dl className="flex flex-col gap-2 @container">
                 <Entry term={messages.editionLabel}>{source.edition}</Entry>
                 <Entry term={messages.licenceLabel}>
@@ -79,7 +79,7 @@ export const DataSourceCard: FC<DataSourceCardProps> = ({ source }) => {
                     </p>
                 </Entry>
             </dl>
-            {source.converted && <p className="text-body-sm text-slate">{messages.convertedNote}</p>}
+            {source.converted && <p className="text-body-sm text-ink-muted">{messages.convertedNote}</p>}
             {card.homepage !== null && (
                 <div>
                     <ExternalLink link={card.homepage}>{messages.homepageLink}</ExternalLink>

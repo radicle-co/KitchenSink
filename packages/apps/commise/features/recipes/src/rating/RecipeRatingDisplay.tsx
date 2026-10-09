@@ -29,7 +29,7 @@ export const RecipeRatingDisplay: FC<RecipeRatingDisplayProps> = ({ average, rat
 
     return (
         <RatingSection average={average} ratingCount={ratingCount}>
-            <p className="text-body-sm text-slate">{rating.ownRecipeNote}</p>
+            <p className="text-body-sm text-ink-muted">{rating.ownRecipeNote}</p>
         </RatingSection>
     );
 };

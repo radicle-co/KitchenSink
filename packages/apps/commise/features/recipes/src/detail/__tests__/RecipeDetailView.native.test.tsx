@@ -640,9 +640,9 @@ describe('RecipeDetailView (native) — contrast (U4 / WCAG AA)', () => {
             />,
         );
 
-        // The coral tint background stays; the tag TEXT is demoted to slate (rgb(99,110,114) ≈ 4.9:1). The old
+        // The coral tint background stays; the tag TEXT is demoted to slate (D11's warm #6B645C, rgb(107,100,92), 5.4:1 on sand). The old
         // coral-as-text (#E8917A) was 2.2:1.
-        expect(window.getComputedStyle(screen.getByText('grill')).color).toBe('rgb(99, 110, 114)');
+        expect(window.getComputedStyle(screen.getByText('grill')).color).toBe('rgb(107, 100, 92)');
     });
 
     it('labels the SEAFOAM badge in ocean-dark, not the seafoam it is tinted with', () => {
@@ -655,7 +655,7 @@ describe('RecipeDetailView (native) — contrast (U4 / WCAG AA)', () => {
 
         // The badge row alternates seafoam and coral tints, and only the coral half was ever corrected —
         // seafoam-on-seafoam/10 is 3.57:1, still under the 4.5:1 body-text floor. `ocean-dark` is 5.51:1 and
-        // keeps the badge in its own hue family. Mirrors the web leaf's `text-ocean-dark`.
+        // keeps the badge in its own hue family. Mirrors the web leaf's `text-action-text`.
         expect(window.getComputedStyle(screen.getByText('Mediterranean')).color).toBe(cssColor(palette['ocean-dark']));
         expect(window.getComputedStyle(screen.getByText('Mediterranean')).color).not.toBe(cssColor(palette.seafoam));
     });
@@ -1180,7 +1180,7 @@ describe('RecipeDetailView (native) — step marker done/not-done parity (#113)'
     });
 
     it('mirrors the web leaf: pending is an OUTLINE with a dark numeral, done is a filled disc with a white tick', () => {
-        // Web renders `border-2 border-seafoam text-ocean-dark` pending and `bg-seafoam text-white` done. Native
+        // Web renders `border-2 border-selected-edge text-action-text` pending and `bg-action text-on-action` done. Native
         // rendered white-on-seafoam for BOTH, so the platforms disagreed on the state's whole appearance.
         renderStep([]);
         const numeral = within(screen.getByLabelText('Mark step 1 complete')).getByText('1');

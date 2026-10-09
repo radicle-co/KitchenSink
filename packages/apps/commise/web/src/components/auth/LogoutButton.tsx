@@ -22,7 +22,6 @@ import { useMessages } from '@commise/i18n/react';
 
 import { authMessages } from '@/components/auth/messages';
 import { errorText } from '@/components/auth/authChrome';
-import { LogOutIcon } from '@/components/auth/icons';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 
 interface LogoutButtonProps {
@@ -56,7 +55,7 @@ export function LogoutButton({ children }: LogoutButtonProps) {
 
     return (
         <>
-            <Button variant="secondary" icon={<LogOutIcon />} onPress={() => void handleLogout()} busy={isLoading}>
+            <Button variant="secondary" icon="logOut" onPress={() => void handleLogout()} busy={isLoading}>
                 {isLoading ? session.signingOut : (children ?? session.signOut)}
             </Button>
             {error !== null && (

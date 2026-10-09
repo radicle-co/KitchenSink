@@ -12,7 +12,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
 import type { FC } from 'react';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -53,7 +53,7 @@ export const CuisineSelect: FC<CuisineSelectProps> = ({ value, onChange }) => {
                 style={styles.trigger}
             >
                 <Text style={styles.triggerLabel}>{selected?.label ?? m.cuisineUnsetOption}</Text>
-                <Feather name={open ? 'chevron-up' : 'chevron-down'} size={18} color={palette.slate} />
+                <Icon name={open ? 'chevronUp' : 'chevronDown'} size={20} tone="inkMuted" />
             </Pressable>
             {open && (
                 <View collapsable={false} accessibilityRole="menu" style={styles.menu}>
@@ -81,7 +81,7 @@ export const CuisineSelect: FC<CuisineSelectProps> = ({ value, onChange }) => {
                                 {/* Contrast (WCAG 2.1 AA): the check is this row's selection affordance and
                                     carries the same tone as the label beside it — seafoam on the pearl
                                     highlight is 3.68:1, and a two-tone row would read as two states. */}
-                                {isSelected && <Feather name="check" size={16} color={palette['ocean-dark']} />}
+                                {isSelected && <Icon name="check" size={16} tone="actionText" />}
                             </Pressable>
                         );
                     })}

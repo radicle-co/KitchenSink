@@ -4,13 +4,13 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 90,
-        "implementations": 90,
+        "components": 85,
+        "implementations": 85,
         "props": 112,
-        "documentedComponents": 81,
-        "implementationsWithModuleDoc": 63,
-        "implementationsWithComponentDoc": 62,
-        "documentedProps": 72,
+        "documentedComponents": 76,
+        "implementationsWithModuleDoc": 58,
+        "implementationsWithComponentDoc": 57,
+        "documentedProps": 73,
         "classifiedComponents": 33,
         "componentsWithPatternTag": 19,
         "crossPlatformComponents": 0
@@ -2521,90 +2521,6 @@
             ]
         },
         {
-            "id": "web/components/auth/AlertTriangleIcon",
-            "name": "AlertTriangleIcon",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/auth",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "AlertTriangleIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/auth/icons.tsx",
-                    "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "components/auth/icons — the action-button glyphs for the web auth surface (U3).\n\nSmall hand-inlined stroked line icons (Feather set, 24×24) matching the recipe form's idiom\n(`@commise/features-recipes/form/icons`): a check for save, a log-out arrow for sign-out, a warning\ntriangle for the (recoverable) close action, a trash for the (irreversible) erase action.\n\nEach glyph is DECORATIVE: the shared `@commise/ui` Button wraps its `icon` prop `aria-hidden`, and each\nglyph carries `aria-hidden` itself as well, so it never contributes to the button's accessible name — the\nvisible label owns it, keeping name-based selection (RTL / Playwright) stable regardless of glyph.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "components/auth/icons — the action-button glyphs for the web auth surface (U3)."
-                        }
-                    ],
-                    "description": "Warning triangle — the RECOVERABLE close-account control (a caution, not a destruction).",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/auth/CheckIcon",
-            "name": "CheckIcon",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/auth",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "CheckIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/auth/icons.tsx",
-                    "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "components/auth/icons — the action-button glyphs for the web auth surface (U3).\n\nSmall hand-inlined stroked line icons (Feather set, 24×24) matching the recipe form's idiom\n(`@commise/features-recipes/form/icons`): a check for save, a log-out arrow for sign-out, a warning\ntriangle for the (recoverable) close action, a trash for the (irreversible) erase action.\n\nEach glyph is DECORATIVE: the shared `@commise/ui` Button wraps its `icon` prop `aria-hidden`, and each\nglyph carries `aria-hidden` itself as well, so it never contributes to the button's accessible name — the\nvisible label owns it, keeping name-based selection (RTL / Playwright) stable regardless of glyph.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "components/auth/icons — the action-button glyphs for the web auth surface (U3)."
-                        }
-                    ],
-                    "description": "Check — the profile-edit submit (save changes).",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "web/components/auth/LoginButton",
             "name": "LoginButton",
             "group": "web",
@@ -2705,90 +2621,6 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/auth/LogOutIcon",
-            "name": "LogOutIcon",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/auth",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "LogOutIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/auth/icons.tsx",
-                    "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "components/auth/icons — the action-button glyphs for the web auth surface (U3).\n\nSmall hand-inlined stroked line icons (Feather set, 24×24) matching the recipe form's idiom\n(`@commise/features-recipes/form/icons`): a check for save, a log-out arrow for sign-out, a warning\ntriangle for the (recoverable) close action, a trash for the (irreversible) erase action.\n\nEach glyph is DECORATIVE: the shared `@commise/ui` Button wraps its `icon` prop `aria-hidden`, and each\nglyph carries `aria-hidden` itself as well, so it never contributes to the button's accessible name — the\nvisible label owns it, keeping name-based selection (RTL / Playwright) stable regardless of glyph.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "components/auth/icons — the action-button glyphs for the web auth surface (U3)."
-                        }
-                    ],
-                    "description": "Log-out — the session sign-out control.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/auth/TrashIcon",
-            "name": "TrashIcon",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/auth",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "TrashIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/auth/icons.tsx",
-                    "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "components/auth/icons — the action-button glyphs for the web auth surface (U3).\n\nSmall hand-inlined stroked line icons (Feather set, 24×24) matching the recipe form's idiom\n(`@commise/features-recipes/form/icons`): a check for save, a log-out arrow for sign-out, a warning\ntriangle for the (recoverable) close action, a trash for the (irreversible) erase action.\n\nEach glyph is DECORATIVE: the shared `@commise/ui` Button wraps its `icon` prop `aria-hidden`, and each\nglyph carries `aria-hidden` itself as well, so it never contributes to the button's accessible name — the\nvisible label owns it, keeping name-based selection (RTL / Playwright) stable regardless of glyph.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "components/auth/icons — the action-button glyphs for the web auth surface (U3)."
-                        }
-                    ],
-                    "description": "Trash — the IRREVERSIBLE erase-data control.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
                     }
                 }
             ]
@@ -2903,78 +2735,6 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/home/chrome/HomeIcon",
-            "name": "HomeIcon",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/home/chrome",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "HomeIcon",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/home/chrome/icons.tsx",
-                    "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/icons — the Home chrome's line icons (web).\n\nA small, self-contained set of stroked line icons matching the Home mockup (sidebar destinations, top-bar\naffordances, and nav controls). They are hand-inlined SVG rather than a new icon-library dependency: the\nset is fixed and tiny (ten glyphs), so a dependency would cost more than it saves (YAGNI), and the mockup's\nexact paths are the design contract.\n\nEvery icon is **decorative**: it is always paired with a real text label (a nav item's name, an affordance's\naccessible name), so each carries `aria-hidden` and is removed from the accessibility tree. The accessible\nname is owned by the surrounding control, never the glyph — this is what keeps a screen reader from\nannouncing \"image\" beside an already-labelled button.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "home/chrome/icons — the Home chrome's line icons (web)."
-                        }
-                    ],
-                    "description": "A decorative stroked line icon.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The glyph `name` plus any presentational SVG props (e.g. `className` for sizing). The icon\nis always `aria-hidden`; the caller owns the accessible name."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The `aria-hidden` SVG glyph."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "name",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"home\"",
-                                "\"recipes\"",
-                                "\"meal-plan\"",
-                                "\"grocery\"",
-                                "\"nutrition\"",
-                                "\"profile\"",
-                                "\"search\"",
-                                "\"notifications\"",
-                                "\"menu\"",
-                                "\"collapse-left\""
-                            ],
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -3274,6 +3034,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The active locale segment, for building destination routes.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx"
+                        },
+                        {
+                            "name": "ref",
+                            "type": "Ref<HTMLElement>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Receives the laid-out bar, so the shell can tell its popups what the bar covers (`tabBarInsets`).",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx"
                         }
                     ],

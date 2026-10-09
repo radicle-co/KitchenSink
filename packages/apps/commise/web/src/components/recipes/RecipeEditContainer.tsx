@@ -115,7 +115,11 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     return (
         <ClientQueryBoundary
             loading={
-                <p role="status" aria-label={recipes.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
+                <p
+                    role="status"
+                    aria-label={recipes.detail.loadingLabel}
+                    className="px-4 py-8 text-body-md text-ink-muted"
+                >
                     {recipes.detail.loadingLabel}
                 </p>
             }

@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { lucideNativeStub } from '@commise/ui/testing/lucide-native';
 import { defineConfig, type Plugin } from 'vitest/config';
 
 /**
@@ -42,12 +43,13 @@ function preferNativeLeaves(): Plugin {
  * Native specs are named `*.native.test.tsx` and owned by this config; the default (web) run excludes them.
  */
 export default defineConfig({
-    plugins: [preferNativeLeaves()],
+    // `lucide-react-native/icons/*` draws through `react-native-svg`, which has no jsdom runtime.
+    plugins: [preferNativeLeaves(), lucideNativeStub()],
     test: {
         globals: true,
         environment: 'jsdom',
         // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
-        setupFiles: [jsdomPolyfillsSetup],
+        setupFiles: [jsdomPolyfillsSetup, '@commise/ui/testing/screen-reader-shim'],
         include: ['**/__tests__/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
     },

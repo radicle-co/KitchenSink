@@ -28,7 +28,7 @@ export const styles = StyleSheet.create({
         fontSize: 16,
         color: palette.charcoal,
     },
-    // 10%-alpha tint of `palette.error` (#C05238 → rgb(192, 82, 56)) — mirrors the web leaf's `bg-error/10`;
+    // 10%-alpha tint of `palette.error` (#C05238 → rgb(192, 82, 56)) — mirrors the web leaf's `bg-danger/10`;
     // RN has no alpha-suffix colour syntax, so it is spelled out here. It previously spelled out
     // `rgba(232, 145, 122, 0.1)`, which is `palette.coral` (#E8917A) — a brand ACCENT filling an alert whose
     // own text is `palette['error-dark']`. Because the literal is opaque to a `palette.coral` grep, the test asserts
@@ -63,13 +63,5 @@ export const styles = StyleSheet.create({
     addLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
     inertControl: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
     inertLabel: { color: palette.slate, fontWeight: '500', fontSize: 14 },
-    primaryButton: {
-        backgroundColor: palette.seafoam,
-        borderRadius: 999,
-        paddingVertical: 10,
-        paddingHorizontal: 18,
-        alignSelf: 'flex-start',
-        marginTop: 4,
-    },
-    primaryLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
+    createAction: { alignSelf: 'flex-start', marginTop: 4 },
 });

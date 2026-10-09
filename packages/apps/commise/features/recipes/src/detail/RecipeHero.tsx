@@ -27,6 +27,7 @@
  *     rather than an empty `src`, a zero-height box or an unlabelled rectangle.
  */
 import { useMessages } from '@commise/i18n/react';
+import { Icon } from '@commise/ui/icon';
 import { GradientSurface } from '@commise/ui/surface';
 import type { FC } from 'react';
 
@@ -57,16 +58,9 @@ export const RecipeHero: FC<RecipeHeroProps> = ({ title, photos }) => {
                     // A labelled `role="img"` is a MEANINGFUL graphic, so it is `slate`, not the `mist` hairline
                     // tone — see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`. The native leaf
                     // already uses `palette.slate`; this is the web half catching up.
-                    className={`flex items-center justify-center text-slate ${HERO_BOX}`}
+                    className={`flex items-center justify-center text-ink-muted ${HERO_BOX}`}
                 >
-                    <svg aria-hidden="true" className="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={1.5}
-                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                    </svg>
+                    <Icon name="image" size={48} />
                 </div>
             </GradientSurface>
         );

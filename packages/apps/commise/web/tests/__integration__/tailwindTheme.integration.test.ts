@@ -40,9 +40,9 @@ const GLOBALS_CSS = fileURLToPath(new URL('../../src/app/globals.css', import.me
 
 /** Utilities probed below. Forced into the build so the test never depends on current app usage. */
 const PROBES = [
-    'bg-pearl',
-    'border-slate',
-    'border-seafoam',
+    'bg-surface-muted',
+    'border-line-control',
+    'border-selected-edge',
     'rounded-t-lg',
     'size-8',
     'size-6',
@@ -181,13 +181,20 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         // drop that glob and these vanish while every jsdom test still passes.
         const css = await cssPromise;
 
-        expect(ruleFor(css, 'bg-pearl'), 'the inactive tab’s resting fill').toContain('var(--color-pearl)');
-        expect(ruleFor(css, 'border-slate'), 'the inactive tab’s boundary').toContain('var(--color-slate)');
-        expect(ruleFor(css, 'border-seafoam'), 'the active tab’s underline').toContain('var(--color-seafoam)');
+        // Role utilities since UI-overhaul slice 2 (D15), each reading its role's variable.
+        expect(ruleFor(css, 'bg-surface-muted'), 'the inactive tab’s resting fill').toContain(
+            'var(--color-surface-muted)',
+        );
+        expect(ruleFor(css, 'border-line-control'), 'the inactive tab’s boundary').toContain(
+            'var(--color-line-control)',
+        );
+        expect(ruleFor(css, 'border-selected-edge'), 'the active tab’s underline').toContain(
+            'var(--color-selected-edge)',
+        );
         expect(ruleFor(css, 'rounded-t-lg'), 'the folder-tab geometry').toContain('border-top-left-radius');
         // Variant-scoped utilities compile to a nested/at-ruled selector, so they are matched by presence
         // rather than by a flat `.class { … }` body — but they must be PRESENT, which is the regression risk.
-        expect(css, 'the hover fill').toContain('hover\\:bg-mist\\/40');
+        expect(css, 'the hover fill').toContain('hover\\:bg-ink\\/6');
         expect(css, 'the focus ring').toContain('focus-visible\\:ring-ocean-dark');
     });
 });
@@ -259,8 +266,9 @@ describe('the beach-glow page canvas (compiled)', () => {
 
         expect(body).toBeDefined();
         expect(body).toContain('background-image:var(--background-image-hero)');
-        // The solid colour stays as the pre-paint/unsupported fallback, so a canvas is never transparent.
-        expect(body).toContain('background-color:var(--color-background)');
+        // The solid colour stays as the pre-paint/unsupported fallback, so a canvas is never transparent. It is the
+        // `canvas` role, which the dark block re-themes (the legacy `--color-background` would stay light).
+        expect(body).toContain('background-color:var(--color-canvas)');
     });
 
     it('resolves --background-image-hero to the wireframes’ three-stop 135° ramp', async () => {
@@ -363,6 +371,23 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
         expect(css).toMatch(/--container-reading:\s*40rem/u);
     });
 
+    // `darkTheme.md` §6.1: the roles live in `@theme` (not `@theme inline`), so a role utility compiles to the VARIABLE
+    // and the dark block's override re-themes it. Under `inline` the light value would be baked into the utility and
+    // the dark block would silently do nothing.
+    it('compiles a role utility to its variable, so the dark block re-themes it', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'bg-paper')).toBe('background-color:var(--color-paper)');
+        expect(ruleFor(css, 'text-ink')).toBe('color:var(--color-ink)');
+    });
+
+    it('overrides the role variables in one prefers-color-scheme: dark block', async () => {
+        const css = await cssPromise;
+
+        expect(css).toMatch(/@media \(prefers-color-scheme:\s*dark\)\s*\{[^@]*--color-paper:\s*#1e1b18/iu);
+        expect(css).toMatch(/color-scheme:\s*light dark/u);
+    });
+
     it('sets the card title at 1rem / 1.3 / 600 from one utility', async () => {
         const css = await cssPromise;
 
@@ -394,7 +419,7 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
         expect(ruleFor(css, 'text-ink-muted')).toBe('color:var(--color-ink-muted)');
         expect(ruleFor(css, 'border-line-control')).toBe('border-color:var(--color-line-control)');
         expect(ruleFor(css, 'bg-selected-fill')).toBe('background-color:var(--color-selected-fill)');
-        expect(css).toMatch(/--color-line-control:\s*#858F93/iu);
+        expect(css).toMatch(/--color-line-control:\s*#8A847C/iu);
     });
 
     it('declares the caption size once, not twice', async () => {

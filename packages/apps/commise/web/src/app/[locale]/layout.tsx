@@ -3,11 +3,11 @@ import { notFound } from 'next/navigation';
 
 import { appDocument } from '@/app/appDocument';
 import { getDictionary } from '@/i18n/getDictionary';
-import { SUPPORTED_LOCALES, isSupportedLocale } from '@/lib/i18n';
+import { ROUTABLE_LOCALES, isRoutableLocale } from '@/lib/i18n';
 
-/** Statically render every supported locale's tree. */
+/** Statically render every locale this build routes. */
 export function generateStaticParams(): { locale: string }[] {
-    return SUPPORTED_LOCALES.map((locale) => ({ locale }));
+    return ROUTABLE_LOCALES.map((locale) => ({ locale }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -32,7 +32,7 @@ export default async function LocaleLayout({
 }) {
     const { locale } = await params;
 
-    if (!isSupportedLocale(locale)) {
+    if (!isRoutableLocale(locale)) {
         notFound();
     }
 

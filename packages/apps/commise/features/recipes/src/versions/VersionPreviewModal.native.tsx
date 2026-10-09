@@ -23,9 +23,10 @@
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
+import { Button } from '@commise/ui/button';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
 import type { FC } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { formatDurationMinutes } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
@@ -184,35 +185,13 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                 )}
 
                 <View style={styles.actions}>
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={preview.keepCurrent}
-                        onPress={onCancel}
-                        style={styles.cancelButton}
-                    >
-                        <Text style={styles.cancelLabel}>{preview.keepCurrent}</Text>
-                    </Pressable>
+                    <Button variant="secondary" icon="x" onPress={onCancel}>
+                        {preview.keepCurrent}
+                    </Button>
                     {showContent && version !== undefined && (
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={isRestoring ? preview.restoringThis : preview.restoreThis}
-                            // The `disabled` half already reaches the DOM (react-native-web derives
-                            // `aria-disabled` from the `disabled` PROP below); `busy` did not, because RNW
-                            // projects `accessibilityState` for nothing (#123) — so the in-flight restore was
-                            // announced as "unavailable" where the truth was "working". `aria-busy` is RN's own
-                            // first-class ALIAS for `accessibilityState.busy`, so it is device-correct too, and
-                            // RN reverse-maps it back into the object form. Omitted when idle, since ARIA
-                            // already defaults `aria-busy` to false.
-                            accessibilityState={{ disabled: isRestoring, busy: isRestoring }}
-                            aria-busy={isRestoring || undefined}
-                            disabled={isRestoring}
-                            onPress={() => onRestore(version.versionNumber)}
-                            style={styles.restoreButton}
-                        >
-                            <Text style={styles.restoreLabel}>
-                                {isRestoring ? preview.restoringThis : preview.restoreThis}
-                            </Text>
-                        </Pressable>
+                        <Button icon="rotateCcw" busy={isRestoring} onPress={() => onRestore(version.versionNumber)}>
+                            {isRestoring ? preview.restoringThis : preview.restoreThis}
+                        </Button>
                     )}
                 </View>
             </>
@@ -243,8 +222,4 @@ const styles = StyleSheet.create({
     calories: { flexShrink: 0, fontSize: 14, color: palette.slate },
     changedNote: { fontSize: 13, fontStyle: 'italic', color: palette.slate },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
-    cancelButton: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },
-    cancelLabel: { color: palette.slate, fontWeight: '500', fontSize: 14 },
-    restoreButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 22 },
-    restoreLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
 });

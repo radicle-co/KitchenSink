@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { lucideNativeStub } from '@commise/ui/testing/lucide-native';
 import { defineConfig, type Plugin } from 'vitest/config';
 
 /**
@@ -44,12 +45,13 @@ function preferNativeLeaves(): Plugin {
  * default (web) run excludes them. `npm test` runs both.
  */
 export default defineConfig({
-    plugins: [preferNativeLeaves()],
+    // `lucide-react-native/icons/*` draws through `react-native-svg`, which has no jsdom runtime.
+    plugins: [preferNativeLeaves(), lucideNativeStub()],
     test: {
         globals: true,
         environment: 'jsdom',
         // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
-        setupFiles: [jsdomPolyfillsSetup, './vitest.setup.native.ts'],
+        setupFiles: [jsdomPolyfillsSetup, '@commise/ui/testing/screen-reader-shim', './vitest.setup.native.ts'],
         // Above `ASYNC_UTIL_TIMEOUT_MS` (`@commise/test-utils/async-util-budget`).
         testTimeout: 15_000,
         include: ['**/__tests__/**/*.native.test.tsx'],
@@ -65,11 +67,6 @@ export default defineConfig({
             // recipe/collection/discovery lists (U4) render through a react-native-web stub under these tests
             // (same reasoning as `expo-image`). Virtualization itself is a device/Maestro concern.
             '@shopify/flash-list': path.resolve(import.meta.dirname, 'test-utils/flashListStub.tsx'),
-            // `@expo/vector-icons` ships extensionless internal ESM imports (`./createIconSet`, required
-            // from `AntDesign.js`) that a cold Vitest dependency scan cannot reliably resolve (w3: exposed by
-            // the wizard's new `Feather` usage — mirrors `@commise/mobile`'s identical fix, same root cause).
-            // Icons are decorative in these tests, so stub the whole module.
-            '@expo/vector-icons': path.resolve(import.meta.dirname, 'test-utils/expoVectorIconsStub.tsx'),
             // F1 — the analytics event-id minter's native leaf delegates to expo-crypto (Hermes has no
             // `crypto` global); the stub answers Node's own UUIDs.
             'expo-crypto': path.resolve(import.meta.dirname, 'test-utils/expoCryptoStub.ts'),

@@ -13,6 +13,7 @@
  * would be a second copy of that fact, and the two would drift the day the service deployed.
  */
 
+import type { IconName } from '@commise/ui/icon-names';
 import { ROADMAP_CAPABILITIES } from './capabilities.js';
 
 /** A Home navigation destination, as declared (platform-independent). */
@@ -43,6 +44,20 @@ export const HOME_NAV_ITEMS: readonly HomeNavItem[] = [
     { id: 'nutrition', capability: ROADMAP_CAPABILITIES.nutrition },
     { id: 'profile' },
 ];
+
+/**
+ * The icon Registry meaning each destination draws (`@commise/ui/icon`), in the mockup's pairing — house, open book,
+ * calendar, cart, chart, person — ONCE for both apps' chrome. A total `Record` over {@link HomeNavItemId}, so a
+ * destination without a glyph does not compile. (Blueprint slice 3's `NAV_ITEM_GLYPH`, brought forward in slice 2.)
+ */
+export const NAV_ITEM_GLYPH: Readonly<Record<HomeNavItemId, IconName>> = {
+    home: 'house',
+    recipes: 'bookOpen',
+    'meal-plan': 'calendar',
+    grocery: 'shoppingCart',
+    nutrition: 'chartColumn',
+    profile: 'user',
+};
 
 /**
  * Whether a destination can be navigated to, given the live capabilities.

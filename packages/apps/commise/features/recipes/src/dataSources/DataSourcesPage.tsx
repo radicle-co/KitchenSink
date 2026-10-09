@@ -28,11 +28,11 @@ export const DataSourcesPage: FC<DataSourcesPageProps> = ({ children, headingFoc
     return (
         <div className="mx-auto flex w-full max-w-[40rem] flex-col gap-4 px-4 py-8">
             <div className="flex flex-col gap-2">
-                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-charcoal">
+                <h1 ref={headingRef} tabIndex={-1} className="font-display text-display-md font-bold text-ink">
                     {messages.title}
                 </h1>
-                <p className="text-body-md text-charcoal">{messages.intro}</p>
-                <p className="text-body-md text-slate">{messages.closeMatchNote}</p>
+                <p className="text-body-md text-ink">{messages.intro}</p>
+                <p className="text-body-md text-ink-muted">{messages.closeMatchNote}</p>
             </div>
             {children}
         </div>

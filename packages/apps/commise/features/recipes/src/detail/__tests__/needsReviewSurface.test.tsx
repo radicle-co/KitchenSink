@@ -186,9 +186,10 @@ describe('RecipeDetailView (web) — a line the verification gate contradicted',
             />,
         );
 
-        const badge = screen.getByText(en.needsReviewBadge);
+        // The design-system badge holds its words in a span inside it (UI-overhaul slice 2), so its look is the parent's.
+        const badge = screen.getByText(en.needsReviewBadge).parentElement;
 
-        expect(utilityContrast(badge.className)).toBeGreaterThanOrEqual(4.5);
+        expect(utilityContrast(badge?.className ?? '')).toBeGreaterThanOrEqual(4.5);
         expect(utilityContrast(screen.getByRole('note').className)).toBeGreaterThanOrEqual(4.5);
     });
 

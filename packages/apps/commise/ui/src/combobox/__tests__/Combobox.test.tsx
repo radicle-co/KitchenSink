@@ -1428,10 +1428,10 @@ describe('Combobox (web) — the active option shows a ring (`docs/design/rowEdi
         expect(option('Flour').getAttribute('aria-selected')).toBe('true');
         expect(classes).toEqual(
             expect.arrayContaining([
-                'aria-selected:bg-pearl',
+                'aria-selected:bg-surface-muted',
                 'aria-selected:ring-2',
                 'aria-selected:ring-inset',
-                'aria-selected:ring-seafoam',
+                'aria-selected:ring-selected-edge',
             ]),
         );
     });

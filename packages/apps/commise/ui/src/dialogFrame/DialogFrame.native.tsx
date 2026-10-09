@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Modal } from '../modal/Modal.native.js';
 import { KeyboardAvoider } from '../keyboardAvoider/KeyboardAvoider.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
-import { palette, tint } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { displayFontFace } from '../tokens/scale.js';
 import { DIALOG_CARD_MAX_WIDTH_DP, dialogScrimPadding } from './dialogFrameLayout.js';
@@ -37,6 +37,7 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
     const insets = useSafeAreaInsets();
     const [shown, setShown] = useState(0);
     const titleRef = useScreenReaderFocusOnSignal<Text>(shown);
+    const { colors } = useTheme();
 
     if (!open) {
         return null;
@@ -56,6 +57,7 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
                 style={[
                     styles.scrim,
                     {
+                        backgroundColor: colors.scrim,
                         paddingTop: dialogScrimPadding(insets.top),
                         paddingRight: dialogScrimPadding(insets.right),
                         paddingBottom: dialogScrimPadding(insets.bottom),
@@ -64,13 +66,22 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
                 ]}
             >
                 <KeyboardAvoider style={styles.avoider}>
-                    <View role={role} aria-modal accessibilityViewIsModal style={styles.card}>
+                    <View
+                        role={role}
+                        aria-modal
+                        accessibilityViewIsModal
+                        style={[styles.card, { backgroundColor: colors.paperOverlay, borderColor: colors.lineDivider }]}
+                    >
                         <ScrollView
                             keyboardShouldPersistTaps="handled"
                             style={styles.scroller}
                             contentContainerStyle={styles.content}
                         >
-                            <Text ref={titleRef} accessibilityRole="header" style={styles.title}>
+                            <Text
+                                ref={titleRef}
+                                accessibilityRole="header"
+                                style={[styles.title, { color: colors.ink }]}
+                            >
                                 {title}
                             </Text>
                             {children}
@@ -83,21 +94,19 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
 };
 
 const styles = StyleSheet.create({
-    scrim: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: tint(palette.charcoal, 0.4) },
+    scrim: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     avoider: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
     card: {
         width: '100%',
         maxWidth: DIALOG_CARD_MAX_WIDTH_DP,
         maxHeight: '100%',
-        backgroundColor: palette.white,
         borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
-        borderColor: nativeTokens.borderSubtle,
         overflow: 'hidden',
     },
     // `flexGrow: 0`: the card is as tall as its content until the avoided box caps it, and then the content scrolls.
     scroller: { flexGrow: 0 },
     content: { padding: nativeTokens.spacing[5], gap: nativeTokens.spacing[3] },
     // The Sheet's title face (`displayFontFace.semibold`), so the design system's dialog primitives share one.
-    title: { fontFamily: displayFontFace.semibold, fontSize: nativeTokens.fontSize.headingMd, color: palette.charcoal },
+    title: { fontFamily: displayFontFace.semibold, fontSize: nativeTokens.fontSize.headingMd },
 });

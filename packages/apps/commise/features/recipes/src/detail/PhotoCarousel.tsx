@@ -88,7 +88,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                             >
                                 <span
                                     aria-hidden
-                                    className="block size-2.5 rounded-full bg-mist transition hover:bg-seafoam"
+                                    className="block size-2.5 rounded-full bg-line-divider transition hover:bg-action"
                                 />
                             </a>
                         </li>
@@ -98,7 +98,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
 
             <Dialog.Root open={activeIndex !== null} onOpenChange={(open) => !open && setActiveIndex(null)}>
                 <Dialog.Portal>
-                    <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/80" />
+                    <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                     <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <Dialog.Title className={srOnly}>
                             {activeIndex !== null ? altFor(activeIndex) : ''}
@@ -114,7 +114,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                             aria-label={detail.lightboxClose}
                             // Touch floor: `size-11` (44px) everywhere — this is overlay chrome on a
                             // full-screen image, so there is no desktop-density reason to shrink it.
-                            className="absolute right-4 top-4 flex size-11 items-center justify-center rounded-full bg-card/90 text-charcoal shadow-lg transition hover:bg-card"
+                            className="absolute right-4 top-4 flex size-11 items-center justify-center rounded-full bg-paper text-ink shadow-lg transition hover:bg-paper"
                         >
                             <span aria-hidden>×</span>
                         </Dialog.Close>

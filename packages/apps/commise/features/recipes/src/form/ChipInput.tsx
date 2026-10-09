@@ -33,7 +33,7 @@ export interface ChipInputProps {
     readonly removeChipLabel: string;
 }
 
-const fieldLabel = 'text-body-sm font-medium text-slate';
+const fieldLabel = 'text-body-sm font-medium text-ink-muted';
 // `min-w-0 break-words` + the remove control's `shrink-0` are one contract: a long tag yields (and breaks)
 // rather than squeezing out the only affordance that can remove it. The native leaf carries the same contract
 // as `flexShrink: 1` / `flexShrink: 0` — see `ChipInput.native.tsx`.
@@ -41,7 +41,7 @@ const fieldLabel = 'text-body-sm font-medium text-slate';
 // glyph (a text glyph, not an icon) — take `ocean-dark`. See `@commise/ui`'s palette JSDoc for the one
 // authoritative statement of which seafoam sites are accents and which are text.
 const chip =
-    'inline-flex min-w-0 items-center gap-1 break-words rounded-full bg-seafoam/10 py-1 pl-3 pr-1 text-body-sm font-medium text-ocean-dark';
+    'inline-flex min-w-0 items-center gap-1 break-words rounded-full bg-action/10 py-1 pl-3 pr-1 text-body-sm font-medium text-action-text';
 // The hover tint is `/15`, not `/20`, because it STACKS on the chip's own `/10`: `seafoam/20` over `seafoam/10`
 // composites to #c8dedd, where even `ocean-dark` is only 4.41:1 — a hover-only AA failure. `/15` composites to
 // #d1e4e3 (4.70:1) and still reads as a deepening of the disc.
@@ -52,10 +52,10 @@ const chip =
 // reading anywhere) and `seafoam` is 4.10:1. Measured against that composited surface in the tests, not
 // against a nominal white, which would have flattered it by 0.33 and hidden the failure.
 const chipRemove =
-    'flex size-5 shrink-0 items-center justify-center rounded-full text-ocean-dark transition hover:bg-seafoam/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam';
+    'flex size-5 shrink-0 items-center justify-center rounded-full text-action-text transition hover:bg-action/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
 const chipField =
-    'flex flex-wrap items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal focus-within:ring-2 focus-within:ring-seafoam';
-const chipDraft = 'min-w-24 flex-1 border-none bg-transparent p-0 text-body-md text-charcoal outline-none';
+    'flex flex-wrap items-center gap-2 rounded-lg border border-line-divider bg-paper px-3 py-2 text-body-md text-ink focus-within:ring-2 focus-within:ring-focus-ring';
+const chipDraft = 'min-w-24 flex-1 border-none bg-transparent p-0 text-body-md text-ink outline-none';
 
 /**
  * The web tag/dietary-flag chip input.

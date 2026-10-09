@@ -14,6 +14,7 @@ import { useState } from 'react';
 import type { IngredientVariantPart } from '@kitchensink/recipe-core';
 
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 import type { ConflictDiff } from '../conflictDiff.js';
 import { makeVersionConflictSide } from '../__fixtures__/index.js';
 import { RecipeConflictView } from '../RecipeConflictView.js';
@@ -1167,5 +1168,18 @@ describe('RecipeConflictView (web) — a variant-bound ingredient row (curated U
             expect(commaJoinedTexts(butter, FLAT)).toHaveLength(1);
             expect(commaJoinedTexts(brisket, FLAT)).toEqual([]);
         });
+    });
+});
+
+describe('RecipeConflictView (web) — the design-system Button (UI overhaul slice 2)', () => {
+    it('saves a merge through a primary check Button, and leaves it through a secondary chevronLeft one', async () => {
+        freezeClock();
+        const user = userEvent.setup({ delay: null });
+        renderConflict();
+
+        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Save merged version' }), 'primary', 'check');
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Back to options' }), 'secondary', 'chevron-left');
     });
 });

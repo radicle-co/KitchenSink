@@ -29,7 +29,7 @@ const SectionHeading: FC<{ readonly title: string; readonly headingRef?: Ref<HTM
     headingRef,
 }) => (
     <div className="flex flex-col gap-1.5">
-        <h2 ref={headingRef} tabIndex={-1} className="font-display text-heading-md font-semibold text-charcoal">
+        <h2 ref={headingRef} tabIndex={-1} className="font-display text-heading-md font-semibold text-ink">
             {title}
         </h2>
         <GradientSurface gradient="brand" className="h-1 w-10 rounded-full" />
@@ -77,7 +77,7 @@ const Rail: FC<{
                     type="button"
                     aria-label={fillTemplate(discovery.seeAllLabel, { rail: title })}
                     onClick={rail.onSeeAll}
-                    className="inline-flex min-h-11 items-center rounded-full px-3 py-1 text-body-sm font-semibold text-ocean-dark transition hover:bg-mist/20 md:min-h-0"
+                    className="inline-flex min-h-11 items-center rounded-full px-3 py-1 text-body-sm font-semibold text-action-text transition hover:bg-ink/6 md:min-h-0"
                 >
                     {discovery.seeAll}
                 </button>
@@ -128,7 +128,7 @@ export const RecipeBrowseRails: FC<RecipeBrowseRailsProps> = ({ rails, cuisines,
                                         cuisine: cuisine.value,
                                     })}
                                     onClick={cuisine.onSelect}
-                                    className="inline-flex min-h-11 items-center rounded-full bg-pearl px-4 py-2 text-body-sm font-medium text-charcoal transition hover:bg-mist/40 md:min-h-0"
+                                    className="inline-flex min-h-11 items-center rounded-full bg-surface-muted px-4 py-2 text-body-sm font-medium text-ink transition hover:bg-ink/6 md:min-h-0"
                                 >
                                     {cuisine.value}
                                 </button>

@@ -23,16 +23,12 @@ import { Button } from '@commise/ui/button';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
-import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useSignOutAndVerify } from '../../hooks/useSignOutAndVerify.js';
 import { mobileMessages } from '../../i18n/messages.js';
-
-/** Trigger glyph size — the DS Button pairs every label with an icon. */
-const ICON_SIZE = 16;
 
 /** The mobile sign-out control: issues the sign-out command and surfaces its failure. */
 export function SignOutButton(): JSX.Element {
@@ -63,12 +59,7 @@ export function SignOutButton(): JSX.Element {
         <View style={styles.container}>
             {/* The busy state is deliberately NOT released on success: the session is gone, so the auth gate
                 replaces this tree — clearing it first would flash an idle control. */}
-            <Button
-                variant="secondary"
-                icon={<Feather name="log-out" size={ICON_SIZE} color={palette.charcoal} />}
-                busy={signingOut}
-                onPress={() => void handleSignOut()}
-            >
+            <Button variant="secondary" icon="logOut" busy={signingOut} onPress={() => void handleSignOut()}>
                 {signingOut ? t.signingOut : t.signOutAction}
             </Button>
             {failed ? (

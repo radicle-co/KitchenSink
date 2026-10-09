@@ -69,6 +69,22 @@ export const gradient = {
     },
 } as const satisfies Record<string, GradientSpec>;
 
+/**
+ * The canvas wash in the dark theme (`darkTheme.md` §3.3): the same warm → green → blue path as `gradient.hero`, at
+ * the dark canvas's lightness. Web overrides `--background-image-hero` with it; native paints it under `useTheme()`.
+ */
+export const heroDark = {
+    angle: 135,
+    stops: [
+        { color: '#141210', position: 0 },
+        { color: '#101714', position: 50 },
+        { color: '#0F181A', position: 100 },
+    ],
+} as const satisfies GradientSpec;
+
+/** A glass pane's lit edge in the dark theme: white at 12%, where light uses 30% (`darkTheme.md` §6.4). */
+export const glassEdgeDark = 'rgba(255, 255, 255, 0.12)';
+
 /** The name of a brand gradient (`brand` | `hero`). */
 export type GradientName = keyof typeof gradient;
 

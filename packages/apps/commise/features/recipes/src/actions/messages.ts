@@ -16,8 +16,8 @@ export interface RecipeDeleteDialogMessages {
     readonly body: string;
     /** Label of the destructive confirm action. */
     readonly confirm: string;
-    /** Label of the dismiss action. */
-    readonly cancel: string;
+    /** Label of the safe action, a verb naming what is kept (spec §6.5); focus opens on it. */
+    readonly keep: string;
     /** Busy indicator shown while the delete is in flight. */
     readonly deletingLabel: string;
     /** Error shown inside the dialog when the delete fails, so it never silently stops (B17). */
@@ -46,10 +46,17 @@ export interface RecipeCloneActionMessages {
     readonly attribution: string;
 }
 
-/** Copy for the "More" overflow menu (C4) that groups the detail header's secondary owner actions. */
+/** Copy for the "More actions" overflow (C4) that groups the detail header's secondary owner actions. */
 export interface RecipeMoreMenuMessages {
-    /** Visible label and accessible name of the disclosure trigger. */
-    readonly trigger: string;
+    /**
+     * The `⋯` trigger's accessible name, naming the recipe (contains `{title}`; spec key `detail.moreActions`). A bare
+     * "More" repeated down a list is unusable by voice control and a screen-reader rotor.
+     */
+    readonly triggerFor: string;
+    /** The open panel's heading, which names it. */
+    readonly title: string;
+    /** The open panel's Close control name (house form "Close {thing}"). */
+    readonly close: string;
 }
 
 /** The shape of the recipe-action cluster's shared copy. */
@@ -67,12 +74,12 @@ export interface RecipeActionMessages {
 export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
     en: {
         deleteDialog: {
-            title: 'Delete recipe',
-            body: 'Permanently delete “{title}”? This can’t be undone.',
-            confirm: 'Delete',
-            cancel: 'Cancel',
+            title: 'Delete this recipe?',
+            body: '“{title}” and its version history will be deleted. You can’t undo this.',
+            confirm: 'Delete recipe',
+            keep: 'Keep recipe',
             deletingLabel: 'Deleting…',
-            error: 'We couldn’t delete this recipe. Please try again.',
+            error: 'We couldn’t delete this recipe. Try again.',
         },
         visibility: {
             groupLabel: 'Recipe visibility',
@@ -86,7 +93,9 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             attribution: 'Cloned from {source}',
         },
         moreMenu: {
-            trigger: 'More',
+            triggerFor: 'More actions for {title}',
+            title: 'More actions',
+            close: 'Close more actions',
         },
     },
 };

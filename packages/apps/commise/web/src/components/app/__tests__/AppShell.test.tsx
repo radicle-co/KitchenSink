@@ -7,6 +7,9 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useSnackbar } from '@commise/ui/snackbar';
+import type { JSX } from 'react';
 
 import { renderWithProviders } from '@commise/test-utils';
 
@@ -97,5 +100,34 @@ describe('AppShell — per-surface top-bar title', () => {
         );
 
         expect(screen.getAllByRole('heading', { name: titles.recipes })).toHaveLength(1);
+    });
+});
+
+/**
+ * UI-overhaul slice 2: the shell hosts the app's ONE snackbar (`@commise/ui/snackbar`), inside the shell's popup insets so
+ * it can sit above the bottom tab bar.
+ */
+describe('AppShell — the snackbar host', () => {
+    function Remover(): JSX.Element {
+        const { show } = useSnackbar();
+
+        return (
+            <button type="button" onClick={() => show({ message: 'Removed Pasta' })}>
+                Remove
+            </button>
+        );
+    }
+
+    it('lets a surface show a snackbar, which says itself in the status region', async () => {
+        const user = userEvent.setup();
+        renderWithProviders(
+            <AppShell activeId="recipes">
+                <Remover />
+            </AppShell>,
+        );
+
+        await user.click(screen.getByRole('button', { name: 'Remove' }));
+
+        expect(screen.getByRole('status').textContent).toBe('Removed Pasta');
     });
 });

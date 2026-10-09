@@ -19,12 +19,16 @@
 import type { FC } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
-import { palette } from '../tokens/colors.js';
+import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { OfflineReadSlotProps } from './props.js';
 
 /** The offline read slot: one quiet line where the screen's content would be. */
-export const OfflineReadSlot: FC<OfflineReadSlotProps> = ({ message }) => <Text style={styles.message}>{message}</Text>;
+export const OfflineReadSlot: FC<OfflineReadSlotProps> = ({ message }) => {
+    const { colors } = useTheme();
+
+    return <Text style={[styles.message, { color: colors.inkMuted }]}>{message}</Text>;
+};
 
 const styles = StyleSheet.create({
     // No title, icon or border — quieter than the app-wide banner, so the two read as a hierarchy.
@@ -33,6 +37,5 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[8],
         textAlign: 'center',
         fontSize: nativeTokens.fontSize.bodySm,
-        color: palette.slate,
     },
 });

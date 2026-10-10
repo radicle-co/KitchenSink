@@ -3,6 +3,7 @@ import { clerk, setupClerkTestingToken } from '@clerk/testing/playwright';
 
 import { route, isHome, isRoute, hasDoublePrefix, pathnameOf } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
+import { clerkPrimarySubmit } from './utils/clerkForm';
 import { submitClerkEmailCode } from './utils/clerkEmailCode';
 import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from './utils/testUser';
 
@@ -21,7 +22,9 @@ test.describe('sign-in flow', () => {
 
         // getByRole('textbox', …) avoids the "Show password" button that getByLabel(/password/i) catches.
         await page.getByRole('textbox', { name: /email/i }).fill(TEST_USER_EMAIL);
-        await page.getByRole('button', { name: 'Continue' }).click();
+        // `clerkPrimarySubmit` and not a bare name match: Clerk's Google button is ALSO named "… Continue",
+        // so a substring match resolves to 2 elements and every click fails on strict mode.
+        await clerkPrimarySubmit(page).click();
         await page.getByRole('textbox', { name: 'Password' }).fill(TEST_USER_PASSWORD);
 
         // This instance verifies a new device with an email code — `+clerk_test` accepts 424242. Clerk SENDS
@@ -32,14 +35,44 @@ test.describe('sign-in flow', () => {
         // its own `sign_ups` prepare call.
         await submitClerkEmailCode(page, {
             attempt: 'sign_ins',
-            triggerSend: () => page.getByRole('button', { name: 'Continue' }).click(),
+            identity: TEST_USER_EMAIL,
+            triggerSend: () => clerkPrimarySubmit(page).click(),
             expectStep: () =>
                 expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible({ timeout: 15_000 }),
         });
 
         await expect.poll(() => isHome(pathnameOf(page)), { timeout: 30_000 }).toBe(true);
         expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
-        await expect(page.getByRole('heading', { name: /welcome to commise/i })).toBeVisible();
+        // Home rendered, signed in: the shell marks Home the current page (the H1 is the time-of-day greeting since slice 3).
+        await expect(page.getByRole('link', { name: 'Home', exact: true }).filter({ visible: true })).toHaveAttribute(
+            'aria-current',
+            'page',
+        );
+    });
+
+    // §8: the code step must fit a 320 px phone. Clerk renders the field in a narrow box; the appearance gives the cell no
+    // horizontal padding so a digit is not clipped, and this proves the box is whole, on screen, and not scrolling.
+    test('the verification-code step fits a 320 px screen with no sideways scroll', async ({ page }) => {
+        test.slow();
+        await page.setViewportSize({ width: 320, height: 700 });
+        await setupClerkTestingToken({ page });
+        await page.goto(route('/sign-in'));
+
+        await page.getByRole('textbox', { name: /email/i }).fill(TEST_USER_EMAIL);
+        await clerkPrimarySubmit(page).click();
+        await page.getByRole('textbox', { name: 'Password' }).fill(TEST_USER_PASSWORD);
+        await clerkPrimarySubmit(page).click();
+
+        await expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible({ timeout: 15_000 });
+
+        const code = await page.getByRole('textbox', { name: /verification code/i }).boundingBox();
+
+        expect(code).not.toBeNull();
+        expect(code?.x ?? -1).toBeGreaterThanOrEqual(0);
+        expect((code?.x ?? 0) + (code?.width ?? 0)).toBeLessThanOrEqual(320);
+        expect(
+            await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+        ).toBeLessThanOrEqual(0);
     });
 
     test('a signed-in user visiting /sign-in is redirected to home', async ({ page }) => {

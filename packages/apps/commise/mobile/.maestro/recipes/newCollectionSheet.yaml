@@ -1,0 +1,37 @@
+# The new-collection sheet (`docs/design/uiOverhaul/buildSpec.md` §5.1, slice 4 of the UI overhaul): it opens over the
+# Collections list, refuses an empty name with a reason, asks before discarding a typed name, and a created collection
+# opens its detail. Selectors are visible text or accessibility labels only.
+appId: io.commise.mobile
+---
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+- tapOn: 'New collection'
+- extendedWaitUntil:
+      visible: 'Description \(optional\)'
+      timeout: 20000
+
+# An empty name is refused in place, with the reason under the field.
+- tapOn: 'Create collection'
+- assertVisible: 'Give your collection a name.'
+
+# A typed name is not lost to a stray close: Close asks first, and Keep editing keeps it.
+- tapOn: 'Name'
+- inputText: 'Maestro sheet collection'
+- hideKeyboard
+- tapOn: 'Close'
+- assertVisible: 'Discard this collection\?'
+- tapOn: 'Keep editing'
+- assertVisible: 'Maestro sheet collection'
+
+# Create: the sheet closes and the new collection's detail opens.
+- tapOn: 'Create collection'
+- extendedWaitUntil:
+      visible: 'More actions for Maestro sheet collection'
+      timeout: 40000
+- assertVisible: 'Maestro sheet collection'

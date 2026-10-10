@@ -11,78 +11,91 @@ appId: io.commise.mobile
 # the suite reads or writes this fixture. If the flow fails midway the fixture leaks (a stray "Maestro test
 # collection"), which is noisy but harmless — a re-run creates its own.
 #
-# Screens: CollectionsScreen -> CollectionFormScreen (create) -> CollectionDetailScreen ->
-# CollectionRecipePickerScreen (add) -> CollectionFormScreen (rename). Selectors are the accessibility labels
-# from `features/recipes/src/collections/messages.ts`.
+# Screens (slice 5, `buildSpec.md` §5): CollectionsScreen -> the new-collection SHEET -> CollectionDetailScreen, whose
+# header has one primary (Add recipes) and one ⋯ menu named for the collection ("More actions for {name}": Rename ·
+# Make private/public · Save a copy · Pull updates · Delete collection). Add recipes opens the picker SHEET "Add to
+# {name}", Rename a sheet, and Delete a confirmation: none is a route. Selectors are the accessibility labels from
+# `features/recipes/src/collections/messages.ts`.
 - runFlow: ../auth/signin.yaml
 
 # The recipes surface, then across the tab bar to Collections. Only the TAB carries this label right now
-# (the CollectionList heading + container label also read "Collections", but neither is rendered yet).
+# (the CollectionListFrame heading + container label also read "Collections", but neither is rendered yet).
 - assertVisible: 'Recipes'
 - tapOn: 'Collections'
 
-# CollectionList chrome. The create CTA proves the list rendered (heading "Collections" alone would also
+# CollectionListFrame chrome. The create CTA proves the list rendered (heading "Collections" alone would also
 # match the tab we just tapped, so it would not).
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000
 
-# CREATE. Tapping the CTA pushes CollectionFormScreen in `create` mode (its title is also "New collection").
+# CREATE. Slice 4 (`buildSpec.md` §5.1): the CTA opens the new-collection SHEET over the list (the create screen is
+# deleted), and a created collection opens its own detail.
 - tapOn: 'New collection'
-- assertVisible: 'Collection name'
-- tapOn: 'Collection name'
+- assertVisible: 'Description \(optional\)'
+- tapOn: 'Name'
 - inputText: 'Maestro test collection'
-- tapOn: 'Create'
+# Enter submits the name from the keyboard, as a cook finishes a one-field form.
+- pressKey: Enter
 
-# A successful create navigates back to the list, where the new collection renders as a row. Waiting on the
-# ROW (not the chrome) is what proves the create actually persisted and the list cache was invalidated.
+# OPEN. The create lands on the new collection's detail: its name, its primary action, and — for a brand-new collection —
+# the member-empty state, which proves we landed on the right (freshly created) collection.
 - extendedWaitUntil:
-      visible: 'Maestro test collection'
+      visible: 'More actions for Maestro test collection'
       timeout: 40000
+- assertVisible: 'Maestro test collection'
+- assertVisible: 'No recipes here yet'
 
-# OPEN. The detail shows the collection's name, its actions, and — for a brand-new collection — the
-# member-empty state. Asserting the empty state proves we landed on the right (freshly created) collection.
-- tapOn: 'Maestro test collection'
-- assertVisible: 'Rename'
-- assertVisible: 'No recipes in this collection yet'
+# ADD A RECIPE (FR-009). Add recipes opens the picker sheet "Add to {name}". Ticking a recipe saves at once
+# (POST /api/v1/collections/{id}/recipes) and Done says what changed. The seeded recipe (the same fixture the recipe
+# list/edit flows drive) must be a candidate.
+#
+# ⛔ A HARD WAIT, not a `when:` guard. `when:` does not wait and does not fail: when the fixture was missing the whole
+# body was SKIPPED and the flow reported GREEN having asserted nothing (run 101351873536). The seeded world is
+# guaranteed by `e2e-seed`, so its absence is a failure to report.
+- tapOn: 'Add recipes'
+- assertVisible: 'Add to Maestro test collection'
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_LAMB}'
+      timeout: 30000
+- tapOn: '${E2E_RECIPE_LAMB}'
+- assertVisible: 'Done · 1 added'
+- tapOn: 'Done · 1 added'
+- assertNotVisible: 'Add to Maestro test collection'
 
-# ADD A RECIPE (FR-009). The empty collection offers "Add a recipe", which pushes
-# CollectionRecipePickerScreen (its heading names this collection). Adding a recipe hits
-# `useAddRecipeToCollection` -> POST /api/v1/collections/{id}/recipes; the row then flips to the inert "In this
-# collection" marker. Guarded on the seeded recipe (the same fixture the recipe list/edit flows drive) being
-# an add candidate, so an empty library still exercises create/rename/delete. "Done" returns to the detail
-# either way. Mobile mirror of the web Playwright add leg.
-- tapOn: 'Add a recipe'
-- assertVisible: 'Add recipes to Maestro test collection'
-- runFlow:
-      when:
-          visible: 'Add Mediterranean Grilled Lamb'
-      commands:
-          - tapOn: 'Add Mediterranean Grilled Lamb'
-          - assertVisible: 'In this collection'
-- tapOn: 'Done'
-- assertVisible: 'Rename'
-
-# RENAME. Pushes CollectionFormScreen in `rename` mode, seeded with the current name.
+# RENAME. The ⋯ menu's Rename opens the rename sheet, filled in with the current name.
+- tapOn: 'More actions for Maestro test collection'
 - tapOn: 'Rename'
 - assertVisible: 'Rename collection'
-- tapOn: 'Collection name'
+- tapOn: 'Name'
 - eraseText
-- inputText: 'Maestro renamed collection'
-- tapOn: 'Save'
+# Deliberately LONG: E3 (`docs/design/uiOverhaul/evaluateShellAndLists.md`) is a long name squeezed into a column
+# broken mid-word beside the actions. The step after the wait proves it is not.
+- inputText: 'Maestro renamed collection for the whole family on weeknights'
+- tapOn: 'Save name'
 
-# Back on the detail, showing the NEW name — proves the update persisted and `useUpdateCollection`
-# invalidated the detail query. Matched as a `…collection.*` regex: Maestro's `inputText` intermittently
-# duplicates the final typed character on this emulator (the title renders "…collectionn"), which is an input
-# artifact, not an app bug — the trailing `.*` absorbs it while still proving the name changed from "test".
+# Back on the detail, showing the NEW name — proves the update persisted and `useUpdateCollection` invalidated the
+# detail query. Matched as a `…weeknights.*` regex: Maestro's `inputText` intermittently duplicates the final typed
+# character on this emulator, which is an input artifact, not an app bug — the trailing `.*` absorbs it while still
+# proving the name changed.
 - extendedWaitUntil:
       visible:
           text: 'Maestro renamed collection.*'
       timeout: 40000
 
-# DELETE (also this flow's cleanup). Deleting returns to the collections list; the row must be GONE, which is
-# the assertion that proves the delete actually happened rather than merely navigating away.
-- tapOn: 'Delete'
+# E3 — the long name keeps the row and the actions sit BELOW it on a phone. Beside it, Add recipes' top is above the
+# name's foot and `below:` fails. Anchored on the name, which only the app draws.
+- assertVisible:
+      text: 'Add recipes'
+      below:
+          text: 'Maestro renamed collection.*'
+
+# DELETE (also this flow's cleanup). The ⋯ menu's Delete collection asks first; confirming returns to the collections
+# list, and the row must be GONE, which is the assertion that proves the delete actually happened.
+- tapOn: 'More actions for Maestro renamed collection.*'
+- tapOn: 'Delete collection'
+- assertVisible: 'Delete Maestro renamed collection.*\?'
+- tapOn: 'Delete collection'
 - extendedWaitUntil:
       visible: 'New collection'
       timeout: 40000

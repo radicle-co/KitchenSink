@@ -1,0 +1,17 @@
+-- U9 — the AWAITING_RETRY lifecycle status.
+--
+-- A food between a failed source fetch and its next scheduled attempt was indistinguishable from one that
+-- had never been attempted: both read PENDING. The retry itself already worked (fetch_queue.attempts,
+-- exponential backoff, a five-attempt ceiling) — what was missing was any way for a CLIENT to tell
+-- "we are retrying this" from "this is queued", which is exactly the distinction the message substrate
+-- exists to carry and the one a user waiting on an ingredient can act on.
+--
+-- Additive only. Postgres cannot remove an enum value, so this is forward-only by construction; every
+-- existing row keeps its current status and no backfill is required (a food mid-retry simply reads PENDING
+-- until its next failure moves it).
+--
+-- ⚠️ ADDING a value to an enum used to require it to be committed before use. This runner wraps each file
+-- in BEGIN/COMMIT, so the ALTER and any statement USING the new value cannot share a migration. Nothing
+-- here uses it — the value is written by application code on a later connection — so this is safe as one
+-- statement. Do not add an UPDATE that references 'AWAITING_RETRY' to this file.
+ALTER TYPE food_status ADD VALUE IF NOT EXISTS 'AWAITING_RETRY';

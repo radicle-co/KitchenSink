@@ -1,0 +1,104 @@
+appId: io.commise.mobile
+---
+# Ingredient groups and row order on a device (UI overhaul slice 8, build spec §7.5.1 and §7.5.5). Mobile mirror of the
+# web Playwright `ingredientGroups.spec.ts`: the cook names a group, moves a line into it with the row's ⋯ Move to
+# group…, reorders with Move up (no drag, SC 2.5.7), renames the group, and removes it keeping its lines.
+#
+# Lines are declared "as written" from the add field (no food-service dependency, the same rationale as `create.yaml`).
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: 'Maestro Groups'
+
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Maestro Cumin'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Maestro Cumin.* as written.*'
+- tapOn:
+      text: 'Use .*Maestro Cumin.* as written.*'
+- extendedWaitUntil:
+      notVisible: 'Use .*Maestro Cumin.* as written.*'
+      timeout: 30000
+- tapOn: 'Add an ingredient'
+- inputText: 'Maestro Garlic'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Maestro Garlic.* as written.*'
+- tapOn:
+      text: 'Use .*Maestro Garlic.* as written.*'
+- extendedWaitUntil:
+      notVisible: 'Use .*Maestro Garlic.* as written.*'
+      timeout: 30000
+
+# Move up: Garlic leads, Cumin follows. An ungrouped list shows no group chrome, so the ⋯ offers no Move to group yet.
+- scrollUntilVisible:
+      element: 'Actions for Maestro Garlic'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Actions for Maestro Garlic'
+- assertNotVisible: 'Move to group…'
+- tapOn: 'Move up'
+- assertVisible:
+      text: 'Edit Maestro Garlic'
+      above: 'Edit Maestro Cumin'
+
+# + Add a group: a name, then an empty group with its own add field.
+- scrollUntilVisible:
+      element: 'Add a group'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add a group'
+- tapOn: 'Group name'
+- inputText: 'Paste'
+# The keyboard's done key saves (the field's submit), and Save sits under the keyboard on a phone.
+- pressKey: Enter
+- assertVisible: 'Paste'
+- assertVisible: 'Add to Paste'
+
+# Move to group…: Garlic joins the group, under its heading.
+- scrollUntilVisible:
+      element: 'Actions for Maestro Garlic'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Actions for Maestro Garlic'
+- tapOn: 'Move to group…'
+- assertVisible: 'Move to group'
+- tapOn: 'Paste'
+- extendedWaitUntil:
+      notVisible: 'No group'
+      timeout: 10000
+- assertVisible:
+      text: 'Edit Maestro Garlic'
+      below: 'Actions for Paste'
+
+# Rename the group; its line follows.
+- tapOn: 'Actions for Paste'
+- tapOn: 'Rename group'
+- tapOn: 'Group name'
+- eraseText: 10
+- inputText: 'Curry paste'
+- pressKey: Enter
+- assertVisible: 'Curry paste'
+
+# Remove the group, keeping its line: no heading is left, and both lines are still here.
+- tapOn: 'Actions for Curry paste'
+- tapOn: 'Remove group (keep its ingredients)'
+- assertNotVisible: 'Curry paste'
+- assertVisible: 'Edit Maestro Garlic'
+- assertVisible: 'Edit Maestro Cumin'
+
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
+- assertVisible: 'Recipes'

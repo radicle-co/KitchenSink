@@ -26,19 +26,24 @@
  * description, servings, prep/cook/total time, and ingredient lines (calorie chip only when the line carries
  * a `userCalories` override — never fabricated), plus the "Changed from current" summary when
  * `diffFromCurrent` was supplied, and the count-templated Restore action.
+ *
+ * @pattern Adapter over the house Radix `Dialog`, mirroring `PullUpdatesDialog.tsx` structurally and behaviourally —
+ *     `open` is the caller's and this leaf stays a controlled `props → JSX` render.
  */
+import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
+import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
+import { Icon } from '@commise/ui/icon';
+import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useRef, type FC } from 'react';
+import { type FC } from 'react';
 
 import { formatDurationMinutes } from '../list/model.js';
+import { recipeMessages } from '../messages.js';
 import { recipeVersionMessages } from './messages.js';
-import {
-    fillTemplate,
-    formatChangedFromCurrent,
-    toVersionPreviewIngredientLines,
-    type VersionPreviewModalProps,
-} from './model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
+import { previewRestoreErrorMessage, unrestorablePositionsFor } from './history.js';
+import { type VersionPreviewModalProps, formatChangedFromCurrent, toVersionPreviewIngredientLines } from './preview.js';
 
 export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     open,
@@ -50,19 +55,14 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     onRestore,
     isRestoring = false,
     locale,
+    restoreError,
 }) => {
-    const { preview, conflict } = useMessages(recipeVersionMessages);
+    const { preview, conflict, versionList } = useMessages(recipeVersionMessages);
+    const { ingredientLineName } = useMessages(recipeMessages);
 
-    // Capture whatever had focus right before this dialog opened, during render (not an effect) — see
-    // module docs; guarded on the false→true edge so it isn't re-captured on every re-render while open.
-    const triggerRef = useRef<HTMLElement | null>(null);
-    const wasOpenRef = useRef(false);
-
-    if (open && !wasOpenRef.current) {
-        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    }
-
-    wasOpenRef.current = open;
+    // Snapshot whatever had focus right before this dialog opened, and restore it on close — see module docs
+    // and `@commise/ui/dialog-focus`; the false→true edge guard lives inside the hook.
+    const onCloseAutoFocus = useReturnFocusOnClose(open);
 
     // Loading always wins — a fetch that is genuinely in flight must not read as broken on first paint. Once
     // NOTHING is pending, though, having no version to show IS a failure (B21): this used to read "still
@@ -72,6 +72,10 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     const showLoading = isLoading;
     const showError = !showLoading && (error === true || version === undefined);
     const showContent = !showLoading && !showError && version !== undefined;
+    const restoreErrorText =
+        version === undefined
+            ? undefined
+            : previewRestoreErrorMessage(restoreError, version.versionNumber, versionList, preview);
 
     const title =
         version !== undefined
@@ -81,44 +85,47 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onCancel()}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
-                    onCloseAutoFocus={(event) => {
-                        event.preventDefault();
-                        triggerRef.current?.focus();
-                    }}
-                    className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-card p-6 shadow-lg md:max-w-2xl"
+                    onCloseAutoFocus={onCloseAutoFocus}
+                    className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-paper p-6 shadow-lg md:max-w-2xl"
                 >
-                    <Dialog.Title className="font-display text-heading-lg font-semibold text-charcoal">
-                        {title}
-                    </Dialog.Title>
+                    <Dialog.Title className="font-display text-heading-lg font-semibold text-ink">{title}</Dialog.Title>
 
                     {showLoading && (
-                        <p role="status" aria-label={preview.loading} className="text-body-md text-slate">
+                        <p role="status" aria-label={preview.loading} className="text-body-md text-ink-muted">
                             {preview.loading}
                         </p>
                     )}
 
                     {showError && (
-                        <p role="alert" className="text-body-md text-error-dark">
+                        <p role="alert" className="text-body-md text-danger-text">
                             {preview.error}
+                        </p>
+                    )}
+
+                    {/* A failed restore of THIS version, shown where the cook pressed Restore rather than only in
+                        the list behind the dialog (`namelessLineCopy.md` §5). */}
+                    {restoreErrorText !== undefined && (
+                        <p role="alert" className="rounded-2xl bg-danger/10 px-4 py-3 text-body-sm text-danger-text">
+                            {restoreErrorText}
                         </p>
                     )}
 
                     {showContent && version !== undefined && (
                         <div className="flex flex-col gap-4">
-                            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-body-md text-charcoal">
-                                <dt className="font-medium text-slate">{conflict.titleLabel}</dt>
+                            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-body-md text-ink">
+                                <dt className="font-medium text-ink-muted">{conflict.titleLabel}</dt>
                                 <dd>{version.snapshot.title}</dd>
-                                <dt className="font-medium text-slate">{conflict.descriptionLabel}</dt>
+                                <dt className="font-medium text-ink-muted">{conflict.descriptionLabel}</dt>
                                 <dd>{version.snapshot.description}</dd>
-                                <dt className="font-medium text-slate">{conflict.servingsLabel}</dt>
+                                <dt className="font-medium text-ink-muted">{conflict.servingsLabel}</dt>
                                 <dd>{version.snapshot.servings}</dd>
-                                <dt className="font-medium text-slate">{conflict.prepLabel}</dt>
+                                <dt className="font-medium text-ink-muted">{conflict.prepLabel}</dt>
                                 <dd>{formatDurationMinutes(version.snapshot.prepTimeMinutes, conflict.minutes)}</dd>
-                                <dt className="font-medium text-slate">{conflict.cookLabel}</dt>
+                                <dt className="font-medium text-ink-muted">{conflict.cookLabel}</dt>
                                 <dd>{formatDurationMinutes(version.snapshot.cookTimeMinutes, conflict.minutes)}</dd>
-                                <dt className="font-medium text-slate">{conflict.totalLabel}</dt>
+                                <dt className="font-medium text-ink-muted">{conflict.totalLabel}</dt>
                                 <dd>
                                     {formatDurationMinutes(
                                         version.snapshot.prepTimeMinutes + version.snapshot.cookTimeMinutes,
@@ -128,31 +135,55 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                             </dl>
 
                             <div className="flex flex-col gap-2">
-                                <h3 className="font-display text-body-md font-semibold text-charcoal">
+                                <h3 className="font-display text-body-md font-semibold text-ink">
                                     {fillTemplate(preview.ingredientsHeading, { version: version.versionNumber })}
                                 </h3>
-                                <ul className="flex flex-col divide-y divide-border rounded-2xl bg-pearl p-2">
-                                    {toVersionPreviewIngredientLines(version.snapshot.ingredients, preview, locale).map(
-                                        (line) => (
-                                            <li
-                                                key={line.key}
-                                                className="flex items-center justify-between gap-3 px-3 py-2 text-body-sm text-charcoal"
-                                            >
-                                                {/* The line text yields the width (and breaks); the calorie
+                                <ul className="flex flex-col divide-y divide-line-divider rounded-2xl bg-surface-muted p-2">
+                                    {toVersionPreviewIngredientLines(
+                                        version.snapshot.ingredients,
+                                        preview,
+                                        locale,
+                                        ingredientLineName,
+                                        unrestorablePositionsFor(restoreError, version.versionNumber),
+                                    ).map((line) => (
+                                        <li
+                                            key={line.key}
+                                            className="flex items-center justify-between gap-3 px-3 py-2 text-body-sm text-ink"
+                                        >
+                                            {/* The line text yields the width (and breaks); the calorie
                                                     chip never shrinks. Parity with the native leaf's
                                                     `flexShrink` pair — see `VersionPreviewModal.native.tsx`. */}
-                                                <span className="min-w-0 break-words">{line.text}</span>
-                                                {line.calories !== undefined && (
-                                                    <span className="shrink-0 text-slate">{line.calories}</span>
+                                            <span className="min-w-0 break-words">
+                                                {line.text}
+                                                {/* Curated U15 (§S1): a variant-bound line's dotted line, on a
+                                                    line of its own under the line it belongs to. */}
+                                                {line.variantParts !== undefined && (
+                                                    <span className="mt-1 block">
+                                                        <VariantPartsLine parts={line.variantParts} tone="secondary" />
+                                                    </span>
                                                 )}
-                                            </li>
-                                        ),
-                                    )}
+                                                {/* Words, never colour alone: the refused restore named this
+                                                        line. Plain text in the line, so it is read with it, and
+                                                        last, because it is about the whole line, details too. */}
+                                                {line.cannotRestore !== undefined && (
+                                                    <>
+                                                        {' '}
+                                                        <span className="font-medium text-danger-text">
+                                                            {line.cannotRestore}
+                                                        </span>
+                                                    </>
+                                                )}
+                                            </span>
+                                            {line.calories !== undefined && (
+                                                <span className="shrink-0 text-ink-muted">{line.calories}</span>
+                                            )}
+                                        </li>
+                                    ))}
                                 </ul>
                             </div>
 
                             {diffFromCurrent !== undefined && (
-                                <p className="text-body-sm italic text-slate">
+                                <p className="text-body-sm italic text-ink-muted">
                                     {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
                                 </p>
                             )}
@@ -160,19 +191,19 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                     )}
 
                     <div className="flex items-center justify-end gap-3">
-                        <Dialog.Close className="rounded-full px-4 py-2 text-body-sm font-medium text-slate transition hover:bg-pearl">
+                        {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. */}
+                        <Dialog.Close className={buttonSurfaceClass('secondary')}>
+                            <Icon name="x" size={20} />
                             {preview.keepCurrent}
                         </Dialog.Close>
                         {showContent && version !== undefined && (
-                            <button
-                                type="button"
-                                onClick={() => onRestore(version.versionNumber)}
-                                disabled={isRestoring}
-                                aria-busy={isRestoring}
-                                className="rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:bg-ocean-dark disabled:cursor-not-allowed disabled:opacity-60"
+                            <Button
+                                icon="rotateCcw"
+                                busy={isRestoring}
+                                onPress={() => onRestore(version.versionNumber)}
                             >
                                 {isRestoring ? preview.restoringThis : preview.restoreThis}
-                            </button>
+                            </Button>
                         )}
                     </div>
                 </Dialog.Content>

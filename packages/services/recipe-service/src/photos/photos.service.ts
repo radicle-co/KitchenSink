@@ -19,6 +19,7 @@
  * Input-validation failures surface as framework `HttpException`s (415/422/413/404); the 10-photo cap
  * is a domain `MAX_PHOTOS_EXCEEDED` thrown by the DAL.
  */
+import * as Sentry from '@sentry/nestjs';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -44,10 +45,9 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { PhotosDal, type CreatePhotoInput } from './dal/photos.dal.js';
-import { resolvePhotoView } from './photo-view.js';
-import { generateThumbnail, THUMBNAIL_CONTENT_TYPE } from './photo-thumbnail.js';
+import { resolvePhotoView } from './photoView.js';
+import { generateThumbnail, THUMBNAIL_CONTENT_TYPE } from './photoThumbnail.js';
 import { RecipesService } from '../recipes/recipes.service.js';
-import { notOwner } from '../recipes/recipe.error.js';
 import type { RecipePhotoRow } from '../database/schema/index.js';
 
 /** DI token for the photo DAL — provided by `PhotosModule` via `useFactory` over the Drizzle client. */
@@ -214,25 +214,21 @@ export class PhotosService {
     ) {}
 
     /**
-     * Read-authorize access to a recipe's photos: allowed for the owner OR any `public` recipe. Delegates
-     * to {@link RecipesService.getById}, which throws `RECIPE_NOT_FOUND` (404) for a missing/tombstoned
-     * recipe and `NOT_OWNER` (403) for another owner's private recipe. Mirrors the versions vertical.
+     * Read-authorize access to a recipe's photos: allowed for the owner, or for anyone on a viewable (public,
+     * published) recipe. Throws `RECIPE_NOT_FOUND` (404) for a missing, tombstoned or unviewable recipe — never
+     * a 403, which would confirm it exists. One row read; see {@link RecipesService.findReadableRecipe}.
      */
     private async assertCanRead(ownerId: string, recipeId: string): Promise<void> {
-        await this.recipes.getById(ownerId, recipeId);
+        await this.recipes.findReadableRecipe(ownerId, recipeId);
     }
 
     /**
-     * Owner-only authorize a mutation on a recipe's photos. A public recipe owned by someone else passes
-     * the read check but is rejected here with `NOT_OWNER` — only the recipe owner may attach, reorder,
-     * or delete photos.
+     * Owner-only authorize a mutation on a recipe's photos. A viewable recipe owned by someone else is
+     * `NOT_OWNER` (403); one the caller cannot see is `RECIPE_NOT_FOUND` (404). One row read; the rule lives
+     * in {@link RecipesService.findOwnedRecipe}, not here.
      */
     private async assertOwner(ownerId: string, recipeId: string): Promise<void> {
-        const recipe = await this.recipes.getById(ownerId, recipeId);
-
-        if (recipe.ownerId !== ownerId) {
-            throw notOwner(recipeId);
-        }
+        await this.recipes.findOwnedRecipe(ownerId, recipeId);
     }
 
     /**
@@ -419,6 +415,15 @@ export class PhotosService {
         try {
             await Promise.all(keys.map((key) => this.storage.deleteObject(key)));
         } catch (error) {
+            // ⛔ AN ISSUE, NOT ONLY A LOG (plan U22a step 3). The DB row is already gone, so the object is
+            // now unreferenced by anything that could retry — there is no sweeper and no second chance, and
+            // the residue is a photo of the user's that survives their delete. HAZ-039 rates this
+            // Serious/Improbable/Tolerable ONLY because the path is expected to succeed almost always, so
+            // the operator has to learn that it stopped. A log line does not group, does not alert, and
+            // does not carry which S3 failure this was — throttling and a permissions regression need
+            // opposite responses.
+            Sentry.captureException(error);
+
             this.logger.error(
                 `Failed to delete S3 object(s) for photo ${row.id} (recipe ${row.recipeId}); object(s) may be ` +
                     `orphaned in the bucket. Skipping CDN invalidation — the origin object is still live, so ` +

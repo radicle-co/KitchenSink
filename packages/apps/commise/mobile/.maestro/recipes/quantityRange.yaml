@@ -1,0 +1,144 @@
+appId: io.commise.mobile
+---
+# Ranged and absent ingredient quantities (U9 / R40, R42; acceptance AE20 + AE21). Mobile mirror of the web
+# Playwright `recipeQuantityRange.spec.ts`, per the cross-platform mandate — a quantity model that ships to
+# one platform and not the other is exactly what §14 exists to stop.
+#
+# Assumes an authenticated session (the auth flow runs first in CI ordering) and the app pointed at a seeded
+# recipe API. It CREATES its own recipe rather than editing a seeded one, so `Edit Tomato` addresses the
+# line this flow itself made — the seeded recipes carry five lines of their own, and addressing by position
+# into a fixture is what made `recipes/edit.yaml`'s original checkpoint pass without proving anything.
+#
+# ONE flow covers three facts, because they share a single emulator run and each is worthless alone:
+#   1. A range can be STATED — in the row editor (UI overhaul slice 8, build spec §7.5.2: a sheet on a phone),
+#      "Add a range" reveals a second amount beside the first, sharing the line's one unit.
+#   2. It SURVIVES the round trip — the detail shows the span, and re-opening the editor re-seeds BOTH
+#      bounds. The failure this guards is silent narrowing: an editor that renders only the lower bound
+#      saves `2 cups` and still looks like it saved.
+#   3. An ABSENT amount is EDITABLE and SAVEABLE (R40). Before U9 the draft held `NaN` and validation
+#      refused it, so such a recipe could be opened and never saved — the Save changes tap below is that
+#      assertion.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+# Details. servings/prep/cook keep their valid defaults, as in `create.yaml`.
+- assertVisible: 'Close editor'
+- assertVisible: 'Title'
+- tapOn: 'Title'
+- inputText: 'Maestro Range Loaf'
+
+# Ingredients, below Details. Declare a line "as written" from the trailing field (no food-service dependency in this
+# job — same rationale as `create.yaml`), then state a RANGE across its two bounds.
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Tomato'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
+- tapOn:
+      text: 'Use .*Tomato.* as written.*'
+# The trailing field empties only after the line is committed, so this disappearing IS the declaration landing
+# (see `edit.yaml`'s note on why this is the honest checkpoint).
+- extendedWaitUntil:
+      notVisible: 'Use .*Tomato.* as written.*'
+      timeout: 30000
+
+# The line reads quietly; its open control opens the row editor sheet (§7.5.1, §7.5.2).
+- scrollUntilVisible:
+      element: 'Edit Tomato'
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
+      timeout: 30000
+- tapOn: 'Edit Tomato'
+- tapOn: 'Amount'
+- inputText: '2'
+- tapOn: 'Add a range'
+- tapOn: 'Amount, up to'
+- inputText: '3'
+- tapOn: 'Unit'
+- inputText: 'cups'
+- hideKeyboard
+- tapOn: 'Done'
+- assertVisible: 'Edit 2–3 cups Tomato'
+
+# Steps, below Ingredients — a fresh create has no steps, so this is `Step 1`.
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Mix and bake.'
+
+- tapOn: 'Publish'
+
+# Landed on the new recipe's detail. The title regex tolerates this emulator's occasional last-character
+# input duplication (see `create.yaml`).
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Range Loaf.*'
+      timeout: 40000
+
+# ⛔ THE SPAN, not its lower bound. An EN DASH, which is what `formatQuantity` prints on BOTH platforms —
+# the same glyph the web spec asserts, so a platform that formatted a range differently fails here. The amount leads
+# the name in one paragraph (`docs/design/readSurfacesEvaluation.md` D1), so the line is matched from its start.
+- scrollUntilVisible:
+      element:
+          text: '2–3 cups .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+
+# Re-open the editor: the seed must carry BOTH bounds. Dropping the upper one here is the narrowing defect.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Close editor'
+- scrollUntilVisible:
+      element: 'Edit 2–3 cups Tomato'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit 2–3 cups Tomato'
+# A TextInput's own value is matchable text in this suite (see `searchNavigation.yaml`), so the seeded
+# bounds are assertable directly.
+- assertVisible: 'Amount, up to'
+- assertVisible:
+      text: '3'
+
+# Now state that the source gave NO amount: clear both bounds, keep the prose in the unit field. Saving
+# from here is the assertion — before U9 this form could not be submitted at all.
+- tapOn: 'Amount'
+- eraseText
+- tapOn: 'Remove range'
+# The unit field is wider than `cups`, so a tap at its centre puts the caret after the word: erase it, then type.
+- tapOn: 'Unit'
+- eraseText: 10
+- inputText: 'the size of an egg'
+- assertVisible:
+      text: '^the size of an egg$'
+- hideKeyboard
+- tapOn: 'Done'
+# The recipe is published now, so its edits reach the server only at Save changes (owner decision D1).
+- tapOn: 'Save changes'
+
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Range Loaf.*'
+      timeout: 40000
+# The unit prose renders with NO number in front of it — not a `0`, not a `1` (R40). The amount leads the name in one
+# paragraph (`docs/design/readSurfacesEvaluation.md` D1), so the line is matched from its start.
+- scrollUntilVisible:
+      element:
+          text: 'the size of an egg .*Tomato.*'
+      # Save changes goes BACK to the detail, which keeps the scroll it had: the line is above.
+      direction: UP
+      timeout: 20000
+- assertNotVisible:
+      text: '[0-9]+ the size of an egg.*'

@@ -1,0 +1,115 @@
+{
+    "schemaVersion": 1,
+    "generatedBy": "@kitchensink/docgen-components",
+    "totals": {
+        "components": 321,
+        "implementations": 472,
+        "props": 1949,
+        "documentedComponents": 317,
+        "implementationsWithModuleDoc": 451,
+        "implementationsWithComponentDoc": 337,
+        "documentedProps": 1596,
+        "classifiedComponents": 228,
+        "componentsWithPatternTag": 167,
+        "crossPlatformComponents": 151
+    },
+    "groups": [
+        {
+            "id": "designSystem",
+            "title": "Design system",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "catalogue": "docs/generated/components/groups/designSystem.json",
+            "coverage": {
+                "components": 62,
+                "implementations": 107,
+                "props": 591,
+                "documentedComponents": 62,
+                "implementationsWithModuleDoc": 107,
+                "implementationsWithComponentDoc": 99,
+                "documentedProps": 554,
+                "classifiedComponents": 55,
+                "componentsWithPatternTag": 62,
+                "crossPlatformComponents": 45
+            }
+        },
+        {
+            "id": "featuresRecipes",
+            "title": "Recipes feature",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "catalogue": "docs/generated/components/groups/featuresRecipes.json",
+            "coverage": {
+                "components": 124,
+                "implementations": 224,
+                "props": 1072,
+                "documentedComponents": 124,
+                "implementationsWithModuleDoc": 224,
+                "implementationsWithComponentDoc": 130,
+                "documentedProps": 820,
+                "classifiedComponents": 107,
+                "componentsWithPatternTag": 54,
+                "crossPlatformComponents": 100
+            }
+        },
+        {
+            "id": "featuresAccount",
+            "title": "Account feature",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "catalogue": "docs/generated/components/groups/featuresAccount.json",
+            "coverage": {
+                "components": 6,
+                "implementations": 12,
+                "props": 74,
+                "documentedComponents": 6,
+                "implementationsWithModuleDoc": 12,
+                "implementationsWithComponentDoc": 10,
+                "documentedProps": 54,
+                "classifiedComponents": 4,
+                "componentsWithPatternTag": 4,
+                "crossPlatformComponents": 6
+            }
+        },
+        {
+            "id": "web",
+            "title": "Web app",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "catalogue": "docs/generated/components/groups/web.json",
+            "coverage": {
+                "components": 80,
+                "implementations": 80,
+                "props": 102,
+                "documentedComponents": 77,
+                "implementationsWithModuleDoc": 61,
+                "implementationsWithComponentDoc": 60,
+                "documentedProps": 66,
+                "classifiedComponents": 35,
+                "componentsWithPatternTag": 26,
+                "crossPlatformComponents": 0
+            }
+        },
+        {
+            "id": "mobile",
+            "title": "Mobile app",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "catalogue": "docs/generated/components/groups/mobile.json",
+            "coverage": {
+                "components": 49,
+                "implementations": 49,
+                "props": 110,
+                "documentedComponents": 48,
+                "implementationsWithModuleDoc": 47,
+                "implementationsWithComponentDoc": 38,
+                "documentedProps": 102,
+                "classifiedComponents": 27,
+                "componentsWithPatternTag": 21,
+                "crossPlatformComponents": 0
+            }
+        }
+    ],
+    "findings": "docs/generated/components/findings.json",
+    "designTokens": "docs/generated/design/tokens.json"
+}

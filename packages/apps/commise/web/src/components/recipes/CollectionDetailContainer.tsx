@@ -1,60 +1,84 @@
 'use client';
 
 /**
- * Container for the collection-detail route (W5 Task 12 — the collection-view integration linchpin). It
- * fetches a single collection (with its member recipes) via `useCollection(id)` and composes the shared,
- * presentational collection building blocks around it: the {@link CollectionHeader} (name, visibility badge,
- * recipe count, source attribution, last-pulled, Back + rename/delete — C4/C6), the {@link CollectionActions}
- * sidebar (add-recipes, pull-updates, clone, and the premium-gated visibility toggle — C1/FR-009/FR-010/
- * FR-011), the {@link CloneInfoPanel} (only for a cloned collection — C5), the member list
- * ({@link CollectionDetail}), and the {@link PullUpdatesDialog} (C2). The fetch-state affordances (loading,
- * generic error with retry, distinct not-found) belong to the app, not the blocks, and are localized through
- * the web dictionary (`useMessages`).
+ * Container for the collection-detail route (orchestration; W5 Task 12; slice 5 of the UI overhaul, `docs/design/uiOverhaul/buildSpec.md`
+ * §5.2, §5.3). It reads a single collection (with its member recipes) and composes the shared building blocks around it:
+ * the {@link CollectionHeader} (back, name, meta, description, Add recipes and the ⋯ menu), the {@link CollectionMembers}
+ * list, the rename sheet, the delete confirmation, the Premium sheet, the add-recipes picker and the pull-updates dialog.
+ * The fetch-state affordances (loading, generic error with retry, distinct not-found) belong to the app, not the blocks.
  *
- * Remote state stays in TanStack Query — the view is derived from the query, never copied into local state;
- * the only local state is view state the server does not own: the pending (unsaved) visibility selection and
- * the pull preview→commit→drift dialog state machine.
+ * The read is a suspense read under a `ClientQueryBoundary` — hydration-gated, because this route is not
+ * server-prefetched. A background refetch that fails while the collection is on screen does not throw, so the cook keeps
+ * reading it, and the header's refresh notice says so and offers a retry. The settled {@link CollectionDetailView} is KEYED
+ * on the id: the App Router keeps this container mounted across `/collections/A` → `/collections/B`, and the remount is what
+ * clears A's pending removal, sheets and pull state before B renders.
  *
- * Premium gate (C1): a single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from Clerk's
- * `external_id` session claim + `useUserProfile`'s subscription tier — the SAME signals and the SAME
- * `canGoPrivate` predicate the recipe detail container and the mobile screen evaluate, so the two platforms
- * and the two surfaces can never diverge on the gate. It fails safe (gated OFF) while the profile loads/absent.
+ * Remote state stays in TanStack Query: the view is derived from the query, never copied into local state. The hooks own
+ * the work — `useMemberRemoval` (a removal hides the row and commits when its Undo snackbar times out),
+ * `useCollectionVisibility` (changes at once, with a compensating Undo and the Premium sheet), `useCollectionPull` (the
+ * preview → commit → drift machine) — and the only local state is which sheet is open and the picker's search.
  *
- * Pull-updates state machine (C2/FR-011): opening Pull runs `previewPull` (imperative `mutateAsync`) and shows
- * its {@link PullDiff} in the dialog; confirming commits with `pullCollectionFromSource({ previewedDiff })`; a
- * `PullDriftError` (409 — the source drifted since the preview) is caught, RE-PREVIEWED for the fresh diff, and
- * surfaced as the dialog's `'drift'` state (never a blind retry, never an infinite spinner). A successful
- * commit invalidates via the hook, then closes + clears the dialog.
+ * Premium gate (C1): a single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from Clerk's `external_id`
+ * session claim + `useUserProfile`'s subscription tier — the SAME signals and the SAME `canGoPrivate` predicate the recipe
+ * detail container and the mobile screen evaluate. It fails safe (gated OFF) while the profile loads/absent.
+ *
+ * @pattern Facade — one screen over the removal, visibility, pull and picker hooks and the sheets they drive
  */
 import {
-    CloneInfoPanel,
-    CollectionActions,
-    CollectionDetail,
+    CollectionDeleteDialog,
     CollectionHeader,
+    CollectionMembers,
+    CollectionPickerRow,
+    CollectionRecipePicker,
+    CollectionRecipePickerCandidates,
+    CollectionRecipePickerLoadError,
+    CollectionRecipePickerLoading,
+    CollectionSheet,
+    CollectionUpsellSheet,
     PullUpdatesDialog,
+    RecipeNutritionSlot,
+    cardVariantOf,
     collectionMessages,
-    type CollectionDetailError,
+    doneSummaryOf,
+    fillTemplate,
+    narrowByTitle,
+    useMainContainerClass,
+    viewModeCookieFor,
+    viewModeOf,
+    type ListViewMode,
 } from '@commise/features-recipes';
-import { toDetailQueryView } from '@commise/features-core';
-import { useLocale, useMessages } from '@commise/i18n/react';
+import {
+    useCollectionPull,
+    useCollectionVisibility,
+    useMemberRemoval,
+    useMemberToggle,
+    usePickerAnnouncement,
+    useRecipeNutritionBatches,
+} from '@commise/features-recipes/hooks';
+import { useMessages } from '@commise/i18n/react';
+import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { useAuth } from '@clerk/nextjs';
-import { canGoPrivate, makeViewer, type RecipeVisibility } from '@kitchensink/recipe-core';
-import { isNotFoundError, isPullDriftError, type PullDiff } from '@kitchensink/recipe-service-client';
+import { canGoPrivate, makeViewer, type Recipe } from '@kitchensink/recipe-core';
+import { collectionQueries, isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
     useCloneCollection,
-    useCollection,
     useDeleteCollection,
-    usePreviewPull,
-    usePullCollectionFromSource,
-    useRemoveRecipeFromCollection,
+    useRecipeServiceClient,
     useUpdateCollection,
 } from '@kitchensink/recipe-service-client/hooks';
+import { useSuspenseInfiniteQuery, useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useState, type FC } from 'react';
+import { useCallback, useMemo, useState, type FC } from 'react';
 
+import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
+import { CollectionLoadError } from '@/components/recipes/CollectionLoadError';
+import { CollectionNotFound } from '@/components/recipes/CollectionNotFound';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
+
+/** The id of the page's H1, which takes focus when the last row is removed. */
+const COLLECTION_TITLE_ID = 'collection-title';
 
 /** Props for {@link CollectionDetailContainer}. */
 export interface CollectionDetailContainerProps {
@@ -62,6 +86,8 @@ export interface CollectionDetailContainerProps {
     readonly id: string;
     /** The active route locale, used to build locale-prefixed navigation targets. */
     readonly locale: string;
+    /** The cook's stored list/grid choice (the cookie the page read), so the server renders it. */
+    readonly storedViewMode?: ListViewMode;
 }
 
 /**
@@ -79,255 +105,330 @@ function readViewerId(sessionClaims: unknown): string | undefined {
 }
 
 /**
- * The live collection-detail container.
+ * The live collection-detail container: the route's read boundary around {@link CollectionDetailView}.
  *
  * @param props - The collection id to load and the active locale.
- * @returns The composed detail view, or a localized loading / not-found / error affordance.
+ * @returns The boundary: loading, not-found or a retrying error, and the composed detail view once the read settles.
  */
-export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ id, locale }) => {
-    const router = useRouter();
-    const activeLocale = useLocale();
+export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ id, locale, storedViewMode }) => {
     const { collections } = useMessages(webMessages);
-    const { actions: collectionActions } = useMessages(collectionMessages);
+
+    return (
+        <ClientQueryBoundary
+            loading={
+                <p role="status" aria-label={collections.detail.loadingLabel} className="py-8 text-body text-ink-muted">
+                    {collections.detail.loadingLabel}
+                </p>
+            }
+            renderError={({ error, resetErrorBoundary }) =>
+                isNotFoundError(error) ? (
+                    <CollectionNotFound locale={locale} />
+                ) : (
+                    <CollectionLoadError onRetry={resetErrorBoundary} />
+                )
+            }
+            resetKeys={[id]}
+        >
+            <CollectionDetailView
+                key={id}
+                id={id}
+                locale={locale}
+                {...(storedViewMode === undefined ? {} : { storedViewMode })}
+            />
+        </ClientQueryBoundary>
+    );
+};
+
+/** Props for the add-recipes picker's rows. */
+interface PickerBodyProps {
+    readonly collectionId: string;
+    readonly query: string;
+    readonly onClearSearch: () => void;
+    readonly onCreateRecipe: () => void;
+}
+
+/** One picker row, with its own toggle (`useMemberToggle`: a per-row mutation, serialized per pair). */
+const PickerRow: FC<{
+    readonly collectionId: string;
+    readonly recipe: Recipe;
+    readonly checked: boolean;
+}> = ({ collectionId, recipe, checked }) => {
+    const toggle = useMemberToggle(collectionId, recipe);
+
+    return (
+        <CollectionPickerRow
+            recipe={recipe}
+            checked={checked}
+            {...(toggle.failed ? { failed: toggle.failedMember ? ('add' as const) : ('remove' as const) } : {})}
+            onToggle={toggle.press}
+        />
+    );
+};
+
+/**
+ * The picker's settled body: the whole library (the same read My recipes narrows on the device), narrowed by the search,
+ * with each row's membership read off the collection — which the toggles rewrite at once.
+ *
+ * @param props - The collection, the search, and the empty states' actions.
+ * @returns The rows, or the reason there are none.
+ */
+const PickerBody: FC<PickerBodyProps> = ({ collectionId, query, onClearSearch, onCreateRecipe }) => {
+    const client = useRecipeServiceClient();
+    const library = useSuspenseInfiniteQuery(recipeQueries(client).library({ sortBy: 'updatedAt' }));
+    const collection = useSuspenseQuery(collectionQueries(client).detail(collectionId));
+    const members = useMemo(
+        () => new Set(collection.data.recipes.map((recipe) => recipe.id)),
+        [collection.data.recipes],
+    );
+    const recipes = useMemo(
+        () =>
+            narrowByTitle(
+                library.data.pages.flatMap((chunk) => chunk.data),
+                query,
+            ),
+        [library.data.pages, query],
+    );
+
+    return (
+        <CollectionRecipePickerCandidates
+            recipes={recipes}
+            query={query}
+            onClearSearch={onClearSearch}
+            onCreateRecipe={onCreateRecipe}
+            renderRow={(recipe) => (
+                <PickerRow collectionId={collectionId} recipe={recipe} checked={members.has(recipe.id)} />
+            )}
+        />
+    );
+};
+
+/**
+ * The settled collection detail: the collection has resolved by the time this renders.
+ *
+ * @param props - The collection id and the active locale.
+ * @returns The composed detail view.
+ * @throws {Error} For an empty collection id — a read that cannot be made fails into the boundary, as the generic
+ *   failure, rather than issuing a request for `''` (B21).
+ */
+const CollectionDetailView: FC<CollectionDetailContainerProps> = ({ id, locale, storedViewMode }) => {
+    if (id.length === 0) {
+        throw new Error('A collection detail needs a collection id.');
+    }
+
+    const router = useRouter();
+    const { member: copy, picker } = useMessages(collectionMessages);
     const { sessionClaims } = useAuth();
     const profile = useUserProfile();
-    const query = useCollection(id);
-    const removeRecipe = useRemoveRecipeFromCollection();
+    const client = useRecipeServiceClient();
+    const query = useSuspenseQuery(collectionQueries(client).detail(id));
+    const collection = query.data;
+    // A failed refresh of the collection on screen does not throw into the boundary: it keeps the collection and is
+    // reported by the header's refresh notice.
+    const refreshNotice = useRefreshNotice(query);
     const deleteCollection = useDeleteCollection();
     const updateCollection = useUpdateCollection();
     const cloneCollection = useCloneCollection();
-    const previewPull = usePreviewPull();
-    const commitPull = usePullCollectionFromSource();
+    const pull = useCollectionPull(id);
 
-    // View state the server does not own: the pending (unsaved) visibility selection and the pull dialog's
-    // preview→commit→drift machine. `pendingVisibility` is undefined until the viewer changes it, so the saved
-    // value is the source of truth until then (no need to seed it from data that is not loaded yet).
-    const [pendingVisibility, setPendingVisibility] = useState<RecipeVisibility | undefined>(undefined);
-    const [isPullOpen, setPullOpen] = useState(false);
-    const [pullDiff, setPullDiff] = useState<PullDiff | undefined>(undefined);
-    const [pullError, setPullError] = useState<'drift' | 'generic' | undefined>(undefined);
-    const [stateCollectionId, setStateCollectionId] = useState(id);
-
-    if (stateCollectionId !== id) {
-        // The App Router keeps THIS container mounted across a `/collections/A` → `/collections/B` navigation
-        // (same dynamic-segment pattern), so on an id change we must scrub every scrap of the previous
-        // collection's local + mutation state — otherwise collection A's pending visibility, open pull dialog,
-        // or a failed/in-flight write leaks onto B, which shares the same `useMutation`/`useState` instances.
-        // (The member-window reveal count is reset separately by keying `CollectionDetail` on `collection.id`.)
-        setStateCollectionId(id);
-        setPendingVisibility(undefined);
-        setPullOpen(false);
-        setPullDiff(undefined);
-        setPullError(undefined);
-        removeRecipe.reset();
-        deleteCollection.reset();
-        updateCollection.reset();
-        cloneCollection.reset();
-        previewPull.reset();
-        commitPull.reset();
-    }
-
-    // B21: ONE derivation of which fetch-state affordance to render, applying the settled-but-absent rule —
-    // a query that stopped loading, carries no error, and still has no data has settled with NOTHING, which
-    // is a FAILURE, not a pending fetch. It used to fall into a SECOND loading branch below the error one,
-    // stranding the viewer on a permanent spinner with no retry; mobile's `CollectionDetailScreen` has always
-    // routed it into ERROR, and web now agrees BY CONSTRUCTION, because both read the same rule.
-    const view = toDetailQueryView(query);
-
-    if (view.status === 'loading') {
-        return (
-            <p role="status" aria-label={collections.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
-                {collections.detail.loadingLabel}
-            </p>
-        );
-    }
-
-    if (view.status === 'error') {
-        // `isNotFoundError` needs an error OBJECT: settled-but-absent has none, so it correctly reads as the
-        // GENERIC failure (with retry), never a fabricated 404 — nothing says the collection is gone.
-        const notFound = isNotFoundError(query.error);
-
-        return (
-            <div role="alert">
-                <p>{notFound ? collections.detail.notFoundTitle : collections.detail.errorTitle}</p>
-                {!notFound && (
-                    <button type="button" onClick={() => void query.refetch()}>
-                        {collections.detail.retry}
-                    </button>
-                )}
-            </div>
-        );
-    }
-
-    const collection = view.data;
-    const isCloned = collection.sourceCollectionId !== undefined;
-    const savedVisibility = collection.visibility;
-    const effectivePending = pendingVisibility ?? savedVisibility;
-
-    // P4: ONE Viewer value object, built from this platform's identity signals (Clerk's `external_id` claim +
-    // the profile's subscription tier), feeds the visibility gate through the shared `canGoPrivate` predicate —
-    // the SAME predicate the recipe detail container and the mobile screen evaluate (C1). Fails safe (OFF)
-    // while the profile loads or is absent (`makeViewer` maps an absent/unrecognized tier to `'free'`).
+    // P4: ONE Viewer value object, built from this platform's identity signals (Clerk's `external_id` claim + the
+    // profile's subscription tier), feeds the visibility gate through the shared `canGoPrivate` predicate. Fails safe
+    // (OFF) while the profile loads or is absent (`makeViewer` maps an absent/unrecognized tier to `'free'`).
     const viewer = makeViewer({
         id: readViewerId(sessionClaims),
         subscriptionTier: profile.data?.account.subscriptionTier,
     });
-    const viewerCanGoPrivate = canGoPrivate(viewer);
+    const visibility = useCollectionVisibility({ id, canGoPrivate: canGoPrivate(viewer) });
+    const removal = useMemberRemoval({ id, name: collection.name });
+    const announcement = usePickerAnnouncement(id);
 
-    // B17 — a failed delete/remove must never look frozen. Surface an honest code for whichever mutation
-    // errored; delete takes precedence over remove (it is the more consequential, whole-collection action).
-    const mutationError: CollectionDetailError | undefined =
-        deleteCollection.error !== null && deleteCollection.error !== undefined
-            ? 'delete'
-            : removeRecipe.error !== null && removeRecipe.error !== undefined
-              ? 'remove'
-              : undefined;
+    const container = useMainContainerClass();
+    const [viewChoice, setViewChoice] = useState<ListViewMode | undefined>(storedViewMode);
+    const viewMode = viewModeOf(viewChoice, container);
+    const variant = cardVariantOf(container, viewMode, 'library');
 
-    /** Fetch a fresh preview and show it in the dialog; a failed preview surfaces the generic error state. */
-    const runPreview = async (): Promise<void> => {
-        try {
-            const diff = await previewPull.mutateAsync(id);
-            setPullDiff(diff);
-            setPullError(undefined);
-        } catch {
-            setPullError('generic');
-        }
-    };
+    const [renameOpen, setRenameOpen] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [pickerQuery, setPickerQuery] = useState('');
+    // The members when the picker opened: Done's "2 added, 1 removed" is the difference from this, not a count of presses.
+    const [membersAtOpen, setMembersAtOpen] = useState<readonly string[]>([]);
 
-    /** Open the pull dialog and kick off the initial preview (C2). */
-    const openPull = (): void => {
-        setPullDiff(undefined);
-        setPullError(undefined);
-        setPullOpen(true);
-        void runPreview();
-    };
+    const memberIds = useMemo(() => collection.recipes.map((recipe) => recipe.id), [collection.recipes]);
+    const members = useMemo(
+        () => collection.recipes.filter((recipe) => !removal.hiddenIds.includes(recipe.id)),
+        [collection.recipes, removal.hiddenIds],
+    );
+    // The compact card draws no figure, so a batch for it would have nobody to read the promise (a rejection would go unhandled).
+    const nutritionFor = useRecipeNutritionBatches(variant === 'compact' ? [] : [memberIds]);
+    const renderNutrition = useCallback(
+        (recipeId: string) => {
+            const batch = nutritionFor(recipeId);
 
-    /** Cancel/dismiss the pull dialog and reset its whole state machine. */
-    const cancelPull = (): void => {
-        setPullOpen(false);
-        setPullDiff(undefined);
-        setPullError(undefined);
-        previewPull.reset();
-        commitPull.reset();
-    };
+            return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
+        },
+        [nutritionFor],
+    );
 
-    /**
-     * Commit the previewed pull. On a `PullDriftError` (409 — the source drifted since the preview), re-run
-     * the preview for the FRESH diff and surface the dialog's `'drift'` state, keeping it open so the viewer
-     * re-decides against current data (never a blind retry, never an infinite spinner). Any other failure is
-     * generic; a successful commit invalidates (via the hook), then closes + clears the dialog.
-     */
-    const confirmPull = async (): Promise<void> => {
-        // Defense in depth (belt-and-braces alongside the dialog only rendering Confirm once a diff has
-        // loaded): never commit a pull without a previewed diff to defend against — a blind pull would skip
-        // the server's drift guard entirely (it only runs when `previewedDiff` is present).
-        if (pullDiff === undefined) {
-            return;
-        }
+    const listHref = `/${locale}/collections`;
 
-        try {
-            await commitPull.mutateAsync({ id, previewedDiff: pullDiff });
-            setPullOpen(false);
-            setPullDiff(undefined);
-            setPullError(undefined);
-        } catch (error) {
-            if (isPullDriftError(error)) {
-                try {
-                    const fresh = await previewPull.mutateAsync(id);
-                    setPullDiff(fresh);
-                    setPullError('drift');
-                } catch {
-                    // Even the re-preview failed — fall back to the generic error rather than a stuck spinner.
-                    setPullError('generic');
-                }
-            } else {
-                setPullError('generic');
-            }
-        }
+    const openPicker = (): void => {
+        setMembersAtOpen(memberIds);
+        setPickerQuery('');
+        setPickerOpen(true);
     };
 
     return (
-        <section aria-label={collection.name} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
+        <section aria-label={collection.name} className="mx-auto flex w-full max-w-page flex-col gap-6">
             <CollectionHeader
                 name={collection.name}
-                description={collection.description}
-                visibility={savedVisibility}
-                recipeCount={collection.recipeCount ?? collection.recipes?.length ?? 0}
-                sourceCollectionName={collection.sourceCollectionName}
-                sourceOwnerHandle={collection.sourceOwnerHandle}
-                lastPulledAt={collection.lastPulledAt}
-                onBack={() => router.push(`/${locale}/collections` as Route)}
-                onEdit={() => router.push(`/${locale}/collections/${id}/rename` as Route)}
-                onDelete={() =>
-                    deleteCollection.mutate(id, {
-                        onSuccess: () => router.push(`/${locale}/collections` as Route),
-                    })
+                {...(collection.description === undefined ? {} : { description: collection.description })}
+                visibility={collection.visibility}
+                recipeCount={members.length}
+                {...(collection.sourceCollectionName === undefined
+                    ? {}
+                    : { sourceCollectionName: collection.sourceCollectionName })}
+                {...(collection.sourceOwnerHandle === undefined
+                    ? {}
+                    : { sourceOwnerHandle: collection.sourceOwnerHandle })}
+                {...(collection.sourceCollectionId === undefined
+                    ? {}
+                    : { sourceCollectionId: collection.sourceCollectionId })}
+                {...(collection.lastPulledAt === undefined ? {} : { lastPulledAt: collection.lastPulledAt })}
+                actionsPlacement={container === 'narrow' ? 'below' : 'title'}
+                headingId={COLLECTION_TITLE_ID}
+                headingFocusSignal={0}
+                onBack={() => router.push(listHref as Route)}
+                backHref={listHref}
+                onAddRecipes={openPicker}
+                onViewSource={(sourceId) => router.push(`/${locale}/collections/${sourceId}` as Route)}
+                refreshNotice={refreshNotice}
+                onRename={() => {
+                    updateCollection.reset();
+                    setRenameOpen(true);
+                }}
+                onToggleVisibility={() => visibility.change(collection.visibility === 'public' ? 'private' : 'public')}
+                onSaveCopy={() =>
+                    cloneCollection.mutate(
+                        { id },
+                        { onSuccess: (created) => router.push(`/${locale}/collections/${created.id}` as Route) },
+                    )
+                }
+                onPullUpdates={pull.start}
+                onDelete={() => {
+                    deleteCollection.reset();
+                    setDeleteOpen(true);
+                }}
+            />
+
+            {visibility.failed ? (
+                <p role="alert" className="text-body text-danger-text">
+                    {copy.visibilityFailed}
+                </p>
+            ) : null}
+            {cloneCollection.isError ? (
+                <p role="alert" className="text-body text-danger-text">
+                    {copy.saveCopyFailed}
+                </p>
+            ) : null}
+
+            <CollectionMembers
+                members={members}
+                viewMode={viewMode}
+                onViewModeChange={(mode) => {
+                    setViewChoice(mode);
+                    document.cookie = viewModeCookieFor(mode);
+                }}
+                variant={variant}
+                hrefOf={(recipeId) => `/${locale}/recipes/${recipeId}`}
+                onSelectRecipe={(recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route)}
+                onRemoveRecipe={removal.remove}
+                onAddRecipes={openPicker}
+                {...(removal.failedTitle === undefined ? {} : { removeFailedTitle: removal.failedTitle })}
+                renderNutrition={renderNutrition}
+                headingId={COLLECTION_TITLE_ID}
+            />
+
+            <CollectionSheet
+                open={renameOpen}
+                onOpenChange={setRenameOpen}
+                intent="rename"
+                initial={{
+                    name: collection.name,
+                    ...(collection.description === undefined ? {} : { description: collection.description }),
+                }}
+                submitting={updateCollection.isPending}
+                failed={updateCollection.isError}
+                onRename={(request) =>
+                    updateCollection.mutate({ id, request }, { onSuccess: () => setRenameOpen(false) })
                 }
             />
 
-            <div className="flex flex-col gap-6 lg:flex-row-reverse lg:items-start">
-                <aside className="flex flex-col gap-6 lg:w-80 lg:shrink-0">
-                    <CollectionActions
-                        isCloned={isCloned}
-                        visibility={savedVisibility}
-                        pendingVisibility={effectivePending}
-                        canGoPrivate={viewerCanGoPrivate}
-                        disabledReason={collectionActions.privatePremiumGated}
-                        isCloning={cloneCollection.isPending}
-                        isPulling={previewPull.isPending || commitPull.isPending}
-                        onAddRecipes={() => router.push(`/${locale}/collections/${id}/add` as Route)}
-                        onPullUpdates={openPull}
-                        onClone={() =>
-                            cloneCollection.mutate(
-                                { id },
-                                {
-                                    onSuccess: (created) =>
-                                        router.push(`/${locale}/collections/${created.id}` as Route),
-                                },
-                            )
-                        }
-                        onVisibilityChange={setPendingVisibility}
-                        onSaveVisibility={() =>
-                            updateCollection.mutate({ id, request: { visibility: effectivePending } })
-                        }
-                    />
-                    {isCloned && collection.sourceCollectionId !== undefined && (
-                        <CloneInfoPanel
-                            sourceOwnerHandle={collection.sourceOwnerHandle}
-                            sourceCollectionName={collection.sourceCollectionName}
-                            sourceCollectionId={collection.sourceCollectionId}
-                            clonedAt={collection.createdAt}
-                            locale={activeLocale}
-                            onViewSource={(sourceId) => router.push(`/${locale}/collections/${sourceId}` as Route)}
-                        />
+            <CollectionDeleteDialog
+                open={deleteOpen}
+                name={collection.name}
+                recipeCount={members.length}
+                busy={deleteCollection.isPending}
+                failed={deleteCollection.isError}
+                onKeep={() => setDeleteOpen(false)}
+                onConfirm={() => deleteCollection.mutate(id, { onSuccess: () => router.push(listHref as Route) })}
+            />
+
+            <CollectionUpsellSheet
+                open={visibility.upsellOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        visibility.closeUpsell();
+                    }
+                }}
+                onSeePremium={visibility.closeUpsell}
+            />
+
+            <CollectionRecipePicker
+                open={pickerOpen}
+                onClose={() => setPickerOpen(false)}
+                collectionName={collection.name}
+                query={pickerQuery}
+                onQueryChange={setPickerQuery}
+                summary={doneSummaryOf(membersAtOpen, memberIds)}
+                {...(announcement === undefined
+                    ? {}
+                    : {
+                          announcement: {
+                              text: fillTemplate(
+                                  announcement.member ? picker.addedAnnouncement : picker.removedAnnouncement,
+                                  { title: announcement.title },
+                              ),
+                              occurrence: announcement.at,
+                          },
+                      })}
+            >
+                <ClientQueryBoundary
+                    loading={<CollectionRecipePickerLoading />}
+                    renderError={({ resetErrorBoundary }) => (
+                        <CollectionRecipePickerLoadError onRetry={resetErrorBoundary} />
                     )}
-                </aside>
-
-                <div className="min-w-0 flex-1">
-                    {/* Reveal-reset (Task 11): key the member-list subtree on the collection id so the
-                        client-side member-window reveal count resets when navigating between collections. */}
-                    <CollectionDetail
-                        key={collection.id}
-                        collection={collection}
-                        error={mutationError}
-                        onSelectRecipe={(recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route)}
-                        onRemoveRecipe={(recipeId) => removeRecipe.mutate({ id, recipeId })}
-                        onAddRecipe={() => router.push(`/${locale}/collections/${id}/add` as Route)}
+                    resetKeys={[id]}
+                >
+                    <PickerBody
+                        collectionId={id}
+                        query={pickerQuery}
+                        onClearSearch={() => setPickerQuery('')}
+                        onCreateRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
                     />
-                </div>
-            </div>
+                </ClientQueryBoundary>
+            </CollectionRecipePicker>
 
-            {isCloned && (
+            {collection.sourceCollectionId !== undefined && (
                 <PullUpdatesDialog
-                    open={isPullOpen}
-                    diff={pullDiff}
-                    isLoadingPreview={previewPull.isPending}
-                    isCommitting={commitPull.isPending}
-                    error={pullError}
+                    open={pull.open}
+                    diff={pull.diff}
+                    isLoadingPreview={pull.isLoadingPreview}
+                    isCommitting={pull.isCommitting}
+                    error={pull.error}
                     sourceOwnerHandle={collection.sourceOwnerHandle}
                     sourceCollectionName={collection.sourceCollectionName}
-                    onCancel={cancelPull}
-                    onConfirm={() => void confirmPull()}
+                    onCancel={pull.cancel}
+                    onConfirm={pull.confirm}
                 />
             )}
         </section>

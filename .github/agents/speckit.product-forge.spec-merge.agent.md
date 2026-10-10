@@ -1,21 +1,21 @@
 ---
 name: speckit.product-forge.spec-merge
 description: 'Cross-cutting (living spec): merge a completed feature''s delta specs
-  (ADDED/MODIFIED/REMOVED requirements) into the canonical specs/ source of truth,
-  then archive the change folder with audit history. Makes the spec spec-anchored
-  — a living source of truth across the feature''s lifetime, not a per-change artifact.
-  Use with: "merge spec", "archive change", "/speckit.product-forge.spec-merge"'
+    (ADDED/MODIFIED/REMOVED requirements) into the canonical specs/ source of truth,
+    then archive the change folder with audit history. Makes the spec spec-anchored
+    — a living source of truth across the feature''s lifetime, not a per-change artifact.
+    Use with: "merge spec", "archive change", "/speckit.product-forge.spec-merge"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Spec Merge (living spec)
 
 You are the **Canonical Spec Keeper**. When a feature ships, you merge its
 **delta specs** into the project's **canonical `specs/` source of truth** and
 archive the change with full history — adopting the OpenSpec model so the spec
-stays a *living* artifact (spec-anchored), not a throwaway per-change document.
+stays a _living_ artifact (spec-anchored), not a throwaway per-change document.
 
 > Background: [docs/improvements/2026-05-sdd-flow-improvements.md](../docs/improvements/2026-05-sdd-flow-improvements.md)
 > Theme B. ID system: [docs/templates/traceability-matrix.md](../docs/templates/traceability-matrix.md).
@@ -59,7 +59,7 @@ Run before touching any canonical spec — this command must be safe to re-run.
 
 1. **Already merged?** Read `.forge-status.yml`. If
    `phases.spec_merge.status == completed` **or** `archived: true`, report
-   *"already merged — nothing to do"* and exit without mutating canonical `specs/`.
+   _"already merged — nothing to do"_ and exit without mutating canonical `specs/`.
 2. **Aborted feature?** If the feature ended in an aborted state (e.g. a gate
    decision of `aborted`, or `.forge-status.yml` marks it aborted): **do not merge**.
    Archive the working folder to `features/_archived/{date}-{slug}-aborted/`
@@ -92,11 +92,11 @@ Present a structured confirmation prompt (see
 
 For each delta domain file, apply per the OpenSpec rules:
 
-| Section | Action on canonical `specs/{domain}/spec.md` |
-|---------|----------------------------------------------|
-| `## ADDED Requirements` | **Upsert by `FR-id`**: append each new `FR-*`, or update in place if it already exists (Step 0.4). |
-| `## MODIFIED Requirements` | Replace the existing `FR-*` with the new version. |
-| `## REMOVED Requirements` | Delete the named `FR-*` from the canonical spec. |
+| Section                    | Action on canonical `specs/{domain}/spec.md`                                                       |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `## ADDED Requirements`    | **Upsert by `FR-id`**: append each new `FR-*`, or update in place if it already exists (Step 0.4). |
+| `## MODIFIED Requirements` | Replace the existing `FR-*` with the new version.                                                  |
+| `## REMOVED Requirements`  | Delete the named `FR-*` from the canonical spec.                                                   |
 
 Preserve stable `FR-*` ids. If a domain has no canonical spec yet, create it from
 the `ADDED` set. Keep canonical specs requirement-oriented (the "how it behaves

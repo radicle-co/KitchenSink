@@ -1,0 +1,18 @@
+names after splitting : 2753
+median length         : 26 characters (bare roots: 19)
+p90 length            : 49 characters
+longer than 40        : 573 (21%)
+
+split names on the largest roots:
+  ham (cured), cured, ham -- water added
+  ham (cured), cured, separable lean only
+  ham (cured), cured, separable lean and fat
+  ham (cured)
+  beef (ground), beef, meat
+  beef (ground), ground, pan-broiled
+  beef (ground), ground
+  beef small end rib roast, cooked, rib
+  beef small end rib roast, broiled, cooked
+  beef small end rib roast, broiled, cooked
+  beef small end rib roast, raw, rib
+  beef ribeye steak (raw), raw, select

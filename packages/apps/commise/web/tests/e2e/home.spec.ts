@@ -20,7 +20,13 @@ test.describe('Home widget surface (T104)', () => {
         await mockRecipeApi(page, {
             viewerId,
             tier: 'free',
-            recipes: [makeRecipeDetail({ id: 'rec_home', ownerId: viewerId, title: 'Weeknight Pasta' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000010',
+                    ownerId: viewerId,
+                    title: 'Weeknight Pasta',
+                }),
+            ],
         });
 
         // Reload Home so the recent-recipes widget fetches against the mock (the first landing fired before
@@ -30,30 +36,44 @@ test.describe('Home widget surface (T104)', () => {
         // The Home widget surface and its region render.
         await expect(page.getByRole('region', { name: 'Home' })).toBeVisible();
 
-        // The chrome renders: the sticky top bar (which NAMES this surface) and the primary nav landmark.
-        // The bar's title is plain banner text, not a heading — the page's own sr-only <h1> is the document's
-        // single level-1 heading, and a chrome heading duplicating a page title would be ambiguous.
-        await expect(page.getByRole('banner').getByText('Home')).toBeVisible();
-        await expect(page.getByRole('navigation', { name: 'Main' }).first()).toBeVisible();
+        // The chrome renders: no top bar since slice 3, and the one displayed primary nav landmark.
+        await expect(page.getByRole('banner')).toHaveCount(0);
+        await expect(page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })).toHaveCount(1);
 
-        // The time-of-day greeting renders (any of the four buckets — the clock decides which).
-        await expect(page.getByRole('heading', { name: /Chef/u })).toBeVisible();
+        // The time-of-day greeting renders. Anchored to the four buckets EXACTLY (this used to be a bare
+        // `/Chef/u`, which a truncated greeting or a leaked `home.greetings.morning` dictionary key would still
+        // satisfy), plus the long-date subtitle beneath it, which was asserted nowhere. This spec runs on the
+        // real wall clock, so WHICH bucket is the clock's business — the guarantee that the VIEWER's clock is
+        // the one consulted (#144) is gated in `visualRegression.spec.ts`, where the browser clock is pinned to
+        // an instant the Next server cannot know.
+        // Since slice 3 it IS the page's H1, naming the cook when there is a name (`buildSpec.md` §4.2).
+        await expect(
+            page.getByRole('heading', {
+                level: 1,
+                name: /^(Good (morning|afternoon|evening)(, .+)?|Still up(, .+)?\?)$/u,
+            }),
+        ).toBeVisible();
+        await expect(page.getByText(/^\w+day, \w+ \d{1,2}, \d{4}$/u)).toBeVisible();
 
         // The recipe (recent-recipes) widget renders with its heading and the viewer's recent recipe.
         await expect(page.getByRole('heading', { name: 'Recent recipes' })).toBeVisible();
         await expect(page.getByText('Weeknight Pasta')).toBeVisible();
 
-        // The unshipped 005–009 widgets render as SKELETON PLACEHOLDERS — present (not absent), each a
-        // labelled region announcing what is coming, with a visible "Coming soon".
-        for (const title of ["Today's Nutrition", 'Resume cooking', "This Week's Meals"]) {
-            const placeholder = page.getByRole('region', { name: title });
+        // The unshipped 005–009 widgets render as SKELETON PLACEHOLDERS — present (not absent), grouped AFTER the
+        // recent recipes under one "Coming soon" heading (owner ruling, buildSpec §4.2), each a labelled region with
+        // a visible "Soon".
+        const comingSoon = page.getByRole('region', { name: 'Coming soon' });
+        await expect(comingSoon.getByRole('heading', { level: 2, name: 'Coming soon' })).toBeVisible();
+
+        for (const title of ['Today’s nutrition', 'Resume cooking', 'This week’s meals']) {
+            const placeholder = comingSoon.getByRole('region', { name: title });
             await expect(placeholder).toBeVisible();
-            await expect(placeholder.getByText('Coming soon')).toBeVisible();
+            await expect(placeholder.getByText('Soon', { exact: true })).toBeVisible();
         }
 
         // The CR-001 red line: a placeholder must NEVER show fabricated data. The nutrition placeholder shows
         // no calorie figures, percentage, or "cal" the mockup renders from real data.
-        const nutrition = page.getByRole('region', { name: "Today's Nutrition" });
+        const nutrition = page.getByRole('region', { name: 'Today’s nutrition' });
         await expect(nutrition.getByText(/\d/u)).toHaveCount(0);
         await expect(nutrition.getByText(/cal/iu)).toHaveCount(0);
 
@@ -61,7 +81,7 @@ test.describe('Home widget surface (T104)', () => {
         await page.getByRole('link', { name: 'See all recipes' }).click();
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
-        // …and the shell's top bar re-titles itself for the new surface (it used to say 'Home' everywhere).
-        await expect(page.getByRole('banner').getByText('Recipes')).toBeVisible();
+        // …and the document title names the new page (slice 3 deleted the top bar that used to).
+        await expect(page).toHaveTitle('Recipes · Commise');
     });
 });

@@ -25,7 +25,7 @@ export const RouteLoadingState: FC = () => {
         <p
             role="status"
             aria-label={boundary.loading.label}
-            className="mx-auto w-full max-w-4xl py-12 text-body-md text-slate"
+            className="mx-auto w-full max-w-4xl py-12 text-body-md text-ink-muted"
         >
             {boundary.loading.label}
         </p>

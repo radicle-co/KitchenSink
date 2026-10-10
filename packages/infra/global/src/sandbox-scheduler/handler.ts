@@ -21,6 +21,7 @@ import {
 import {
     DescribeServicesCommand,
     ECSClient,
+    DescribeClustersCommand,
     ListClustersCommand,
     ListServicesCommand,
     UpdateServiceCommand,
@@ -29,7 +30,9 @@ import { DescribeInstancesCommand, EC2Client, StartInstancesCommand, StopInstanc
 import { GetParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 
 import {
+    assertRunSucceeded,
     runSchedulerAction,
+    type EcsClusterSummary,
     type EcsServiceSummary,
     type Ec2InstanceSummary,
     type RdsInstanceSummary,
@@ -61,7 +64,7 @@ const clients: SchedulerClients = {
         },
     },
     ecs: {
-        async listClusterArns(): Promise<string[]> {
+        async listClusters(): Promise<EcsClusterSummary[]> {
             const arns: string[] = [];
             let nextToken: string | undefined;
 
@@ -71,7 +74,27 @@ const clients: SchedulerClients = {
                 nextToken = response.nextToken;
             } while (nextToken);
 
-            return arns;
+            const clusters: EcsClusterSummary[] = [];
+
+            // ⚠️ `DescribeClusters` accepts at most 100 clusters per call, and TAGS are opt-in: without
+            // `include: ['TAGS']` the response carries none and every per-PR cluster reads as untagged —
+            // which is exactly the invisible state this change exists to remove.
+            for (let index = 0; index < arns.length; index += 100) {
+                const response = await ecsClient.send(
+                    new DescribeClustersCommand({ clusters: arns.slice(index, index + 100), include: ['TAGS'] }),
+                );
+
+                for (const cluster of response.clusters ?? []) {
+                    if (cluster.clusterArn) {
+                        clusters.push({
+                            arn: cluster.clusterArn,
+                            environmentTag: (cluster.tags ?? []).find((tag) => tag.key === 'Environment')?.value,
+                        });
+                    }
+                }
+            }
+
+            return clusters;
         },
         async listServices(clusterArn: string): Promise<EcsServiceSummary[]> {
             const serviceArns: string[] = [];
@@ -167,6 +190,7 @@ const clients: SchedulerClients = {
  *
  * @param event - `{ action: 'stop' | 'start' }` supplied by the EventBridge Scheduler target input.
  * @returns The structured run summary (also logged).
+ * @throws {SchedulerRunFailedError} When any resource failed its transition, after every step has run.
  */
 export const handler = async (event: { action?: SchedulerAction }): Promise<SchedulerSummary> => {
     // Require an EXPLICIT valid action — never default an unknown/typo'd input to 'stop', which would
@@ -178,6 +202,7 @@ export const handler = async (event: { action?: SchedulerAction }): Promise<Sche
     const summary = await runSchedulerAction(event.action, clients);
 
     console.log(JSON.stringify({ message: 'sandbox-scheduler run complete', ...summary }));
+    assertRunSucceeded(summary);
 
     return summary;
 };

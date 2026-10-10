@@ -1,0 +1,106 @@
+appId: io.commise.mobile
+---
+# REWRITTEN for plan 002 S7.9. Row 6 on a device (`docs/design/ingredientStatusExplanation.md` SPECIFY.1 row 6;
+# `docs/design/rowEditorOpenDecisions.md` S7 list contract P12). Mobile mirror of the web Playwright
+# `ingredientRowEditor.spec.ts` row 6 stories: an `UNRESOLVED` line's glyph opens a list searched from the line's own
+# words, as row 7's is, with the source's foods flowing in, and one pick of a remote food puts it on THAT line.
+#
+# It runs against the PR's deployed sandbox (ADR-0032) on the create form. An `UNRESOLVED` line is made the way a cook
+# makes one: "Find nutrition for" admits the words by name, and a name that OUR database's search finds nothing for lands
+# `UNRESOLVED` and is committed as it is (`useLineCommit`; the cascade's lexical tier binds any hit).
+#
+# ⛔ THE WORDS ARE `halloumi` PLUS A PER-RUN SUFFIX OF RANDOM LETTERS, never a fixed word. USDA matches ANY word of a
+# query (`requireAllWords: false`), so it still answers with its halloumi foods as candidates, while the suffix matches
+# nothing in our database, so the line lands `UNRESOLVED` on every run. A fixed word works once: after any run has seen
+# it, the database (and the signer's author-scoped correction from the pick below) holds it and the line binds outright.
+# That is exactly what run 37268858758 showed — the row read `HALLOUMI CHEESE, HALLOUMI`, never `Not resolved` — and why
+# waiting longer could never have helped. The suffix is also what keeps the pick below from poisoning the next run.
+#
+# It spends one name lookup and one remote pick from the signer's source budget. Leaving with × leaves one draft
+# recipe, which the next flow's reset deletes.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: 'Maestro Row Candidates'
+
+# A row to work on: the run's probe food `Flour` (`e2e-seed provision`).
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Flou'
+- extendedWaitUntil:
+      visible:
+          text: 'Your foods'
+      timeout: 30000
+- tapOn: 'Flour, your food'
+- scrollUntilVisible:
+      element: 'Edit Flour'
+      direction: DOWN
+      timeout: 30000
+
+# Change food to the words by name. The field opens on the food's name with the caret at its end, so the name is erased
+# first. The by-name option sits under "Not listed?", after the foods the list found.
+- tapOn: 'Actions for Flour'
+- tapOn: 'Change food'
+- eraseText: 20
+- evalScript: '${output.noise = (Math.random().toString(36) + Math.random().toString(36) + Math.random().toString(36)).replace(/[^a-z]/g, "").slice(0, 16)}'
+- inputText: 'halloumi ${output.noise}'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Find nutrition for “halloumi ${output.noise}”'
+- tapOn: 'Find nutrition for “halloumi ${output.noise}”'
+
+# UI overhaul slice 8 (build spec §7.5.1): the row says it needs a choice in an attention line under its name.
+- extendedWaitUntil:
+      visible:
+          text: 'Choose a match'
+      timeout: 60000
+      label: 'a name our database has never seen settles UNRESOLVED on this stage, so row 6 has a line to show'
+
+# The panel never opens by itself: nothing is listed until the cook presses the attention line.
+- assertNotVisible: 'Search for another food'
+- tapOn: 'Choose a match: .*'
+# The panel's own sentence, not `Which “…” did you mean?`: that names the group of OUR database's foods, and a name lands
+# `UNRESOLVED` only when that same search found none (the cascade's lexical tier binds any hit), so it never shows here.
+# `ingredientShortlist.yaml` asserts it on an `AMBIGUOUS` line.
+- extendedWaitUntil:
+      visible:
+          text: 'We found more than one food this could be, and we need you to say which.'
+      timeout: 30000
+- assertVisible: 'Search for another food'
+# The line's own words were searched, and the source's foods arrived in the same panel, with no press.
+- extendedWaitUntil:
+      visible:
+          text: 'From USDA'
+      timeout: 40000
+      label: 'USDA answered the progressive search for the line’s words on this stage'
+
+# One remote pick: the panel adopts it and puts the root on the line, closes, and the row no longer asks for a choice.
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
+- tapOn:
+      text: '.*, from USDA'
+      index: 0
+- extendedWaitUntil:
+      notVisible:
+          text: 'Search for another food'
+      timeout: 40000
+- assertNotVisible: 'Choose a match'
+
+# Leave with ×. REWRITTEN for slice 7: Save Draft is gone; × is the exit checkpoint, which creates the titled draft
+# (build spec §7.3), so the recipe is in My recipes when the list returns.
+- tapOn: 'Close editor'
+- assertVisible: 'Recipes'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Row Candidates.*'
+      timeout: 40000

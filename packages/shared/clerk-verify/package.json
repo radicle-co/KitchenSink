@@ -9,12 +9,12 @@
         ".": "./src/index.ts"
     },
     "dependencies": {
-        "@clerk/backend": "^1.27.0"
+        "@clerk/backend": "^3.16.12"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
-        "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.test.ts'",
+        "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
@@ -26,7 +26,7 @@
         "@kitchensink/vitest": "*",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.3",
         "vitest": "^4.0.0"
     },
     "engines": {

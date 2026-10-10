@@ -1,0 +1,220 @@
+/**
+ * Native component tests for the recipe-list FRAME (react-native-web under jsdom) — the chrome that renders outside
+ * the list's suspense boundary. Mirrors `RecipeListFrame.test.tsx`.
+ *
+ * Moved from the retired `RecipeList.native.test.tsx` ("chrome", "U8 brand title band", "source tabs (L5)", the search
+ * placeholder's contrast, and the notice's screen-reader hand-off — which now arrives as `headingFocusSignal`).
+ *
+ * ⚠️ REWRITTEN in part for slice 4 of the UI overhaul: the source tabs become the My recipes · Collections segments, the
+ * hand-built input becomes the design-system `SearchField` (which owns its placeholder contrast, so that test moved
+ * there), and the field hides on the first run. The compact-height and focus invariants are kept.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AccessibilityInfo, Text } from 'react-native';
+import { cleanup, render, screen } from '@testing-library/react';
+import { fireEvent } from '@testing-library/dom';
+import { nativeTokens } from '@commise/ui/native';
+
+// Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { RecipeListFrame } from '../RecipeListFrame.native.js';
+import type { RecipeListFrameProps } from '../model.js';
+
+// react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+});
+
+/**
+ * The window's height class and the keyboard, served by the test: jsdom has neither a window to turn nor a keyboard.
+ * The rules behind them are `@commise/ui/layout`'s own (`compactHeight.test.ts`, `useCompactHeight.native.test.tsx`).
+ */
+const layout = vi.hoisted(() => ({ compact: false, collapsed: false }));
+
+vi.mock('@commise/ui/layout', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/ui/layout')>()),
+    useCompactHeight: () => layout.compact,
+    useFrameCollapsed: () => layout.collapsed,
+}));
+
+afterEach(cleanup);
+
+beforeEach(() => {
+    vi.clearAllMocks();
+    layout.compact = false;
+    layout.collapsed = false;
+});
+
+const noop = () => undefined;
+
+/** The source switcher's destinations. Native ignores them (its shell has no URLs) — see the control's JSDoc. */
+const HREF = { mine: '/en/recipes', collections: '/en/collections' } as const;
+
+function frame(overrides: Partial<RecipeListFrameProps> = {}) {
+    return (
+        <RecipeListFrame searchValue="" onSearchChange={noop} searchVisible headingFocusSignal={0} {...overrides}>
+            {overrides.children ?? <Text>boundary content</Text>}
+        </RecipeListFrame>
+    );
+}
+
+describe('RecipeListFrame (native) — chrome', () => {
+    it('renders the heading, the search field and whatever the boundary below it renders', () => {
+        render(frame());
+
+        expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
+        expect(screen.getByLabelText('Search your recipes')).toBeTruthy();
+        expect(screen.getByText('boundary content')).toBeTruthy();
+    });
+
+    it('reports search input changes upward', () => {
+        const onSearchChange = vi.fn();
+        render(frame({ onSearchChange }));
+
+        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'lamb' } });
+
+        expect(onSearchChange).toHaveBeenCalledWith('lamb');
+    });
+});
+
+describe('RecipeListFrame (native) — the heading sits on the canvas', () => {
+    // React Native renders a CSS font stack as the system font, silently. `getComputedStyle` does not resolve
+    // react-native-web's class-compiled family, so this reads the injected declaration and rejects any stack.
+    it('paints the heading in the registered bold Playfair face, never a CSS font stack', () => {
+        render(frame());
+
+        const applied = appliedFontFamily(screen.getByRole('heading', { name: 'Recipes' }));
+
+        expect(applied).toBe(nativeTokens.fontFace.display.bold);
+        expect(applied).not.toContain(',');
+    });
+
+    it('does not wrap the heading in a gradient title band', () => {
+        render(frame());
+        // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): a card exists only to group, and the page
+        // canvas already carries the beach-glow wash, so the heading sits on the canvas, not in a second gradient.
+        expect(
+            screen.getByRole('heading', { name: 'Recipes' }).closest('[data-commise-stub="linear-gradient"]'),
+        ).toBeNull();
+    });
+});
+
+describe('RecipeListFrame (native) — segments and the first run', () => {
+    it('renders no segments without a segments control', () => {
+        render(frame());
+
+        expect(screen.queryByRole('tab', { name: 'Collections' })).toBeNull();
+    });
+
+    it('renders My recipes · Collections as tabs, the current one selected, and reports a press', () => {
+        const onSelect = vi.fn();
+        render(frame({ segments: { current: 'mine', href: HREF, onSelect } }));
+
+        expect(screen.getByRole('tab', { name: 'My recipes' }).getAttribute('aria-selected')).toBe('true');
+        fireEvent.click(screen.getByRole('tab', { name: 'Collections' }));
+
+        expect(onSelect).toHaveBeenCalledWith('collections');
+    });
+
+    it('hides the search field on the first run, keeping the boundary', () => {
+        render(frame({ searchVisible: false }));
+
+        expect(screen.queryByLabelText('Search your recipes')).toBeNull();
+        expect(screen.getByText('boundary content')).toBeTruthy();
+    });
+});
+
+describe('RecipeListFrame (native) — the heading takes the screen-reader cursor when a refresh recovers', () => {
+    it('⛔ sends focus to the heading when the recovery signal advances, and not on mount', () => {
+        const { rerender } = render(frame());
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).not.toHaveBeenCalled();
+
+        rerender(frame({ headingFocusSignal: 1 }));
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
+            screen.getByRole('heading', { name: 'Recipes' }),
+            'focus',
+        );
+    });
+});
+
+/**
+ * Read back the `font-family` react-native-web ACTUALLY applied to `element`: RNW compiles a `StyleSheet` family into
+ * an atomic `r-fontFamily-*` class whose rule jsdom's `getComputedStyle` does not resolve, so the honest read is the
+ * injected declaration itself. `undefined` when the element carries no compiled family.
+ */
+function appliedFontFamily(element: HTMLElement): string | undefined {
+    // A style object that is not from `StyleSheet.create` (the large title picks one per container class) reaches the
+    // DOM inline rather than as a compiled class, so the inline declaration is read first.
+    const inline = element.style.getPropertyValue('font-family');
+
+    if (inline !== '') {
+        return inline;
+    }
+
+    const className = element.className.split(' ').find((name) => name.startsWith('r-fontFamily-'));
+
+    if (className === undefined) {
+        return undefined;
+    }
+
+    const sheets = document.styleSheets;
+
+    for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+        const rules = sheets[sheetIndex]?.cssRules;
+
+        for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+            const rule = rules?.[ruleIndex];
+
+            if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                return rule.style.getPropertyValue('font-family');
+            }
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * `docs/design/compactHeightLayout.md` §5: on a phone held sideways the stacked header (title band, then the field)
+ * took about 205 of 369 dp before one recipe. In compact height the heading shares a row with the field and the band
+ * goes; the field NEVER changes parent or index, so a cook typing in it keeps focus and the keyboard while the layout
+ * changes around them.
+ */
+describe('RecipeListFrame (native) — compact height', () => {
+    it('drops the title band and puts the heading in one row with the search field', () => {
+        layout.compact = true;
+        const { container } = render(frame());
+
+        expect(container.querySelector('[data-commise-stub="linear-gradient"]')).toBeNull();
+
+        const field = screen.getByLabelText('Search your recipes');
+        const heading = screen.getByRole('heading', { name: 'Recipes' });
+
+        expect(heading.parentElement?.contains(field)).toBe(true);
+        expect(getComputedStyle(heading.parentElement as Element).flexDirection).toBe('row');
+        expect(appliedFontFamily(heading)).toBe(nativeTokens.fontFace.display.bold);
+    });
+
+    it('keeps the same field node, focused, through regular, compact and collapsed', () => {
+        const { rerender } = render(frame());
+        const field = screen.getByLabelText('Search your recipes') as HTMLInputElement;
+
+        field.focus();
+
+        for (const next of [
+            { compact: true, collapsed: false },
+            { compact: true, collapsed: true },
+            { compact: false, collapsed: false },
+        ]) {
+            layout.compact = next.compact;
+            layout.collapsed = next.collapsed;
+            rerender(frame({ searchValue: `${String(next.compact)}${String(next.collapsed)}` }));
+
+            expect(screen.getByLabelText('Search your recipes')).toBe(field);
+            expect(document.activeElement).toBe(field);
+        }
+    });
+});

@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -43,6 +43,25 @@ describe('globals.css', () => {
             .toEqual([]);
     });
 
+    /**
+     * Clerk's own styles are unlayered emotion CSS, which out-ranks a Tailwind utility whatever its specificity. The
+     * appearance puts them in the `clerk` layer (`CLERK_CSS_LAYER`); this statement is what ranks that layer BELOW
+     * `utilities`, so the role classes on Clerk's elements win. Declared before the theme import, because the FIRST
+     * ordering statement of a layer name fixes its place and Tailwind's own `@layer theme, base, components, utilities`
+     * (inside the import) would otherwise leave `clerk` last, above everything.
+     */
+    it('orders the clerk layer between base and components, before Tailwind declares its own order', () => {
+        const statement = /@layer\s+([^;{]+);/.exec(globalsCss);
+        const themeImport = globalsCss.indexOf("@import '@commise/ui/theme.css'");
+        const layers = (statement?.[1] ?? '').split(',').map((name) => name.trim());
+
+        expect(statement, 'a bare @layer ordering statement').not.toBeNull();
+        expect(statement?.index ?? Number.POSITIVE_INFINITY).toBeLessThan(themeImport);
+        expect(layers.indexOf('clerk')).toBeGreaterThan(layers.indexOf('base'));
+        expect(layers.indexOf('clerk')).toBeLessThan(layers.indexOf('utilities'));
+        expect(layers.indexOf('clerk')).toBeLessThan(layers.indexOf('components'));
+    });
+
     it('still imports the brand webfont families', () => {
         // Guards against "fixing" the ordering by deleting the import outright. If these ever move to
         // `next/font`, delete this test in the same commit that adds the replacement.
@@ -52,4 +71,64 @@ describe('globals.css', () => {
             expect(globalsCss, `${family} must stay in the font import`).toContain(family);
         }
     });
+
+    /**
+     * Tailwind v4 scans THIS app's files and nothing it imports from a workspace package, so a utility class used
+     * only inside a shared package is simply never generated — the element renders unstyled and no test notices.
+     * Every `@commise/*` dependency whose web source writes a `className` must therefore be an `@source`.
+     */
+    it('scans every @commise workspace package whose web components carry utility classes', () => {
+        const manifest = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8')) as {
+            dependencies?: Record<string, string>;
+        };
+        const cssDirectory = resolve(import.meta.dirname, '../src/app');
+        // Read from the RAW file, anchored to a line start: a glob's `/**/` looks like a comment to the stripper
+        // above, and an `@source` inside a real comment never starts a line of this file.
+        const rawCss = readFileSync(resolve(cssDirectory, 'globals.css'), 'utf8');
+        const sourced = [...rawCss.matchAll(/^@source\s+["']([^"']+)["']/gm)].map((match) =>
+            resolve(cssDirectory, (match[1] ?? '').split('/**')[0] ?? ''),
+        );
+
+        const unsourced = Object.keys(manifest.dependencies ?? {})
+            .filter((name) => name.startsWith('@commise/'))
+            .map((name) => ({
+                name,
+                src: join(packageDirectory(name), 'src'),
+            }))
+            .filter(({ src }) => writesClassNames(src))
+            .filter(({ src }) => !sourced.some((root) => !relative(root, src).startsWith('..')))
+            .map(({ name }) => name);
+
+        expect(unsourced, 'these packages style web components but are not scanned by Tailwind').toEqual([]);
+    });
 });
+
+/** Whether any web (non-`.native`) TSX file under `directory` writes a `className`. */
+function writesClassNames(directory: string): boolean {
+    let entries: string[];
+
+    try {
+        entries = readdirSync(directory, { recursive: true, encoding: 'utf8' });
+    } catch {
+        return false;
+    }
+
+    return entries
+        .filter((entry) => entry.endsWith('.tsx') && !entry.endsWith('.native.tsx') && !entry.includes('__tests__'))
+        .some((entry) => readFileSync(join(directory, entry), 'utf8').includes('className='));
+}
+
+/** A dependency's real directory, found the way Node resolves it: the nearest `node_modules` walking up. */
+function packageDirectory(name: string): string {
+    for (let directory = resolve(import.meta.dirname, '..'); ; directory = dirname(directory)) {
+        const candidate = join(directory, 'node_modules', name);
+
+        try {
+            return realpathSync(candidate);
+        } catch {
+            if (dirname(directory) === directory) {
+                throw new Error(`cannot resolve ${name} from the web app`);
+            }
+        }
+    }
+}

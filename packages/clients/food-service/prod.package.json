@@ -6,7 +6,16 @@
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
-        ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "dependencies": {
+        "@kitchensink/retry-after": "*",
+        "@kitchensink/schema-food": "*",
+        "any-signal": "^4.2.0",
+        "zod": "^4.4.3"
     },
     "engines": {
         "node": "24.x"

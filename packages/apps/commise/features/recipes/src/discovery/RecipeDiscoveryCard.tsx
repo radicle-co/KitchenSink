@@ -1,92 +1,48 @@
+'use client';
+
 /**
- * @module @commise/features-recipes — web public-discovery result card (T076 / W4 S1).
+ * @module @commise/features-recipes — web public-discovery result card (T076 / W4 S1; slice 5 of the UI overhaul).
  *
- * One search result, composed from the shared {@link RecipeCard} COMPOUND parts (P7 — search is one of the
- * card's four surfaces): a tappable cover + title that navigates to the recipe, the `by @handle` author
- * attribution (and imported-source provenance when present), the cuisine/time/calorie meta, the visibility
- * badge, rating, and tags — plus the Clone action that copies the public recipe into the viewer's library.
- * Presentational: it reports selection/clone upward and holds no state. Building it from `RecipeCard.*`
- * (rather than a widening discovery prop bag) is exactly why the card is a compound component.
+ * The shared {@link RecipeCard} in the variant the host decided (`cardVariantOf(container, mode, 'discover')`: compact
+ * below a 600 container, grid from 600), with the Discover footer in its `footer` slot: the author and the 44 px Save a
+ * copy icon button (`docs/design/uiOverhaul/buildSpec.md` §4.1). The card is one link named by the title; the footer's
+ * control is lifted above the link's hit area and never nested in it, so one press cannot do both.
  *
- * The Clone action is the design-system `Button` on the `secondary` tier — the same tier the recipe-detail and
- * collection clone affordances wear, so ONE decision governs every clone control in the product. It previously
- * hand-rolled a coral OUTLINE while the collections rail hand-rolled a coral FILL: the shared premise ("clone
- * is coral") is false — no mockup contains a clone action at all, the mockups never fill a button coral, and
- * coral's documented role is the danger register, which is the wrong register for a safe, additive, reversible
- * action. Migrating also fixed real gaps the hand-rolled surface had: no 44px touch floor, no focus ring, and
- * no in-place busy affordance.
+ * Presentational: it reports selection and the save upward and holds no state.
+ *
+ * @pattern Adapter over the shared `RecipeCard`, filling its footer slot with the Discover footer
  */
-import { useMessages } from '@commise/i18n/react';
-import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
-import { CloneIcon } from '../actions/icons.js';
-import { RecipeCard } from '../card/index.js';
-import { fillTemplate } from '../list/model.js';
-import { discoveryMessages } from './messages.js';
+import { RecipeCard } from '../card/RecipeCard.js';
+import { DiscoveryFooter } from './DiscoveryFooter.js';
 import type { RecipeDiscoveryCardProps } from './model.js';
 
-/**
- * A single public-recipe search result on web.
- *
- * @param props - The card view-model, the author handle / source attribution, the per-row clone-busy flag,
- *   and the selection/clone callbacks.
- */
 export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
     recipe,
+    variant,
     authorHandle,
     sourceAttribution,
-    isCloning,
+    saveCopy,
+    href,
     onSelect,
-    onClone,
-}) => {
-    const discovery = useMessages(discoveryMessages);
-    const cloneLabel = fillTemplate(isCloning ? discovery.cloningLabel : discovery.cloneLabel, { title: recipe.title });
-
-    return (
-        <RecipeCard recipe={recipe}>
-            {/* Cover + title navigate; a single button so the row is reached by its title (list contract). */}
-            <button
-                type="button"
-                aria-label={recipe.title}
-                onClick={() => onSelect(recipe.id)}
-                className="block w-full text-left"
-            >
-                <RecipeCard.Cover />
-                <div className="px-4 pt-4">
-                    <RecipeCard.Title />
-                </div>
-            </button>
-            <div className="flex flex-col gap-2 px-4 pb-4 pt-2">
-                {authorHandle !== undefined && (
-                    <p className="text-body-sm text-slate">
-                        {fillTemplate(discovery.byAuthor, { handle: authorHandle })}
-                    </p>
-                )}
-                {sourceAttribution !== undefined && (
-                    <p className="text-body-sm text-slate">
-                        {fillTemplate(discovery.attribution, { source: sourceAttribution })}
-                    </p>
-                )}
-                <RecipeCard.Meta />
-                <RecipeCard.Badges />
-                <RecipeCard.Rating />
-                <RecipeCard.Tags />
-                {/* `busy` supplies the in-place spinner, the disabled in-flight guard, and `aria-busy`. The
-                    accessible name is the ROW-UNIQUE template (the visible label is the generic "Clone", which
-                    would collide across sibling rows), so it is passed as an explicit override. */}
-                <div className="mt-1 flex flex-col items-start">
-                    <Button
-                        variant="secondary"
-                        icon={<CloneIcon />}
-                        accessibilityLabel={cloneLabel}
-                        busy={isCloning}
-                        onPress={() => onClone(recipe.id)}
-                    >
-                        {isCloning ? discovery.cloning : discovery.clone}
-                    </Button>
-                </div>
-            </div>
-        </RecipeCard>
-    );
-};
+    onSave,
+    nutrition,
+}) => (
+    <RecipeCard
+        variant={variant}
+        recipe={recipe}
+        onSelect={onSelect}
+        {...(href === undefined ? {} : { href })}
+        nutrition={nutrition}
+        footer={
+            <DiscoveryFooter
+                title={recipe.title}
+                {...(authorHandle === undefined ? {} : { authorHandle })}
+                {...(sourceAttribution === undefined ? {} : { sourceAttribution })}
+                state={saveCopy}
+                onSave={() => onSave(recipe.id)}
+            />
+        }
+    />
+);

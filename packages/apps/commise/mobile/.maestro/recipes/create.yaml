@@ -1,102 +1,116 @@
 appId: io.commise.mobile
 ---
-# Recipe create happy path (US1, T067; rewritten w3/e8 for the 4-step SCREEN-PER-STEP wizard). Assumes an
-# authenticated session (the auth login flow runs first in CI ordering) and the app pointed at a seeded
-# recipe API (EXPO_PUBLIC_RECIPE_API_URL). Drives the recipe list -> new-recipe wizard, walks all 4 steps via the
-# `Next: …` footer nav, states a difficulty, resolves an ingredient via the freeform create, adds a step,
-# and Publishes — landing on the new recipe's detail. Mobile mirror of the web Playwright `recipeCrud.spec.ts`
-# create path.
+# Recipe create happy path (US1, T067). REWRITTEN for slice 7: the four-step wizard is retired, and the recipe is
+# made on the ONE scrolling editor page (build spec §7, owner decisions D1/D2). Assumes an authenticated session (the
+# auth login flow runs first in CI ordering) and the app pointed at a seeded recipe API (EXPO_PUBLIC_RECIPE_API_URL).
+# Drives the recipe list -> the editor, states a title, a difficulty and a meal type in Details, declares an
+# ingredient as written, adds a step with a timer, checks the draft in Preview, and Publishes from the pinned action
+# bar — landing on the new recipe's detail. Mobile mirror of the web Playwright `recipeCrud.spec.ts` create path.
 #
-# w3 replaced the old single tall Basics form with `Wizard.Step`s that each fill the viewport as their own
-# "screen". U6 then moved the chrome to ONE contextual footer primary: `Next: …` on steps 1-3 and `Publish`
-# on step 4 (Save Draft / Cancel now live in the header "More actions" overflow; Preview is a header icon).
-# So this flow walks the FOOTER `Next: …` nav to step 4, then taps the footer `Publish`. servings/prep/cook keep their
-# valid defaults (1 / 0 / 0 — see `defaultRecipeFormValues` + `validateRecipeForm`), so this flow deliberately
-# does NOT touch them, exactly as before.
+# Every section is on the same page, so the flow reaches each by scrolling to its first control. servings/prep/cook
+# keep their valid defaults (1 / 0 / 0 — see `defaultRecipeFormValues` + `validateRecipeForm`), so this flow
+# deliberately does NOT touch them.
 - runFlow: ../auth/signin.yaml
 
-# Recipe list surface, then into the create wizard.
+# Recipe list surface, then into the editor.
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
 
-# Step 1 of 4 (Basic). The wizard opens here — no page heading of its own (that copy belonged to the retired
-# flat `RecipeForm`), so the step-progress label is the entry checkpoint instead.
-- assertVisible: 'Step 1 of 4'
+# Details. The editor's × is its own control ('New recipe' would also match the FAB), so it is the entry checkpoint.
+- assertVisible: 'Close editor'
 - assertVisible: 'Title'
 - tapOn: 'Title'
 - inputText: 'Maestro Weeknight Soup'
 
-# State a difficulty (FR-001b): the picker is a radiogroup further down Basic (w3/e5 added a taller cuisine
-# picker above it), so scroll defensively rather than assume it is already on screen.
+# State a difficulty (FR-001b): the chip row sits further down Details, so scroll defensively rather than assume it
+# is already on screen.
 - scrollUntilVisible:
       element: 'Difficulty'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Hard'
 
+# State a MEAL TYPE (U34) — the one CLOSED classification axis on this form. It reuses the difficulty chip
+# group's shape deliberately, and its "not stated" option is named 'No meal type' rather than 'Not stated'
+# precisely so the two chips do not share one accessible name inside one form (WCAG 3.3.2).
 - scrollUntilVisible:
-      element: 'Next: Ingredients'
+      element: 'Meal type'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Ingredients'
+- tapOn: 'Dinner'
 
-# Step 2 of 4 (Ingredients). The picker sits at the TOP of this step's body (right below the rail), so scroll
-# UP to reach its search box regardless of where step 1's scroll left off. Type a name that is NOT in the
-# seeded catalog (Flour/Sugar/Butter) so only the freeform "Create …" affordance shows — the food service
-# that backs "Find nutrition"/disambiguation is not run in this job, but the freeform create
-# (POST /api/v1/ingredients) mints a real catalog id, which is exactly what Publish validation requires (every
-# ingredient line must resolve to a catalog id).
-- assertVisible: 'Step 2 of 4'
+# Ingredients. Since plan 002 V1 B8 the entry is the trailing "Add an ingredient" field after the last line; with no
+# lines yet it is the section's first control. Type a name and declare it "as written": that path mints a
+# real binding through POST /api/v1/ingredients, which is what Publish validation requires, and needs no food
+# service.
 - scrollUntilVisible:
-      element: 'Search ingredients'
-      direction: UP
+      element: 'Add an ingredient'
+      direction: DOWN
       timeout: 20000
-- tapOn: 'Search ingredients'
+- tapOn: 'Add an ingredient'
 
-# REQ-057 — below the 2-character trigger, no suggestion (and no "Create …" affordance keyed on the
-# in-flight query) is offered yet for a single character.
+# 003-FR-010a (plan U37) — below the three-character minimum no suggestion, and no "as written" option keyed on the
+# in-flight text, is offered. The list SAYS SO rather than rendering an empty panel, which is the half a bare
+# `assertNotVisible` cannot distinguish from a broken screen. Asserted at TWO characters as well as one: the floor
+# used to be two, so a one-character case alone would pass on a revert.
 - inputText: 'T'
-- assertNotVisible: 'Create .*T.*'
-- inputText: 'omato'
-- scrollUntilVisible:
-      element:
-          text: 'Create .*Tomato.*'
-      direction: DOWN
-      timeout: 20000
+- assertNotVisible: 'Use .*T.* as written.*'
+- assertVisible: 'Keep typing.*3 characters or more.*'
+- inputText: 'o'
+- assertNotVisible: 'Use .*To.* as written.*'
+- assertVisible: 'Keep typing.*3 characters or more.*'
+- inputText: 'mato'
+- assertNotVisible: 'Keep typing.*'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
 - tapOn:
-      text: 'Create .*Tomato.*'
+      text: 'Use .*Tomato.* as written.*'
 
-# The freeform create is async; the resolved line lands below the picker. Scrolling to its name field both
-# waits for it and is the falsifiable checkpoint — if the ingredient never resolved this scroll finds nothing
+# The declaration is async; the line lands above the trailing field, which then empties. Scrolling to the line's
+# name field both waits for it and is the falsifiable checkpoint — if the line never landed this scroll finds nothing
 # and the flow fails here rather than passing empty (an unresolved form can't Publish).
 - scrollUntilVisible:
-      element: 'Ingredient 1 name'
-      direction: DOWN
+      element: 'Edit Tomato'
+      direction: UP
       timeout: 30000
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
 
-# Step 3 of 4 (Instructions). "Add step" sits at the top of this step's body.
-- assertVisible: 'Step 3 of 4'
+# Steps, below Ingredients. A new recipe has no steps, so this is `Step 1`.
 - scrollUntilVisible:
       element: 'Add step'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
-- inputText: 'Combine everything and simmer.'
-- scrollUntilVisible:
-      element: 'Next: Photos'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Combine everything and simmer.'
+# F1 (`docs/design/uiOverhaul/evaluateRecipeAndWizard.md`): the timer is entered in hours and minutes, no longer
+# in seconds. The boxes appear once the step's 'Add a timer' is pressed. Read back on the detail below.
+- scrollUntilVisible:
+      element: 'Add a timer'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add a timer'
+- scrollUntilVisible:
+      element: 'Step 1 timer, hours'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Step 1 timer, hours'
+- inputText: '3'
 
-# Step 4 of 4 (Photos). A fresh create has no recipe id yet, so this step is a guidance notice, not the photo
-# manager — no longer a dead-end (U6): Publish is the step-4 footer primary, so the flow publishes from here.
-- assertVisible: 'Step 4 of 4'
+# Preview (build spec §7.7 item 4) REPLACES the wizard's Review step: the real detail page, drawn from the draft, read
+# back on the surface a cook checks before publishing. ⚠️ The wizard's Review also read back the MEAL TYPE; the
+# detail page does not show one, so no surface on this flow can prove that axis round-trips any more (a recorded gap,
+# not an omission here).
+- tapOn: 'Preview'
+- extendedWaitUntil:
+      visible: 'Preview. This is how it looks to others.'
+      timeout: 20000
+- assertVisible:
+      text: 'Maestro Weeknight Soup.*'
+- tapOn: 'Close preview'
+
+# Publish is the pinned action bar's primary, on screen wherever the page is scrolled.
 - tapOn: 'Publish'
 
 # Landed on the new recipe's detail. The title assertion is a `…Soup.*` regex because Maestro's inputText
@@ -107,9 +121,19 @@ appId: io.commise.mobile
           text: 'Maestro Weeknight Soup.*'
       timeout: 40000
 
-# REQ-034 — this recipe's Tomato line was resolved via the FREEFORM create (not the food database), so the
-# partial-nutrition disclosure notice must render (the negative, all-catalog case is `list-detail.yaml`).
+# F1 — the step timer reads in hours, never as raw seconds ("10800s timer"). `3+` absorbs inputText's intermittent
+# repeat of the last typed character; no stat on this screen is ever said in hours, so the match is the timer's.
 - scrollUntilVisible:
-      element: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
+      element:
+          text: '3+ h'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible:
+      text: '.*s timer'
+
+# REQ-034 — this recipe's Tomato line was declared as written (not the food database), so the custom note must
+# render (§S15; `listDetail.yaml` asserts the same copy).
+- scrollUntilVisible:
+      element: 'Custom ingredients count only the nutrition you entered for them.'
       direction: DOWN
       timeout: 20000

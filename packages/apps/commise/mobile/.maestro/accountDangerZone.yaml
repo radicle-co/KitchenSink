@@ -1,0 +1,42 @@
+# Account danger-zone flow (CR-002 / U4b): the mobile account surface must present CLOSE (recoverable) and
+# ERASE (irreversible) as two DISTINCT, non-conflatable actions, and the erasure must be phrase-gated.
+#
+# This flow DELIBERATELY stops before confirming either destructive action: it verifies the distinction and
+# the erase gate, then cancels. Actually confirming would erase/close the shared test user against the live
+# local backend and break every subsequent run — so the reachable, repeatable assertion is the UX contract
+# (copy + gate), not the irreversible mutation. The confirm→sign-out happy path is covered by the web
+# Playwright spec (against a mocked erasure endpoint) and by the component/native tests.
+#
+# Reaches the danger zone on the one Profile page (the avatar → Profile). UI-overhaul slice 9 folded the old
+# "Account settings" hub into Profile, so the zone is now a group at the bottom of that page and there is no
+# second screen to open.
+
+appId: io.commise.mobile
+---
+# Sign in (idempotent) and land on the Home widget surface.
+- runFlow: auth/signinHome.yaml
+
+# Cross into the Profile page, then down to the danger zone at its foot.
+- tapOn: 'Profile.*'
+- scrollUntilVisible:
+      element: 'Erase my data'
+      direction: DOWN
+
+# The danger zone presents BOTH actions, distinctly, each with its consequence.
+- assertVisible: 'Close account'
+- assertVisible: 'Erase my data'
+- assertVisible: 'Signs you out and deactivates your account. Support can restore it.'
+- assertVisible: 'Permanently deletes your account and personal data.'
+
+# CLOSE reads as recoverable — never permanent deletion.
+- tapOn: 'Close account'
+- assertVisible: '.*not permanent deletion.*'
+- tapOn: 'Cancel'
+
+# ERASE reads as irreversible and explicitly distinct from closing, and is phrase-gated.
+- tapOn: 'Erase my data'
+- assertVisible: '.*cannot be undone.*'
+- assertVisible: '.*not the same as closing your account.*'
+- assertVisible: 'Confirmation phrase'
+# Stop here — do NOT confirm the irreversible erasure. Dismiss the flow.
+- tapOn: 'Cancel'

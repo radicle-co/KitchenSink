@@ -40,9 +40,9 @@ const GLOBALS_CSS = fileURLToPath(new URL('../../src/app/globals.css', import.me
 
 /** Utilities probed below. Forced into the build so the test never depends on current app usage. */
 const PROBES = [
-    'bg-pearl',
-    'border-slate',
-    'border-seafoam',
+    'bg-surface-muted',
+    'border-line-control',
+    'border-selected-edge',
     'rounded-t-lg',
     'size-8',
     'size-6',
@@ -55,6 +55,27 @@ const PROBES = [
     'text-caption',
     'leading-body',
     'text-sm',
+    'bg-hero',
+    'animate-pending-bar-reveal',
+    '-top-3.5',
+    'nav:hidden',
+    'medium:px-6',
+    '@container/main',
+    '@regular/main:grid-cols-2',
+    '@wide/main:grid-cols-3',
+    'max-w-page',
+    'max-w-reading',
+    'text-card-title',
+    'text-large-title',
+    'text-overline',
+    'bg-paper',
+    'text-ink-muted',
+    'border-line-control',
+    'bg-selected-fill',
+    'bg-bar',
+    'size-18',
+    '@regular:w-30',
+    'min-[480px]:bg-paper',
 ] as const;
 
 /**
@@ -80,11 +101,52 @@ async function compileAppCss(): Promise<string> {
  * a utility RESOLVES TO, never how it happens to be formatted.
  */
 function ruleFor(css: string, utility: string): string | undefined {
-    // Class selectors escape nothing we probe here (plain `a-z0-9-`), so a literal match is exact.
-    const match = new RegExp(`\\.${utility.replace(/[-]/g, '\\-')}\\s*\\{([^}]*)\\}`).exec(css);
+    // Escape every regex metacharacter, not just `-`: a partial escape silently mis-parses any utility
+    // carrying a `.`, `[` or `\` (arbitrary-value utilities do), and leaves the literal match only apparently exact.
+    // `-` is deliberately NOT in the set: it is literal outside a character class, and escaping it emits `\-`,
+    // which a `u`-flagged pattern rejects as an invalid escape — so every utility carrying a hyphen (`size-8`,
+    // `h-14`, i.e. nearly all of them) threw at construction.
+    const escaped = utility.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    const match = new RegExp(`\\.${escaped}\\s*\\{([^}]*)\\}`, 'u').exec(css);
 
     return match?.[1].replace(/\s+/g, '').replace(/;$/, '');
 }
+
+/** The slice-9 classes the Profile page and the Clerk appearance lean on, and the layer order Clerk's styles need. */
+describe('the sign-in and Profile classes, compiled', () => {
+    const cssPromise = compileAppCss();
+
+    // Clerk's own styles are unlayered emotion CSS, which beats any utility; they are moved into the `clerk` layer, and
+    // THIS statement ranks that layer below `utilities`. The first ordering statement of a layer name fixes its place,
+    // so it must come before Tailwind's own `@layer theme, base, components, utilities`.
+    it('ranks the clerk layer between base and components, BEFORE Tailwind declares its own order', async () => {
+        const css = await cssPromise;
+        const statements = [...css.matchAll(/^@layer\s+([^;{]+);/gmu)].map((match) => ({
+            at: match.index ?? -1,
+            layers: (match[1] ?? '').split(',').map((name) => name.trim()),
+        }));
+        const clerk = statements.find(({ layers }) => layers.includes('clerk'));
+        const tailwind = statements.find(({ layers }) => !layers.includes('clerk') && layers.includes('components'));
+
+        expect(clerk?.layers).toEqual(['theme', 'base', 'clerk', 'components', 'utilities']);
+        expect(clerk?.at ?? Number.POSITIVE_INFINITY).toBeLessThan(tailwind?.at ?? -1);
+    });
+
+    it('keeps the font import ahead of every layer rule, where CSS still honours it', async () => {
+        const css = await cssPromise;
+
+        expect(css.indexOf('@import url(')).toBeGreaterThan(-1);
+        expect(css.indexOf('@import url(')).toBeLessThan(css.indexOf('@layer'));
+    });
+
+    it('generates the 72 px avatar, the 600 px two-column term and the 480 px card utilities', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'size-18')).toBe('width:calc(var(--spacing)*18);height:calc(var(--spacing)*18)');
+        expect(css).toMatch(/@container[^{]*\(width\s*>=\s*(?:600px|37\.5rem)\)/);
+        expect(css).toMatch(/@media[^{]*\(width\s*>=\s*(?:480px|30rem)\)/);
+    });
+});
 
 describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
     // One compile shared by every assertion: the scan is the expensive part, and each `it` reads a different
@@ -94,7 +156,7 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
     it('does not redefine the numeric spacing scale (a DS ramp must never hijack --spacing-*)', async () => {
         const css = await cssPromise;
 
-        // `size-8` is the top-bar avatar disc and the recipe step marker. The mockups (`screen-home`:
+        // `size-8` is the top-bar avatar disc and the recipe step marker. The mockups (`screenHome`:
         // `w-8 h-8`) and the native leaves (`width: 32`) both mean 32px, so Tailwind's default MUST win.
         expect(ruleFor(css, 'size-8')).toBe('width:calc(var(--spacing)*8);height:calc(var(--spacing)*8)');
         expect(css).toMatch(/--spacing:\s*0?\.25rem/);
@@ -123,7 +185,12 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         expect(css).toMatch(/--text-body-sm:\s*0?\.875rem/);
         expect(ruleFor(css, 'text-display-md')).toBe('font-size:var(--text-display-md)');
         expect(css).toMatch(/--text-display-md:\s*1\.75rem/);
-        expect(ruleFor(css, 'text-caption')).toBe('font-size:var(--text-caption)');
+        // The caption role (§1.5) adds its leading and weight to the ramp's own `--text-caption`, so the utility
+        // carries both as fallbacks behind `--tw-leading` / `--tw-font-weight`: an explicit `leading-*` or `font-*`
+        // class still wins. This used to be `font-size` alone, and every caption inherited the body's 1.5 leading.
+        expect(ruleFor(css, 'text-caption')).toBe(
+            'font-size:var(--text-caption);line-height:var(--tw-leading,var(--text-caption--line-height));font-weight:var(--tw-font-weight,var(--text-caption--font-weight))',
+        );
 
         // The dead namespaces must be GONE, not merely shadowed — leaving them emits bytes that look like a
         // working type ramp to the next reader while generating nothing.
@@ -146,21 +213,261 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         expect(ruleFor(css, 'text-sm')).toContain('var(--text-sm)');
     });
 
-    it('emits a real rule for every utility the source-tab affordance depends on', async () => {
-        // "The class is in the JSX" is not proof it paints anything: this repo shipped an entire DS type ramp
-        // that compiled to NOTHING. The recipe-source switcher's resting affordance is made of these four
-        // utilities, so each must resolve to a declaration that actually names its token. They come from the
-        // SHARED `@commise/features-recipes` package, which is why the `@source` glob for it is load-bearing —
-        // drop that glob and these vanish while every jsdom test still passes.
+    /**
+     * REWRITTEN (CI run 38010247909): this pinned the recipe-source tabs' utilities, and those tabs were deleted with
+     * their dead component, so it asserted classes nothing renders. What it guards is unchanged: a utility used ONLY by
+     * the SHARED `@commise/features-recipes` package compiles to a real rule, which holds only while the `@source`
+     * glob for that package is in `globals.css`. The ingredient list's amount column and its second line's offset are
+     * such utilities. They are assembled rather than spelled, because Tailwind scans this file as text too, and a
+     * literal here would generate them whatever the glob says.
+     */
+    it('emits a real rule for a utility only the shared recipes package uses (its `@source` glob is load-bearing)', async () => {
+        const css = await cssPromise;
+        const cssClass = (utility: string): string =>
+            `.${utility.replace(/[^\w-]/gu, (character) => `\\${character}`)}`;
+        const amountColumn = 'w-['.concat('4.5rem]');
+        const secondLineOffset = 'pl-[calc('.concat('4.5rem+0.75rem)]');
+
+        expect(css, 'the amount column').toContain(`${cssClass(amountColumn)} {\n    width: 4.5rem;`);
+        expect(css, 'the second line’s offset').toContain(
+            `${cssClass(secondLineOffset)} {\n    padding-left: calc(4.5rem + 0.75rem);`,
+        );
+    });
+});
+
+/**
+ * `@commise/ui`'s `PendingBar` reveals itself through the `animate-pending-bar-reveal` utility, with its delay set
+ * inline from `PENDING_BAR_DELAY_MS`. The class being in the JSX proves nothing: if the theme token were missing the
+ * utility would compile to NOTHING, and the bar would paint on the very first frame of every search — the flash the
+ * delay exists to prevent — while every jsdom test still passed.
+ */
+describe('the pending-bar reveal (compiled)', () => {
+    const cssPromise = compileAppCss();
+
+    it('compiles the reveal utility to a zero-length animation that holds its from-state through the delay', async () => {
+        const css = await cssPromise;
+        const rule = ruleFor(css, 'animate-pending-bar-reveal');
+
+        expect(rule, 'the utility must emit a declaration').toBeDefined();
+        expect(rule).toContain('animation:var(--animate-pending-bar-reveal)');
+        // `both` is what keeps the bar at opacity 0 during `animation-delay`; `0s` is what makes it a reveal, not motion.
+        expect(css.replace(/\s+/g, ' ')).toMatch(/--animate-pending-bar-reveal: pending-bar-reveal 0s[^;]*both/);
+    });
+
+    it('centres the bar in the 24px gap above the results: 14px up (12px half-gap + 2px half-bar)', async () => {
+        // `3.5` is not a DS spacing step, so it resolves through Tailwind's `--spacing` base. A DS ramp that ever
+        // defines a fractional step would move the bar out of the gap without any jsdom test noticing.
         const css = await cssPromise;
 
-        expect(ruleFor(css, 'bg-pearl'), 'the inactive tab’s resting fill').toContain('var(--color-pearl)');
-        expect(ruleFor(css, 'border-slate'), 'the inactive tab’s boundary').toContain('var(--color-slate)');
-        expect(ruleFor(css, 'border-seafoam'), 'the active tab’s underline').toContain('var(--color-seafoam)');
-        expect(ruleFor(css, 'rounded-t-lg'), 'the folder-tab geometry').toContain('border-top-left-radius');
-        // Variant-scoped utilities compile to a nested/at-ruled selector, so they are matched by presence
-        // rather than by a flat `.class { … }` body — but they must be PRESENT, which is the regression risk.
-        expect(css, 'the hover fill').toContain('hover\\:bg-mist\\/40');
-        expect(css, 'the focus ring').toContain('focus-visible\\:ring-ocean-dark');
+        expect(ruleFor(css, '-top-3\\.5')).toBe('top:calc(var(--spacing)*-3.5)');
+        expect(css).toMatch(/--spacing:\s*0?\.25rem/);
+    });
+
+    it('reveals by opacity alone, from 0 to 1', async () => {
+        // Whitespace and a declaration's trailing `;` dropped, so a pretty-printed and a minified build read the same.
+        const css = (await cssPromise).replace(/\s+/g, '').replace(/;\}/g, '}');
+        const keyframes = /@keyframespending-bar-reveal\{(.*?\})\}/.exec(css)?.[1];
+
+        expect(keyframes).toBe('from{opacity:0}to{opacity:1}');
+    });
+});
+
+/**
+ * The page-canvas gradient must be REAL, EMITTED CSS on the `body` — the app's flat-vs-gradient defect.
+ *
+ * All nine wireframes paint `body { background: var(--gradient-beach-glow) }`; the app painted a flat
+ * `background-color`. Two earlier failures on this exact surface dictate the shape of these assertions:
+ *
+ *  - A token can exist and still compile to nothing (`--font-size-*` was not a namespace, so 324 type-ramp
+ *    call sites emitted zero CSS). So this reads the COMPILED declaration, never `themeCss()`'s string.
+ *  - A jsdom component test once stubbed its own stylesheet and passed at 32px while the app shipped 64px. So
+ *    this compiles the app's real `globals.css` with the app's real compiler — the whole chain, token →
+ *    `themeCss()` → `dist/theme.css` → `@import` → Tailwind — rather than simulating any part of it.
+ *
+ * Mutation lens: revert `body` to `background-color` alone and the first assertion fails; re-tone a stop and
+ * the second fails; move the ramp back into a hand-written class and the fourth fails.
+ */
+describe('the beach-glow page canvas (compiled)', () => {
+    const cssPromise = compileAppCss();
+
+    /** The declaration body of the compiled `@layer base` rule for a bare element selector. */
+    function baseRuleFor(css: string, element: string): string | undefined {
+        const match = new RegExp(`(?:^|[{}\\s,])${element}\\s*\\{([^}]*)\\}`).exec(css);
+
+        return match?.[1].replace(/\s+/g, '').replace(/;$/, '');
+    }
+
+    it('paints the gradient on body, from the token — not a flat background-color', async () => {
+        const body = baseRuleFor(await cssPromise, 'body');
+
+        expect(body).toBeDefined();
+        expect(body).toContain('background-image:var(--background-image-hero)');
+        // The solid colour stays as the pre-paint/unsupported fallback, so a canvas is never transparent. It is the
+        // `canvas` role, which the dark block re-themes (the legacy `--color-background` would stay light).
+        expect(body).toContain('background-color:var(--color-canvas)');
+    });
+
+    it('resolves --background-image-hero to the wireframes’ three-stop 135° ramp', async () => {
+        const css = await cssPromise;
+
+        expect(css).toContain(
+            '--background-image-hero: linear-gradient(135deg, #FAF6F0 0%, #F0F7F4 50%, #E8F4F8 100%)',
+        );
+    });
+
+    it('generates a usable bg-hero utility (the namespace is live, not merely plausible)', async () => {
+        expect(ruleFor(await cssPromise, 'bg-hero')).toBe('background-image:var(--background-image-hero)');
+    });
+
+    /**
+     * The drifted canvas tints must not be spelled ANYWHERE the compiler can see.
+     *
+     * The app shell and the mobile nav drawer each hand-rolled a ramp through two arbitrary-value stops
+     * (mid `#F5F8FA`, end `#EDF5F8`) — a second and third representation of the canvas, already drifted from
+     * the wireframes' own `#F0F7F4` / `#E8F4F8`. Both now consume the token, so those utilities should no
+     * longer be generated at all; if one reappears, a duplicate definition is back.
+     *
+     * The hex codes are assembled below rather than written as class literals ON PURPOSE. Tailwind v4's
+     * automatic source detection scans the whole non-ignored tree as TEXT — this test file included, comments
+     * included — so naming the class verbatim anywhere, even in prose explaining why it is banned, REGENERATES
+     * it and makes the assertion fail against itself. (Both the fix and this test tripped over exactly that.)
+     */
+    it('no longer compiles a SECOND, hand-spelled canvas gradient', async () => {
+        const css = await cssPromise;
+        const driftedMid = '#F5F8'.concat('FA');
+        const driftedEnd = '#EDF5'.concat('F8');
+
+        for (const [prefix, hex] of [
+            ['via', driftedMid],
+            ['to', driftedEnd],
+        ] as const) {
+            // Tailwind escapes `[`, `]` and `#` in the generated selector.
+            expect(css).not.toContain(`.${prefix}-\\[\\${hex}\\]`);
+        }
+    });
+});
+
+/**
+ * The overhaul's slice-1 foundation (`docs/design/uiOverhaul/buildSpec.md` §1.2-§1.5, blueprint A8): the navigation
+ * breakpoint, the `main` container queries, the content widths, the type roles and the colour roles — each read from
+ * the COMPILED stylesheet, because the blueprint's two load-bearing assumptions were Tailwind v4 behaviours:
+ *
+ *  1. that `--container-*` drives BOTH `max-w-*` AND the `@{name}/main:` size variants (so a content width named
+ *     `wide` would hijack the `@wide` query — why the spec's `content-wide` is emitted as `page`); and
+ *  2. that `--text-{role}--line-height` / `--font-weight` sub-properties reach the `text-{role}` utility.
+ *
+ * Mutation lens: rename `--container-page` to `--container-wide` and the `@wide/main:` row reads 90rem; drop a
+ * sub-property and its utility row loses the declaration; emit the breakpoint under another name and `nav:` compiles
+ * to nothing.
+ */
+describe('slice 1 — layout and role tokens (compiled)', () => {
+    const cssPromise = compileAppCss();
+
+    /** The `@media`/`@container` prelude that wraps a variant utility, or `undefined` if none does. */
+    function preludeOf(css: string, escapedSelector: string): string | undefined {
+        const index = css.indexOf(escapedSelector);
+
+        if (index < 0) {
+            return undefined;
+        }
+
+        const preludes = [...css.slice(0, index).matchAll(/@(media|container)[^{]*\{/gu)];
+
+        return preludes.at(-1)?.[0].replace(/\s+/g, ' ').replace(/ ?\{$/u, '');
+    }
+
+    it('switches the shell at 840 px: nav: is a 52.5rem media query', async () => {
+        expect(preludeOf(await cssPromise, '.nav\\:hidden')).toBe('@media (width >= 52.5rem)');
+    });
+
+    it('steps the gutter at 600 px: medium: is a 37.5rem media query', async () => {
+        expect(preludeOf(await cssPromise, '.medium\\:px-6')).toBe('@media (width >= 37.5rem)');
+    });
+
+    it('names <main> as an inline-size container', async () => {
+        expect(ruleFor(await cssPromise, '\\@container\\/main')).toBe('container-type:inline-size;container-name:main');
+    });
+
+    it('queries <main> at 600 px for @regular', async () => {
+        expect(preludeOf(await cssPromise, '.\\@regular\\/main\\:grid-cols-2')).toBe(
+            '@container main (width >= 37.5rem)',
+        );
+    });
+
+    it('queries <main> at 960 px for @wide — not at the 1440 px page width', async () => {
+        expect(preludeOf(await cssPromise, '.\\@wide\\/main\\:grid-cols-3')).toBe('@container main (width >= 60rem)');
+    });
+
+    // Slice 3: the floating layer's bar material (`tokens/barMaterial.ts`) is a variable the dark block overrides, so the
+    // web tab bar re-themes with no `dark:` variant.
+    it('compiles bg-bar to its variable, overridden in the dark block', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'bg-bar')).toBe('background-color:var(--color-bar)');
+        expect(css).toMatch(/prefers-color-scheme:\s*dark[\s\S]*--color-bar:\s*rgba\(39, 35, 32, 0\.94\)/u);
+    });
+
+    it('caps a page at 90rem and a reading column at 40rem', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'max-w-page')).toBe('max-width:var(--container-page)');
+        expect(css).toMatch(/--container-page:\s*90rem/u);
+        expect(ruleFor(css, 'max-w-reading')).toBe('max-width:var(--container-reading)');
+        expect(css).toMatch(/--container-reading:\s*40rem/u);
+    });
+
+    // `darkTheme.md` §6.1: the roles live in `@theme` (not `@theme inline`), so a role utility compiles to the VARIABLE
+    // and the dark block's override re-themes it. Under `inline` the light value would be baked into the utility and
+    // the dark block would silently do nothing.
+    it('compiles a role utility to its variable, so the dark block re-themes it', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'bg-paper')).toBe('background-color:var(--color-paper)');
+        expect(ruleFor(css, 'text-ink')).toBe('color:var(--color-ink)');
+    });
+
+    it('overrides the role variables in one prefers-color-scheme: dark block', async () => {
+        const css = await cssPromise;
+
+        expect(css).toMatch(/@media \(prefers-color-scheme:\s*dark\)\s*\{[^@]*--color-paper:\s*#1e1b18/iu);
+        expect(css).toMatch(/color-scheme:\s*light dark/u);
+    });
+
+    it('sets the card title at 1rem / 1.3 / 600 from one utility', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'text-card-title')).toBe(
+            'font-size:var(--text-card-title);line-height:var(--tw-leading,var(--text-card-title--line-height));font-weight:var(--tw-font-weight,var(--text-card-title--font-weight))',
+        );
+        expect(css).toMatch(/--text-card-title:\s*1rem/u);
+        expect(css).toMatch(/--text-card-title--line-height:\s*1\.3/u);
+        expect(css).toMatch(/--text-card-title--font-weight:\s*600/u);
+    });
+
+    it('sizes the large title with a bounded container-unit clamp', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'text-large-title')).toContain('font-size:var(--text-large-title)');
+        expect(css).toMatch(/--text-large-title:\s*clamp\(1\.75rem,[^;]*cqi[^;]*2\.5rem\)/u);
+    });
+
+    it('tracks the overline from its letter-spacing sub-property', async () => {
+        expect(ruleFor(await cssPromise, 'text-overline')).toContain(
+            'letter-spacing:var(--tw-tracking,var(--text-overline--letter-spacing))',
+        );
+    });
+
+    it('resolves the colour roles to real utilities', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'bg-paper')).toBe('background-color:var(--color-paper)');
+        expect(ruleFor(css, 'text-ink-muted')).toBe('color:var(--color-ink-muted)');
+        expect(ruleFor(css, 'border-line-control')).toBe('border-color:var(--color-line-control)');
+        expect(ruleFor(css, 'bg-selected-fill')).toBe('background-color:var(--color-selected-fill)');
+        expect(css).toMatch(/--color-line-control:\s*#8A847C/iu);
+    });
+
+    it('declares the caption size once, not twice', async () => {
+        expect((await cssPromise).match(/--text-caption:/gu)).toHaveLength(1);
     });
 });

@@ -55,16 +55,54 @@ describe('IngredientStatusPoller', () => {
         expect(getIngredientStatusSpy).toHaveBeenCalledWith('ing_food');
     });
 
-    it('reports the observed status (with the line id) once the poll returns one', async () => {
+    // REWRITTEN for finding #5 (plan 002 V1): the report now carries the food the answered binding names, because a
+    // line that resolves here reads every catalog figure through that food. REWRITTEN again for curated U9: the food
+    // is reported as its root, and its variant when it has one (below).
+    it('reports the observed status (with the line id and the food it names) once the poll returns one', async () => {
         const onStatus = vi.fn();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getIngredientStatus').mockResolvedValue(
-            makeIngredient({ id: 'ing_food', foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
+            makeIngredient({
+                id: 'ing_food',
+                foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                foodId: 'food_rice',
+            }),
         );
 
         renderWithRecipeClient(<IngredientStatusPoller ingredientId="ing_food" onStatus={onStatus} />, client);
 
-        await waitFor(() => expect(onStatus).toHaveBeenCalledWith('ing_food', FoodResolutionStatus.RESOLVED));
+        await waitFor(() =>
+            expect(onStatus).toHaveBeenCalledWith('ing_food', {
+                id: 'ing_food',
+                status: FoodResolutionStatus.RESOLVED,
+                foodId: 'food_rice',
+            }),
+        );
+    });
+
+    // REWRITTEN for curated U15: the root and the variant both travel, so the row can show the variant's parts.
+    it('reports a variant-bound line by its root and its variant (curated U9)', async () => {
+        const onStatus = vi.fn();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getIngredientStatus').mockResolvedValue(
+            makeIngredient({
+                id: 'ing_food',
+                foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                foodId: 'food_rice',
+                variant: { id: 'var_basmati', parts: [{ attribute: 'variety', text: 'basmati' }] },
+            }),
+        );
+
+        renderWithRecipeClient(<IngredientStatusPoller ingredientId="ing_food" onStatus={onStatus} />, client);
+
+        await waitFor(() =>
+            expect(onStatus).toHaveBeenCalledWith('ing_food', {
+                id: 'ing_food',
+                status: FoodResolutionStatus.RESOLVED,
+                foodId: 'food_rice',
+                variant: { id: 'var_basmati', parts: [{ attribute: 'variety', text: 'basmati' }] },
+            }),
+        );
     });
 
     it('stays silent while the poll has no data yet', () => {

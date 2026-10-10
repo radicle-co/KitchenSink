@@ -1,0 +1,123 @@
+appId: io.commise.mobile
+---
+# A line's PREPARATION and its SECTION (plan U26 / U27). Mobile mirror of the web Playwright
+# `recipeIngredientDetail.spec.ts`, per the cross-platform mandate — two fields that ship to one platform and
+# not the other are exactly what §14 exists to stop, and the two form leaves are separate files with no
+# compiler edge between them.
+#
+# Assumes an authenticated session (the auth flow runs first in CI ordering) and the app pointed at a seeded
+# recipe API. It CREATES its own recipe rather than editing a seeded one, so `Edit 2 cup Tomato` addresses the
+# line this flow itself made — the seeded recipes carry five lines of their own, and addressing by position
+# into a fixture is what made `recipes/edit.yaml`'s original checkpoint pass without proving anything.
+#
+# ONE flow covers three facts, because they share a single emulator run and each is worthless alone:
+#   1. Both can be STATED: the group at the section's level, the preparation after a comma in the add field — and
+#      neither is folded into the food's name.
+#   2. They SURVIVE the round trip: the detail shows the preparation, and re-opening the editor re-seeds
+#      BOTH. The failure this guards is silent narrowing — a mapper that drops the section label lets a
+#      grouped recipe re-open flat, with nothing to signal the loss.
+#   3. The GROUP HEADING appears as soon as the cook names the group, before any save.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+# Details. servings/prep/cook keep their valid defaults, as in `create.yaml`.
+- assertVisible: 'Close editor'
+- assertVisible: 'Title'
+- tapOn: 'Title'
+- inputText: 'Maestro Marinade Bowl'
+
+# Ingredients, below Details. REWRITTEN for UI overhaul slice 8 (build spec §7.5.3, §7.5.5): name a group first, then
+# type the amount, the food and, after a comma, the preparation into that group's add field, and declare the line "as
+# written" (no food-service dependency in this job — same rationale as `create.yaml`).
+- scrollUntilVisible:
+      element: 'Add a group'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add a group'
+- tapOn: 'Group name'
+- inputText: 'For the marinade'
+# The keyboard's done key saves (the field's submit), and Save sits under the keyboard on a phone.
+- pressKey: Enter
+# ⛔ THE HEADING APPEARS IN THE EDITOR at once, and the add field moves under it, named for it.
+- assertVisible: 'For the marinade'
+# The empty group's field sits at the foot of the section. Bring it up first: native's list is in flow under the field,
+# and a drag on the page that does not start inside the open list closes it (`Combobox.native.tsx`).
+- scrollUntilVisible:
+      element: 'Add to For the marinade'
+      direction: DOWN
+      centerElement: true
+      timeout: 20000
+- tapOn: 'Add to For the marinade'
+- inputText: '2 cups Tomato, finely chopped'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
+- tapOn:
+      text: 'Use .*Tomato.* as written.*'
+- extendedWaitUntil:
+      notVisible: 'Use .*Tomato.* as written.*'
+      timeout: 30000
+# The line reads amount first, its preparation after the name (§7.5.1).
+- scrollUntilVisible:
+      element: 'Edit 2 cup Tomato'
+      direction: UP
+      timeout: 20000
+- assertVisible:
+      text: '.*Tomato · finely chopped.*'
+
+# Steps, below Ingredients — a fresh create has no steps, so this is `Step 1`.
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Marinate and grill.'
+
+- tapOn: 'Publish'
+
+# Landed on the new recipe's detail. The title regex tolerates this emulator's occasional last-character
+# input duplication (see `create.yaml`).
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Marinade Bowl.*'
+      timeout: 40000
+
+# ⛔ THE PREPARATION IS ON THE SURFACE A COOK COOKS FROM. Without this the field round-trips and is invisible.
+- scrollUntilVisible:
+      element:
+          text: 'finely chopped'
+      direction: DOWN
+      timeout: 20000
+# ⛔ And it is its OWN text, never welded into the food's name.
+- assertNotVisible:
+      text: 'Tomato finely chopped'
+
+# Re-open the editor: the seed must carry BOTH. Dropping either here is the narrowing defect.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Close editor'
+# The read row carries the preparation, and the group heading the fold re-derives from the line's label returns.
+- scrollUntilVisible:
+      element: 'Edit 2 cup Tomato'
+      direction: DOWN
+      timeout: 20000
+- assertVisible:
+      text: '.*Tomato · finely chopped.*'
+- scrollUntilVisible:
+      element:
+          text: 'For the marinade'
+      direction: UP
+      timeout: 20000
+# And its editor holds the preparation in its own field. A TextInput's own value is matchable text in this suite.
+- tapOn: 'Edit 2 cup Tomato'
+- assertVisible: 'Preparation'
+- assertVisible:
+      text: 'finely chopped'
+- tapOn: 'Done'

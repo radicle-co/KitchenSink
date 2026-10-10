@@ -27,7 +27,7 @@ test.describe('signing out leaves the authenticated shell (U3)', () => {
         test.slow();
 
         await signInWithTicket(page);
-        await page.goto(route('/settings'));
+        await page.goto(route('/profile'));
 
         // The session THIS browser holds — the shared fixture user may still hold others from earlier specs.
         const sessionId = sessionIdFromCookies(await page.context().cookies());
@@ -36,7 +36,7 @@ test.describe('signing out leaves the authenticated shell (U3)', () => {
             throw new Error('precondition failed: no __session cookie after the ticket sign-in');
         }
 
-        const signOut = page.getByRole('button', { name: 'Sign out of your account' });
+        const signOut = page.getByRole('button', { name: 'Sign out' });
         await expect(signOut).toBeVisible();
         // Clicked as soon as it is visible, which under Next dev is reliably BEFORE clerk-js has loaded — so
         // this also exercises the B23 window rather than tiptoeing around it.
@@ -51,7 +51,7 @@ test.describe('signing out leaves the authenticated shell (U3)', () => {
         // The regression this exists for: nothing authenticated survives. No app nav shell, and no sign-out
         // control (which would mean the shell re-rendered for a session that no longer exists).
         await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Sign out of your account' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
 
         // Guards the double-prefix class (a target manually prefixed AND run through the prefix-aware router).
         expect(hasDoublePrefix(pathnameOf(page))).toBe(false);

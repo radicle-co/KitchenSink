@@ -2,20 +2,21 @@
  * @module components/account/AvatarField — the profile screen's avatar control (U2).
  *
  * Replaces the old "paste an image URL" text box with a real device flow, modelled on
- * {@link import('../RecipePhotoUploader.js').RecipePhotoUploader}: a design-system {@link Button} opens
+ * `RecipePhotoUploader`: a design-system {@link Button} opens
  * `expo-image-picker`, the picked asset's bytes are read as a Blob, client-validated against the same
  * 5 MB / JPEG-PNG-WebP allowlist the identity presign enforces (so an obviously-invalid pick fails fast,
  * before any request), uploaded via {@link useAvatarUpload}, and the durable public URL is handed back
  * through `onChange` for the profile PATCH to persist. Presentational otherwise: it owns only the in-flight
- * + error state of a pick, never the profile form's `value`.
+ * + error state of a pick, never the saved `value`. It sits in the Profile page's Account group as the native-only
+ * photo row (`buildSpec.md` §9.1); colour comes from the theme at render.
  *
  * `expo-image-picker` is imported lazily on first use (it pulls `expo-modules-core`, which only evaluates in
  * the native runtime) — mirroring the recipe uploader.
  */
 import { Button } from '@commise/ui/button';
-import { palette, semantic } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
-import { Feather } from '@expo/vector-icons';
+import { Icon } from '@commise/ui/icon';
+import { useTheme } from '@commise/ui/theme';
 import { Image } from 'expo-image';
 import type { FC } from 'react';
 import { useState } from 'react';
@@ -52,6 +53,7 @@ export interface AvatarFieldProps {
 
 /** The avatar picker + preview for the profile edit form. */
 export const AvatarField: FC<AvatarFieldProps> = ({ value, onChange, messages }) => {
+    const { colors } = useTheme();
     const { upload } = useAvatarUpload();
     // `busy` spans the full pick → blob-read → upload window, so a second tap can't launch a second picker
     // or a second upload (the recipe uploader's B24 re-entrancy guard, applied to the single-asset case).
@@ -124,7 +126,7 @@ export const AvatarField: FC<AvatarFieldProps> = ({ value, onChange, messages })
 
     return (
         <View style={styles.field}>
-            <Text style={styles.label}>{messages.label}</Text>
+            <Text style={[styles.label, { color: colors.ink }]}>{messages.label}</Text>
             <View style={styles.row}>
                 {value ? (
                     <Image
@@ -134,21 +136,24 @@ export const AvatarField: FC<AvatarFieldProps> = ({ value, onChange, messages })
                         accessibilityLabel={messages.imageLabel}
                     />
                 ) : (
-                    <View style={styles.placeholder} accessibilityRole="image" accessibilityLabel={messages.imageLabel}>
-                        <Feather name="user" size={28} color={palette.slate} />
+                    <View
+                        accessible
+                        style={[
+                            styles.placeholder,
+                            { backgroundColor: colors.surfaceMuted, borderColor: colors.lineControl },
+                        ]}
+                        accessibilityRole="image"
+                        accessibilityLabel={messages.imageLabel}
+                    >
+                        <Icon name="user" size={24} tone="inkMuted" />
                     </View>
                 )}
-                <Button
-                    variant="secondary"
-                    icon={<Feather name="camera" size={16} color={palette.charcoal} />}
-                    busy={busy}
-                    onPress={() => void pickAndUpload()}
-                >
+                <Button variant="secondary" icon="camera" busy={busy} onPress={() => void pickAndUpload()}>
                     {messages.changeAction}
                 </Button>
             </View>
             {error ? (
-                <Text role="alert" style={styles.error}>
+                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
                     {error}
                 </Text>
             ) : null}
@@ -159,12 +164,12 @@ export const AvatarField: FC<AvatarFieldProps> = ({ value, onChange, messages })
 const AVATAR_SIZE = 64;
 
 const styles = StyleSheet.create({
-    field: { gap: nativeTokens.spacing[2] },
-    label: {
-        fontSize: nativeTokens.fontSize.bodySm,
-        fontWeight: '600',
-        color: palette.charcoal,
+    field: {
+        gap: nativeTokens.spacing[2],
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingVertical: nativeTokens.spacing[3],
     },
+    label: { ...nativeTokens.type.body },
     row: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },
     avatar: { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 },
     placeholder: {
@@ -173,12 +178,7 @@ const styles = StyleSheet.create({
         borderRadius: AVATAR_SIZE / 2,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: palette.pearl,
         borderWidth: 1,
-        borderColor: semantic.border,
     },
-    error: {
-        fontSize: nativeTokens.fontSize.caption,
-        color: palette['error-dark'],
-    },
+    error: { ...nativeTokens.type.caption },
 });

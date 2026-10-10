@@ -17,6 +17,9 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 
 import { useClerk, useSignIn } from '@clerk/expo';
 
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+
 import { LoginScreen } from '../../src/screens/login.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 
@@ -36,18 +39,33 @@ vi.mock('react-native-safe-area-context', () => ({
         createElement('div', { 'aria-label': 'safe-area-root' }, children as never),
 }));
 
+// The platform is react-native-web's unless a test sets it, so a case can ask what the avoider does on Android.
+const platform = vi.hoisted(() => ({ os: undefined as 'android' | 'ios' | undefined }));
 vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
-        ...actual,
-        KeyboardAvoidingView: ({ children }: { readonly children?: unknown }) =>
-            createElement('div', { 'aria-label': 'keyboard-avoiding' }, children as never),
+        ...withSystemScheme(actual),
+        Platform: {
+            ...actual.Platform,
+            get OS() {
+                return platform.os ?? actual.Platform.OS;
+            },
+        },
+        KeyboardAvoidingView: ({ children, behavior }: { readonly children?: unknown; readonly behavior?: string }) =>
+            createElement('div', { 'aria-label': 'keyboard-avoiding', 'data-behavior': behavior }, children as never),
     };
 });
 
 const useSignInMock = vi.mocked(useSignIn);
 const useClerkMock = vi.mocked(useClerk);
+
+/**
+ * A hook result the screen under test reads, built from just the members it touches. The real Clerk hook results are
+ * large resource types the screen uses a handful of members of; `never` is the one place that gap is bridged.
+ */
+const partialHook = (members: object): never => members as never;
 
 const setActive = vi.fn(async () => undefined);
 
@@ -75,20 +93,31 @@ function renderLogin() {
 }
 
 beforeEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    useClerkMock.mockReturnValue({ setActive } as any);
+    useClerkMock.mockReturnValue(partialHook({ setActive }));
 });
 
 afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    platform.os = undefined;
+    systemScheme.current = null;
 });
 
 describe('LoginScreen — chrome + design system', () => {
+    // An edge-to-edge Android window is not resized for the keyboard (E2 I6), so the avoider pads on both platforms; this
+    // screen padded on iOS only. The rule is `@commise/ui/keyboard-avoider`'s, the one avoider the apps use.
+    it.each(['android', 'ios'] as const)('pads its form above the keyboard on %s', (os) => {
+        platform.os = os;
+        const signIn = makeSignIn();
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
+        renderLogin();
+
+        expect(screen.getByLabelText('keyboard-avoiding').getAttribute('data-behavior')).toBe('padding');
+    });
+
     it('renders the DS primary button, localized labelled fields, and the safe-area + keyboard-avoiding wrappers', () => {
         const signIn = makeSignIn();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignInMock.mockReturnValue({ signIn } as any);
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
         renderLogin();
 
         // Copy comes from the dictionary — a hard-coded literal would break these.
@@ -108,8 +137,7 @@ describe('LoginScreen — chrome + design system', () => {
     it('shows the busy spinner and disables the primary button while a sign-in is in flight', async () => {
         // A never-settling `create` holds the screen in its busy state so the button's busy props are observable.
         const signIn = makeSignIn({ create: vi.fn(() => new Promise<StepResult>(() => undefined)) });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignInMock.mockReturnValue({ signIn } as any);
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
         renderLogin();
 
         fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
@@ -127,8 +155,7 @@ describe('LoginScreen — chrome + design system', () => {
     it('routes the toggle link to onSignUp', () => {
         const onSignUp = vi.fn();
         const signIn = makeSignIn();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignInMock.mockReturnValue({ signIn } as any);
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
         render(<LoginScreen onSignUp={onSignUp} />);
 
         fireEvent.click(screen.getByRole('button', { name: auth.signUpLink }));
@@ -140,8 +167,7 @@ describe('LoginScreen — chrome + design system', () => {
 describe('LoginScreen — sign-in flow', () => {
     it('signs in directly when the password attempt completes', async () => {
         const signIn = makeSignIn({ status: 'complete' });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignInMock.mockReturnValue({ signIn } as any);
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
         renderLogin();
 
         fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
@@ -159,8 +185,7 @@ describe('LoginScreen — sign-in flow', () => {
 
             return { error: null };
         });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignInMock.mockReturnValue({ signIn } as any);
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
         renderLogin();
 
         fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
@@ -182,8 +207,7 @@ describe('LoginScreen — sign-in flow', () => {
     it('surfaces the Clerk-supplied error when the password is rejected', async () => {
         const signIn = makeSignIn();
         signIn.password = vi.fn(async () => ({ error: { message: 'Incorrect password' } }));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignInMock.mockReturnValue({ signIn } as any);
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
         renderLogin();
 
         fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
@@ -199,13 +223,166 @@ describe('LoginScreen — sign-in flow', () => {
         signIn.create = vi.fn(async () => {
             throw new Error();
         });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useSignInMock.mockReturnValue({ signIn } as any);
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
         renderLogin();
 
         fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
         fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
 
         expect((await screen.findByRole('alert')).textContent).toContain(auth.signInFailed);
+    });
+});
+
+describe('LoginScreen — Section 8 native: order, copy and field hints', () => {
+    function setup(overrides: Record<string, unknown> = {}) {
+        const signIn = makeSignIn(overrides);
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
+        renderLogin();
+
+        return signIn;
+    }
+
+    it('reads mark → H1 “Sign in to Commise” → the brand line → email → password → Sign in → the sign-up link', () => {
+        setup();
+
+        const ordered = [
+            screen.getByText(auth.brand),
+            screen.getByRole('heading', { name: auth.signInTitle, level: 1 }),
+            screen.getByText(auth.brandLine),
+            screen.getByLabelText(auth.emailLabel),
+            screen.getByLabelText(auth.passwordLabel),
+            screen.getByRole('button', { name: auth.signInAction }),
+            screen.getByText(auth.noAccountPrompt),
+            screen.getByRole('button', { name: auth.signUpLink }),
+        ];
+
+        ordered.slice(1).forEach((node, index) => {
+            const before = ordered[index] as HTMLElement;
+
+            expect(
+                before.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING,
+                auth.brandLine,
+            ).toBeTruthy();
+        });
+    });
+
+    it('uses the spec copy: the brand line, and “New to Commise? Create an account”', () => {
+        setup();
+
+        expect(auth.brandLine).toBe('Your recipes, in one place.');
+        expect(auth.noAccountPrompt).toBe('New to Commise?');
+        expect(auth.signUpLink).toBe('Create an account');
+    });
+
+    it('asks the OS for email, current-password autofill, and a numeric one-time-code', async () => {
+        const signIn = setup({ status: 'needs_first_factor' });
+
+        expect(screen.getByLabelText(auth.emailLabel).getAttribute('autocomplete')).toBe('email');
+        expect(screen.getByLabelText(auth.passwordLabel).getAttribute('autocomplete')).toBe('current-password');
+
+        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
+        const code = await screen.findByLabelText(auth.codeLabel);
+
+        expect(signIn.emailCode.sendCode).toHaveBeenCalled();
+        expect(code.getAttribute('autocomplete')).toBe('one-time-code');
+        expect(code.getAttribute('inputmode')).toBe('numeric');
+    });
+
+    it('locks the form while a sign-in is in flight', async () => {
+        setup({ create: vi.fn(() => new Promise<StepResult>(() => undefined)) });
+
+        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
+
+        await waitFor(() => expect(screen.getByLabelText(auth.emailLabel).hasAttribute('readonly')).toBe(true));
+        expect(screen.getByLabelText(auth.passwordLabel).hasAttribute('readonly')).toBe(true);
+    });
+});
+
+describe('LoginScreen — the network error (§8 “States”)', () => {
+    function setup(overrides: Record<string, unknown>) {
+        useSignInMock.mockReturnValue(partialHook({ signIn: makeSignIn(overrides) }));
+        renderLogin();
+        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
+    }
+
+    it('names an unreachable service when the call THROWS a network failure', async () => {
+        setup({
+            create: vi.fn(async () => {
+                throw new TypeError('Network request failed');
+            }),
+        });
+
+        expect((await screen.findByRole('alert')).textContent).toBe(auth.networkError);
+    });
+
+    it('names an unreachable service when Clerk RETURNS a network_error', async () => {
+        setup({ create: vi.fn(async () => ({ error: { code: 'network_error', message: 'Browser is offline' } })) });
+
+        expect((await screen.findByRole('alert')).textContent).toBe(auth.networkError);
+    });
+
+    it('shows the alert above the primary action', async () => {
+        setup({
+            create: vi.fn(async () => {
+                throw new TypeError('Network request failed');
+            }),
+        });
+
+        const alert = await screen.findByRole('alert');
+
+        expect(
+            alert.compareDocumentPosition(screen.getByRole('button', { name: auth.signInAction })) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
+    it('does NOT blame the network for a wrong password', async () => {
+        setup({
+            password: vi.fn(async () => ({
+                error: { code: 'form_password_incorrect', message: 'Incorrect password' },
+            })),
+        });
+
+        const alert = await screen.findByRole('alert');
+
+        expect(alert.textContent).toBe('Incorrect password');
+        expect(screen.queryByText(auth.networkError)).toBeNull();
+    });
+
+    it('names an unreachable service when sending the new-device code fails on the network', async () => {
+        const signIn = makeSignIn({ status: 'needs_first_factor' });
+        signIn.emailCode.sendCode = vi.fn(async () => ({ error: { code: 'network_error', message: 'x' } }));
+        useSignInMock.mockReturnValue(partialHook({ signIn }));
+        renderLogin();
+        fireEvent.change(screen.getByLabelText(auth.emailLabel), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
+
+        expect((await screen.findByRole('alert')).textContent).toBe(auth.networkError);
+    });
+});
+
+describe.each([
+    ['light', role],
+    ['dark', roleDark],
+] as const)('LoginScreen — the %s theme reads colour from roles', (name, roles) => {
+    it('paints the mark and H1 in ink, the brand line and prompt in inkMuted, and the alert in dangerText', async () => {
+        systemScheme.current = name;
+        useSignInMock.mockReturnValue({
+            signIn: makeSignIn({ create: vi.fn(async () => ({ error: { message: 'No' } })) }),
+        } as unknown as ReturnType<typeof useSignIn>);
+        renderLogin();
+
+        const colour = (node: HTMLElement) => window.getComputedStyle(node).color;
+
+        expect(colour(screen.getByText(auth.brand))).toBe(rgb(roles.ink));
+        expect(colour(screen.getByRole('heading', { name: auth.signInTitle }))).toBe(rgb(roles.ink));
+        expect(colour(screen.getByText(auth.brandLine))).toBe(rgb(roles.inkMuted));
+        expect(colour(screen.getByText(auth.noAccountPrompt))).toBe(rgb(roles.inkMuted));
+
+        fireEvent.click(screen.getByRole('button', { name: auth.signInAction }));
+        expect(colour(await screen.findByRole('alert'))).toBe(rgb(roles.dangerText));
     });
 });

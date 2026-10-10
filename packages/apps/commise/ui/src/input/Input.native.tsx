@@ -1,103 +1,71 @@
 /**
- * @module @commise/ui/input — the native design-system {@link Input} (React Native).
+ * @module @commise/ui/input — the native design-system {@link Input}: a one-line text field on the shared field
+ * geometry (`fieldStyle.ts`), named by the `FieldLabel` above it.
  *
- * A tokenized, controlled, label-associated text field. Every metric comes from `nativeTokens` and every
- * colour from the shared palette, so it cannot drift from the design system the way the hand-rolled
- * `.native` inputs did. Accessibility is wired at the primitive level, not left to each caller:
- *  - the label `Text` carries a `nativeID` and the field references it via `aria-labelledby`, so the label
- *    text IS the field's accessible name;
- *  - when `error` is present, the field is marked `aria-invalid` and points at an `alert`-role error slot
- *    via `aria-describedby`, so assistive tech announces the message with the field.
+ * The field's `aria-labelledby` names its label's `nativeID` (`fieldLabelId(id)`), so the visible label IS its
+ * accessible name. `invalid` sets `aria-invalid` and the `danger` edge; `describedBy` names the caller's message. The
+ * keyboard, autofill and return-key hints pass straight to React Native's `TextInput`, which maps them per OS (on iOS,
+ * `autoComplete` also sets the `textContentType` autofill reads). It renders through `@commise/ui/text-input`, which
+ * keeps Android's full-screen editor away from every field.
  *
- * Presentational only — it owns no state; the composing form supplies `value` and handles `onChangeText`.
+ * @pattern Template — one field geometry (`fieldStyle.ts`), rendered by both native text-field leaves
+ * @pattern Adapter over `TextInput.focus()` — a level-triggered focus request, acknowledged once taken. It is the one
+ *     reason this leaf holds a ref: focusing a field has no declarative form.
  */
-import { useId, type FC } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRef, type FC } from 'react';
+import { StyleSheet, type TextInput as NativeTextInput } from 'react-native';
 
-import { nativeTokens } from '../tokens/native.js';
-import { palette, semantic } from '../tokens/colors.js';
-import type { InputProps } from './props.js';
+import { useTheme } from '../theme/useTheme.native.js';
+import { TextInput } from '../textInput/TextInput.native.js';
+import { fieldDisabled, fieldGeometry, fieldPaint } from './fieldStyle.js';
+import { fieldLabelId, type InputProps } from './props.js';
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
-/** The native design-system text field — label + input + optional error slot, tokenized and a11y-wired. */
+/** The native design-system one-line text field. */
 export const Input: FC<InputProps> = ({
-    label,
+    id,
     value,
     onChangeText,
-    error,
+    invalid = false,
+    describedBy,
     placeholder,
-    secureTextEntry,
-    keyboardType,
     autoCapitalize,
+    disabled = false,
+    inputMode,
     autoComplete,
-    textContentType,
-    returnKeyType,
-    onSubmitEditing,
-    editable = true,
-    accessibilityLabel,
+    enterKeyHint,
+    secret = false,
+    onSubmit,
+    maxLength,
+    focusRequested = false,
+    onFocusRequestHandled,
 }) => {
-    const id = useId();
-    const labelId = `${id}-label`;
-    const errorId = `${id}-error`;
-    const hasError = error !== undefined && error !== '';
+    const theme = useTheme();
+    const node = useRef<NativeTextInput>(null);
+    useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
 
     return (
-        <View style={styles.field}>
-            <Text nativeID={labelId} style={styles.label}>
-                {label}
-            </Text>
-            <TextInput
-                value={value}
-                onChangeText={onChangeText}
-                placeholder={placeholder}
-                // Placeholder text is TEXT, so it takes `slate`, never the `mist` hairline tone — see the
-                // palette JSDoc in `../tokens/colors.ts`. Fixing it in the primitive fixes every form built on
-                // it; there is no web `Input.tsx` (this primitive is native-only), so there is no second half.
-                placeholderTextColor={palette.slate}
-                secureTextEntry={secureTextEntry}
-                keyboardType={keyboardType}
-                autoCapitalize={autoCapitalize}
-                autoComplete={autoComplete}
-                textContentType={textContentType}
-                returnKeyType={returnKeyType}
-                onSubmitEditing={onSubmitEditing}
-                editable={editable}
-                accessibilityLabel={accessibilityLabel}
-                aria-labelledby={accessibilityLabel === undefined ? labelId : undefined}
-                aria-invalid={hasError}
-                aria-describedby={hasError ? errorId : undefined}
-                style={[styles.input, hasError ? styles.inputError : null, editable ? null : styles.inputDisabled]}
-            />
-            {hasError ? (
-                <Text nativeID={errorId} role="alert" style={styles.errorText}>
-                    {error}
-                </Text>
-            ) : null}
-        </View>
+        <TextInput
+            ref={node}
+            nativeID={id}
+            value={value}
+            onChangeText={onChangeText}
+            aria-labelledby={fieldLabelId(id)}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
+            placeholder={placeholder}
+            placeholderTextColor={theme.colors.inkMuted}
+            autoCapitalize={autoCapitalize}
+            editable={!disabled}
+            inputMode={inputMode}
+            autoComplete={autoComplete}
+            enterKeyHint={enterKeyHint}
+            secureTextEntry={secret}
+            onSubmitEditing={onSubmit}
+            maxLength={maxLength}
+            style={[styles.field, fieldPaint(theme, invalid), disabled ? styles.disabled : null]}
+        />
     );
 };
 
-const styles = StyleSheet.create({
-    field: { gap: nativeTokens.spacing[1] },
-    label: {
-        fontSize: nativeTokens.fontSize.bodySm,
-        fontWeight: '600',
-        color: palette.charcoal,
-    },
-    input: {
-        minHeight: 44,
-        borderWidth: 1,
-        borderColor: semantic.border,
-        borderRadius: nativeTokens.radius.md,
-        paddingHorizontal: nativeTokens.spacing[3],
-        paddingVertical: nativeTokens.spacing[2],
-        fontSize: nativeTokens.fontSize.bodyMd,
-        color: palette.charcoal,
-        backgroundColor: palette.white,
-    },
-    inputError: { borderColor: palette.error },
-    inputDisabled: { backgroundColor: palette.pearl, color: palette.slate },
-    errorText: {
-        fontSize: nativeTokens.fontSize.caption,
-        color: palette['error-dark'],
-    },
-});
+const styles = StyleSheet.create({ field: fieldGeometry, disabled: fieldDisabled });

@@ -26,7 +26,7 @@ import { Pressable, Text } from 'react-native';
 
 import { HomeWidgetSurface } from '../../../src/components/home/HomeWidgetSurface.js';
 import { homeContainer } from '../../../src/components/home/homeContainer.js';
-import { useHomeNudge } from '../../../src/components/home/SubscriptionNudge.js';
+import { useHomeNudge } from '../../../src/components/home/homeNudgeContext.js';
 
 // The profile hook hits Clerk + the identity API; stub it to a controllable tier + display name.
 const { profileRef } = vi.hoisted(() => ({
@@ -47,7 +47,8 @@ vi.mock('../../../src/hooks/useUserProfile.js', () => ({ useUserProfile: () => p
 vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
 
 // The Home surface reads the bottom safe-area inset for the tab bar; a zero-inset stub renders it faithfully.
-vi.mock('react-native-safe-area-context', () => ({
+vi.mock('react-native-safe-area-context', async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
     useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
     SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
 }));
@@ -87,30 +88,34 @@ const containerWith = (...descriptors: readonly HomeWidgetDescriptor[]): Contain
 };
 
 const renderSurface = (props: Partial<Parameters<typeof HomeWidgetSurface>[0]> = {}): void => {
-    renderWithProviders(
-        <HomeWidgetSurface onSeeAllRecipes={noop} onSelectRecipe={noop} onOpenAccount={noop} {...props} />,
-    );
+    renderWithProviders(<HomeWidgetSurface onSeeAllRecipes={noop} onSelectRecipe={noop} {...props} />);
 };
 
 const FakeRecipeWidget: FC = () => <Text>fake-recipe-widget</Text>;
 
 describe('HomeWidgetSurface (mobile) — host composition', () => {
-    it('renders the time-of-day greeting header and the navigation chrome', () => {
+    // Rewritten for slice 3: the top bar (with its dead search and bell) is deleted. Home's large title is the greeting,
+    // the scroller's first child, with the avatar as its action; the tab bar is the navigator's
+    // (`tests/navigation/RootNavigator.native.test.tsx`).
+    it('renders the greeting as the large title, with its action, and no top bar or tab bar of its own', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
         renderSurface({
             container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
             renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+            headerAction: { kind: 'avatar', avatar: <Text accessibilityRole="button">Profile</Text> },
         });
 
-        expect(screen.getByText('Good afternoon, Chef!')).toBeTruthy();
-        // The chrome rendered: the bottom tab-bar landmark ("Main") is unambiguous (unlike the region/tab
-        // "Home" labels, which intentionally repeat the destination name).
-        expect(screen.getByLabelText('Main')).toBeTruthy();
+        const heading = screen.getByRole('heading', { name: /^Good afternoon/u });
+
+        expect(screen.getAllByRole('heading')[0]).toBe(heading);
+        expect(screen.getByRole('button', { name: 'Profile' })).toBeTruthy();
+        expect(screen.queryByLabelText(/coming soon/u)).toBeNull();
+        expect(screen.queryByLabelText('Main')).toBeNull();
     });
 
-    it('sits the greeting on the brand beach-glow gradient hero (U8), not a plain header', () => {
+    it('sits the greeting on the app canvas, not inside a gradient card', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
@@ -118,19 +123,16 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
             <HomeWidgetSurface
                 onSeeAllRecipes={noop}
                 onSelectRecipe={noop}
-                onOpenAccount={noop}
                 container={containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID))}
                 renderers={{ [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget }}
             />,
         );
 
-        // The greeting is wrapped by the shared `GradientSurface` — under jsdom that is the `expo-linear-
-        // gradient` stub, marked `data-commise-stub="linear-gradient"`. Its projected `data-colors` must be
-        // the hero beach-glow ramp (terminal cool tint `#E8F4F8`), NOT the seafoam→ocean-dark brand gradient.
-        const hero = screen.getByText('Good afternoon, Chef!').closest('[data-commise-stub="linear-gradient"]');
-
-        expect(hero).not.toBeNull();
-        expect(hero?.getAttribute('data-colors')).toContain('#E8F4F8');
+        // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): the greeting card is deleted. The app canvas
+        // already carries the beach-glow wash, so the greeting sits on it rather than in a second gradient card.
+        expect(
+            screen.getByRole('heading', { name: /^Good afternoon/u }).closest('[data-commise-stub="linear-gradient"]'),
+        ).toBeNull();
     });
 
     it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {
@@ -155,6 +157,37 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
 
         expect(await screen.findByText('fake-skeleton')).toBeTruthy();
         expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
+    });
+
+    it('leads with the recent recipes and groups the placeholders under one "Coming soon" heading (F2, §4.2)', async () => {
+        const Skeleton: FC = () => <Text>fake-skeleton</Text>;
+
+        renderSurface({
+            container: containerWith(
+                makePlaceholderDescriptor('nutrition', Skeleton),
+                makeLiveDescriptor(RECIPE_HOME_WIDGET_ID),
+            ),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        const recipes = await screen.findByText('fake-recipe-widget');
+        const heading = screen.getByRole('heading', { name: 'Coming soon' });
+        const skeleton = await screen.findByText('fake-skeleton');
+
+        expect(screen.getByText('Meal plans, a grocery list and daily nutrition are on the way.')).toBeTruthy();
+        expect(recipes.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(heading.compareDocumentPosition(skeleton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('draws no "Coming soon" heading once no placeholder remains', async () => {
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        await screen.findByText('fake-recipe-widget');
+
+        expect(screen.queryByRole('heading', { name: 'Coming soon' })).toBeNull();
     });
 
     it('SKIPS a live widget whose id has no renderer instead of crashing (graceful version skew)', async () => {

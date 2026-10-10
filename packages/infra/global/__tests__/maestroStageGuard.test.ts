@@ -1,0 +1,211 @@
+// @vitest-environment node
+/**
+ * Repo-wide guard: the Maestro tier REFUSES every stage but `sandbox`, loudly, before it loads a stage secret.
+ *
+ * ## The defect this pins
+ *
+ * `_ci-heavy.yml`'s `e2e-mobile-maestro` job is parameterised by `inputs.stage`, and it USES that stage for
+ * a write: it loads the stage's Clerk keys and runs `e2e-seed provision`, which provisions this run's
+ * `+clerk_test` sign-in user into THAT tenant. Everything the job then measures is stage-independent — the
+ * recipe service it drives is a runner-local Docker container under the dev-auth bypass. So on `prod` the
+ * job mutates the production Clerk instance in exchange for a result that says nothing about production.
+ * And `ci-full.yml`'s dispatcher offers `prod` as a stage and forwards it straight through (review of
+ * PR #91).
+ *
+ * ## Why a failing STEP and not a job-level `if:`
+ *
+ * A job-level `if: inputs.stage == 'sandbox'` skips silently — a green heavy run in which the mobile tier
+ * ran nothing, which is the class of outcome this repo's guards exist to make impossible. A first step that
+ * exits 1 with the reason keeps the mistake visible and costs one runner boot. It sits BEFORE the secret
+ * load so a refused run never holds a production credential at all.
+ *
+ * ## How it is asserted
+ *
+ * EVERY provisioning job is DISCOVERED (each job whose steps run `e2e-seed`'s provision — the Android emulator
+ * job and the iOS Simulator job), and each is held to the same rule. The refusal is the step that binds `STAGE: ${{ inputs.stage }}` — the only spelling through which a step can read the reusable
+ * workflow's input — and its decision is proved by BEHAVIOUR: that step's `run:` body, and only that body,
+ * is executed under real `bash` with `STAGE=prod` (must exit non-zero, with a `::error::` annotation) and
+ * with `STAGE=sandbox` (must exit 0). Its position is then checked against the first step that loads a
+ * stage secret. Nothing here re-implements the decision; the workflow's own bash is what runs, the same
+ * posture as `deployGate.test.ts` and `prScope.test.ts`.
+ *
+ * ⚠️ Only the candidate step is executed, on purpose. A first draft ran EVERY step body looking for "the
+ * first one that fails under prod" — and found the provisioning step itself (it fails for want of a Clerk
+ * key), while the steps after it include `rm -rf "$HOME/.maestro"` and a conditional `npm ci`. A guard must
+ * not run a workflow's side effects on the machine that runs the guard.
+ *
+ * Mutation evidence: written before the step existed, and its first run reported "no step binds STAGE to
+ * inputs.stage" against the real `_ci-heavy.yml`. Inverting the comparison in the step (`= 'sandbox'`)
+ * reds the `prod` case; moving the step below the secret load reds the position case.
+ */
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { parse } from 'yaml';
+import { afterAll, describe, expect, it } from 'vitest';
+
+/** Scratch directories this file created, removed in `afterAll` so a FAILING test still cleans up. */
+const scratchDirectories: string[] = [];
+
+afterAll(() => {
+    for (const directory of scratchDirectories) {
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * A throwaway directory, registered for removal when this file's suites finish.
+ *
+ * @param prefix - The `mkdtemp` prefix, so a directory that does outlive a run names the suite that made it.
+ * @returns The absolute path to the new directory.
+ * @sideEffect Creates a directory under the OS temp directory.
+ */
+function scratchDirectory(prefix: string): string {
+    const directory = mkdtempSync(join(tmpdir(), prefix));
+
+    scratchDirectories.push(directory);
+
+    return directory;
+}
+
+const WORKFLOW = fileURLToPath(new URL('../../../../.github/workflows/_ci-heavy.yml', import.meta.url));
+
+interface WorkflowStep {
+    readonly name?: string;
+    readonly uses?: string;
+    readonly run?: string;
+    readonly env?: Readonly<Record<string, unknown>>;
+}
+
+interface WorkflowJob {
+    readonly steps?: readonly WorkflowStep[];
+}
+
+interface WorkflowDocument {
+    readonly jobs?: Readonly<Record<string, WorkflowJob>>;
+}
+
+/** The step that writes into the stage's Clerk tenant. */
+const PROVISIONS_TEST_USER = /e2e-seed\/src\/provision/u;
+
+/** The step that reads the stage's secrets — nothing privileged may run before the refusal. */
+const LOADS_STAGE_SECRETS = /load-secrets/u;
+
+/** The stage input, as a step must spell it to read the reusable workflow's input. */
+const STAGE_INPUT = '${{ inputs.stage }}';
+
+/**
+ * The Maestro jobs that provision a Clerk test user — EVERY one of them, discovered rather than named.
+ *
+ * ⛔ ALL of them, not the first. This used to be a `.find`, which was exact while the tier had one job and
+ * became a hole the day it had two: a second provisioning job (the iOS Simulator tier) would have been
+ * invisible to every assertion below, refusal and position included.
+ */
+function provisioningJobs(): readonly { readonly id: string; readonly steps: readonly WorkflowStep[] }[] {
+    const doc = parse(readFileSync(WORKFLOW, 'utf8')) as WorkflowDocument;
+
+    return Object.entries(doc.jobs ?? {})
+        .filter(([, job]) => (job.steps ?? []).some((step) => PROVISIONS_TEST_USER.test(step.run ?? '')))
+        .map(([id, job]) => ({ id, steps: job.steps ?? [] }));
+}
+
+/** The provisioning jobs this guard expects to find — one per device platform the Maestro tier drives. */
+const EXPECTED_PROVISIONING_JOBS = ['e2e-mobile-maestro', 'e2e-mobile-maestro-ios'];
+
+/**
+ * Execute a step's `run:` body the way the runner does (`bash -e -o pipefail`), with `STAGE` bound.
+ *
+ * @sideEffect Writes the body to a temp file and spawns bash.
+ */
+function runStep(
+    body: string,
+    stage: string,
+): { readonly status: number; readonly stderr: string; readonly stdout: string } {
+    const dir = scratchDirectory('maestro-stage-guard-');
+    const script = join(dir, 'step.sh');
+
+    writeFileSync(script, body);
+
+    const result = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', script], {
+        cwd: dir,
+        encoding: 'utf8',
+        env: { PATH: process.env['PATH'] ?? '', STAGE: stage },
+    });
+
+    return { status: result.status ?? -1, stderr: result.stderr, stdout: result.stdout };
+}
+
+describe('_ci-heavy.yml — the Maestro jobs this guard covers', () => {
+    it('finds every provisioning job, one per platform (non-vacuity: a job it cannot see is a job it cannot guard)', () => {
+        expect(provisioningJobs().map((job) => job.id)).toEqual(EXPECTED_PROVISIONING_JOBS);
+    });
+});
+
+describe.each(provisioningJobs().map((job) => [job.id, job] as const))(
+    '_ci-heavy.yml::%s — the Maestro tier is sandbox-only, and says so before loading a stage secret',
+    (_, { id, steps }) => {
+        const secretLoad = steps.findIndex((step) => LOADS_STAGE_SECRETS.test(step.uses ?? ''));
+        const provisioning = steps.findIndex((step) => PROVISIONS_TEST_USER.test(step.run ?? ''));
+        // The only steps whose body is ever executed here: those that read the stage input into `STAGE`.
+        const candidates = steps
+            .map((step, index) => ({ step, index }))
+            .filter(({ step }) => step.run !== undefined && step.env?.['STAGE'] === STAGE_INPUT);
+
+        it('finds its subject: the provisioning job loads stage secrets before it provisions', () => {
+            expect(secretLoad, `${id} has no load-secrets step`).toBeGreaterThan(-1);
+            expect(provisioning, `${id} has no provisioning step`).toBeGreaterThan(secretLoad);
+        });
+
+        it('has a step that reads inputs.stage and refuses prod with a GitHub error annotation', () => {
+            expect(
+                candidates.map(({ step }) => step.name),
+                `${id} has no step binding STAGE to inputs.stage — a dispatch of ci-full.yml with stage=prod ` +
+                    'and run_mobile_maestro=true provisions a Clerk test user into the PRODUCTION tenant',
+            ).not.toEqual([]);
+
+            const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
+
+            expect(
+                refusing.map(({ step }) => step.name),
+                'a step reads inputs.stage but exits 0 under STAGE=prod — nothing refuses the production tenant',
+            ).toHaveLength(1);
+
+            const outcome = runStep(refusing[0]?.step.run ?? '', 'prod');
+
+            expect(outcome.stdout + outcome.stderr, 'the refusal must say why, as an annotation').toMatch(/::error::/u);
+        });
+
+        it('lets stage=sandbox through the same step', () => {
+            const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
+
+            expect(refusing).toHaveLength(1);
+
+            const outcome = runStep(refusing[0]?.step.run ?? '', 'sandbox');
+
+            expect(outcome.status, `sandbox refused: ${outcome.stderr}${outcome.stdout}`).toBe(0);
+        });
+
+        /**
+         * The 2026-10-08 refill (`poolAdmin.ts` records the ruling) CREATES Clerk users, so it is held to the same
+         * rule as provisioning: a non-sandbox stage is refused before it can run. `poolAdmin` also refuses a
+         * non-development key itself; this is the workflow's half of that belt.
+         */
+        it('refuses BEFORE the erasure refill, which creates Clerk users', () => {
+            const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
+            const refill = steps.findIndex((step) => /e2e-fixtures\/src\/poolAdmin\.ts/u.test(step.run ?? ''));
+
+            expect(refill, `${id} has no erasure refill step`).toBeGreaterThan(-1);
+            expect(refusing[0]?.index, 'the refusal sits after the refill').toBeLessThan(refill);
+        });
+
+        it('refuses BEFORE any stage secret is loaded, so a refused run never holds a production credential', () => {
+            const refusing = candidates.filter(({ step }) => runStep(step.run ?? '', 'prod').status !== 0);
+
+            expect(refusing).toHaveLength(1);
+            expect(refusing[0]?.index, 'the refusal sits after the load-secrets step').toBeLessThan(secretLoad);
+        });
+    },
+);

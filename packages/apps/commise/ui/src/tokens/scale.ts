@@ -34,7 +34,7 @@ export const spacing = {
  * (how much of a screen the cover claims) rather than a spacing step, so it is named rather than derived
  * from the 4px ramp.
  *
- * `hero` is the recipe-detail cover box: the mockup's `h-64` phone value (`screen-recipe-detail`).
+ * `hero` is the recipe-detail cover box: the mockup's `h-64` phone value (`screenRecipeDetail`).
  * `heroPlaceholder` is the deliberately COMPACT band the no-cover fallback paints on a phone — a full-height
  * empty gradient would claim most of a phone's first screen and push the title below the fold. Web keeps the
  * full box on both states because a desktop hero has the room; see `RecipeHero.native.tsx` for the rationale.
@@ -80,6 +80,18 @@ export const fontFamily = {
 export const displayFontFace = {
     semibold: 'PlayfairDisplay_600SemiBold',
     bold: 'PlayfairDisplay_700Bold',
+} as const;
+
+/**
+ * The REGISTERED native faces of the body family (Inter), one per {@link fontWeight} step (§1.5). Loaded at start-up
+ * from `@expo-google-fonts/inter` beside the display faces (`mobile/App.tsx`), and guarded by the same face-contract
+ * test as {@link displayFontFace}. A native type role picks the face for its weight and never sets `fontWeight`.
+ */
+export const bodyFontFace = {
+    normal: 'Inter_400Regular',
+    medium: 'Inter_500Medium',
+    semibold: 'Inter_600SemiBold',
+    bold: 'Inter_700Bold',
 } as const;
 
 /** Numeric font weights (web stringifies them; native/Tamagui keep the `'400'`-style string form). */
@@ -143,6 +155,7 @@ export type Spacing = typeof spacing;
 export type Radius = typeof radius;
 export type FontFamily = typeof fontFamily;
 export type DisplayFontFace = typeof displayFontFace;
+export type BodyFontFace = typeof bodyFontFace;
 export type FontWeight = typeof fontWeight;
 export type LineHeightRatio = typeof lineHeightRatio;
 export type FontSize = typeof fontSize;

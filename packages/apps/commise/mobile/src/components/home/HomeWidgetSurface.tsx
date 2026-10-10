@@ -13,50 +13,46 @@
  *    `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live id with
  *    no bespoke renderer is **skipped** (graceful version skew).
  *
- * The host also renders the chrome (top bar + bottom tab bar) and the time-of-day greeting, and threads the
- * navigation intents (`onSeeAllRecipes`, `onSelectRecipe`, `onOpenAccount`) down to the recipe slot and the tab
- * bar. `container` and `renderers` are injectable seams for tests.
+ * The host also renders Home's large title (the greeting, with the avatar as its action) as the scroller's first
+ * child, takes the scroller's `bind` from the screen's `ScrollHost`, and threads the navigation intents down to the
+ * recipe slot. The tab bar, the condensed title bar and the floating create button are NOT here: the navigator owns the
+ * bar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.
  */
 import {
     curateHomeWidgets,
     isPlaceholderHomeWidget,
+    profileEntryOf,
     resolveErrorReporter,
     resolveHomeWidgets,
-    type HomeNavItemId,
+    splitComingSoon,
     type HomeWidgetCurationContext,
+    type HomeWidgetDescriptor,
     type HomeWidgetId,
 } from '@commise/features-core';
-import { RECIPE_HOME_WIDGET_CAPABILITY, RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
+import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
-import { nativeTokens } from '@commise/ui/native';
-import { GradientSurface } from '@commise/ui/surface';
 import { makeViewer, type Tier } from '@kitchensink/recipe-core';
+import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
+import type { HeaderAction } from '@commise/ui/large-title-header';
+import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { Container } from 'ditox';
-import { useMemo, type ComponentType, type JSX } from 'react';
+import { useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../../i18n/messages.js';
 import { useUserProfile } from '../../hooks/useUserProfile.js';
 import { HomeGreeting } from './HomeGreeting.js';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
-import { HomeTabBar } from './chrome/HomeTabBar.js';
-import { HomeTopBar } from './chrome/HomeTopBar.js';
 import { homeContainer } from './homeContainer.js';
+import { LIVE_CAPABILITIES } from './liveCapabilities.js';
 import { RecipeWidgetSlot } from './RecipeWidgetSlot.js';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot.js';
-import { HomeNudgeContext, SubscriptionNudge, useOncePerSessionNudge } from './SubscriptionNudge.js';
-
-/**
- * Capabilities whose backing service is live in Home v1. Only the recipe service ships now; each feature
- * (005–009) adds its capability here when it deploys, and `curateHomeWidgets` then reveals its widget.
- */
-const LIVE_CAPABILITIES: readonly string[] = [RECIPE_HOME_WIDGET_CAPABILITY];
-
-/** The active destination this surface represents in the Home navigation. */
-const HOME_NAV_ACTIVE_ID: HomeNavItemId = 'home';
+import { HomeNudgeContext } from './homeNudgeContext.js';
+import { useOncePerSessionNudge } from './useOncePerSessionNudge.js';
+import { SubscriptionNudge } from './SubscriptionNudge.js';
 
 /**
  * Map the shared {@link Tier} authority (`@kitchensink/recipe-core`, P4 — `free` | `premium`) onto the
@@ -77,8 +73,16 @@ export interface HomeWidgetSurfaceProps {
     readonly onSeeAllRecipes: () => void;
     /** Invoked with the activated recipe's id when a "Recent recipes" card is tapped. */
     readonly onSelectRecipe: (id: string) => void;
-    /** Invoked when the account avatar or the Profile tab is activated. */
-    readonly onOpenAccount: () => void;
+    /** The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`). */
+    readonly scrollBind?: ScrollBind;
+    /** The large title's action: the avatar, which opens Profile. */
+    readonly headerAction?: HeaderAction;
+    /** The recent block's first run: open an empty editor (`buildSpec.md` §4.2). With Discover, its ways in show. */
+    readonly onCreateRecipe?: () => void;
+    /** The first run: paste an ingredient list. */
+    readonly onPasteIngredients?: () => void;
+    /** The first run: go to Discover. */
+    readonly onFindOnDiscover?: () => void;
     /** The appShell container to resolve widget descriptors from. Defaults to the app singleton. */
     readonly container?: Container;
     /** Map of widget id → the bespoke slot component that renders it. Defaults to the v1 renderer set. */
@@ -94,18 +98,22 @@ export interface HomeWidgetSurfaceProps {
 export function HomeWidgetSurface({
     onSeeAllRecipes,
     onSelectRecipe,
-    onOpenAccount,
+    scrollBind,
+    headerAction,
+    onCreateRecipe,
+    onPasteIngredients,
+    onFindOnDiscover,
     container = homeContainer,
     renderers,
 }: HomeWidgetSurfaceProps): JSX.Element {
     const { home } = useMessages(mobileMessages);
+    const { colors } = useTheme();
     const profile = useUserProfile();
     const nudge = useOncePerSessionNudge();
-    const insets = useSafeAreaInsets();
 
     // P4: the shared Tier authority — an absent/unrecognized subscription tier fails closed to `'free'`.
     const tier = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier }).tier;
-    const displayName = profile.data?.user.displayName;
+    const cookName = profileEntryOf(profile).name;
 
     // B23/DA9 — a widget render throw must never be silent. Resolved from the injected `errorReporterToken`
     // (never a hard-coded Sentry import), mirroring the web host so both platforms share ONE reporting seam.
@@ -124,11 +132,14 @@ export function HomeWidgetSurface({
                 <RecipeWidgetSlot
                     onSeeAllRecipes={onSeeAllRecipes}
                     onSelectRecipe={onSelectRecipe}
+                    {...(onCreateRecipe === undefined ? {} : { onCreateRecipe })}
+                    {...(onPasteIngredients === undefined ? {} : { onPasteIngredients })}
+                    {...(onFindOnDiscover === undefined ? {} : { onFindOnDiscover })}
                     onWidgetError={(error) => reportWidgetError(error, { widget: RECIPE_HOME_WIDGET_ID })}
                 />
             ),
         }),
-        [onSeeAllRecipes, onSelectRecipe, reportWidgetError],
+        [onSeeAllRecipes, onSelectRecipe, onCreateRecipe, onPasteIngredients, onFindOnDiscover, reportWidgetError],
     );
 
     const activeRenderers = renderers ?? defaultRenderers;
@@ -140,90 +151,89 @@ export function HomeWidgetSurface({
             // order/hidden personalization lives in the identity profile preferences (002); absent in v1.
         };
 
-        return curateHomeWidgets(resolveHomeWidgets(container), ctx);
+        return splitComingSoon(curateHomeWidgets(resolveHomeWidgets(container), ctx));
     }, [container, tier]);
 
-    const onSelectNav = (id: HomeNavItemId): void => {
-        if (id === 'recipes') {
-            onSeeAllRecipes();
-        } else if (id === 'profile') {
-            onOpenAccount();
+    /**
+     * One widget: a live one through its bespoke slot, a placeholder through its loader seam.
+     *
+     * @param descriptor - The curated descriptor.
+     * @returns Its boundary-wrapped render, or `null` for a live id this client cannot draw.
+     */
+    const renderWidget = (descriptor: HomeWidgetDescriptor): ReactNode => {
+        const Bespoke = activeRenderers[descriptor.id];
+
+        // A live widget with a bespoke slot. Its last-resort fallback is the localized
+        // `HomeWidgetErrorNotice`, matching web: a `null` here meant a slot-level throw
+        // (not just a widget-body one — the recipe slot's own inner boundary handles that)
+        // erased the whole slot into unexplained blank space, with nothing announced to
+        // assistive tech. Losing the content is acceptable; saying nothing about it is not.
+        if (Bespoke !== undefined) {
+            return (
+                <ErrorBoundary
+                    key={descriptor.id}
+                    fallback={<HomeWidgetErrorNotice />}
+                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+                >
+                    <Bespoke />
+                </ErrorBoundary>
+            );
         }
-        // 'home' is the active destination (already here) → no-op; gated ids never reach a select handler.
+
+        // A roadmap PLACEHOLDER keeps a `null` fallback — also matching web, and deliberately
+        // NOT the notice above. A skeleton is itself a stand-in for a feature that has not
+        // shipped, so there is no content whose loss is worth announcing; a notice would report
+        // the failure of something the viewer was never promised. The throw is still reported.
+        if (isPlaceholderHomeWidget(descriptor)) {
+            return (
+                <ErrorBoundary
+                    key={descriptor.id}
+                    fallback={null}
+                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+                >
+                    <RoadmapWidgetSlot descriptor={descriptor} />
+                </ErrorBoundary>
+            );
+        }
+
+        // A live widget id with no bespoke renderer on this client — skip it rather than
+        // crash, so an older client tolerates a newer personalization list (version skew).
+        return null;
     };
 
     return (
         <View style={styles.screen}>
-            <HomeTopBar chrome={home.chrome} displayName={displayName} onOpenAccount={onOpenAccount} />
-
             <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
                 <ScrollView
+                    {...scrollBind}
                     accessibilityLabel={home.regionLabel}
                     style={styles.region}
                     contentContainerStyle={styles.regionContent}
                 >
-                    {/*
-                     * U8 — the greeting sits on the brand beach-glow gradient hero (the shared
-                     * `GradientSurface` `hero`, single-sourced with web so the two platforms cannot drift).
-                     * `overflow: 'hidden'` clips the gradient to the rounded corners. No enter motion here:
-                     * it is a non-essential flourish, and adding an `Animated` mount effect would push an
-                     * impure, reduce-motion-gated, unmount-cancelling side effect into this render surface —
-                     * not worth the risk for a device-only nicety (web carries the CSS-gated enter instead).
-                     */}
-                    <GradientSurface gradient="hero" style={styles.hero}>
-                        <HomeGreeting />
-                    </GradientSurface>
+                    {/* The large title is the scroller's FIRST child, so its host knows when it has scrolled under the
+                        top (`LargeTitleHeader`); it sits on the app canvas, never in a card (§1.6). */}
+                    <HomeGreeting
+                        {...(cookName === undefined ? {} : { name: cookName })}
+                        {...(headerAction === undefined ? {} : { action: headerAction })}
+                    />
 
-                    {curated.map((descriptor) => {
-                        const Bespoke = activeRenderers[descriptor.id];
+                    {curated.live.map(renderWidget)}
 
-                        // A live widget with a bespoke slot. Its last-resort fallback is the localized
-                        // {@link HomeWidgetErrorNotice}, matching web: a `null` here meant a slot-level throw
-                        // (not just a widget-body one — the recipe slot's own inner boundary handles that)
-                        // erased the whole slot into unexplained blank space, with nothing announced to
-                        // assistive tech. Losing the content is acceptable; saying nothing about it is not.
-                        if (Bespoke !== undefined) {
-                            return (
-                                <ErrorBoundary
-                                    key={descriptor.id}
-                                    fallback={<HomeWidgetErrorNotice />}
-                                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
-                                >
-                                    <Bespoke />
-                                </ErrorBoundary>
-                            );
-                        }
-
-                        // A roadmap PLACEHOLDER keeps a `null` fallback — also matching web, and deliberately
-                        // NOT the notice above. A skeleton is itself a stand-in for a feature that has not
-                        // shipped, so there is no content whose loss is worth announcing; a notice would report
-                        // the failure of something the viewer was never promised. The throw is still reported.
-                        if (isPlaceholderHomeWidget(descriptor)) {
-                            return (
-                                <ErrorBoundary
-                                    key={descriptor.id}
-                                    fallback={null}
-                                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
-                                >
-                                    <RoadmapWidgetSlot descriptor={descriptor} />
-                                </ErrorBoundary>
-                            );
-                        }
-
-                        // A live widget id with no bespoke renderer on this client — skip it rather than
-                        // crash, so an older client tolerates a newer personalization list (version skew).
-                        return null;
-                    })}
+                    {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading (owner
+                        ruling; `buildSpec.md` §4.2). Gone with the last placeholder. */}
+                    {curated.comingSoon.length > 0 && (
+                        <View style={styles.comingSoon}>
+                            <Text accessibilityRole="header" style={[styles.comingSoonHeading, { color: colors.ink }]}>
+                                {home.roadmap.comingSoonHeading}
+                            </Text>
+                            <Text style={[styles.comingSoonBody, { color: colors.inkMuted }]}>
+                                {home.roadmap.comingSoonBody}
+                            </Text>
+                            {curated.comingSoon.map(renderWidget)}
+                        </View>
+                    )}
                 </ScrollView>
             </HomeNudgeContext.Provider>
-
-            <HomeTabBar
-                chrome={home.chrome}
-                liveCapabilities={LIVE_CAPABILITIES}
-                activeId={HOME_NAV_ACTIVE_ID}
-                onSelect={onSelectNav}
-                bottomInset={insets.bottom}
-            />
 
             <SubscriptionNudge open={nudge.visible} onDismiss={nudge.dismiss} />
         </View>
@@ -231,8 +241,13 @@ export function HomeWidgetSurface({
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    screen: { flex: 1, backgroundColor: 'transparent' },
     region: { flex: 1 },
-    regionContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 16 },
-    hero: { borderRadius: nativeTokens.radius.lg, overflow: 'hidden', paddingVertical: nativeTokens.spacing[2] },
+    // The foot clears the floating create button (its height + 32, `buildSpec.md` §3.4), which floats over it.
+    regionContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: FAB_RESERVED_BOTTOM_PX, gap: 16 },
+    comingSoon: { gap: nativeTokens.spacing[4] },
+    comingSoonHeading: { ...nativeTokens.type.sectionTitle },
+    comingSoonBody: { ...nativeTokens.type.body, marginTop: -nativeTokens.spacing[3] },
 });

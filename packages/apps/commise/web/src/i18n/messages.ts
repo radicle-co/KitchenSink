@@ -9,6 +9,12 @@ import type { LocalizedMessages } from '@commise/i18n';
 
 import type { ShellSurfaceId } from '@/components/app/shellSurfaces';
 
+/** A route's document metadata: the browser tab's title and the description a shared link shows. */
+export interface PageMetadataMessages {
+    readonly title: string;
+    readonly description: string;
+}
+
 /** The shape of the web app's own copy. */
 export interface WebMessages {
     /**
@@ -23,8 +29,10 @@ export interface WebMessages {
             readonly title: string;
             /** Supporting body copy. Deliberately generic — never echoes the raw error message to the viewer. */
             readonly description: string;
-            /** Label of the retry action, wired to Next's `reset()`. */
+            /** Label of the retry action, wired to Next's `retry()` (which re-fetches). */
             readonly retry: string;
+            /** Label of the last-resort page's full page load of Home (`global-error.tsx` only). */
+            readonly home: string;
         };
         /** Copy for a route segment's `loading.tsx` (the Suspense fallback shown while it streams in). */
         readonly loading: {
@@ -49,8 +57,6 @@ export interface WebMessages {
             readonly label: string;
             readonly recipes: string;
             readonly profile: string;
-            readonly settings: string;
-            readonly account: string;
         };
         /**
          * Copy for the Home chrome (sidebar, top bar, mobile tab bar) — US-000 / FR-046. Keyed by the SHARED
@@ -71,42 +77,43 @@ export interface WebMessages {
              * {@link ShellSurfaceId} union, so a surface added without copy is a compile error rather than a
              * blank bar. This replaced a single `pageTitle` that was hard-coded 'Home' on all 15 shell routes.
              *
-             * Deliberately NOT shared with {@link destinations} (nav labels) or with a page's own `<h1>` copy:
+             * Deliberately NOT shared with `destinations` (nav labels) or with a page's own `<h1>` copy:
              * the three slots happen to read alike on some routes today, but they change for different reasons
              * (a nav label may shorten to fit a collapsed rail; a page heading may carry context a 56px bar
              * cannot), so they are separate knowledge, not duplication.
              */
             readonly pageTitles: Readonly<Record<ShellSurfaceId, string>>;
-            /** Accessible name of the control that opens navigation on small screens. */
-            readonly openNav: string;
-            /** Accessible name of the control that closes navigation on small screens. */
-            readonly closeNav: string;
-            /** Accessible name of the sidebar collapse control. */
+            /** The sidebar's collapse control: its visible label and, expanded, its name. */
             readonly collapseNav: string;
-            /** Accessible name of the sidebar expand control (when collapsed). */
+            /** The collapsed sidebar's expand control's name (the glyph alone shows). */
             readonly expandNav: string;
-            /** Accessible name of the search entry point. */
-            readonly search: string;
-            /** Accessible name of the notifications control. */
-            readonly notifications: string;
-            /** Accessible name of the avatar / account entry point. */
-            readonly account: string;
-            /** Fallback avatar name when the viewer has no display name yet. */
-            readonly accountNoName: string;
-            /** Suffix appended to an unreachable destination's accessible name (never a dead link). */
-            readonly comingSoonSuffix: string;
+            /** The avatar's and the profile row's name, with the cook's name in `{name}` (`buildSpec.md` §3.3). */
+            readonly profileButton: string;
+            /** The same name when the cook has none yet. */
+            readonly profileButtonNoName: string;
+            /** Web's "Back to top" on a long list (§3.6). */
+            readonly backToTop: string;
             /** Label of each navigation destination, keyed by the shared nav model's id. */
             readonly destinations: Readonly<Record<HomeNavItemId, string>>;
         };
-        /** Greeting copy, one per time-of-day bucket. Keyed by the shared {@link GreetingBucket} union. */
+        /**
+         * Home's H1 when the cook has no name yet, one per time-of-day bucket (`buildSpec.md` §4.2). Keyed by the shared
+         * {@link GreetingBucket} union.
+         */
         readonly greetings: Readonly<Record<GreetingBucket, string>>;
+        /** Home's H1 with the cook's name in `{name}`: "Good afternoon, Eliza". */
+        readonly greetingsNamed: Readonly<Record<GreetingBucket, string>>;
         /**
          * Copy for the roadmap skeleton placeholders (FR-046 / R6 as amended by CR-001). Titles are the REAL
          * widget headings from the mockup — the placeholder shows what is coming, never invented data.
          */
         readonly roadmap: {
-            /** Visible badge on every placeholder. Visible (not sr-only) so it reads the same to everyone. */
-            readonly comingSoon: string;
+            /** The H2 above the placeholder group (`buildSpec.md` §4.2). */
+            readonly comingSoonHeading: string;
+            /** The one body line under the "Coming soon" heading. */
+            readonly comingSoonBody: string;
+            /** Visible "Soon" badge on every placeholder. Visible (not sr-only) so it reads the same to everyone. */
+            readonly soon: string;
             /** The real heading of each roadmap widget, keyed by the shared roadmap registry's id. */
             readonly titles: Readonly<Record<RoadmapWidgetId, string>>;
         };
@@ -153,24 +160,14 @@ export interface WebMessages {
             readonly notFoundTitle: string;
             /** Label of the retry action in the error state. */
             readonly retry: string;
+            /** The way back from a recipe that could not be shown (`buildSpec.md` §6.7). */
+            readonly backToRecipes: string;
         };
         /**
          * Web-only copy for the owner/viewer action controls composed onto the detail route (T068/T074/T075).
          * The shared building blocks localize their own copy; these are the app-owned strings — the delete
          * trigger that opens the shared dialog, and the premium gate reason for the visibility toggle.
          */
-        readonly actions: {
-            /** Label of the in-app back control on the detail header, back to the recipe list (C1). */
-            readonly backAction: string;
-            /** Label of the owner-only link to the recipe editor (W2/D1 — restores the web detail entry point). */
-            readonly editAction: string;
-            /** Label of the owner-only link to the recipe's version history (W2/D1). */
-            readonly versionHistory: string;
-            /** Label of the owner-only control that opens the delete-confirmation dialog. */
-            readonly deleteAction: string;
-            /** Reason shown when the private visibility option is gated off (no premium signal available). */
-            readonly premiumRequired: string;
-        };
         /**
          * Web-only fetch-state affordances the version-history route owns. The shared `RecipeVersionList`
          * building block localizes its own list/empty content via `@commise/features-recipes`; the
@@ -188,66 +185,17 @@ export interface WebMessages {
         readonly form: {
             /** Error shown when persisting a create/edit fails. */
             readonly submitError: string;
-            /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
-            readonly photosAfterCreateNotice: string;
-        };
-        /** Copy for the ingredient typeahead the shared form block deliberately omits (the container owns it). */
-        readonly picker: {
-            /** Accessible label for the picker region. */
-            readonly regionLabel: string;
-            /** Accessible label for the search input. */
-            readonly searchLabel: string;
-            /** Placeholder inside the search input. */
-            readonly searchPlaceholder: string;
-            /** Badge next to the search box naming the ingredient database it searches (C5, wireframe
-             *  recipe-edit.md:56 "[USDA database]"). */
-            readonly usdaBadge: string;
-            /** Accessible label for the in-flight search indicator. */
-            readonly searching: string;
-            /** Empty-state copy shown when a search returns no matches. */
-            readonly noMatches: string;
-            /** Heading of the "your own previously-used ingredients" section of the blended typeahead (Stage 2). */
-            readonly ownSectionTitle: string;
-            /** Heading of the food-catalog (USDA-seeded golden records) section of the blended typeahead. */
-            readonly catalogSectionTitle: string;
-            /** Provenance badge on a food-catalog row (it is not yet one of the caller's ingredients). */
-            readonly catalogBadge: string;
-            /** Non-blocking notice shown when the food catalog is unreachable and only local matches rendered (F2). */
-            readonly catalogUnavailable: string;
-            /** Accessible label for the in-flight indicator while a picked catalog row is being added. */
-            readonly addingFromCatalog: string;
-            /** Message shown when adding a picked food-catalog row fails. */
-            readonly catalogAddError: string;
-            /** Message shown when the ingredient search fails. */
-            readonly errorTitle: string;
-            /** Primary "find nutrition" action for a typed name not in the results (addByName; contains `{query}`). */
-            readonly addByName: string;
-            /** Accessible label for the in-flight addByName (food-resolution) indicator. */
-            readonly addingByName: string;
-            /** Message shown when adding a food by name fails. */
-            readonly addByNameError: string;
-            /** Accessible label for the in-flight freeform-create indicator. */
-            readonly creating: string;
-            /** Message shown when creating a freeform ingredient fails. */
-            readonly createError: string;
-            /** Add-as-freeform (fallback) action template (contains `{query}`). */
-            readonly addFreeform: string;
-            /** Notice shown for a match whose food resolution is terminal (no nutrition match; FR-007). */
-            readonly terminalNotice: string;
-            /** Heading for the disambiguation panel of an `UNRESOLVED` match (contains `{name}`). */
-            readonly disambiguateTitle: string;
-            /** Accessible label for the in-flight candidate-loading indicator. */
-            readonly disambiguateLoading: string;
-            /** Message shown when loading disambiguation candidates fails. */
-            readonly disambiguateError: string;
-            /** Copy shown when an `UNRESOLVED` match has no candidates to choose from. */
-            readonly disambiguateEmpty: string;
-            /** Label of the action that leaves the disambiguation panel and returns to search. */
-            readonly disambiguateBack: string;
-            /** Accessible label for the in-flight resolve indicator. */
-            readonly resolving: string;
-            /** Message shown when resolving the picked candidate fails. */
-            readonly resolveError: string;
+            /**
+             * Shown after a successful create while chosen photos are still uploading (U33).
+             *
+             * ⛔ REPLACES `photosAfterCreateNotice` ("Save this recipe first — you can add photos from its
+             * edit page"), which was the notice a cook met INSTEAD of an uploader. Photos are a field now;
+             * this sentence exists for the window AFTER the recipe is saved, because a save is two calls and
+             * the cook must not be told it is one.
+             */
+            readonly photosFlushingNotice: string;
+            /** The explicit "leave without the photos that would not upload" action (U33). */
+            readonly photosFinishWithout: string;
         };
         /**
          * Copy owned by the photo-uploader container (T067). The shared `RecipePhotoManager` block localizes
@@ -269,10 +217,19 @@ export interface WebMessages {
             readonly replaceInputLabel: string;
             /** Error shown when Replace is pressed at the photo cap — a lossless swap needs a free slot (U6). */
             readonly replaceAtCapError: string;
+            /**
+             * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`), on the
+             * create form and the edit uploader alike.
+             *
+             * ⛔ The cap can be breached WITHIN a single pick — the add control's own gate only bounds picks
+             * between each other — and the pick is refused WHOLE rather than truncated, so this sentence is
+             * the only thing standing between the cook and silently losing the files that would not fit.
+             */
+            readonly overCapError: string;
         };
     };
     /**
-     * Web-only collection copy — the fetch-state affordances the detail/form routes own (the shared
+     * Web-only collection copy — the fetch-state affordances the detail route owns (the shared
      * collection building blocks localize their own content via `@commise/features-recipes`).
      */
     readonly collections: {
@@ -286,14 +243,14 @@ export interface WebMessages {
             /** Label of the retry action in the error state. */
             readonly retry: string;
         };
-        readonly form: {
-            /** Accessible label for the rename form's seed-loading state. */
-            readonly loadingLabel: string;
-            /** Validation message shown when the name is empty. */
-            readonly nameRequired: string;
-            /** Message shown when a create/rename submission fails. */
-            readonly submitError: string;
-        };
+    };
+    /**
+     * A route's document metadata, read by its `generateMetadata`: the browser tab's title, and the description a
+     * search result or a shared link shows.
+     */
+    readonly pageMetadata: {
+        readonly dataSources: PageMetadataMessages;
+        readonly profile: PageMetadataMessages;
     };
 }
 
@@ -304,6 +261,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 title: 'Something went wrong.',
                 description: 'We couldn’t load this page. Please try again.',
                 retry: 'Try again',
+                home: 'Go to Home',
             },
             loading: {
                 label: 'Loading',
@@ -322,8 +280,6 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 label: 'Account',
                 recipes: 'Recipes',
                 profile: 'Profile',
-                settings: 'Settings',
-                account: 'Account',
             },
             chrome: {
                 wordmark: 'Commise',
@@ -339,44 +295,44 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                     recipeVersions: 'Version history',
                     discover: 'Discover',
                     collections: 'Collections',
-                    collectionNew: 'New collection',
                     collectionDetail: 'Collection',
-                    collectionAddRecipes: 'Add recipes',
-                    collectionRename: 'Rename collection',
                     profile: 'Profile',
-                    account: 'Account',
-                    settings: 'Settings',
+                    dataSources: 'Data sources',
+                    notFound: 'Page not found',
                 },
-                openNav: 'Open navigation',
-                closeNav: 'Close navigation',
-                collapseNav: 'Collapse navigation',
-                expandNav: 'Expand navigation',
-                search: 'Search',
-                notifications: 'Notifications',
-                account: 'Account',
-                accountNoName: 'Your account',
-                comingSoonSuffix: 'coming soon',
+                collapseNav: 'Collapse',
+                expandNav: 'Expand sidebar',
+                profileButton: 'Profile, {name}',
+                profileButtonNoName: 'Profile',
+                backToTop: 'Back to top',
                 destinations: {
                     home: 'Home',
                     recipes: 'Recipes',
-                    'meal-plan': 'Meal Plan',
-                    grocery: 'Grocery',
-                    nutrition: 'Nutrition',
-                    profile: 'Profile',
+                    discover: 'Discover',
+                    'meal-plan': 'Plan',
+                    grocery: 'Shop',
                 },
             },
             greetings: {
-                morning: 'Good morning, Chef!',
-                afternoon: 'Good afternoon, Chef!',
-                evening: 'Good evening, Chef!',
-                night: 'Still up, Chef?',
+                morning: 'Good morning',
+                afternoon: 'Good afternoon',
+                evening: 'Good evening',
+                night: 'Still up?',
+            },
+            greetingsNamed: {
+                morning: 'Good morning, {name}',
+                afternoon: 'Good afternoon, {name}',
+                evening: 'Good evening, {name}',
+                night: 'Still up, {name}?',
             },
             roadmap: {
-                comingSoon: 'Coming soon',
+                comingSoonHeading: 'Coming soon',
+                comingSoonBody: 'Meal plans, a grocery list and daily nutrition are on the way.',
+                soon: 'Soon',
                 titles: {
-                    nutrition: "Today's Nutrition",
+                    nutrition: 'Today’s nutrition',
                     'resume-cooking': 'Resume cooking',
-                    'meal-plan': "This Week's Meals",
+                    'meal-plan': 'This week’s meals',
                 },
             },
             surface: {
@@ -395,15 +351,9 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             detail: {
                 loadingLabel: 'Loading recipe',
                 errorTitle: 'We couldn’t load this recipe.',
-                notFoundTitle: 'We couldn’t find that recipe.',
+                notFoundTitle: 'This recipe isn’t available.',
                 retry: 'Try again',
-            },
-            actions: {
-                backAction: 'Back',
-                editAction: 'Edit recipe',
-                versionHistory: 'Version history',
-                deleteAction: 'Delete recipe',
-                premiumRequired: 'Upgrade to premium to make a recipe private.',
+                backToRecipes: 'Back to My recipes',
             },
             versions: {
                 loadingLabel: 'Loading version history',
@@ -412,36 +362,8 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             },
             form: {
                 submitError: 'We couldn’t save this recipe. Please try again.',
-                photosAfterCreateNotice: 'Save this recipe first — you can add photos from its edit page.',
-            },
-            picker: {
-                regionLabel: 'Ingredient search',
-                searchLabel: 'Search ingredients',
-                searchPlaceholder: 'Search for an ingredient',
-                usdaBadge: 'USDA database',
-                searching: 'Searching ingredients',
-                noMatches: 'No matching ingredients found.',
-                ownSectionTitle: 'Your ingredients',
-                catalogSectionTitle: 'Food catalog',
-                catalogBadge: 'USDA',
-                catalogUnavailable: 'Showing your ingredients only — the food catalog is unavailable right now.',
-                addingFromCatalog: 'Adding from the food catalog',
-                catalogAddError: 'We couldn’t add that food. Try again, or add it as a custom ingredient.',
-                errorTitle: 'We couldn’t search ingredients.',
-                addByName: 'Find nutrition for “{query}”',
-                addingByName: 'Finding nutrition',
-                addByNameError: 'We couldn’t add that ingredient. You can add it as a custom ingredient instead.',
-                creating: 'Adding ingredient',
-                createError: 'We couldn’t add that ingredient.',
-                addFreeform: 'Add “{query}” as a custom ingredient',
-                terminalNotice: 'No nutrition match — add it as a custom ingredient or remove it.',
-                disambiguateTitle: 'Which “{name}” did you mean?',
-                disambiguateLoading: 'Loading options',
-                disambiguateError: 'We couldn’t load options for that ingredient.',
-                disambiguateEmpty: 'No options to choose from — add it as a custom ingredient instead.',
-                disambiguateBack: 'Back to search',
-                resolving: 'Resolving ingredient',
-                resolveError: 'We couldn’t resolve that ingredient.',
+                photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
+                photosFinishWithout: 'Finish without the remaining photos',
             },
             photos: {
                 addLabel: 'Add photo',
@@ -450,6 +372,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
                 replaceInputLabel: 'Choose a replacement photo',
                 replaceAtCapError: 'Remove a photo first — replacing needs room for the new one.',
+                overCapError: 'That’s more photos than this recipe can hold — you can add {count} more.',
             },
         },
         collections: {
@@ -459,11 +382,13 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 notFoundTitle: 'We couldn’t find that collection.',
                 retry: 'Try again',
             },
-            form: {
-                loadingLabel: 'Loading collection',
-                nameRequired: 'Enter a name for your collection.',
-                submitError: 'We couldn’t save your collection. Please try again.',
+        },
+        pageMetadata: {
+            dataSources: {
+                title: 'Data sources | Commise',
+                description: 'The food databases behind the nutrition figures, and their licenses',
             },
+            profile: { title: 'Profile | Commise', description: 'Your user profile' },
         },
     },
 };

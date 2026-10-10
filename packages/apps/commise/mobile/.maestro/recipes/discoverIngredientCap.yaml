@@ -1,0 +1,61 @@
+appId: io.commise.mobile
+---
+# The ingredient filter at its cap (curated U9, `docs/design/ingredientSpecialization.md` §S8.1a "The ingredient filter
+# at its cap"). One search filters on at most six foods (`MAX_SEARCH_FOOD_FILTERS`; the service answers 400 past it).
+# The bar never sends a seventh: at six, a note takes the search box's place and says how to free one, and the chips
+# stay, because they are now the only way forward. The web story is `search.spec.ts` "at six ingredients…".
+#
+# It needs six foods the signer may filter by. The filter's search returns only foods that already have a binding the
+# caller can see (`GET /api/v1/ingredients/search`), so the run's seed authors them as the signer, each named
+# `${E2E_CAP_FOOD_PREFIX}` and a number (`packages/tools/e2e-seed`). One query finds all six, and a picked food leaves
+# the result list, so the first result left is always a new food.
+#
+# Read-only: the filter is screen state, so nothing is written.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover'
+      timeout: 40000
+
+- tapOn: 'Filters.*'
+- tapOn: 'Has ingredient'
+- inputText: '${E2E_CAP_FOOD_PREFIX}'
+
+# Six picks. Anchored, because Maestro matches substrings and the field itself holds the typed prefix. The Ingredients
+# group is the last in the sheet and the keyboard is up, so each result is scrolled into view before the tap.
+- repeat:
+      times: 6
+      commands:
+          - scrollUntilVisible:
+                element:
+                    text: '^Filter by ${E2E_CAP_FOOD_PREFIX} .+$'
+                direction: DOWN
+                timeout: 40000
+          - tapOn:
+                text: '^Filter by ${E2E_CAP_FOOD_PREFIX} .+$'
+
+# At six, the note replaces the search box, and the chips stay.
+- scrollUntilVisible:
+      element: 'You can filter by up to 6 ingredients. Remove one to add another.'
+      direction: DOWN
+      timeout: 20000
+# The search box is gone: its example text ("chicken") is no longer drawn. (The group's name, "Has ingredient", stays.)
+- assertNotVisible: 'chicken'
+- assertVisible:
+      text: '^Remove ${E2E_CAP_FOOD_PREFIX} .+$'
+
+# Removing a chip frees a place, and the search comes back.
+- tapOn:
+      text: '^Remove ${E2E_CAP_FOOD_PREFIX} .+$'
+- scrollUntilVisible:
+      element: 'chicken'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible: 'You can filter by up to 6 ingredients. Remove one to add another.'
+
+- tapOn: 'Show \d+ recipes?|Show recipes'
+- extendedWaitUntil:
+      visible: 'Discover'
+      timeout: 20000

@@ -1,79 +1,135 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
- * Recipe-detail HERO cover (mockup `screen-recipe-detail`), driven through the real web UI with the
- * recipe/identity HTTP contract intercepted (`utils/recipeApi`). The mockup opens the screen with the cover
- * photo before any type; the web detail used to start at the gradient title band.
+ * Recipe-detail HERO (mockup `screenRecipeDetail`), driven through the real web UI with the recipe/identity HTTP
+ * contract intercepted (`utils/recipeApi`). The mockup opens the screen with the recipe's photos before any type.
  *
- * Two things only the real browser can settle, and both are asserted as INTENT rather than as "something is
- * on screen":
+ * The hero IS the photo carousel (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`). It used to paint the cover
+ * as its own image, and a second carousel lower down painted it again as slide 1. Asserted as INTENT, in a real
+ * browser:
  *
- *  1. **With a cover** — the hero is an `img` accessibly named by the recipe title, it actually DECODED (a
- *     non-zero `naturalWidth`, so a wrong/never-fetched `src` cannot pass), and it is laid out ABOVE the `h1`
- *     (its box ends before the heading's begins). Ordering is a layout fact, not a DOM-order fact: a
- *     `flex-col-reverse`/`order-*` regression would keep the DOM order and still put the cover under the
- *     title, and only a geometric assertion catches that.
- *  2. **Without a cover** — the deliberate labelled fallback is visible, the `h1` still renders, and there is
- *     NO `<img>` element anywhere in the detail article. That last one is the actual design rule: an `<img>`
- *     with an empty/undefined `src` paints the browser's broken-image glyph, so the no-cover state renders a
- *     labelled `role="img"` surface instead of an image. Asserting merely "the placeholder is visible" would
- *     pass even if a broken `<img>` were sitting right next to it.
+ *  1. **With photos** — slide 1 is the cover, accessibly named, it actually DECODED (a non-zero `naturalWidth`, so a
+ *     wrong or never-fetched `src` cannot pass), it is laid out ABOVE the `h1`, and the cover's `src` appears exactly
+ *     ONCE in the article. The box is the spec's hero box (`specRecipeAndWizard.md` S2.1): at most 40% of the window
+ *     tall on a phone held sideways, and at most 480 px from `md` up.
+ *  2. **Without a photo** — the deliberate labelled fallback is visible, the `h1` still renders, and there is NO
+ *     `<img>` element anywhere in the detail article (an `<img>` with no `src` paints a broken-image glyph).
  *
  * Selectors are role/label only (repo policy); no `data-testid`, no `waitForTimeout`.
  */
 
-/** A real 1x1 PNG as a `data:` URI — the cover must genuinely decode, and nothing may hit the network. */
-const COVER_DATA_URI =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==';
+/** A real 1x1 PNG — every photo must genuinely decode, and nothing may hit the network. */
+const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+);
+
+/** Where the fixture's photos are served from; `page.route` answers every one with {@link PNG}. */
+const PHOTO_ORIGIN = 'https://photos.hero.e2e.example';
 
 /** The localized copy the no-cover fallback carries — the SAME dictionary string the card placeholder uses. */
 const NO_PHOTO_LABEL = 'No photo yet';
 
-test.describe('recipe-detail hero cover', () => {
-    test('a recipe WITH a cover leads with the cover image, above the title', async ({ page }) => {
-        await signInWithTicket(page);
-        const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, {
-            viewerId,
-            tier: 'premium',
-            recipes: [
-                makeRecipeDetail({
-                    id: 'rec_hero',
-                    ownerId: viewerId,
-                    title: 'Blistered Shishito Peppers',
-                    coverPhotoUrl: COVER_DATA_URI,
-                }),
-            ],
-        });
+const TITLE = 'Blistered Shishito Peppers';
 
-        await page.goto(route('/recipes/rec_hero'));
+/** Seed a recipe with three photos (the first is the cover) plus the card's thumbnail of it, and open its detail. */
+async function openRecipeWithPhotos(page: Page): Promise<void> {
+    await page.route(`${PHOTO_ORIGIN}/**`, (photo) => photo.fulfill({ contentType: 'image/png', body: PNG }));
+    await signInWithTicket(page);
+    const viewerId = await readViewerAppId(page);
+    await mockRecipeApi(page, {
+        viewerId,
+        tier: 'premium',
+        recipes: [
+            makeRecipeDetail({
+                id: 'ec000000-0000-4000-8000-00000000000f',
+                ownerId: viewerId,
+                title: TITLE,
+                coverPhotoUrl: `${PHOTO_ORIGIN}/p0.thumb.png`,
+                photos: [0, 1, 2].map((index) => ({
+                    id: `pho_hero_${String(index)}`,
+                    recipeId: 'ec000000-0000-4000-8000-00000000000f',
+                    key: `recipes/ec000000-0000-4000-8000-00000000000f/p${String(index)}.png`,
+                    url: `${PHOTO_ORIGIN}/p${String(index)}.png`,
+                    contentType: 'image/png',
+                    order: index + 1,
+                    createdAt: '2026-05-02T09:00:00.000Z',
+                })),
+            }),
+        ],
+    });
 
-        const heading = page.getByRole('heading', { level: 1, name: 'Blistered Shishito Peppers' });
+    await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000000f'));
+}
+
+test.describe('recipe-detail hero', () => {
+    test('a recipe WITH photos leads with them, above the title on a phone, and shows the cover once', async ({
+        page,
+    }) => {
+        // Below a 960 px body the hero leads the page; from 960 it sits beside the title (the next test).
+        await page.setViewportSize({ width: 390, height: 844 });
+        await openRecipeWithPhotos(page);
+
+        const heading = page.getByRole('heading', { level: 1, name: TITLE });
         await expect(heading).toBeVisible();
 
-        // The hero is a real image named by the recipe (its alt text), not a decorative div.
-        const cover = page.getByRole('img', { name: 'Blistered Shishito Peppers' });
+        const cover = page.getByRole('img', { name: `${TITLE} photo 1` });
         await expect(cover).toBeVisible();
-
-        // …and it DECODED. `naturalWidth` is 0 for an image that failed to load, so this rejects a hero
-        // wired to the wrong field (or to nothing) even though the element and its alt text would exist.
+        await expect(cover).toHaveAttribute('src', `${PHOTO_ORIGIN}/p0.png`);
         await expect
             .poll(() => cover.evaluate((element) => (element instanceof HTMLImageElement ? element.naturalWidth : 0)))
             .toBeGreaterThan(0);
 
-        // Layout order: the cover's box ends at or before the title's begins — the cover LEADS the screen.
         const coverBox = await cover.boundingBox();
         const headingBox = await heading.boundingBox();
         expect(coverBox).not.toBeNull();
         expect(headingBox).not.toBeNull();
         expect((coverBox?.y ?? 0) + (coverBox?.height ?? 0)).toBeLessThanOrEqual(headingBox?.y ?? 0);
 
-        // A recipe WITH a cover must never also show the no-cover fallback.
+        const article = page.getByRole('article', { name: TITLE });
+        const coverSources = await article.evaluate(
+            (element, src) => [...element.querySelectorAll('img')].filter((img) => img.src === src).length,
+            `${PHOTO_ORIGIN}/p0.png`,
+        );
+        expect(coverSources).toBe(1);
+        await expect(page.getByRole('region', { name: 'Recipe photos' })).toHaveCount(1);
         await expect(page.getByRole('img', { name: NO_PHOTO_LABEL })).toHaveCount(0);
+    });
+
+    test('from a 960 px body the hero sits at the END beside the title block, not above it (§6.1)', async ({
+        page,
+    }) => {
+        await page.setViewportSize({ width: 1920, height: 1080 });
+        await openRecipeWithPhotos(page);
+
+        const coverBox = await page.getByRole('img', { name: `${TITLE} photo 1` }).boundingBox();
+        const headingBox = await page.getByRole('heading', { level: 1, name: TITLE }).boundingBox();
+
+        expect(coverBox).not.toBeNull();
+        expect(headingBox).not.toBeNull();
+        // Beside: the cover starts to the right of where the title ends, and overlaps it vertically.
+        expect(coverBox?.x ?? 0).toBeGreaterThanOrEqual((headingBox?.x ?? 0) + (headingBox?.width ?? 0));
+        expect(coverBox?.y ?? 0).toBeLessThan((headingBox?.y ?? 0) + (headingBox?.height ?? 0));
+    });
+
+    test('the hero is at most 40% of the window tall on a phone held sideways', async ({ page }) => {
+        await page.setViewportSize({ width: 844, height: 390 });
+        await openRecipeWithPhotos(page);
+
+        const box = await page.getByRole('img', { name: `${TITLE} photo 1` }).boundingBox();
+        expect(box?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(390 * 0.4 + 1);
+    });
+
+    test('the hero is at most 480 px tall on a wide screen', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await openRecipeWithPhotos(page);
+
+        const box = await page.getByRole('img', { name: `${TITLE} photo 1` }).boundingBox();
+        expect(box?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(481);
     });
 
     test('a recipe WITHOUT a cover shows the labelled fallback and renders no <img> at all', async ({ page }) => {
@@ -84,19 +140,33 @@ test.describe('recipe-detail hero cover', () => {
         await mockRecipeApi(page, {
             viewerId,
             tier: 'premium',
-            recipes: [makeRecipeDetail({ id: 'rec_bare', ownerId: viewerId, title: 'Weeknight Dal' })],
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000006',
+                    ownerId: viewerId,
+                    title: 'Weeknight Dal',
+                }),
+            ],
         });
 
-        await page.goto(route('/recipes/rec_bare'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000006'));
 
-        // The title still renders (the hero box keeps its full height, so nothing is truncated or jumped).
         await expect(page.getByRole('heading', { level: 1, name: 'Weeknight Dal' })).toBeVisible();
 
-        // The fallback is a single perceivable, LABELLED thing — announced once, not a silent grey rectangle.
-        const fallback = page.getByRole('img', { name: NO_PHOTO_LABEL });
-        await expect(fallback).toBeVisible();
-        const fallbackBox = await fallback.boundingBox();
-        expect(fallbackBox?.height ?? 0).toBeGreaterThan(0);
+        // Rewritten for F10 (`evaluateFinal.md`): no photo is the 96 px monogram band (§1.8, §6.7), decorative because
+        // the H1 names the recipe — not a labelled picture glyph, which read as "the image failed".
+        await expect(page.getByRole('img', { name: NO_PHOTO_LABEL })).toHaveCount(0);
+        const band = await page.getByRole('article', { name: 'Weeknight Dal' }).evaluate((article) => {
+            const cover = Array.from(article.querySelectorAll('div')).find(
+                (node) => getComputedStyle(node).containerType === 'size',
+            );
+
+            return cover === undefined
+                ? null
+                : { height: cover.getBoundingClientRect().height, text: cover.textContent };
+        });
+        expect(band?.height).toBe(96);
+        expect(band?.text).toContain('W');
 
         // The DESIGN RULE, asserted as such: the fallback renders NO `<img>` element, because an empty `src`
         // paints a broken-image glyph. Scoped to the detail article, and read off the DOM rather than through

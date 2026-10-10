@@ -1,0 +1,124 @@
+/**
+ * Tests for {@link useIngredientsPaste} — the one composition of Paste a list both editor containers call (build spec
+ * §7.5.4; D10): what the field group draws, whether the heading offers it, and the sheet. The paste hook is a double; the
+ * sheet's state is the real one.
+ */
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+import type { PasteIntoIngredients } from '../usePasteIntoIngredients.js';
+
+const double = vi.hoisted(() => ({ current: undefined as PasteIntoIngredients | undefined }));
+
+vi.mock('../usePasteIntoIngredients.js', () => ({
+    usePasteIntoIngredients: () => double.current,
+}));
+
+import { createPasteHold, type PasteHold } from '../pasteHold.js';
+import { useIngredientsPaste } from '../useIngredientsPaste.js';
+
+const paste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients => ({
+    available: true,
+    submit: vi.fn(),
+    submitting: false,
+    failed: false,
+    clearFailure: vi.fn(),
+    acceptedCount: 0,
+    reading: [],
+    retry: vi.fn(),
+    added: undefined,
+    ...over,
+});
+
+const render = (
+    over: Partial<PasteIntoIngredients>,
+    lines: number,
+    initiallyOpen = false,
+    hold: PasteHold = createPasteHold(),
+) => {
+    double.current = paste(over);
+
+    return renderHook(() =>
+        useIngredientsPaste({
+            offered: true,
+            keepsSource: true,
+            dispatch: vi.fn(),
+            lineCount: lines,
+            initiallyOpen,
+            hold,
+        }),
+    );
+};
+
+describe('useIngredientsPaste', () => {
+    it('an empty section offers paste beside the add field, not in its heading', () => {
+        const { result } = render({}, 0);
+
+        expect(result.current.inHeading).toBe(false);
+        expect(result.current.view.onOpen).toBeDefined();
+    });
+
+    it('a section with lines offers it in its heading, and not beside the add field', () => {
+        const { result } = render({}, 2);
+
+        expect(result.current.inHeading).toBe(true);
+        expect(result.current.view.onOpen).toBeUndefined();
+    });
+
+    it('⛔ once paste is not offered (D10: after the first publish), nothing offers it', () => {
+        const { result } = render({ available: false }, 2);
+
+        expect(result.current.inHeading).toBe(false);
+        expect(result.current.view.onOpen).toBeUndefined();
+    });
+
+    it('opening it from the section opens the sheet', () => {
+        const { result } = render({}, 0);
+
+        act(() => result.current.view.onOpen?.());
+
+        expect(result.current.sheet.open).toBe(true);
+    });
+
+    it('Home’s first-run Paste ingredients opens the sheet at once', () => {
+        expect(render({}, 0, true).result.current.sheet.open).toBe(true);
+    });
+
+    it('Publish waits while pasted lines are still joining the recipe', () => {
+        expect(render({}, 0).result.current.pending).toBe(false);
+        expect(
+            render({ reading: [{ key: 'j:0', sourceLine: '2 cups flour', state: 'reading' }] }, 0).result.current
+                .pending,
+        ).toBe(true);
+        expect(render({ submitting: true }, 0).result.current.pending).toBe(true);
+    });
+
+    it('hands the field group the rows still reading, Try again, and the count said once a paste ends', () => {
+        const retry = vi.fn();
+        const reading = [{ key: 'j:0', sourceLine: '2 cups flour', state: 'failed' as const }];
+        const { result } = render({ reading, retry, added: { count: 3, occurrence: 2 } }, 1);
+
+        expect(result.current.view).toMatchObject({ reading, onRetry: retry, added: { count: 3, occurrence: 2 } });
+    });
+
+    /**
+     * The hold the editor reads before its server create (A1's `pasteHold.ts`): this paste is its one writer. It holds
+     * while the paste is sent or its lines are reading, lets go when they have joined, and lets go if the paste unmounts.
+     */
+    it('⛔ holds the shared paste hold while pending, and lets go when done or unmounted', () => {
+        const hold = createPasteHold();
+        const view = render({ submitting: true }, 0, false, hold);
+        expect(hold.get()).toBe(true);
+
+        double.current = paste({ reading: [] });
+        view.rerender();
+        expect(hold.get()).toBe(false);
+
+        double.current = paste({ reading: [{ key: 'l1', sourceLine: '2 cups flour', state: 'reading' }] });
+        view.rerender();
+        expect(hold.get()).toBe(true);
+
+        view.unmount();
+        expect(hold.get()).toBe(false);
+    });
+});

@@ -2,7 +2,7 @@ appId: io.commise.mobile
 ---
 # Recipe photo manager surface (T067, CP-6/P3 photo-upload user story). Assumes an authenticated session
 # (auth flow runs first in CI) and a seeded recipe API. Drives list -> detail -> edit, and asserts the shared
-# photo-manager block (`RecipePhotoManager.native.tsx`, mounted by `RecipeEditScreen`) renders its accessible
+# photo-manager block (`RecipePhotoUploader`, mounted by `RecipeEditorScreen`) renders its accessible
 # "Photos" section, the empty state, and the add-photo control. Mobile counterpart to the web Playwright spec
 # `recipePhotos.spec.ts`.
 #
@@ -42,88 +42,38 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
 # `when: visible` guard that would silently SKIP if it were below the fold.
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
-# RecipeDetailScreen: the owner's edit entry point sits in the owner-action block at the foot of the detail.
+- tapOn: '${E2E_RECIPE_LAMB}'
+# RecipeDetailScreen: the owner's edit entry point sits in the detail's TITLE BAND, beside the recipe name
+# (it used to sit at the foot of the detail); the band is below the hero, so it may still need a scroll.
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
 
-# The wizard opens on step 1 and has NO page heading of its own — that "Edit recipe" copy belonged to the
-# retired flat `RecipeForm`, and this flow's old `assertVisible: 'Edit recipe'` here was asserting the detail
-# screen's own button label from inside the editor that replaced it. The step-progress label is the entry
-# checkpoint instead (the same checkpoint `create.yaml`, `edit.yaml` and `versions.yaml` already use).
-- assertVisible: 'Step 1 of 4'
+# REWRITTEN for slice 7: the one-page editor. Its × ('Close editor') is the header's deliberate exit and the entry
+# checkpoint; the editor's own control, so unlike a bare `Back` it cannot be satisfied by Android's system bar, which
+# publishes a node named exactly `Back` under three-button navigation (`com.android.systemui:id/back`).
+- assertVisible: 'Close editor'
+# The pinned action bar is on screen from the top of the page: Preview, and the published lamb's `Save changes`.
+- assertVisible: 'Preview'
+- assertVisible: 'Save changes'
 
-# The photo manager is STEP 4's body (`RecipeEditScreen` passes `RecipePhotoUploader` as `photosSlot`), not a
-# block at the foot of one long scrolling form — w3 replaced that flat form with the screen-per-step wizard.
-# Walk forward through the footer `Next: …` primaries to reach it.
+# ⛔ THE PHOTO MANAGER IS THE LAST SECTION ("Photos & publish"), on the same page as everything else, so the flow
+# reaches it by scrolling — no step to walk to. It renders only for a stored recipe (photos attach to a server id),
+# which the seeded lamb is.
 #
-# Steps 2 and 3 CANNOT be passed through untouched (this flow's previous assumption, which stranded it on step
-# 2): each `Next: …` is gated by `canAdvanceFromStep`, and `recipe-service`'s seed inserts the recipe row
-# directly via SQL with NO ingredients and NO steps (see `database/seed.ts`, and the same note in
-# `versions.yaml`). So step 2 refuses to advance until the draft has an ingredient and step 3 until it has an
-# instruction. Both are added here exactly as `versions.yaml` does — the freeform "Create …" path, whose name
-# is deliberately OUTSIDE the seeded catalog so it cannot collide with `search-navigation.yaml`'s "Flour"
-# ingredient filter. Nothing is saved (this flow never publishes), so the recipe itself is left untouched.
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-- assertVisible: 'Step 2 of 4'
-- scrollUntilVisible:
-      element: 'Search ingredients'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Search ingredients'
-- inputText: 'Tomato'
-- scrollUntilVisible:
-      element:
-          text: 'Create .*Tomato.*'
-      direction: DOWN
-      timeout: 20000
-- tapOn:
-      text: 'Create .*Tomato.*'
-- scrollUntilVisible:
-      element: 'Ingredient 1 name'
-      direction: DOWN
-      timeout: 30000
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
-- assertVisible: 'Step 3 of 4'
-- scrollUntilVisible:
-      element: 'Add step'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
-- inputText: 'Marinate for two hours.'
-- scrollUntilVisible:
-      element: 'Next: Photos'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Photos'
-- assertVisible: 'Step 4 of 4'
-
-# A freshly-seeded recipe carries no photos, so the manager renders its empty state + the add control. This
-# recipe IS persisted (an edit, not a create), so step 4 is the real manager rather than the "save first"
-# guidance notice a create shows.
-#
-# Anchored on "Add photo" — the LAST element of the manager block — not on "Photos": the step RAIL renders a
-# "Photos" marker of its own at the top of every step, so a scroll anchored there settles on try 0 without
-# ever moving (the same wrong-anchor trap `rating.yaml` fell into). Reaching "Add photo" puts the whole
-# manager, empty state included, on screen.
+# Anchored on "Add photo" — the LAST element of the manager block — not on "Photos": the section index names the
+# section too, so a scroll anchored there could settle without ever moving (the same wrong-anchor trap `rating.yaml`
+# fell into). Reaching "Add photo" puts the whole manager, empty state included, on screen.
 - scrollUntilVisible:
       element: 'Add photo'
       direction: DOWN
-      timeout: 20000
+      # ⚠️ 60 s, not 20: the one-page editor puts Photos below every step, and at speed 40 the lamb's four steps
+      # outlast 20 s on the swiftshader AVD (measured 2026-10-09: two runs stopped at Step 4).
+      timeout: 60000
 - assertVisible: 'No photos yet.'
 - assertVisible: 'Add photo'

@@ -1,372 +1,310 @@
 /**
- * Native component tests for the mockup-parity recipe card (rendered via react-native-web under jsdom).
- * Mirrors the web leaf's coverage — every field and every ABSENT state — but queries the RN accessibility
- * tree (role/label/text), never styles. A broken label, a fabricated rating, or a defaulted difficulty fails.
+ * The native recipe card's three variants (`docs/design/uiOverhaul/buildSpec.md` §4.1), rendered through
+ * react-native-web: the same invariants as the web leaf — one control named by the title, a decorative cover, no
+ * fabricated difficulty or rating, a level-1 card that is never glass (owner ruling D12) — plus the theme: every colour
+ * is read from `useTheme()` at render, so the card follows the system scheme (D15).
+ *
+ * ⚠️ REWRITTEN for slice 4 of the UI overhaul, with `RecipeCard.glass.native.test.tsx` deleted: D12 takes glass off
+ * cards. The iOS shadow-clipping invariants (shadow and clip never on one node) are kept, because the level-1 card
+ * still elevates and still clips its cover.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LocaleProvider } from '@commise/i18n/react';
-import { computedContrast } from '@commise/test-utils';
-import { palette, tint } from '@commise/ui';
-import { RecipeDifficulty } from '@kitchensink/recipe-core';
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
+import type { CardVariant } from '../cardVariant.js';
 import { toRecipeCardModel } from '../model.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCard } from '../RecipeCard.native.js';
 
-afterEach(cleanup);
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-const model = (over = {}) => toRecipeCardModel(makeRecipe(over));
-const renderCard = (ui: React.ReactElement) => render(<LocaleProvider locale="en">{ui}</LocaleProvider>);
-
-describe('RecipeCard (native)', () => {
-    it('renders the title, total time, and servings', () => {
-        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', totalTimeMinutes: 45, servings: 4 })} />);
-
-        expect(screen.getByText('Herb Risotto')).toBeTruthy();
-        expect(screen.getByText('45 min')).toBeTruthy();
-        expect(screen.getByLabelText('Serves 4')).toBeTruthy();
-    });
-
-    it('renders the cover image named by the title', () => {
-        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg' })} />);
-
-        expect(screen.getByRole('img', { name: 'Herb Risotto' })).toBeTruthy();
-    });
-
-    it('shows a labelled placeholder (no cover image) when the recipe has no photo', () => {
-        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', coverPhotoUrl: undefined })} />);
-
-        expect(screen.queryByRole('img', { name: 'Herb Risotto' })).toBeNull();
-        expect(screen.getByRole('img', { name: 'No photo yet' })).toBeTruthy();
-    });
-
-    it('shows the stated difficulty pill', () => {
-        renderCard(<RecipeCard recipe={model({ difficulty: 'hard' })} />);
-        expect(screen.getByText('Hard')).toBeTruthy();
-    });
-
-    it('renders NO difficulty pill when the author stated none', () => {
-        renderCard(<RecipeCard recipe={model({ difficulty: undefined })} />);
-
-        expect(screen.queryByText('Easy')).toBeNull();
-        expect(screen.queryByText('Medium')).toBeNull();
-        expect(screen.queryByText('Hard')).toBeNull();
-    });
-
-    it('shows the PRO badge with an accessible name when premium', () => {
-        renderCard(<RecipeCard recipe={model({ usesPremiumCapability: true })} />);
-
-        expect(screen.getByLabelText('Premium recipe')).toBeTruthy();
-        expect(screen.getByText('PRO')).toBeTruthy();
-    });
-
-    it('renders NO PRO badge when not premium', () => {
-        renderCard(<RecipeCard recipe={model({ usesPremiumCapability: false })} />);
-
-        expect(screen.queryByText('PRO')).toBeNull();
-    });
-
-    it('exposes a rated recipe as a star image named by the Intl average and pluralized count', () => {
-        renderCard(<RecipeCard recipe={model({ averageRating: 4.5, ratingCount: 12 })} />);
-
-        expect(screen.getByRole('img', { name: 'Rated 4.5 out of 5, 12 ratings' })).toBeTruthy();
-    });
-
-    it('shows the unrated state (no fabricated stars) when there are no ratings', () => {
-        renderCard(<RecipeCard recipe={model({ ratingCount: 0 })} />);
-
-        expect(screen.getByText('Not yet rated')).toBeTruthy();
-        expect(screen.queryByRole('img', { name: /Rated/ })).toBeNull();
-    });
-
-    // U4 contrast (WCAG AA): a rated-but-all-empty row (average 0) renders 5 empty pips — each must be the
-    // AA-legible slate, not the old 1.9:1 mist.
-    it('renders empty star pips in slate (AA), not the 1.9:1 mist', () => {
-        renderCard(<RecipeCard recipe={model({ averageRating: 0, ratingCount: 3 })} />);
-
-        const pips = screen.getAllByText('★');
-        expect(pips).toHaveLength(5);
-        for (const pip of pips) {
-            expect(window.getComputedStyle(pip).color).toBe('rgb(99, 110, 114)');
-        }
-    });
-
-    it('is non-interactive (no button) when no onSelect is given (the Home widget card)', () => {
-        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
-
-        expect(screen.queryByRole('button')).toBeNull();
-    });
-
-    it('is an actionable button reporting the recipe id when onSelect is given (the list card)', () => {
-        const onSelect = vi.fn();
-        renderCard(<RecipeCard recipe={model({ id: 'rec_42', title: 'Herb Risotto' })} onSelect={onSelect} />);
-
-        fireEvent.click(screen.getByRole('button', { name: 'Herb Risotto' }));
-
-        expect(onSelect).toHaveBeenCalledTimes(1);
-        expect(onSelect).toHaveBeenCalledWith('rec_42');
-    });
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
 });
 
-/**
- * iOS clips a layer's drop shadow when the SAME layer sets `overflow: 'hidden'` — so a card that both
- * elevates and clips its cover image renders flat on iOS (Android's `elevation` is unaffected, which is
- * exactly why this regressed silently). The fix is structural: the shadow lives on a NON-clipping outer
- * shell, the clip on the inner content view. These assertions read the real computed style, so they fail if
- * the two ever collapse back onto one node.
- */
+afterEach(() => {
+    cleanup();
+    systemScheme.current = null;
+});
+
+const model = (over: Parameters<typeof makeRecipe>[0] = {}) => toRecipeCardModel(makeRecipe(over));
+const renderCard = (ui: React.ReactElement) => render(<LocaleProvider locale="en">{ui}</LocaleProvider>);
+const VARIANTS: readonly CardVariant[] = ['grid', 'row', 'compact'];
+
 const domNodes = (container: HTMLElement): readonly HTMLElement[] => [...container.querySelectorAll<HTMLElement>('*')];
-/** Nodes painting a drop shadow (react-native-web compiles RN `shadow*` props to a `box-shadow` rule). */
 const shadowed = (container: HTMLElement): readonly HTMLElement[] =>
     domNodes(container).filter((node) => window.getComputedStyle(node).boxShadow !== '');
-/** Nodes that clip their overflow — the layers that would mask a co-located shadow on iOS. */
 const clipping = (container: HTMLElement): readonly HTMLElement[] =>
     domNodes(container).filter((node) => window.getComputedStyle(node).overflowX === 'hidden');
 
-describe.each([
-    ['non-interactive widget card', undefined],
-    ['actionable list card', () => undefined],
-] as const)('RecipeCard (native) — iOS shadow clipping (%s)', (_name, onSelect) => {
-    const renderVariant = () =>
+describe.each(VARIANTS)('RecipeCard (native, %s) — what every variant keeps', (variant) => {
+    it('shows the title', () => {
+        renderCard(<RecipeCard variant={variant} recipe={model({ title: 'Herb Risotto' })} />);
+
+        expect(screen.getByText('Herb Risotto')).toBeTruthy();
+    });
+
+    it('keeps the cover photo out of the accessibility tree', () => {
+        const { container } = renderCard(
+            <RecipeCard variant={variant} recipe={model({ coverPhotoUrl: 'https://cdn/x.jpg', ratingCount: 0 })} />,
+        );
+
+        const cover = container.querySelector('img[src="https://cdn/x.jpg"]');
+        expect(cover?.closest('[aria-hidden="true"]')).not.toBeNull();
+    });
+
+    it('is ONE link named by the title when actionable, reporting the recipe id', () => {
+        const onSelect = vi.fn();
         renderCard(
             <RecipeCard
-                recipe={model({ id: 'rec_9', title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg' })}
-                {...(onSelect === undefined ? {} : { onSelect })}
+                variant={variant}
+                recipe={model({ id: 'rec_42', title: 'Herb Risotto' })}
+                onSelect={onSelect}
             />,
         );
 
-    it('paints the card elevation on exactly ONE node', () => {
-        const { container } = renderVariant();
+        const links = screen.getAllByRole('link', { name: 'Herb Risotto' });
+        expect(links).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Herb Risotto')).toHaveLength(1);
 
-        const elevated = shadowed(container);
-        expect(elevated).toHaveLength(1);
-        // The tokenized `md` elevation, not an ad-hoc shadow.
-        expect(window.getComputedStyle(elevated[0]!).boxShadow).toBe('0px 4px 6px rgba(45,52,54,0.07)');
+        fireEvent.click(links[0]!);
+
+        expect(onSelect).toHaveBeenCalledWith('rec_42');
     });
 
-    it('keeps the elevated node NON-clipping (iOS would otherwise mask its own shadow)', () => {
-        const { container } = renderVariant();
+    it('is inert with no onSelect', () => {
+        renderCard(<RecipeCard variant={variant} recipe={model()} />);
 
-        expect(window.getComputedStyle(shadowed(container)[0]!).overflowX).not.toBe('hidden');
-    });
-
-    it('never puts a shadow and a clip on the same node', () => {
-        const { container } = renderVariant();
-
-        for (const node of clipping(container)) {
-            expect(window.getComputedStyle(node).boxShadow).toBe('');
-        }
-    });
-
-    it('clips the cover INSIDE the elevated shell (the clip moved in, it was not dropped)', () => {
-        const { container } = renderVariant();
-
-        const shell = shadowed(container)[0]!;
-        // The cover image is still clipped to the rounded corners — by a content view NESTED in the shell,
-        // never by the shell itself.
-        const coverClip = clipping(container).find((node) => node !== shell && node.querySelector('img') !== null);
-        expect(coverClip).toBeDefined();
-        expect(shell.contains(coverClip!)).toBe(true);
-    });
-
-    it('gives the elevated shell a PAINTED surface (iOS casts no shadow from a fully transparent layer)', () => {
-        const { container } = renderVariant();
-        const background = window.getComputedStyle(shadowed(container)[0]!).backgroundColor;
-
-        // The invariant is that the elevated layer is PAINTED, not that it is opaque white: since U8's glass
-        // treatment the fill is the tier's translucent `surface` (an opaque fill would paint over the
-        // translucency and cancel the frost). What must never happen is a fully transparent shell, which iOS
-        // would cast no shadow from at all.
-        expect(background).not.toBe('');
-        expect(background).not.toBe('rgba(0, 0, 0, 0)');
-        expect(background).not.toBe('transparent');
-    });
-});
-
-describe('RecipeCard (native) — U8 brand treatment', () => {
-    it('wraps the actionable card in a single press-feedback button (no nested pressables)', () => {
-        const onSelect = vi.fn();
-        renderCard(<RecipeCard recipe={model({ id: 'rec_7', title: 'Herb Risotto' })} onSelect={onSelect} />);
-
-        // PressScale (native) OWNS the Pressable — there must be exactly ONE button (a stray inner Pressable
-        // from a botched wrap would surface as a second button), named by the title, still reporting the id.
-        const buttons = screen.getAllByRole('button', { name: 'Herb Risotto' });
-        expect(buttons).toHaveLength(1);
-
-        fireEvent.click(buttons[0]!);
-        expect(onSelect).toHaveBeenCalledWith('rec_7');
-    });
-
-    it('adds NO press button to the non-interactive widget card (no onSelect)', () => {
-        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
-
+        expect(screen.queryByRole('link')).toBeNull();
         expect(screen.queryByRole('button')).toBeNull();
     });
+
+    it('names the PRO badge for a premium recipe only', () => {
+        const { unmount } = renderCard(
+            <RecipeCard variant={variant} recipe={model({ usesPremiumCapability: true })} />,
+        );
+
+        expect(screen.getByLabelText('Premium recipe')).toBeTruthy();
+        unmount();
+        renderCard(<RecipeCard variant={variant} recipe={model({ usesPremiumCapability: false })} />);
+
+        expect(screen.queryByLabelText('Premium recipe')).toBeNull();
+    });
+
+    it.each<['light' | 'dark', string, string]>([
+        ['light', role.paper, role.lineDivider],
+        ['dark', roleDark.paper, roleDark.lineDivider],
+    ])('is a %s level-1 card: paper with a divider hairline, never glass', (name, paper, divider) => {
+        systemScheme.current = name;
+        const { container } = renderCard(<RecipeCard variant={variant} recipe={model({ title: 'Soup' })} />);
+        const shell = shadowed(container)[0]!;
+
+        expect(getComputedStyle(shell).backgroundColor).toBe(rgb(paper));
+        expect(getComputedStyle(shell).borderTopColor).toBe(rgb(divider));
+        expect(container.innerHTML).not.toMatch(/backdrop-filter/u);
+    });
+
+    it.each<['light' | 'dark', string]>([
+        ['light', role.ink],
+        ['dark', roleDark.ink],
+    ])('draws the %s title in ink', (name, ink) => {
+        systemScheme.current = name;
+        renderCard(<RecipeCard variant={variant} recipe={model({ title: 'Soup' })} />);
+
+        expect(getComputedStyle(screen.getByText('Soup')).color).toBe(rgb(ink));
+    });
+
+    it('elevates ONE node, which never clips, and clips the cover inside it (iOS masks a co-located shadow)', () => {
+        const { container } = renderCard(
+            <RecipeCard variant={variant} recipe={model({ coverPhotoUrl: 'https://cdn/x.jpg' })} onSelect={vi.fn()} />,
+        );
+        const elevated = shadowed(container);
+
+        expect(elevated).toHaveLength(1);
+        expect(getComputedStyle(elevated[0]!).overflowX).not.toBe('hidden');
+
+        for (const node of clipping(container)) {
+            expect(getComputedStyle(node).boxShadow).toBe('');
+        }
+
+        expect(clipping(container).some((node) => elevated[0]!.contains(node) && node.querySelector('img'))).toBe(true);
+    });
 });
 
-describe('RecipeCard (native) — merged fields (CR-002 / L2·L3)', () => {
-    it('renders the cuisine when present, and nothing when absent', () => {
-        renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);
-        expect(screen.getByText('Mediterranean')).toBeTruthy();
-
-        cleanup();
-        renderCard(<RecipeCard recipe={model({ cuisine: undefined, title: 'No Cuisine' })} />);
-        expect(screen.queryByText('Mediterranean')).toBeNull();
-    });
-
-    it('renders the localized calorie line when present, and none when absent', () => {
-        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: 420 })} />);
-        expect(screen.getByText('420 cal')).toBeTruthy();
-
-        cleanup();
-        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: undefined, title: 'No Cal' })} />);
-        expect(screen.queryByText(/cal$/)).toBeNull();
-    });
-
-    it('renders each tag as a chip', () => {
-        renderCard(<RecipeCard recipe={model({ tags: ['grill', 'summer'] })} />);
-
-        expect(screen.getByText('grill')).toBeTruthy();
-        expect(screen.getByText('summer')).toBeTruthy();
-    });
-
-    // U4 contrast (WCAG AA) — the one place this suite asserts computed colour rather than the a11y tree,
-    // because a colour fix is not observable in the tree.
-    it('renders tag chips with a slate (AA-legible) text colour, not the 2.2:1 coral', () => {
-        renderCard(<RecipeCard recipe={model({ tags: ['grill'] })} />);
-
-        expect(window.getComputedStyle(screen.getByText('grill')).color).toBe('rgb(99, 110, 114)');
-    });
-
-    // The cuisine and visibility chips share ONE `styles.chip` (tint + text tone), so both are measured: a
-    // regression to either would show up on both surfaces. The ratio is read from the leaf's own compiled
-    // style and its own tint, so re-theming the palette moves the measurement rather than passing anyway.
-    it('makes the cuisine chip label legible over its own seafoam tint', () => {
-        renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);
-
-        expect(computedContrast(screen.getByText('Mediterranean')), 'cuisine chip label').toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('makes the visibility chip label legible over that same tint', () => {
-        renderCard(<RecipeCard recipe={model({ visibility: 'public', status: 'published' })} />);
-
-        expect(computedContrast(screen.getByText('Public')), 'visibility chip label').toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('shows the version badge past v1 and hides it at v1', () => {
-        renderCard(<RecipeCard recipe={model({ currentVersion: 12 })} />);
-        expect(screen.getByText('v12')).toBeTruthy();
-
-        cleanup();
-        renderCard(<RecipeCard recipe={model({ currentVersion: 1 })} />);
-        expect(screen.queryByText('v1')).toBeNull();
-    });
-
-    it('shows a visibility badge (Public / Private) for a published recipe', () => {
-        renderCard(<RecipeCard recipe={model({ visibility: 'public', status: 'published' })} />);
-        expect(screen.getByText('Public')).toBeTruthy();
-
-        cleanup();
-        renderCard(<RecipeCard recipe={model({ visibility: 'private', status: 'published' })} />);
-        expect(screen.getByText('Private')).toBeTruthy();
-    });
-
-    it('shows a Draft badge that REPLACES the visibility badge for a draft', () => {
-        renderCard(<RecipeCard recipe={model({ visibility: 'public', status: 'draft' })} />);
+describe('RecipeCard (native, grid)', () => {
+    it('chips the cover with Draft and the time in hours and minutes', () => {
+        renderCard(<RecipeCard variant="grid" recipe={model({ status: RecipeStatus.DRAFT, totalTimeMinutes: 330 })} />);
 
         expect(screen.getByText('Draft')).toBeTruthy();
-        expect(screen.queryByText('Public')).toBeNull();
-        expect(screen.queryByText('Private')).toBeNull();
-    });
-});
-
-describe('RecipeCard (native) — relative timestamp (CR-002 / recipe-list wireframe)', () => {
-    beforeEach(() => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2026-07-24T12:00:00.000Z'));
+        expect(screen.getByLabelText('330 minutes total time')).toBeTruthy();
+        expect(screen.getByText('5 h 30 min')).toBeTruthy();
     });
 
-    afterEach(() => {
-        vi.useRealTimers();
+    it('says the stated difficulty, and nothing when none was stated', () => {
+        const { unmount } = renderCard(
+            <RecipeCard variant="grid" recipe={model({ difficulty: RecipeDifficulty.HARD })} />,
+        );
+
+        expect(screen.getByText('Hard')).toBeTruthy();
+        unmount();
+        renderCard(<RecipeCard variant="grid" recipe={model({ difficulty: undefined })} />);
+
+        expect(screen.queryByText('Hard')).toBeNull();
     });
 
-    it('renders "Edited {relative}" when the recipe was revised after it was created', () => {
+    it('names a rated recipe’s stars with the short figure, and says an unrated one has none', () => {
+        const { unmount } = renderCard(
+            <RecipeCard variant="grid" recipe={model({ averageRating: 4.75, ratingCount: 12 })} />,
+        );
+
+        expect(screen.getByRole('img', { name: 'Rated 4.8 out of 5, 12 ratings' })).toBeTruthy();
+        expect(screen.getByText('4.8 (12)')).toBeTruthy();
+        unmount();
+        renderCard(<RecipeCard variant="grid" recipe={model({ ratingCount: 0 })} />);
+
+        expect(screen.getByText('No ratings yet')).toBeTruthy();
+    });
+
+    it.each<['light' | 'dark', string]>([
+        ['light', role.rating],
+        ['dark', roleDark.rating],
+    ])('fills the %s stars in the rating role', (name, rating) => {
+        systemScheme.current = name;
+        renderCard(<RecipeCard variant="grid" recipe={model({ averageRating: 5, ratingCount: 1 })} />);
+        const star = screen.getByRole('img', { name: /Rated/u }).querySelector('div, span');
+
+        expect(star === null ? '' : getComputedStyle(star).color).toBe(rgb(rating));
+    });
+
+    it('renders the cuisine, the nutrition slot, the servings, the tags line and the footer', () => {
         renderCard(
             <RecipeCard
+                variant="grid"
                 recipe={model({
-                    createdAt: '2026-06-01T12:00:00.000Z',
-                    updatedAt: '2026-07-22T12:00:00.000Z',
+                    cuisine: 'Moroccan',
+                    servings: 8,
+                    tags: ['a', 'b', 'c'],
+                    currentVersion: 3,
+                    createdAt: '2020-01-01T00:00:00.000Z',
+                    updatedAt: '2020-01-02T00:00:00.000Z',
                 })}
+                nutrition={<span>612 cal</span>}
             />,
         );
 
-        expect(screen.getByText('Edited 2d ago')).toBeTruthy();
-    });
-
-    it('renders "Created {relative}" (never "Edited") when the recipe has never been revised', () => {
-        renderCard(
-            <RecipeCard
-                recipe={model({
-                    createdAt: '2026-07-17T12:00:00.000Z',
-                    updatedAt: '2026-07-17T12:00:00.000Z',
-                })}
-            />,
-        );
-
-        expect(screen.getByText('Created 1w ago')).toBeTruthy();
-        expect(screen.queryByText(/^Edited/)).toBeNull();
+        expect(screen.getByText('Moroccan')).toBeTruthy();
+        expect(screen.getByText('612 cal')).toBeTruthy();
+        expect(screen.getByText('Serves 8')).toBeTruthy();
+        expect(screen.getByText('a · b · +1')).toBeTruthy();
+        expect(screen.getByText(/^v3 · Edited /u)).toBeTruthy();
     });
 });
 
-/** Each difficulty and the semantic tone whose FILL its pill paints — the map both platform leaves share. */
-const DIFFICULTY_PILLS: readonly {
-    readonly difficulty: RecipeDifficulty;
-    readonly label: string;
-    readonly tone: string;
-}[] = [
-    { difficulty: RecipeDifficulty.EASY, label: 'Easy', tone: 'success' },
-    { difficulty: RecipeDifficulty.MEDIUM, label: 'Medium', tone: 'warning' },
-    { difficulty: RecipeDifficulty.HARD, label: 'Hard', tone: 'error' },
-];
+describe('RecipeCard (native, row)', () => {
+    it.each<[RecipeVisibility, string]>([
+        [RecipeVisibility.PRIVATE, 'Private'],
+        [RecipeVisibility.PUBLIC, 'Public'],
+    ])('draws a published %s recipe’s visibility as a named glyph', (visibility, name) => {
+        renderCard(<RecipeCard variant="row" recipe={model({ status: RecipeStatus.PUBLISHED, visibility })} />);
 
-describe('RecipeCard (native) — labels on FILLED accents (WCAG 2.1 AA, #113)', () => {
-    // The native mirror of the web card's filled-accent assertions. Both platforms had `palette.white` on
-    // `palette.success` (2.72:1) and on `palette.premium` (2.23:1); measuring both leaves is what keeps a fix
-    // to one platform from silently leaving the other behind — the divergence class this issue also found in
-    // the step marker.
-    it.each(DIFFICULTY_PILLS)(
-        'reads the $label difficulty pill on its own filled $tone fill',
-        ({ difficulty, label }) => {
-            renderCard(<RecipeCard recipe={model({ difficulty })} />);
+        expect(screen.getByLabelText(name)).toBeTruthy();
+        expect(screen.queryByText(name)).toBeNull();
+    });
 
-            expect(computedContrast(screen.getByText(label)), `${label} difficulty pill`).toBeGreaterThanOrEqual(4.5);
+    it('drops the tags and the version', () => {
+        renderCard(<RecipeCard variant="row" recipe={model({ tags: ['vegan'], currentVersion: 9 })} />);
+
+        expect(screen.queryByText(/vegan/u)).toBeNull();
+        expect(screen.queryByText(/v9/u)).toBeNull();
+    });
+});
+
+describe('RecipeCard (native, compact)', () => {
+    it('is the cover and the title only', () => {
+        renderCard(
+            <RecipeCard variant="compact" recipe={model({ cuisine: 'Thai', averageRating: 4, ratingCount: 2 })} />,
+        );
+
+        expect(screen.queryByText('Thai')).toBeNull();
+        expect(screen.queryByRole('img', { name: /Rated/u })).toBeNull();
+    });
+});
+
+describe('RecipeCard (native) — slots for a surface’s own controls', () => {
+    it.each(['grid', 'compact'] as const)(
+        'draws a %s footer whose control is NOT inside the card’s link',
+        (variant) => {
+            const onSelect = vi.fn();
+            const onCopy = vi.fn();
+            renderCard(
+                <RecipeCard
+                    variant={variant}
+                    recipe={model({ id: 'rec_1', title: 'Herb Risotto' })}
+                    onSelect={onSelect}
+                    footer={
+                        <button type="button" onClick={onCopy}>
+                            Save a copy of Herb Risotto
+                        </button>
+                    }
+                />,
+            );
+            const link = screen.getByRole('link', { name: 'Herb Risotto' });
+            const control = screen.getByRole('button', { name: 'Save a copy of Herb Risotto' });
+
+            expect(link.contains(control)).toBe(false);
+
+            fireEvent.click(control);
+
+            expect(onCopy).toHaveBeenCalledOnce();
+            expect(onSelect).not.toHaveBeenCalled();
         },
     );
 
-    it('reads the PRO badge on its filled premium fill', () => {
-        renderCard(<RecipeCard recipe={model({ usesPremiumCapability: true })} />);
-
-        expect(computedContrast(screen.getByText('PRO')), 'PRO badge').toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('paints the cuisine chip tint from the seafoam TOKEN, not a frozen rgba() literal', () => {
-        renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);
-
-        // The tint used to be spelled `rgba(61, 139, 133, 0.1)` by hand. That is the pre-#113 seafoam, so the
-        // token move left web's `bg-seafoam/10` and this chip painting two DIFFERENT teals — a divergence no
-        // ratio assertion catches, because both still cleared the floor.
-        expect(window.getComputedStyle(screen.getByText('Mediterranean')).backgroundColor).toBe(
-            tint(palette.seafoam, 0.1),
+    it('replaces the own-recipe footer in the grid card', () => {
+        renderCard(
+            <RecipeCard
+                variant="grid"
+                recipe={model({ title: 'Herb Risotto', currentVersion: 12 })}
+                footer={<span>@braise.club</span>}
+            />,
         );
+
+        expect(screen.getByText('@braise.club')).toBeTruthy();
+        expect(screen.queryByText(/v12/u)).toBeNull();
     });
 
-    it('paints the tag chip tint from the coral TOKEN', () => {
-        renderCard(<RecipeCard recipe={model({ tags: ['grill'] })} />);
+    it('draws a row’s note inside the link and its trailing control outside it', () => {
+        const onSelect = vi.fn();
+        const onMenu = vi.fn();
+        renderCard(
+            <RecipeCard
+                variant="row"
+                recipe={model({ title: 'Herb Risotto' })}
+                onSelect={onSelect}
+                note={<span>Added by you</span>}
+                trailing={
+                    <button type="button" onClick={onMenu}>
+                        More actions for Herb Risotto
+                    </button>
+                }
+            />,
+        );
+        const link = screen.getByRole('link', { name: 'Herb Risotto' });
+        const menu = screen.getByRole('button', { name: 'More actions for Herb Risotto' });
 
-        expect(window.getComputedStyle(screen.getByText('grill')).backgroundColor).toBe(tint(palette.coral, 0.1));
+        expect(link.contains(screen.getByText('Added by you'))).toBe(true);
+        expect(link.contains(menu)).toBe(false);
+
+        fireEvent.click(menu);
+
+        expect(onMenu).toHaveBeenCalledOnce();
+        expect(onSelect).not.toHaveBeenCalled();
     });
 });

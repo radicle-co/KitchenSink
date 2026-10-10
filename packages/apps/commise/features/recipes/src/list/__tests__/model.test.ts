@@ -10,29 +10,15 @@ import { toRecipeCardModel } from '../../card/model.js';
 import {
     QUICK_TIME_FACET,
     QUICK_TIME_THRESHOLD_MINUTES,
-    fillTemplate,
     filterChipLabel,
     formatDurationMinutes,
     formatRecipeCount,
     isListNarrowed,
     isQuickRecipe,
     matchesListFacet,
+    shouldShowCreateButton,
     toRecipeListItem,
 } from '../model.js';
-
-describe('fillTemplate', () => {
-    it('substitutes a single named token', () => {
-        expect(fillTemplate('{count} recipes', { count: 6 })).toBe('6 recipes');
-    });
-
-    it('substitutes multiple named tokens', () => {
-        expect(fillTemplate('{a} of {b}', { a: 1, b: 2 })).toBe('1 of 2');
-    });
-
-    it('leaves an unknown token untouched (never throws)', () => {
-        expect(fillTemplate('{count} of {missing}', { count: 3 })).toBe('3 of {missing}');
-    });
-});
 
 describe('toRecipeListItem', () => {
     it('is the shared card projection (the list and widget draw the identical card)', () => {
@@ -164,5 +150,34 @@ describe('isListNarrowed (the empty-vs-no-match discriminator)', () => {
 
     it('is true when both a term and a facet are active', () => {
         expect(isListNarrowed('lamb', ['Vegetarian'])).toBe(true);
+    });
+});
+
+describe('shouldShowCreateButton (U34)', () => {
+    // REWRITTEN for the suspense split. The policy used to carry four gates — loading, error, true-empty, Community —
+    // and now carries one. Loading and error are no longer answered HERE but by which boundary branch renders:
+    // `RecipeListLoading` mounts no dial (its own test holds the mid-press-unmount defect) and `RecipeListLoadError`
+    // mounts it unconditionally (its own test holds "a failed load keeps a create affordance"). The Community gate
+    // went with the Community branch of this list, which no host renders — the community surface is discovery.
+    const show = (over: Partial<Parameters<typeof shouldShowCreateButton>[0]> = {}) =>
+        shouldShowCreateButton({ recipeCount: 3, narrowed: false, ...over });
+
+    it('shows the dial over populated results', () => {
+        expect(show()).toBe(true);
+        expect(show({ recipeCount: 1 })).toBe(true);
+    });
+
+    it('SUPPRESSES the dial on a TRUE empty library — the empty-state CTA is the sole create control there', () => {
+        expect(show({ recipeCount: 0 })).toBe(false);
+    });
+
+    it('KEEPS the dial on a narrowed zero, whose empty body renders no CTA to replace it', () => {
+        // The half that is easy to lose: a chip- or search-narrowed zero is a NO-MATCH, not a first run, so
+        // suppressing here would leave that viewer with no create affordance at all.
+        expect(show({ recipeCount: 0, narrowed: true })).toBe(true);
+    });
+
+    it('keeps the dial over narrowed populated results', () => {
+        expect(show({ recipeCount: 2, narrowed: true })).toBe(true);
     });
 });

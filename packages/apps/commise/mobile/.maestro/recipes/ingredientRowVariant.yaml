@@ -1,0 +1,89 @@
+appId: io.commise.mobile
+---
+# Curated U15 on the recipe form row (`docs/design/ingredientSpecialization.md` §S1, F3): a variant-bound line shows the
+# root's name with the variant's dotted line under it, a root-bound line beside it shows the name only, and the row's
+# nutrition sheet repeats the dotted line under its title. Mobile mirror of the web Playwright
+# `ingredientRowVariant.spec.ts`.
+#
+# It runs against the PR's deployed sandbox (ADR-0032) on the create form, where the web spec reads a saved recipe: the
+# variant-bound line is made by the search AE3 names (`ingredientVariantSearch.yaml`), so this flow needs the same
+# KTD-16 seed roots, `boneless skinless chicken breasts` and `beef brisket`, from the stage's catalog seed (ADR-0051).
+# A stage without them fails at a labelled step; the flow never skips.
+#
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: 'Maestro Row Variant'
+
+# A variant-bound line: the root carrying its one "fried" variant.
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'fried boneless skinless chicken breasts'
+- extendedWaitUntil:
+      visible:
+          text: 'boneless skinless chicken breasts, fried'
+      timeout: 30000
+      label: 'the catalog search found the KTD-16 root carrying its one "fried" variant'
+- tapOn: 'boneless skinless chicken breasts, fried'
+
+# A root-bound line beside it. A prefix, so the field's own text never matches the option's name, and the option is
+# below the trailing field, where row 1's own name cannot be.
+- extendedWaitUntil:
+      visible:
+          text: 'Actions for boneless skinless chicken breasts, fried'
+      timeout: 30000
+      label: 'the first line binds the "fried" variant'
+- tapOn: 'Add an ingredient'
+- inputText: 'beef bris'
+- extendedWaitUntil:
+      visible:
+          text: 'beef brisket'
+          below: 'Add an ingredient'
+      timeout: 30000
+      label: 'KTD-16 root "beef brisket" is in this stage’s food catalog'
+- tapOn:
+      text: 'beef brisket'
+      below: 'Add an ingredient'
+- scrollUntilVisible:
+      element: 'Edit beef brisket'
+      direction: DOWN
+      timeout: 30000
+
+# The variant's parts sit under the root name, and the root-bound line shows the name only (R28).
+- assertVisible:
+      text: 'fried'
+      below: 'Edit boneless skinless chicken breasts'
+- assertVisible: 'Actions for boneless skinless chicken breasts, fried'
+- assertVisible: 'Actions for beef brisket'
+- assertNotVisible: 'Actions for beef brisket, .*'
+# Never one comma-joined label (§S4).
+- assertNotVisible: 'boneless skinless chicken breasts, fried'
+
+# The row's Food details sheet (its ⋯, build spec §7.5.1) repeats the dotted line under its title row, which holds Close
+# (§S1). Anchored to Close, which only the sheet draws, so the row's own dotted line behind the sheet cannot satisfy it.
+- tapOn: 'Actions for boneless skinless chicken breasts, fried'
+- tapOn: 'Food details'
+- extendedWaitUntil:
+      visible:
+          text: 'Close details for boneless skinless chicken breasts, fried'
+      timeout: 20000
+- assertVisible:
+      text: 'fried'
+      below: 'Close details for boneless skinless chicken breasts, fried'
+- tapOn: 'Close details for boneless skinless chicken breasts, fried'
+- extendedWaitUntil:
+      notVisible:
+          text: 'Close details for boneless skinless chicken breasts, fried'
+      timeout: 10000
+
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
+- assertVisible: 'Recipes'

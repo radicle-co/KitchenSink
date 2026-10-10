@@ -132,6 +132,56 @@ describe('signOutAndVerify', () => {
     });
 });
 
+/**
+ * ADR-0057 / ADR-0054: the cook's device state — the editor's drafts and the outbox — ends with their session, and only
+ * once the session is PROVEN ended. Cleared before the proof, a failed sign-out would leave a still-signed-in cook with
+ * their unsynced work gone.
+ */
+describe('signOutAndVerify — the device session end', () => {
+    it('runs after the sign-out is proven, and the command resolves only once it has', async () => {
+        const order: string[] = [];
+        const client = makeClient();
+        const signOut = vi.fn(async () => {
+            order.push('signOut');
+            client.session = null;
+        });
+        const endDeviceSession = vi.fn(async () => {
+            order.push('endDeviceSession');
+        });
+
+        await signOutAndVerify(client, signOut, endDeviceSession);
+
+        expect(order).toEqual(['signOut', 'endDeviceSession']);
+    });
+
+    it('never runs when the sign-out could not be proven, so a live session keeps its device state', async () => {
+        const client = makeClient();
+        const endDeviceSession = vi.fn(async () => undefined);
+
+        await expect(
+            signOutAndVerify(
+                client,
+                vi.fn(async () => undefined),
+                endDeviceSession,
+            ),
+        ).rejects.toBeInstanceOf(SignOutNotVerifiedError);
+        expect(endDeviceSession).not.toHaveBeenCalled();
+    });
+
+    it('never runs when the sign-out itself rejects', async () => {
+        const endDeviceSession = vi.fn(async () => undefined);
+
+        await expect(
+            signOutAndVerify(
+                makeClient(),
+                vi.fn(async () => Promise.reject(new Error('down'))),
+                endDeviceSession,
+            ),
+        ).rejects.toThrow('down');
+        expect(endDeviceSession).not.toHaveBeenCalled();
+    });
+});
+
 describe('SignOutNotVerifiedError', () => {
     it('is an Error, keeps its name, and survives an instanceof check', () => {
         const error = new SignOutNotVerifiedError('nope');

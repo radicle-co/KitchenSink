@@ -1,0 +1,57 @@
+appId: io.commise.mobile
+---
+# Screenshots of the design-system primitives in their states, on the surfaces that render them (slice 2 of the UI
+# overhaul, `docs/architecture/uiOverhaulBlueprint.md` Part B). A capture flow, not an assertion flow: it is not under
+# `config.yaml`'s discovery (`visual/*` is omitted on purpose), it runs by name through `npm run local:maestro -- flows
+# visual/primitives`, and its screenshots are reviewed by eye in the slice's EVALUATE pass.
+- runFlow: ../auth/signinHome.yaml
+# The tab bar: the Registry's Lucide glyphs (house, book-open, compass) over their labels.
+- takeScreenshot: primitives_tabBar
+
+# The recipe list: Buttons, the chip row and the cards, through the app's own tab.
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+- takeScreenshot: primitives_recipeList
+
+# Collections: the primary create Button. Captured BEFORE the owner-only detail, so a world in which the signer owns no
+# recipe still yields every capture it can.
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- takeScreenshot: primitives_collections
+- tapOn: 'My recipes'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+
+# A recipe the signer OWNS (the salad; the lamb is the co-author's, so it has no owner menu): the More-actions
+# popover, then the delete ConfirmDialog, LEFT with "Keep recipe", so this capture flow deletes nothing.
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_SALAD}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_SALAD}'
+- scrollUntilVisible:
+      element: 'More actions for .*'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'More actions for .*'
+- extendedWaitUntil:
+      visible: 'Delete recipe'
+      timeout: 20000
+- takeScreenshot: primitives_moreActions
+- tapOn: 'Delete recipe'
+- extendedWaitUntil:
+      visible: 'Delete this recipe\?'
+      timeout: 20000
+- takeScreenshot: primitives_confirmDialog
+- tapOn: 'Keep recipe'
+- extendedWaitUntil:
+      notVisible: 'Delete this recipe\?'
+      timeout: 20000
+- tapOn:
+      text: 'Back'
+      above: '${E2E_RECIPE_SALAD}'

@@ -3,6 +3,7 @@ import { setupClerkTestingToken } from '@clerk/testing/playwright';
 
 import { route, isHome, hasDoublePrefix, pathnameOf } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
+import { clerkPrimarySubmit } from './utils/clerkForm';
 import { submitClerkEmailCode } from './utils/clerkEmailCode';
 import { TEST_USER_PASSWORD, uniqueSignUpEmail, deleteUsersByEmail } from './utils/testUser';
 
@@ -20,7 +21,11 @@ test.describe('sign-up flow', () => {
 
         await expect.poll(() => isHome(pathnameOf(page)), { timeout: 15_000 }).toBe(true);
         expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
-        await expect(page.getByRole('heading', { name: /welcome to commise/i })).toBeVisible();
+        // Home rendered, signed in: the shell marks Home the current page (the H1 is the time-of-day greeting since slice 3).
+        await expect(page.getByRole('link', { name: 'Home', exact: true }).filter({ visible: true })).toHaveAttribute(
+            'aria-current',
+            'page',
+        );
     });
 
     test('completing the sign-up form creates a user and lands on home', async ({ page }) => {
@@ -50,7 +55,11 @@ test.describe('sign-up flow', () => {
             // flows, so this spec and signIn.spec.ts cannot drift apart on it.
             await submitClerkEmailCode(page, {
                 attempt: 'sign_ups',
-                triggerSend: () => page.getByRole('button', { name: /continue|sign up/i }).click(),
+                identity: email,
+                // Was `/continue|sign up/i`, which ALSO matched Clerk's "Sign in with Google Continue"
+                // button (strict mode violation, 2 elements). A regex cannot be made exact, so the fix is
+                // the shared exact-match locator — see `clerkForm.ts`.
+                triggerSend: () => clerkPrimarySubmit(page).click(),
                 expectStep: () =>
                     expect(page.getByRole('heading', { name: /verify your email/i })).toBeVisible({
                         timeout: 15_000,
@@ -59,7 +68,10 @@ test.describe('sign-up flow', () => {
 
             await expect.poll(() => isHome(pathnameOf(page)), { timeout: 20_000 }).toBe(true);
             expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
-            await expect(page.getByRole('heading', { name: /welcome to commise/i })).toBeVisible();
+            // Home rendered, signed in: the shell marks Home the current page (the H1 is the time-of-day greeting since slice 3).
+            await expect(
+                page.getByRole('link', { name: 'Home', exact: true }).filter({ visible: true }),
+            ).toHaveAttribute('aria-current', 'page');
         } finally {
             await deleteUsersByEmail(email);
         }

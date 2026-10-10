@@ -1,0 +1,68 @@
+appId: io.commise.mobile
+---
+# Plan 002 US1 on a device: an ingredient with no food explains itself in the editor row. Mobile mirror of the web
+# Playwright `ingredientUnmatched.spec.ts`, per the cross-platform mandate (the two form leaves share no compiler
+# edge).
+#
+# ⚠️ WHICH ROW, AND WHY. The web spec mocks the recipe API, so it seeds NOT_FOUND and FAILED lines directly. This job
+# runs against a real recipe service and NO food service (see `_ci-heavy.yml`'s `FOOD_SERVICE_URL`), so a NOT_FOUND
+# or FAILED verdict cannot be produced on demand here. The one no-food row a cook can make deterministically is a
+# DECLARED line (the trailing field's "Use … as written" option, `create.yaml`'s prelude), which is SPECIFY.1 row 1: status word
+# "Your own wording", an info glyph, and the explanation "No nutritional data available". The other reasons' copy is
+# covered by the web spec and both platforms' component tests.
+#
+# What only this tier proves: a TAP on the glyph opens the design-system bottom sheet on a real device (R32, §8e
+# "moved"), and its Close control dismisses it.
+#
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: 'Maestro Unmatched'
+
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Maestro Glorp'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Maestro Glorp.* as written.*'
+- tapOn:
+      text: 'Use .*Maestro Glorp.* as written.*'
+- extendedWaitUntil:
+      notVisible: 'Use .*Maestro Glorp.* as written.*'
+      timeout: 30000
+
+# The cook's own wording needs nothing from them, so its row reads quietly (UI overhaul slice 8, build spec §7.5.1):
+# its open control, named for the line, and no status word.
+- scrollUntilVisible:
+      element: 'Edit Maestro Glorp'
+      direction: DOWN
+      timeout: 30000
+- assertNotVisible:
+      text: '^Your own wording$'
+
+# Its panel opens from the row's ⋯ Food details, a sheet titled for the food.
+- tapOn: 'Actions for Maestro Glorp'
+- tapOn: 'Food details'
+- extendedWaitUntil:
+      visible: '^No nutritional data available$'
+      timeout: 10000
+
+# Close dismisses the sheet; the row is still there under it.
+- tapOn: 'Close details for Maestro Glorp'
+- extendedWaitUntil:
+      notVisible: '^No nutritional data available$'
+      timeout: 10000
+- assertVisible: 'Edit Maestro Glorp'
+
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
+- assertVisible: 'Recipes'

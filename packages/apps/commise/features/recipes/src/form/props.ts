@@ -1,49 +1,50 @@
 /**
  * @module @commise/features-recipes — shared props + pure state helpers for the recipe create/edit form
- * (T067). The web (`RecipeForm.tsx`) and native (`RecipeForm.native.tsx`) leaves share this one contract
- * and this one set of immutable transitions, so the two platform renders can never drift on the shape of
- * the props or on HOW a field/row edit is applied. No React, no platform APIs — just types + pure helpers.
+ * (T067). The web and native field-group leaves share this one contract and this one set of immutable transitions,
+ * so the two platform renders can never drift on the shape of the props or on HOW a field/row edit is applied. No React, no platform APIs — just types + pure helpers.
  *
  * The form is CONTROLLED and presentational: it holds no state, fetches nothing, and resolves no
  * ingredient (the container owns the food-service typeahead). Every edit produces the next
  * {@link RecipeFormValues} and is handed back up via `onChange`.
  */
-import { CUISINES, RecipeDifficulty, type FoodResolutionStatus } from '@kitchensink/recipe-core';
+import {
+    classifyUnit,
+    CUISINES,
+    RECIPE_MEAL_TYPES,
+    RecipeDifficulty,
+    UNIT_VOCABULARY,
+    type FoodResolutionStatus,
+    type RecipeMealType,
+    type RecipeVisibility,
+} from '@kitchensink/recipe-core';
 
-import type { RecipeFormErrors, RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './model.js';
+import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
+import type { DraftAction, ResolvedRecipeFormIngredient } from './draftAction.js';
+import {
+    groupLabelOf,
+    moveIngredient,
+    moveIngredientToGroup,
+    placeIngredient,
+    removeIngredientGroup,
+    renameIngredientGroup,
+} from './ingredientGroups.js';
+import { withLineBinding } from './lineBinding.js';
+import type { IngredientLineKey } from './lineKey.js';
+import { settleIngredientLines, type LookupRetry } from './ingredientStatus.js';
+import type { IngredientNutrition } from './nutritionLookup.js';
+import { resolutionStatusWordKey } from './statusWord.js';
+import { isResolvedIngredientId } from './validate.js';
+import type { RecipeFormErrors } from './validate.js';
+import type { RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './values.js';
 import type { RecipeFormMessages } from './messages.js';
 
 /** Whether the editor is creating a new recipe or editing an existing one (drives headings + submit copy). */
 export type RecipeFormMode = 'create' | 'edit';
 
 /**
- * Props for the recipe create/edit form — a controlled, presentational editor covering every
- * {@link RecipeFormValues} field. It performs NO data fetching and resolves NO ingredient; the composing
- * app wires the model helpers (validation, typeahead resolution, submit) to these props.
- */
-export interface RecipeFormProps {
-    /** The full editable form state (the single source of truth — the form mirrors it, never copies it). */
-    readonly values: RecipeFormValues;
-    /** Field-level validation messages to surface; absent/empty when the form is valid. */
-    readonly errors?: RecipeFormErrors;
-    /** Create vs edit — selects the heading and the submit-button copy. */
-    readonly mode: RecipeFormMode;
-    /** When true, submission is in flight: the submit control is disabled and marked busy. */
-    readonly submitting?: boolean;
-    /** Called with the next values on every field/row edit (add, remove, or change). */
-    readonly onChange: (next: RecipeFormValues) => void;
-    /** Called when the user submits the form (the container validates + persists). */
-    readonly onSubmit: () => void;
-    /** Called when the user cancels/dismisses the editor. */
-    readonly onCancel: () => void;
-}
-
-/**
- * Props shared by every extracted field-group leaf (`RecipeFormSections.tsx`/`.native.tsx`) — Basics,
- * Ingredients, Instructions, Visibility. Deliberately narrower than {@link RecipeFormProps}: a section is a
- * pure `values -> JSX` slice with no `mode`/`submitting`/`onSubmit`/`onCancel` concerns, so it composes
- * equally under `RecipeForm`'s single `<form>` (T067) AND under a `Wizard.Step` (w3), which needs the SAME
- * fields with none of the form-level chrome.
+ * Props shared by every extracted field-group leaf (`RecipeBasicsFields`, `RecipeIngredientsFields`,
+ * `RecipeInstructionsFields`, `RecipeVisibilityField`, in both their `.tsx` and `.native.tsx` forms).
+ * A section is a pure `values -> JSX` slice with no form-level chrome, so it composes inside an editor `EditorSection`.
  */
 export interface RecipeFormSectionProps {
     /** The full editable form state — sections read only the slice they render. */
@@ -54,107 +55,419 @@ export interface RecipeFormSectionProps {
     readonly onChange: (next: RecipeFormValues) => void;
 }
 
-/** A blank ingredient line: unresolved (no catalog id yet), empty name, quantity 1. */
-export const blankIngredient = (): RecipeFormIngredient => ({ ingredientId: null, name: '', quantity: 1 });
+/**
+ * Props for a one-page editor section leaf (`RecipeBasicsFields`, `RecipeInstructionsFields`): the section's slice,
+ * plus the editor's `fieldBlur` checkpoint.
+ */
+export interface RecipeEditorSectionProps extends RecipeFormSectionProps {
+    /** Called when one of the section's text or number fields loses focus: the editor's `fieldBlur` checkpoint. */
+    readonly onFieldBlur?: () => void;
+}
+
+/**
+ * Props for the "Who can see it" field (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2): the draft's slice, and
+ * whether this cook's plan includes private recipes.
+ */
+export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps, 'errors'> {
+    /** Whether the cook may make a recipe private. When not, Private carries the Premium badge. */
+    readonly canGoPrivate: boolean;
+    /** Choosing Private without {@link canGoPrivate}: open the upsell. The value never changes for it. */
+    readonly onPremiumRequired?: () => void;
+}
+
+/**
+ * The visibility a choice in the "Who can see it" field leads to, or `undefined` when it changes nothing — the choice
+ * already made, or Private for a cook whose plan does not include it, which asks for the upsell instead. Pure.
+ *
+ * @param current - The draft's visibility.
+ * @param chosen - The choice the cook made.
+ * @param canGoPrivate - Whether the cook may make a recipe private.
+ * @returns `{ visibility }` to apply, `'premiumRequired'`, or `undefined`.
+ */
+export const visibilityChoice = (
+    current: RecipeVisibility,
+    chosen: RecipeVisibility,
+    canGoPrivate: boolean,
+): { readonly visibility: RecipeVisibility } | 'premiumRequired' | undefined => {
+    if (chosen === current) {
+        return undefined;
+    }
+
+    return chosen === 'private' && !canGoPrivate ? 'premiumRequired' : { visibility: chosen };
+};
+
+/**
+ * Props for the ingredients field group — {@link RecipeFormSectionProps} plus the editor's own controllers. The
+ * trailing add row is the group's own (plan 002 V1 B8): it commits through the row editor, so no host answers a
+ * request to add.
+ */
+export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
+    /**
+     * The editor's ONE background nutrition read (plan 002 V1 B5, `useLineNutrition`): every row's panel and the
+     * running total read it, so nutrition never enters the draft. REQUIRED, so a host cannot ship a total without it.
+     */
+    readonly nutrition: IngredientNutrition;
+    /** Try again for a FAILED row (`useLookupRetry`). REQUIRED, so a host cannot ship the button without the command. */
+    readonly lookupRetry: LookupRetry;
+    /**
+     * The row editor the host owns (`useIngredientRowEditor`, `docs/design/rowEditorBlueprint.md` decision 1): the
+     * entry, the authored-food form, the details dialog and what last settled. REQUIRED, so a host cannot ship rows
+     * whose fields and actions commit nowhere.
+     */
+    readonly rowEditor: IngredientRowEditor;
+    /** Paste a list, while the editor offers it (`usePasteIntoIngredients`): its rows and the empty section's button. */
+    readonly paste?: IngredientsPasteView;
+}
+
+/** A pasted line not in the recipe yet (`usePasteIntoIngredients`). */
+export interface PasteReadingRow {
+    readonly key: string;
+    readonly sourceLine: string;
+    /**
+     * `reading` while it is read and joined; `waiting` while that work is paused for a connection (it resumes on
+     * reconnect); `failed` once its lookup failed, which offers Try again.
+     */
+    readonly state: 'reading' | 'waiting' | 'failed';
+}
+
+/** What the field group draws of a paste (build spec §7.5.1 "Reading", §7.5.4). */
+export interface IngredientsPasteView {
+    /** The pasted lines not in the recipe yet, in paste order: rows after the list's own. */
+    readonly reading: readonly PasteReadingRow[];
+    /** Ask again for the line whose lookup failed. */
+    readonly onRetry: () => void;
+    /** How many ingredients the last finished paste added, said politely once per paste. */
+    readonly added: { readonly count: number; readonly occurrence: number } | undefined;
+    /** The empty section's Paste a list, beside the add field; `undefined` when paste is not offered. */
+    readonly onOpen: (() => void) | undefined;
+}
 
 /** A blank instruction step: empty instruction, no timer. */
 export const blankStep = (): RecipeFormStep => ({ instruction: '' });
 
-/**
- * Append a blank ingredient line. Pure — returns the next values, never mutates.
- *
- * @param values - The current form values.
- * @returns The next values with one blank ingredient appended.
- */
-export const addIngredient = (values: RecipeFormValues): RecipeFormValues => ({
-    ...values,
-    ingredients: [...values.ingredients, blankIngredient()],
-});
+/** A picked line without a group of its own: an add field's placement decides its group (§7.5.5). Pure. */
+const withoutGroup = (line: ResolvedRecipeFormIngredient): ResolvedRecipeFormIngredient => {
+    const { groupLabel: _placed, ...rest } = line;
 
-/**
- * Remove the ingredient line at `index`. Out-of-range indices are a no-op copy. Pure.
- *
- * @param values - The current form values.
- * @param index - The zero-based line index to remove.
- * @returns The next values with that line removed.
- */
-export const removeIngredientAt = (values: RecipeFormValues, index: number): RecipeFormValues => ({
-    ...values,
-    ingredients: values.ingredients.filter((_, i) => i !== index),
-});
-
-/**
- * Patch the ingredient line at `index` with the given partial. Out-of-range indices are a no-op copy. Pure.
- *
- * @param values - The current form values.
- * @param index - The zero-based line index to patch.
- * @param patch - The fields to overwrite on that line.
- * @returns The next values with that line updated.
- */
-export const updateIngredientAt = (
-    values: RecipeFormValues,
-    index: number,
-    patch: Partial<RecipeFormIngredient>,
-): RecipeFormValues => ({
-    ...values,
-    ingredients: values.ingredients.map((line, i) => (i === index ? { ...line, ...patch } : line)),
-});
-
-/**
- * Append a blank instruction step. Pure.
- *
- * @param values - The current form values.
- * @returns The next values with one blank step appended.
- */
-export const addStep = (values: RecipeFormValues): RecipeFormValues => ({
-    ...values,
-    steps: [...values.steps, blankStep()],
-});
-
-/**
- * Remove the step at `index`. Out-of-range indices are a no-op copy. Pure.
- *
- * @param values - The current form values.
- * @param index - The zero-based step index to remove.
- * @returns The next values with that step removed.
- */
-export const removeStepAt = (values: RecipeFormValues, index: number): RecipeFormValues => ({
-    ...values,
-    steps: values.steps.filter((_, i) => i !== index),
-});
-
-/**
- * Patch the step at `index` with the given partial. Out-of-range indices are a no-op copy. Pure.
- *
- * @param values - The current form values.
- * @param index - The zero-based step index to patch.
- * @param patch - The fields to overwrite on that step.
- * @returns The next values with that step updated.
- */
-export const updateStepAt = (
-    values: RecipeFormValues,
-    index: number,
-    patch: Partial<RecipeFormStep>,
-): RecipeFormValues => ({
-    ...values,
-    steps: values.steps.map((step, i) => (i === index ? { ...step, ...patch } : step)),
-});
-
-/**
- * Set (or clear) the form's author-stated difficulty. Passing a value states it; passing `undefined` clears
- * it back to "not stated" by REMOVING the key (never storing an explicit `undefined`, which
- * `exactOptionalPropertyTypes` forbids and which would misrepresent "not stated"). Pure — the single
- * transition both platform pickers use, so web and native cannot diverge on how a difficulty edit applies.
- *
- * @param values - The current form values.
- * @param difficulty - The chosen difficulty, or `undefined` to clear it to "not stated".
- * @returns The next values with difficulty set or removed.
- */
-export const setDifficulty = (values: RecipeFormValues, difficulty?: RecipeDifficulty): RecipeFormValues => {
-    const { difficulty: _current, ...rest } = values;
-
-    return difficulty === undefined ? rest : { ...rest, difficulty };
+    return rest;
 };
+
+/**
+ * Apply one {@link DraftAction} — the SINGLE entry point for every recipe-draft transition.
+ *
+ * DESIGN PATTERN: Visitor, as an exhaustive `switch` over a discriminated union.
+ *
+ * ⛔ WHY ONE FUNCTION RATHER THAN NINE. `removeIngredientAt`/`removeStepAt` were the same function over a
+ * different array field, and so were `updateIngredientAt`/`updateStepAt`; `setDifficulty`/`setMealType` each
+ * re-spelled the omit-the-key rule that `filters/model.ts` also carries. Six field components across two
+ * platforms imported the nine names, so the wide interface was paid for on every screen that edits a recipe.
+ *
+ * ⚠️ `removeAt` takes the FIELD because the two removals differed only in which array they filtered — that is
+ * a parameter, not a second function. The two UPDATES stay separate members: their `patch` types differ
+ * (`RecipeFormIngredient` vs `RecipeFormStep`), and collapsing them would widen the patch to a union that no
+ * longer says which shape belongs to which field.
+ *
+ * @param values - The current draft.
+ * @param action - The transition to apply.
+ * @returns The next draft — never the input, mutated. Pure.
+ */
+export const applyDraftAction = (values: RecipeFormValues, action: DraftAction): RecipeFormValues => {
+    switch (action.kind) {
+        case 'appendResolvedIngredient':
+            return action.placement === undefined
+                ? appendResolvedIngredient(values, action.key, action.line)
+                : {
+                      ...values,
+                      ingredients: placeIngredient(values.ingredients, {
+                          ...withoutGroup(action.line),
+                          ...(action.placement.group === undefined ? {} : { groupLabel: action.placement.group }),
+                          key: action.key,
+                      }),
+                  };
+        case 'moveIngredient':
+            return moveIngredient(values, action.key, action.direction);
+        case 'moveIngredientToGroup':
+            return moveIngredientToGroup(values, action.key, action.group);
+        case 'renameIngredientGroup':
+            return renameIngredientGroup(values, action.from, action.to);
+        case 'removeIngredientGroup':
+            return removeIngredientGroup(values, action.label);
+        case 'removeAt':
+            return { ...values, [action.field]: values[action.field].filter((_, i) => i !== action.index) };
+        case 'updateIngredientAt':
+            return {
+                ...values,
+                ingredients: values.ingredients.map((line, i) =>
+                    i === action.index ? { ...line, ...action.patch } : line,
+                ),
+            };
+        case 'settleIngredientLines':
+            return settleIngredientLines(values, action.answers);
+        case 'removeIngredient':
+            return values.ingredients.some((line) => line.key === action.key)
+                ? { ...values, ingredients: values.ingredients.filter((line) => line.key !== action.key) }
+                : values;
+        case 'rebindIngredient':
+            return values.ingredients.some((line) => line.key === action.key)
+                ? {
+                      ...values,
+                      ingredients: values.ingredients.map((line) =>
+                          line.key === action.key ? withLineBinding(line, action.binding) : line,
+                      ),
+                  }
+                : values;
+        case 'updateStepAt':
+            return {
+                ...values,
+                steps: values.steps.map((step, i) => (i === action.index ? { ...step, ...action.patch } : step)),
+            };
+        case 'setIngredientQuantityLow':
+            return applyDraftAction(values, {
+                kind: 'updateIngredientAt',
+                index: action.index,
+                patch: { quantity: action.value ?? Number.NaN },
+            });
+        case 'setIngredientQuantityHigh':
+            // ⛔ NOT through `updateIngredientAt`, and this is the one member of the nine that could not be
+            // collapsed into the patch path. Clearing the UPPER bound must REMOVE the key: a `Partial` patch
+            // can only add or overwrite one, so patching `quantityHigh: NaN` leaves the key PRESENT — and
+            // `draftQuantity` hands a non-finite upper bound to `statedQuantity`, which reads the pair as no
+            // amount at all. Measured end-to-end through `toCreateRecipeInput`: on the patch path a line reading
+            // `2 tbsp` whose range is typed and then cleared goes to the wire as `{ kind: 'absent' }`, with
+            // `draftQuantityVerdict` still reporting `stated`, so nothing flags it. That is the "looks
+            // complete but is silently discarded" row R40/R42 exist to prevent.
+            //
+            // ⚠️ The LOWER bound is the opposite case and stays on the patch path: `quantity` is a REQUIRED
+            // `number`, so `NaN` IS the draft's absent sentinel there and removing the key is not expressible.
+            return {
+                ...values,
+                ingredients: values.ingredients.map((line, i) => {
+                    if (i !== action.index) {
+                        return line;
+                    }
+
+                    const { quantityHigh: _cleared, ...rest } = line;
+
+                    return action.value === undefined ? rest : { ...rest, quantityHigh: action.value };
+                }),
+            };
+        case 'addStep':
+            return { ...values, steps: [...values.steps, blankStep()] };
+
+        case 'moveStep':
+            return moveStep(values, action.from, action.to);
+
+        case 'setStepTimer':
+            return {
+                ...values,
+                steps: values.steps.map((step, i) => {
+                    if (i !== action.index) {
+                        return step;
+                    }
+
+                    // The omit-the-key rule, as `setDifficulty`'s: a cleared timer is no `timerSeconds` key at all.
+                    const { timerSeconds: _cleared, ...rest } = step;
+
+                    return action.seconds === undefined ? rest : { ...rest, timerSeconds: action.seconds };
+                }),
+            };
+
+        case 'appendSteps':
+            return action.instructions.length === 0
+                ? values
+                : {
+                      ...values,
+                      steps: [...values.steps, ...action.instructions.map((instruction) => ({ instruction }))],
+                  };
+
+        case 'setDifficulty': {
+            // The omit-the-key rule: an explicit `undefined` is not the absence the schema means.
+            //
+            // ⚠️ Carried here from the two deleted setters, because it is the reasoning a reader needs at the
+            // one surviving site and it compounds: the omit-never-undefined convention (§6) forbids the explicit
+            // `undefined` outright, AND `recipeFormValuesEqual` (the discard guard) compares by
+            // `JSON.stringify`, which DROPS an `undefined`-valued key — so the two spellings would compare
+            // equal while being different objects.
+            const { difficulty: _current, ...rest } = values;
+
+            return action.value === undefined ? rest : { ...rest, difficulty: action.value };
+        }
+
+        case 'setMealType': {
+            const { mealType: _current, ...rest } = values;
+
+            return action.value === undefined ? rest : { ...rest, mealType: action.value };
+        }
+
+        default:
+            // ⛔ EXHAUSTIVENESS, checked by the compiler: an unhandled new member fails here rather than
+            // falling through and silently dropping a user's edit.
+            return action satisfies never;
+    }
+};
+
+/**
+ * Move the step at `from` to `to`, the others keeping their order. Module-private: {@link applyDraftAction}'s
+ * `moveStep` is its one caller. Pure.
+ *
+ * @param values - The current draft.
+ * @param from - The step's index.
+ * @param to - The index it moves to.
+ * @returns The next draft, or `values` itself when either index is out of range or they are equal.
+ */
+const moveStep = (values: RecipeFormValues, from: number, to: number): RecipeFormValues => {
+    const { steps } = values;
+    const moving = steps[from];
+
+    if (moving === undefined || from === to || to < 0 || to >= steps.length) {
+        return values;
+    }
+
+    const rest = steps.filter((_, i) => i !== from);
+
+    return { ...values, steps: [...rest.slice(0, to), moving, ...rest.slice(to)] };
+};
+
+/**
+ * Append an ingredient line a pick already RESOLVED, joining the section the cook is currently building (U27). Pure —
+ * returns the next values, never mutates.
+ *
+ * ⛔ REPLACED `addIngredient` in U28, which appended a BLANK, UNRESOLVED line from the leaf's "+ Add
+ * ingredient" button. That was a dead end in the literal sense: `validateRecipeForm` refused to advance
+ * past it and `toCreateRecipeInput` dropped it on save, so the row a cook had just typed into disappeared.
+ * The trailing add row (plan 002 V1 B8) commits a pick through the row editor, and this is what it appends.
+ *
+ * ⚠️ The inherited `groupLabel` is what keeps grouping from being eight identical typings, and moving it
+ * here is a fix in its own right — U27 put it on the button, which means it sat ONLY on the path that
+ * could not save, while the picker path (the one a cook actually completes) silently lost sectioning. The
+ * Figma Make brief is explicit that "per-row typing is the wrong primary interaction"; since this appends
+ * at the END, inheriting the LAST line's label is exactly what "name a section once, then keep adding to
+ * it" means. Starting a new section stays one edit (type a different label), and an ungrouped list stays
+ * ungrouped because there is nothing to inherit.
+ *
+ * ⛔ ONLY the section is inherited. Carrying the preparation forward would assert "finely chopped" about a
+ * food the picker resolved without any such claim.
+ *
+ * ⛔ MODULE-PRIVATE, and deliberately so: {@link applyDraftAction} is the form's ONE entry point, and this
+ * is the section-label logic that its `appendResolvedIngredient` action delegates to. Exporting it again
+ * would reopen the second door the collapse closed.
+ *
+ * @param values - The current form values.
+ * @param key - The new line's identity, minted at the edge.
+ * @param line - The resolved line to append (its `ingredientId` is non-null by type).
+ * @returns The next values with that line appended.
+ */
+const appendResolvedIngredient = (
+    values: RecipeFormValues,
+    key: IngredientLineKey,
+    line: ResolvedRecipeFormIngredient,
+): RecipeFormValues => {
+    // ⛔ Through `groupLabelOf` (`./ingredientGroups.ts`), so a cleared or padded label is never propagated onto the next line — the
+    // draft's spelling of "ungrouped" is the same one the fold and the wire use.
+    const last = values.ingredients[values.ingredients.length - 1];
+    const groupLabel = last === undefined ? undefined : groupLabelOf(last);
+
+    return {
+        ...values,
+        ingredients: [
+            ...values.ingredients,
+            // Spread-when-present, never `groupLabel: undefined` — the §6 convention, and the
+            // draft must not acquire a key the line does not have. The picker's own label wins when it has
+            // one, which is why the inherited value is spread FIRST.
+            // The key comes LAST so nothing spread from the line can override it.
+            { ...(groupLabel === undefined ? {} : { groupLabel }), ...line, key },
+        ],
+    };
+};
+
+/** One ingredient line as a section renders it: the line itself, plus its index in `values.ingredients`. */
+export interface RecipeIngredientSectionLine {
+    /** The line. */
+    readonly line: RecipeFormIngredient;
+    /**
+     * Its index in `values.ingredients` — NOT its position within the section.
+     *
+     * ⛔ This is what every edit helper takes (`updateIngredientAt`, `removeIngredientAt`) and what the
+     * `Ingredient {number}` accessible labels are numbered from, so it must keep addressing the same line.
+     * A section-relative index would edit the wrong row while the screen looked perfectly correct.
+     */
+    readonly index: number;
+}
+
+/** A run of consecutive ingredient lines sharing one section label (U27). */
+export interface RecipeIngredientSection {
+    /** The section heading, or ABSENT for a run of ungrouped lines — which renders with NO chrome at all. */
+    readonly label?: string;
+    /** The lines in this run, in stored order. */
+    readonly lines: readonly RecipeIngredientSectionLine[];
+}
+
+/**
+ * Fold a recipe's ingredient lines into the sections both form leaves render (U27). Pure.
+ *
+ * DESIGN PATTERN: pure projection. It is the ONE fold, shared by the web and native leaves, so the two
+ * platforms cannot section a recipe differently.
+ *
+ * ⛔ BY CONSECUTIVE RUN, never by label identity. `[Dry][Wet][Dry]` is THREE sections in that order;
+ * grouping by identity would pull the third line up beside the first and REORDER the recipe, which is the
+ * one thing a stored order must never do. The accepted consequence is that a label used in two
+ * non-adjacent runs renders twice — which is what the array says, and a cook fixes by moving the line.
+ *
+ * ⚠️ An UNGROUPED recipe folds to ONE section with NO label, and the leaves render no heading for an
+ * unlabelled section — so a recipe that never groups looks exactly as it did before U27. Most recipes will
+ * never group, and those must not look unfinished.
+ *
+ * @param values - The current form values.
+ * @returns The sections, in stored order; empty when the recipe has no ingredient lines.
+ */
+export const ingredientSections = (values: RecipeFormValues): readonly RecipeIngredientSection[] =>
+    values.ingredients.reduce<RecipeIngredientSection[]>((sections, line, index) => {
+        const label = groupLabelOf(line);
+        const previous = sections[sections.length - 1];
+        const entry: RecipeIngredientSectionLine = { line, index };
+
+        if (previous !== undefined && previous.label === label) {
+            return [...sections.slice(0, -1), { ...previous, lines: [...previous.lines, entry] }];
+        }
+
+        return [...sections, { ...(label === undefined ? {} : { label }), lines: [entry] }];
+    }, []);
+
+/**
+ * The text a quantity input DISPLAYS for one bound (U9). Pure — the single formatter both platform leaves
+ * use, so an absent amount cannot render as an empty field on one platform and as something else on the other.
+ *
+ * ⛔ An absent bound renders as the EMPTY STRING. The draft spells an absent lower bound `NaN`
+ * (`RecipeFormIngredient.quantity` is a required `number`), and `String(Number.NaN)` is the literal text
+ * `"NaN"` — which is what a naive `String(line.quantity)` would have put inside the input.
+ *
+ * @param bound - The stated bound, or `undefined`/`NaN` when the line states none.
+ * @returns The input's value text (`''` when no amount is stated).
+ */
+export const quantityInputValue = (bound?: number): string =>
+    bound === undefined || !Number.isFinite(bound) ? '' : String(bound);
+
+/** One selectable meal type in the picker. `value` absent = the "not stated" option (clears the field). */
+export interface MealTypeOption {
+    /** The meal type this option states, or absent for the "not stated" (clear) option. */
+    readonly value?: RecipeMealType;
+    /** The localized, accessible label shown for the option. */
+    readonly label: string;
+}
+
+/**
+ * The ordered meal-type picker options — the vocabulary in DAY order, then an explicit "not stated" (clear)
+ * option — with their localized labels. Derived from `RECIPE_MEAL_TYPES` rather than listed a second time, so
+ * a vocabulary addition cannot ship with no way to choose it. Shared by both platform leaves so the option
+ * set and order cannot drift. Pure.
+ *
+ * @param messages - The resolved form messages for the active locale.
+ * @returns The picker options in display order, with the clear option last.
+ */
+export const mealTypeOptions = (messages: RecipeFormMessages): MealTypeOption[] => [
+    ...RECIPE_MEAL_TYPES.map((value) => ({ value, label: messages.mealTypeOptions[value] })),
+    { label: messages.mealTypeNotStated },
+];
 
 /** One selectable difficulty in the picker. `value` absent = the "not stated" option (clears the field). */
 export interface DifficultyOption {
@@ -177,6 +490,47 @@ export const difficultyOptions = (messages: RecipeFormMessages): DifficultyOptio
     { value: RecipeDifficulty.HARD, label: messages.difficultyHard },
     { label: messages.difficultyNotStated },
 ];
+
+/** A difficulty or meal-type option that STATES a value: the choice rows' options, which have no "not stated" chip. */
+export interface StatedOption<T extends string> {
+    readonly value: T;
+    readonly label: string;
+}
+
+/**
+ * The difficulty choice row's options: {@link difficultyOptions} without its "not stated" option, because nothing
+ * chosen IS "not stated" and pressing the chosen one clears it (build spec §7.4). Pure.
+ *
+ * @param messages - The resolved form messages for the active locale.
+ * @returns Easy, Medium, Hard.
+ */
+export const statedDifficultyOptions = (messages: RecipeFormMessages): StatedOption<RecipeDifficulty>[] =>
+    difficultyOptions(messages).flatMap((option) =>
+        option.value === undefined ? [] : [{ value: option.value, label: option.label }],
+    );
+
+/**
+ * The meal-type choice row's options: {@link mealTypeOptions} without its "not stated" option. Pure.
+ *
+ * @param messages - The resolved form messages for the active locale.
+ * @returns The meal types, in day order.
+ */
+export const statedMealTypeOptions = (messages: RecipeFormMessages): StatedOption<RecipeMealType>[] =>
+    mealTypeOptions(messages).flatMap((option) =>
+        option.value === undefined ? [] : [{ value: option.value, label: option.label }],
+    );
+
+/**
+ * The option a choice row reported, typed back from its string, or `undefined` for a cleared choice. Pure.
+ *
+ * @param options - The row's options.
+ * @param value - What the row reported: an option's value, or `null` when the chosen one was pressed again.
+ * @returns The stated value, or `undefined` when nothing is chosen.
+ */
+export const statedChoice = <T extends string>(
+    options: readonly StatedOption<T>[],
+    value: string | null,
+): T | undefined => options.find((option) => option.value === value)?.value;
 
 /** One selectable cuisine choice in the dropdown/picker. `''` is the explicit "no cuisine stated" choice. */
 export interface CuisineOption {
@@ -223,7 +577,7 @@ export const parseNumericInput = (text: string): number => {
 /**
  * Parse a comma-separated text input into a trimmed, non-empty list of tokens. Pure — order-preserving;
  * empties are dropped. Retained as a general list-parsing util; the tags/dietary fields no longer use it (they
- * moved to the {@link import('./ChipInput.js').ChipInput} token control — U6), which appends one chip at a time
+ * moved to the `ChipInput` token control — U6), which appends one chip at a time
  * via {@link addChip} instead of re-parsing a whole comma string on every keystroke.
  *
  * @param text - The raw comma-separated text.
@@ -237,7 +591,7 @@ export const parseCommaList = (text: string): string[] =>
 
 /**
  * Append `token` (trimmed) to a chip `list`, unless it is blank or a case-insensitive duplicate of a chip
- * already present — the pure transition the {@link import('./ChipInput.js').ChipInput} token control commits on
+ * already present — the pure transition the `ChipInput` token control commits on
  * each entry (U6, replacing the comma-text field's whole-string re-parse). Returns a NEW array on an actual
  * add and a copy otherwise, so a caller can compare lengths to detect whether anything was added. Pure.
  *
@@ -256,8 +610,30 @@ export const addChip = (list: readonly string[], token: string): string[] => {
 };
 
 /**
+ * Split typed text at its commas: the finished values before the last comma, and the text still being typed. Pure.
+ *
+ * @param text - The field's text.
+ * @returns The finished values and the rest.
+ */
+export const splitAtCommas = (text: string): { readonly finished: readonly string[]; readonly rest: string } => {
+    const parts = text.split(',');
+
+    return { finished: parts.slice(0, -1), rest: parts.at(-1) ?? '' };
+};
+
+/**
+ * Add each of `tokens` to `values` in turn. Pure.
+ *
+ * @param values - The current values.
+ * @param tokens - The typed values.
+ * @returns The next values.
+ */
+export const addChips = (values: readonly string[], tokens: readonly string[]): string[] =>
+    tokens.reduce<string[]>((list, token) => addChip(list, token), [...values]);
+
+/**
  * Remove the chip at `index` from a chip `list`. Out-of-range indices are a no-op copy. Pure — the
- * {@link import('./ChipInput.js').ChipInput} control's remove-chip transition (U6).
+ * `ChipInput` control's remove-chip transition (U6).
  *
  * @param list - The current chip list.
  * @param index - The zero-based chip index to remove.
@@ -266,24 +642,90 @@ export const addChip = (list: readonly string[], token: string): string[] => {
 export const removeChipAt = (list: readonly string[], index: number): string[] => list.filter((_, i) => i !== index);
 
 /**
- * The localized label for an ingredient line's resolution status. Pure — the single mapping from a
- * {@link FoodResolutionStatus} to its badge copy, shared by both platform leaves.
+ * The localized note a NON-CANONICAL unit carries, or `undefined` for an ordinary one (plan U25). Pure.
+ *
+ * DESIGN PATTERN: the same Specification-to-copy adapter {@link resolutionStatusLabel} is — ONE mapping from
+ * a domain verdict to a localized string, shared by both platform leaves so they cannot mark a unit
+ * differently.
+ *
+ * ⛔ The verdict is DERIVED here, at render, from `recipe-core`'s `classifyUnit`. It is never a persisted
+ * flag and never a wire field: the unit string already carries the fact, and a stored class beside it would
+ * be a second representation that can disagree with the first.
+ *
+ * ⛔ THREE outcomes, not two, and the third is why this is text rather than styling. A deliberate `handful`
+ * must not read like a mistyped `blorp` — a colour-only mark (the Figma Make mockup's) cannot express that,
+ * and it fails WCAG 1.4.1 besides. Neither note is an error: an unknown unit is ACCEPTED, never rejected.
+ *
+ * @param messages - The localized form copy.
+ * @param unit - The unit as the cook wrote it; an absent or empty unit is a UNITLESS line, not an
+ *   unrecognised one, and carries no note.
+ * @returns The note, or `undefined` when the unit is canonical or absent.
+ */
+export const unitClassNote = (messages: RecipeFormMessages, unit?: string): string | undefined => {
+    const written = unit?.trim() ?? '';
+
+    if (written === '') {
+        return undefined;
+    }
+
+    switch (classifyUnit(written)) {
+        case 'canonical':
+            return undefined;
+        case 'subjective':
+            return messages.ingredientUnitSubjectiveNote;
+        case 'unknown':
+            // ⛔ NOT while the cook is still mid-word. Classifying every keystroke flashes "Unrecognised
+            // unit" after `c` and after `cu` on the way to `cup` — telling someone they are wrong while they
+            // are still typing the right answer. A value that is a PREFIX of a real unit is withheld
+            // judgement, not judged; the note appears once what they typed can no longer become one.
+            //
+            // ⚠️ Only the UNKNOWN note is deferred. A subjective unit is typed whole (`handful`, `to taste`)
+            // and its note is reassurance rather than a correction, so there is nothing to soften.
+            //
+            // ⛔ THE PREFIX TEST FOLDS CASE AND THE CLASSIFICATION ABOVE DOES NOT, and that asymmetry is the
+            // point rather than an inconsistency (U35, owner ruling 2026-08-25). `classifyUnit` is asked
+            // about the spelling the cook TYPED, because `T` (tablespoon) and `t` (teaspoon) are different
+            // units; `UNIT_VOCABULARY` holds only lower-case canonical forms, so asking it whether `Cup`
+            // begins one has to fold, or a cook typing a capital `C` would be told "Unrecognised unit"
+            // while still on their way to `Cup`. Two questions, two folds, each right for its own.
+            return UNIT_VOCABULARY.some((candidate) => candidate.startsWith(written.toLowerCase()))
+                ? undefined
+                : messages.ingredientUnitUnknownNote;
+    }
+};
+
+/**
+ * The localized note an UNRESOLVED ingredient line carries, or `undefined` for a line with a food (U28).
+ * Pure.
+ *
+ * DESIGN PATTERN: the same Specification-to-copy adapter that {@link unitClassNote} and
+ * {@link resolutionStatusLabel} are — ONE mapping from a domain verdict to a localized string, shared by
+ * both platform leaves so they cannot say different things about the same row.
+ *
+ * ⛔ THE VERDICT COMES FROM THE LINE, NOT FROM `errors`. Until U28 an unresolved row was marked only once a
+ * submit attempt had populated `errors.ingredients`, so a draft restored holding one rendered as an
+ * ordinary, complete-looking row — and `toCreateRecipeInput` then dropped it in silence on save. The
+ * ingredient-entry brief forbids exactly that: "Do not design a row that looks complete but is silently
+ * discarded." U28 removes every way to CREATE such a row; this is what keeps one that already exists
+ * honest, instead of hiding it or dropping it.
+ *
+ * ⛔ It reads `isResolvedIngredientId` — the SAME predicate `validateRecipeForm` blocks on — rather than a
+ * second `!== null` check. A leaf marking a different set of rows from the set that blocks Publish is
+ * the drift one shared predicate exists to prevent, and an empty-string id is the case that separates them.
+ *
+ * @param messages - The resolved form messages for the active locale.
+ * @param line - The ingredient line to judge.
+ * @returns The note, or `undefined` when the line has resolved to a food.
+ */
+export const unresolvedLineNote = (messages: RecipeFormMessages, line: RecipeFormIngredient): string | undefined =>
+    isResolvedIngredientId(line.ingredientId) ? undefined : messages.ingredientNoFoodNote;
+
+/**
+ * The localized label for an ingredient line's resolution status. Pure.
  *
  * @param messages - The resolved form messages for the active locale.
  * @param status - The line's resolution status.
  * @returns The localized status label.
  */
-export const resolutionStatusLabel = (messages: RecipeFormMessages, status: FoodResolutionStatus): string => {
-    switch (status) {
-        case 'PENDING':
-            return messages.statusPending;
-        case 'UNRESOLVED':
-            return messages.statusUnresolved;
-        case 'RESOLVED':
-            return messages.statusResolved;
-        case 'NOT_FOUND':
-            return messages.statusNotFound;
-        case 'FAILED':
-            return messages.statusFailed;
-    }
-};
+export const resolutionStatusLabel = (messages: RecipeFormMessages, status: FoodResolutionStatus): string =>
+    messages[resolutionStatusWordKey(status)];

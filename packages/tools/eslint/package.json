@@ -22,7 +22,13 @@
     "engines": {
         "node": "24.x"
     },
+    "devDependencies": {
+        "@types/react": "^19.0.0",
+        "ignore": "^7.0.0",
+        "vitest": "^4.0.0"
+    },
     "dependencies": {
-        "eslint-plugin-check-file": "^3.3.1"
+        "eslint-plugin-check-file": "^3.3.1",
+        "eslint-plugin-react-hooks": "^7.1.1"
     }
 }

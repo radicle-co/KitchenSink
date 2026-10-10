@@ -14,11 +14,42 @@ import path from 'path';
  *
  * Tests should be located in __tests__ folders following the KitchenSink file organization pattern.
  */
+/**
+ * Test timeout for a suite whose assertions run a CDK synth (ms).
+ *
+ * Vitest's 5s default is a framework default, not a budget derived from anything, and a synth-backed
+ * assertion blows past it on a CI runner even when it takes well under a second locally — measured at 339ms
+ * (`infra-alb`'s priority-disjointness proof) and 852ms (`recipe-workers`' artifact guard), both of which
+ * timed out at 5s under the parallel turbo test load. Shrinking such a proof to fit would trade the proof for
+ * the appearance of one, so the headroom is the fix.
+ *
+ * Defined here rather than repeated per package so the number and the reason have ONE home; the configs
+ * themselves stay separate, because they legitimately differ (aliases, includes, whether they merge
+ * `baseConfig` at all).
+ */
+export const CDK_SYNTH_TEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Absolute path to the jsdom polyfill `setupFiles` entry — see `jsdomPolyfills.js`.
+ *
+ * ⚠️ A `setupFiles` entry, NOT a `globalSetup` one: these install globals into the WORKER that runs the
+ * tests, and `globalSetup` runs in the main process where nothing would see them.
+ */
+export const jsdomPolyfillsSetup = path.resolve(import.meta.dirname, 'jsdomPolyfills.js');
+
 export const baseConfig = {
     test: {
         globals: true,
         include: ['**/__tests__/**/*.test.{ts,tsx}'],
-        exclude: ['node_modules', 'dist'],
+        // ⛔ The two worktree roots are excluded because vitest NEVER READS `.gitignore` — it resolves these
+        // with picomatch — so the `.gitignore` entries both roots already have buy nothing here. Without
+        // them a root-scoped run walks into every registered worktree and runs another branch's tests under
+        // this config: measured 2026-09-04 at 544 test files instead of 20, 282 of them "failing" for no
+        // reason but the wrong config. CI never sees it (one clone, no worktrees), which is precisely why it
+        // needs a guard rather than a habit — `packages/infra/global/__tests__/vitestWorktreeExclusion.test.ts`
+        // asserts it against `git worktree list`, so a new root fails without anyone remembering this line.
+        // ⚠️ The `/**` tail is load-bearing: `.worktrees` alone matches the DIRECTORY and none of its files.
+        exclude: ['node_modules', 'dist', '**/.worktrees/**', '**/.claude/worktrees/**'],
         pool: {
             forks: {
                 execArgv: ['--enable-source-maps'],

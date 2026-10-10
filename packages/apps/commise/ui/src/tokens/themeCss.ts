@@ -1,7 +1,7 @@
 /**
  * @module tokens/themeCss — the ONE authoritative composition of the Tailwind v4 `theme.css` artifact.
  *
- * `scripts/generate-theme.mjs` writes this string to `dist/theme.css`, which the web app imports as its only
+ * `scripts/generateTheme.mjs` writes this string to `dist/theme.css`, which the web app imports as its only
  * stylesheet (`web/src/app/globals.css`). Tailwind reads the `@theme` block and derives every colour/spacing/
  * radius/shadow utility from it, so this function IS the web design system's entry point.
  *
@@ -33,19 +33,19 @@
  * Do not add a `--spacing-*` block back, and do not "fix" a size by defining the missing step. Any new token
  * family must be checked against Tailwind's namespace list first, and covered by the compiled-output test.
  */
-import { palette, semantic } from './colors.js';
-import { glass } from './gradients.js';
+import { palette, role, roleDark, semantic } from './colors.js';
+import { coverTint, coverTintDark } from './covers.js';
+import { difficultyTone, difficultyToneDark, proTone, type Difficulty, type Tone } from './tones.js';
+import { kebab, pxToRemUnit } from './emit.js';
+import { barMaterial } from './barMaterial.js';
+import { gradient, gradientCss, heroDark } from './gradients.js';
+import { containerThreshold, contentWidth, viewportThreshold } from './layout.js';
 import { radius } from './radius.js';
 import { shadows } from './shadows.js';
-import { fonts, fontSizes, fontWeights, lineHeights } from './typography.js';
+import { fonts, fontSizes, fontWeights, lineHeights, webTypeRoles } from './typography.js';
 
 /** A token map as emitted: keys become custom-property suffixes, values are written verbatim. */
 type TokenMap = Readonly<Record<string, string | number>>;
-
-/** camelCase → kebab-case, so `seafoamLight`-style keys emit as `seafoam-light`. Pure. */
-function kebab(key: string): string {
-    return key.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
-}
 
 /** Emit one `--{prefix}-{key}: {value};` declaration per entry, preserving insertion order. Pure. */
 function declarations(prefix: string, tokens: TokenMap, kebabKeys = true): readonly string[] {
@@ -53,19 +53,115 @@ function declarations(prefix: string, tokens: TokenMap, kebabKeys = true): reado
 }
 
 /**
- * The translucent-white hairline of each frosted-glass tier, as `--color-glass-{tier}-edge`.
+ * The app-wide CANVAS gradient, as `--background-image-hero`.
  *
- * This is the ONLY part of the glass language emitted as a custom property, and the asymmetry is deliberate.
- * The fill, blur and saturation already reach the web through `toWebGlass` as inline declarations, and emitting
- * them here as well would create a SECOND web representation of the same knowledge — exactly the duplication
- * this module exists to remove. The EDGE is different: it has to compose with a border-width utility and with
- * `hover:` variants, and an inline style out-specifies every class, so it can only work from class position.
+ * `gradient.hero` is the wireframes' own `--gradient-beach-glow` — the wash all nine screens paint on `body`.
+ * It is emitted here for one reason: the web canvas can only be painted from STYLESHEET position. `<body>`'s background is not a React element's inline style, so `globals.css`
+ * needs a custom property to reference; native takes the identical spec through `GradientSurface` /
+ * `toNativeGradient`, so neither platform re-spells the ramp.
  *
- * Native consumes the same `glass.{tier}.border` via `toNativeGlass(...).border`, so the two platforms' glass
- * rim now derives from one token instead of web re-spelling it as `border-white/30`.
+ * **`--background-image-*` is Tailwind v4's namespace for `bg-*` image utilities — verified by compiling it,
+ * not inferred from the variable's name.** That distinction is the whole lesson of this module's header: a
+ * prefix that merely reads well (`--gradient-*`) is not a namespace, so it emits a `:root` property that
+ * generates NO utility — the `--font-size-*` failure that left 324 type-ramp call sites with no CSS. Adding a
+ * NAMED key to a live namespace is also categorically different from the `--spacing-*` hijack: it introduces
+ * `bg-hero` and redefines nothing Tailwind ships.
+ *
+ * Only the canvas ramp is emitted. `brand` already reaches the web as the Button's `from-seafoam
+ * to-ocean-dark` utilities and `scrim` as the recipe-detail cover's own, so emitting those would create a
+ * second web representation of one piece of knowledge.
  */
-function glassEdgeDeclarations(): readonly string[] {
-    return Object.entries(glass).map(([tier, spec]) => `    --color-glass-${tier}-edge: ${spec.border};`);
+function canvasGradientDeclarations(): readonly string[] {
+    return [`    --background-image-hero: ${gradientCss(gradient.hero)};`];
+}
+
+/**
+ * The type roles (§1.5) as `--text-{role}` plus the sub-properties Tailwind v4 folds into the `text-{role}` utility
+ * (`--line-height`, `--font-weight`, `--letter-spacing`, each behind its `--tw-*` override, so an explicit `leading-*`
+ * or `font-*` class still wins).
+ *
+ * Two roles share a name with the older ramp (`caption`, `overline`). For those the size is NOT declared again — the
+ * ramp already declares it — and only the sub-properties are added. A role whose size disagrees with the ramp entry of
+ * the same name throws, because two declarations of one custom property would let the later one win silently.
+ *
+ * @throws Error when a role and a ramp entry of the same name state different sizes.
+ */
+function typeRoleDeclarations(): readonly string[] {
+    const ramp: Readonly<Record<string, string>> = fontSizes;
+
+    return Object.entries(webTypeRoles).flatMap(([name, spec]) => {
+        const declared = ramp[name];
+
+        if (declared !== undefined && declared !== spec.size) {
+            throw new Error(`Type role "${name}" is ${spec.size} but the ramp's --text-${name} is ${declared}.`);
+        }
+
+        return [
+            ...(declared === undefined ? [`    --text-${name}: ${spec.size};`] : []),
+            `    --text-${name}--line-height: ${spec.lineHeight};`,
+            `    --text-${name}--font-weight: ${spec.fontWeight};`,
+            ...(spec.letterSpacing === undefined ? [] : [`    --text-${name}--letter-spacing: ${spec.letterSpacing};`]),
+        ];
+    });
+}
+
+/**
+ * The layout tokens (§1.2, §1.3; blueprint A8), all from `layout.ts`:
+ *
+ *  - `--breakpoint-medium` (600) and `--breakpoint-nav` (840): the viewport classes, as `medium:` and `nav:`. `medium`
+ *    exists for the gutter step, because Tailwind's own `md` is 768 and the spec's gutter widens at 600.
+ *  - `--container-regular` / `--container-wide`: the `@regular/main:` and `@wide/main:` thresholds (600, 960).
+ *  - `--container-reading` / `-list` / `-detail` / `-page`: the content widths, as `max-w-*`. ⚠️ The widest is `page`,
+ *    not `wide`: the namespace is shared with the container variants (see `layout.ts`).
+ */
+function layoutDeclarations(): readonly string[] {
+    return [
+        `    --breakpoint-medium: ${pxToRemUnit(viewportThreshold.medium)};`,
+        `    --breakpoint-nav: ${pxToRemUnit(viewportThreshold.expanded)};`,
+        ...Object.entries({ ...containerThreshold, ...contentWidth }).map(
+            ([name, px]) => `    --container-${name}: ${pxToRemUnit(px)};`,
+        ),
+    ];
+}
+
+/**
+ * The difficulty badge's pairs as `--color-difficulty-{level}-fill` and `-ink` (`buildSpec.md` §1.4): the same tones
+ * native reads from `difficultyTone`/`difficultyToneDark`, so the two platforms cannot disagree on them. Pure.
+ *
+ * @param tones - The light or the dark tones.
+ * @returns One declaration per level and part.
+ */
+function difficultyDeclarations(tones: Readonly<Record<Difficulty, Tone>>): readonly string[] {
+    return Object.entries(tones).flatMap(([level, tone]) => [
+        `    --color-difficulty-${level}-fill: ${tone.fill};`,
+        `    --color-difficulty-${level}-ink: ${tone.text};`,
+    ]);
+}
+
+/**
+ * The dark theme (`docs/design/uiOverhaul/darkTheme.md` §6): one `prefers-color-scheme: dark` override of the same
+ * custom properties the `@theme` block declares — every role from `roleDark`, the cover tints and the canvas
+ * wash — then `color-scheme: light dark` so form controls and scrollbars follow. Unlayered `:root` rules beat
+ * Tailwind's `@layer theme` declarations, and every role utility reads `var(--color-*)`, so this block IS the theme
+ * switch; no component carries a `dark:` variant. Pure.
+ */
+function darkThemeLines(): readonly string[] {
+    return [
+        '',
+        '@media (prefers-color-scheme: dark) {',
+        '    :root {',
+        ...declarations('color', roleDark).map((line) => `    ${line}`),
+        ...declarations('color-cover', coverTintDark).map((line) => `    ${line}`),
+        ...difficultyDeclarations(difficultyToneDark).map((line) => `    ${line}`),
+        `        --background-image-hero: ${gradientCss(heroDark)};`,
+        `        --color-bar: ${barMaterial.dark};`,
+        '    }',
+        '}',
+        '',
+        ':root {',
+        '    color-scheme: light dark;',
+        '}',
+    ];
 }
 
 /**
@@ -93,8 +189,18 @@ export function themeCss(): string {
         ...declarations('radius', radius, false),
         ...declarations('shadow', shadows, false),
         // Appended LAST so every pre-existing declaration keeps its exact position in the artifact.
-        ...glassEdgeDeclarations(),
+        ...canvasGradientDeclarations(),
+        // The overhaul's roles and layout (§1.2-§1.5), appended after everything above for the same reason.
+        ...declarations('color', role),
+        ...typeRoleDeclarations(),
+        ...layoutDeclarations(),
+        ...declarations('color-cover', coverTint),
+        ...declarations('color-pro', { fill: proTone.fill, ink: proTone.text }),
+        ...difficultyDeclarations(difficultyTone),
+        // The level-2 bar material (slice 3), appended last for the same reason.
+        `    --color-bar: ${barMaterial.light};`,
         '}',
+        ...darkThemeLines(),
     ];
 
     return lines.join('\n') + '\n';

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
     BadRequestError,
@@ -13,7 +13,9 @@ import {
     isUnauthorizedError,
     isUnexpectedResponseError,
 } from '../errors.js';
-import { PROFILE_ME_PATH, ProfileServiceClient } from '../profileServiceClient.js';
+import { makeUserProfile, makeUserProfileUser } from '../__fixtures__/index.js';
+import { isInvalidRequestError } from '../errors.js';
+import { AVATAR_PRESIGN_PATH, PROFILE_ME_PATH, ProfileServiceClient, SETTINGS_PATH } from '../profileServiceClient.js';
 
 const BASE = 'https://identity.example.test';
 
@@ -37,14 +39,20 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('getMe() sends GET /api/v1/users/me with the bearer token and returns the parsed profile', async () => {
-        const profile = { user: { displayName: 'Ada' }, account: {} };
+        const profile = makeUserProfile();
         const fetchMock = stubFetch({ status: 200, body: profile });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
 
         const result = await client.getMe();
 
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit & { headers: Record<string, string> }];
+        // ⚠️ The API call is IDENTIFIED, not assumed to be the only one. The transport also fires the
+        // drift-layer-3 skew probe at `GET /health` (once per origin per process, fire-and-forget — see
+        // `../contractSkew.ts`), so a `toHaveBeenCalledTimes(1)` here would assert "no diagnostics exist" rather
+        // than anything about `getMe`. `profileServiceClientSkew.test.ts` owns the probe's own behaviour.
+        const apiCall = fetchMock.mock.calls.find(([called]) => !String(called).endsWith('/health'));
+
+        expect(apiCall).toBeDefined();
+        const [url, init] = apiCall as [string, RequestInit & { headers: Record<string, string> }];
         expect(url).toBe(`${BASE}${PROFILE_ME_PATH}`);
         expect(init.method).toBe('GET');
         expect(init.headers['authorization']).toBe('Bearer tok_123');
@@ -52,7 +60,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('patchMe() PATCHes the update as a JSON body to /api/v1/users/me — NOT /api/v1/profiles/me', async () => {
-        const updated = { user: { displayName: 'Ada Lovelace' }, account: {} };
+        const updated = makeUserProfile({ user: makeUserProfileUser({ displayName: 'Ada Lovelace' }) });
         const fetchMock = stubFetch({ status: 200, body: updated });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
 
@@ -79,6 +87,25 @@ describe('ProfileServiceClient — request shape', () => {
         expect(result).toEqual(accepted);
     });
 
+    /**
+     * Plan U2. `eraseMe` is the call that makes an erasure reach anything beyond the recipe service, so what
+     * matters here is that it is a genuinely DIFFERENT request from `deleteMe` — different verb, different
+     * path. If it ever collapsed onto `DELETE /api/v1/users/me`, the app's irreversible control would
+     * silently perform the RECOVERABLE closure instead, and every test above would still pass.
+     */
+    it('eraseMe() POSTs /api/v1/users/me/erasure — not the closure endpoint — and returns the accepted body', async () => {
+        const accepted = { sub: 'usr_1', erasedAt: '2026-08-16T00:00:00.000Z', message: 'Account erasure initiated' };
+        const fetchMock = stubFetch({ status: 202, body: accepted });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        const result = await client.eraseMe();
+
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(init.method).toBe('POST');
+        expect(String(url)).toContain('/api/v1/users/me/erasure');
+        expect(result).toEqual(accepted);
+    });
+
     it('resolves undefined for a genuinely empty response body (e.g. a 204)', async () => {
         const fetchMock = stubFetch({ status: 204, text: '' });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
@@ -87,7 +114,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('sends no body/content-type header on a GET', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { user: {}, account: {} } });
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
 
         await client.getMe();
@@ -98,7 +125,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('omits the Authorization header when constructed with no token', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { user: {}, account: {} } });
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
         const client = new ProfileServiceClient({ baseUrl: BASE, fetch: fetchMock });
 
         await client.getMe();
@@ -108,7 +135,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('resolves a callback TokenSource per request, forwarding forceRefresh', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { user: {}, account: {} } });
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
         const getToken = vi.fn((options?: { forceRefresh?: boolean }) =>
             options?.forceRefresh === true ? 'fresh_token' : 'cached_token',
         );
@@ -132,23 +159,8 @@ describe('ProfileServiceClient — request shape', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('forwards configured credentials on every request', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { user: {}, account: {} } });
-        const client = new ProfileServiceClient({
-            baseUrl: BASE,
-            token: 'tok',
-            fetch: fetchMock,
-            credentials: 'include',
-        });
-
-        await client.getMe();
-
-        const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-        expect(init.credentials).toBe('include');
-    });
-
     it('strips a trailing slash from baseUrl before joining the path', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { user: {}, account: {} } });
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
         const client = new ProfileServiceClient({ baseUrl: `${BASE}/`, token: 'tok', fetch: fetchMock });
 
         await client.getMe();
@@ -225,6 +237,110 @@ describe('ProfileServiceClient — status → typed error mapping', () => {
     });
 });
 
+/**
+ * A refused bearer is replayed by the rule every client shares (`@kitchensink/retry-after/bearer-replay`): once, and
+ * only with a bearer a fresh mint made different. Identity never answers `IDENTITY_SYNC_PENDING` (it creates the user
+ * on the first request), so every `401` here is an ordinary refusal. The web app's `onUnauthorized` is its redirect to
+ * sign-in, so it fires on the final `401` only, never on one a replay recovered.
+ */
+describe('ProfileServiceClient — a refused bearer is replayed once with a fresh token', () => {
+    /** `fetch`'s first signature: one signature, so a mock of it is assignable to both of `fetch`'s overloads. */
+    type FetchDouble = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+    /** Whether a request is the contract-skew probe, which the client sends to a string URL. */
+    const isSkewProbe = (input: RequestInfo | URL): boolean => typeof input === 'string' && input.endsWith('/health');
+
+    /** A `fetch` double answering the API calls with `responses` in turn, and the skew probe with a 404. */
+    function inTurn(...responses: readonly (() => Response)[]): Mock<FetchDouble> {
+        const queue = [...responses];
+
+        return vi.fn<FetchDouble>(async (input) =>
+            isSkewProbe(input)
+                ? new Response(null, { status: 404 })
+                : (queue.shift() ?? (() => new Response(null, { status: 500 })))(),
+        );
+    }
+
+    /** A token callback that mints a new token on each call. */
+    function mintingToken() {
+        let minted = 0;
+
+        return vi.fn((_options?: { readonly forceRefresh?: boolean }) => {
+            minted += 1;
+
+            return `tok-${String(minted)}`;
+        });
+    }
+
+    /** The bearer each API call carried. */
+    const bearers = (fetchMock: Mock<FetchDouble>): (string | null)[] =>
+        fetchMock.mock.calls
+            .filter(([input]) => !isSkewProbe(input))
+            .map(([, init]) => new Headers(init?.headers).get('authorization'));
+
+    const refused = (): Response =>
+        new Response(JSON.stringify({ code: 'UNAUTHORIZED', message: 'expired' }), { status: 401 });
+    const answered = (): Response => new Response(JSON.stringify(makeUserProfile()), { status: 200 });
+
+    it('replays a 401 once with a force-refreshed token, answers the replay, and does not redirect', async () => {
+        const token = mintingToken();
+        const onUnauthorized = vi.fn();
+        const fetchMock = inTurn(refused, answered);
+        const client = new ProfileServiceClient({ baseUrl: BASE, token, fetch: fetchMock, onUnauthorized });
+
+        await expect(client.getMe()).resolves.toStrictEqual(makeUserProfile());
+        expect(bearers(fetchMock)).toStrictEqual(['Bearer tok-1', 'Bearer tok-2']);
+        expect(token.mock.calls.map(([options]) => options?.forceRefresh === true)).toStrictEqual([false, true]);
+        expect(onUnauthorized).not.toHaveBeenCalled();
+    });
+
+    it('reads the refused response’s body before the replay, so nothing holds its socket', async () => {
+        const first = refused();
+        const fetchMock = inTurn(() => first, answered);
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: mintingToken(), fetch: fetchMock });
+
+        await client.getMe();
+
+        expect(first.bodyUsed).toBe(true);
+    });
+
+    it('replays at most once, and redirects once, on the final 401', async () => {
+        const onUnauthorized = vi.fn();
+        const fetchMock = inTurn(refused, refused, answered);
+        const client = new ProfileServiceClient({
+            baseUrl: BASE,
+            token: mintingToken(),
+            fetch: fetchMock,
+            onUnauthorized,
+        });
+
+        await expect(client.getMe()).rejects.toBeInstanceOf(UnauthorizedError);
+        expect(bearers(fetchMock)).toHaveLength(2);
+        expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not replay when the fresh mint answers the refused token', async () => {
+        const token = vi.fn((_options?: { readonly forceRefresh?: boolean }) => 'tok-same');
+        const fetchMock = inTurn(refused, answered);
+        const client = new ProfileServiceClient({ baseUrl: BASE, token, fetch: fetchMock });
+
+        await expect(client.getMe()).rejects.toBeInstanceOf(UnauthorizedError);
+        expect(bearers(fetchMock)).toStrictEqual(['Bearer tok-same']);
+        expect(token).toHaveBeenLastCalledWith({ forceRefresh: true });
+    });
+
+    it('starts from a fresh mint when the caller asks for one, and replays from there', async () => {
+        const token = mintingToken();
+        const fetchMock = inTurn(refused, answered);
+        const client = new ProfileServiceClient({ baseUrl: BASE, token, fetch: fetchMock });
+
+        await client.getMe({ forceRefresh: true });
+
+        expect(token.mock.calls.map(([options]) => options?.forceRefresh === true)).toStrictEqual([true, true]);
+        expect(bearers(fetchMock)).toStrictEqual(['Bearer tok-1', 'Bearer tok-2']);
+    });
+});
+
 describe('is* guards — negative cases', () => {
     it('reject a plain Error / non-error value', () => {
         expect(isBadRequestError(new Error('nope'))).toBe(false);
@@ -238,5 +354,216 @@ describe('is* guards — negative cases', () => {
     it('a sibling typed error does not satisfy an unrelated guard (discriminates by subclass)', () => {
         expect(isBadRequestError(new UnauthorizedError())).toBe(false);
         expect(isNotFoundError(new ForbiddenError())).toBe(false);
+    });
+});
+
+/**
+ * BOTH DIRECTIONS of the published identity contract (ADR-0014), which this client previously checked in
+ * neither. The suite is deliberately about the DISTINCTION between the three "400-ish" failures, not merely
+ * that something throws: `InvalidRequestError` means the body never left, `BadRequestError` means the service
+ * rejected a legal body, and a `ZodError` out of a read means the SERVICE's body drifted. A test that accepted
+ * any of them interchangeably would not notice them being merged.
+ */
+describe('ProfileServiceClient — contract validation', () => {
+    /** A fetch double that FAILS the test if called — the proof that no request was issued. */
+    const neverFetch: typeof fetch = () => {
+        throw new Error('the client must not issue a request for a body that fails the published contract');
+    };
+
+    it('rejects an unknown key on patchMe before issuing a request, because the schema is strict', async () => {
+        const client = new ProfileServiceClient({ baseUrl: BASE, fetch: neverFetch });
+        // `patchUserMeRequestSchema` is a `z.strictObject`, so the identity service answers 400 to an unknown
+        // key rather than stripping it. A misspelled field is therefore a caller bug, and it is caught here.
+        const error = await client
+            .patchMe({ displayNam: 'Ada' } as unknown as Parameters<typeof client.patchMe>[0])
+            .catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+        expect(error).not.toBeInstanceOf(BadRequestError);
+    });
+
+    it('rejects a non-URL avatarUrl before issuing a request', async () => {
+        const client = new ProfileServiceClient({ baseUrl: BASE, fetch: neverFetch });
+        // `z.url()` requires a scheme — a deliberate tightening over the `@IsUrl()` this replaced, which
+        // accepted a bare `example.com/x.png` for a value that is rendered as an image source.
+        const error = await client.patchMe({ avatarUrl: 'example.com/a.png' }).catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+    });
+
+    // The mirror image, and what stops the three cases above from passing against an unconditional throw.
+    it('sends a body that satisfies the published request schema', async () => {
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
+        const client = new ProfileServiceClient({ baseUrl: BASE, fetch: fetchMock });
+
+        await expect(client.patchMe({ displayName: 'Ada', avatarUrl: null })).resolves.toStrictEqual(makeUserProfile());
+    });
+
+    it('REJECTS a response that does not match the published contract, instead of casting it', async () => {
+        // The defect this whole change closes: `{ user: {}, account: {} }` used to be returned as a `UserProfile`
+        // and only surfaced as a missing field deep inside a component. It must now fail at the edge.
+        const client = new ProfileServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch({ status: 200, body: { user: {}, account: {} } }),
+        });
+
+        await expect(client.getMe()).rejects.toThrow(/expected string/iu);
+    });
+});
+
+/**
+ * `POST /api/v1/users/me/avatar/presign` — the identity call MOBILE makes, and the ONE that used to bypass this
+ * client entirely (GR-017 §17-b.5's recorded residual). It lives here so the avatar path runs the published zod in
+ * both directions and reaches the same drift-layer-3 probe as every other identity call, rather than depending on
+ * a second hand-rolled transport (`mobile/src/services/api.ts`'s `apiRequest`, retired with this change) that no
+ * guard could see.
+ */
+describe('ProfileServiceClient — avatar presign', () => {
+    /** A valid presign response body. */
+    const presigned = { uploadUrl: 'https://s3.example.test/put', publicUrl: 'https://media.example.test/a.png' };
+
+    it('presigns UNDER the profile path — the avatar is a field of the viewer’s own profile', () => {
+        expect(AVATAR_PRESIGN_PATH).toBe(`${PROFILE_ME_PATH}/avatar/presign`);
+    });
+
+    it('POSTs to the presign path with type + size on the query string, and returns the parsed body', async () => {
+        const fetchMock = stubFetch({ status: 200, body: presigned });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        const result = await client.presignAvatar({ type: 'image/png', size: 2048 });
+
+        const apiCall = fetchMock.mock.calls.find(([called]) => !String(called).endsWith('/health'));
+
+        expect(apiCall).toBeDefined();
+        const [url, init] = apiCall as [string, RequestInit & { headers: Record<string, string> }];
+        // The MIME slash must be percent-encoded, or the query names a type the server never matches.
+        expect(url).toBe(`${BASE}${AVATAR_PRESIGN_PATH}?type=image%2Fpng&size=2048`);
+        expect(init.method).toBe('POST');
+        expect(init.headers['authorization']).toBe('Bearer tok_123');
+        // The presign carries its arguments in the query string; a body would be a different contract.
+        expect(init.body).toBeUndefined();
+        expect(init.headers['content-type']).toBeUndefined();
+        expect(result).toStrictEqual(presigned);
+    });
+
+    /*
+     * `size` is what makes this parse worth running at the CALLER. The identity controller signs it into the
+     * presigned URL as `ContentLength`, and its predecessor hand-parsed it with `Number.parseInt`, so `?size=abc`
+     * reached S3 as `ContentLength: NaN`. Rejecting it here fails at the call site that computed the number
+     * instead of spending a round trip — and every case below must issue NO request at all.
+     */
+    it.each([
+        ['zero', { type: 'image/png', size: 0 }],
+        ['negative', { type: 'image/png', size: -1 }],
+        ['fractional', { type: 'image/png', size: 2.5 }],
+        ['NaN', { type: 'image/png', size: Number.NaN }],
+        ['an empty MIME type', { type: '', size: 2048 }],
+    ] as const)('refuses %s without issuing a request', async (_label, query) => {
+        const fetchMock = stubFetch({ status: 200, body: presigned });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        const error = await client.presignAvatar(query).catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+        // Not a `BadRequestError`: nothing was sent, so the service said nothing.
+        expect(error).not.toBeInstanceOf(BadRequestError);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    /*
+     * The server keeps the ALLOWED-TYPE list and the size CAP (`avatar.schema.ts` deliberately restates neither, so
+     * there is one authority on the security rule). A type the schema admits and the controller refuses must
+     * therefore still surface as the service's own `400`, distinguishable from the caller-bug case above.
+     */
+    it('surfaces the controller’s policy rejection as BadRequestError, not InvalidRequestError', async () => {
+        const fetchMock = stubFetch({ status: 400, body: { code: 'BAD_REQUEST', message: 'Invalid type.' } });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        const error = await client.presignAvatar({ type: 'image/gif', size: 2048 }).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(BadRequestError);
+        expect(isInvalidRequestError(error)).toBe(false);
+        expect((error as BadRequestError).message).toBe('Invalid type.');
+    });
+
+    /*
+     * A cast here is how an upload silently "succeeds" into nothing: `publicUrl` would be `undefined`, the caller
+     * would persist it as the avatar, and the failure would surface as a broken image rather than as a drift.
+     */
+    it('REJECTS a presign response missing publicUrl instead of casting it', async () => {
+        const client = new ProfileServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch({ status: 200, body: { uploadUrl: 'https://s3.example.test/put' } }),
+        });
+
+        await expect(client.presignAvatar({ type: 'image/png', size: 2048 })).rejects.toThrow(/publicUrl/iu);
+    });
+});
+
+describe('ProfileServiceClient — settings (ADR-0059)', () => {
+    /** The api call, identified out of the skew probe's `/health` traffic. */
+    const apiCall = (fetchMock: Mock) =>
+        fetchMock.mock.calls.find(([called]) => !String(called).endsWith('/health')) as [
+            string,
+            RequestInit & { headers: Record<string, string> },
+        ];
+
+    it('serves settings under the viewer resource, the path the identity controller declares', () => {
+        expect(SETTINGS_PATH).toBe('/api/v1/users/me/settings');
+    });
+
+    it('getSettings() sends GET with the bearer and returns the parsed, resolved settings', async () => {
+        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: false } });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        await expect(client.getSettings()).resolves.toEqual({ searchShortcut: false });
+
+        const [url, init] = apiCall(fetchMock);
+        expect(url).toBe(`${BASE}/api/v1/users/me/settings`);
+        expect(init.method).toBe('GET');
+        expect(init.headers['authorization']).toBe('Bearer tok_123');
+    });
+
+    it('patchSettings() PATCHes only the keys given, as JSON, and returns the resolved settings', async () => {
+        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: false } });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        await expect(client.patchSettings({ searchShortcut: false })).resolves.toEqual({ searchShortcut: false });
+
+        const [url, init] = apiCall(fetchMock);
+        expect(url).toBe(`${BASE}/api/v1/users/me/settings`);
+        expect(init.method).toBe('PATCH');
+        expect(init.body).toBe(JSON.stringify({ searchShortcut: false }));
+        expect(init.headers['content-type']).toBe('application/json');
+    });
+
+    it('patchSettings() fails at the call site, with NO request, for a key the contract does not have', async () => {
+        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: true } });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        const error = await client
+            .patchSettings({ searchShortcut: true, theme: 'dark' } as never)
+            .catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('REJECTS a settings response that is not the published shape instead of casting it', async () => {
+        const client = new ProfileServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch({ status: 200, body: { searchShortcut: 'yes' } }),
+        });
+
+        await expect(client.getSettings()).rejects.toThrow(/searchShortcut/iu);
+    });
+
+    it('maps the closed-account 403 to ForbiddenError', async () => {
+        const client = new ProfileServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch({ status: 403, body: { code: 'FORBIDDEN', message: 'Account is closed' } }),
+        });
+
+        await expect(client.patchSettings({ searchShortcut: true })).rejects.toBeInstanceOf(ForbiddenError);
     });
 });

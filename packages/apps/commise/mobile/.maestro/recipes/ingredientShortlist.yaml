@@ -1,0 +1,77 @@
+appId: io.commise.mobile
+---
+# Row 7 on a device (`docs/design/ingredientStatusExplanation.md` SPECIFY.1 row 7). Mobile mirror of the web Playwright
+# `ingredientShortlistRow.spec.ts`: an AMBIGUOUS line's glyph opens a shortlist re-derived from the food search over
+# the line's own words, and one pick binds THAT line alone (owner ruling 2026-10-02). What only this flow proves: a TAP
+# opens the glyph's sheet on a real device, the shortlist answers, and a pick lands on the row.
+#
+# Assumes an authenticated session against the PR's deployed sandbox AND a recipe in the viewer's library carrying a
+# gate-AMBIGUOUS line, the same fixture `ambiguityReview.yaml` needs ("Ambiguity Probe", whose line is `apple sauce`).
+# An AMBIGUOUS line is produced by the verification worker, not by the app, so this flow cannot make its own; it stops
+# at the labelled wait below when the fixture is absent, and never passes without having opened the shortlist.
+#
+# ⚠️ The pick is a real write: on a saved line it is the rebind command (`docs/design/rowEditorBlueprint.md` decision 7),
+# which makes a new version of the fixture recipe and leaves that line no longer AMBIGUOUS. So the flow needs the
+# fixture seeded for each run, by the same seeding step `ambiguityReview.yaml` waits on. It leaves with ×, never the
+# editor's Discard, which would delete the fixture.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Ambiguity Probe'
+- extendedWaitUntil:
+      visible: 'Edit recipe'
+      timeout: 30000
+- tapOn: 'Edit recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+
+# The attention line, named for the line (UI overhaul slice 8, build spec §7.5.1). The panel never opens by itself.
+- scrollUntilVisible:
+      element: 'Choose a match: apple sauce'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible: 'Search for another food'
+- tapOn:
+      text: 'Choose a match: apple sauce'
+      index: 0
+
+# Row 7's own explanation, and the shortlist the food search finds for the line's words.
+- extendedWaitUntil:
+      visible:
+          text: 'Which “apple sauce” did you mean\?'
+      timeout: 30000
+      label: 'the recipe carries an AMBIGUOUS "apple sauce" line, and its shortlist answered'
+- assertVisible: 'Two or more foods match closely and their nutrition differs, so we’d rather you chose\.'
+- assertVisible: 'Search for another food'
+
+# The source's foods flow into the same shortlist with no press (plan 002 S7.8, ADR-0055 point 9).
+- extendedWaitUntil:
+      visible:
+          text: 'From USDA'
+      timeout: 40000
+      label: 'USDA answered the progressive search for "apple sauce" on this stage'
+# One pick, of a remote food: the panel adopts it and rebinds THAT line to the root (ADR-0055 point 10). The sheet
+# closes once the food is on the line.
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
+- tapOn:
+      text: '.*, from USDA'
+      index: 0
+- extendedWaitUntil:
+      notVisible: 'Search for another food'
+      timeout: 30000
+
+# Leave with ×. The pick was the write; nothing else was typed, so × has nothing more to save. ⛔ NOT the header's
+# Discard: on this stored fixture it would delete the recipe the next run needs (a never-published draft), or not be
+# offered at all (a published one with no unsaved changes). × returns to the detail it was opened from.
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      visible: 'Edit recipe'
+      timeout: 20000

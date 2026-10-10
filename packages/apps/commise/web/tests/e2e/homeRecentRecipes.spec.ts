@@ -33,9 +33,21 @@ test.describe('Home recent-recipes card grid', () => {
             viewerId,
             tier: 'free',
             recipes: [
-                makeRecipeDetail({ id: 'rec_first', ownerId: viewerId, title: 'Charred Broccolini' }),
-                makeRecipeDetail({ id: 'rec_second', ownerId: viewerId, title: 'Miso Butter Cod' }),
-                makeRecipeDetail({ id: 'rec_third', ownerId: viewerId, title: 'Saffron Risotto' }),
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-00000000000c',
+                    ownerId: viewerId,
+                    title: 'Charred Broccolini',
+                }),
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-00000000002b',
+                    ownerId: viewerId,
+                    title: 'Miso Butter Cod',
+                }),
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000034',
+                    ownerId: viewerId,
+                    title: 'Saffron Risotto',
+                }),
             ],
         });
 
@@ -49,7 +61,7 @@ test.describe('Home recent-recipes card grid', () => {
         await expect(widget).toBeVisible();
 
         for (const title of ['Charred Broccolini', 'Miso Butter Cod', 'Saffron Risotto']) {
-            await expect(widget.getByRole('button', { name: title })).toBeVisible();
+            await expect(widget.getByRole('link', { name: title })).toBeVisible();
         }
 
         // The cards are a GRID, not the single stacked column the widget used to render: the mockup lays them
@@ -64,10 +76,10 @@ test.describe('Home recent-recipes card grid', () => {
 
         // Activate the SECOND card by its accessible name. Pinning a non-first card is the point: if the
         // navigation seam closed over the wrong recipe (or the slot pushed a fixed id), this lands on
-        // `rec_first` and the assertions below fail.
-        await widget.getByRole('button', { name: 'Miso Butter Cod' }).click();
+        // `ec000000-0000-4000-8000-00000000000c` and the assertions below fail.
+        await widget.getByRole('link', { name: 'Miso Butter Cod' }).click();
 
-        await expect(page).toHaveURL(/\/recipes\/rec_second$/);
+        await expect(page).toHaveURL(/\/recipes\/ec000000-0000-4000-8000-00000000002b$/);
         await expect(page.getByRole('heading', { level: 1, name: 'Miso Butter Cod' })).toBeVisible();
     });
 
@@ -83,11 +95,61 @@ test.describe('Home recent-recipes card grid', () => {
         await expect(widget).toBeVisible();
 
         // The dedicated empty state — a stated next step, not a silent blank.
-        await expect(widget.getByText('No recipes yet. Create your first recipe to see it here.')).toBeVisible();
+        await expect(widget.getByText('Your recipes will show up here.')).toBeVisible();
 
         // …and it REPLACES the grid: no card list and no card at all is rendered. (The Suspense skeleton is
         // `aria-hidden`, so it can never satisfy either of these while the promise is still pending.)
         await expect(widget.getByRole('list')).toHaveCount(0);
-        await expect(widget.getByRole('button')).toHaveCount(0);
+        await expect(widget.getByRole('article')).toHaveCount(0);
+
+        // Slice 4 (`buildSpec.md` §4.2 First run): the three ways in, and no "See all" into an empty library.
+        await expect(widget.getByRole('button', { name: 'Add your first recipe' })).toBeVisible();
+        await expect(widget.getByRole('button', { name: 'Paste ingredients' })).toBeVisible();
+        await expect(widget.getByRole('link', { name: 'Or find one on Discover' })).toBeVisible();
+        await expect(widget.getByRole('link', { name: 'See all recipes' })).toHaveCount(0);
+
+        await widget.getByRole('button', { name: 'Add your first recipe' }).click();
+        await expect(page).toHaveURL(/\/recipes\/new/);
     });
+
+    // Owner ruling D8: compact cards below a 960 container (2 × 2 on a phone, one row of four on a tablet), the full
+    // card from 960 — four in one row.
+    for (const [width, height, variant, tracks] of [
+        [390, 844, 'compact', 2],
+        [768, 1024, 'compact', 4],
+        [1440, 900, 'grid', 4],
+    ] as const) {
+        test(`at ${width} × ${height} it draws ${variant} cards in ${tracks} columns`, async ({ page }) => {
+            await page.setViewportSize({ width, height });
+            await signInWithTicket(page);
+            const viewerId = await readViewerAppId(page);
+            await mockRecipeApi(page, {
+                viewerId,
+                tier: 'free',
+                recipes: ['a', 'b', 'c', 'd', 'e'].map((id) =>
+                    makeRecipeDetail({
+                        id: `ec300000-0000-4000-8000-00000000000${id}`,
+                        ownerId: viewerId,
+                        title: `Recipe ${id}`,
+                    }),
+                ),
+            });
+
+            await page.goto(route('/'));
+            const widget = page.getByRole('region', { name: WIDGET_TITLE });
+            const cards = widget.getByRole('article');
+
+            await expect(cards).toHaveCount(4);
+
+            for (const card of await cards.all()) {
+                await expect(card).toHaveAttribute('data-card-variant', variant);
+            }
+
+            const columns = await widget
+                .getByRole('list')
+                .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length);
+            expect(columns).toBe(tracks);
+            expect(await page.evaluate(() => document.documentElement.scrollWidth === window.innerWidth)).toBe(true);
+        });
+    }
 });

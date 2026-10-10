@@ -22,6 +22,8 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { renderWithProviders } from '@commise/test-utils';
+import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createContainer, type Container } from 'ditox';
 
 // The profile hook hits Clerk + the identity API; stub it to a controllable tier + display name.
@@ -35,15 +37,24 @@ const { profileRef } = vi.hoisted(() => ({
         },
     },
 }));
+// The shell's sidebar opens the editor through the router and its tab bar reads the route (slice 3).
+vi.mock('next/navigation', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('next/navigation')>()),
+    useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+    usePathname: () => '/en',
+}));
 vi.mock('@/hooks/useUserProfile', () => ({ useUserProfile: () => profileRef.current }));
+// `useSearchShortcut` (in the shell) reads the viewer's settings (D19); this suite is not about the shortcut.
+vi.mock('@/hooks/useUserSettings', () => ({ useUserSettings: () => ({ data: { searchShortcut: true } }) }));
 
 // `homeContainer` binds `errorReporterToken` to a real Sentry-backed reporter; mocked (never loaded for real)
 // so importing it here doesn't require a live Sentry client under test.
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 
 const { HomeWidgetSurface } = await import('../HomeWidgetSurface');
-const { useHomeNudge } = await import('../SubscriptionNudge');
+const { useHomeNudge } = await import('../homeNudgeContext');
 const { homeContainer } = await import('../homeContainer');
+const { RECENT_RECIPE_LIMIT } = await import('../RecipeWidgetSlot');
 
 afterEach(() => {
     cleanup();
@@ -78,14 +89,22 @@ const containerWith = (...descriptors: readonly HomeWidgetDescriptor[]): Contain
     return container;
 };
 
-const renderSurface = (props: Parameters<typeof HomeWidgetSurface>[0]): void => {
-    renderWithProviders(<HomeWidgetSurface {...props} />);
+const renderSurface = (props: Parameters<typeof HomeWidgetSurface>[0], queryClient = new QueryClient()): void => {
+    renderWithProviders(
+        <QueryClientProvider client={queryClient}>
+            <HomeWidgetSurface {...props} />
+        </QueryClientProvider>,
+    );
 };
+
+/** The floating create button: the one the `nav:` breakpoint hides from 840, where the sidebar holds New recipe. */
+const floatingCreate = (): HTMLElement | undefined =>
+    screen.queryAllByRole('button', { name: 'New recipe' }).find((button) => button.className.includes('nav:hidden'));
 
 const FakeRecipeWidget: FC = () => <div>fake-recipe-widget</div>;
 
 describe('HomeWidgetSurface (web) — host composition', () => {
-    it('renders the accessible page title, the time-of-day greeting header, and the widget-surface region', () => {
+    it('renders the greeting as the page’s one H1, the avatar and the create button after it, and the region', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
@@ -94,41 +113,61 @@ describe('HomeWidgetSurface (web) — host composition', () => {
             renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
         });
 
-        // The page's top-level <h1> is the accessible title (visually hidden); the greeting is an <h2>
-        // beneath it. Asserting the level-1 heading pins the a11y landmark the auth E2E lands on.
-        expect(screen.getByRole('heading', { level: 1, name: 'Welcome to Commise' })).toBeTruthy();
-        expect(screen.getByRole('heading', { level: 2, name: 'Good afternoon, Chef!' })).toBeTruthy();
-        expect(screen.getByRole('region', { name: 'Home' })).toBeTruthy();
-        // And it is the page's ONLY h1 — the shell's top-bar title is plain banner text, not a second one.
+        // Slice 3 (`buildSpec.md` §4.2): the greeting IS the page's large title, its only H1; the avatar is the header's
+        // action and the floating create button comes right after it in DOM order (§3.4).
+        const heading = screen.getByRole('heading', { level: 1, name: /^Good afternoon/u });
+        const fab = screen
+            .getAllByRole('button', { name: 'New recipe' })
+            .find((button) => button.className.includes('nav:hidden'));
+
         expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+        expect(screen.getByRole('region', { name: 'Home' })).toBeTruthy();
+        // The header's avatar, and the sidebar's profile row (CSS shows one of them at a time).
+        expect(screen.getAllByRole('link', { name: /^Profile/u })).toHaveLength(2);
+        expect(fab).toBeDefined();
+        expect(heading.compareDocumentPosition(fab as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('sits the greeting on the brand beach-glow gradient hero (U8), not a plain header', () => {
+    // §3.4: the first run's own start buttons (in the recent-recipes widget) take the floating button's place.
+    it('hides the floating create button while the cook has no recipes', async () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData(recipeServiceKeys.recipeList({ pageSize: RECENT_RECIPE_LIMIT }), {
+            data: [],
+            total: 0,
+            page: 1,
+            pageSize: RECENT_RECIPE_LIMIT,
+            hasMore: false,
+        });
+
+        renderSurface(
+            {
+                container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+                renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+            },
+            queryClient,
+        );
+
+        await waitFor(() => expect(floatingCreate()).toBeUndefined());
+    });
+
+    it('sits the greeting on the page canvas, not inside a gradient card', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
-        renderWithProviders(
-            <HomeWidgetSurface
-                container={containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID))}
-                renderers={{ [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget }}
-            />,
-        );
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
 
-        // Walk up from the greeting to the nearest ancestor painting a linear-gradient background: it must be
-        // the hero beach-glow ramp (135deg sand → cool tints), NOT the seafoam→ocean-dark brand/CTA gradient.
-        // A regression that dropped the hero wrapper (or swapped it for `gradient="brand"`) fails here.
-        const greeting = screen.getByRole('heading', { level: 2, name: 'Good afternoon, Chef!' });
+        // "No box in a box" (`docs/design/uiOverhaul/buildSpec.md` §1.6): the greeting card is deleted. The page canvas
+        // already carries the beach-glow wash, so the greeting sits on it rather than in a second gradient card.
+        let node: HTMLElement | null = screen.getByRole('heading', { level: 1, name: /^Good afternoon/u });
 
-        let hero: HTMLElement | null = greeting.parentElement;
-
-        while (hero !== null && !hero.style.backgroundImage.includes('linear-gradient')) {
-            hero = hero.parentElement;
+        for (; node !== null; node = node.parentElement) {
+            expect(node.style.backgroundImage, 'a gradient surface wraps the greeting').not.toContain(
+                'linear-gradient',
+            );
         }
-
-        expect(hero).not.toBeNull();
-        expect(hero?.style.backgroundImage).toContain('135deg');
-        expect(hero?.style.backgroundImage).toContain('#FAF6F0');
-        expect(hero?.style.backgroundImage).toContain('#E8F4F8');
     });
 
     it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {
@@ -154,6 +193,50 @@ describe('HomeWidgetSurface (web) — host composition', () => {
 
         expect(await screen.findByText('fake-skeleton')).toBeTruthy();
         expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
+    });
+
+    it('leads with the recent recipes and groups the placeholders under one "Coming soon" heading (F2, §4.2)', async () => {
+        const Skeleton: FC = () => <div>fake-skeleton</div>;
+
+        renderSurface({
+            container: containerWith(
+                makePlaceholderDescriptor('nutrition', Skeleton),
+                makeLiveDescriptor(RECIPE_HOME_WIDGET_ID),
+            ),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        const recipes = await screen.findByText('fake-recipe-widget');
+        const group = screen.getByRole('region', { name: 'Coming soon' });
+
+        expect(within(group).getByRole('heading', { level: 2, name: 'Coming soon' })).toBeTruthy();
+        expect(within(group).getByText('Meal plans, a grocery list and daily nutrition are on the way.')).toBeTruthy();
+        expect(await within(group).findByText('fake-skeleton')).toBeTruthy();
+        expect(within(group).queryByText('fake-recipe-widget')).toBeNull();
+        expect(recipes.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('draws no "Coming soon" heading once no placeholder remains', async () => {
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        await screen.findByText('fake-recipe-widget');
+
+        expect(screen.queryByRole('heading', { name: 'Coming soon' })).toBeNull();
+    });
+
+    it('aligns Home to the start of the content column, never centred (F21, §1.3)', () => {
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        const column = screen.getByRole('region', { name: 'Home' }).parentElement as HTMLElement;
+
+        expect(column.className).toContain('max-w-page');
+        expect(column.className).not.toContain('mx-auto');
     });
 
     it('SKIPS a live widget whose id has no renderer instead of crashing (graceful version skew)', async () => {
@@ -194,7 +277,8 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         // mid-session, so a plain <p> (what web shipped) told a screen-reader user nothing at all. It is a
         // POLITE `status`, not an assertive `alert` — see `HomeWidgetErrorNotice.test.tsx`. Same failure,
         // same treatment, both platforms (FR-044 / §14).
-        expect(screen.getByRole('status')).toBeTruthy();
+        // The one status that SAYS something: the app's snackbar host keeps its own, empty, mounted (UI-overhaul slice 2).
+        expect(screen.getAllByRole('status').filter((region) => region.textContent !== '')).toHaveLength(1);
         expect(screen.queryByRole('alert')).toBeNull();
         expect(reportError).toHaveBeenCalledWith(expect.any(Error), { widget: RECIPE_HOME_WIDGET_ID });
 
@@ -230,7 +314,8 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         });
 
         expect(screen.queryByText('This section couldn’t load.')).toBeNull();
-        expect(screen.queryByRole('status')).toBeNull();
+        // The app's snackbar host keeps its own status region mounted; no OTHER status may appear here.
+        expect(screen.queryAllByRole('status').filter((region) => region.textContent !== '')).toHaveLength(0);
         expect(screen.queryByRole('alert')).toBeNull();
 
         consoleError.mockRestore();

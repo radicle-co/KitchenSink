@@ -16,6 +16,7 @@ import type { PullDiff } from '@kitchensink/recipe-service-client';
 
 import { PullUpdatesDialog } from '../PullUpdatesDialog.js';
 import type { PullUpdatesDialogProps } from '../model.js';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 
 afterEach(cleanup);
 
@@ -123,13 +124,19 @@ describe('PullUpdatesDialog (web) — generic error', () => {
 });
 
 describe('PullUpdatesDialog (web) — committing', () => {
-    it('disables the Pull action, marks it busy, and does not double-fire onConfirm', async () => {
+    /**
+     * REWRITTEN from native `disabled` in slice 2: the Pull action is the control just pressed, and a browser drops
+     * focus to <body> the moment a focused control is natively disabled (WCAG 2.2 SC 2.4.3). It stays focusable,
+     * `aria-disabled` and busy (the Button's `busy`), and the press is refused.
+     */
+    it('keeps the Pull action focusable but unavailable and busy, and does not double-fire onConfirm', async () => {
         const user = userEvent.setup();
         const onConfirm = vi.fn();
         render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff, isCommitting: true, onConfirm })} />);
 
         const confirm = screen.getByRole<HTMLButtonElement>('button', { name: 'Pull 2 Recipes' });
-        expect(confirm.disabled).toBe(true);
+        expect(confirm.disabled).toBe(false);
+        expect(confirm.getAttribute('aria-disabled')).toBe('true');
         expect(confirm.getAttribute('aria-busy')).toBe('true');
 
         await user.click(confirm);
@@ -154,6 +161,7 @@ describe('PullUpdatesDialog (web) — dismissal', () => {
 
         function Harness() {
             const [open, setOpen] = useState(false);
+
             return (
                 <>
                     <button type="button" onClick={() => setOpen(true)}>
@@ -189,5 +197,14 @@ describe('PullUpdatesDialog (web) — dismissal', () => {
         // trip via mutation observation here, since the returning focus is not itself a DOM mutation).
         await new Promise((resolve) => setTimeout(resolve, 100));
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open pull preview' }));
+    });
+});
+
+describe('PullUpdatesDialog (web) — the design-system Button (UI overhaul slice 2)', () => {
+    it('pulls through a primary check Button and cancels through a secondary x one, the ConfirmDialog’s Keep', () => {
+        render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff })} />);
+
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Pull 2 Recipes' }), 'primary', 'check');
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Cancel' }), 'secondary', 'x');
     });
 });

@@ -1,0 +1,189 @@
+appId: io.commise.mobile
+onFlowComplete:
+    # ⛔ ALWAYS back to portrait, pass or fail. The emulator is shared by every later flow on this shard, and each one
+    # was written for portrait geometry: a flow that died mid-rotation would otherwise fail every flow after it.
+    - setOrientation: PORTRAIT
+---
+# The core story in LANDSCAPE on a phone, TYPING included (WCAG 2.2 SC 1.3.4 Orientation;
+# `docs/design/compactHeightLayout.md` §13.2). `app.json` no longer locks portrait, and Android 16 ignores an
+# orientation lock on large screens anyway. `setOrientation` arrived in Maestro 2.0.0; CI pins 2.6.1.
+#
+# The story, rotated: search the recipe list, open a recipe and come back, filter Discover by an ingredient typed into
+# the filter sheet, then the one-page editor: type a title, reach the ingredient picker, type into it and see its
+# results, survive a rotation, and discard.
+#
+# Every step types IN LANDSCAPE. Typing used to be done upright, because a sideways phone gave a text field Android's
+# full-screen editor and the screens' pinned chrome left the content no room with the keyboard up. Both are fixed: every
+# field goes through `@commise/ui/text-input` (`disableFullscreenUI`), the screen frames step aside for the keyboard,
+# and a pinned footer (the filter sheet's `Done`, the editor's action bar) scrolls with the content past half the frame.
+#
+# What this flow does NOT prove, so nobody reads it as proof:
+#   - That the full-screen editor is absent. Maestro reads the app's hierarchy, which may still report the app's nodes
+#     under that editor. The proof is the adapter's unit test, `textInputAdapterImports.test.ts`, and a device check.
+#   - The keyboard-dependent layouts themselves (the tab bar stepping aside, `Done` and the editor's bar unpinning).
+#     Whether the soft keyboard is up after `inputText` is not something this flow can rely on, so it asserts only
+#     what holds either way: each control is REACHABLE. The collapse and the unpin rules are proved by their component
+#     tests. `pressKey: Enter` closes the keyboard where one is up; it is never `hideKeyboard`, which Android can
+#     deliver as a BACK event (see `systemBackGuard.yaml`).
+#   - The modal windows' orientation. Android ignores React Native's `supportedOrientations`; it matters on iOS only,
+#     and no tier here runs iOS. `@commise/ui/modal`'s unit test covers the prop, and a device check is owed.
+#
+# Read-only: nothing is published, nothing is picked (the picker's results are read only), the filter is cleared, and
+# the draft is discarded, so it is order-independent and needs no reseed.
+- runFlow: ../auth/signin.yaml
+
+- setOrientation: LANDSCAPE_LEFT
+
+# The list settled, populated (the count label renders only in the populated branch; see listDetail.yaml).
+- extendedWaitUntil:
+      visible:
+          text: '^3 recipes$'
+      timeout: 40000
+
+# ── The list's search, typed sideways. In compact height the heading shares a row with the field. ──
+- tapOn: 'Search your recipes'
+- inputText: 'Lamb'
+- extendedWaitUntil:
+      visible:
+          text: '^1 recipe$'
+      timeout: 20000
+- pressKey: Enter
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+
+# List → detail → back, on the seeded recipe the search left.
+- tapOn: '${E2E_RECIPE_LAMB}'
+# Sideways, the photo and the stat strip fill the first screen (slice 6), so the description is below the fold.
+- scrollUntilVisible:
+      element: 'Herb-marinated grilled lamb.'
+      direction: DOWN
+      timeout: 20000
+# The amount and the name are one paragraph (`docs/design/readSurfacesEvaluation.md` D1), matched whole.
+- scrollUntilVisible:
+      element: '8 Lamb loin chops'
+      direction: DOWN
+      timeout: 20000
+# Anchored above the recipe title: the system navigation bar publishes a node named exactly `Back`, and in landscape
+# it sits on a side edge (see maestroBackSelectorAnchoring.test.ts).
+- scrollUntilVisible:
+      element:
+          text: 'Back'
+          above:
+              text: '${E2E_RECIPE_LAMB}'
+      direction: UP
+      timeout: 20000
+- tapOn:
+      text: 'Back'
+      above:
+          text: '${E2E_RECIPE_LAMB}'
+- assertVisible: 'Recipes'
+
+# Clear the search, so the list is whole again for the later flows' assumptions about this screen.
+- tapOn: 'Search your recipes'
+- eraseText
+- pressKey: Enter
+- extendedWaitUntil:
+      visible:
+          text: '^3 recipes$'
+      timeout: 20000
+
+# ── The filter sheet, typed into sideways: the "Show {n} recipes" button must stay reachable with the keyboard up. ──
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover'
+      timeout: 40000
+- tapOn: 'Filters.*'
+# Sideways, the sheet's content scrolls under its pinned button and the ingredient field starts below the fold.
+- scrollUntilVisible:
+      element: 'Has ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Has ingredient'
+- inputText: '${E2E_PROBE_INGREDIENT}'
+- scrollUntilVisible:
+      element: 'Filter by ${E2E_PROBE_INGREDIENT}'
+      direction: DOWN
+      timeout: 40000
+- tapOn: 'Filter by ${E2E_PROBE_INGREDIENT}'
+- scrollUntilVisible:
+      element: 'Show \d+ recipes?|Show recipes'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Show \d+ recipes?|Show recipes'
+- extendedWaitUntil:
+      visible: 'No recipes match these filters'
+      timeout: 40000
+
+# Clear the filter again, as searchNavigation.yaml does.
+- tapOn: 'Filters.*'
+- scrollUntilVisible:
+      element: 'Remove ${E2E_PROBE_INGREDIENT}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Remove ${E2E_PROBE_INGREDIENT}'
+- scrollUntilVisible:
+      element: 'Show \d+ recipes?|Show recipes'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Show \d+ recipes?|Show recipes'
+- assertNotVisible: 'No recipes match these filters'
+
+# ── The one-page editor, typed into sideways (REWRITTEN for slice 7: the wizard is retired). ── Back to the Recipes
+# tab, whose My recipes is its first segment.
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'New recipe'
+      timeout: 40000
+- tapOn: 'New recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 30000
+
+# Sideways, the Title FIELD starts below the pinned bar while its label shows above it, so `tapOn: 'Title'` taps the
+# label, which focuses nothing, and the typed keys go to whatever control has focus (a Space presses it). The field is
+# reached by its placeholder, which names only the field, and is proved focused before anything is typed.
+- scrollUntilVisible:
+      element: 'e.g. Weeknight Pasta'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'e.g. Weeknight Pasta'
+- assertVisible:
+      text: 'e.g. Weeknight Pasta'
+      focused: true
+- inputText: 'Maestro Landscape Draft'
+# The FIELD's copy: the editor's header names the TASK ('New recipe'), never the recipe, so only the field holds it.
+- assertVisible:
+      text: 'Maestro Landscape Draft'
+
+# The trailing "Add an ingredient" field, typed into sideways: its list renders where the cook can reach it. Read,
+# never picked. 'Flou', a prefix of the run's probe food (`e2e-seed provision` authors `Flour`), so the cook's own
+# foods group renders, and a prefix so the field's own text never matches the option.
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Flou'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Your foods'
+
+# The draft survives a rotation: the Title field, above on the same page, still holds what was typed.
+- setOrientation: PORTRAIT
+- scrollUntilVisible:
+      element: 'Maestro Landscape Draft'
+      direction: UP
+      timeout: 20000
+- setOrientation: LANDSCAPE_LEFT
+- scrollUntilVisible:
+      element: 'Maestro Landscape Draft'
+      direction: UP
+      timeout: 20000
+
+# Throw the draft away through the editor's own header menu: × or Back would keep it, because the editor saves on
+# exit (build spec §3.5). The menu is in the pinned header, so it is reachable wherever the page is scrolled.
+- runFlow: common/discardDraft.yaml
+- assertVisible: 'Recipes'

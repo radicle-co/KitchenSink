@@ -104,14 +104,14 @@ phases:
         resumed_at: 2026-06-29
         progress_2026_06_29: >
             Phase 6 RESUMED on the stabilized design. Phase-1 SCHEMA + MIGRATION slice COMPLETE (TDD):
-            T-100/T-101/T-111 (schema food.ts + operational.ts + food-candidates.ts + index.ts barrel,
+            T-100/T-101/T-111 (schema food.ts + operational.ts + foodCandidates.ts + index.ts barrel,
             13 source-agnostic tables, usda.ts deleted), T-102/T-103/T-104 (0000_food_schema.sql rebuilt
             to plan §2 with all hardening: composite same-food provenance FKs, leased_at + reaper index,
             nutrient (name,unit) dedup, amount/gram_weight CHECKs, fetch_state CHECK, pg_trgm indexes),
             + src/db/ulid.ts (newFoodId), drizzle.config.ts repointed, ulidx added (lockfile synced).
             Red gate: schema.integration.test.ts RED vs old migration → GREEN 18/18 vs new (verified
             against Docker Postgres 16, independently re-run). DEFERRED to T-130 (Phase 3): the old
-            foods/* layer (foods.repository/service/fixtures) + foods-api.integration.test.ts (quarantined
+            foods/* layer (foods.repository/service/fixtures) + foodsApi.integration.test.ts (quarantined
             via vitest exclude) still target the removed fdcId API — rewired onto the new DAOs there.
             NEXT: T-105..T-110 DAO slice. red_gate: confirmed_failing (T-100..T-104, T-111).
         note: >
@@ -167,7 +167,7 @@ phases:
               esbuild-bundled .sql, tracked in schema_migrations, invoked at deploy). food-service needs
               the equivalent wired to the new FoodMigrationPlanSecretArn (T-001b). Phases 1–11 build
               against a local/test DB until then: the **Docker Postgres** (`postgres:16`) in
-              `infra/localstack/docker-compose.yml` (the "Docker for RDS" decision, NOT LocalStack RDS),
+              `infra/localstack/compose.yml` (the "Docker for RDS" decision, NOT LocalStack RDS),
               migrated from the same Phase-1 ordered SQL. See FU-LOCALSTACK-E2E and T-064. Design the
               deploy-time runner at the deploy phase.
         - id: FU-INGREDIENTS
@@ -212,7 +212,7 @@ phases:
           detail: >
               T-064 reshaped from testcontainers to LocalStack (Community tier) + Docker Postgres,
               mirroring the user's Armoury pattern. FOUNDATION DONE: repo-root
-              `infra/localstack/docker-compose.yml` (a `localstack/localstack:4.4.0` service with
+              `infra/localstack/compose.yml` (a `localstack/localstack:4.4.0` service with
               secretsmanager,events,sqs,sns,sts,iam,logs,cloudwatch,ssm + a plain `postgres:16` for the
               `food_e2e` DB), root `localstack:up`/`localstack:down` scripts, `infra/localstack/README.md`,
               the `e2e-food` CI job in `_ci.yml` (Postgres + LocalStack service containers), food-service

@@ -1,20 +1,22 @@
 /**
  * U5 (SC-ramp/FR-6/KTD-5) — one-command orchestrator for the food-API load test.
  *
- *   provision distinct-user pool  ->  grant a food:admin observer  ->  (k6 journey  ||  server-side
- *   metric collector)  ->  correlated capacity + degradation report  ->  teardown (delete all test users).
+ *   lease the distinct-user pool + its food:admin observer  ->  (k6 journey  ||  server-side metric collector)
+ *   ->  correlated capacity + degradation report.
  *
- * Teardown runs in a `finally` so a failed/interrupted run never leaks Clerk users. k6's per-metric
- * summary (thresholds incl.) is correlated with the collector's timestamped server series into report.md.
+ * ⛔ IT CREATES AND DELETES NO CLERK USER (owner ruling 2026-09-13). It used to mint a pool per run and delete
+ * it in a `finally`; the pool is now the FIXED test pool, leased by `provisionPool.ts` and provisioned only by
+ * `poolAdmin`, so there is nothing to tear down and a crashed run leaks no user. The pool is bounded by the
+ * roster's k6 VU lanes, which is why `POOL_SIZE` cannot exceed them. k6's per-metric summary (thresholds incl.)
+ * is correlated with the collector's timestamped server series into report.md.
  *
- * Env: CLERK_SECRET_KEY (required), everything in config.example.env, plus:
- *   OUT_DIR (default .), COLLECT_INTERVAL_S (default 10), KEEP (skip teardown), SKIP_K6 (dry orchestrate),
- *   FOOD_CLUSTER/FOOD_SERVICE (optional CloudWatch dims).
- * @sideEffect Creates+deletes Clerk users; runs k6 + aws; writes pool.json/admin.json/summary/report.
+ * Env: CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY (the lease), ORIGIN (the web origin tokens are stamped for),
+ *   everything in config.example.env, plus OUT_DIR (default .), COLLECT_INTERVAL_S (default 10), SKIP_K6 (dry
+ *   orchestrate), FOOD_CLUSTER/FOOD_SERVICE (optional CloudWatch dims).
+ * @sideEffect Leases pool sessions; runs k6 + aws; writes pool.json/admin.json/summary/report.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { setTimeout as delay } from 'node:timers/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,12 +25,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // regardless of the directory run.mjs was invoked from.
 const OUT_DIR = resolve(process.env['OUT_DIR'] ?? '.');
 const SK = process.env['CLERK_SECRET_KEY'] ?? process.env['CLERK_SK'];
-const BAPI = 'https://api.clerk.com/v1';
-const POOL_SIZE = Number(process.env['POOL_SIZE'] ?? process.env['MAX_VUS'] ?? 100);
+// Bounded by the fixed pool's k6 VU lanes (20); `provisionPool.ts` refuses more rather than minting users.
+const POOL_SIZE = Number(process.env['POOL_SIZE'] ?? process.env['MAX_VUS'] ?? 20);
 const COLLECT_INTERVAL_S = Number(process.env['COLLECT_INTERVAL_S'] ?? 10);
-const KEEP = process.env['KEEP'] === '1' || process.env['KEEP'] === 'true';
-// Reuse an existing PERSISTENT pool (from `npm run provision:pool`): skip provisioning AND teardown, so
-// the stable test-*@… users survive the run. The pool/admin files must already exist.
+// Reuse the pool files an earlier `npm run provision:pool` wrote, skipping the lease. The files must exist.
 const REUSE_POOL = process.env['REUSE_POOL'] === '1' || process.env['REUSE_POOL'] === 'true';
 const SKIP_K6 = process.env['SKIP_K6'] === '1';
 
@@ -87,35 +87,6 @@ function runWindowSeconds() {
     return Math.ceil(stages.reduce((sum, s) => sum + durationSeconds(s), 0)) + 20;
 }
 
-async function deleteUsers(userIds) {
-    let ok = 0;
-    for (const userId of userIds) {
-        let deleted = false;
-
-        for (let attempt = 0; attempt < 4 && !deleted; attempt += 1) {
-            const res = await fetch(`${BAPI}/users/${userId}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${SK}` },
-            }).catch(() => ({ status: 0 }));
-
-            if (res.status === 200 || res.status === 404) {
-                deleted = true;
-            } else {
-                // 429 / transient — back off and retry so a large pool teardown doesn't leak users.
-                await delay(500 * 2 ** attempt);
-            }
-        }
-
-        if (deleted) {
-            ok += 1;
-        } else {
-            console.error(`  !! ORPHANED USER ${userId} — teardown DELETE kept failing; delete manually.`);
-        }
-    }
-
-    return ok;
-}
-
 function readJson(path) {
     return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
 }
@@ -155,7 +126,7 @@ function buildReport() {
     const lines = [
         `# Food API load-test report`,
         ``,
-        `Target: \`${process.env['FOOD_BASE_URL'] ?? 'https://food-pr-59.commise.app'}\`  ·  pool: ${POOL_SIZE} users  ·  ` +
+        `Target: \`${process.env['FOOD_BASE_URL'] ?? '(FOOD_BASE_URL unset)'}\`  ·  pool: ${POOL_SIZE} users  ·  ` +
             `profile: baseline ${process.env['BASELINE_RATE'] ?? 1}/s → hold ${process.env['HOLD_RATE'] ?? 2}/s → ` +
             `ramp ${process.env['RAMP_RATE'] ?? 3}/s`,
         ``,
@@ -249,11 +220,15 @@ async function main() {
             const n = (readJson(poolPath) ?? []).length;
             console.log(`\n[1/4] Reusing persistent pool (${n} users + admin) — skipping provisioning.`);
         } else {
-            console.log(`\n[1/4] Provisioning ${POOL_SIZE}-user pool + admin observer…`);
-            await run('node', ['auth/provision-users.mjs'], {
-                env: { ...process.env, POOL_SIZE: String(POOL_SIZE), OUT_DIR },
+            console.log(`\n[1/4] Leasing the ${POOL_SIZE}-user pool + admin observer…`);
+            await run('npx', ['tsx', 'provisionPool.ts'], {
+                env: {
+                    ...process.env,
+                    POOL_SIZE: String(POOL_SIZE),
+                    POOL_ORIGIN: process.env['ORIGIN'] ?? '',
+                    OUT_DIR,
+                },
             });
-            await run('node', ['auth/grant-admin.mjs'], { env: { ...process.env, OUT_DIR } });
         }
 
         const windowS = runWindowSeconds();
@@ -265,7 +240,7 @@ async function main() {
         }
 
         console.log(`\n[2/4] Starting server-side collector for ~${windowS}s…`);
-        collector = spawn('node', ['observe/collect-metrics.mjs'], {
+        collector = spawn('node', ['observe/collectMetrics.mjs'], {
             stdio: 'inherit',
             cwd: HERE,
             env: {
@@ -315,7 +290,9 @@ async function main() {
             // Exit 99 = k6 thresholds were breached — that's a RESULT (the report shows which), not a
             // harness failure, so proceed to build the report. Any other non-zero is a real k6 error.
             if (code === 99) {
-                console.warn('  ⚠️ k6 thresholds breached — see the report for which (this is a result, not an error).');
+                console.warn(
+                    '  ⚠️ k6 thresholds breached — see the report for which (this is a result, not an error).',
+                );
             } else if (code !== 0) {
                 throw new Error(`k6 exited ${code} — script/config error (see the k6 output above).`);
             }
@@ -331,18 +308,7 @@ async function main() {
             collector.kill('SIGTERM');
         }
 
-        if (REUSE_POOL) {
-            console.log('\nREUSE_POOL set — leaving the persistent pool in place (delete it with `npm run sweep`).');
-        } else if (!KEEP) {
-            const pool = readJson(poolPath) ?? [];
-            const admin = readJson(adminPath);
-            const ids = [...pool.map((p) => p.userId), ...(admin ? [admin.userId] : [])].filter(Boolean);
-            console.log(`\nTeardown: deleting ${ids.length} test users…`);
-            const ok = await deleteUsers(ids);
-            console.log(`  deleted ${ok}/${ids.length}. (added foods live in the per-PR DB, dropped on PR close.)`);
-        } else {
-            console.log('\nKEEP set — leaving test users + pool.json/admin.json in place.');
-        }
+        // Nothing to tear down: the pool is fixed and leased, never created by a run.
     }
 }
 

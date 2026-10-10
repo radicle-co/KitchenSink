@@ -3,7 +3,13 @@ import type { Locator, Page } from '@playwright/test';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, makeRecipeVersion, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import {
+    E2E_INGREDIENT_IDS,
+    makeRecipeDetail,
+    makeRecipeVersion,
+    mockRecipeApi,
+    readViewerAppId,
+} from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -34,7 +40,7 @@ import { signInWithTicket } from './utils/auth';
  *
  * Selectors are role/label/text only (repo policy); no `data-testid`, no `waitForTimeout`.
  */
-const RECIPE_ID = 'rec_pasta';
+const RECIPE_ID = 'ec000000-0000-4000-8000-000000000019';
 
 /** The mobile touch-target floor (`min-h-11` / `size-11`). */
 const TOUCH_TARGET_PX = 44;
@@ -80,8 +86,8 @@ const baseSnapshot: RecipeSnapshot = {
         {
             id: 'ri_1',
             recipeId: RECIPE_ID,
-            ingredientId: 'ing_olive_oil',
-            quantity: 2,
+            ingredientId: E2E_INGREDIENT_IDS.oliveOil,
+            quantity: { kind: 'exact', value: 2 },
             unit: 'tbsp',
             sortOrder: 1,
             ingredientName: 'Olive oil',
@@ -112,9 +118,9 @@ async function seed(page: Page): Promise<void> {
                 description: baseSnapshot.description,
                 ingredients: [
                     {
-                        ingredientId: 'ing_olive_oil',
+                        ingredientId: E2E_INGREDIENT_IDS.oliveOil,
                         name: 'Olive oil',
-                        quantity: 2,
+                        quantity: { kind: 'exact', value: 2 },
                         unit: 'tbsp',
                         isUserEntered: false,
                     },
@@ -132,6 +138,24 @@ async function seed(page: Page): Promise<void> {
     });
 }
 
+/**
+ * Sign in and seed ONE recipe the viewer owns, under a caller-supplied title.
+ *
+ * ⚠️ Exists so a test can seed a PATHOLOGICAL title. A recipe title is user-authored and unbounded, and the
+ * interesting case is not a long sentence (which wraps at spaces on its own) but a long unbreakable TOKEN —
+ * a smashed-together title, a pasted URL, a compound noun. That is the shape a flex item's default
+ * `min-width: auto` refuses to shrink below, and it pushed the detail's title band off-screen.
+ */
+async function seedTitled(page: Page, title: string): Promise<void> {
+    await signInWithTicket(page);
+    const viewerId = await readViewerAppId(page);
+    await mockRecipeApi(page, {
+        viewerId,
+        tier: 'premium',
+        recipes: [makeRecipeDetail({ id: RECIPE_ID, ownerId: viewerId, title, currentVersion: 1 })],
+    });
+}
+
 /** The document must never scroll sideways — the canonical "fits the viewport" assertion. */
 async function expectNoHorizontalOverflow(page: Page): Promise<void> {
     const overflow = await page.evaluate(() => {
@@ -143,21 +167,21 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
     expect(overflow).toBeLessThanOrEqual(1);
 }
 
-/** Open the version-compare panel (selecting v2 + v3) and return its A/B header grid's parent element handle. */
+/** Open the compare panel for version 2 against the current version (§6.6, the row's ⋯ menu). */
 async function openCompare(page: Page): Promise<void> {
     await page.goto(route(`/recipes/${RECIPE_ID}/versions`));
     await expect(page.getByRole('heading', { name: 'Version history' })).toBeVisible();
-    await page.getByRole('checkbox', { name: 'Select version 2 to compare' }).click();
-    await page.getByRole('checkbox', { name: 'Select version 3 to compare' }).click();
+    await page.getByRole('button', { name: 'More actions for version 2' }).click();
+    await page.getByRole('menuitem', { name: 'Compare with current' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
 }
 
-/** Count the rendered grid tracks of the compare A/B column header (1 = stacked, 2 = side-by-side). */
+/** Count the rendered grid tracks of a compare row's then/now pair (1 = stacked, 2 = side-by-side). */
 async function compareColumnCount(page: Page): Promise<number> {
-    const versionColumn = page.getByRole('dialog').getByText('Version 3');
+    const versionColumn = page.getByRole('dialog').getByText('Version 2', { exact: true }).first();
 
     return versionColumn.evaluate((el) => {
-        const parent = el.parentElement;
+        const parent = el.closest('dl');
 
         if (parent === null) {
             return 0;
@@ -169,6 +193,47 @@ async function compareColumnCount(page: Page): Promise<number> {
 
 test.describe('recipe/home responsive — 375px phone (U5)', () => {
     test.use({ viewport: { width: 375, height: 812 } });
+
+    /**
+     * ⛔ THE OWNER'S PRIMARY ACTION MUST NOT BE AT THE FOOT OF AN UNBOUNDED SCROLL. It used to be: Edit
+     * rendered below the hero, the badges, the stats, every ingredient, every step and the rating block, so
+     * on a long recipe the only route to one's own Edit button was to scroll past the whole recipe.
+     * `recipe-detail.md` puts `[Edit] [More]` in the header; this asserts they are reached BEFORE the body.
+     *
+     * ⚠️ Asserted as a PIXEL position, not DOM order, because this is the deployed-browser tier and the
+     * viewer's actual complaint is a distance in pixels. The unit suites assert the document-order half.
+     */
+    test('the owner reaches Edit above the recipe body, not past every step of it', async ({ page }) => {
+        await seedTitled(page, 'Weeknight Pasta with Garlic');
+        await page.goto(route(`/recipes/${RECIPE_ID}`));
+
+        const edit = page.getByRole('link', { name: 'Edit recipe' });
+        await expect(edit).toBeVisible();
+        const editBox = await edit.boundingBox();
+        const ingredientsBox = await page.getByRole('region', { name: 'Ingredients' }).boundingBox();
+
+        expect(editBox).not.toBeNull();
+        expect(ingredientsBox).not.toBeNull();
+        expect(editBox?.y ?? 0).toBeLessThan(ingredientsBox?.y ?? 0);
+        // And it is a real 44px target, not a link squeezed into the title row — asserted as a bounded RANGE
+        // via the house helper, per this file's own module doc: a bare `>= 44` is satisfied by every
+        // inflation, so it would not catch the opposite defect of a pill that grew.
+        expectTouchTarget(editBox?.height ?? 0, 'the Edit link in the detail title band');
+    });
+
+    /**
+     * ⛔ A LONG UNBREAKABLE TITLE MUST NOT PUSH THE PAGE SIDEWAYS. Measured in Chromium before the fix: a
+     * 47-character single word overflowed the document by 216px at 320 and 340px at 640 — the width the
+     * title band shares with the owner controls. The cure is `min-w-0 break-words` on the `h1`
+     * (`RecipeDetailBody.tsx`), and this is what proves it in a real browser rather than in a replica.
+     */
+    test('a long unbreakable recipe title wraps instead of scrolling the page sideways', async ({ page }) => {
+        await seedTitled(page, 'Supercalifragilisticexpialidociouslongsingleword');
+        await page.goto(route(`/recipes/${RECIPE_ID}`));
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+        await expectNoHorizontalOverflow(page);
+    });
 
     test('Home fits the viewport and the bottom tab bar is pinned at the foot with 44px controls', async ({ page }) => {
         await seed(page);
@@ -220,21 +285,21 @@ test.describe('recipe/home responsive — 375px phone (U5)', () => {
         await expectNoHorizontalOverflow(page);
     });
 
-    test('the recipe detail fits the viewport and the ingredient checkbox is a 44px tap target', async ({ page }) => {
+    test('the recipe detail fits the viewport and every ingredient row is a 48px tap target', async ({ page }) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         await expect(page.getByRole('heading', { level: 1, name: 'Weeknight Pasta with Garlic' })).toBeVisible();
 
         await expectNoHorizontalOverflow(page);
 
-        // `size-11` at base, `sm:size-6` on the mouse — so at 375px this box is EXACTLY the 44px floor. The
-        // desktop half of this suite already pins it at 24px; bounding it here means neither end can drift.
-        const checkbox = page.getByRole('checkbox', { name: /Olive oil/ });
-        const box = await checkbox.boundingBox();
+        // The WHOLE row is the checkbox (build spec §6.3): at least 48 px tall, the drawn box inside it 24 px.
+        const row = page.getByRole('checkbox', { name: /Olive oil/ });
+        const box = await row.boundingBox();
+        const drawn = await row.locator('[aria-hidden="true"]').first().boundingBox();
 
-        expect(box).not.toBeNull();
-        expectTouchTarget(box?.width ?? 0, 'the ingredient checkbox width');
-        expectTouchTarget(box?.height ?? 0, 'the ingredient checkbox height');
+        expect(box?.height ?? 0).toBeGreaterThanOrEqual(48);
+        expect(Math.round(drawn?.width ?? 0)).toBe(24);
+        expect(Math.round(drawn?.height ?? 0)).toBe(24);
     });
 
     test('version-compare stacks the A/B columns into one', async ({ page }) => {
@@ -253,34 +318,50 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         await page.goto(route('/'));
         await expect(page.getByRole('region', { name: 'Home' })).toBeVisible();
 
-        // `lg:hidden` collapses the tab bar to display:none (excluded from the a11y tree), so the only visible
-        // "Main" nav at 1280px is the desktop sidebar — a tall left rail, never a short bottom bar. That the
-        // visible nav spans most of the viewport height proves the tab bar did not leak onto desktop.
+        // The tab bar is display:none from 840 (excluded from the a11y tree), so the only visible "Main" nav at 1280px
+        // is the sidebar's (slice 3). The nav landmark holds only the three destinations, so it is the RAIL around it
+        // that proves the shape: a tall left column, never a short bottom bar.
         const nav = page.getByRole('navigation', { name: 'Main' });
         await expect(nav).toBeVisible();
         const box = await nav.boundingBox();
-        expect(box?.height ?? 0).toBeGreaterThan(400);
+        const railHeight = await nav.evaluate((el) => el.parentElement?.getBoundingClientRect().height ?? 0);
+        expect(box?.x ?? Number.POSITIVE_INFINITY).toBeLessThan(320);
+        expect(railHeight).toBeGreaterThan(400);
     });
 
-    test('the detail title keeps its 36px (text-4xl) size and the ingredient box its 24px', async ({ page }) => {
+    test('the detail title is the large title and the drawn ingredient box stays 24px', async ({ page }) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         const heading = page.getByRole('heading', { level: 1, name: 'Weeknight Pasta with Garlic' });
         await expect(heading).toBeVisible();
 
-        // text-4xl = 2.25rem = 36px — the base text-2xl must NOT leak onto desktop.
-        const fontSize = await heading.evaluate((el) => getComputedStyle(el).fontSize);
-        expect(fontSize).toBe('36px');
+        // The title is the large-title role (build spec §1.5); its wide size is the role's own, read from the page.
+        const fontSize = await heading.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
+        expect(fontSize).toBeGreaterThanOrEqual(34);
 
-        // The ingredient tap target returns to its original 24px (size-5) box on desktop (sm:size-5).
-        const checkbox = page.getByRole('checkbox', { name: /Olive oil/ });
-        const box = await checkbox.boundingBox();
-        expect(Math.round(box?.width ?? 0)).toBe(24);
-        expect(Math.round(box?.height ?? 0)).toBe(24);
+        // The drawn ingredient box is 24 px at every width; the row around it is the target.
+        const drawn = await page
+            .getByRole('checkbox', { name: /Olive oil/ })
+            .locator('[aria-hidden="true"]')
+            .first()
+            .boundingBox();
+        expect(Math.round(drawn?.width ?? 0)).toBe(24);
+        expect(Math.round(drawn?.height ?? 0)).toBe(24);
 
         // Future-drift guard: the static detail article stays visually stable at desktop width.
+        // ⚠️ THIS BASELINE NOW COVERS THE OWNER CONTROLS. They used to be siblings of `RecipeDetailView`,
+        // OUTSIDE this `<article>` and therefore invisible to the snapshot; they now render inside the
+        // article's header, and at this width in the `sm:flex-row sm:justify-between` branch. So any
+        // change to `RecipeDetailBody`'s article subtree owes a baseline refresh (`--update-snapshots`) —
+        // a diff that slips under `maxDiffPixelRatio` without one leaves this guard certifying a picture of
+        // a UI that no longer ships, which is strictly worse than it failing.
+        // Re-baselined for the UI overhaul's slice 1 (no box in a box, §1.6) and slice 6 (the recipe page's layout,
+        // §6.1: meta line, stat strip, action row, two columns from a 720 px body). Re-baselined again for the UX
+        // evaluation fixes (`evaluateFinal.md` F7, F8, F10, F15): the title is Playfair `largeTitle`, the stat strip stays
+        // 2 x 2 below a 480 px strip, the no-photo hero is the 96 px monogram band at the end, the page gutter is the
+        // layout's alone, and "Community rating" is an Inter H2.
         await expect(page.getByRole('article', { name: 'Weeknight Pasta with Garlic' })).toHaveScreenshot(
-            'recipe-detail-desktop.png',
+            'recipeDetailDesktop.png',
             { maxDiffPixelRatio: 0.02 },
         );
     });
@@ -293,13 +374,29 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
     });
 });
 
-/** The measured height of a control, in CSS px. */
-async function heightOf(locator: Locator): Promise<number> {
-    const box = await locator.boundingBox();
+/**
+ * How tall a control's TAP band is: the run of points down its centre line that land on it, read by hit-testing the
+ * page (`elementFromPoint`) rather than by its box. A chip is 36 px to look at and 44 px to touch (`buildSpec.md` §1.10:
+ * "36 visual, 44 hit on coarse pointers"), through a transparent overlay its box does not include; a box measure calls
+ * that a 36 px target and would pass a chip whose overlay was deleted only by its visual growing.
+ */
+async function tapBandOf(locator: Locator): Promise<number> {
+    return locator.evaluate((control) => {
+        const box = control.getBoundingClientRect();
+        const x = box.left + box.width / 2;
+        let band = 0;
 
-    expect(box).not.toBeNull();
+        // Half-pixel steps: a box at a fractional top would otherwise lose a pixel at one edge.
+        for (let y = Math.floor(box.top) - 12; y <= Math.ceil(box.bottom) + 12; y += 0.5) {
+            const hit = document.elementFromPoint(x, y);
 
-    return box?.height ?? 0;
+            if (hit !== null && (hit === control || control.contains(hit))) {
+                band += 0.5;
+            }
+        }
+
+        return Math.round(band);
+    });
 }
 
 /**
@@ -313,8 +410,18 @@ async function seedQuickAndSlow(page: Page): Promise<void> {
         viewerId,
         tier: 'premium',
         recipes: [
-            makeRecipeDetail({ id: 'rec_quick', ownerId: viewerId, title: 'Overnight Oats', totalTimeMinutes: 5 }),
-            makeRecipeDetail({ id: 'rec_slow', ownerId: viewerId, title: 'Sunday Ragu', totalTimeMinutes: 240 }),
+            makeRecipeDetail({
+                id: 'ec000000-0000-4000-8000-00000000001d',
+                ownerId: viewerId,
+                title: 'Overnight Oats',
+                totalTimeMinutes: 5,
+            }),
+            makeRecipeDetail({
+                id: 'ec000000-0000-4000-8000-00000000002f',
+                ownerId: viewerId,
+                title: 'Sunday Ragu',
+                totalTimeMinutes: 240,
+            }),
         ],
     });
 }
@@ -322,24 +429,25 @@ async function seedQuickAndSlow(page: Page): Promise<void> {
 test.describe('recipe list touch targets — 390×844 phone with a touchscreen', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
-    test('tapping the Quick (<30m) chip sits AT the 44px floor AND applies the filter', async ({ page }) => {
+    test('tapping the Under 30 min chip sits AT the 44px floor AND applies the filter', async ({ page }) => {
         await seedQuickAndSlow(page);
         await page.goto(route('/recipes'));
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
 
         const chips = page.getByRole('group', { name: 'Quick filters' });
         const allChip = chips.getByRole('button', { name: 'All' });
-        const quickChip = chips.getByRole('button', { name: 'Quick (<30m)' });
+        const quickChip = chips.getByRole('button', { name: /^Under 30 min/ });
 
-        // Both chips sit AT the 44px floor at phone width (`min-h-11`, reset at `md:` for the desktop
-        // density) — bounded above too, so an inflated spacing ramp cannot pass by being larger.
-        expectTouchTarget(await heightOf(allChip), 'the All chip');
-        expectTouchTarget(await heightOf(quickChip), 'the Quick chip');
+        // Both chips TAP at the 44px floor on a touchscreen (36 to look at, the coarse-pointer overlay to touch) —
+        // bounded above too, so an inflated spacing ramp cannot pass by being larger. `hasTouch` makes Chromium report
+        // `(pointer: coarse)`, which is what the overlay keys on.
+        expectTouchTarget(await tapBandOf(allChip), 'the All chip');
+        expectTouchTarget(await tapBandOf(quickChip), 'the Quick chip');
 
         // Nothing is filtered yet: "All" is the pressed chip and both recipes are listed.
         await expect(allChip).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.getByRole('button', { name: 'Overnight Oats' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Sunday Ragu' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Overnight Oats' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Sunday Ragu' })).toBeVisible();
 
         // A real TAP (touchstart/touchend, not a mouse click) must apply the filter.
         await quickChip.tap();
@@ -348,37 +456,128 @@ test.describe('recipe list touch targets — 390×844 phone with a touchscreen',
         await expect(allChip).toHaveAttribute('aria-pressed', 'false');
         // The 240-minute recipe leaving the list is the assertion that matters — it can only happen if the
         // tap actually reached the chip's handler.
-        await expect(page.getByRole('button', { name: 'Sunday Ragu' })).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Overnight Oats' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Sunday Ragu' })).toHaveCount(0);
+        await expect(page.getByRole('article', { name: 'Overnight Oats' })).toBeVisible();
 
         // Tapping "All" restores the full list.
         await allChip.tap();
-        await expect(page.getByRole('button', { name: 'Sunday Ragu' })).toBeVisible();
+        await expect(page.getByRole('article', { name: 'Sunday Ragu' })).toBeVisible();
     });
 
-    test('tapping the Community source tab sits AT the 44px floor AND switches source', async ({ page }) => {
+    // Slice 4 (`buildSpec.md` §4.3): the My Recipes / Community switcher is gone — Discover is its own destination — and
+    // the Recipes screen's places are the My recipes · Collections segments.
+    test('tapping the Collections segment sits AT the 44px floor AND switches place', async ({ page }) => {
         await seedQuickAndSlow(page);
         await page.goto(route('/recipes'));
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
 
-        // The switcher is a `nav` of LINKS, not a `tablist` of buttons: each source is a route, so it keeps
-        // link semantics (⌘-click, middle-click, "open in new tab") and marks the current one with
-        // `aria-current="page"`. See `RecipeSourceTabs`' module JSDoc for the full argument.
-        const tabs = page.getByRole('navigation', { name: 'Recipe source' });
-        const mine = tabs.getByRole('link', { name: 'My Recipes' });
-        const community = tabs.getByRole('link', { name: 'Community' });
+        const segments = page.getByRole('navigation', { name: 'Recipes' });
+        const mine = segments.getByRole('link', { name: 'My recipes' });
+        const collections = segments.getByRole('link', { name: 'Collections' });
 
-        expectTouchTarget(await heightOf(mine), 'the My Recipes tab');
-        expectTouchTarget(await heightOf(community), 'the Community tab');
-
-        // This list IS "My Recipes", and the tab says so.
+        // Each segment taps across the whole 44 px track (§1.11), not only its 36 px pill.
+        expectTouchTarget(await tapBandOf(mine), 'the My recipes segment');
+        expectTouchTarget(await tapBandOf(collections), 'the Collections segment');
         await expect(mine).toHaveAttribute('aria-current', 'page');
-        await expect(community).not.toHaveAttribute('aria-current', 'page');
 
-        await community.tap();
+        await collections.tap();
 
-        // L5: "Community" browses public recipes on the discovery surface — the tap has to actually get there.
-        await expect(page).toHaveURL(/\/discover(?:\?|$)/);
-        await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
+        await expect(page).toHaveURL(/\/collections(?:\?|$)/);
+    });
+});
+
+/**
+ * ⛔ 320 CSS px, THE NARROWEST SUPPORTED WIDTH, which no spec in this repository covered — and the four
+ * routes below were not covered at ANY width.
+ *
+ * That gap is why two defects shipped together on the retired wizard: its action bar was painted over by the app
+ * tab bar at every width under `lg`, and its three controls needed 388px against 288 available so the
+ * primary hung 84px off the right edge. Both are worst here and both are invisible at 375.
+ *
+ * ⚠️ A `fixed` element is EXCLUDED from scrollable overflow, so `expectNoHorizontalOverflow` alone cannot
+ * see a clipped pinned bar — that is why `recipeEditor.spec.ts` hit-tests the editor's action bar against the
+ * viewport directly. This describe covers the DOCUMENT, which is the other half.
+ */
+test.describe('recipe responsive — 320px, the narrowest supported width', () => {
+    test.use({ viewport: { width: 320, height: 640 } });
+
+    test('every recipe route fits the viewport with no horizontal scroll', async ({ page }) => {
+        await seed(page);
+
+        for (const path of [
+            '/',
+            '/recipes',
+            `/recipes/${RECIPE_ID}`,
+            `/recipes/${RECIPE_ID}/versions`,
+            // ⛔ The four the suite never visited, and the three defects all live here.
+            '/recipes/new',
+            `/recipes/${RECIPE_ID}/edit`,
+            // Slice 8: Paste a list, a sheet in the new editor (the paste page is retired).
+            '/recipes/new?paste=1#ingredients',
+        ]) {
+            await page.goto(route(path));
+            await expectNoHorizontalOverflow(page);
+        }
+    });
+});
+
+/**
+ * ⚠️ 768 IS A REAL BAND, not an interpolation between 375 and 1280. `HomeTabBar` is `lg:hidden`, so it is
+ * present through 1023 and gone at 1024 — the whole tablet range behaved like a phone for chrome and like a
+ * desktop for content, and no spec exercised it.
+ */
+test.describe('recipe responsive — 768px tablet', () => {
+    test.use({ viewport: { width: 768, height: 1024 } });
+
+    test('every recipe route fits the viewport with no horizontal scroll', async ({ page }) => {
+        await seed(page);
+
+        for (const path of [
+            '/',
+            '/recipes',
+            `/recipes/${RECIPE_ID}`,
+            '/recipes/new',
+            '/recipes/new?paste=1#ingredients',
+        ]) {
+            await page.goto(route(path));
+            await expectNoHorizontalOverflow(page);
+        }
+    });
+
+    /**
+     * ⛔ THIS IS THE CASE THAT BINDS `min-w-0`, AND THE WIDTH IS THE WHOLE POINT. The detail `h1` carries two
+     * utilities doing two different jobs at two different widths, and the phone-width sibling of this test
+     * (375px) can only ever prove ONE of them:
+     *
+     *   `break-words` → `overflow-wrap: break-word`, which lets an over-long token break. Per CSS Text 3 it
+     *       explicitly does NOT reduce the element's min-content intrinsic size.
+     *   `min-w-0` → defeats a flex item's automatic minimum size, which applies only on the MAIN axis.
+     *
+     * The title row is `flex flex-col gap-3 sm:flex-row`, so below 640 it is a COLUMN and `min-width: auto`
+     * never constrains the cross axis — delete `min-w-0` and the 375px test stays green. 768 is above `sm`,
+     * the row is a real flex row sharing width with the owner controls, and this is where the measurement
+     * that prompted the fix found 340px of overflow. One case per utility, each at the width it governs.
+     *
+     * ⚠️ MUTATION-CHECKED IN CHROMIUM, because the reasoning above is the kind that sounds right and is not.
+     * Removing one utility at a time, with this exact title and geometry:
+     *
+     *     variant              |  375   |  768
+     *     shipped              |  fits  |  fits
+     *     min-w-0 removed      |  FITS  |  +244px over   ← only THIS width catches it
+     *     break-words removed  | +161px |   +15px over   ← the 375 sibling catches it
+     *
+     * The `FITS` cell is the whole reason this test exists: the first draft placed the long-title case at
+     * 375 only, where deleting `min-w-0` changes nothing and the suite stays green.
+     */
+    test('⛔ a long unbreakable title still fits once the title row shares width with the owner controls', async ({
+        page,
+    }) => {
+        await seedTitled(page, 'Supercalifragilisticexpialidociouslongsingleword');
+        await page.goto(route(`/recipes/${RECIPE_ID}`));
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+        // The row really is side-by-side here — otherwise this would silently re-test the 375px case.
+        await expect(page.getByRole('link', { name: 'Edit recipe' })).toBeVisible();
+
+        await expectNoHorizontalOverflow(page);
     });
 });

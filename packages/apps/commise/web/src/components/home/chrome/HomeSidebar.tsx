@@ -1,155 +1,145 @@
 'use client';
 
 /**
- * @module home/chrome/HomeSidebar — the desktop navigation sidebar (web; US-000 / FR-046).
+ * @module home/chrome/HomeSidebar — the web sidebar at `nav` (840 px) and wider (`docs/design/uiOverhaul/buildSpec.md`
+ * §3.2; ownerDecisions D5). It replaces the tab bar there. Sticky and full height, so it never scrolls away; its list
+ * scrolls inside it if it is ever taller than the window. A flat `paper` panel over the canvas wash with no blur:
+ * nothing scrolls under it, so glass would only cost a compositing pass (`modernizeA.md` §5).
  *
- * The glass rail from the Home mockup: logo + wordmark, the six navigation destinations, and a collapse
- * control. It is `hidden` below the `lg` breakpoint (the mobile tab bar takes over there), so it is the
- * DESKTOP rendering of the shared nav model — the tab bar is the same model rendered differently.
+ * Top to bottom: the wordmark; **New recipe** (`newRecipe`, one tap to the editor since slice 8); the destinations
+ * (`resolveHomeNav`); a divider; the profile row (the avatar and the cook's name, to Profile); the collapse control.
+ * 256 px expanded, 80 px collapsed. Collapsed is a visual state, not an information state: each control keeps its
+ * accessible name.
  *
- * ## The two decisions that matter here
- *
- * **Reachability is derived, not declared.** The destinations come from `resolveHomeNav(liveCapabilities)`;
- * a destination whose backing service is not live renders as a non-interactive, `aria-disabled` control whose
- * accessible name carries the "coming soon" suffix — NEVER a link to a route that 404s. When the service
- * ships, the same fact that reveals its Home widget makes its nav entry reachable, from one source.
- *
- * **Collapsed is a visual state, not an information state.** Collapsing hides the text labels visually, but
- * each control keeps its accessible name (the label, plus "coming soon" when gated), so a screen-reader user
- * gets the same nav whether the rail is expanded or collapsed.
+ * Presentational: every fact arrives in props; the collapse is the parent's state.
  */
-import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { NAV_ITEM_GLYPH, initialsFor, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { AvatarDisc } from '@commise/ui/avatar';
+import { Icon } from '@commise/ui/icon';
+import type { Route } from 'next';
 import Link from 'next/link';
-import type { JSX } from 'react';
+import type { JSX, ReactNode } from 'react';
 
 import type { WebMessages } from '@/i18n/messages';
 
-import { HomeIcon } from './icons';
 import { homeNavHref } from './navHref';
-
-/** The chrome copy slice this sidebar renders. */
-type ChromeMessages = WebMessages['home']['chrome'];
+import { profileLabelOf, type ProfileEntry } from '@commise/features-core';
 
 /** Props for {@link HomeSidebar}. */
 export interface HomeSidebarProps {
-    /** The chrome copy (labels + accessible names), resolved for the active locale. */
-    readonly chrome: ChromeMessages;
-    /** The active locale segment, for building destination routes. */
+    readonly chrome: WebMessages['home']['chrome'];
     readonly locale: string;
-    /** Capabilities whose backing service is live — the single fact that decides reachability. */
     readonly liveCapabilities: readonly string[];
-    /** The currently active destination (Home, for this surface) — marked `aria-current`. */
-    readonly activeId: HomeNavItemId;
-    /** Whether the rail is collapsed to icons only. */
+    /** The active destination, marked `aria-current`; `null` on a page that is none of them. */
+    readonly activeId: HomeNavItemId | null;
+    /** The profile read, for the profile row. */
+    readonly profile: ProfileEntry;
+    /** Whether the sidebar is collapsed to the 80 px rail. */
     readonly collapsed: boolean;
-    /** Toggle the collapsed state. */
     readonly onToggleCollapse: () => void;
+    /** The New recipe control, drawn for the current width (the full-width button, or the rail's round one). */
+    readonly newRecipe: ReactNode;
 }
 
+/** A 44 px row's shape, shared by the destinations and the profile row. */
+const ROW_CLASS =
+    'flex min-h-11 items-center gap-3 rounded-md px-3 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
+
 /**
- * The desktop navigation sidebar.
+ * The web sidebar.
  *
- * @param props - The chrome copy, locale, live capabilities, active destination, and collapse state/handler.
- * @returns The glass navigation rail (hidden below `lg`).
+ * @param props - The copy, locale, live capabilities, active destination, profile read, collapse state and New recipe.
+ * @returns The sticky navigation sidebar (hidden below `nav`).
  */
 export function HomeSidebar({
     chrome,
     locale,
     liveCapabilities,
     activeId,
+    profile,
     collapsed,
     onToggleCollapse,
+    newRecipe,
 }: HomeSidebarProps): JSX.Element {
-    const destinations = resolveHomeNav(liveCapabilities);
+    const profileLabel = profileLabelOf(chrome, profile.name);
 
     return (
         <div
-            className={`hidden h-screen flex-col border-r border-white/20 bg-gradient-to-b from-white/[0.12] to-white/[0.08] backdrop-blur-[24px] transition-all duration-200 lg:flex ${
-                collapsed ? 'w-20' : 'w-64'
+            data-collapsed={collapsed ? 'true' : 'false'}
+            className={`sticky top-0 hidden h-dvh shrink-0 flex-col overflow-y-auto border-e border-line-divider bg-paper/70 nav:flex ${
+                collapsed ? 'w-20 items-center' : 'w-64'
             }`}
         >
-            <div className="p-6">
-                <div className="flex items-center gap-3">
-                    {/* The logo mark. Decorative here — the wordmark beside it names the product; when the
-                        rail is collapsed the wordmark is gone, so the mark carries the accessible name. */}
-                    <span
-                        aria-hidden={!collapsed}
-                        aria-label={collapsed ? chrome.logoAlt : undefined}
-                        role={collapsed ? 'img' : undefined}
-                        className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-gradient-to-br from-seafoam to-ocean-dark font-display text-lg font-bold text-white"
-                    >
-                        C
-                    </span>
-                    {!collapsed && (
-                        <span className="font-display text-xl font-bold text-charcoal">{chrome.wordmark}</span>
-                    )}
-                </div>
+            <div className={`flex h-16 shrink-0 items-center ${collapsed ? 'justify-center' : 'px-6'}`}>
+                <span
+                    className="font-display text-xl font-bold text-ink"
+                    aria-label={collapsed ? chrome.logoAlt : undefined}
+                >
+                    {collapsed ? chrome.wordmark.slice(0, 1) : chrome.wordmark}
+                </span>
             </div>
 
-            <nav aria-label={chrome.primaryNavLabel} className="flex-1 space-y-1 px-3">
-                {destinations.map((item) => {
-                    const label = chrome.destinations[item.id];
-                    const isActive = item.id === activeId;
+            <div className={collapsed ? 'flex justify-center px-3 pb-3' : 'px-4 pb-3'}>{newRecipe}</div>
 
-                    if (!item.reachable) {
-                        // Not-yet-shipped: non-interactive, but focusable and announced as "…, coming soon"
-                        // (aria-disabled, not the `disabled` attribute, so keyboard users still discover it).
-                        return (
-                            <button
-                                key={item.id}
-                                type="button"
-                                aria-disabled="true"
-                                aria-label={`${label}, ${chrome.comingSoonSuffix}`}
-                                // Contrast (WCAG 2.1 AA, #113): opaque `slate` (5.24:1). `text-slate/60` composited to
-                                // 2.41:1 — the token passed while the pixel did not. Inactive is communicated by
-                                // `cursor-not-allowed` + the announced "coming soon" name, not by dimming the text
-                                // below legibility.
-                                className="flex w-full cursor-not-allowed items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-left text-slate"
-                            >
-                                <HomeIcon name={item.id} className="size-6 shrink-0" />
-                                {!collapsed && <span className="font-medium">{label}</span>}
-                            </button>
-                        );
-                    }
-
+            <nav aria-label={chrome.primaryNavLabel} className="flex flex-col gap-1 px-3">
+                {resolveHomeNav(liveCapabilities).map((item) => {
                     const href = homeNavHref(item.id, locale);
+                    const active = item.id === activeId;
+                    const label = chrome.destinations[item.id];
+
+                    if (href === undefined) {
+                        return null;
+                    }
 
                     return (
                         <Link
                             key={item.id}
-                            href={href ?? (`/${locale}` as never)}
-                            // Always name the link (not just via the visible span): when the rail is
-                            // collapsed the label is hidden and the icon is aria-hidden, so without this the
-                            // link would have no accessible name.
-                            aria-label={label}
-                            aria-current={isActive ? 'page' : undefined}
-                            className={`flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 transition-colors ${
-                                isActive
-                                    ? // The rail, the gradient pill and the glyph tint stay seafoam — non-text
-                                      // accents. The FOREGROUND is `ocean-dark`, because this class colours the
-                                      // visible label too (see the palette JSDoc in `@commise/ui`).
-                                      'border-l-[3px] border-seafoam bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-ocean-dark'
-                                    : 'text-slate hover:bg-white/10 hover:text-charcoal'
+                            href={href}
+                            aria-label={collapsed ? label : undefined}
+                            aria-current={active ? 'page' : undefined}
+                            className={`${ROW_CLASS} relative ${collapsed ? 'justify-center' : ''} ${
+                                active
+                                    ? 'bg-action/10 font-semibold text-ink'
+                                    : 'text-ink-muted hover:bg-ink/6 hover:text-ink'
                             }`}
                         >
-                            <HomeIcon name={item.id} className="size-6 shrink-0" />
-                            {!collapsed && <span className="font-medium">{label}</span>}
+                            <span
+                                aria-hidden="true"
+                                className={`absolute inset-y-2 start-0 w-[3px] rounded-e-full ${active ? 'bg-here-bar' : ''}`}
+                            />
+                            <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
+                            {collapsed ? null : <span>{label}</span>}
                         </Link>
                     );
                 })}
             </nav>
 
+            <div className="mx-3 my-3 border-t border-line-divider" />
+
+            <Link
+                href={`/${locale}/profile` as Route}
+                aria-label={profileLabel}
+                className={`${ROW_CLASS} mx-3 text-ink hover:bg-ink/6 ${collapsed ? 'justify-center' : ''}`}
+            >
+                <AvatarDisc status={profile.status} initials={initialsFor(profile.name)} />
+                {collapsed ? null : (
+                    <span className="min-w-0 truncate">{profile.name ?? chrome.profileButtonNoName}</span>
+                )}
+            </Link>
+
             <button
                 type="button"
                 onClick={onToggleCollapse}
-                aria-label={collapsed ? chrome.expandNav : chrome.collapseNav}
-                aria-pressed={collapsed}
-                className="flex items-center justify-center border-t border-white/20 p-4 text-slate transition-colors hover:text-charcoal"
+                aria-expanded={!collapsed}
+                aria-label={collapsed ? chrome.expandNav : undefined}
+                className={`${ROW_CLASS} mx-3 mb-3 mt-auto text-ink-muted hover:bg-ink/6 hover:text-ink ${
+                    collapsed ? 'justify-center' : ''
+                }`}
             >
-                <HomeIcon
-                    name="collapse-left"
-                    className={`size-6 transition-transform ${collapsed ? 'rotate-180' : ''}`}
-                />
+                <span className={`inline-flex ${collapsed ? 'rotate-180' : ''}`}>
+                    <Icon name="chevronsLeft" size={24} />
+                </span>
+                {collapsed ? null : <span>{chrome.collapseNav}</span>}
             </button>
         </div>
     );

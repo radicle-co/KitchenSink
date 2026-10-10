@@ -3,11 +3,13 @@ import type { Route } from 'next';
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import { filtersFromQueryString, filtersToSearchParams } from '@commise/features-recipes';
+import { discoverySearchParams, filtersFromQueryString } from '@commise/features-recipes';
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
 import { AppShell } from '@/components/app/AppShell';
+import { ShellBackToTop } from '@/components/app/ShellBackToTop';
+import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
 import { RecipeDiscoveryContainer } from '@/components/recipes/RecipeDiscoveryContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
@@ -43,13 +45,14 @@ function toQueryString(searchParams: RawSearchParams): string {
  * resource, per the app's middleware ADR.
  *
  * B19 — SSR prefetch + `HydrationBoundary`: a server `QueryClient` prefetches the SAME query the container's
- * `useInfiniteSearchRecipes(...)` reads — the P5 `recipeQueries(client).searchInfinite(params)` factory,
- * with `params` rebuilt from THIS request's own `searchParams` via the SAME pure filter model
- * (`filtersFromQueryString` + `filtersToSearchParams`) the container derives its URL-sourced criteria from,
- * plus the container's initial `sortBy` (`RecipeSearchSortBy.RELEVANCE` — a view preference the container
- * only ever starts at on mount, never URL-sourced). This is an INFINITE query (W4/S4 "Load more"), so this
- * uses `prefetchInfiniteQuery` (not `prefetchQuery`) — a flat prefetch would dehydrate a bare page body under
- * a key the infinite observer expects `{ pages, pageParams }` for. A failed prefetch dehydrates to an empty
+ * suspense read uses — the P5 `recipeQueries(client).searchInfinite(params)` factory, with `params` built by
+ * `discoverySearchParams`, the one definition of the discovery key, from THIS request's own `searchParams` (via the
+ * same `filtersFromQueryString` the container reads the URL with) plus the container's initial `sortBy`
+ * (`RecipeSearchSortBy.RELEVANCE` — a view preference the container only ever starts at, never URL-sourced). The
+ * container's boundary opens on the server only when this key holds data, so a successful prefetch ships the results. This is an INFINITE query (W4/S4 "Load more"), so this
+ * uses `prefetchInfiniteQuery` over the INFINITE factory (not `prefetchQuery` over the flat one): the two
+ * shapes key separately (`recipeServiceKeys.recipeSearchInfinite`, PR #91 review), so a flat prefetch would
+ * land under a key this container never reads and hydrate nothing. A failed prefetch dehydrates to an empty
  * state (`prefetchInfiniteQuery` never throws; `dehydrate()` drops non-`success` queries), so the container's
  * own client-side search fetch takes over — never a 500.
  */
@@ -76,24 +79,24 @@ export default async function DiscoverPage({
     });
 
     await queryClient.prefetchInfiniteQuery(
-        recipeQueries(client).searchInfinite({
-            ...filtersToSearchParams(filters, query),
-            sortBy: RecipeSearchSortBy.RELEVANCE,
-        }),
+        recipeQueries(client).searchInfinite(
+            discoverySearchParams({ filters, query, sortBy: RecipeSearchSortBy.RELEVANCE }),
+        ),
     );
 
     // The container reads the search criteria from the URL via `useSearchParams()`, which requires a Suspense
     // boundary during pre-render.
     //
-    // L9: discovery renders inside the shared app nav shell. It is a recipe-domain surface, so `recipes` is the
-    // active destination (the shared nav model has no separate discovery entry). The shell sits OUTSIDE the
-    // Suspense boundary, so the chrome is present while the search results stream in — never a bare fallback.
+    // Discover is a tab of its own (slice 3). The shell sits OUTSIDE the Suspense boundary, so the chrome is present
+    // while the search results stream in — never a bare fallback.
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <AppShell activeId="recipes" titleId="discover">
+            <AppShell activeId="discover" titleId="discover">
                 <Suspense>
-                    <RecipeDiscoveryContainer locale={locale} />
+                    <RecipeDiscoveryContainer locale={locale} avatar={<ProfileAvatarEntry />} />
                 </Suspense>
+                {/* A long results list: "Back to top", last in DOM order (`buildSpec.md` §3.6). No floating button here. */}
+                <ShellBackToTop />
             </AppShell>
         </HydrationBoundary>
     );

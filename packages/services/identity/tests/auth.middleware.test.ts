@@ -3,6 +3,13 @@ import { UnauthorizedException } from '@nestjs/common';
 
 vi.mock('@sentry/nestjs', () => ({
     captureException: vi.fn(),
+    // ⛔ `getClient` IS PART OF THE FAKE NOW, AND WHAT IT RETURNS IS THE TEST'S SUBJECT. From U22a step 2 a
+    // log line's destination depends on whether a Sentry client exists: with one, an `error` goes to this
+    // service's own project; without one it goes to stdout, because `Sentry.logger.*` with no client emits
+    // NOTHING and an unconditional divert would delete the line. These cases are about a failure being LOUD
+    // where an operator looks, so the fake models a DEPLOYED process — a client is present — and the
+    // assertions below still describe the Sentry destination they always did.
+    getClient: () => ({}),
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
@@ -28,6 +35,7 @@ const userCtx = {
     scopes: [],
     permissions: [],
     tokenType: 'user' as const,
+    testPrincipal: false,
 };
 
 function encodeHeaderCtx(ctx: unknown): string {
@@ -173,6 +181,8 @@ describe('AuthMiddleware', () => {
                 scopes: [],
                 permissions: [],
                 tokenType: 'user',
+                // A synthetic local principal is never a Clerk test-pool member (ADR-0040).
+                testPrincipal: false,
             });
         });
 

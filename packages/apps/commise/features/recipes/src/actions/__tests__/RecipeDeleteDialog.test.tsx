@@ -41,13 +41,13 @@ describe('RecipeDeleteDialog (web)', () => {
         renderDialog({ open: false });
 
         expect(screen.queryByRole('alertdialog')).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Delete recipe' })).toBeNull();
     });
 
     it('renders an accessible alertdialog when open', () => {
         renderDialog();
 
-        const dialog = screen.getByRole('alertdialog', { name: 'Delete recipe' });
+        const dialog = screen.getByRole('alertdialog', { name: 'Delete this recipe?' });
         expect(dialog).toBeTruthy();
         expect(dialog.getAttribute('aria-modal')).toBe('true');
     });
@@ -58,15 +58,15 @@ describe('RecipeDeleteDialog (web)', () => {
         expect(screen.getByText(/Asparagus with Green Sauce/)).toBeTruthy();
     });
 
-    it('keeps a screen-edge gutter at base, restoring the original max width at md (U5)', () => {
+    it('keeps a screen-edge gutter at base, and the original max width (U5)', () => {
         renderDialog();
 
-        // A `w-full` centered dialog touches both screen edges at 360px; capping the base width at
-        // `calc(100% - 2rem)` leaves a 1rem gutter each side, and `md:max-w-md` restores the original desktop
-        // width — so the 1280px surface is byte-identical.
-        const dialog = screen.getByRole('alertdialog', { name: 'Delete recipe' });
-        expect(dialog.className).toContain('max-w-[calc(100%-2rem)]');
-        expect(dialog.className).toContain('md:max-w-md');
+        // A `w-full` centered dialog touches both screen edges at 360px; a base width of `calc(100% - 2rem)` leaves a
+        // 1rem gutter each side, and `max-w-md` caps it at the original desktop width. ⚠️ Rewritten in UI-overhaul
+        // slice 2: the dialog is the design system's `ConfirmDialog`, which states the same two rules as `w-*` + `max-w-*`.
+        const dialog = screen.getByRole('alertdialog', { name: 'Delete this recipe?' });
+        expect(dialog.className).toContain('w-[calc(100%-2rem)]');
+        expect(dialog.className).toContain('max-w-md');
     });
 
     it('reports confirm requests upward', async () => {
@@ -74,7 +74,7 @@ describe('RecipeDeleteDialog (web)', () => {
         const onConfirm = vi.fn();
         renderDialog({ onConfirm });
 
-        await user.click(screen.getByRole('button', { name: 'Delete' }));
+        await user.click(screen.getByRole('button', { name: 'Delete recipe' }));
 
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
@@ -84,18 +84,21 @@ describe('RecipeDeleteDialog (web)', () => {
         const onCancel = vi.fn();
         renderDialog({ onCancel });
 
-        await user.click(screen.getByRole('button', { name: 'Cancel' }));
+        await user.click(screen.getByRole('button', { name: 'Keep recipe' }));
 
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the confirm action while deleting and does not fire again', async () => {
+    it('busies the confirm action while deleting and does not fire again', async () => {
         const user = userEvent.setup();
         const onConfirm = vi.fn();
         renderDialog({ deleting: true, onConfirm });
 
-        const confirm = screen.getByRole<HTMLButtonElement>('button', { name: 'Delete' });
-        expect(confirm.disabled).toBe(true);
+        const confirm = screen.getByRole<HTMLButtonElement>('button', { name: 'Delete recipe' });
+        // REWRITTEN: busy is `aria-disabled` and stays focusable (native `disabled` drops focus in a real browser —
+        // WCAG 2.2 SC 2.4.3); the no-refire guarantee below is unchanged.
+        expect(confirm.getAttribute('aria-disabled')).toBe('true');
+        expect((confirm as HTMLButtonElement).disabled).toBe(false);
         expect(confirm.getAttribute('aria-busy')).toBe('true');
 
         await user.click(confirm);
@@ -114,7 +117,7 @@ describe('RecipeDeleteDialog (web) — delete error (B17: no silent stop)', () =
     it('surfaces the failed-delete copy inside the dialog when error is set', () => {
         renderDialog({ error: true });
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn\u2019t delete this recipe. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn\u2019t delete this recipe. Try again.');
     });
 
     it('does not show the error while a delete is still in flight', () => {
@@ -133,11 +136,11 @@ describe('RecipeDeleteDialog (web) — delete error (B17: no silent stop)', () =
 describe('RecipeDeleteDialog (web) \u2014 design-system controls', () => {
     it('renders the confirm as the DS destructive Button (idle: caller icon, no spinner)', () => {
         renderDialog({ deleting: false });
-        const confirm = screen.getByRole('button', { name: 'Delete' });
+        const confirm = screen.getByRole('button', { name: 'Delete recipe' });
 
-        // Error-toned DS surface (not a hand-rolled `bg-error` pill) with the touch floor.
+        // Danger-toned DS surface (not a hand-rolled `bg-danger` pill) with the touch floor.
         expect(confirm.className).toContain('min-h-11');
-        expect(confirm.className).toContain('error');
+        expect(confirm.className).toContain('danger');
         // Idle \u21d2 no in-flight spinner.
         expect(screen.getByRole('alertdialog').querySelector('.animate-spin')).toBeNull();
     });
@@ -147,7 +150,7 @@ describe('RecipeDeleteDialog (web) \u2014 design-system controls', () => {
 
         expect(screen.getByRole('alertdialog').querySelector('.animate-spin')).not.toBeNull();
         // The label \u2014 and therefore the accessible name \u2014 is unchanged, so name-based selection is stable.
-        expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Delete recipe' })).toBeTruthy();
     });
 
     it('drops the busy spinner again once the delete is no longer in flight', () => {
@@ -158,10 +161,13 @@ describe('RecipeDeleteDialog (web) \u2014 design-system controls', () => {
 
     it('gives the cancel control the DS secondary surface and the 44px touch floor', () => {
         renderDialog();
-        const cancel = screen.getByRole('button', { name: 'Cancel' });
+        const cancel = screen.getByRole('button', { name: 'Keep recipe' });
 
-        // `AlertDialog.Cancel` owns its own element (Radix slot), so it applies the shared surface recipe.
-        expect(cancel.className).toBe(buttonSurfaceClass('secondary'));
+        // `AlertDialog.Cancel` owns its own element (Radix slot), so it applies the shared surface recipe, filling the
+        // stacked dialog's width (UI-overhaul slice 2).
+        expect(cancel.className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(buttonSurfaceClass('secondary').split(' ')),
+        );
     });
 });
 
@@ -172,6 +178,7 @@ describe('RecipeDeleteDialog (web) \u2014 Radix a11y machinery (B6/CR-003)', () 
 
         function Harness() {
             const [open, setOpen] = useState(false);
+
             return (
                 <>
                     <button type="button" onClick={() => setOpen(true)}>
@@ -211,6 +218,7 @@ describe('RecipeDeleteDialog (web) \u2014 Radix a11y machinery (B6/CR-003)', () 
 
         function Harness() {
             const [open, setOpen] = useState(true);
+
             return (
                 <>
                     <button type="button" onClick={() => setOpen(true)}>

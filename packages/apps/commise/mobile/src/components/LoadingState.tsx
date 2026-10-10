@@ -15,8 +15,8 @@
  *
  * Pure render component: label in, affordance out.
  */
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
@@ -36,12 +36,14 @@ export interface LoadingStateProps {
  * @returns The spinner plus its visible caption, exposed as one named `progressbar`.
  */
 export function LoadingState({ label }: LoadingStateProps): JSX.Element {
+    const { colors } = useTheme();
+
     return (
         <View accessible accessibilityRole="progressbar" accessibilityLabel={label} style={styles.container}>
             <View aria-hidden>
-                <ActivityIndicator color={palette.seafoam} />
+                <ActivityIndicator color={colors.action} />
             </View>
-            <Text style={styles.caption}>{label}</Text>
+            <Text style={[styles.caption, { color: colors.inkMuted }]}>{label}</Text>
         </View>
     );
 }
@@ -54,5 +56,5 @@ const styles = StyleSheet.create({
         gap: nativeTokens.spacing[3],
         padding: nativeTokens.spacing[5],
     },
-    caption: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate, textAlign: 'center' },
+    caption: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center' },
 });

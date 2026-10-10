@@ -1,0 +1,126 @@
+appId: io.commise.mobile
+---
+# The add-ingredient LOOP (plan U28). Mobile mirror of the web Playwright `addIngredientLoop.spec.ts`, per
+# the cross-platform mandate — the two form leaves are separate files with no compiler edge between them, so
+# a fix applied to one is not applied to the other.
+#
+# ⛔ WHY THIS FLOW EXISTS. "+ Add ingredient" once appended a blank row with no `ingredientId`, which
+# `validateRecipeForm` refused and `toCreateRecipeInput` DROPPED on save, so the wizard's `Next` went dead with no
+# obvious cause.
+# Since plan 002 V1 B8 the trailing row IS the entry: an "Add an ingredient" field after the last line.
+#
+# Three facts, one emulator run, each worthless alone:
+#   1. An empty recipe shows the field and NO row, and nothing is refused.
+#   2. Text the field holds is not a line: Publish refuses it, and the field says why (R7). REWRITTEN for slice 7:
+#      the wizard's `Next: Instructions` was the gate; on the one-page editor Publish is the only gated action left.
+#   3. Declaring the text "as written" appends a real line, and the recipe publishes with it.
+#
+# It CREATES its own recipe rather than editing a seeded one, so `Ingredient 1 …` addresses the line this
+# flow itself made — the seeded recipes carry five lines of their own (see `preparationGroups.yaml`).
+#
+# Assumes an authenticated session (the auth flow runs first in CI ordering) and the app pointed at the PR's deployed
+# recipe service. The line is declared as written (no food-service dependency — same rationale as `create.yaml`).
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+# Details. servings/prep/cook keep their valid defaults, as in `create.yaml`.
+- assertVisible: 'Close editor'
+- assertVisible: 'Title'
+- tapOn: 'Title'
+- inputText: 'Maestro Add Loop'
+
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+# The empty state INVITES the first action rather than showing an empty table.
+- scrollUntilVisible:
+      element:
+          text: 'No ingredients yet. Add your first ingredient.'
+      direction: DOWN
+      timeout: 20000
+
+# ⛔ (1) No row, and nothing refused: no row means no UNRESOLVED row means no refusal.
+- assertNotVisible: 'Edit .*'
+- assertNotVisible:
+      text: 'Every ingredient needs an item picked from the list.'
+
+# A step FIRST, so the only thing Publish can refuse below is the typed text (a recipe with no steps is refused too).
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Slice and serve.'
+
+# ⛔ (2) Typed text is not a line. Publish refuses it, the editor stays open, and the field says why.
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Tomato'
+# E1 (`docs/design/rowEditorOpenDecisions.md`): the list opens as the cook types, and the field and its first options
+# show inside the visible area, above the pinned bar, with NO scroll command first. The first catalog option is the
+# check, anchored below its group's header and above the bar, so a list the scroller clips, or one under the bar, fails.
+- extendedWaitUntil:
+      visible:
+          text: '(?i)tomato.*'
+          below: 'Food catalog'
+          above: 'Publish'
+          index: 0
+      timeout: 20000
+# No `hideKeyboard`: on Android it is itself a BACK, which leaves the editor. The pinned bar stays above the keyboard.
+- tapOn: 'Publish'
+# Refused: the bar says how many things there are to fix, and the editor is still open.
+- assertVisible: 'Fix 1 thing to publish'
+- assertVisible: 'Close editor'
+- extendedWaitUntil:
+      visible:
+          text: '“Tomato.*” isn’t in the recipe yet\. Choose a food for it, or clear the box\.'
+      timeout: 20000
+- assertNotVisible: 'Edit .*'
+# E1 again: the refusal opened the list with the focus (R7), and its first option shows with no scroll command.
+- extendedWaitUntil:
+      visible:
+          text: '(?i)tomato.*'
+          below: 'Food catalog'
+          above: 'Publish'
+          index: 0
+      timeout: 20000
+
+# The refusal opened the list with the focus (R7 item 3), so the cook keeps the words without editing them. The swipe
+# starts inside the open list: a drag that starts outside it closes it (slice 8).
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
+- tapOn:
+      text: 'Use .*Tomato.* as written.*'
+# The trailing field empties only after the line is committed, so this disappearing IS the declaration landing
+# (see `edit.yaml`'s note on why this is the honest checkpoint).
+- extendedWaitUntil:
+      notVisible: 'Use .*Tomato.* as written.*'
+      timeout: 30000
+
+# ⛔ (3) NOW there is a row. A committed row wears no "no food chosen" note.
+- scrollUntilVisible:
+      element: 'Edit Tomato'
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
+      timeout: 30000
+- assertNotVisible:
+      text: 'No food chosen.*'
+
+# With the line declared, nothing is left to fix: Publish goes through.
+- tapOn: 'Publish'
+
+# Landed on the new recipe's detail — the loop completed. The title regex tolerates this emulator's
+# occasional last-character input duplication (see `create.yaml`).
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Add Loop.*'
+      timeout: 40000

@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 
-import { route } from './utils/basePath';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { mockFoodApi } from './utils/foodApi';
+import { addStep, fillTimes, openNewRecipe, openRecipeEditor, setServings } from './utils/recipeEditor';
 
 /**
  * A minimal, valid 1×1 transparent PNG — inlined so the spec needs no binary fixture file on disk.
@@ -26,9 +27,8 @@ const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
  * Clerk session (`signInWithTicket`), so it needs `CLERK_SECRET_KEY` + the sandbox Clerk instance — it runs
  * in CI; whether it also runs locally depends on those secrets being present in the environment.
  *
- * w3/e8: the edit route now opens the 4-step wizard at step 1 (Basic); Photos is step 4, reached via the
- * step rail (forward navigation is never gated, only backward navigation while dirty is) rather than being
- * immediately on screen as it was on the old single-scroll form.
+ * Slice 7: the edit route opens the one-page editor, whose "Photos & publish" section holds the photo manager. The
+ * manager's own region is named "Photos", so it is matched exactly: the section's name contains the same word.
  *
  * Two further specs cover client-side pre-validation (REQ-011 size, REQ-012 MIME allowlist): an oversized
  * file and a disallowed MIME type are both rejected LOCALLY, before any presign call. The rejected file is
@@ -44,13 +44,10 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
-        await page.goto(route('/recipes/rec_seed/edit'));
-        // Jump straight to step 4 (Photos) via the rail.
-        await page.getByRole('button', { name: /Photos:/ }).click();
-        await expect(page.getByText('Step 4 of 4')).toBeVisible();
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
         // The photo manager block starts empty, with an accessible "Photos" region.
-        const photosRegion = page.getByRole('region', { name: 'Photos' });
+        const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
         await expect(photosRegion).toBeVisible();
         await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
 
@@ -83,11 +80,9 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
-        await page.goto(route('/recipes/rec_seed/edit'));
-        await page.getByRole('button', { name: /Photos:/ }).click();
-        await expect(page.getByText('Step 4 of 4')).toBeVisible();
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
-        const photosRegion = page.getByRole('region', { name: 'Photos' });
+        const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
         await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
 
         // Just over 5 MB — rejected locally without ever reaching the mocked presign endpoint.
@@ -113,11 +108,9 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
-        await page.goto(route('/recipes/rec_seed/edit'));
-        await page.getByRole('button', { name: /Photos:/ }).click();
-        await expect(page.getByText('Step 4 of 4')).toBeVisible();
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
-        const photosRegion = page.getByRole('region', { name: 'Photos' });
+        const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
         await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
 
         await page.getByLabel('Add photo').setInputFiles({
@@ -145,15 +138,13 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
  * The mobile equivalent lives in `.maestro/recipes/photos.yaml` (emulator/CI only).
  */
 test.describe('recipe photo replace (U6)', () => {
-    /** Open the wizard's Photos step for the seeded recipe and add one photo, returning its region. */
-    async function openPhotosStepWithOnePhoto(page: import('@playwright/test').Page) {
+    /** Open the seeded recipe's editor and add one photo, returning the photo region. */
+    async function openEditorWithOnePhoto(page: import('@playwright/test').Page) {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
-        await page.goto(route('/recipes/rec_seed/edit'));
-        await page.getByRole('button', { name: /Photos:/ }).click();
-        await expect(page.getByText('Step 4 of 4')).toBeVisible();
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
         await page.getByLabel('Add photo').setInputFiles({
             name: 'original.png',
@@ -162,11 +153,11 @@ test.describe('recipe photo replace (U6)', () => {
         });
         await expect(page.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
 
-        return page.getByRole('region', { name: 'Photos' });
+        return page.getByRole('region', { name: 'Photos', exact: true });
     }
 
     test('pressing Replace opens the picker but deletes nothing on its own', async ({ page }) => {
-        const photosRegion = await openPhotosStepWithOnePhoto(page);
+        const photosRegion = await openEditorWithOnePhoto(page);
 
         await photosRegion.getByRole('button', { name: 'Replace photo 1' }).click();
 
@@ -178,7 +169,7 @@ test.describe('recipe photo replace (U6)', () => {
     });
 
     test('picking a replacement swaps exactly one photo, once the new one is confirmed', async ({ page }) => {
-        const photosRegion = await openPhotosStepWithOnePhoto(page);
+        const photosRegion = await openEditorWithOnePhoto(page);
         const originalSrc = await page.getByRole('img', { name: 'Recipe photo 1' }).getAttribute('src');
 
         await photosRegion.getByRole('button', { name: 'Replace photo 1' }).click();
@@ -195,5 +186,103 @@ test.describe('recipe photo replace (U6)', () => {
             'src',
             originalSrc as string,
         );
+    });
+});
+
+/**
+ * Photos on a NEW recipe (slice 7). REWRITTEN: the U33 handover (a pick held in draft state, flushed when Publish
+ * minted an id, a "Recipe saved." notice and "Finish without the remaining photos") is retired. A photo's bytes cannot
+ * live in the device draft (ADR-0057), so the photo manager appears once the recipe exists on the server, which is
+ * its first checkpoint (a title, then a section change), and every upload goes against that real id.
+ *
+ * What the two cases below pin:
+ *   - before the server create there is no photo manager, and after the checkpoint there is one;
+ *   - a photo added then is stored against the MINTED id (re-opening the editor reads it back), and the recipe
+ *     publishes with it;
+ *   - an upload that cannot succeed is defined and surfaced, a per-file failure with its own Retry, and it does not
+ *     move the cook off the editor.
+ */
+test.describe('recipe photo upload on a NEW recipe (slice 7)', () => {
+    /** Open a new recipe, title it, and jump to Photos & publish: the checkpoint that creates it. */
+    async function createByCheckpoint(page: import('@playwright/test').Page) {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await openNewRecipe(page);
+
+        const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
+        // ⛔ No recipe on the server yet, so nothing to upload against.
+        await expect(photosRegion).toHaveCount(0);
+
+        await page.getByLabel('Title').fill('Handover Ratatouille');
+        await setServings(page, 4);
+        await fillTimes(page, { prepMinutes: 15, cookMinutes: 30 });
+        await page
+            .getByRole('navigation', { name: 'Recipe sections' })
+            .getByRole('link', { name: 'Photos & publish' })
+            .click();
+
+        // The checkpoint created the recipe: the URL names it (the new route's `?draft=` moves from the local ref to the
+        // server id, through Next's own shallow update), and the manager is there.
+        await expect(page).toHaveURL(/\/recipes\/new\?draft=(?!local)[^&#]+/u);
+        await expect(photosRegion).toBeVisible();
+
+        return photosRegion;
+    }
+
+    test('a photo added once the checkpoint has created the recipe is stored against its id, and it publishes', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockFoodApi(page);
+
+        const photosRegion = await createByCheckpoint(page);
+        // Once created, the new route's `?draft=` names the server id.
+        const createdId = new URL(page.url()).searchParams.get('draft') ?? '';
+
+        await page.getByLabel('Add photo').setInputFiles({
+            name: 'handover.png',
+            mimeType: 'image/png',
+            buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
+        });
+        await expect(photosRegion.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
+
+        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
+        await page
+            .getByRole('group', { name: 'Food catalog' })
+            .getByRole('option', { name: 'Salt', exact: true })
+            .click();
+        await addStep(page, 'Roast the vegetables.');
+        await page.getByRole('button', { name: 'Publish' }).click();
+
+        await expect(page).toHaveURL(new RegExp(`/recipes/${createdId}(?:\\?|$)`, 'u'));
+        await expect(page.getByRole('heading', { name: 'Handover Ratatouille' })).toBeVisible();
+
+        // …and the bytes really landed against the minted id: re-opening the editor reads the photo list back.
+        await openRecipeEditor(page, createdId);
+        await expect(
+            page.getByRole('region', { name: 'Photos', exact: true }).getByRole('img', { name: 'Recipe photo 1' }),
+        ).toBeVisible();
+    });
+
+    test('an upload that cannot succeed says so by name, offers Retry, and leaves the cook on the editor', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        // Every presign fails, so the upload can never be made to succeed — the state this case is about.
+        await mockRecipeApi(page, { viewerId, tier: 'premium', failPhotoUploads: Number.MAX_SAFE_INTEGER });
+        await mockFoodApi(page);
+
+        await createByCheckpoint(page);
+        await page.getByLabel('Add photo').setInputFiles({
+            name: 'handover.png',
+            mimeType: 'image/png',
+            buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
+        });
+
+        await expect(page.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
+        await expect(page.getByRole('button', { name: /Retry upload of handover\.png/ })).toBeVisible();
+        await expect(page).toHaveURL(/\/recipes\/new\?draft=(?!local)[^&#]+/u);
     });
 });

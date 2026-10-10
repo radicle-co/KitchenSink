@@ -1,0 +1,106 @@
+appId: io.commise.mobile
+---
+# The ingredient row editor's stories on a device (plan 002 V1 B7). Mobile mirror of the web Playwright
+# `ingredientRowEditor.spec.ts`:
+#
+# - US7, Change food: the cook reopens a matched line's food and picks another, and the amount and unit stay.
+# - `docs/design/rowEditorOpenDecisions.md` R7: text a Change food row holds refuses Publish; the row says why, and
+#   choosing "Use … as written" lets Publish go ahead. REWRITTEN for slice 7: Save Draft is gone (the editor saves at
+#   checkpoints), so the refusal R7 describes now happens at Publish, the one gated write left.
+#
+# It runs against the PR's deployed sandbox (ADR-0032) on the create form, so each pick goes into the draft
+# (blueprint decision 7). The first food is the run's probe `Flour` (`e2e-seed provision`); the second is the KTD-16
+# root `boneless skinless chicken breasts` from the stage's catalog seed. It publishes one recipe, which the next flow's
+# reset deletes.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: 'Maestro Row Editor'
+
+# The probe food, then an amount the cook chose, set in the row editor (UI overhaul slice 8, build spec §7.5.2: a sheet
+# on a phone).
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Flou'
+- extendedWaitUntil:
+      visible:
+          text: 'Your foods'
+      timeout: 30000
+- tapOn: 'Flour, your food'
+- scrollUntilVisible:
+      element: 'Edit Flour'
+      direction: DOWN
+      timeout: 30000
+- tapOn: 'Edit Flour'
+- tapOn: 'Amount'
+- inputText: '3'
+- tapOn: 'Unit'
+- inputText: 'cups'
+- hideKeyboard
+- tapOn: 'Done'
+- assertVisible: 'Edit 3 cups Flour'
+
+# US7: Change food keeps the cook's amount and unit. The field opens on the food's name with the caret at its end
+# (`Combobox.native.tsx`'s focus request), so the name is erased before the search is typed.
+- tapOn: 'Actions for Flour'
+- tapOn: 'Change food'
+- eraseText: 20
+- inputText: 'boneless skinless chicken brea'
+- extendedWaitUntil:
+      visible:
+          text: 'boneless skinless chicken breasts'
+      timeout: 30000
+      label: 'KTD-16 root "boneless skinless chicken breasts" is in this stage’s food catalog'
+- tapOn: 'boneless skinless chicken breasts'
+- extendedWaitUntil:
+      visible:
+          text: 'Actions for boneless skinless chicken breasts'
+      timeout: 30000
+# The pick moved the food, not the cook's amount and unit: the row reads them first.
+- assertVisible: 'Edit 3 cups boneless skinless chicken breasts'
+
+# R7: Change food again and type, but choose nothing. A step first, so the only thing Publish can refuse is the
+# held text (a new recipe has no steps, and an empty Steps section would be refused too).
+- tapOn: 'Actions for boneless skinless chicken breasts'
+- tapOn: 'Change food'
+- eraseText: 40
+- inputText: 'smoked flour'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Roast.'
+- tapOn: 'Publish'
+
+# The refusal says how many things there are to fix (the bar), and the row says why. Nothing was published: the editor
+# is still open.
+- assertVisible:
+      text: 'Fix 1 thing to publish'
+- scrollUntilVisible:
+      element: '“smoked flour” isn’t in the recipe yet\. Choose a food for it, or press Cancel to keep boneless skinless chicken breasts\.'
+      direction: UP
+      timeout: 20000
+- assertVisible: 'Close editor'
+
+# The list opened with the focus (R7 item 3), so the cook keeps the words without editing them. The way on is the list's
+# last option, after every food the words match, so how far down it sits depends on the stage's catalog.
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use “smoked flour” as written, without nutrition'
+- tapOn: 'Use “smoked flour” as written, without nutrition'
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Row Editor.*'
+      timeout: 40000
+- assertNotVisible: 'Close editor'

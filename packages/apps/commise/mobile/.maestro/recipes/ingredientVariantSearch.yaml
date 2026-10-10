@@ -1,0 +1,77 @@
+appId: io.commise.mobile
+---
+# Curated AE3 on a device (`docs/brainstorms/2026-09-26-curated-food-catalog-requirements.md` AE3;
+# `docs/design/ingredientSpecialization.md` §S2): words that name exactly one variant of a root find that root carrying
+# the variant, and picking it binds the variant, so the line shows the root's name with the part under it. Words that
+# name several variants find the root alone, and picking it binds the root. Mobile mirror of the web Playwright
+# `ingredientVariantSearch.spec.ts`.
+#
+# It runs against the PR's deployed sandbox (ADR-0032) on the create form, so each pick is an admission into the draft
+# (blueprint decision 7) where the web spec re-points a saved line. The root is the KTD-16 seed root `boneless
+# skinless chicken breasts` from the stage's catalog seed (ADR-0051): AE3 states that `fried` names exactly one of its
+# variants and `grilled` names two. A stage without them fails at a labelled step; the flow never skips.
+#
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: 'Maestro Variant Search'
+
+# One variant named: the result is the root carrying it, its option named with the part after the food (§S2).
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'fried boneless skinless chicken breasts'
+- extendedWaitUntil:
+      visible:
+          text: 'boneless skinless chicken breasts, fried'
+      timeout: 30000
+      label: 'the catalog search found the KTD-16 root carrying its one "fried" variant'
+- tapOn: 'boneless skinless chicken breasts, fried'
+- scrollUntilVisible:
+      element: 'Edit boneless skinless chicken breasts'
+      direction: DOWN
+      timeout: 30000
+
+# The pick bound the variant: the row names its part after the food, and the dotted line shows it under the name.
+- extendedWaitUntil:
+      visible:
+          text: 'Actions for boneless skinless chicken breasts, fried'
+      timeout: 30000
+      label: 'the line binds the "fried" variant'
+- assertVisible:
+      text: 'fried'
+      below: 'Edit boneless skinless chicken breasts'
+
+# Several variants named: Change food searches "grilled", which names two variants, so the result is the root alone.
+# The field opens on the food's name with the caret at its end (`Combobox.native.tsx`'s focus request), so the name is
+# erased before the search is typed. In Change food the row's name is the field, so the bare root name is the option.
+- tapOn: 'Actions for boneless skinless chicken breasts, fried'
+- tapOn: 'Change food'
+- eraseText: 40
+- inputText: 'grilled boneless skinless chicken breasts'
+- extendedWaitUntil:
+      visible:
+          text: 'boneless skinless chicken breasts'
+      timeout: 30000
+      label: 'the catalog search found the KTD-16 root alone for "grilled", which names two of its variants'
+- assertNotVisible: 'boneless skinless chicken breasts, .*grilled.*'
+- tapOn: 'boneless skinless chicken breasts'
+
+# The pick bound the root: the row names the food alone, and the variant is gone.
+- extendedWaitUntil:
+      visible:
+          text: 'Actions for boneless skinless chicken breasts'
+      timeout: 30000
+      label: 'the line binds the root'
+- assertNotVisible: 'Actions for boneless skinless chicken breasts, fried'
+
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
+- assertVisible: 'Recipes'

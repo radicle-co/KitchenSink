@@ -8,19 +8,33 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { Pressable, Text } from 'react-native';
 
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+
 import { makePhoto, makeQueueItem } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipePhotoManager } from '../RecipePhotoManager.native.js';
 import { MAX_RECIPE_PHOTOS, type RecipePhotoManagerProps } from '../model.js';
 
-afterEach(cleanup);
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
+afterEach(() => {
+    cleanup();
+    systemScheme.current = null;
+});
 
 const noop = () => undefined;
 
 function renderManager(overrides: Partial<RecipePhotoManagerProps> = {}) {
+    // A wired manager, as every container renders one. The unwired case is rendered directly where it is the subject.
     const props: RecipePhotoManagerProps = {
         photos: [],
         onRemovePhoto: noop,
+        onRemoveQueueItem: noop,
         ...overrides,
     };
     render(<RecipePhotoManager {...props} />);
@@ -247,6 +261,20 @@ describe('RecipePhotoManager (native) — per-photo replace (U6)', () => {
 });
 
 describe('RecipePhotoManager (native) — per-file queue grid (w3/e4)', () => {
+    it('offers no Remove on a queue cell when no remove handler is wired', () => {
+        // A container withholds removal (the create's in-flight save) by not wiring it. A Remove that rendered anyway
+        // would appear to work and do nothing.
+        render(
+            <RecipePhotoManager
+                photos={[]}
+                onRemovePhoto={noop}
+                queueItems={[makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'queued' })]}
+            />,
+        );
+
+        expect(screen.queryByRole('button', { name: 'Remove a.png' })).toBeNull();
+    });
+
     it('renders a status badge for a queued file', () => {
         renderManager({ queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'queued' })] });
 
@@ -364,5 +392,79 @@ describe('RecipePhotoManager (native) — per-file queue grid (w3/e4)', () => {
 
         expect(screen.queryByRole('button', { name: 'Add photo' })).toBeNull();
         expect(screen.getByText(`Maximum of ${MAX_RECIPE_PHOTOS} photos reached.`)).toBeTruthy();
+    });
+});
+
+/**
+ * `docs/design/nativeContainerNames.md` N1 rule 2: the manager's heading says its name, so the manager carries none and
+ * the heading is the one node that says it (N4). Both bodies are checked.
+ */
+describe('RecipePhotoManager (native) — N1: the manager’s name is said once, by its heading', () => {
+    it.each([
+        ['empty', []],
+        ['populated', threePhotos],
+    ])('says "Photos" through one header, and no node is labelled with it (%s)', (_body, photos) => {
+        renderManager({ photos });
+
+        expect(screen.getAllByRole('heading', { name: 'Photos' })).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Photos')).toEqual([]);
+    });
+});
+
+/**
+ * D15: the manager paints from colour roles at render, so it follows the device's scheme. Chrome on a photo is the
+ * `photoChip` disc under an `ink` label (`darkTheme.md` §1 and §3.4: 10.64:1 light, 8.91:1 dark over a white photo),
+ * the cover badge is the `action` fill under its `onAction` label, and a failed upload's badge is the `danger` fill.
+ */
+describe.each(['light', 'dark'] as const)('RecipePhotoManager (native) — the %s scheme', (scheme) => {
+    const colours = scheme === 'dark' ? roleDark : role;
+    const style = (element: Element): CSSStyleDeclaration => getComputedStyle(element);
+
+    it('paints the heading in ink and the empty message in inkMuted', () => {
+        systemScheme.current = scheme;
+        renderManager();
+
+        expect(style(screen.getByRole('heading', { name: 'Photos' })).color).toBe(rgb(colours.ink));
+        expect(style(screen.getByText('No photos yet.')).color).toBe(rgb(colours.inkMuted));
+    });
+
+    it('draws Remove on a photo as a photoChip disc with an ink label', () => {
+        systemScheme.current = scheme;
+        renderManager({ photos: threePhotos });
+        const remove = screen.getByRole('button', { name: 'Remove photo 1' });
+
+        expect(style(remove).backgroundColor).toBe(colours.photoChip);
+        expect(style(screen.getAllByText('Remove')[0] as Element).color).toBe(rgb(colours.ink));
+    });
+
+    it('draws the cover badge on the action fill, and the chosen cover radio filled with selectedEdge', () => {
+        systemScheme.current = scheme;
+        renderManager({ photos: threePhotos, onSetCover: noop });
+        const badge = screen.getByText('Cover');
+
+        expect(style(badge).backgroundColor).toBe(rgb(colours.action));
+        expect(style(badge).color).toBe(rgb(colours.onAction));
+
+        const dot = screen.getByRole('radio', { name: 'Set photo 1 as cover' }).firstElementChild;
+
+        if (dot === null) {
+            throw new Error('no radio dot');
+        }
+
+        expect(style(dot).backgroundColor).toBe(rgb(colours.selectedEdge));
+    });
+
+    it('draws a queued upload’s status as a photoChip badge, and a failed one on the danger fill', () => {
+        systemScheme.current = scheme;
+        renderManager({
+            queueItems: [
+                makeQueueItem({ fileId: 1, fileName: 'a.jpg', status: 'queued' }),
+                makeQueueItem({ fileId: 2, fileName: 'b.jpg', status: 'failed', errorMessage: 'Too large' }),
+            ],
+        });
+
+        expect(style(screen.getByText('Queued')).backgroundColor).toBe(colours.photoChip);
+        expect(style(screen.getByText('Upload failed')).backgroundColor).toBe(rgb(colours.danger));
+        expect(style(screen.getByText('Too large')).color).toBe(rgb(colours.dangerText));
     });
 });

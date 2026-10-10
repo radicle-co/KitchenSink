@@ -10,16 +10,25 @@ import {
     RecipeCollectionAddedVia,
     RecipeVisibility,
     type RecipeIngredientView,
-    type RecipeNutrition,
+    type RecipeDetailNutrition,
     type RecipePhoto,
     type RecipeStepView,
 } from '@kitchensink/recipe-core';
 
 import { toRecipeCardModel } from '../card/model.js';
 import type { CollectionMemberRecipe } from '../collections/model.js';
-import type { RecipeFormValues } from '../form/model.js';
+import { seedLineKey } from '../form/lineKey.js';
+import type { LookupRetry } from '../form/ingredientStatus.js';
+import type { IngredientNutrition } from '../form/nutritionLookup.js';
+import { defaultRecipeFormValues, type RecipeFormIngredient, type RecipeFormValues } from '../form/values.js';
+import { makeDetailsModel } from '../details/__fixtures__/detailsModel.js';
+import { EMPTY_ENTRY, entryTextOf, type EntryLine } from '../hooks/ingredientEntry.model.js';
+import type { AuthoredFoodCreateController } from '../hooks/useAuthoredFoodCreate.js';
+import type { IngredientEntry } from '../hooks/useIngredientEntry.js';
+import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import type { RecipePhotoQueueItem } from '../hooks/useRecipePhotoUploadQueue.js';
 import type { RecipeListItem } from '../list/model.js';
+import type { RetryControl } from '../refresh/model.js';
 
 export { makeRecipe, makeRecipeDetail };
 
@@ -57,9 +66,9 @@ export function makeCollectionMemberRecipe(overrides: Partial<CollectionMemberRe
  */
 export function makeIngredientView(overrides: Partial<RecipeIngredientView> = {}): RecipeIngredientView {
     return {
-        ingredientId: 'ing_1',
+        ingredientId: '00000000-0000-4000-8000-000000000001',
         name: 'Olive oil',
-        quantity: 2,
+        quantity: { kind: 'exact', value: 2 },
         unit: 'tbsp',
         isUserEntered: false,
         ...overrides,
@@ -81,18 +90,20 @@ export function makeStepView(overrides: Partial<RecipeStepView> = {}): RecipeSte
 }
 
 /**
- * Build a {@link RecipeNutrition} with sensible defaults, overridable per field.
+ * Build the {@link RecipeDetailNutrition} a detail read serves, with sensible defaults, overridable per field.
+ * Defaults to `freshness: 'fresh'` — the ordinary read, where food answered.
  *
  * @param overrides - Fields to override on the default nutrition.
- * @returns A complete `RecipeNutrition`.
+ * @returns A complete `RecipeDetailNutrition`.
  */
-export function makeNutrition(overrides: Partial<RecipeNutrition> = {}): RecipeNutrition {
+export function makeNutrition(overrides: Partial<RecipeDetailNutrition> = {}): RecipeDetailNutrition {
     return {
         calories: 520,
         proteinG: 32,
         carbsG: 18,
         fatG: 34,
         isComplete: true,
+        freshness: 'fresh',
         ...overrides,
     };
 }
@@ -153,8 +164,213 @@ export function makeRecipeFormValues(overrides: Partial<RecipeFormValues> = {}):
         prepTimeMinutes: 10,
         cookTimeMinutes: 20,
         visibility: RecipeVisibility.PRIVATE,
-        ingredients: [{ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' }],
+        ingredients: [
+            {
+                key: seedLineKey(1, 0),
+                isUserEntered: false,
+                ingredientId: '00000000-0000-4000-8000-000000000001',
+                name: 'Olive oil',
+                quantity: 2,
+                unit: 'tbsp',
+            },
+        ],
         steps: [{ instruction: 'Combine the ingredients.' }],
+        // No pending photo picks by default (U33): the common draft is one that has nothing waiting to
+        // upload, and a test that wants the flush path must say so explicitly.
+        photos: [],
         ...overrides,
     };
 }
+
+/**
+ * A MINIMALLY VALID draft — `defaultRecipeFormValues()` plus exactly the fields `validateRecipeForm`
+ * requires, and nothing more.
+ *
+ * ⚠️ Distinct from {@link makeRecipeFormValues} on purpose, and NOT interchangeable with it: this one builds
+ * on the real defaults (so it inherits `visibility`) and states a different title, ingredient and step.
+ * Suites assert those literals, so collapsing the two would mean editing assertions to make a fixture fit —
+ * which is the one thing a refactor may not do. It was declared inside `form/__tests__/model.test.ts` until
+ * that suite was split into one file per module; five of the nine share it, so it lives here rather than in
+ * five copies.
+ *
+ * @param over - Fields to override on the minimally valid draft.
+ * @returns A complete `RecipeFormValues` that passes validation.
+ */
+export const makeFilledRecipeFormValues = (over: Partial<RecipeFormValues> = {}): RecipeFormValues => ({
+    ...defaultRecipeFormValues(),
+    title: 'Herb Risotto',
+    servings: 4,
+    prepTimeMinutes: 10,
+    cookTimeMinutes: 25,
+    ingredients: [
+        {
+            key: seedLineKey(1, 0),
+            isUserEntered: false,
+            ingredientId: '00000000-0000-4000-8000-000000000001',
+            name: 'Arborio rice',
+            quantity: 300,
+            unit: 'g',
+        },
+    ],
+    steps: [{ instruction: 'Toast the rice.' }],
+    ...over,
+});
+
+/**
+ * A retry for the recipe detail's notice about lines food could not name, that does nothing and has recovered
+ * nothing — for a test about something else. A test about that notice builds its own.
+ */
+export const idleUnreachableRetry: RetryControl = { refreshing: false, recoveries: 0, onRetry: () => undefined };
+
+/** A draft ingredient line as a test states it: everything except the identity the draft gives it. */
+export type UnkeyedFormIngredient = Omit<RecipeFormIngredient, 'key'>;
+
+/**
+ * Give each line the key a seed of version 1 would give it (plan 002 V1). Keys are distinct within the list, and
+ * deterministic, so two calls over the same list compare equal.
+ *
+ * @param lines - The lines, in draft order.
+ * @returns The same lines, keyed.
+ */
+export const withLineKeys = (lines: readonly UnkeyedFormIngredient[]): RecipeFormIngredient[] =>
+    lines.map((line, index) => ({ ...line, key: seedLineKey(1, index) }));
+
+/**
+ * Give one line the key a seed of version 1 would give it at `index`.
+ *
+ * @param line - The line.
+ * @param index - Its position, when a test builds a list one line at a time.
+ * @returns The line, keyed.
+ */
+export const withLineKey = (line: UnkeyedFormIngredient, index = 0): RecipeFormIngredient => ({
+    ...line,
+    key: seedLineKey(1, index),
+});
+
+/**
+ * The editor's nutrition as a leaf receives it (plan 002 V1 B5). Defaults to a READY read that answered nothing
+ * readable for any ref, so a test that does not care about nutrition sees no loading state and no figures.
+ *
+ * @param over - Fields to override (`lookup`, `read`, `retry`).
+ * @returns The editor's nutrition.
+ */
+export const makeIngredientNutrition = (over: Partial<IngredientNutrition> = {}): IngredientNutrition => ({
+    lookup: () => ({ state: 'absent' }),
+    read: 'ready',
+    retry: () => undefined,
+    ...over,
+});
+
+/**
+ * A FAILED row's Try again as a leaf receives it: nothing in flight, and a retry that does nothing.
+ *
+ * @param over - Fields to override (`retry`, `retrying`).
+ * @returns The Try again command.
+ */
+export const makeLookupRetry = (over: Partial<LookupRetry> = {}): LookupRetry => ({
+    retry: () => undefined,
+    retrying: new Set(),
+    settled: undefined,
+    ...over,
+});
+
+/**
+ * The hoisted ingredient entry as a row leaf receives it (`useIngredientEntry`): no field touched, nothing active, no
+ * row in Change food, every field empty (`textOf`), and every action a no-op.
+ *
+ * @param over - Fields to override.
+ * @returns The entry.
+ */
+export const makeIngredientEntry = (over: Partial<IngredientEntry> = {}): IngredientEntry => ({
+    textOf: () => '',
+    setText: () => undefined,
+    focus: () => undefined,
+    active: undefined,
+    isActive: () => false,
+    view: { kind: 'idle' },
+    changing: new Set(),
+    beginChange: () => undefined,
+    abandon: () => undefined,
+    leave: () => undefined,
+    pending: undefined,
+    isPending: () => false,
+    pendingEntryText: '',
+    placement: undefined,
+    place: () => undefined,
+    databaseSaidEarly: false,
+    selectFood: () => undefined,
+    selectRemoteFood: () => undefined,
+    findByName: () => undefined,
+    declareAsWritten: () => undefined,
+    ...over,
+});
+
+/**
+ * The entry with no field touched, whose fields show what their lines hold: the entry's own resting rule
+ * (`entryTextOf`), for a test that reads an entry field's text.
+ *
+ * @param lines - The draft's lines.
+ * @param over - Fields to override.
+ * @returns The entry.
+ */
+export const makeRestingIngredientEntry = (
+    lines: readonly EntryLine[],
+    over: Partial<IngredientEntry> = {},
+): IngredientEntry => makeIngredientEntry({ textOf: (target) => entryTextOf(EMPTY_ENTRY, target, lines), ...over });
+
+/**
+ * The authored-food form's controller as a row leaf receives it: closed, and every action a no-op.
+ *
+ * @param over - Fields to override.
+ * @returns The controller.
+ */
+export const makeAuthoredFoodController = (
+    over: Partial<AuthoredFoodCreateController> = {},
+): AuthoredFoodCreateController => ({
+    state: { kind: 'closed' },
+    target: undefined,
+    open: () => undefined,
+    cancel: () => undefined,
+    setField: () => undefined,
+    submit: () => undefined,
+    reuseExisting: () => undefined,
+    ...over,
+});
+
+/**
+ * The row editor as the ingredients field group receives it (`useIngredientRowEditor`): the entry and the authored-food
+ * form as their fixtures, the details dialog closed, nothing settled and nothing in flight. Not moved past, so a
+ * `settled` a test passes stands until it says otherwise.
+ *
+ * @param over - Fields to override.
+ * @returns The row editor.
+ */
+export const makeIngredientRowEditor = (over: Partial<IngredientRowEditor> = {}): IngredientRowEditor => ({
+    entry: makeIngredientEntry(),
+    authoredFood: makeAuthoredFoodController(),
+    details: {
+        target: undefined,
+        open: () => undefined,
+        model: makeDetailsModel({ read: { kind: 'loading' }, entry: { mode: 'add' } }),
+    },
+    sourceLimit: { retryAt: undefined, hold: () => undefined },
+    naming: {
+        sourceName: () => undefined,
+        formatTime: (epochMs) => new Date(epochMs).toISOString(),
+        formatList: (items) => items.join(', '),
+    },
+    limitRefusals: 0,
+    pickFromShortlist: () => Promise.resolve({ kind: 'failed' }),
+    settled: undefined,
+    movedPast: false,
+    moveOn: () => undefined,
+    pickFailures: 0,
+    pickInFlight: () => undefined,
+    pendingFocusRequested: false,
+    pendingRefused: false,
+    pendingRefusals: 0,
+    refused: () => undefined,
+    pendingFocusHandled: () => undefined,
+    dispatch: () => undefined,
+    ...over,
+});

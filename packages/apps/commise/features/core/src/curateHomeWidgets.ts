@@ -2,7 +2,12 @@
  * @module @commise/features-core — pure Home-widget composition (L2).
  */
 
-import { isPlaceholderHomeWidget, type CurateHomeWidgets, type HomeWidgetDescriptor } from './contract.js';
+import {
+    isPlaceholderHomeWidget,
+    type CurateHomeWidgets,
+    type HomeWidgetDescriptor,
+    type PlaceholderHomeWidgetDescriptor,
+} from './contract.js';
 
 /**
  * Ascending subscription-tier ladder (least → most privileged). Index 0 is the
@@ -111,3 +116,25 @@ export const curateHomeWidgets: CurateHomeWidgets = (widgets, ctx) => {
         return b.defaultWeight - a.defaultWeight;
     });
 };
+
+/** Home's two groups: the live widgets, then the roadmap placeholders under one "Coming soon" heading. */
+export interface HomeWidgetGroups {
+    /** The live widgets, in curated order. */
+    readonly live: readonly HomeWidgetDescriptor[];
+    /** The placeholders, in curated order. Empty once every roadmap feature has shipped. */
+    readonly comingSoon: readonly PlaceholderHomeWidgetDescriptor[];
+}
+
+/**
+ * Split a curated list into Home's two groups (buildSpec §4.2: the placeholders sit together, after the live
+ * widgets, under one "Coming soon" heading). Each platform's Home renders the same split. Pure.
+ *
+ * @param curated - The output of {@link curateHomeWidgets}.
+ * @returns The live widgets and the placeholders, each keeping the curated order.
+ */
+export function splitComingSoon(curated: readonly HomeWidgetDescriptor[]): HomeWidgetGroups {
+    return {
+        live: curated.filter((widget) => !isPlaceholderHomeWidget(widget)),
+        comingSoon: curated.filter(isPlaceholderHomeWidget),
+    };
+}

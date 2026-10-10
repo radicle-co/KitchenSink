@@ -7,22 +7,28 @@
  *
  * @implements FR-002 FR-005 FR-013 FR-025 FR-028 FR-028a FR-IDN-1
  */
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 
-import type { FoodDrizzle } from '../../database/database.module.js';
+import { settingFromEnv } from '../../config/env.schema.js';
+import type { FoodWriter } from '../../database/unitOfWork.js';
 import {
     food,
     foodFieldProvenance,
-    foodNutrients,
-    foodOriginEnum,
+    foodItem,
+    foodNutrientView,
+    foodNutrition,
+    foodNutritionCitation,
+    foodNutritionValue,
     foodPortions,
     foodSources,
     foodStatusEnum,
     nutrient,
     type FoodRow,
 } from '../../db/schema/index.js';
-import { newFoodId } from '../../db/ulid.js';
+import { DATASET_SOURCE } from '../seed/citationDatasets.js';
 import { IllegalStatusTransitionError } from './dao.errors.js';
+import { FoodItemDao } from './foodItem.dao.js';
+import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 /** The `food.status` lifecycle set (FR-028). */
 export type FoodStatus = (typeof foodStatusEnum.enumValues)[number];
@@ -35,14 +41,17 @@ export interface GoldenNutrient {
     name: string;
     /** Unit the amount is expressed in (e.g. `g`). */
     unit: string;
-    /** Stable external code (INFOODS tagname) when known, else `null`. */
-    externalCode: string | null;
+    /** The definition's INFOODS tag when it has one, else `null` (KTD-23). */
+    infoodsTag: string | null;
     /** Arbitrary-precision amount as a string (no float drift, SC-008). */
     amount: string;
     /** Amount basis (`per_100g` by default). */
     basis: string;
-    /** Crosswalk row id that supplied this value (per-value provenance). */
-    sourceId: string;
+    /**
+     * The register source the value's citation names (`DATASET_SOURCE` of its dataset), or NULL for an
+     * author-written one (0013, plan U10; KTD-19).
+     */
+    source: string | null;
 }
 
 /** A household-measure portion in the golden read shape. */
@@ -53,8 +62,13 @@ export interface GoldenPortion {
     label: string;
     /** Gram weight as a string (numeric, strictly positive). */
     gramWeight: string;
-    /** Crosswalk row id that supplied this portion. */
-    sourceId: string;
+    /** Crosswalk row id that supplied this portion, or NULL when a citation or the author stands behind it. */
+    sourceId: string | null;
+    /**
+     * The register source behind the portion — its crosswalk row's, or `DATASET_SOURCE` of its citation's dataset — or
+     * NULL for an author-written one (ADR-0029). Decided here, once, so a cited portion never reads as authored.
+     */
+    source: string | null;
 }
 
 /** A crosswalk entry in the golden read shape (no raw payload). */
@@ -102,6 +116,75 @@ export interface GoldenFoodRecord {
     nutrients: GoldenNutrient[];
     portions: GoldenPortion[];
     fieldProvenance: GoldenFieldProvenance[];
+    /** The author's app-user ULID, or `null` for a catalog row (0013, plan U10). */
+    userId: string | null;
+    /** The 0013 visibility state (`public` is catalog-only; the CHECK guarantees coherence). */
+    visibility: 'public' | 'private' | 'promoted';
+}
+
+/**
+ * One stored nutrient value in the batch-read shape — the view's columns, unchanged.
+ *
+ * Structurally the `NutrientRow` that `nutrition/nutrientSelection.ts` selects over, minus the `number`
+ * conversion: `amount` is `numeric`, which node-postgres returns as a STRING (full precision, no float
+ * drift — SC-008). Converting it is the caller's job, at the one seam that already does it.
+ */
+export interface StoredNutrientAmount {
+    /** Nutrient display name, from the dictionary. */
+    readonly nutrient: string;
+    /** Unit the amount is expressed in — part of the nutrient's IDENTITY, not decoration. */
+    readonly unit: string;
+    /** `per_100g` | `per_serving`, carried through unfiltered. */
+    readonly basis: string;
+    /** Arbitrary-precision amount as a string; NULL exactly when the row is a trace mark (R53). */
+    readonly amount: string | null;
+    /** The dictionary entry's INFOODS tag, or `null` where INFOODS defines none (KTD-23). */
+    readonly infoodsTag: string | null;
+    /** Whether the source printed a trace or below-limit mark in place of a number. */
+    readonly trace: boolean;
+}
+
+/** One stored portion in the batch-read shape (`gram_weight` is `numeric` → string, as above). */
+export interface StoredPortionWeight {
+    /** Human label (e.g. `1 cup chopped`). */
+    readonly label: string;
+    /** Gram weight of the whole label amount, as a string. */
+    readonly gramWeight: string;
+}
+
+/**
+ * One food's nutrition-relevant rows, as returned by {@link FoodDao.readNutritionBatch}. A subset of
+ * {@link GoldenFoodRecord} — no crosswalk, no scalar provenance, no per-value `source_id` — because the
+ * batch-nutrition projection reads none of them and fetching them would put the N+1 back in a new shape.
+ */
+export interface NutritionRecord {
+    /** The internal food id. */
+    readonly id: string;
+    /** The food's lifecycle status, reported whatever it is (a PENDING food still rides the wire). */
+    readonly status: FoodStatus;
+    /** Every stored nutrient value for the food, in no guaranteed order. */
+    readonly nutrients: readonly StoredNutrientAmount[];
+    /** The food's portions, in insertion order. */
+    readonly portions: readonly StoredPortionWeight[];
+}
+
+/**
+ * What a READER may be told about a food, and what decides whether they may be told it — one `food` row's
+ * identity, name, lifecycle and the two 0013 authorship columns. Returned by {@link FoodDao.readRefFacts}.
+ */
+export interface FoodRefFacts {
+    /** The internal food id. */
+    readonly id: string;
+    /** The food's current name (nullable in the column). */
+    readonly name: string | null;
+    /** The stored lifecycle, `DELETING` included — deciding what reaches the wire is the reader's job. */
+    readonly status: FoodStatus;
+    /** The author's app-user ULID, or `null` for a catalog row. */
+    readonly userId: string | null;
+    /** The 0013 visibility state, narrowed (the CHECK guarantees coherence with `userId`). */
+    readonly visibility: 'public' | 'private' | 'promoted';
+    /** Whether the root is retired: it has been forwarded, or the seed removed it (ADR-0050 §4). */
+    readonly retired: boolean;
 }
 
 /** Input for {@link FoodDao.createByName}. */
@@ -118,7 +201,7 @@ export interface CreateByNameResult {
     id: string;
     /** `true` only when this call inserted a fresh row. */
     created: boolean;
-    /** `true` when a terminal-state row past its 30-day TTL was reset to `PENDING` (FR-028a). */
+    /** `true` when a terminal-state row past its configured TTL was reset to `PENDING` (FR-028a). */
     reactivated: boolean;
 }
 
@@ -130,17 +213,20 @@ export interface SetStatusInput {
     status: FoodStatus;
     /** Optional explicit tombstone timestamp (ISO-8601); defaults to `now()` for terminal targets. */
     tombstonedAt?: string;
-}
-
-/** The data-provenance class of a golden record (`food.origin`, 0003 migration). */
-export type FoodOrigin = (typeof foodOriginEnum.enumValues)[number];
-
-/** Input for {@link FoodDao.markOrigin}. */
-export interface MarkOriginInput {
-    /** The food id. */
-    id: string;
-    /** The target provenance class. */
-    origin: FoodOrigin;
+    /**
+     * The prior status(es) the caller actually OBSERVED — turning a check-then-act into a compare-and-set.
+     *
+     * ⛔ Supply this whenever the decision to write was made from a status READ in an earlier statement.
+     * `LEGAL_PRIORS` is the set of transitions that are legal in general, which is deliberately wider than
+     * "the row is still what I saw": `RESOLVED` is reachable from `UNRESOLVED`, so a food that moved
+     * `PENDING → UNRESOLVED` between a caller's read and its write was completed anyway — published as
+     * resolved without ever being disambiguated.
+     *
+     * ⚠️ It can only NARROW (it is intersected with `LEGAL_PRIORS`), so it is a tightening of FR-028a and
+     * never a way around it. Optional because most callers transition from whatever the row holds and have
+     * no observed prior to state; a caller that DID read first and omits it keeps the old wider guard.
+     */
+    from?: readonly FoodStatus[];
 }
 
 /** Input for {@link FoodDao.upsertGoldenScalars}. */
@@ -153,29 +239,95 @@ export interface GoldenScalars {
     brandOwner?: string | null;
     brandName?: string | null;
     barcode?: string | null;
+    /** The flattened curated-alias text (`foodAliases.joinAliases`), or `null` for a food with none. */
+    aliases?: string | null;
 }
 
-/** Two-int advisory-lock classid for per-name dedup (DSN-15) — distinct from the drainer/limiter classes. */
-const LOCK_CLASS_DEDUP = 2;
+/** Narrow the 0013 visibility text column; the CHECK makes anything else a defect worth throwing on. Pure. */
+function narrowVisibility(visibility: string): 'public' | 'private' | 'promoted' {
+    if (visibility === 'public' || visibility === 'private' || visibility === 'promoted') {
+        return visibility;
+    }
 
-/** The 30-day terminal-row / NOT_FOUND TTL window (FR-025/FR-028a). */
-const TERMINAL_TTL = sql`interval '30 days'`;
+    throw new Error(`unknown food visibility '${visibility}'`);
+}
+
+/** Options for {@link FoodDao}. */
+export interface FoodDaoOptions {
+    /**
+     * Terminal-row (`NOT_FOUND`/`FAILED`) TTL in days, past which {@link FoodDao.createByName} reactivates
+     * a tombstone to `PENDING` (FR-025/FR-028a). Defaults to the configured `FOOD_NOT_FOUND_TTL_DAYS`
+     * (30 when unset).
+     *
+     * Resolved HERE rather than at each composition root, for the reason recorded on
+     * `FetchQueueDaoOptions.demoteThreshold`: a caller that forgets to pass the configured value falls
+     * back to a built-in one silently. This variable was worse than that — boot-validated and documented,
+     * with NO consumer at all, because the statement carried `interval '30 days'` as a literal.
+     */
+    readonly notFoundTtlDays?: number;
+}
 
 /**
  * Legal status-transition set (FR-028a) expressed as the set of prior statuses from which each
  * target is reachable. `setStatus` runs a conditional UPDATE gated on this prior set, so an illegal
  * transition matches no row (`rowCount=0`) and is rejected without mutating the record.
  */
+/**
+ * The transaction lock every writer of a live catalog root's name takes first, so a name is checked and written by
+ * one writer at a time: add-by-name, and the remote adopt (`remoteAdoption.dao.ts`). The live catalog name index is
+ * the backstop. Pure.
+ *
+ * @param normalizedName - The name's dedup key (`normalizeName`).
+ * @returns The statement that takes the lock.
+ */
+export function nameDedupLock(normalizedName: string): SQL {
+    return sql`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_CLASSES.foodNameDedup}, hashtext(${normalizedName}))`;
+}
+
 const LEGAL_PRIORS: Record<FoodStatus, readonly FoodStatus[]> = {
-    PENDING: ['FAILED', 'NOT_FOUND'],
-    RESOLVED: ['PENDING', 'UNRESOLVED'],
-    UNRESOLVED: ['PENDING'],
-    NOT_FOUND: ['PENDING'],
-    FAILED: ['PENDING'],
+    // `AWAITING_RETRY` is a legal prior EVERYWHERE `PENDING` is (U9): a retrying food can still resolve,
+    // still turn out to need disambiguation, still be found absent, and still exhaust its budget. Omitting
+    // it from any of these would make the first failure a dead end — the food would be stuck retrying with
+    // no legal transition out, and `setStatus` rejects an illegal move by matching no row, silently.
+    PENDING: ['FAILED', 'NOT_FOUND', 'AWAITING_RETRY'],
+    RESOLVED: ['PENDING', 'UNRESOLVED', 'AWAITING_RETRY', 'DELETING'],
+    UNRESOLVED: ['PENDING', 'AWAITING_RETRY'],
+    NOT_FOUND: ['PENDING', 'AWAITING_RETRY'],
+    FAILED: ['PENDING', 'AWAITING_RETRY'],
+    // Reached on a real source failure that has NOT exhausted the budget — from a first attempt
+    // (`PENDING`) or from a previous retry (itself).
+    AWAITING_RETRY: ['PENDING', 'AWAITING_RETRY'],
+    // U18's tombstone-first refusal window (Q3b/R22): only a live golden record can begin deleting, and
+    // the ONLY way back is RESOLVED (the referenced/kept outcome) — every other exit is a physical DELETE.
+    DELETING: ['RESOLVED'],
+    // The author's own voluntary delete (0016; owner ruling 5). Only a live golden record can be withdrawn,
+    // and it has NO exit: `WITHDRAWN` appears in no other entry's prior set. Un-withdrawal is not ruled, so
+    // it is terminal for now — and adding it back later is additive, whereas admitting a transition nobody
+    // has designed is not.
+    WITHDRAWN: ['RESOLVED'],
 };
 
 export class FoodDao {
-    public constructor(private readonly db: FoodDrizzle) {}
+    /**
+     * The terminal-row / NOT_FOUND TTL as a SQL interval (FR-025/FR-028a), bound as a parameter so the
+     * configured value reaches Postgres instead of being baked into the statement text.
+     *
+     * Resolved per instance, not at module load: a malformed value must fail where an operator can
+     * attribute it (constructing this DAO), not as an import-time crash in whichever module happens to
+     * pull the file in first — and a frozen module constant made the knob unobservable to any test.
+     */
+    private readonly terminalTtl: SQL;
+
+    /**
+     * @param db - The food-schema Drizzle client.
+     * @param options - Optional tombstone-TTL override (defaults to `FOOD_NOT_FOUND_TTL_DAYS`).
+     */
+    public constructor(
+        private readonly db: FoodWriter,
+        options?: FoodDaoOptions,
+    ) {
+        this.terminalTtl = sql`make_interval(days => ${options?.notFoundTtlDays ?? settingFromEnv('FOOD_NOT_FOUND_TTL_DAYS')})`;
+    }
 
     /**
      * Fetch the raw `food` row by internal id.
@@ -191,67 +343,114 @@ export class FoodDao {
     }
 
     /**
-     * Add-by-name with normalized-name dedup (FR-005/FR-013/FR-028a). A single
-     * `INSERT … ON CONFLICT (normalized_name) DO UPDATE … RETURNING` always returns a row: a fresh add
-     * inserts a `PENDING` row; a duplicate collapses to the existing `id`; a terminal-state
-     * (`NOT_FOUND`/`FAILED`) row PAST its 30-day TTL is reactivated to `PENDING` (never a `23505`). A
-     * short per-name advisory lock (DSN-15) serializes same-name adds; the `UNIQUE(normalized_name)`
-     * index is the durable backstop. `created` distinguishes insert (`xmax=0`) from conflict; the
-     * reactivation flag is computed from the row's pre-update state captured in the CTE.
+     * Whether the seed owns a food: its item's `seed_owned`, the fact the ownership trigger reads (KTD-12).
+     *
+     * @param id - The internal food id.
+     * @returns `true` when the food's item is seed-owned; `false` when it is not, or when no such food exists.
+     * @sideEffect Reads `food` and `food_item`.
+     */
+    public async isSeedOwned(id: string): Promise<boolean> {
+        const rows = await this.db
+            .select({ seedOwned: foodItem.seedOwned })
+            .from(food)
+            .innerJoin(foodItem, eq(foodItem.id, food.itemId))
+            .where(eq(food.id, id));
+
+        return rows.some((row) => row.seedOwned);
+    }
+
+    /**
+     * The reader facts for many foods in ONE statement (`id = ANY($1)` on the primary key) — what
+     * `POST /api/v1/foods/refs/resolve` answers from, and what the authorship gate on `GET /{id}/candidates`
+     * decides over.
+     *
+     * Deciding what a caller may be told is NOT done here: every row comes back, private and `DELETING` ones
+     * included, and `domain/foodRefResolution.ts` applies the authorship policy. An id with no row is simply
+     * missing from the result.
+     *
+     * @param ids - The internal food ids (any order; duplicates harmless).
+     * @returns One entry per id that names a row, in no guaranteed order.
+     * @sideEffect Reads `food`.
+     */
+    public async readRefFacts(ids: readonly string[]): Promise<FoodRefFacts[]> {
+        if (ids.length === 0) {
+            return [];
+        }
+
+        const rows = await this.db
+            .select({
+                id: food.id,
+                name: food.name,
+                status: food.status,
+                userId: food.userId,
+                visibility: food.visibility,
+                retiredAt: food.retiredAt,
+            })
+            .from(food)
+            .where(sql`${food.id} = ANY(${sql.param([...ids])})`);
+
+        return rows.map(({ retiredAt, ...row }) => ({
+            ...row,
+            visibility: narrowVisibility(row.visibility),
+            retired: retiredAt !== null,
+        }));
+    }
+
+    /**
+     * Add-by-name with normalized-name dedup (FR-005/FR-013/FR-028a). Under a short per-name advisory lock
+     * (DSN-15): a live catalog row of the name collapses the add to its `id`; a live terminal-state
+     * (`NOT_FOUND`/`FAILED`) row PAST its configured TTL (`FOOD_NOT_FOUND_TTL_DAYS`, default 30 days) is
+     * reactivated to `PENDING`; otherwise a new `PENDING` root is inserted on a new live item (curated catalog
+     * plan KTD-6). The live catalog name index is the durable backstop.
+     *
+     * It reads before it writes rather than upserting, because an upsert's `DO UPDATE` on a SEEDED name is a
+     * service write to a seed-owned row, which the ownership trigger refuses (KTD-12).
      *
      * @param input - The normalized dedup key + optional display name.
      * @returns `{ id, created, reactivated }`.
-     * @sideEffect Inserts or updates `food`; takes a transaction-scoped advisory lock.
+     * @sideEffect Inserts `food_item` and `food`, or updates `food`; takes a transaction-scoped advisory lock.
      */
     public async createByName(input: CreateByNameInput): Promise<CreateByNameResult> {
         const { normalizedName } = input;
         const displayName = input.displayName ?? null;
 
         return this.db.transaction(async (tx) => {
-            await tx.execute(sql`SELECT pg_advisory_xact_lock(${LOCK_CLASS_DEDUP}, hashtext(${normalizedName}))`);
+            await tx.execute(nameDedupLock(normalizedName));
 
-            const newId = newFoodId();
-            const result = await tx.execute<{ id: string; inserted: boolean; reactivated: boolean }>(sql`
-                WITH existing AS (
-                    SELECT id, status, tombstoned_at FROM food WHERE normalized_name = ${normalizedName}
-                ),
-                upserted AS (
-                    INSERT INTO food (id, name, normalized_name, status)
-                    VALUES (${newId}, ${displayName}, ${normalizedName}, 'PENDING')
-                    ON CONFLICT (normalized_name) DO UPDATE SET
-                        status = CASE
-                            WHEN food.status IN ('NOT_FOUND', 'FAILED')
-                                 AND food.tombstoned_at < now() - ${TERMINAL_TTL}
-                            THEN 'PENDING'::food_status ELSE food.status END,
-                        tombstoned_at = CASE
-                            WHEN food.status IN ('NOT_FOUND', 'FAILED')
-                                 AND food.tombstoned_at < now() - ${TERMINAL_TTL}
-                            THEN NULL ELSE food.tombstoned_at END,
-                        updated_at = CASE
-                            WHEN food.status IN ('NOT_FOUND', 'FAILED')
-                                 AND food.tombstoned_at < now() - ${TERMINAL_TTL}
-                            THEN now() ELSE food.updated_at END
-                    RETURNING id, (xmax = 0) AS inserted
-                )
-                SELECT
-                    u.id,
-                    u.inserted,
-                    COALESCE(
-                        e.status IN ('NOT_FOUND', 'FAILED') AND e.tombstoned_at < now() - ${TERMINAL_TTL},
-                        false
-                    ) AS reactivated
-                FROM upserted u
-                LEFT JOIN existing e ON e.id = u.id
+            // The live catalog row of this name, if any (0013: CATALOG rows only — never another user's private
+            // authored food). A retired root has freed its name (0018).
+            const existing = await tx.execute<{ id: string; reactivatable: boolean }>(sql`
+                SELECT f.id,
+                       (f.status IN ('NOT_FOUND', 'FAILED') AND f.tombstoned_at < now() - ${this.terminalTtl}
+                            AND NOT i.seed_owned) AS reactivatable
+                  FROM food f JOIN food_item i ON i.id = f.item_id
+                 WHERE f.normalized_name = ${normalizedName} AND f.user_id IS NULL AND f.retired_at IS NULL
             `);
+            const found = existing.rows[0];
 
-            const row = result.rows[0];
+            if (found !== undefined) {
+                // ⛔ A seeded root is never written here: the ownership trigger refuses the service any write to a
+                // seed-owned row (KTD-12), and a seeded root is never in a terminal state anyway. So add-by-name of
+                // a seeded name only reads, and only a stale live tombstone is reactivated.
+                if (found.reactivatable) {
+                    await tx.execute(sql`
+                        UPDATE food SET status = 'PENDING', tombstoned_at = NULL, updated_at = now()
+                         WHERE id = ${found.id}
+                    `);
+                }
 
-            if (!row) {
-                // Unreachable: the upsert always returns exactly one row.
-                throw new Error('createByName produced no row');
+                return { id: found.id, created: false, reactivated: found.reactivatable };
             }
 
-            return { id: row.id, created: row.inserted, reactivated: row.reactivated };
+            // A new live root owns a new live item (KTD-6), both in this transaction. Under the per-name lock no
+            // other add can race this one; the catalog name index is the backstop.
+            const id = await new FoodItemDao(tx).insertLiveRoot({
+                name: displayName,
+                normalizedName,
+                status: 'PENDING',
+            });
+
+            return { id, created: true, reactivated: false };
         });
     }
 
@@ -269,9 +468,25 @@ export class FoodDao {
      */
     public async setStatus(input: SetStatusInput): Promise<FoodRow> {
         const { id, status } = input;
-        const priors = LEGAL_PRIORS[status];
+        // ⛔ INTERSECTED, never substituted: `from` may only NARROW the legal prior set, so a caller cannot
+        // use it to reach a target FR-028a forbids from the status it names. Absent `from`, the guard is the
+        // full matrix exactly as before.
+        const legal = LEGAL_PRIORS[status];
+        const priors = input.from === undefined ? legal : legal.filter((prior) => input.from?.includes(prior));
+
+        if (priors.length === 0) {
+            // No overlap at all: the caller observed a status this target is unreachable from, so the write
+            // can never match. Refuse here rather than issuing an `IN ()` that Postgres would reject.
+            throw new IllegalStatusTransitionError(id, status);
+        }
+
         const isTerminal = status === 'NOT_FOUND' || status === 'FAILED';
         const tombExpr = isTerminal ? sql`COALESCE(${input.tombstonedAt ?? null}::timestamptz, now())` : sql`NULL`;
+        // ⛔ ITS OWN COLUMN, not `tombstoned_at` (0017). That column anchors `createByName`'s NOT_FOUND TTL
+        // reactivation, so stamping a withdrawal into it would make an author's delete look like an expired
+        // lookup and let the TTL path reactivate it. Stamped on the way in, cleared on any other target so a
+        // future un-withdrawal cannot leave a date behind claiming the food is still gone.
+        const withdrawnExpr = status === 'WITHDRAWN' ? sql`now()` : sql`NULL`;
         const priorList = sql.join(
             priors.map((prior) => sql`${prior}::food_status`),
             sql`, `,
@@ -281,6 +496,7 @@ export class FoodDao {
             UPDATE food
             SET status = ${status}::food_status,
                 tombstoned_at = ${tombExpr},
+                withdrawn_at = ${withdrawnExpr},
                 updated_at = now()
             WHERE id = ${id} AND status IN (${priorList})
             RETURNING id
@@ -334,27 +550,13 @@ export class FoodDao {
             patch.barcode = scalars.barcode;
         }
 
+        if (scalars.aliases !== undefined) {
+            patch.aliases = scalars.aliases;
+        }
+
         const rows = await this.db.update(food).set(patch).where(eq(food.id, scalars.id)).returning();
 
         return rows[0];
-    }
-
-    /**
-     * Classify a food's data provenance (`food.origin`, 0003 migration). Marking a food `bulk` is what
-     * REMOVES it from the live change-refresh scan (`listResolvedBackingItems`) — see F-C2: a bulk row's
-     * content-derived `item_version` can never equal an API version, so an unexcluded bulk food would be
-     * re-enqueued on every sweep AND have its lab-analyzed nutrition clobbered with API values.
-     *
-     * Deliberately NOT folded into {@link upsertGoldenScalars}: `origin` is not a merge-winner scalar —
-     * no source supplies it and no merge may overwrite it. It is also NOT a status transition, so it is
-     * safe to call at any point in the lifecycle (the bulk importer calls it while the food is still
-     * PENDING, so the food is never visible to the scan as a refreshable RESOLVED row).
-     *
-     * @param input - The food id + target provenance class.
-     * @sideEffect Updates `food.origin` (and `updated_at`).
-     */
-    public async markOrigin(input: MarkOriginInput): Promise<void> {
-        await this.db.update(food).set({ origin: input.origin, updatedAt: new Date() }).where(eq(food.id, input.id));
     }
 
     /**
@@ -377,8 +579,8 @@ export class FoodDao {
      *
      * @param id - The internal food id.
      * @returns The assembled record, or `null` when the food does not exist.
-     * @sideEffect Reads `food`, `food_sources`, `food_nutrients`, `nutrient`, `food_portions`,
-     *   `food_field_provenance`.
+     * @sideEffect Reads `food`, `food_sources`, the nutrition aggregate, `nutrient`, `food_portions` and
+     *   `food_field_provenance`, the per-item ones through the food's item.
      */
     public async readGoldenRecord(id: string): Promise<GoldenFoodRecord | null> {
         const foodRow = await this.getById(id);
@@ -398,33 +600,48 @@ export class FoodDao {
                     fetchedAt: foodSources.fetchedAt,
                 })
                 .from(foodSources)
-                .where(eq(foodSources.foodId, id)),
+                .innerJoin(food, eq(food.itemId, foodSources.itemId))
+                .where(eq(food.id, id)),
             this.db
                 .select({
-                    nutrientId: foodNutrients.nutrientId,
+                    nutrientId: foodNutritionValue.nutrientId,
                     name: nutrient.name,
                     unit: nutrient.unit,
-                    externalCode: nutrient.externalCode,
-                    amount: foodNutrients.amount,
-                    basis: foodNutrients.basis,
-                    sourceId: foodNutrients.sourceId,
+                    infoodsTag: nutrient.infoodsTag,
+                    amount: foodNutritionValue.amount,
+                    basis: foodNutritionValue.basis,
+                    dataset: foodNutritionCitation.dataset,
                 })
-                .from(foodNutrients)
-                .innerJoin(nutrient, eq(foodNutrients.nutrientId, nutrient.id))
-                .where(eq(foodNutrients.foodId, id)),
+                .from(foodNutritionValue)
+                .innerJoin(foodNutrition, eq(foodNutrition.id, foodNutritionValue.nutritionId))
+                .innerJoin(nutrient, eq(foodNutritionValue.nutrientId, nutrient.id))
+                .leftJoin(
+                    foodNutritionCitation,
+                    and(
+                        eq(foodNutritionCitation.nutritionId, foodNutritionValue.nutritionId),
+                        eq(foodNutritionCitation.id, foodNutritionValue.citationId),
+                    ),
+                )
+                .where(eq(foodNutrition.foodId, id)),
             this.db
                 .select({
                     id: foodPortions.id,
                     label: foodPortions.label,
                     gramWeight: foodPortions.gramWeight,
                     sourceId: foodPortions.sourceId,
+                    crosswalkSource: foodSources.source,
+                    dataset: foodNutritionCitation.dataset,
                 })
                 .from(foodPortions)
-                .where(eq(foodPortions.foodId, id)),
+                .innerJoin(food, eq(food.itemId, foodPortions.itemId))
+                .leftJoin(foodSources, eq(foodSources.id, foodPortions.sourceId))
+                .leftJoin(foodNutritionCitation, eq(foodNutritionCitation.id, foodPortions.citationId))
+                .where(eq(food.id, id)),
             this.db
                 .select({ field: foodFieldProvenance.field, sourceId: foodFieldProvenance.sourceId })
                 .from(foodFieldProvenance)
-                .where(eq(foodFieldProvenance.foodId, id)),
+                .innerJoin(food, eq(food.itemId, foodFieldProvenance.itemId))
+                .where(eq(food.id, id)),
         ]);
 
         return {
@@ -447,9 +664,227 @@ export class FoodDao {
                 fetchState: source.fetchState,
                 fetchedAt: source.fetchedAt.toISOString(),
             })),
-            nutrients,
-            portions,
+            // A trace mark is a mark, never a number (R53): the golden read carries numbers only.
+            nutrients: nutrients.flatMap((value) =>
+                value.amount === null
+                    ? []
+                    : [
+                          {
+                              nutrientId: value.nutrientId,
+                              name: value.name,
+                              unit: value.unit,
+                              infoodsTag: value.infoodsTag,
+                              amount: value.amount,
+                              basis: value.basis,
+                              source: value.dataset === null ? null : DATASET_SOURCE[value.dataset],
+                          },
+                      ],
+            ),
+            // A portion names its crosswalk row, cites a dataset, or names neither because its author wrote it (KTD-19).
+            portions: portions.map(({ crosswalkSource, dataset, ...portion }) => ({
+                ...portion,
+                source: crosswalkSource ?? (dataset === null ? null : DATASET_SOURCE[dataset]),
+            })),
             fieldProvenance,
+            userId: foodRow.userId,
+            visibility: narrowVisibility(foodRow.visibility),
         };
+    }
+
+    /**
+     * The stored nutrient rows for a set of foods — the narrow read behind search's opt-in nutrition
+     * enrichment (plan U4b). One batched view scan; the per-100g SELECTION stays in
+     * `nutrition/nutrientSelection.ts`, never here.
+     *
+     * @param ids - The internal food ids.
+     * @returns One row per stored nutrient value, `amount` still the driver's string.
+     * @sideEffect Reads `food_nutrient_view`.
+     */
+    public async nutrientRowsFor(ids: readonly string[]): Promise<(StoredNutrientAmount & { foodId: string })[]> {
+        return this.rootNutrientRows(ids);
+    }
+
+    /**
+     * The AUTHORED variant of {@link readNutritionBatch} (plan U18's cache split): the same three-read
+     * shape, scoped to `user_id = requester` — the caller's own authored foods and NOBODY else's, which
+     * is what makes the authenticated `authored-nutrition` route safe to serve uncached per caller while
+     * the shared route stays caller-independent for the edge (ADR-0020).
+     *
+     * @sideEffect Three reads.
+     */
+    public async readAuthoredNutritionBatch(ids: readonly string[], requesterId: string): Promise<NutritionRecord[]> {
+        const statuses = await this.db
+            .select({ id: food.id, status: food.status })
+            .from(food)
+            .where(sql`${food.id} = ANY(${sql.param(ids)}) AND ${food.userId} = ${requesterId}`);
+        const ownedIds = statuses.map((row) => row.id);
+
+        if (ownedIds.length === 0) {
+            return [];
+        }
+
+        const [nutrients, portions] = await Promise.all([
+            this.rootNutrientRows(ownedIds),
+            this.rootPortionRows(ownedIds),
+        ]);
+        const nutrientsByFood = new Map<string, StoredNutrientAmount[]>();
+
+        for (const row of nutrients) {
+            const bucket = nutrientsByFood.get(row.foodId);
+            const value: StoredNutrientAmount = {
+                nutrient: row.nutrient,
+                unit: row.unit,
+                basis: row.basis,
+                amount: row.amount,
+                infoodsTag: row.infoodsTag,
+                trace: row.trace,
+            };
+
+            if (bucket === undefined) {
+                nutrientsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        const portionsByFood = new Map<string, StoredPortionWeight[]>();
+
+        for (const row of portions) {
+            const bucket = portionsByFood.get(row.foodId);
+            const value = { label: row.label, gramWeight: row.gramWeight };
+
+            if (bucket === undefined) {
+                portionsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        return statuses.map((row) => ({
+            id: row.id,
+            status: row.status,
+            nutrients: nutrientsByFood.get(row.id) ?? [],
+            portions: portionsByFood.get(row.id) ?? [],
+        }));
+    }
+
+    /**
+     * Read the nutrition-relevant rows for MANY foods in **three** statements (KTD-3, plan U8): statuses
+     * from `food`, nutrient values through `food_nutrient_view` (0018), portions from `food_portions` through
+     * each root's item — each a single `food_id = ANY($1)`.
+     *
+     * This exists because {@link FoodDao.readGoldenRecord} runs 1 + 4 statements EACH: calling it once per id,
+     * a 100-id batch request — one per recipe-list render — costs ~500 round trips. The header's root-arm
+     * unique index and `food_portions_item_id_idx` serve the predicates.
+     *
+     * ⛔ An **access-path change only**. Nothing here decides which row is a calorie, a protein or a fat —
+     * `basis` and the dictionary name/unit are carried through verbatim for `selectPer100g` to judge
+     * (`nutrition/nutrientSelection.ts`), which is the ONE place that rule lives. Amounts stay STRINGS.
+     *
+     * An id that names no `food` row is simply absent from the result; reporting it is the caller's job,
+     * because "unknown" versus "known but empty" is a wire-contract distinction, not a storage one.
+     *
+     * @param ids - The internal food ids (already canonicalized by the controller).
+     * @returns One record per id that exists, in no guaranteed order.
+     * @sideEffect Reads `food`, `food_nutrient_view` (the nutrition aggregate + `nutrient`), `food_portions`.
+     */
+    public async readNutritionBatch(ids: readonly string[]): Promise<NutritionRecord[]> {
+        const [statuses, nutrients, portions] = await Promise.all([
+            this.db
+                .select({ id: food.id, status: food.status })
+                .from(food)
+                // ⛔ CATALOG rows ONLY (0013 U10; ADR-0036). This feeds the EDGE-CACHED nutrition
+                // endpoint, whose response must not vary by caller (ADR-0020) — an AUTHORED food is
+                // author-only and cannot appear here for ANYONE (its id lands in `unknownIds`; U18's
+                // cache split serves the author its own rows on the per-caller path).
+                .where(sql`${food.id} = ANY(${sql.param(ids)}) AND ${food.userId} IS NULL`),
+            this.rootNutrientRows(ids),
+            this.rootPortionRows(ids),
+        ]);
+
+        const nutrientsByFood = new Map<string, StoredNutrientAmount[]>();
+
+        for (const row of nutrients) {
+            const bucket = nutrientsByFood.get(row.foodId);
+            const value: StoredNutrientAmount = {
+                nutrient: row.nutrient,
+                unit: row.unit,
+                basis: row.basis,
+                amount: row.amount,
+                infoodsTag: row.infoodsTag,
+                trace: row.trace,
+            };
+
+            if (bucket === undefined) {
+                nutrientsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        const portionsByFood = new Map<string, StoredPortionWeight[]>();
+
+        for (const row of portions) {
+            const bucket = portionsByFood.get(row.foodId);
+            const value = { label: row.label, gramWeight: row.gramWeight };
+
+            if (bucket === undefined) {
+                portionsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        return statuses.map((row) => ({
+            id: row.id,
+            status: row.status,
+            nutrients: nutrientsByFood.get(row.id) ?? [],
+            portions: portionsByFood.get(row.id) ?? [],
+        }));
+    }
+
+    /**
+     * The stored values of the given roots, through the view, trace marks included: carbohydrate counts a trace as 0
+     * (KTD-23), so dropping the row here would turn a known 0 into an unknown. A trace carries a NULL amount, and
+     * `nutrientSelection.ts` is the one reader that decides what each macro makes of it (R53).
+     *
+     * @param ids - The roots.
+     * @returns One row per stored value, `amount` still the driver's string, or NULL for a trace.
+     * @sideEffect Reads `food_nutrient_view`.
+     */
+    private async rootNutrientRows(ids: readonly string[]): Promise<(StoredNutrientAmount & { foodId: string })[]> {
+        const rows = await this.db
+            .select({
+                foodId: foodNutrientView.foodId,
+                nutrient: foodNutrientView.nutrient,
+                infoodsTag: foodNutrientView.infoodsTag,
+                unit: foodNutrientView.unit,
+                basis: foodNutrientView.basis,
+                amount: foodNutrientView.amount,
+                trace: foodNutrientView.trace,
+            })
+            .from(foodNutrientView)
+            .where(sql`${foodNutrientView.foodId} = ANY(${sql.param([...ids])})`);
+
+        return rows.flatMap(({ foodId, ...rest }) => (foodId === null ? [] : [{ ...rest, foodId }]));
+    }
+
+    /**
+     * The given roots' portions, through each root's item.
+     *
+     * Ordered by `food_portions.id`, a monotonic ULID, so the rows come back in insertion order every time.
+     * `normalizePortions` picks one weight per unit by the labels alone (KTD-28), so the order no longer decides it.
+     *
+     * @param ids - The roots.
+     * @returns One row per portion, in insertion order.
+     * @sideEffect Reads `food_portions` joined to `food`.
+     */
+    private async rootPortionRows(ids: readonly string[]): Promise<(StoredPortionWeight & { foodId: string })[]> {
+        return this.db
+            .select({ foodId: food.id, label: foodPortions.label, gramWeight: foodPortions.gramWeight })
+            .from(foodPortions)
+            .innerJoin(food, eq(food.itemId, foodPortions.itemId))
+            .where(sql`${food.id} = ANY(${sql.param([...ids])})`)
+            .orderBy(foodPortions.id);
     }
 }

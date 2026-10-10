@@ -360,13 +360,13 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ## ARCH↔MOD↔UTP Traceability
 
-| MOD ID  | MOD Name                        | UTP Count | UTS Count        |
-| ------- | ------------------------------- | --------- | ---------------- |
-| MOD-001 | Web Auth Route Handler          | 2 (A, B)  | 8 (A1-A5, B1-B3) |
-| MOD-002 | Web Auth Middleware Guard       | 1 (A)     | 5 (A1-A5)        |
-| MOD-003 | Web Session Cookie Manager      | 2 (A, B)  | 7 (A1-A4, B1-B3) |
-| MOD-004 | Web JWT Decoder                 | 1 (A)     | 3 (A1-A3)        |
-| MOD-005 | Web Route Protector             | 1 (A)     | 3 (A1-A3)        |
+| MOD ID  | MOD Name                      | UTP Count | UTS Count        |
+| ------- | ----------------------------- | --------- | ---------------- |
+| MOD-001 | Web Auth Route Handler        | 2 (A, B)  | 8 (A1-A5, B1-B3) |
+| MOD-002 | Web Auth Middleware Guard     | 1 (A)     | 5 (A1-A5)        |
+| MOD-003 | Web Session Cookie Manager    | 2 (A, B)  | 7 (A1-A4, B1-B3) |
+| MOD-004 | Web JWT Decoder               | 1 (A)     | 3 (A1-A3)        |
+| MOD-005 | Web Route Protector           | 1 (A)     | 3 (A1-A3)        |
 | MOD-006 | Mobile IdP Client SDK Wrapper | 1 (A)     | 4 (A1-A4)        |
 
 ## Mock Registry

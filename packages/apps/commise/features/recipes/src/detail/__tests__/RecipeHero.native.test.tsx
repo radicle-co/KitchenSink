@@ -1,6 +1,6 @@
 /**
  * Native component tests for {@link RecipeHero} — the recipe-detail lead cover treatment (mockup
- * `screen-recipe-detail`), rendered via react-native-web under jsdom.
+ * `screenRecipeDetail`), rendered via react-native-web under jsdom.
  *
  * BOTH states are covered, because the interesting one is the ABSENCE of a cover. A missing cover must look
  * DELIBERATE, and specifically must not be an `<Image>` with an empty `source` (which paints a broken-image
@@ -13,17 +13,36 @@
  * directions (compact present AND full-hero absent) so neither platform can silently drift into the other's
  * geometry.
  */
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { Text } from 'react-native';
 
 import { LocaleProvider } from '@commise/i18n/react';
-import { gradient, palette } from '@commise/ui';
+import { gradient } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { makePhoto } from '../../__fixtures__/index.js';
 import { RecipeHero } from '../RecipeHero.native.js';
 
-afterEach(cleanup);
+/** Resize the window: react-native-web's `Dimensions` reads the root element's height on a resize event. */
+function windowHeight(height: number): void {
+    Object.defineProperty(document.documentElement, 'clientHeight', { value: height, configurable: true });
+    act(() => {
+        window.dispatchEvent(new Event('resize'));
+    });
+}
+
+// An upright phone unless a test turns it: the hero's height is capped by the window (`compactHeightLayout.md` §8).
+beforeEach(() => windowHeight(851));
+
+afterEach(() => {
+    cleanup();
+    Reflect.deleteProperty(document.documentElement, 'clientHeight');
+    act(() => {
+        window.dispatchEvent(new Event('resize'));
+    });
+});
 
 const renderHero = (ui: React.ReactElement) => render(<LocaleProvider locale="en">{ui}</LocaleProvider>);
 
@@ -47,6 +66,13 @@ const SCRIM_FIRST_COLOR = gradient.scrim.stops[0].color;
  * geometry that ships. Mirrors the `appliedFontFamily` helper in `RecipeDetailView.native.test.tsx`.
  */
 function appliedStyle(element: Element, property: string): string | undefined {
+    // A size computed per render (the window-capped hero) lands inline, not in a compiled class.
+    const inline = (element as HTMLElement).style.getPropertyValue(property);
+
+    if (inline !== '') {
+        return inline;
+    }
+
     const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
     const sheets = document.styleSheets;
     let resolved: string | undefined;
@@ -72,108 +98,100 @@ function appliedStyle(element: Element, property: string): string | undefined {
     return resolved;
 }
 
-describe('RecipeHero (native) — cover present', () => {
-    it('renders the cover photo, named by the recipe title', () => {
-        renderHero(<RecipeHero title="Herb Risotto" coverPhotoUrl="https://cdn/hero.jpg" />);
+/**
+ * F2 — mirrors the web leaf: the hero IS the photo carousel, built from `photos` alone, so the cover is shown once.
+ * These replace the old cover-image tests (its window-capped height, its scrim), whose element no longer exists; the
+ * carousel sizes itself from the same window cap (`carouselBox`), pinned in `PhotoCarousel.native.test.tsx`.
+ */
+describe('RecipeHero (native) — photos present: the hero IS the carousel', () => {
+    const photos = [makePhoto({ url: 'https://cdn/p0.jpg' })];
 
-        expect(screen.getByLabelText('Herb Risotto')).toBeTruthy();
+    it('renders the photo carousel as the lead surface', () => {
+        renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} />);
+
+        expect(screen.getAllByLabelText('Recipe photos')).toHaveLength(1);
     });
 
-    it('sources the cover from the recipe cover URL', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" coverPhotoUrl="https://cdn/hero.jpg" />);
-
-        // The `expo-image` stub records its `source` uri, so this pins that the hero paints the cover the
-        // card paints — NOT `photos[0]`, which would let the hero and the card disagree.
-        expect(container.innerHTML).toContain('https://cdn/hero.jpg');
-    });
-
-    it('paints the cover at the FULL hero height (the mockup h-64 phone value)', () => {
-        renderHero(<RecipeHero title="Herb Risotto" coverPhotoUrl="https://cdn/hero.jpg" />);
-
-        expect(appliedStyle(screen.getByLabelText('Herb Risotto'), 'height')).toBe(
-            `${nativeTokens.mediaHeight.hero}px`,
-        );
-    });
-
-    it('lays a decorative scrim over the cover so the image foot stays tonally anchored', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" coverPhotoUrl="https://cdn/hero.jpg" />);
-        const [scrim, ...extra] = gradientLayers(container, SCRIM_FIRST_COLOR);
-
-        expect(scrim).toBeDefined();
-        expect(extra).toHaveLength(0);
-    });
-
-    it('keeps the scrim purely decorative — it names nothing and announces nothing', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" coverPhotoUrl="https://cdn/hero.jpg" />);
-        const [scrim] = gradientLayers(container, SCRIM_FIRST_COLOR);
-
-        // On native a view is only an accessibility element when it is `accessible` or carries a role/label/
-        // text. The scrim must have none of those, so a screen reader walks straight past it to the cover.
-        expect(scrim?.getAttribute('role')).toBeNull();
-        expect(scrim?.getAttribute('aria-label')).toBeNull();
-        expect(scrim?.textContent).toBe('');
-        // And the hero as a whole exposes exactly ONE named node: the cover itself.
-        expect(container.querySelectorAll('[aria-label]')).toHaveLength(1);
-    });
-
-    it('does NOT paint the beach-glow hero gradient behind a real cover photo', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" coverPhotoUrl="https://cdn/hero.jpg" />);
-
-        // The brand gradient is the PLACEHOLDER's surface. Painting it under a photo would be dead work and
-        // would stack a second beach-glow panel against the detail's existing title band.
-        expect(gradientLayers(container, palette.sand)).toHaveLength(0);
-    });
-
-    it('does NOT render the no-photo placeholder when a cover is present', () => {
-        renderHero(<RecipeHero title="Herb Risotto" coverPhotoUrl="https://cdn/hero.jpg" />);
+    it('does NOT render the no-photo placeholder or a scrim when there are photos', () => {
+        const { container } = renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} />);
 
         expect(screen.queryByLabelText('No photo yet')).toBeNull();
+        expect(gradientLayers(container, SCRIM_FIRST_COLOR)).toHaveLength(0);
     });
 });
 
-describe('RecipeHero (native) — cover absent (the deliberate fallback)', () => {
-    it('renders a localized, labelled placeholder instead of an image', () => {
-        renderHero(<RecipeHero title="Herb Risotto" />);
+/**
+ * F10 (`evaluateFinal.md`): with no photo the hero drew a picture glyph in a box that ran past the right edge. The spec
+ * (§1.8, §6.7) is the 96 px `RecipeCover` band with the monogram, decorative because the title already names the
+ * recipe. These replace the old glyph-placeholder tests.
+ */
+describe('RecipeHero (native) — no photo: the 96 px monogram band', () => {
+    const noPhoto = <RecipeHero recipeId="rec_herb" title="Herb Risotto" cuisine="Italian" photos={[]} />;
 
-        // Labelled through the i18n seam (`card.noPhotoLabel`) — the SAME copy the card placeholder uses,
-        // so "no photo yet" is stated once in the dictionary and read identically on both surfaces.
-        expect(screen.getByLabelText('No photo yet')).toBeTruthy();
-    });
-
-    it('renders NO image element at all (an empty source paints a broken-image glyph)', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" />);
+    it('draws the title’s first letter, with no image and no picture glyph', () => {
+        const { container } = renderHero(noPhoto);
 
         expect(container.querySelector('img')).toBeNull();
+        expect(container.querySelector('[data-icon-name="image"]')).toBeNull();
+        expect(screen.queryByLabelText('No photo yet')).toBeNull();
+        expect(screen.getByText('H')).toBeTruthy();
     });
 
-    it('paints the placeholder on the brand hero gradient rather than an empty grey box', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" />);
+    it('occupies the 96 pt band (mediaHeight.heroPlaceholder), never the full hero height', () => {
+        const { container } = renderHero(noPhoto);
+        const band = Array.from(container.querySelectorAll('div')).find(
+            (node) => appliedStyle(node, 'height') === `${nativeTokens.mediaHeight.heroPlaceholder}px`,
+        );
 
-        expect(gradientLayers(container, palette.sand)).toHaveLength(1);
+        expect(nativeTokens.mediaHeight.heroPlaceholder).toBe(96);
+        expect(band).toBeDefined();
+        expect(band?.textContent).toContain('H');
+    });
+});
+
+describe('RecipeHero (native) — the overlay over the photo', () => {
+    const photos = [makePhoto({ id: 'pho_0', url: 'https://cdn/p0.jpg' })];
+    const overlay = (
+        <>
+            <Text accessibilityRole="button">Back</Text>
+            <Text accessibilityRole="button">More actions</Text>
+        </>
+    );
+
+    it.each([
+        ['photos present', photos],
+        ['no photo', []],
+    ])('draws the overlay absolutely over the top of the hero (%s)', (_state, list) => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={list} overlay={overlay} />
+            </LocaleProvider>,
+        );
+
+        const layer = screen.getByRole('button', { name: 'Back' }).parentElement as HTMLElement;
+        const style = getComputedStyle(layer);
+
+        expect(style.position).toBe('absolute');
+        expect(style.top).toBe('0px');
+        // react-native-web draws `box-none` as `none` on the layer and `auto` on each child.
+        expect(style.pointerEvents).toBe('none');
+        expect(screen.getByRole('button', { name: 'More actions' }).parentElement).toBe(layer);
     });
 
-    it('occupies the COMPACT placeholder band, not the full hero height', () => {
-        renderHero(<RecipeHero title="Herb Risotto" />);
-        const height = appliedStyle(screen.getByLabelText('No photo yet'), 'height');
+    it('puts the overlay before the photos in the reading order', () => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} overlay={overlay} />
+            </LocaleProvider>,
+        );
 
-        // The deliberate native divergence, asserted in BOTH directions: an empty full-height hero would
-        // push the title off a phone's first screen, so the band is compact — and must NOT be the hero box.
-        expect(height).toBe(`${nativeTokens.mediaHeight.heroPlaceholder}px`);
-        expect(height).not.toBe(`${nativeTokens.mediaHeight.hero}px`);
-    });
+        const back = screen.getByRole('button', { name: 'Back' });
+        const [photo] = screen.getAllByLabelText('Recipe photos');
 
-    it('still occupies a real height, so the screen never collapses to nothing', () => {
-        renderHero(<RecipeHero title="Herb Risotto" />);
+        if (photo === undefined) {
+            throw new Error('no carousel');
+        }
 
-        expect(nativeTokens.mediaHeight.heroPlaceholder).toBeGreaterThan(0);
-        expect(appliedStyle(screen.getByLabelText('No photo yet'), 'height')).not.toBe('0px');
-    });
-
-    it('does not render the cover scrim when there is no cover to anchor', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" />);
-
-        // A scrim here would darken a placeholder that has no photo to darken — and would drag the label's
-        // contrast down with it.
-        expect(gradientLayers(container, SCRIM_FIRST_COLOR)).toHaveLength(0);
+        expect(back.compareDocumentPosition(photo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });

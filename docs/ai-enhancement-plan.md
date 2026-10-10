@@ -1,4 +1,5 @@
 # AI Enhancement Plan: Commise
+
 ## What the Current Spec Has vs. What the Market Demands
 
 **Date**: June 6, 2026
@@ -23,29 +24,29 @@ Feature 005 spec covers the **basics** of AI integration: BYOK API keys, recipe 
 
 ## 1. WHAT FEATURE 005 CURRENTLY SPECS
 
-| Capability | Spec'd? | Details |
-|---|---|---|
-| BYOK API key storage (OpenAI, Anthropic, Gemini) | ✅ FR-015 | Encrypted in AWS Secrets Manager |
-| Recipe generation from criteria | ✅ FR-016 | Ingredients, diet, cuisine, calories |
-| Preview before save | ✅ FR-017 | Generated recipes are previewed, then optionally saved |
-| External agent OAuth (ChatGPT, Gemini) | ✅ FR-018 | Read/write scopes, explicit consent |
-| Instruction optimization (premium) | ✅ FR-019 | Simplify or streamline cooking steps |
-| Private-by-default for AI recipes | ✅ FR-020 | Agents can't set public visibility |
-| Authorization revocation | ✅ FR-021 | Users can revoke agent access |
-| Confidence indicator + guard message | ✅ FR-022 | "AI-generated content may be inaccurate" |
+| Capability                                       | Spec'd?   | Details                                                |
+| ------------------------------------------------ | --------- | ------------------------------------------------------ |
+| BYOK API key storage (OpenAI, Anthropic, Gemini) | ✅ FR-015 | Encrypted in AWS Secrets Manager                       |
+| Recipe generation from criteria                  | ✅ FR-016 | Ingredients, diet, cuisine, calories                   |
+| Preview before save                              | ✅ FR-017 | Generated recipes are previewed, then optionally saved |
+| External agent OAuth (ChatGPT, Gemini)           | ✅ FR-018 | Read/write scopes, explicit consent                    |
+| Instruction optimization (premium)               | ✅ FR-019 | Simplify or streamline cooking steps                   |
+| Private-by-default for AI recipes                | ✅ FR-020 | Agents can't set public visibility                     |
+| Authorization revocation                         | ✅ FR-021 | Users can revoke agent access                          |
+| Confidence indicator + guard message             | ✅ FR-022 | "AI-generated content may be inaccurate"               |
 
 **What's NOT spec'd** (the gaps):
 
-| Missing | Why It Matters |
-|---|---|
-| Structured output validation | AI returns freeform text → no guarantee it's a valid recipe. No nutrition. No USDA cross-check. |
-| Taste profile / preference learning | AI treats every user identically. No learning from ratings, cooking history, or preferences. |
-| Multimodal input (photo → recipe) | Users can't photograph ingredients and get recipe suggestions. |
-| Real-time voice cooking assistant | Cooking mode (Feature 008) is step-by-step UI. No voice interaction. No camera awareness. |
-| Pantry-aware generation | FR-016 says "based on criteria" but doesn't specify cross-referencing against pantry inventory (Feature 006). |
-| Ingredient substitution intelligence | No "I'm out of X, what can I use?" capability integrated with USDA data. |
-| Meal plan AI generation | Feature 006 (Meal Planning) exists but doesn't spec AI generating a full week's plan from preferences + pantry. |
-| YouTube/video → recipe extraction | Sigma proved this works (Gemini watches video → extracts steps). Feature 004 imports from URLs but not video. |
+| Missing                              | Why It Matters                                                                                                  |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Structured output validation         | AI returns freeform text → no guarantee it's a valid recipe. No nutrition. No USDA cross-check.                 |
+| Taste profile / preference learning  | AI treats every user identically. No learning from ratings, cooking history, or preferences.                    |
+| Multimodal input (photo → recipe)    | Users can't photograph ingredients and get recipe suggestions.                                                  |
+| Real-time voice cooking assistant    | Cooking mode (Feature 008) is step-by-step UI. No voice interaction. No camera awareness.                       |
+| Pantry-aware generation              | FR-016 says "based on criteria" but doesn't specify cross-referencing against pantry inventory (Feature 006).   |
+| Ingredient substitution intelligence | No "I'm out of X, what can I use?" capability integrated with USDA data.                                        |
+| Meal plan AI generation              | Feature 006 (Meal Planning) exists but doesn't spec AI generating a full week's plan from preferences + pantry. |
+| YouTube/video → recipe extraction    | Sigma proved this works (Gemini watches video → extracts steps). Feature 004 imports from URLs but not video.   |
 
 ---
 
@@ -61,52 +62,58 @@ Feature 005 spec covers the **basics** of AI integration: BYOK API keys, recipe 
 
 ```typescript
 // BEFORE (current spec): Freeform text from AI
-const response = await ai.chat("Generate an Italian dinner recipe")
+const response = await ai.chat('Generate an Italian dinner recipe');
 
 // AFTER (enhanced): Structured output with Zod schema
-import { generateObject } from 'ai'
-import { z } from 'zod'
+import { generateObject } from 'ai';
+import { z } from 'zod';
 
 const RecipeSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  cuisine: z.string(),
-  difficulty: z.enum(['Easy', 'Intermediate', 'Advanced']),
-  totalTimeMinutes: z.number(),
-  servings: z.number(),
-  ingredients: z.array(z.object({
     name: z.string(),
-    amount: z.string(),
-    unit: z.string(),
-    usdaMatch: z.string().optional(),  // FDC ID from Feature 003
-    isOptional: z.boolean().default(false),
-  })),
-  steps: z.array(z.object({
-    order: z.number(),
-    instruction: z.string(),
-    durationMinutes: z.number().optional(),
-    temperature: z.string().optional(),
-    technique: z.string().optional(), // "sauté", "braise", etc.
-  })),
-  nutritionPerServing: z.object({
-    calories: z.number(),
-    protein: z.number(),
-    carbs: z.number(),
-    fat: z.number(),
-    fiber: z.number().optional(),
-  }).optional(),
-  tags: z.array(z.string()),
-  confidence: z.number().min(0).max(1), // AI self-assessed confidence
-})
+    description: z.string(),
+    cuisine: z.string(),
+    difficulty: z.enum(['Easy', 'Intermediate', 'Advanced']),
+    totalTimeMinutes: z.number(),
+    servings: z.number(),
+    ingredients: z.array(
+        z.object({
+            name: z.string(),
+            amount: z.string(),
+            unit: z.string(),
+            usdaMatch: z.string().optional(), // FDC ID from Feature 003
+            isOptional: z.boolean().default(false),
+        }),
+    ),
+    steps: z.array(
+        z.object({
+            order: z.number(),
+            instruction: z.string(),
+            durationMinutes: z.number().optional(),
+            temperature: z.string().optional(),
+            technique: z.string().optional(), // "sauté", "braise", etc.
+        }),
+    ),
+    nutritionPerServing: z
+        .object({
+            calories: z.number(),
+            protein: z.number(),
+            carbs: z.number(),
+            fat: z.number(),
+            fiber: z.number().optional(),
+        })
+        .optional(),
+    tags: z.array(z.string()),
+    confidence: z.number().min(0).max(1), // AI self-assessed confidence
+});
 
 const { object: recipe } = await generateObject({
-  model: userProvider, // BYOK
-  schema: RecipeSchema,
-  prompt: `Generate a recipe for: ${userCriteria}
+    model: userProvider, // BYOK
+    schema: RecipeSchema,
+    prompt: `Generate a recipe for: ${userCriteria}
     Available pantry items: ${pantryIngredients}
     Dietary restrictions: ${dietaryRestrictions}
     USDA food database available for ingredient validation.`,
-})
+});
 ```
 
 **USDA cross-validation step** (post-generation):
@@ -114,14 +121,14 @@ const { object: recipe } = await generateObject({
 ```typescript
 // Cross-check each ingredient against USDA FDC database
 for (const ing of recipe.ingredients) {
-  const usdaMatch = await usdaService.search(ing.name)
-  if (usdaMatch) {
-    ing.usdaMatch = usdaMatch.fdcId
-    // Replace AI-estimated nutrition with USDA-calculated values
-  } else {
-    // Flag ingredient as unverified
-    recipe.confidence *= 0.9 // Reduce confidence
-  }
+    const usdaMatch = await usdaService.search(ing.name);
+    if (usdaMatch) {
+        ing.usdaMatch = usdaMatch.fdcId;
+        // Replace AI-estimated nutrition with USDA-calculated values
+    } else {
+        // Flag ingredient as unverified
+        recipe.confidence *= 0.9; // Reduce confidence
+    }
 }
 ```
 
@@ -150,12 +157,13 @@ Enhanced: AI generates recipe from criteria + taste profile + pantry state + coo
 
 **New entities**:
 
-| Entity | Fields |
-|---|---|
+| Entity           | Fields                                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **TasteProfile** | `userId`, `flavorVector` (embedding), `cuisineAffinities` (map), `excludedIngredients[]`, `preferredTechniques[]`, `spiceLevel`, `cookingSkill`, `lastUpdated` |
-| **TasteSignal** | `userId`, `recipeId`, `rating`, `cookedAt`, `wouldCookAgain`, `modifiedSteps[]` |
+| **TasteSignal**  | `userId`, `recipeId`, `rating`, `cookedAt`, `wouldCookAgain`, `modifiedSteps[]`                                                                                |
 
 **Signal sources**:
+
 - Recipe ratings (1-5 stars) → cuisine/technique affinity
 - Recipes cooked more than once → strong positive signal
 - Recipes saved but never cooked → weak positive, possible aspirational bias
@@ -171,10 +179,10 @@ const prompt = `Generate a recipe for: ${criteria}
   - Preferred cuisines: ${profile.cuisineAffinities.top(3)}
   - Cooking skill: ${profile.cookingSkill}
   - Spice tolerance: ${profile.spiceLevel}/5
-  - Recently cooked: ${recentRecipes.map(r => r.name).join(', ')}
+  - Recently cooked: ${recentRecipes.map((r) => r.name).join(', ')}
   - Available pantry: ${pantryItems}
   - Ingredients to prioritize (expiring soon): ${expiringItems}
-  - Never suggest: ${profile.excludedIngredients}`
+  - Never suggest: ${profile.excludedIngredients}`;
 ```
 
 **Impact**: Commise's recipes improve with every session. Competitors start from scratch every time.
@@ -206,10 +214,10 @@ const prompt = `Generate a recipe for: ${criteria}
 ```typescript
 const prompt = `Generate a recipe using these available ingredients:
   IN PANTRY (use these first):
-  ${pantryItems.filter(p => p.expiresIn <= 3).map(i => `${i.name} (expires ${i.expiresIn} days)`)}
+  ${pantryItems.filter((p) => p.expiresIn <= 3).map((i) => `${i.name} (expires ${i.expiresIn} days)`)}
   
   ALSO AVAILABLE:
-  ${pantryItems.filter(p => p.expiresIn > 3).map(i => i.name)}
+  ${pantryItems.filter((p) => p.expiresIn > 3).map((i) => i.name)}
   
   DIETARY: ${dietaryRestrictions}
   CUISINE PREFERENCE: ${cuisinePreference}
@@ -217,7 +225,7 @@ const prompt = `Generate a recipe using these available ingredients:
   RULES:
   - Maximize use of expiring ingredients
   - If additional ingredients are needed, list them separately as "need to buy"
-  - Include quantities needed vs. quantities available`
+  - Include quantities needed vs. quantities available`;
 ```
 
 **Output enhancement**: Structured recipe includes `ingredients[].source: 'pantry' | 'need-to-buy'` so the UI can highlight what the user already has and auto-build a grocery list for what they don't.
@@ -273,13 +281,13 @@ POST /api/v1/ai/meal-plan
 
 **Key capabilities from Sigma's implementation**:
 
-| Tool | Trigger | What Happens |
-|---|---|---|
-| `set_timer` | "set a 5 minute timer" | Countdown in Cooking Mode |
-| `find_substitute` | "I'm out of lemongrass" | AI suggests substitute + checks pantry |
-| `how_to` | "how do I dice an onion?" | AI generates a technique guide |
-| `check_step` | "what step am I on?" | AI reads current step from Cooking Mode state |
-| `next_step` | "I'm done with this" | Advances Cooking Mode |
+| Tool              | Trigger                   | What Happens                                  |
+| ----------------- | ------------------------- | --------------------------------------------- |
+| `set_timer`       | "set a 5 minute timer"    | Countdown in Cooking Mode                     |
+| `find_substitute` | "I'm out of lemongrass"   | AI suggests substitute + checks pantry        |
+| `how_to`          | "how do I dice an onion?" | AI generates a technique guide                |
+| `check_step`      | "what step am I on?"      | AI reads current step from Cooking Mode state |
+| `next_step`       | "I'm done with this"      | Advances Cooking Mode                         |
 
 **Technical architecture**:
 
@@ -310,25 +318,30 @@ User voice → WebRTC/WebSocket → BYOK provider (GPT-4o Realtime / Gemini Live
 
 ```typescript
 const result = await generateObject({
-  model: userProvider, // GPT-4o supports vision
-  schema: IngredientListSchema,
-  messages: [{
-    role: 'user',
-    content: [
-      { type: 'image', image: photoBase64 },
-      { type: 'text', text: 'Identify all food ingredients in this photo. Return each with name, estimated quantity, and estimated freshness.' },
+    model: userProvider, // GPT-4o supports vision
+    schema: IngredientListSchema,
+    messages: [
+        {
+            role: 'user',
+            content: [
+                { type: 'image', image: photoBase64 },
+                {
+                    type: 'text',
+                    text: 'Identify all food ingredients in this photo. Return each with name, estimated quantity, and estimated freshness.',
+                },
+            ],
+        },
     ],
-  }],
-})
+});
 
 // Then feed identified ingredients into recipe generation
 const recipe = await generateObject({
-  model: userProvider,
-  schema: RecipeSchema,
-  prompt: `Generate a recipe using: ${result.ingredients.join(', ')}
+    model: userProvider,
+    schema: RecipeSchema,
+    prompt: `Generate a recipe using: ${result.ingredients.join(', ')}
     Dietary restrictions: ${user.dietary}
     Cooking skill: ${user.skill}`,
-})
+});
 ```
 
 **Impact**: "Point your camera at the counter and get dinner" is the most intuitive cooking app UX possible. Reduces friction to zero.
@@ -362,22 +375,22 @@ POST /api/v1/ai/substitute
 
 ```json
 {
-  "substitutes": [
-    {
-      "substitute": "1 cup milk + 1 tablespoon lemon juice",
-      "instructions": "Add lemon juice to milk. Let sit 5 minutes until curdled.",
-      "confidence": 0.95,
-      "pantryAvailable": true,
-      "nutritionMatch": 0.92
-    },
-    {
-      "substitute": "3/4 cup yogurt + 1/4 cup water",
-      "instructions": "Thin yogurt with water until buttermilk consistency.",
-      "confidence": 0.90,
-      "pantryAvailable": true,
-      "nutritionMatch": 0.88
-    }
-  ]
+    "substitutes": [
+        {
+            "substitute": "1 cup milk + 1 tablespoon lemon juice",
+            "instructions": "Add lemon juice to milk. Let sit 5 minutes until curdled.",
+            "confidence": 0.95,
+            "pantryAvailable": true,
+            "nutritionMatch": 0.92
+        },
+        {
+            "substitute": "3/4 cup yogurt + 1/4 cup water",
+            "instructions": "Thin yogurt with water until buttermilk consistency.",
+            "confidence": 0.9,
+            "pantryAvailable": true,
+            "nutritionMatch": 0.88
+        }
+    ]
 }
 ```
 
@@ -399,13 +412,13 @@ POST /api/v1/ai/substitute
 
 ```typescript
 // 1. Fetch YouTube transcript (or use vision if no transcript)
-const transcript = await youtubeService.getTranscript(videoUrl)
+const transcript = await youtubeService.getTranscript(videoUrl);
 
 // 2. Extract structured recipe from transcript
 const recipe = await generateObject({
-  model: userProvider,
-  schema: RecipeSchema,
-  prompt: `Extract a complete recipe from this cooking video transcript:
+    model: userProvider,
+    schema: RecipeSchema,
+    prompt: `Extract a complete recipe from this cooking video transcript:
     ${transcript}
     
     RULES:
@@ -413,7 +426,7 @@ const recipe = await generateObject({
     - Infer reasonable quantities where not stated (mark as "estimated")
     - Preserve the cooking technique and order of steps
     - Include any tips or warnings mentioned by the chef`,
-})
+});
 ```
 
 **Impact**: This turns every YouTube cooking video into a saveable recipe. The content pool is infinite.
@@ -432,12 +445,12 @@ const recipe = await generateObject({
 
 **Why this is the revenue engine**: The business plan projects **$100K/month from Instacart commissions at Month 12** (5% of cart value). Without this pipeline, there's no commission revenue. Feature 007 (Grocery Lists) currently specs a generic "store adapter" pattern with **"No partner API access is confirmed at spec time"** and prioritizes Walmart. The adapter pattern is right — the assumption about partner access is outdated. Multiple fulfillers now have public APIs:
 
-| Fulfiller | API Status | Commission | Coverage | Notes |
-|---|---|---|---|---|
-| **Instacart** | ✅ Live Developer Platform (May 2026) | **5%** of cart, 7-day window | 1,400+ retailers | Recipe pages, shopping lists, MCP server. Affiliate program active. |
-| **Walmart** | ✅ Affiliate API (public, key-based) | **4%** via Impact | ~4,700 US stores | Well-documented. No OAuth required — simpler to build. |
-| **Amazon Fresh** | ⚠️ Limited (Amazon SP-API) | Variable (category-based) | Select US cities | Requires seller account. Not a priority for v1. |
-| **Kroger** | ⚠️ API exists, partner approval needed | Unknown | 2,800+ stores | Good for Midwest/South coverage. Follow-up adapter. |
+| Fulfiller        | API Status                             | Commission                   | Coverage         | Notes                                                               |
+| ---------------- | -------------------------------------- | ---------------------------- | ---------------- | ------------------------------------------------------------------- |
+| **Instacart**    | ✅ Live Developer Platform (May 2026)  | **5%** of cart, 7-day window | 1,400+ retailers | Recipe pages, shopping lists, MCP server. Affiliate program active. |
+| **Walmart**      | ✅ Affiliate API (public, key-based)   | **4%** via Impact            | ~4,700 US stores | Well-documented. No OAuth required — simpler to build.              |
+| **Amazon Fresh** | ⚠️ Limited (Amazon SP-API)             | Variable (category-based)    | Select US cities | Requires seller account. Not a priority for v1.                     |
+| **Kroger**       | ⚠️ API exists, partner approval needed | Unknown                      | 2,800+ stores    | Good for Midwest/South coverage. Follow-up adapter.                 |
 
 **The full flow (what the user experiences)**:
 
@@ -486,83 +499,80 @@ const recipe = await generateObject({
  * unless they explicitly pick another.
  */
 interface GroceryFulfillerAdapter {
-  readonly id: string              // "instacart" | "walmart" | "amazon-fresh"
-  readonly name: string            // "Instacart"
-  readonly logoUrl: string
-  readonly supportsDelivery: boolean
-  readonly supportsPickup: boolean
+    readonly id: string; // "instacart" | "walmart" | "amazon-fresh"
+    readonly name: string; // "Instacart"
+    readonly logoUrl: string;
+    readonly supportsDelivery: boolean;
+    readonly supportsPickup: boolean;
 
-  /**
-   * Search for nearby stores/retailers by postal code.
-   * Returns availability + estimated delivery windows.
-   */
-  findStores(postalCode: string): Promise<FulfillerStore[]>
+    /**
+     * Search for nearby stores/retailers by postal code.
+     * Returns availability + estimated delivery windows.
+     */
+    findStores(postalCode: string): Promise<FulfillerStore[]>;
 
-  /**
-   * Send a grocery list to the fulfiller.
-   * Maps ingredient names → fulfiller product IDs.
-   * Returns a checkout URL the user opens in their browser.
-   */
-  createShoppingList(params: {
-    storeId: string
-    lineItems: GroceryLineItem[]
-    affiliateId?: string           // for commission tracking
-  }): Promise<FulfillerCheckoutResult>
+    /**
+     * Send a grocery list to the fulfiller.
+     * Maps ingredient names → fulfiller product IDs.
+     * Returns a checkout URL the user opens in their browser.
+     */
+    createShoppingList(params: {
+        storeId: string;
+        lineItems: GroceryLineItem[];
+        affiliateId?: string; // for commission tracking
+    }): Promise<FulfillerCheckoutResult>;
 
-  /**
-   * Generate a recipe page (if the fulfiller supports it).
-   * Instacart has this; Walmart does not.
-   */
-  createRecipePage?(params: {
-    storeId: string
-    recipe: StructuredRecipe
-  }): Promise<FulfillerCheckoutResult>
+    /**
+     * Generate a recipe page (if the fulfiller supports it).
+     * Instacart has this; Walmart does not.
+     */
+    createRecipePage?(params: { storeId: string; recipe: StructuredRecipe }): Promise<FulfillerCheckoutResult>;
 }
 
 interface GroceryLineItem {
-  name: string                     // "cherry tomatoes" (USDA-normalized)
-  quantity: number
-  unit: string                     // "pint", "lbs", "count"
+    name: string; // "cherry tomatoes" (USDA-normalized)
+    quantity: number;
+    unit: string; // "pint", "lbs", "count"
 }
 
 interface FulfillerCheckoutResult {
-  checkoutUrl: string              // User opens this to complete order
-  lineItems: {
-    name: string
-    matched: boolean               // Did the fulfiller find this product?
-    productId?: string
-    price?: number                 // Estimated price if fulfiller returns it
-    matchConfidence: number        // 0-1
-  }[]
-  estimatedTotal?: number          // Estimated cart total
-  deliveryWindow?: string          // "30-45 min", "Tomorrow 9am-10am"
+    checkoutUrl: string; // User opens this to complete order
+    lineItems: {
+        name: string;
+        matched: boolean; // Did the fulfiller find this product?
+        productId?: string;
+        price?: number; // Estimated price if fulfiller returns it
+        matchConfidence: number; // 0-1
+    }[];
+    estimatedTotal?: number; // Estimated cart total
+    deliveryWindow?: string; // "30-45 min", "Tomorrow 9am-10am"
 }
 
 interface FulfillerStore {
-  id: string
-  name: string                     // "Safeway (Mission St)"
-  retailer: string                 // "safeway"
-  supportsDelivery: boolean
-  supportsPickup: boolean
-  estimatedDeliveryWindow?: string
+    id: string;
+    name: string; // "Safeway (Mission St)"
+    retailer: string; // "safeway"
+    supportsDelivery: boolean;
+    supportsPickup: boolean;
+    estimatedDeliveryWindow?: string;
 }
 ```
 
 **2. Instacart adapter** (first adapter, highest commission):
 
-| API | Purpose | Docs |
-|---|---|---|
-| `POST /v1/retailers` | Find nearby stores by postal code | [Instacart Retailer API](https://docs.instacart.com/developer_platform_api/api_references/retailers) |
-| `POST /v1/recipes` | Create recipe page with ingredient matching | [Instacart Recipe Pages](https://docs.instacart.com/developer_platform_api/api_references/shopping/create_recipe_page) |
-| `POST /v1/shopping_lists` | Create shopping list from ingredients | [Instacart Shopping Lists](https://docs.instacart.com/developer_platform_api/api_references/shopping/shopping_lists) |
-| MCP Server | For AI assistant integration (Claude, Gemini) | [Instacart MCP](https://docs.instacart.com/mcp_servers) |
+| API                       | Purpose                                       | Docs                                                                                                                   |
+| ------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/retailers`      | Find nearby stores by postal code             | [Instacart Retailer API](https://docs.instacart.com/developer_platform_api/api_references/retailers)                   |
+| `POST /v1/recipes`        | Create recipe page with ingredient matching   | [Instacart Recipe Pages](https://docs.instacart.com/developer_platform_api/api_references/shopping/create_recipe_page) |
+| `POST /v1/shopping_lists` | Create shopping list from ingredients         | [Instacart Shopping Lists](https://docs.instacart.com/developer_platform_api/api_references/shopping/shopping_lists)   |
+| MCP Server                | For AI assistant integration (Claude, Gemini) | [Instacart MCP](https://docs.instacart.com/mcp_servers)                                                                |
 
 **3. Walmart adapter** (second adapter, simplest integration):
 
-| API | Purpose | Docs |
-|---|---|---|
+| API                   | Purpose                                     | Docs                                                |
+| --------------------- | ------------------------------------------- | --------------------------------------------------- |
 | Walmart Affiliate API | Product search + add-to-cart URL generation | [Walmart Affiliate](https://affiliate.walmart.com/) |
-| Walmart Product API | Search products by keyword, get prices | Public, key-based |
+| Walmart Product API   | Search products by keyword, get prices      | Public, key-based                                   |
 
 Walmart doesn't have a recipe page API or shopping list API, so the adapter uses product search + affiliate links. Simpler but less integrated.
 
@@ -571,10 +581,10 @@ Walmart doesn't have a recipe page API or shopping list API, so the adapter uses
 ```typescript
 // Stored per-user, editable in settings
 interface UserFulfillerPreferences {
-  defaultFulfillerId: string      // "instacart" | "walmart"
-  defaultStoreId?: string          // Pre-selected store
-  postalCode: string               // For store availability
-  hasSeenFulfillerOnboarding: boolean
+    defaultFulfillerId: string; // "instacart" | "walmart"
+    defaultStoreId?: string; // Pre-selected store
+    postalCode: string; // For store availability
+    hasSeenFulfillerOnboarding: boolean;
 }
 ```
 
@@ -585,10 +595,10 @@ First time a user taps "Order groceries", they see the fulfiller picker with ava
 ```typescript
 // Each adapter appends its own affiliate parameters
 // Instacart
-const affiliateUrl = `${shoppingListUrl}?utm_campaign=instacart-idp&utm_medium=affiliate&utm_source=instacart_idp&utm_term=partnertype-mediapartner&utm_content=campaignid-20313_partnerid-${COMMISE_PARTNER_ID}`
+const affiliateUrl = `${shoppingListUrl}?utm_campaign=instacart-idp&utm_medium=affiliate&utm_source=instacart_idp&utm_term=partnertype-mediapartner&utm_content=campaignid-20313_partnerid-${COMMISE_PARTNER_ID}`;
 
 // Walmart (Impact affiliate)
-const affiliateUrl = `https://affil.walmart.com/cart?adid=${WALMART_AFFILIATE_ID}&items=${productIds.join(',')}`
+const affiliateUrl = `https://affil.walmart.com/cart?adid=${WALMART_AFFILIATE_ID}&items=${productIds.join(',')}`;
 ```
 
 From Instacart's docs: **"You will receive 5% commission of the total value of the cart from all orders completed from your app/website within a 7 day window."**
@@ -597,25 +607,26 @@ From Instacart's docs: **"You will receive 5% commission of the total value of t
 
 The Commise Custom GPT needs two Actions:
 
-| Action | Endpoint | Purpose |
-|---|---|---|
-| `generate_recipe` | `POST /api/v1/ai/recipes` | Generate structured recipe with pantry awareness |
+| Action              | Endpoint                                 | Purpose                                                            |
+| ------------------- | ---------------------------------------- | ------------------------------------------------------------------ |
+| `generate_recipe`   | `POST /api/v1/ai/recipes`                | Generate structured recipe with pantry awareness                   |
 | `order_ingredients` | `POST /api/v1/grocery-lists/:id/fulfill` | Send grocery list to user's default fulfiller, return checkout URL |
 
 The GPT's OpenAPI schema exposes both actions. ChatGPT's conversation handles the flow naturally — user asks for dinner, GPT generates recipe, user approves, GPT orders via their preferred fulfiller.
 
 **Impact on existing specs**:
 
-| Spec | Change Required |
-|---|---|
-| **Feature 005** (AI Integration) | Add `order_ingredients` as an external agent action. GPT can trigger fulfiller ordering via Commise API. |
-| **Feature 007** (Grocery Lists) | **Update assumptions**: Instacart and Walmart both have live APIs. The adapter pattern from FR-030 is correct — just needs real adapters instead of hypothetical ones. Instacart is the first adapter (highest commission, best UX with recipe pages). Walmart is the second (simpler, broader US coverage). Add fulfiller picker UI, user preference storage, and multi-adapter support. |
-| **Feature 010** (Subscriptions) | Online ordering is currently premium (FR-031). **Recommend making fulfiller ordering free** — the commission revenue (5% of cart) is worth more than gating it behind a subscription. Free ordering = more orders = more commission. Premium keeps nutrition tracking, taste profiles, and advanced AI features. |
-| **Business Plan** | Revenue projections assume Instacart commission. Multi-fulfiller support expands revenue — Walmart adds another 4% commission channel for users who prefer it. |
+| Spec                             | Change Required                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Feature 005** (AI Integration) | Add `order_ingredients` as an external agent action. GPT can trigger fulfiller ordering via Commise API.                                                                                                                                                                                                                                                                                  |
+| **Feature 007** (Grocery Lists)  | **Update assumptions**: Instacart and Walmart both have live APIs. The adapter pattern from FR-030 is correct — just needs real adapters instead of hypothetical ones. Instacart is the first adapter (highest commission, best UX with recipe pages). Walmart is the second (simpler, broader US coverage). Add fulfiller picker UI, user preference storage, and multi-adapter support. |
+| **Feature 010** (Subscriptions)  | Online ordering is currently premium (FR-031). **Recommend making fulfiller ordering free** — the commission revenue (5% of cart) is worth more than gating it behind a subscription. Free ordering = more orders = more commission. Premium keeps nutrition tracking, taste profiles, and advanced AI features.                                                                          |
+| **Business Plan**                | Revenue projections assume Instacart commission. Multi-fulfiller support expands revenue — Walmart adds another 4% commission channel for users who prefer it.                                                                                                                                                                                                                            |
 
 **Implementation effort**: Medium. The adapter interface is clean and each fulfiller is isolated. Instacart adapter is ~1 week (well-documented REST API + OAuth). Walmart adapter is ~3 days (simpler affiliate API, no OAuth). Fulfiller picker UI is ~2 days. User preferences + onboarding is ~1 day.
 
 **Adapter build order**:
+
 1. **Instacart** — highest commission (5%), best UX (recipe pages, shopping lists), widest retailer coverage. Build first.
 2. **Walmart** — simplest integration (key-based, no OAuth), 4,700 stores. Build second. Good fallback for users without Instacart in their area.
 3. **Kroger / Amazon Fresh** — follow-up adapters based on user demand and geographic coverage gaps.
@@ -626,17 +637,17 @@ The GPT's OpenAPI schema exposes both actions. ChatGPT's conversation handles th
 
 ## 3. IMPLEMENTATION PRIORITY
 
-| Priority | Enhancement | When | Effort | Competitive Impact |
-|---|---|---|---|---|
-| 🔴 P0 | **Structured Output + USDA Validation** | M5 (v1.0) | Medium | This IS the quality moat. Ship with Feature 005. |
-| 🔴 P0 | **Pantry-Aware Generation** | M5 (v1.0) | Low | Connects the core loop: pantry → AI → grocery. Essential. |
-| 🔴 P0 | **AI → Grocery Fulfillment Pipeline** | M3 (Instacart) / M4 (Walmart) / M5 (full AI pipeline) | Medium | The revenue engine. Multi-fulfiller support = more users can order = more commission. |
-| 🟡 P1 | **Ingredient Substitution** | M5 (v1.0) or v1.1 | Low | High-frequency use case. Easy to implement. |
-| 🟡 P1 | **Taste Profile / Preference Learning** | v1.1 | Medium-High | The "gets better over time" moat. Start collecting signals at launch, enhance later. |
-| 🟡 P1 | **AI Meal Plan Generation** | v1.1 | Medium | "Plan my week in one click" = massive time savings. |
-| 🟡 P1 | **Photo → Recipe (ingredient identification)** | v1.1 | Low-Medium | Intuitive UX. Uses vision capabilities already in BYOK providers. |
-| 🟢 P2 | **Real-Time Voice Cooking Assistant** | v2.0 | High | "Holy shit" feature but requires significant engineering. |
-| 🟢 P2 | **YouTube → Recipe Extraction** | v2.0 | Medium | Extends Feature 004. Nice-to-have, not essential. |
+| Priority | Enhancement                                    | When                                                  | Effort      | Competitive Impact                                                                    |
+| -------- | ---------------------------------------------- | ----------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| 🔴 P0    | **Structured Output + USDA Validation**        | M5 (v1.0)                                             | Medium      | This IS the quality moat. Ship with Feature 005.                                      |
+| 🔴 P0    | **Pantry-Aware Generation**                    | M5 (v1.0)                                             | Low         | Connects the core loop: pantry → AI → grocery. Essential.                             |
+| 🔴 P0    | **AI → Grocery Fulfillment Pipeline**          | M3 (Instacart) / M4 (Walmart) / M5 (full AI pipeline) | Medium      | The revenue engine. Multi-fulfiller support = more users can order = more commission. |
+| 🟡 P1    | **Ingredient Substitution**                    | M5 (v1.0) or v1.1                                     | Low         | High-frequency use case. Easy to implement.                                           |
+| 🟡 P1    | **Taste Profile / Preference Learning**        | v1.1                                                  | Medium-High | The "gets better over time" moat. Start collecting signals at launch, enhance later.  |
+| 🟡 P1    | **AI Meal Plan Generation**                    | v1.1                                                  | Medium      | "Plan my week in one click" = massive time savings.                                   |
+| 🟡 P1    | **Photo → Recipe (ingredient identification)** | v1.1                                                  | Low-Medium  | Intuitive UX. Uses vision capabilities already in BYOK providers.                     |
+| 🟢 P2    | **Real-Time Voice Cooking Assistant**          | v2.0                                                  | High        | "Holy shit" feature but requires significant engineering.                             |
+| 🟢 P2    | **YouTube → Recipe Extraction**                | v2.0                                                  | Medium      | Extends Feature 004. Nice-to-have, not essential.                                     |
 
 ## 4. RECOMMENDED v1.0 SCOPE (M3-M5)
 
@@ -670,13 +681,13 @@ All structured output should use [Vercel AI SDK](https://github.com/vercel/ai) (
 
 ### BYOK Provider Capability Matrix
 
-| Capability | OpenAI (GPT-4o) | Anthropic (Claude) | Gemini |
-|---|---|---|---|
-| Structured output (JSON) | ✅ | ✅ | ✅ |
-| Vision (image input) | ✅ | ✅ | ✅ |
-| Real-time voice | ✅ (GPT-4o Realtime) | ❌ | ✅ (Gemini Live) |
-| Tool calling | ✅ | ✅ | ✅ |
-| Video understanding | ❌ | ❌ | ✅ (Gemini 2.5) |
+| Capability               | OpenAI (GPT-4o)      | Anthropic (Claude) | Gemini           |
+| ------------------------ | -------------------- | ------------------ | ---------------- |
+| Structured output (JSON) | ✅                   | ✅                 | ✅               |
+| Vision (image input)     | ✅                   | ✅                 | ✅               |
+| Real-time voice          | ✅ (GPT-4o Realtime) | ❌                 | ✅ (Gemini Live) |
+| Tool calling             | ✅                   | ✅                 | ✅               |
+| Video understanding      | ❌                   | ❌                 | ✅ (Gemini 2.5)  |
 
 **Implication**: Enhancement 5 (voice) and Enhancement 8 (video) only work with Gemini and OpenAI, not Anthropic. The UI should indicate capability availability based on the user's configured provider.
 
@@ -694,27 +705,27 @@ All structured output should use [Vercel AI SDK](https://github.com/vercel/ai) (
 
 ### Feature 005 (AI Integration) — New FRs
 
-| ID | Requirement | Priority |
-|---|---|---|
-| **FR-023** | System MUST return AI-generated recipes as structured JSON conforming to a Zod-validated schema (name, ingredients with amounts/units, steps with order/duration/temperature, nutrition per serving, confidence score). | P0 |
-| **FR-024** | System MUST cross-validate each AI-generated ingredient against USDA food data (Feature 003) and calculate a confidence score based on match rate. Recipes below 80% confidence MUST display a warning. | P0 |
-| **FR-025** | System MUST query the user's pantry inventory (Feature 006) before AI generation and include available ingredients in the prompt. Ingredients expiring within 3 days MUST be prioritized. | P0 |
-| **FR-026** | System MUST separate generated recipe ingredients into "from pantry" and "need to buy" categories, enabling automatic grocery list generation. | P0 |
-| **FR-027** | System SHOULD provide an ingredient substitution endpoint that suggests alternatives for a missing ingredient, prioritizing substitutes available in the user's pantry, with USDA nutritional equivalence where available. | P1 |
-| **FR-028** | System SHOULD collect implicit and explicit taste signals (recipe ratings, cook frequency, substitutions made, saved-but-uncooked) for future taste-profile-based personalization. | P1 |
+| ID         | Requirement                                                                                                                                                                                                                | Priority |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **FR-023** | System MUST return AI-generated recipes as structured JSON conforming to a Zod-validated schema (name, ingredients with amounts/units, steps with order/duration/temperature, nutrition per serving, confidence score).    | P0       |
+| **FR-024** | System MUST cross-validate each AI-generated ingredient against USDA food data (Feature 003) and calculate a confidence score based on match rate. Recipes below 80% confidence MUST display a warning.                    | P0       |
+| **FR-025** | System MUST query the user's pantry inventory (Feature 006) before AI generation and include available ingredients in the prompt. Ingredients expiring within 3 days MUST be prioritized.                                  | P0       |
+| **FR-026** | System MUST separate generated recipe ingredients into "from pantry" and "need to buy" categories, enabling automatic grocery list generation.                                                                             | P0       |
+| **FR-027** | System SHOULD provide an ingredient substitution endpoint that suggests alternatives for a missing ingredient, prioritizing substitutes available in the user's pantry, with USDA nutritional equivalence where available. | P1       |
+| **FR-028** | System SHOULD collect implicit and explicit taste signals (recipe ratings, cook frequency, substitutions made, saved-but-uncooked) for future taste-profile-based personalization.                                         | P1       |
 
 ### Feature 007 (Grocery Lists) — Fulfiller Adapter Additions
 
 > **Note**: FR-028 through FR-033 already exist in Feature 007's spec. The FRs below extend the fulfiller integration beyond what's currently specced.
 
-| ID | Requirement | Priority |
-|---|---|---|
-| **FR-034** | System MUST implement a `GroceryFulfillerAdapter` interface that all grocery fulfillers (Instacart, Walmart, etc.) implement, supporting store search, shopping list creation, and checkout URL generation. | P0 |
-| **FR-035** | System MUST present a fulfiller picker UI when the user initiates grocery ordering, showing available fulfillers for their location with estimated totals and delivery windows. The user's selected default fulfiller MUST be pre-selected. | P0 |
-| **FR-036** | System MUST store per-user fulfiller preferences (default fulfiller, default store, postal code) and use them for subsequent orders and Custom GPT integrations. | P0 |
-| **FR-037** | System MUST implement an Instacart adapter supporting retailer search, recipe page generation, shopping list creation, and affiliate tracking via the Instacart Developer Platform API. | P0 |
-| **FR-038** | System MUST implement a Walmart adapter supporting product search, add-to-cart URL generation, and affiliate tracking via the Walmart Affiliate API. | P0 |
-| **FR-039** | System MUST append affiliate tracking parameters to all fulfiller checkout URLs for commission attribution, and record order events for revenue tracking per fulfiller. | P0 |
-| **FR-040** | System MUST expose an `order_ingredients` action via the Custom GPT OAuth integration (Feature 005 FR-018), using the user's default fulfiller to generate a checkout URL. | P0 |
-| **FR-041** | System SHOULD make fulfiller ordering available to all users regardless of subscription tier (commission revenue > subscription gate). Premium features remain behind the paywall. | P1 |
-| **FR-042** | System SHOULD support adding new fulfiller adapters without modifying the grocery list generation or AI pipeline code (open/closed principle). | P1 |
+| ID         | Requirement                                                                                                                                                                                                                                 | Priority |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **FR-034** | System MUST implement a `GroceryFulfillerAdapter` interface that all grocery fulfillers (Instacart, Walmart, etc.) implement, supporting store search, shopping list creation, and checkout URL generation.                                 | P0       |
+| **FR-035** | System MUST present a fulfiller picker UI when the user initiates grocery ordering, showing available fulfillers for their location with estimated totals and delivery windows. The user's selected default fulfiller MUST be pre-selected. | P0       |
+| **FR-036** | System MUST store per-user fulfiller preferences (default fulfiller, default store, postal code) and use them for subsequent orders and Custom GPT integrations.                                                                            | P0       |
+| **FR-037** | System MUST implement an Instacart adapter supporting retailer search, recipe page generation, shopping list creation, and affiliate tracking via the Instacart Developer Platform API.                                                     | P0       |
+| **FR-038** | System MUST implement a Walmart adapter supporting product search, add-to-cart URL generation, and affiliate tracking via the Walmart Affiliate API.                                                                                        | P0       |
+| **FR-039** | System MUST append affiliate tracking parameters to all fulfiller checkout URLs for commission attribution, and record order events for revenue tracking per fulfiller.                                                                     | P0       |
+| **FR-040** | System MUST expose an `order_ingredients` action via the Custom GPT OAuth integration (Feature 005 FR-018), using the user's default fulfiller to generate a checkout URL.                                                                  | P0       |
+| **FR-041** | System SHOULD make fulfiller ordering available to all users regardless of subscription tier (commission revenue > subscription gate). Premium features remain behind the paywall.                                                          | P1       |
+| **FR-042** | System SHOULD support adding new fulfiller adapters without modifying the grocery list generation or AI pipeline code (open/closed principle).                                                                                              | P1       |

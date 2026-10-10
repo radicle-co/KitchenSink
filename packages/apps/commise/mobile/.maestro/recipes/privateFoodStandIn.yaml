@@ -1,0 +1,82 @@
+appId: io.commise.mobile
+---
+# A line bound to ANOTHER cook's private food, read across the real boundary (plan 002 R9). The signer opens the
+# co-author's public recipe, whose one line (2 tbsp) is bound to the co-author's PRIVATE food. The recipe service
+# sends that line with no name and the status RESOLVED_UNAVAILABLE, and the app shows the stand-in "Private
+# ingredient" in the name's place. The signer then saves a copy: the copy keeps the binding and the amount, and shows
+# a one-time banner saying so.
+#
+# Why a device flow: the Playwright spec mocks the API, so no other tier sees the deployed service decide who may
+# see a food's name. The fixture comes from `e2e-seed provision` (`ensurePrivateFoodRecipe`), which creates the
+# food and the recipe together, as the co-author.
+#
+# Mutates the signer's library (the copy). The next flow's reset deletes it: its title is not in the manifest.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover'
+      timeout: 40000
+
+# Reach the recipe by search, as `discoverDetailSaveCopy` and `rating` do: a rail's order is data about the whole sandbox.
+# 'Crostini' is a word of the fixture's base title (`PRIVATE_FOOD_RECIPE` in e2e-seed). Anchored (`^…$`) so the tap selects the row's title, not the
+# card's "Save a copy of …" button whose label also contains it. The run key in the title keeps other runs' rows out.
+- tapOn: 'Search recipes'
+- inputText: 'Crostini'
+- scrollUntilVisible:
+      element:
+          text: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+      direction: DOWN
+      timeout: 30000
+- tapOn:
+      text: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+
+# The stand-in is shown where the name would be.
+- scrollUntilVisible:
+      element:
+          text: '^Private ingredient$'
+      direction: DOWN
+      timeout: 20000
+# The row's checkbox is named by amount and stand-in together. "2 tbsp" and "Private ingredient" are two separate
+# text nodes, so this whole string exists ONLY as the checkbox's accessibility label: drop or break the label and
+# this fails.
+- assertVisible:
+      text: '^2 tbsp Private ingredient$'
+# The food's real name is not on screen. ⚠️ `assertNotVisible` sees only the current viewport, which is the
+# ingredients card here: it proves the row does not leak the name, not that no other part of the page does.
+- assertNotVisible:
+      text: '.*${E2E_PRIVATE_FOOD_NAME}.*'
+
+# Save a copy from the page, as in `discoverDetailSaveCopy`. The copy opens in the editor (FR-005b) over its own
+# detail; leaving the untouched editor lands on that detail. The editor landmark is its own × ('Close editor').
+- scrollUntilVisible:
+      element: 'Save a copy'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Save a copy'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 40000
+- back
+
+# FIRST on the copy: the one-time banner. The count behind it rides only on the copy response, which the app
+# writes into its cache; the detail stays fresh for 30 s (`RECIPE_STANDARD_STALE_TIME_MS`), so it is asserted before
+# anything else. The sentence is `detail.clonePrivateFoodsBannerOne`, byte for byte (curly apostrophes).
+- scrollUntilVisible:
+      element:
+          text: '^One ingredient uses the original cook’s private food, so you can’t see its name or nutrition\. Its amount is kept\.$'
+      direction: DOWN
+      timeout: 20000
+# The copy kept the binding and the amount: its line still reads 2 tbsp, still private. UP, because the banner
+# renders below the steps and the nutrition panel, so the ingredient rows are above it.
+- scrollUntilVisible:
+      element:
+          text: '^2 tbsp Private ingredient$'
+      direction: UP
+      timeout: 20000
+# And it is the signer's own copy: the owner-only Edit action proves the copy landed.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: UP
+      timeout: 20000

@@ -2,7 +2,7 @@
  * @module @commise/features-recipes — native concurrent-edit conflict view (T070 / C-005 / W7 building
  * block).
  *
- * The React Native leaf of {@link import('./RecipeConflictView.js').RecipeConflictView} — same FULLY
+ * The React Native leaf of `RecipeConflictView` — same FULLY
  * controlled, presentational contract for FR-007c. Mirrors the web leaf's W7 rebuild of the DEFAULT (options)
  * view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and the
  * changed-only diff panel (W7 Task 4 / X1) driven by the precomputed `ConflictDiff` (W7 Task 1) — one row
@@ -13,56 +13,70 @@
  * least one EXPLICIT selection and — when the base is evicted or more than 10 versions behind (X6) — an
  * explicit stale-base confirm shared with Overwrite. Both the merge-panel toggle and the stale-confirm
  * checkbox are local UI state that resets whenever `server.versionNumber` changes (a NEW conflict on this
- * SAME instance). See the web leaf's own module doc for the full rationale; this file mirrors it exactly so
- * the two platforms cannot drift.
+ * SAME instance), held by `useConflictView`, which the web leaf shares. See the web leaf's own module doc for
+ * the full rationale.
+ *
+ * Colour comes from the theme's roles at render (D15); the `StyleSheet` holds layout only. A card is level 1, `paper`
+ * inside a `lineDivider` edge (`darkTheme.md` §4); the stale-base warning is the design system's caution surface
+ * (`StandIn`: an `attention` edge on the `attentionTint` fill under `ink`).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { useEffect, useState } from 'react';
 import type { FC } from 'react';
-import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
+import { useTheme } from '@commise/ui/theme';
+import { VariantPartsLine, type VariantPartsLineProps } from '@commise/ui/variant-parts-line';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { ConflictMarker } from './conflictDiff.js';
+import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import {
-    conflictMarkerGlyph,
-    conflictMarkerLabel,
-    conflictRowLabel,
-    fillTemplate,
+    LEGEND_MARKERS,
+    type ConflictOptionCardProps,
+    type DiscardAndCloseProps,
+    type RecipeConflictViewProps,
+    type SideValueProps,
+    type StaleBaseWarningProps,
+    type VersionSideCardProps,
+    conflictCopyOf,
     formatMergeSummary,
     formatServerBanner,
     formatServerCardHeading,
-    formatVersionCardDeviceLine,
     formatVersionCardSavedLine,
     formatYourCardHeading,
-    isConflictBaseStale,
-    type MergeSide,
-    type RecipeConflictViewProps,
-} from './model.js';
-
-/** The three markers, in the order the legend explains them (matching the wireframe's own `[=] [→] [!!]`
- *  order). */
-const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conflict'];
+} from './conflictView.js';
+import {
+    conflictMarkerGlyph,
+    conflictMarkerLabel,
+    conflictOptionLabel,
+    conflictOptionName,
+    conflictRowLabel,
+    conflictRowName,
+} from './diffLabels.js';
+import { useConflictView } from './useConflictView.js';
 
 /** One A/B/C option card — a title, a description, and the choice it fires. `disabled` (W7 Task 5 / X6) is
  *  the stale-base confirm gate on Option B (Overwrite) — Option A and C are never gated this way. */
-const OptionCard: FC<{
-    readonly title: string;
-    readonly description: string;
-    readonly onChoose: () => void;
-    readonly disabled?: boolean;
-}> = ({ title, description, onChoose, disabled = false }) => (
-    <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={title}
-        disabled={disabled}
-        onPress={onChoose}
-        style={[styles.optionCard, disabled && styles.optionCardDisabled]}
-    >
-        <Text style={styles.optionTitle}>{title}</Text>
-        <Text style={styles.optionDescription}>{description}</Text>
-    </Pressable>
-);
+const OptionCard: FC<ConflictOptionCardProps> = ({ title, description, onChoose, disabled = false }) => {
+    const { colors } = useTheme();
+
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={title}
+            disabled={disabled}
+            onPress={onChoose}
+            style={[
+                styles.optionCard,
+                { backgroundColor: colors.paper, borderColor: colors.lineDivider },
+                disabled && styles.optionCardDisabled,
+            ]}
+        >
+            <Text style={[styles.optionTitle, { color: colors.ink }]}>{title}</Text>
+            <Text style={[styles.optionDescription, { color: colors.inkMuted }]}>{description}</Text>
+        </Pressable>
+    );
+};
 
 /**
  * The header "Discard and close" exit (wireframe gap #1 — `conflict-resolution.md:34`). Rendered identically
@@ -70,52 +84,88 @@ const OptionCard: FC<{
  * NEVER disabled: it is the escape hatch a hung `onOverwrite`/`onMerge` resolve must not be able to trap the
  * user behind (`useRecipeEditor`'s `discardAndClose` stays callable regardless of `isResolving`).
  */
-const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndClose: () => void }> = ({
-    label,
-    onDiscardAndClose,
-}) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onDiscardAndClose} style={styles.option}>
-        <Text style={styles.discardLabel}>
-            {'‹ '}
-            {label}
-        </Text>
-    </Pressable>
-);
+const DiscardAndCloseButton: FC<DiscardAndCloseProps> = ({ label, onDiscardAndClose }) => {
+    const { colors } = useTheme();
+
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            onPress={onDiscardAndClose}
+            style={styles.option}
+        >
+            <Text style={[styles.discardLabel, { color: colors.inkMuted }]}>
+                {'‹ '}
+                {label}
+            </Text>
+        </Pressable>
+    );
+};
 
 /**
  * One two-column per-side summary card (wireframe gap #2 — `conflict-resolution.md:46-50`) — a heading plus
  * an optional "Saved:" line and an optional "Device:" line, omitted (never fabricated) when the underlying
  * side carries no such data. Rendered ONLY in the default (options) view.
  */
-const VersionSideCard: FC<{
-    readonly heading: string;
-    readonly savedLine?: string;
-    readonly deviceLine?: string;
-}> = ({ heading, savedLine, deviceLine }) => (
-    <View style={styles.versionCard}>
-        <Text style={styles.versionCardHeading}>{heading}</Text>
-        {savedLine !== undefined && <Text style={styles.versionCardLine}>{savedLine}</Text>}
-        {deviceLine !== undefined && <Text style={styles.versionCardLine}>{deviceLine}</Text>}
+const VersionSideCard: FC<VersionSideCardProps> = ({ heading, savedLine }) => {
+    const { colors } = useTheme();
+
+    return (
+        <View style={[styles.versionCard, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
+            <Text style={[styles.versionCardHeading, { color: colors.ink }]}>{heading}</Text>
+            {savedLine !== undefined && (
+                <Text style={[styles.versionCardLine, { color: colors.inkMuted }]}>{savedLine}</Text>
+            )}
+        </View>
+    );
+};
+
+/**
+ * One side's value and, when that side is variant-bound, its dotted line under it (curated U15, R25), in a block of
+ * their own so the line reads with its side rather than the next one. See the web leaf's `SideValue`.
+ */
+const SideValue: FC<SideValueProps> = ({ children, parts }) => (
+    <View style={styles.side}>
+        {children}
+        {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}
     </View>
 );
 
-/** One radio option in a merge row's chooser. */
+/**
+ * One radio option in a merge row's chooser. `name` is its accessible name, which carries a variant's parts (R27);
+ * the Pressable's label hides its children from a screen reader, so the visible dotted line cannot say them.
+ */
 const MergeOption: FC<{
     readonly label: string;
+    readonly name: string;
+    readonly parts: VariantPartsLineProps['parts'] | undefined;
     readonly checked: boolean;
     readonly onSelect: () => void;
-}> = ({ label, checked, onSelect }) => (
-    <Pressable
-        accessibilityRole="radio"
-        accessibilityLabel={label}
-        aria-checked={checked}
-        onPress={onSelect}
-        style={styles.option}
-    >
-        <View style={[styles.radioDot, checked && styles.radioDotChecked]} />
-        <Text style={styles.optionLabel}>{label}</Text>
-    </Pressable>
-);
+}> = ({ label, name, parts, checked, onSelect }) => {
+    const { colors } = useTheme();
+
+    return (
+        <Pressable
+            accessibilityRole="radio"
+            accessibilityLabel={name}
+            aria-checked={checked}
+            onPress={onSelect}
+            style={styles.option}
+        >
+            <View
+                style={[
+                    styles.radioDot,
+                    checked
+                        ? { borderColor: colors.selectedEdge, backgroundColor: colors.selectedEdge }
+                        : { borderColor: colors.inkMuted },
+                ]}
+            />
+            <SideValue parts={parts}>
+                <Text style={[styles.optionLabel, { color: colors.ink }]}>{label}</Text>
+            </SideValue>
+        </Pressable>
+    );
+};
 
 /**
  * The stale-base warning + explicit confirm checkbox (W7 Task 5 / X6) — shared, unchanged markup between the
@@ -124,32 +174,35 @@ const MergeOption: FC<{
  * `RecipeVersionList.native`'s convention — a ☑/☐ glyph for sighted readers PLUS an explicit `aria-checked`
  * for assistive tech, since react-native-web projects `accessibilityState` to nothing (#123).
  */
-const StaleBaseWarning: FC<{
-    readonly warning: string;
-    readonly confirmLabel: string;
-    readonly confirmed: boolean;
-    readonly onConfirmedChange: (confirmed: boolean) => void;
-}> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => (
-    <View accessibilityRole="alert" style={styles.staleWarning}>
-        <Text style={styles.staleWarningText}>{warning}</Text>
-        <Pressable
-            accessibilityRole="checkbox"
-            accessibilityLabel={confirmLabel}
-            // Device trait + the DOM-observable checked state; both are load-bearing (#123) — react-native-web
-            // projects `accessibilityState` to no attribute, and RN reverse-maps `aria-checked` back into it,
-            // so neither form is redundant. `aria-checked` is `role="checkbox"`'s own attribute (the sibling
-            // `MergeOption` radios already carry it), unlike `aria-selected`/`aria-pressed`.
-            accessibilityState={{ checked: confirmed }}
-            aria-checked={confirmed}
-            onPress={() => onConfirmedChange(!confirmed)}
-            style={styles.option}
+const StaleBaseWarning: FC<StaleBaseWarningProps> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => {
+    const { colors } = useTheme();
+
+    return (
+        <View
+            collapsable={false}
+            accessibilityRole="alert"
+            style={[styles.staleWarning, { backgroundColor: colors.attentionTint, borderColor: colors.attention }]}
         >
-            <Text style={styles.optionLabel}>
-                {confirmed ? '☑' : '☐'} {confirmLabel}
-            </Text>
-        </Pressable>
-    </View>
-);
+            <Text style={[styles.staleWarningText, { color: colors.ink }]}>{warning}</Text>
+            <Pressable
+                accessibilityRole="checkbox"
+                accessibilityLabel={confirmLabel}
+                // Device trait + the DOM-observable checked state; both are load-bearing (#123) — react-native-web
+                // projects `accessibilityState` to no attribute, and RN reverse-maps `aria-checked` back into it,
+                // so neither form is redundant. `aria-checked` is `role="checkbox"`'s own attribute (the sibling
+                // `MergeOption` radios already carry it), unlike `aria-selected`/`aria-pressed`.
+                accessibilityState={{ checked: confirmed }}
+                aria-checked={confirmed}
+                onPress={() => onConfirmedChange(!confirmed)}
+                style={styles.option}
+            >
+                <Text style={[styles.optionLabel, { color: colors.ink }]}>
+                    {confirmed ? '☑' : '☐'} {confirmLabel}
+                </Text>
+            </Pressable>
+        </View>
+    );
+};
 
 export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     server,
@@ -163,125 +216,106 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     onOverwrite,
     onMerge,
     onDiscardAndClose,
+    neverPublished = false,
 }) => {
-    const { conflict } = useMessages(recipeVersionMessages);
+    const conflict = conflictCopyOf(useMessages(recipeVersionMessages).conflict, neverPublished);
     const locale = useLocale();
-    // Whether the merge panel is showing, and the stale-base confirm checkbox, are pure UI navigation state
-    // (not data the `useRecipeEditor` machine needs) — they stay local. `selections` is fully controlled by
-    // the caller.
-    const [merging, setMerging] = useState(false);
-    const [staleConfirmed, setStaleConfirmed] = useState(false);
-    // A NEW conflict (same component instance, new props) must NOT inherit the PRIOR conflict's local UI
-    // state — see the web leaf's own note (X6 robustness gap). `server.versionNumber` is this conflict's
-    // stable identity token.
-    useEffect(() => {
-        setStaleConfirmed(false);
-        setMerging(false);
-    }, [server.versionNumber]);
+    const view = useConflictView({ server, base, versionsBehind, neverPublished, selections, onSelectionsChange });
+    const { colors } = useTheme();
+    const ink = { color: colors.ink };
+    const muted = { color: colors.inkMuted };
+    const card = { backgroundColor: colors.paper, borderColor: colors.lineDivider };
+
     // Reading the clock is THIS component's own side effect — see the web leaf's own note.
     const now = new Date();
 
-    const optionLabel = (side: string, value: string): string =>
-        fillTemplate(conflict.mergeOptionLabel, { side, value });
-
-    const isStale = isConflictBaseStale(base, versionsBehind);
-    const hasSelection = Object.keys(selections).length > 0;
-    const staleWarning = isStale ? (
+    const staleWarning = view.isStale ? (
         <StaleBaseWarning
             warning={conflict.staleBaseWarning}
             confirmLabel={conflict.staleBaseConfirmLabel}
-            confirmed={staleConfirmed}
-            onConfirmedChange={setStaleConfirmed}
+            confirmed={view.staleConfirmed}
+            onConfirmedChange={view.setStaleConfirmed}
         />
     ) : null;
 
-    if (merging) {
-        // No default side: an absent key renders NEITHER radio checked — see the web leaf's own note on why
-        // this is a display/gating distinction, not a data one (`composeConflictMerge` still defaults to mine).
-        const sideOf = (key: string): MergeSide | undefined => selections[key];
-        const choose = (key: string, side: MergeSide): void => onSelectionsChange({ ...selections, [key]: side });
-        // `isResolving` (concurrency/double-submit fix) is combined with, not a replacement for, the existing
-        // selection + stale-base gates — any one of the three blocks the submit.
-        const mergeDisabled = !hasSelection || (isStale && !staleConfirmed) || isResolving;
-
+    if (view.merging) {
         return (
-            <View accessibilityLabel={conflict.mergeHeading} style={styles.container}>
+            <View style={styles.container}>
                 <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
-                <Text accessibilityRole="header" style={styles.heading}>
+                <Text accessibilityRole="header" style={[styles.heading, ink]}>
                     {conflict.mergeHeading}
                 </Text>
-                <Text style={styles.explanation}>{conflict.mergeExplanation}</Text>
+                <Text style={[styles.explanation, muted]}>{conflict.mergeExplanation}</Text>
                 {staleWarning}
                 {diff.rows.map((row) => {
                     const label = conflictRowLabel(row, conflict);
-                    const current = sideOf(row.key);
+                    const current = view.sideOf(row.key);
 
                     return (
                         <View
+                            collapsable={false}
                             key={row.key}
                             accessibilityRole="radiogroup"
-                            accessibilityLabel={label}
-                            style={styles.group}
+                            // The name carries a variant's parts (R27); the visible label stays plain (R25).
+                            accessibilityLabel={conflictRowName(row, conflict)}
+                            style={[styles.group, card]}
                         >
-                            <Text style={styles.fieldLabel}>{label}</Text>
+                            <Text style={[styles.fieldLabel, muted]}>{label}</Text>
                             {/* Server FIRST, then Yours (X7). */}
-                            <MergeOption
-                                label={optionLabel(conflict.mergeServerLabel, row.theirs)}
-                                checked={current === 'theirs'}
-                                onSelect={() => choose(row.key, 'theirs')}
-                            />
-                            <MergeOption
-                                label={optionLabel(conflict.mergeMineLabel, row.mine)}
-                                checked={current === 'mine'}
-                                onSelect={() => choose(row.key, 'mine')}
-                            />
+                            {(['theirs', 'mine'] as const).map((side) => (
+                                <MergeOption
+                                    key={side}
+                                    label={conflictOptionLabel(row, side, conflict)}
+                                    name={conflictOptionName(row, side, conflict)}
+                                    parts={conflictSideParts(row, side)}
+                                    checked={current === side}
+                                    onSelect={() => view.choose(row.key, side)}
+                                />
+                            ))}
                         </View>
                     );
                 })}
-                <Text accessibilityLiveRegion="polite" style={styles.summary}>
+                <Text accessibilityLiveRegion="polite" style={[styles.summary, ink]}>
                     {formatMergeSummary(selections, conflict, locale)}
                 </Text>
-                {!hasSelection && (
-                    <Text accessibilityLiveRegion="polite" style={styles.explanation}>
+                {!view.hasSelection && (
+                    <Text accessibilityLiveRegion="polite" style={[styles.explanation, muted]}>
                         {conflict.mergeNoSelectionHint}
                     </Text>
                 )}
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={conflict.mergeSubmit}
-                    disabled={mergeDisabled}
-                    onPress={() => onMerge(selections)}
-                    style={[styles.chooseButton, mergeDisabled && styles.chooseButtonDisabled]}
-                >
-                    <Text style={styles.chooseLabel}>{conflict.mergeSubmit}</Text>
-                </Pressable>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={conflict.mergeBack}
-                    onPress={() => {
-                        onSelectionsChange({});
-                        setMerging(false);
-                    }}
-                    style={styles.secondaryButton}
-                >
-                    <Text style={styles.secondaryLabel}>{conflict.mergeBack}</Text>
-                </Pressable>
+                {/* `isResolving` is combined with, not a replacement for, the selection + stale-base gates: any one of
+                    the three blocks the submit (the Button's busy also refuses the press). */}
+                <View style={styles.action}>
+                    <Button
+                        icon="check"
+                        busy={isResolving}
+                        disabled={view.mergeBlocked}
+                        onPress={() => onMerge(selections)}
+                    >
+                        {conflict.mergeSubmit}
+                    </Button>
+                </View>
+                <View style={styles.action}>
+                    <Button variant="secondary" icon="chevronLeft" onPress={view.leaveMerge}>
+                        {conflict.mergeBack}
+                    </Button>
+                </View>
             </View>
         );
     }
 
     return (
-        <View accessibilityLabel={conflict.heading} style={styles.container}>
+        <View style={styles.container}>
             <DiscardAndCloseButton label={conflict.discardAndClose} onDiscardAndClose={onDiscardAndClose} />
-            <Text accessibilityRole="header" style={styles.heading}>
+            <Text accessibilityRole="header" style={[styles.heading, ink]}>
                 {conflict.heading}
             </Text>
-            <Text style={styles.explanation}>{conflict.explanation}</Text>
+            <Text style={[styles.explanation, muted]}>{conflict.explanation}</Text>
 
             {/* Per-side banner (X3) — server is ALWAYS first (X7). */}
-            <View style={styles.banner}>
-                <Text style={styles.bannerLine}>{formatServerBanner(server, now, conflict, locale)}</Text>
-                <Text style={styles.bannerLine}>{conflict.mineBanner}</Text>
+            <View style={[styles.banner, card]}>
+                <Text style={[styles.bannerLine, ink]}>{formatServerBanner(server, now, conflict, locale)}</Text>
+                <Text style={[styles.bannerLine, ink]}>{conflict.mineBanner}</Text>
             </View>
 
             {/* Two-column per-side summary cards (wireframe gap #2) — server ALWAYS first (X7). */}
@@ -289,7 +323,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <VersionSideCard
                     heading={formatServerCardHeading(server, conflict)}
                     savedLine={formatVersionCardSavedLine(server, locale, conflict)}
-                    deviceLine={formatVersionCardDeviceLine(server, conflict)}
                 />
                 <VersionSideCard
                     heading={formatYourCardHeading(base, conflict)}
@@ -297,7 +330,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         ? {}
                         : {
                               savedLine: formatVersionCardSavedLine(base, locale, conflict),
-                              deviceLine: formatVersionCardDeviceLine(base, conflict),
                           })}
                 />
             </View>
@@ -318,50 +350,55 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 title={conflict.optionOverwriteTitle}
                 description={conflict.optionOverwriteDescription}
                 onChoose={onOverwrite}
-                disabled={isResolving || (isStale && !staleConfirmed)}
+                disabled={isResolving || view.overwriteBlocked}
             />
             <OptionCard
                 title={conflict.optionMergeTitle}
                 description={conflict.optionMergeDescription}
-                onChoose={() => setMerging(true)}
+                onChoose={view.startMerge}
                 disabled={isResolving}
             />
 
             {/* Changed-only diff panel with per-row markers + legend (W7 Task 4 / X1). */}
             {diff.rows.length > 0 ? (
-                <View accessibilityLabel={conflict.changedFieldsHeading} style={styles.changedFields}>
-                    <Text accessibilityRole="header" style={styles.subheading}>
+                <View style={styles.changedFields}>
+                    <Text accessibilityRole="header" style={[styles.subheading, ink]}>
                         {conflict.changedFieldsHeading}
                     </Text>
                     {diff.rows.map((row) => (
-                        <View key={row.key} style={styles.changedFieldRow}>
+                        <View key={row.key} style={[styles.changedFieldRow, card]}>
                             <View style={styles.changedFieldRowHeader}>
                                 <View
                                     accessible
                                     accessibilityRole="image"
                                     accessibilityLabel={conflictMarkerLabel(row.marker, conflict)}
                                 >
-                                    <Text style={styles.marker}>{conflictMarkerGlyph(row.marker, conflict)}</Text>
+                                    <Text style={[styles.marker, muted]}>
+                                        {conflictMarkerGlyph(row.marker, conflict)}
+                                    </Text>
                                 </View>
-                                <Text style={styles.fieldLabel}>{conflictRowLabel(row, conflict)}</Text>
+                                <Text style={[styles.fieldLabel, muted]}>{conflictRowLabel(row, conflict)}</Text>
                             </View>
                             {row.base !== undefined && (
-                                <Text style={styles.changedFieldValue}>
-                                    {fillTemplate(conflict.wasValueLabel, { value: row.base })}
-                                </Text>
+                                <SideValue parts={conflictSideParts(row, 'base')}>
+                                    <Text style={[styles.changedFieldValue, ink]}>
+                                        {fillTemplate(conflict.wasValueLabel, { value: row.base })}
+                                    </Text>
+                                </SideValue>
                             )}
                             {/* Server value FIRST, then Yours (X7). */}
-                            <Text style={styles.changedFieldValue}>
-                                {optionLabel(conflict.mergeServerLabel, row.theirs)}
-                            </Text>
-                            <Text style={styles.changedFieldValue}>
-                                {optionLabel(conflict.mergeMineLabel, row.mine)}
-                            </Text>
+                            {(['theirs', 'mine'] as const).map((side) => (
+                                <SideValue key={side} parts={conflictSideParts(row, side)}>
+                                    <Text style={[styles.changedFieldValue, ink]}>
+                                        {conflictOptionLabel(row, side, conflict)}
+                                    </Text>
+                                </SideValue>
+                            ))}
                         </View>
                     ))}
-                    <View accessibilityLabel={conflict.legendHeading} style={styles.legend}>
+                    <View collapsable={false} accessibilityLabel={conflict.legendHeading} style={styles.legend}>
                         {LEGEND_MARKERS.map((marker) => (
-                            <Text key={marker} style={styles.legendEntry}>
+                            <Text key={marker} style={[styles.legendEntry, muted]}>
                                 {fillTemplate(conflict.legendEntryTemplate, {
                                     glyph: conflictMarkerGlyph(marker, conflict),
                                     label: conflictMarkerLabel(marker, conflict),
@@ -373,7 +410,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             ) : (
                 // Defensive — Task 2 already fast-paths a genuinely phantom-empty diff away from this view,
                 // so this should not normally be reached; a blank panel is never an acceptable fallback.
-                <Text style={styles.explanation}>{conflict.noDifferencesMessage}</Text>
+                <Text style={[styles.explanation, muted]}>{conflict.noDifferencesMessage}</Text>
             )}
         </View>
     );
@@ -381,25 +418,21 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
 
 const styles = StyleSheet.create({
     container: { gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
-    heading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
-    explanation: { fontSize: 14, color: palette.slate },
+    heading: { fontSize: 20, fontWeight: '600' },
+    explanation: { fontSize: 14 },
     banner: {
-        backgroundColor: palette.white,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.3)',
         padding: 16,
         gap: 4,
     },
-    bannerLine: { fontSize: 15, color: palette.charcoal },
-    discardLabel: { fontSize: 14, fontWeight: '600', color: palette.slate },
+    bannerLine: { fontSize: 15 },
+    discardLabel: { fontSize: 14, fontWeight: '600' },
     versionCardRow: { flexDirection: 'row', gap: 12 },
     versionCard: {
         flex: 1,
-        backgroundColor: palette.white,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.3)',
         padding: 16,
         gap: 4,
     },
@@ -408,82 +441,55 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
-        color: palette.charcoal,
     },
-    versionCardLine: { fontSize: 14, color: palette.slate },
+    versionCardLine: { fontSize: 14 },
     staleWarning: {
-        backgroundColor: 'rgba(230, 168, 60, 0.15)',
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: palette.warning,
         padding: 16,
         gap: 8,
     },
-    staleWarningText: { fontSize: 14, color: palette.charcoal },
+    staleWarningText: { fontSize: 14 },
     optionCard: {
-        backgroundColor: palette.white,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.3)',
         padding: 16,
         gap: 4,
     },
     optionCardDisabled: { opacity: 0.5 },
-    optionTitle: { fontSize: 17, fontWeight: '600', color: palette.charcoal },
-    optionDescription: { fontSize: 13, color: palette.slate },
+    optionTitle: { fontSize: 17, fontWeight: '600' },
+    optionDescription: { fontSize: 13 },
     group: {
-        backgroundColor: palette.white,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.3)',
         padding: 16,
         gap: 8,
     },
-    fieldLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
-    summary: { fontSize: 14, fontWeight: '600', color: palette.charcoal },
-    subheading: { fontSize: 15, fontWeight: '600', color: palette.charcoal },
+    fieldLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
+    summary: { fontSize: 14, fontWeight: '600' },
+    subheading: { fontSize: 15, fontWeight: '600' },
     changedFields: { gap: 8 },
     changedFieldRow: {
-        backgroundColor: palette.white,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.3)',
         padding: 12,
-        gap: 2,
+        gap: 8,
     },
     changedFieldRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    marker: { fontSize: 13, fontVariant: ['tabular-nums'], color: palette.slate },
-    changedFieldValue: { fontSize: 14, color: palette.charcoal },
+    marker: { fontSize: 13, fontVariant: ['tabular-nums'] },
+    changedFieldValue: { fontSize: 14 },
     legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 },
-    legendEntry: { fontSize: 12, color: palette.slate },
-    option: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+    legendEntry: { fontSize: 12 },
+    // `flex-start`: the dot sits on the first line when the value wraps or a dotted line follows it.
+    option: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
+    // `flexShrink: 1`: React Native defaults it to 0, so beside the dot the text would not wrap inside the row.
+    side: { flexShrink: 1, gap: 4 },
     radioDot: {
         width: 18,
         height: 18,
         borderRadius: 9,
         borderWidth: 2,
-        borderColor: palette.slate,
     },
-    radioDotChecked: { borderColor: palette.seafoam, backgroundColor: palette.seafoam },
-    optionLabel: { fontSize: 15, color: palette.charcoal, flexShrink: 1 },
-    chooseButton: {
-        alignSelf: 'flex-start',
-        backgroundColor: palette.seafoam,
-        borderRadius: 999,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        marginTop: 4,
-    },
-    chooseButtonDisabled: { opacity: 0.5 },
-    chooseLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
-    secondaryButton: {
-        alignSelf: 'flex-start',
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.5)',
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        marginTop: 4,
-    },
-    secondaryLabel: { color: palette.charcoal, fontWeight: '600', fontSize: 14 },
+    optionLabel: { fontSize: 15, flexShrink: 1 },
+    action: { alignSelf: 'flex-start', marginTop: 4 },
 });

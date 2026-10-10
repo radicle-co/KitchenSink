@@ -1,0 +1,335 @@
+# ⚠️ GENERATED FILE — DO NOT EDIT.
+#
+# DERIVED from the remote search service's authored zod. Regenerate with:
+#   npm run contract:generate --workspace=@kitchensink/remote-search-service
+#
+# This document is for EXTERNAL consumption (oasdiff, docs, integrators). It is NOT a codegen input
+# and NOT the type authority — that is the zod exported from ./src/index.ts.
+
+openapi: 3.0.3
+info:
+  title: Commise Remote Food Search
+  version: 1.0.0
+  description: "Searches a remote food source for food-service, behind a CloudFront cache (ADR-0055). The apps never call
+    it. Only food-service's signed URLs reach it, through the distribution's origin access control. Only a `200` may be
+    cached: a found answer for 7 days, an empty one for 1 day; every other response is `no-store`."
+servers: []
+security:
+  - cloudFrontSignedUrl: []
+paths:
+  /v1/{source}/{adapterRevision}/search:
+    get:
+      operationId: searchRemoteSource
+      summary: Search one remote source
+      security:
+        - cloudFrontSignedUrl: []
+      responses:
+        "200":
+          description: A miss asked with `admit=0`. The source was not called.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemoteSearchNotAdmitted"
+          headers:
+            Cache-Control:
+              description: "`no-store`."
+              schema:
+                type: string
+            x-search-rid:
+              description: The request's `rid`, on every response to a request whose `rid` parsed. A cached answer echoes the request
+                that stored it (ADR-0055 point 6).
+              schema:
+                type: string
+                pattern: ^[0-9A-Za-z-]{16,64}$
+        "400":
+          description: A parameter is missing, repeated or malformed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemoteSearchError"
+          headers:
+            Cache-Control:
+              description: "`no-store`."
+              schema:
+                type: string
+            x-search-rid:
+              description: The request's `rid`, on every response to a request whose `rid` parsed. A cached answer echoes the request
+                that stored it (ADR-0055 point 6).
+              schema:
+                type: string
+                pattern: ^[0-9A-Za-z-]{16,64}$
+        "404":
+          description: "No search at this path: another major, source or adapter revision."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemoteSearchError"
+          headers:
+            Cache-Control:
+              description: "`no-store`."
+              schema:
+                type: string
+            x-search-rid:
+              description: The request's `rid`, on every response to a request whose `rid` parsed. A cached answer echoes the request
+                that stored it (ADR-0055 point 6).
+              schema:
+                type: string
+                pattern: ^[0-9A-Za-z-]{16,64}$
+        "405":
+          description: Not a `GET`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemoteSearchError"
+          headers:
+            Cache-Control:
+              description: "`no-store`."
+              schema:
+                type: string
+            x-search-rid:
+              description: The request's `rid`, on every response to a request whose `rid` parsed. A cached answer echoes the request
+                that stored it (ADR-0055 point 6).
+              schema:
+                type: string
+                pattern: ^[0-9A-Za-z-]{16,64}$
+        "500":
+          description: This service failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemoteSearchError"
+          headers:
+            Cache-Control:
+              description: "`no-store`."
+              schema:
+                type: string
+            x-search-rid:
+              description: The request's `rid`, on every response to a request whose `rid` parsed. A cached answer echoes the request
+                that stored it (ADR-0055 point 6).
+              schema:
+                type: string
+                pattern: ^[0-9A-Za-z-]{16,64}$
+        "502":
+          description: The source answered with a failure status (`SOURCE_ERROR`, with `sourceStatus`) or a body it does not
+            publish (`SOURCE_INVALID_RESPONSE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemoteSearchError"
+          headers:
+            Cache-Control:
+              description: "`no-store`."
+              schema:
+                type: string
+            x-search-rid:
+              description: The request's `rid`, on every response to a request whose `rid` parsed. A cached answer echoes the request
+                that stored it (ADR-0055 point 6).
+              schema:
+                type: string
+                pattern: ^[0-9A-Za-z-]{16,64}$
+            X-RateLimit-Limit:
+              description: USDA's quota size for the API key, verbatim, when USDA sent it.
+              schema:
+                type: string
+            X-RateLimit-Remaining:
+              description: USDA's calls left for the API key, verbatim, when USDA sent it.
+              schema:
+                type: string
+            Retry-After:
+              description: The source's own `Retry-After`, verbatim, when it sent one.
+              schema:
+                type: string
+        "504":
+          description: The source did not answer in time (`SOURCE_TIMEOUT`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemoteSearchError"
+          headers:
+            Cache-Control:
+              description: "`no-store`."
+              schema:
+                type: string
+            x-search-rid:
+              description: The request's `rid`, on every response to a request whose `rid` parsed. A cached answer echoes the request
+                that stored it (ADR-0055 point 6).
+              schema:
+                type: string
+                pattern: ^[0-9A-Za-z-]{16,64}$
+            X-RateLimit-Limit:
+              description: USDA's quota size for the API key, verbatim, when USDA sent it.
+              schema:
+                type: string
+            X-RateLimit-Remaining:
+              description: USDA's calls left for the API key, verbatim, when USDA sent it.
+              schema:
+                type: string
+            Retry-After:
+              description: The source's own `Retry-After`, verbatim, when it sent one.
+              schema:
+                type: string
+      description: Answers from the cache when it can. On a miss with `admit=0` it answers `notAdmitted` and does not call the
+        source; with `admit=1` it calls the source once, never retrying.
+      parameters:
+        - name: source
+          in: path
+          required: true
+          description: The source.
+          schema:
+            type: string
+            enum:
+              - usda
+        - name: adapterRevision
+          in: path
+          required: true
+          description: The source adapter's current revision. Any other revision is a `404`, so a cached answer is never read
+            after its adapter changes.
+          schema:
+            type: integer
+            minimum: 0
+            exclusiveMinimum: true
+        - name: q
+          in: query
+          required: true
+          description: The term, in the canonical form food-service's `searchTermQuerySchema` (`@kitchensink/schema-food`)
+            produces. Any other term is a `400`.
+          schema:
+            type: string
+        - name: admit
+          in: query
+          required: true
+          description: "`1` lets the service call the source on a miss."
+          schema:
+            type: string
+            enum:
+              - "0"
+              - "1"
+        - name: rid
+          in: query
+          required: true
+          description: The caller's request id, echoed on every response.
+          schema:
+            type: string
+            pattern: ^[0-9A-Za-z-]{16,64}$
+components:
+  securitySchemes:
+    cloudFrontSignedUrl:
+      type: apiKey
+      in: query
+      name: Signature
+      description: A CloudFront signed URL (ADR-0055 point 7). `admit` and `rid` are signed, forwarded, and kept out of the
+        cache key.
+  schemas:
+    RemoteSearchItem:
+      type: object
+      properties:
+        externalKey:
+          type: string
+          minLength: 1
+        name:
+          type: string
+        lineageKey:
+          nullable: true
+          type: string
+      required:
+        - externalKey
+        - name
+        - lineageKey
+    RemoteSearchFound:
+      type: object
+      properties:
+        outcome:
+          type: string
+          enum:
+            - found
+        items:
+          minItems: 1
+          type: array
+          items:
+            $ref: "#/components/schemas/RemoteSearchItem"
+      required:
+        - outcome
+        - items
+    RemoteSearchEmpty:
+      type: object
+      properties:
+        outcome:
+          type: string
+          enum:
+            - empty
+      required:
+        - outcome
+    RemoteSearchAnswer:
+      oneOf:
+        - $ref: "#/components/schemas/RemoteSearchFound"
+        - $ref: "#/components/schemas/RemoteSearchEmpty"
+    RemoteSearchNotAdmitted:
+      type: object
+      properties:
+        outcome:
+          type: string
+          enum:
+            - notAdmitted
+      required:
+        - outcome
+    RemoteSearchError:
+      oneOf:
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - INVALID_REQUEST
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                parameter:
+                  type: string
+                  enum:
+                    - q
+                    - admit
+                    - rid
+              required:
+                - parameter
+          required:
+            - code
+            - message
+            - details
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - SOURCE_ERROR
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                sourceStatus:
+                  type: integer
+                  minimum: 100
+                  maximum: 599
+              required:
+                - sourceStatus
+          required:
+            - code
+            - message
+            - details
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - NOT_FOUND
+                - METHOD_NOT_ALLOWED
+                - SOURCE_INVALID_RESPONSE
+                - SOURCE_TIMEOUT
+                - INTERNAL
+            message:
+              type: string
+          required:
+            - code
+            - message

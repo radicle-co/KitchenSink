@@ -1,97 +1,101 @@
 /**
  * @module @commise/ui/confirm-dialog — the native design-system {@link ConfirmDialog} (house pattern B6).
  *
- * The React Native leaf of {@link import('./ConfirmDialog.js').ConfirmDialog} — an RN `Modal` (transparent,
- * fade) hosting the same card layout/visual language as `@commise/features-recipes`'s
- * `RecipeDeleteDialog.native` (accessible `alert` role naming the dialog, cancel + confirm `Pressable`s).
- * `onRequestClose` (the Android hardware back-button / platform dismiss path) maps to `onCancel`, so there
- * is one exit path, not two, mirroring the web leaf's `onOpenChange(false) -> onCancel` mapping.
+ * The React Native leaf of `ConfirmDialog`: the body and a Keep + confirm pair on the design system's centred
+ * `DialogFrame` (`docs/design/compactHeightLayout.md` §9), which owns the window, the scrim, the safe area, the keyboard,
+ * the capped card that scrolls, and the title, named and first, as an interrupting `alert`. `onRequestClose` (the
+ * Android Back button) maps to `onKeep`, so there is one exit path, not two, as on web.
  *
- * Renders NOTHING while `open` is false — an explicit early return, not just `Modal`'s own `visible` prop:
- * `react-native-web`'s `Modal` keeps its portal content mounted in the DOM across a `visible` toggle (it
- * animates/hides rather than unmounts), so a component test that opens then closes the dialog would still
- * find the "closed" content via `queryByLabelText`. Gating the whole `<Modal>` behind `open` keeps this
- * leaf's contract identical to every other controlled dialog in this codebase (e.g.
- * `RecipeDeleteDialog.native`'s `if (!open) return null`) and genuinely testable either way.
+ * - The screen-reader cursor opens on Keep, through the DS `Button`'s focus request, raised once per opening.
+ * - The confirm is the DS `Button` in its filled `confirm` tone, which brings the spinner and the busy guard.
+ * - The buttons stack full width with the destructive one on top until the dialog measures 400 pt or wider, then sit
+ *   side by side, Keep first (spec §6.5) — the frame's own width, read from layout, not the window's.
+ *
+ * Renders NOTHING while `open` is false (the frame returns early), so each opening mounts a fresh body.
+ *
+ * @pattern Adapter over the design-system `DialogFrame` — the platform expression of the web leaf's Radix adapter, with
+ *     `onRequestClose` mapped to the same Keep path so the hardware back button cannot diverge from the control.
  */
-import type { FC } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState, type FC } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { palette } from '../tokens/colors.js';
+import { Button } from '../button/Button.native.js';
+import { DialogFrame } from '../dialogFrame/DialogFrame.native.js';
+import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
+import { useTheme } from '../theme/useTheme.native.js';
+import { nativeTokens } from '../tokens/native.js';
 import type { ConfirmDialogProps } from './props.js';
 
-export const ConfirmDialog: FC<ConfirmDialogProps> = ({
-    open,
-    title,
-    description,
-    confirmLabel,
-    cancelLabel,
+/** The dialog width from which the two buttons sit side by side (spec §1.2's component query). */
+const SIDE_BY_SIDE_FROM = 400;
+
+/** One opening of the dialog: the copy, the states, and the two actions. */
+const Body: FC<Omit<ConfirmDialogProps, 'open' | 'title'>> = ({
+    body,
+    confirm,
+    keep,
     onConfirm,
-    onCancel,
-    destructive = false,
+    onKeep,
+    busy = false,
+    busyLabel,
+    error,
 }) => {
-    if (!open) {
-        return null;
-    }
+    // Asked once per opening (this body mounts with the frame), and cleared when the Keep button has taken it.
+    const [keepFocusAsked, setKeepFocusAsked] = useState(true);
+    const [width, setWidth] = useState<number | null>(null);
+    const sideBySide = width !== null && width >= SIDE_BY_SIDE_FROM;
+    const { colors } = useTheme();
 
     return (
-        <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-            <View style={styles.backdrop}>
-                <View accessibilityRole="alert" accessibilityLabel={title} style={styles.card}>
-                    <Text accessibilityRole="header" style={styles.title}>
-                        {title}
-                    </Text>
-                    <Text style={styles.body}>{description}</Text>
-                    <View style={styles.actions}>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={cancelLabel}
-                            onPress={onCancel}
-                            style={styles.cancelButton}
-                        >
-                            <Text style={styles.cancelLabel}>{cancelLabel}</Text>
-                        </Pressable>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={confirmLabel}
-                            onPress={onConfirm}
-                            style={[styles.confirmButton, destructive && styles.confirmButtonDestructive]}
-                        >
-                            <Text style={styles.confirmLabel}>{confirmLabel}</Text>
-                        </Pressable>
-                    </View>
-                </View>
+        <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={styles.stack}>
+            <Text style={[styles.body, { color: colors.inkMuted }]}>{body}</Text>
+            {error === undefined || busy ? null : (
+                <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
+                    {error}
+                </Text>
+            )}
+            {busy && busyLabel !== undefined ? (
+                <LiveRegion politeness="polite" style={[styles.status, { color: colors.inkMuted }]}>
+                    {busyLabel}
+                </LiveRegion>
+            ) : null}
+            <View style={sideBySide ? styles.row : styles.stacked}>
+                <Button
+                    variant="secondary"
+                    icon={keep.icon ?? 'x'}
+                    width={sideBySide ? 'auto' : 'fill'}
+                    onPress={onKeep}
+                    focusRequested={keepFocusAsked}
+                    onFocusRequestHandled={() => setKeepFocusAsked(false)}
+                >
+                    {keep.label}
+                </Button>
+                <Button
+                    variant="destructive"
+                    tone="confirm"
+                    icon={confirm.icon}
+                    busy={busy}
+                    width={sideBySide ? 'auto' : 'fill'}
+                    onPress={onConfirm}
+                >
+                    {confirm.label}
+                </Button>
             </View>
-        </Modal>
+        </View>
     );
 };
 
-const border = 'rgba(178, 190, 195, 0.3)';
+export const ConfirmDialog: FC<ConfirmDialogProps> = ({ open, title, ...body }) => (
+    <DialogFrame open={open} onRequestClose={body.onKeep} title={title} role="alert">
+        <Body {...body} />
+    </DialogFrame>
+);
 
 const styles = StyleSheet.create({
-    backdrop: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(44, 62, 80, 0.4)',
-        padding: 16,
-    },
-    card: {
-        width: '100%',
-        maxWidth: 420,
-        backgroundColor: palette.white,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: border,
-        padding: 20,
-        gap: 12,
-    },
-    title: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
-    body: { fontSize: 15, lineHeight: 22, color: palette.slate },
-    actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
-    cancelButton: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
-    cancelLabel: { color: palette.slate, fontWeight: '500', fontSize: 14 },
-    confirmButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 20 },
-    confirmButtonDestructive: { backgroundColor: palette.error },
-    confirmLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
+    stack: { gap: nativeTokens.spacing[4] },
+    body: nativeTokens.type.body,
+    error: nativeTokens.type.body,
+    status: nativeTokens.type.meta,
+    stacked: { flexDirection: 'column-reverse', alignItems: 'stretch', gap: nativeTokens.spacing[3] },
+    row: { flexDirection: 'row', justifyContent: 'flex-end', gap: nativeTokens.spacing[3] },
 });

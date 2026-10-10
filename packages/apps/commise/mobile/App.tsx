@@ -29,18 +29,24 @@ LogBox.ignoreLogs([/Clerk has been loaded with development keys/]);
 // than 60 seconds crashed its screen into the root error boundary (a fresher card returns the "just now" label
 // before reaching `Intl`, which is why the crash looked intermittent). `tests/intlPolyfills.test.ts` pins this
 // list against the `new Intl.*` calls in the shared sources so the next addition cannot be missed the same way.
+// `ListFormat` is how every food list says the sources it could not search, in the cook's words (plan 002 S7.8,
+// `useSourceNaming`).
 import '@formatjs/intl-getcanonicallocales/polyfill';
 import '@formatjs/intl-locale/polyfill';
 import '@formatjs/intl-pluralrules/polyfill';
 import '@formatjs/intl-pluralrules/locale-data/en';
 import '@formatjs/intl-relativetimeformat/polyfill';
 import '@formatjs/intl-relativetimeformat/locale-data/en';
+import '@formatjs/intl-listformat/polyfill';
+import '@formatjs/intl-listformat/locale-data/en';
 
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, useFonts } from '@expo-google-fonts/playfair-display';
 import { registerRootComponent } from 'expo';
 import * as Sentry from '@sentry/react-native';
 import { StatusBar } from 'expo-status-bar';
 import type { JSX } from 'react';
+import { AppCanvas } from './src/components/AppCanvas';
 import { AuthGate } from './src/components/AuthGate';
 import { initSentry } from './src/observability/sentry';
 import { installFocusManager, installOnlineManager } from './src/query/connectivity';
@@ -55,17 +61,35 @@ installOnlineManager();
 installFocusManager();
 
 function App(): JSX.Element {
-    // Load the Playfair Display faces used by the Home greeting/display headings. Non-blocking on purpose: we
-    // do NOT gate the first render on it — RN falls back to the system serif until the faces register, then
-    // re-renders — so a slow or failed font load can never hold the whole app on a blank screen.
-    useFonts({ PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold });
+    // Load the Playfair Display faces (display type) and the Inter faces (every body type role, one face per weight —
+    // `nativeTokens.fontFace.body`). Non-blocking on purpose: we do NOT gate the first render on it — RN falls back to
+    // the system face until the faces register, then re-renders — so a slow or failed font load can never hold the
+    // whole app on a blank screen. `tests/theme/fonts.test.ts` reads this call back and fails if a face the design
+    // system names is missing from it.
+    useFonts({
+        PlayfairDisplay_600SemiBold,
+        PlayfairDisplay_700Bold,
+        Inter_400Regular,
+        Inter_500Medium,
+        Inter_600SemiBold,
+        Inter_700Bold,
+    });
 
     return (
         <AppProviders>
             <StatusBar style="auto" />
-            <AuthGate>
-                <RootNavigator />
-            </AuthGate>
+            {/*
+             * The brand beach-glow canvas (issue #145) wraps the ENTIRE app — signed-out auth screens
+             * included — so every surface inherits the wireframes' gradient from one place, the way web gets
+             * it from a single `body` rule. It sits inside the providers (it consumes nothing from them, but
+             * this keeps the provider chain outermost) and outside `AuthGate`, because the auth screens need
+             * the wash too. Screen containers must stay transparent or they occlude it.
+             */}
+            <AppCanvas>
+                <AuthGate>
+                    <RootNavigator />
+                </AuthGate>
+            </AppCanvas>
         </AppProviders>
     );
 }

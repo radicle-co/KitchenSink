@@ -54,7 +54,7 @@ flags:
     - key: 'RATE_LIMIT_READ'
       type: env-lever
       feature: '001-commise-recipe-app'
-      default: 120 # requests / window / user
+      default: 600 # requests / window / user
       owner: 'recipe-service'
       description: 'Per-user read throttle. Lower to shed read load; 0 is rejected (must be positive).'
       rollout_plan: 'tune per stage via task env'
@@ -64,7 +64,7 @@ flags:
     - key: 'RATE_LIMIT_WRITE'
       type: env-lever
       feature: '001-commise-recipe-app'
-      default: 30
+      default: 300
       owner: 'recipe-service'
       description: 'Per-user write throttle (create/update/delete).'
       rollout_plan: 'tune per stage via task env'
@@ -74,7 +74,7 @@ flags:
     - key: 'RATE_LIMIT_SEARCH'
       type: env-lever
       feature: '001-commise-recipe-app'
-      default: 60
+      default: 120
       owner: 'recipe-service'
       description: 'Per-user search throttle.'
       rollout_plan: 'tune per stage via task env'
@@ -84,7 +84,7 @@ flags:
     - key: 'RATE_LIMIT_PHOTO_UPLOAD'
       type: env-lever
       feature: '001-commise-recipe-app'
-      default: 10
+      default: 60
       owner: 'recipe-service'
       description: 'Per-user photo-upload throttle (presigned-URL issuance + finalize).'
       rollout_plan: 'tune per stage via task env'

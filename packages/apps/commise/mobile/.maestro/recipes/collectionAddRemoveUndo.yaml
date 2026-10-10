@@ -1,0 +1,72 @@
+appId: io.commise.mobile
+---
+# Adding to and removing from a collection, with Undo (slice 5; `docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3) — the
+# mobile mirror of the web Playwright `collectionPicker.spec.ts` and the removal half of `collections.spec.ts`.
+#
+# - ADD. The header's Add recipes opens the picker SHEET "Add to {name}". Ticking a recipe saves at once and Done says
+#   what changed ("Done · 1 added").
+# - REMOVE with UNDO. A member's ⋯ menu removes it: the row leaves at once and a snackbar offers Undo. Undo brings the row
+#   back and sends nothing; letting the snackbar run out commits the removal.
+#
+# HERMETIC: it creates the collection it operates on and deletes it at the end, so it seeds and cleans its own data. The
+# recipe is the seeded one the recipe list/edit flows drive.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+- tapOn: 'New collection'
+- tapOn: 'Name'
+- inputText: 'Maestro undo collection'
+# Enter submits the name from the keyboard, as a cook finishes a one-field form.
+- pressKey: Enter
+- extendedWaitUntil:
+      visible: 'More actions for Maestro undo collection'
+      timeout: 40000
+- assertVisible: 'No recipes here yet'
+
+# ADD, in the picker sheet. The sheet is named for the collection and Done counts what changed.
+- tapOn: 'Add recipes'
+- assertVisible: 'Add to Maestro undo collection'
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_LAMB}'
+      timeout: 30000
+- tapOn: '${E2E_RECIPE_LAMB}'
+- assertVisible: 'Done · 1 added'
+- tapOn: 'Done · 1 added'
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_LAMB}'
+      timeout: 40000
+- assertNotVisible: 'No recipes here yet'
+
+# REMOVE, then UNDO. The row goes at once and the snackbar says so; Undo brings it back.
+- tapOn: 'More actions for ${E2E_RECIPE_LAMB}'
+- tapOn: 'Remove from collection'
+- extendedWaitUntil:
+      visible: 'Removed ${E2E_RECIPE_LAMB} from Maestro undo collection.'
+      timeout: 20000
+- assertNotVisible:
+      text: '^${E2E_RECIPE_LAMB}$'
+- tapOn: 'Undo'
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_LAMB}'
+      timeout: 20000
+
+# REMOVE again and let the snackbar run out: the removal is sent, and the empty state is the proof it landed.
+- tapOn: 'More actions for ${E2E_RECIPE_LAMB}'
+- tapOn: 'Remove from collection'
+- extendedWaitUntil:
+      visible: 'No recipes here yet'
+      timeout: 40000
+
+# CLEANUP (hermetic): delete the collection.
+- tapOn: 'More actions for Maestro undo collection'
+- tapOn: 'Delete collection'
+- tapOn: 'Delete collection'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- assertNotVisible: 'Maestro undo collection'

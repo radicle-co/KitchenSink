@@ -1,0 +1,662 @@
+/**
+ * Full-stack e2e for `GET /api/v1/foods/nutrition?ids=…` — food's batch nutrition endpoint (plan U8).
+ *
+ * | Plan U8 scenario | Proved here |
+ * | ---------------- | ----------- |
+ * | many ids in one call return in one response | the batch shape, in canonical id order |
+ * | energy selected by basis + name + unit | a food carrying BOTH a `kcal` and a `kJ` energy row reads the kcal figure, not the 4.184× one |
+ * | a `per_serving` energy row reports ABSENT | the branded case, over the real merge/persist path |
+ * | a food with no energy row reports absent, not zero | the field is missing from the body entirely |
+ * | normalized portions with gram weights | `1 cup chopped` @125 g → `{ unit: 'cup', gramsPerUnit: 125 }` |
+ * | an uninterpretable portion label reports that portion absent | never a fabricated unit or weight |
+ * | an unresolved id returns a STATUS rather than being omitted | `PENDING` and `AWAITING_RETRY` (U9) both ride the wire |
+ * | an unknown id is reported, not an error for the whole batch | `unknownIds`, alongside the ids that did resolve |
+ * | input over the cap is rejected with a STRUCTURED error | the published `BATCH_TOO_LARGE` envelope, and the 100-id boundary |
+ * | two callers requesting the same id set produce byte-identical URLs | canonicalization is proved through the URL, and by three unrelated principals receiving byte-identical bodies |
+ * | the batched read answers what the per-id reads answered | a food's entry is identical asked alone and asked inside a 50-food batch |
+ * | the response parses against the generated schema; `CONTRACT_HASH` matches | validated against `@kitchensink/schema-food` — the copy a CLIENT imports, not the in-service authored one |
+ *
+ * ## Why this tier
+ *
+ * `src/foods/__tests__/nutritionBatch.test.ts` drives the service over a stubbed DAO, so it can prove the
+ * projection is CALLED correctly and nothing about what an external caller receives. Everything above turns
+ * on things a mock cannot hold: that a `kJ` row and a `kcal` row can coexist for one food (they can — the
+ * `nutrient` dictionary dedupes on `(name, unit)`), that `basis` survives the round trip through
+ * the nutrition aggregate, that the guard runs before the query, that the query DTO is `.strict()` so no extra
+ * parameter can fork the cache key, and that the body validates against the PUBLISHED schema package.
+ *
+ * Boot + harness mirror `foodsApi.e2e.test.ts`: the real Nest app, real Postgres, real `FoodAuthGuard`
+ * over genuinely-signed RS256 tokens, and the source seam swapped for the programmable stub. No network.
+ */
+import 'reflect-metadata';
+
+import type { AddressInfo } from 'node:net';
+
+import type { INestApplication } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import pg from 'pg';
+import { ulid } from 'ulidx';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Substitute the programmable stub for UsdaSourceAdapter so the real FoodsModule factory registers it.
+vi.mock('../../src/sources/usda/usda.adapter.js', async () => {
+    const { StubSourceAdapter } = await import('../support/StubSourceAdapter.js');
+
+    return { UsdaSourceAdapter: StubSourceAdapter };
+});
+
+import { InMemoryPublisher } from '@kitchensink/messaging';
+import {
+    CONTRACT_HASH as PUBLISHED_CONTRACT_HASH,
+    foodErrorSchema as publishedFoodErrorSchema,
+    foodNutritionBatchResponseSchema as publishedNutritionSchema,
+} from '@kitchensink/schema-food';
+
+import { CONTRACT_HASH as IN_SERVICE_CONTRACT_HASH } from '../../src/contract/contractHash.js';
+import { DrizzleProvider, type FoodDrizzle } from '../../src/database/database.module.js';
+import { FoodEventEmitter } from '../../src/events/FoodEventEmitter.js';
+import { FetchQueueDao } from '../../src/foods/dao/fetchQueue.dao.js';
+import { FoodDao } from '../../src/foods/dao/food.dao.js';
+import { FoodSourcesDao } from '../../src/foods/dao/foodSources.dao.js';
+import { MAX_NUTRITION_IDS } from '../../src/foods/foods.schema.js';
+import { MergeAndPersistService } from '../../src/foods/merge/mergeAndPersist.service.js';
+import { SourceAdapterRegistry } from '../../src/sources/SourceAdapterRegistry.js';
+import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
+import { workerCatalogOf } from '../../src/worker/workerCatalog.js';
+import { FoodMetrics } from '../../src/observability/emfMetrics.js';
+import type { WorkerLogger } from '../../src/worker/workerLogger.js';
+import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
+import { foodDb } from '../support/roleDb.js';
+import { generateClerkKeypair, mintToken } from '../support/jwt.js';
+import { stub } from '../support/StubSourceAdapter.js';
+
+const APP_AZP = 'https://app.example.com';
+const M2M_AZP = 'svc-import-client';
+
+const keypair = generateClerkKeypair();
+const userToken = mintToken(keypair.privateKeyPem, {
+    sub: 'user_nutrition',
+    externalId: '01J9ZK8N7QF3B2X4M6T0V5C1AB',
+    azp: APP_AZP,
+});
+const otherUserToken = mintToken(keypair.privateKeyPem, {
+    sub: 'user_other',
+    externalId: '01J9ZK8N7QF3B2X4M6T0V5C1AC',
+    azp: APP_AZP,
+});
+const adminToken = mintToken(keypair.privateKeyPem, {
+    sub: 'admin_nutrition',
+    externalId: '01J9ZK8N7QF3B2X4M6T0V5C1AD',
+    azp: APP_AZP,
+    scopes: ['food:admin'],
+});
+const m2mToken = mintToken(keypair.privateKeyPem, { sub: 'svc_nutrition', azp: M2M_AZP });
+const expiredToken = mintToken(keypair.privateKeyPem, {
+    sub: 'user_nutrition',
+    externalId: '01J9ZK8N7QF3B2X4M6T0V5C1AB',
+    azp: APP_AZP,
+    expiresInSeconds: -30,
+});
+
+const silentLogger: WorkerLogger = { info(): void {}, warn(): void {}, error(): void {} };
+
+/** One food's entry in the batch response, as a caller sees it. */
+interface NutritionEntry {
+    readonly id: string;
+    readonly status: string;
+    readonly caloriesPer100g?: number;
+    readonly proteinGPer100g?: number;
+    readonly carbsGPer100g?: number;
+    readonly fatGPer100g?: number;
+    readonly portions: readonly { readonly unit: string; readonly gramsPerUnit: number }[];
+}
+
+describe('GET /api/v1/foods/nutrition — batch nutrition e2e (booted Nest + real Postgres)', () => {
+    const captureBus = new InMemoryPublisher();
+    let app: INestApplication;
+    let pool: pg.Pool;
+    let baseUrl: string;
+    let consumer: FoodConsumerService;
+
+    /** Issue a request; omit `token` for an unauthenticated call. Returns the RAW text too (byte compare). */
+    async function call(
+        path: string,
+        token?: string,
+    ): Promise<{ status: number; text: string; body: unknown; headers: Headers }> {
+        const response = await fetch(`${baseUrl}${path}`, {
+            method: 'GET',
+            headers: token ? { authorization: `Bearer ${token}` } : {},
+        });
+        const text = await response.text();
+
+        return {
+            status: response.status,
+            text,
+            body: text ? JSON.parse(text) : undefined,
+            headers: response.headers,
+        };
+    }
+
+    /** `GET /nutrition` for the given ids, exactly as written (no client-side canonicalization). */
+    async function nutrition(ids: readonly string[], token: string = userToken) {
+        return call(`/api/v1/foods/nutrition?ids=${ids.join(',')}`, token);
+    }
+
+    /** The parsed batch body, asserted 200 and validated against the PUBLISHED schema first. */
+    async function nutritionOf(
+        ids: readonly string[],
+        token: string = userToken,
+    ): Promise<{ foods: NutritionEntry[]; unknownIds: string[] }> {
+        const res = await nutrition(ids, token);
+
+        expect(res.status).toBe(200);
+        expect(publishedNutritionSchema.safeParse(res.body).success).toBe(true);
+
+        return res.body as { foods: NutritionEntry[]; unknownIds: string[] };
+    }
+
+    /** Add a name through the real API, drain the worker, and return the food id. */
+    async function seedResolved(name: string): Promise<string> {
+        const add = await fetch(`${baseUrl}/api/v1/foods`, {
+            method: 'POST',
+            headers: { authorization: `Bearer ${userToken}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ name }),
+        });
+        const { id } = (await add.json()) as { id: string };
+        await consumer.drain();
+
+        return id;
+    }
+
+    /** Insert a bare `food` row in the given lifecycle status (no source data at all). */
+    async function seedBareFood(name: string, status: string): Promise<string> {
+        const { id } = await makeCatalogFood(pool, { id: ulid(), name, normalizedName: name, status });
+
+        return id;
+    }
+
+    beforeAll(async () => {
+        pool = new pg.Pool({ connectionString: foodDb().appUrl });
+        await foodDb().truncate();
+
+        foodDb().applySubjectEnv();
+        process.env['USDA_API_KEY'] = 'e2e-stub-key';
+        process.env['CLERK_JWT_KEY'] = keypair.publicKeyPem;
+        process.env['CLERK_AUTHORIZED_PARTIES'] = `${APP_AZP},${M2M_AZP}`;
+        process.env['FOOD_DEMOTE_THRESHOLD'] = '5000';
+        process.env['NODE_ENV'] = 'test';
+
+        const { AppModule } = await import('../../src/app.module.js');
+        app = await NestFactory.create(AppModule, { logger: false });
+        await app.listen(0);
+        baseUrl = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
+
+        consumer = new FoodConsumerService({
+            foodDao: app.get(FoodDao, { strict: false }),
+            sources: app.get(FoodSourcesDao, { strict: false }),
+            catalog: workerCatalogOf(
+                app.get<FoodDrizzle>(DrizzleProvider, { strict: false }),
+                new FoodMetrics(() => undefined),
+            ),
+            queue: new FetchQueueDao(app.get<FoodDrizzle>(DrizzleProvider, { strict: false })),
+            registry: app.get(SourceAdapterRegistry, { strict: false }),
+            merge: app.get(MergeAndPersistService, { strict: false }),
+            events: new FoodEventEmitter(captureBus),
+            logger: silentLogger,
+        });
+    });
+
+    afterAll(async () => {
+        await app?.close();
+        await pool?.end();
+    });
+
+    beforeEach(async () => {
+        // As the OWNER: `food_app` holds DML and no TRUNCATE, which is what a deployed task holds.
+        await foodDb().truncate();
+        stub.reset();
+        captureBus.clear();
+    });
+
+    // ── Auth (the endpoint is behind the same real guard as every other food route) ─────────────────
+    describe('auth', () => {
+        it('rejects an unauthenticated request → 401, and reads no food', async () => {
+            const id = await seedBareFood('unauth broccoli', 'PENDING');
+
+            const res = await call(`/api/v1/foods/nutrition?ids=${id}`);
+
+            expect(res.status).toBe(401);
+            expect(res.text).not.toContain(id);
+        });
+
+        it('rejects a malformed and an expired token → 401', async () => {
+            expect((await nutrition([ulid()], 'not-a-jwt')).status).toBe(401);
+            expect((await nutrition([ulid()], expiredToken)).status).toBe(401);
+        });
+
+        it('401 precedes the id-list rejection — an over-cap unauthenticated request is still a 401', async () => {
+            const ids = Array.from({ length: MAX_NUTRITION_IDS + 1 }, () => ulid());
+
+            expect((await call(`/api/v1/foods/nutrition?ids=${ids.join(',')}`)).status).toBe(401);
+        });
+    });
+
+    // ── The wire shape (U8: the projection + normalized portions) ───────────────────────────────────
+    describe('the response an external caller receives', () => {
+        it('returns per-100g macros and normalized portions for many ids in ONE call', async () => {
+            stub.programResolve('Broccoli, raw', {
+                nutrients: [
+                    { code: null, name: 'Energy', unit: 'kcal', amount: '34', basis: 'per_100g' },
+                    { code: null, name: 'Protein', unit: 'g', amount: '2.8', basis: 'per_100g' },
+                    {
+                        code: null,
+                        name: 'Carbohydrate, by difference',
+                        unit: 'g',
+                        amount: '6.6',
+                        basis: 'per_100g',
+                    },
+                    { code: null, name: 'Total lipid (fat)', unit: 'g', amount: '0.37', basis: 'per_100g' },
+                ],
+                portions: [{ label: '1 cup chopped', gramWeight: '91' }],
+            });
+            stub.programResolve('Almonds, raw', {
+                nutrients: [
+                    { code: null, name: 'Energy', unit: 'kcal', amount: '579', basis: 'per_100g' },
+                    { code: null, name: 'Protein', unit: 'g', amount: '21.2', basis: 'per_100g' },
+                ],
+                portions: [{ label: '1 tablespoon', gramWeight: '9' }],
+            });
+
+            const broccoli = await seedResolved('Broccoli, raw');
+            const almonds = await seedResolved('Almonds, raw');
+            const body = await nutritionOf([broccoli, almonds]);
+
+            expect(body.unknownIds).toStrictEqual([]);
+            expect(body.foods).toHaveLength(2);
+            expect(body.foods.find((food) => food.id === broccoli)).toStrictEqual({
+                id: broccoli,
+                status: 'RESOLVED',
+                caloriesPer100g: 34,
+                proteinGPer100g: 2.8,
+                carbsGPer100g: 6.6,
+                fatGPer100g: 0.37,
+                portions: [{ unit: 'cup', gramsPerUnit: 91 }],
+                // Curated U8 S6: every root entry says whether it has a live variant.
+                hasLiveVariants: false,
+            });
+            expect(body.foods.find((food) => food.id === almonds)).toStrictEqual({
+                id: almonds,
+                status: 'RESOLVED',
+                caloriesPer100g: 579,
+                proteinGPer100g: 21.2,
+                portions: [{ unit: 'tablespoon', gramsPerUnit: 9 }],
+                hasLiveVariants: false,
+            });
+        });
+
+        it('returns the foods in CANONICAL (sorted, de-duplicated) id order regardless of how they were asked for', async () => {
+            stub.programResolve('alpha food');
+            stub.programResolve('beta food');
+            stub.programResolve('gamma food');
+            const ids = [
+                await seedResolved('alpha food'),
+                await seedResolved('beta food'),
+                await seedResolved('gamma food'),
+            ];
+            const sorted = [...ids].sort();
+
+            const asked = [ids[2]!, ids[0]!, ids[1]!, ids[0]!];
+            const body = await nutritionOf(asked);
+
+            expect(body.foods.map((food) => food.id)).toStrictEqual(sorted);
+        });
+
+        it('is CALLER-INDEPENDENT — three unrelated principals receive byte-identical bodies (ADR-0020)', async () => {
+            stub.programResolve('shared cache entry');
+            const id = await seedResolved('shared cache entry');
+            const path = `/api/v1/foods/nutrition?ids=${id}`;
+
+            const [mine, theirs, admin, machine] = await Promise.all([
+                call(path, userToken),
+                call(path, otherUserToken),
+                call(path, adminToken),
+                call(path, m2mToken),
+            ]);
+
+            expect(mine!.status).toBe(200);
+            expect(theirs!.text).toBe(mine!.text);
+            expect(admin!.text).toBe(mine!.text);
+            expect(machine!.text).toBe(mine!.text);
+        });
+
+        it('⛔ is BYTE-IDENTICAL for two callers across a MANY-food batch whose portions collide on unit', async () => {
+            // The one-food case above cannot see the failure this guards: batching the reads changes the
+            // shape of the portion scan. `normalizePortions` keeps one weight per unit by the labels alone
+            // (KTD-28), so a reordered scan cannot change it; asserting the VALUE as well as the byte equality
+            // is what would show a rule that depended on order again.
+            for (const [index, name] of ['batch alpha', 'batch beta', 'batch gamma'].entries()) {
+                stub.programResolve(name, {
+                    nutrients: [
+                        {
+                            code: null,
+                            name: 'Energy',
+                            unit: 'kcal',
+                            amount: String(100 + index),
+                            basis: 'per_100g',
+                        },
+                    ],
+                    portions: [
+                        { label: `${index + 1} cups sliced`, gramWeight: String((index + 1) * 120) },
+                        { label: '1/2 cup diced', gramWeight: '55' },
+                        { label: '1 tablespoon', gramWeight: '15' },
+                    ],
+                });
+            }
+
+            const alpha = await seedResolved('batch alpha');
+            const beta = await seedResolved('batch beta');
+            const gamma = await seedResolved('batch gamma');
+            const ids = [alpha, beta, gamma].sort();
+            const path = `/api/v1/foods/nutrition?ids=${ids.join(',')}`;
+
+            const [mine, theirs] = await Promise.all([call(path, userToken), call(path, otherUserToken)]);
+
+            expect(mine!.status).toBe(200);
+            expect(theirs!.text).toBe(mine!.text);
+            // Rewritten for KTD-28. Alpha keeps `1 cups sliced` (an amount of one, 120 g); beta and gamma state
+            // no amount of one, so the label that sorts first, `1/2 cup diced` (110 g per cup), is kept.
+            const portionsById = new Map(
+                (mine!.body as { foods: NutritionEntry[] }).foods.map((food) => [food.id, food.portions] as const),
+            );
+            const cupThenSpoon = (cup: number): NutritionEntry['portions'] => [
+                { unit: 'cup', gramsPerUnit: cup },
+                { unit: 'tablespoon', gramsPerUnit: 15 },
+            ];
+
+            expect(portionsById.get(alpha)).toStrictEqual(cupThenSpoon(120));
+            expect(portionsById.get(beta)).toStrictEqual(cupThenSpoon(110));
+            expect(portionsById.get(gamma)).toStrictEqual(cupThenSpoon(110));
+        });
+
+        it('⛔ answers a food IDENTICALLY whether asked alone or inside a 50-food batch', async () => {
+            // The batched read must be an ACCESS-PATH change and nothing else. This is the wire-level
+            // statement of that: same food, same bytes, whatever else is in the request.
+            stub.programResolve('batch subject', {
+                nutrients: [
+                    { code: null, name: 'Energy', unit: 'kJ', amount: '1000', basis: 'per_100g' },
+                    { code: null, name: 'Energy', unit: 'kcal', amount: '239', basis: 'per_100g' },
+                    { code: null, name: 'Protein', unit: 'g', amount: '27', basis: 'per_100g' },
+                    { code: null, name: 'Fatty acids, total trans', unit: 'g', amount: '0.5', basis: 'per_100g' },
+                ],
+                portions: [{ label: '1 cup chopped', gramWeight: '125' }],
+            });
+            const subject = await seedResolved('batch subject');
+
+            for (let index = 0; index < 49; index += 1) {
+                stub.programResolve(`crowd ${index}`, {
+                    nutrients: [{ code: null, name: 'Energy', unit: 'kcal', amount: String(index), basis: 'per_100g' }],
+                    portions: [{ label: '1 slice', gramWeight: String(index + 1) }],
+                });
+            }
+
+            const crowd: string[] = [];
+
+            for (let index = 0; index < 49; index += 1) {
+                crowd.push(await seedResolved(`crowd ${index}`));
+            }
+
+            const alone = await nutritionOf([subject]);
+            const crowded = await nutritionOf([subject, ...crowd].sort());
+
+            expect(crowded.foods).toHaveLength(50);
+            expect(crowded.foods.find((food) => food.id === subject)).toStrictEqual(alone.foods[0]);
+            expect(alone.foods[0]).toStrictEqual({
+                id: subject,
+                status: 'RESOLVED',
+                caloriesPer100g: 239,
+                proteinGPer100g: 27,
+                portions: [{ unit: 'cup', gramsPerUnit: 125 }],
+                hasLiveVariants: false,
+            });
+        });
+
+        it('validates against the PUBLISHED schema package, whose CONTRACT_HASH matches the in-service copy', async () => {
+            stub.programResolve('contract check');
+            const id = await seedResolved('contract check');
+
+            const res = await nutrition([id]);
+
+            expect(PUBLISHED_CONTRACT_HASH).toBe(IN_SERVICE_CONTRACT_HASH);
+            expect(publishedNutritionSchema.parse(res.body).foods[0]!.id).toBe(id);
+        });
+    });
+
+    // ── The selection traps U8 exists to close (KTD-3) ──────────────────────────────────────────────
+    describe('energy selection — basis AND canonical name AND unit', () => {
+        it('picks the kcal row when the SAME food also stores a kJ energy row (the 4.184× trap)', async () => {
+            stub.programResolve('Dual energy food', {
+                nutrients: [
+                    // Both are stored: `nutrient` dedupes on (name, unit), so these are two dictionary rows.
+                    { code: null, name: 'Energy', unit: 'kJ', amount: '1000', basis: 'per_100g' },
+                    { code: null, name: 'Energy', unit: 'kcal', amount: '239', basis: 'per_100g' },
+                ],
+            });
+            const id = await seedResolved('Dual energy food');
+
+            // Both rows really did persist — otherwise this asserts nothing about SELECTION.
+            const stored = await pool.query<{ unit: string }>(
+                'SELECT fn.unit FROM food_nutrient_view fn WHERE fn.food_id = $1',
+                [id],
+            );
+            expect(stored.rows.map((row) => row.unit).sort()).toStrictEqual(['kJ', 'kcal']);
+
+            const [food] = (await nutritionOf([id])).foods;
+            expect(food!.caloriesPer100g).toBe(239);
+        });
+
+        it('reports calories ABSENT when the only energy row is per_serving (the branded-label trap)', async () => {
+            stub.programResolve('Branded bar', {
+                nutrients: [
+                    { code: null, name: 'Energy', unit: 'kcal', amount: '190', basis: 'per_serving' },
+                    { code: null, name: 'Protein', unit: 'g', amount: '10', basis: 'per_100g' },
+                ],
+            });
+            const id = await seedResolved('Branded bar');
+
+            const [food] = (await nutritionOf([id])).foods;
+
+            expect(food!).not.toHaveProperty('caloriesPer100g');
+            expect(food!.proteinGPer100g).toBe(10);
+        });
+
+        it('reports calories ABSENT — never zero — when the food has no energy row at all', async () => {
+            stub.programResolve('No energy food', {
+                nutrients: [{ code: null, name: 'Protein', unit: 'g', amount: '3.1', basis: 'per_100g' }],
+            });
+            const id = await seedResolved('No energy food');
+
+            const [food] = (await nutritionOf([id])).foods;
+
+            expect(food!).not.toHaveProperty('caloriesPer100g');
+            expect(food!.caloriesPer100g).toBeUndefined();
+        });
+
+        it('does not read "Fatty acids, total trans" as total fat (the substring trap)', async () => {
+            stub.programResolve('Trans only food', {
+                nutrients: [
+                    { code: null, name: 'Fatty acids, total trans', unit: 'g', amount: '0.5', basis: 'per_100g' },
+                ],
+            });
+            const id = await seedResolved('Trans only food');
+
+            const [food] = (await nutritionOf([id])).foods;
+
+            expect(food!).not.toHaveProperty('fatGPer100g');
+        });
+    });
+
+    // ── Portions (KTD-3: food normalizes, consumers do not parse) ───────────────────────────────────
+    describe('portion normalization', () => {
+        // Rewritten for KTD-28: one weight per unit is chosen by the labels, not by the order rows are read in.
+        it('divides the gram weight by the label amount, singularizes the unit, and keeps one weight per unit', async () => {
+            stub.programResolve('Portioned food', {
+                portions: [
+                    { label: '2 cups sliced', gramWeight: '250' },
+                    { label: '1 tablespoon', gramWeight: '15' },
+                    { label: '1 cup', gramWeight: '118' },
+                ],
+            });
+            const id = await seedResolved('Portioned food');
+
+            const [food] = (await nutritionOf([id])).foods;
+
+            // The unqualified `1 cup` is kept over the first row (`2 cups sliced`, 125 g per cup), so 125 must NOT
+            // appear; the units are listed in code-point order.
+            expect(food!.portions).toStrictEqual([
+                { unit: 'cup', gramsPerUnit: 118 },
+                { unit: 'tablespoon', gramsPerUnit: 15 },
+            ]);
+        });
+
+        it('reads the labels USDA stores, and answers each in the unit recipe-core names', async () => {
+            stub.programResolve('USDA-labelled food', {
+                portions: [
+                    { label: '1 cup, chopped', gramWeight: '160' },
+                    { label: '10 rings', gramWeight: '60' },
+                    { label: '1 ONZ', gramWeight: '28' },
+                    { label: '12 fl. oz.', gramWeight: '360' },
+                    { label: '1 egg white', gramWeight: '29' },
+                ],
+            });
+            const id = await seedResolved('USDA-labelled food');
+
+            const [food] = (await nutritionOf([id])).foods;
+
+            // `1 egg white` is the white of one egg, not one egg, so it states no portion of this food.
+            expect(food!.portions).toStrictEqual([
+                { unit: 'cup', gramsPerUnit: 160 },
+                { unit: 'fluid ounce', gramsPerUnit: 30 },
+                { unit: 'oz', gramsPerUnit: 28 },
+                { unit: 'ring', gramsPerUnit: 6 },
+            ]);
+        });
+
+        it('reports an uninterpretable label ABSENT rather than guessing a unit or a weight', async () => {
+            stub.programResolve('Vague portions', {
+                portions: [
+                    { label: 'serving', gramWeight: '55' },
+                    { label: '1 clove', gramWeight: '3' },
+                ],
+            });
+            const id = await seedResolved('Vague portions');
+
+            const [food] = (await nutritionOf([id])).foods;
+
+            expect(food!.portions).toStrictEqual([{ unit: 'clove', gramsPerUnit: 3 }]);
+        });
+
+        it('returns an EMPTY portion list — not a missing field — for a food with no portions', async () => {
+            stub.programResolve('No portions', { portions: [] });
+            const id = await seedResolved('No portions');
+
+            const [food] = (await nutritionOf([id])).foods;
+
+            expect(food!.portions).toStrictEqual([]);
+        });
+    });
+
+    // ── Unresolved / unknown ids are REPORTED, never silently dropped ───────────────────────────────
+    describe('ids that carry no nutrition', () => {
+        it('reports an unknown id in unknownIds and still serves the ids that do resolve', async () => {
+            stub.programResolve('known food');
+            const known = await seedResolved('known food');
+            const ghost = ulid();
+
+            const body = await nutritionOf([known, ghost]);
+
+            expect(body.unknownIds).toStrictEqual([ghost]);
+            expect(body.foods.map((food) => food.id)).toStrictEqual([known]);
+        });
+
+        it('is not an error for the whole batch when EVERY id is unknown', async () => {
+            const ghosts = [ulid(), ulid()].sort();
+
+            const body = await nutritionOf(ghosts);
+
+            expect(body.foods).toStrictEqual([]);
+            expect(body.unknownIds).toStrictEqual(ghosts);
+        });
+
+        it.each(['PENDING', 'AWAITING_RETRY', 'UNRESOLVED', 'FAILED', 'NOT_FOUND'])(
+            'reports a %s food WITH its status rather than omitting it (U9 rides this wire)',
+            async (status) => {
+                const id = await seedBareFood(`bare ${status}`, status);
+
+                const body = await nutritionOf([id]);
+
+                expect(body.unknownIds).toStrictEqual([]);
+                expect(body.foods).toStrictEqual([{ id, status, portions: [], hasLiveVariants: false }]);
+            },
+        );
+    });
+
+    // ── The id-list contract: the URL IS the cache key (ADR-0020) ───────────────────────────────────
+    describe('the ?ids= contract', () => {
+        it('rejects more than the cap with the published BATCH_TOO_LARGE envelope → 400', async () => {
+            const ids = Array.from({ length: MAX_NUTRITION_IDS + 1 }, () => ulid());
+
+            const res = await nutrition(ids);
+
+            expect(res.status).toBe(400);
+            const parsed = publishedFoodErrorSchema.parse(res.body);
+            expect(parsed.code).toBe('BATCH_TOO_LARGE');
+            expect(parsed.message).toContain(String(MAX_NUTRITION_IDS));
+        });
+
+        it('accepts EXACTLY the cap — the boundary is inclusive', async () => {
+            const ids = Array.from({ length: MAX_NUTRITION_IDS }, () => ulid());
+
+            const res = await nutrition(ids);
+
+            expect(res.status).toBe(200);
+            expect((res.body as { unknownIds: string[] }).unknownIds).toHaveLength(MAX_NUTRITION_IDS);
+        });
+
+        it('counts DISTINCT ids against the cap — duplicates cannot smuggle a request past it', async () => {
+            const distinct = Array.from({ length: MAX_NUTRITION_IDS }, () => ulid());
+
+            const res = await nutrition([...distinct, distinct[0]!, distinct[1]!]);
+
+            expect(res.status).toBe(200);
+            expect((res.body as { unknownIds: string[] }).unknownIds).toHaveLength(MAX_NUTRITION_IDS);
+        });
+
+        it.each([
+            ['an absent ids parameter', '/api/v1/foods/nutrition'],
+            ['an empty ids parameter', '/api/v1/foods/nutrition?ids='],
+            ['a list of only separators', '/api/v1/foods/nutrition?ids=,,,'],
+        ])('rejects %s → 400 with a published error code', async (_case, path) => {
+            const res = await call(path, userToken);
+
+            expect(res.status).toBe(400);
+            expect(publishedFoodErrorSchema.safeParse(res.body).success).toBe(true);
+        });
+
+        it('rejects an unrecognized query parameter → 400, so nothing can fork the cache key', async () => {
+            const id = ulid();
+
+            const res = await call(`/api/v1/foods/nutrition?ids=${id}&fields=calories`, userToken);
+
+            expect(res.status).toBe(400);
+        });
+
+        it('is not swallowed by the `:id` routes — `nutrition` never binds as a food id', async () => {
+            const res = await call('/api/v1/foods/nutrition?ids=notaulid', userToken);
+
+            // A route-order regression makes this a 400 INVALID_ID (or a 404) from `GET /:id` instead of a
+            // 200 batch reporting the id as unknown.
+            expect(res.status).toBe(200);
+            expect((res.body as { unknownIds: string[] }).unknownIds).toStrictEqual(['notaulid']);
+        });
+    });
+});

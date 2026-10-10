@@ -1,0 +1,74 @@
+appId: io.commise.mobile
+---
+# Collection visibility, PREMIUM path (W5 Task 13, C1/FR-010; slice 5, `docs/design/uiOverhaul/buildSpec.md` §5.2) — the
+# mobile mirror of the web Playwright visibility spec. It drives a real Private -> Public -> Private round trip from the
+# collection's ⋯ menu ("Make public" / "Make private"). A change takes effect AT ONCE and says so in a snackbar
+# ("Collection is now public.") whose Undo changes it back with a compensating write.
+#
+# ⛔ WHY THIS DOES NOT ASSERT THE FREE-TIER GATE, and why that is not a weakening. The Maestro signer is the pool's `signer`
+# slot, which the roster declares `premium` (`packages/tools/e2e-fixtures/src/testPool.ts`,
+# `lane('signer', { premium: true, … })`) so the seeded world can hold its two PRIVATE recipes. A free-tier cook meets the
+# Premium sheet for "Make private"; that gate stays covered by `CollectionDetailScreen.native.test.tsx` and the web
+# Playwright spec, because proving it here would take a second, free-tier device sign-in the fixture contract does not
+# provide.
+#
+# Creates its own OWNED collection (HERMETIC — same reasoning as `collections.yaml`) and deletes it at the end; the per-flow
+# reset also clears every collection unconditionally. A fresh collection is PRIVATE by default, and the header's meta line
+# says so ("Private" / "Public"), which is what each step asserts.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+- tapOn: 'New collection'
+- assertVisible: 'Name'
+- tapOn: 'Name'
+- inputText: 'Maestro visibility gate'
+# Enter submits the name from the keyboard, as a cook finishes a one-field form.
+- pressKey: Enter
+
+- extendedWaitUntil:
+      visible: 'More actions for Maestro visibility gate'
+      timeout: 40000
+- assertVisible: 'Private'
+
+# A premium owner is NOT gated: the menu offers Make public, and no Premium sheet stands in the way.
+- tapOn: 'More actions for Maestro visibility gate'
+- assertVisible: 'Make public'
+- tapOn: 'Make public'
+- extendedWaitUntil:
+      visible: 'Collection is now public.'
+      timeout: 40000
+- assertVisible: 'Public'
+
+# UNDO: a compensating write changes it back at once.
+- tapOn: 'Undo'
+- extendedWaitUntil:
+      visible: 'Private'
+      timeout: 40000
+
+# Private -> Public again, then Public -> Private: the PREMIUM-ONLY transition, the one the free-tier gate exists to refuse.
+- tapOn: 'More actions for Maestro visibility gate'
+- tapOn: 'Make public'
+- extendedWaitUntil:
+      visible: 'Collection is now public.'
+      timeout: 40000
+- tapOn: 'More actions for Maestro visibility gate'
+- assertVisible: 'Make private'
+- tapOn: 'Make private'
+- extendedWaitUntil:
+      visible: 'Collection is now private.'
+      timeout: 40000
+- assertVisible: 'Private'
+
+# CLEANUP (hermetic).
+- tapOn: 'More actions for Maestro visibility gate'
+- tapOn: 'Delete collection'
+- tapOn: 'Delete collection'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- assertNotVisible: 'Maestro visibility gate'

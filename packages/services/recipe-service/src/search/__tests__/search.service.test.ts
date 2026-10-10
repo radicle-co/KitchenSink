@@ -7,13 +7,34 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import type { RecipeSearchParams } from '@kitchensink/recipe-core';
 
 import { SearchService } from '../search.service.js';
+// The SERVICE'S OWN authored query type, matching `SearchService.searchRecipes`'s parameter. These three literals
+// were annotated `recipe-core`'s `RecipeSearchParams` — the looser twin, now deleted — and compiled only because
+// a mutable `string[]` is assignable to the contract's `readonly string[]`.
+import type { RecipeSearchQuery } from '../search.schema.js';
 import type { SearchDal, RecipeSearchDalResult } from '../dal/search.dal.js';
+import { FoodFilterExpansionGateway } from '../foodFilterExpansion.gateway.js';
 import { makeSearchResult } from '../__fixtures__/search.fixtures.js';
+import { CALLER_TOKEN as CALLER, makeFoodClients } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 
 const OWNER = '01J000000000000000000FREE0';
+
+/** The real expansion gateway over food-client doubles, whose root read a suite stubs. */
+function expansionOver() {
+    const { clients, mocks, standard } = makeFoodClients();
+
+    return { gateway: new FoodFilterExpansionGateway(clients), getById: mocks.getById, standard };
+}
+
+/** An expansion a case that sends no food filter must never reach: its root read throws. */
+const NO_EXPANSION = (() => {
+    const { gateway, getById } = expansionOver();
+
+    getById.mockRejectedValue(new Error('this case sends no food filter and must not expand one'));
+
+    return gateway;
+})();
 
 function dalResult(overrides: Partial<RecipeSearchDalResult> = {}): RecipeSearchDalResult {
     return {
@@ -34,9 +55,9 @@ function fakeDal(result: RecipeSearchDalResult): { dal: SearchDal; search: Retur
 describe('SearchService.searchRecipes', () => {
     it('forwards the owner key and filters, defaulting page/pageSize/sortBy', async () => {
         const { dal, search } = fakeDal(dalResult());
-        const params: RecipeSearchParams = { query: 'pasta', cuisine: 'italian', dietaryFlags: ['vegetarian'] };
+        const params: RecipeSearchQuery = { query: 'pasta', cuisine: 'italian', dietaryFlags: ['vegetarian'] };
 
-        await new SearchService(dal).searchRecipes(OWNER, params);
+        await new SearchService(dal, NO_EXPANSION).searchRecipes(OWNER, undefined, params);
 
         expect(search).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -53,20 +74,31 @@ describe('SearchService.searchRecipes', () => {
 
     it('forwards maxCookTime alongside maxPrepTime/maxTotalTime (REQ-030f)', async () => {
         const { dal, search } = fakeDal(dalResult());
-        const params: RecipeSearchParams = { maxPrepTime: 15, maxCookTime: 20, maxTotalTime: 45 };
+        const params: RecipeSearchQuery = { maxPrepTime: 15, maxCookTime: 20, maxTotalTime: 45 };
 
-        await new SearchService(dal).searchRecipes(OWNER, params);
+        await new SearchService(dal, NO_EXPANSION).searchRecipes(OWNER, undefined, params);
 
         expect(search).toHaveBeenCalledWith(
             expect.objectContaining({ maxPrepTime: 15, maxCookTime: 20, maxTotalTime: 45 }),
         );
     });
 
+    it("forwards scope 'community' to the DAL, and omits it when the request carries none", async () => {
+        const { dal, search } = fakeDal(dalResult());
+        const service = new SearchService(dal, NO_EXPANSION);
+
+        await service.searchRecipes(OWNER, undefined, { scope: 'community' });
+        await service.searchRecipes(OWNER, undefined, {});
+
+        expect(search.mock.calls[0]?.[0]).toMatchObject({ scope: 'community' });
+        expect(search.mock.calls[1]?.[0]).not.toHaveProperty('scope');
+    });
+
     it('honors explicit pagination + sort', async () => {
         const { dal, search } = fakeDal(dalResult());
-        const params: RecipeSearchParams = { page: 3, pageSize: 10, sortBy: RecipeSearchSortBy.TITLE };
+        const params: RecipeSearchQuery = { page: 3, pageSize: 10, sortBy: RecipeSearchSortBy.TITLE };
 
-        await new SearchService(dal).searchRecipes(OWNER, params);
+        await new SearchService(dal, NO_EXPANSION).searchRecipes(OWNER, undefined, params);
 
         expect(search).toHaveBeenCalledWith(
             expect.objectContaining({ page: 3, pageSize: 10, sortBy: RecipeSearchSortBy.TITLE }),
@@ -76,7 +108,11 @@ describe('SearchService.searchRecipes', () => {
     it('returns the DAL results + facets and computes hasMore from the total', async () => {
         const { dal } = fakeDal(dalResult({ total: 25 }));
 
-        const response = await new SearchService(dal).searchRecipes(OWNER, { query: 'pasta', page: 1, pageSize: 20 });
+        const response = await new SearchService(dal, NO_EXPANSION).searchRecipes(OWNER, undefined, {
+            query: 'pasta',
+            page: 1,
+            pageSize: 20,
+        });
 
         expect(response.total).toBe(25);
         expect(response.page).toBe(1);
@@ -95,8 +131,50 @@ describe('SearchService.searchRecipes', () => {
         // (1-result) page.
         const { dal } = fakeDal(dalResult({ total: 1 }));
 
-        const response = await new SearchService(dal).searchRecipes(OWNER, { page: 1, pageSize: 20 });
+        const response = await new SearchService(dal, NO_EXPANSION).searchRecipes(OWNER, undefined, {
+            page: 1,
+            pageSize: 20,
+        });
 
         expect(response.hasMore).toBe(false);
+    });
+});
+
+describe('SearchService.searchRecipes — the food filter expands roots to their live variants (curated U9)', () => {
+    it('asks food AS THE CALLER and hands the DAL both arms', async () => {
+        const { dal, search } = fakeDal(dalResult());
+        const { gateway, getById, standard } = expansionOver();
+
+        getById.mockResolvedValue({
+            status: 'RESOLVED',
+            food: { id: 'R-brisket', variants: [{ id: 'V-flat', parts: [{ attribute: 'cut', text: 'flat' }] }] },
+        });
+
+        await new SearchService(dal, gateway).searchRecipes(OWNER, CALLER, { foodIds: ['R-brisket'] });
+
+        expect(standard).toHaveBeenCalledWith(CALLER);
+        expect(search).toHaveBeenCalledWith(
+            expect.objectContaining({ foodFilter: { rootIds: ['R-brisket'], variantIds: ['V-flat'] } }),
+        );
+    });
+
+    it('expands nothing and filters on no food when the query names none', async () => {
+        const { dal, search } = fakeDal(dalResult());
+
+        await new SearchService(dal, NO_EXPANSION).searchRecipes(OWNER, CALLER, { query: 'pasta' });
+
+        expect(search.mock.calls[0]?.[0]).not.toHaveProperty('foodFilter');
+    });
+
+    it('⛔ propagates a failed expansion and runs NO search — never a partial filter', async () => {
+        const { dal, search } = fakeDal(dalResult());
+        const { gateway, getById } = expansionOver();
+
+        getById.mockRejectedValue(new Error('socket hang up'));
+
+        await expect(
+            new SearchService(dal, gateway).searchRecipes(OWNER, CALLER, { foodIds: ['R-brisket'] }),
+        ).rejects.toMatchObject({ status: 502 });
+        expect(search).not.toHaveBeenCalled();
     });
 });

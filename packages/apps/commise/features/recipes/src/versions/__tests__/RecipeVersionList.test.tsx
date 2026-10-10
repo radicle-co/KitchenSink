@@ -1,30 +1,33 @@
-// @vitest-environment jsdom
 /**
- * Component tests for the web recipe version-history view (T069). Covers every branch the mandate
- * requires — empty, populated (newest-first, version number + timestamp), the current version marked and
- * NOT restorable, the restore interaction (fires with the right version), and the busy/restoring state
- * (status announced, restore actions disabled) — asserting on role/name/text so a dropped branch fails.
+ * The web version history (build spec §6.6), REWRITTEN for slice 6. Rows newest first, each "Version 12 · Edited 2 days
+ * ago", "Changed: …" and a ⋯ menu — Preview · Restore this version · Compare with current. Compare is per row against
+ * the current version, so the two-version checkbox selection is gone (its coverage moved to `compare.test.ts`, which
+ * pins the per-row diff). The current version is marked and offers neither restore nor compare. Empty: the clock
+ * glyph, "No earlier versions yet", the explanation and Back to recipe.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { utilityContrast } from '@commise/test-utils';
-
-import { makeRecipeVersion } from '../__fixtures__/index.js';
+import { makeRecipeVersion, makeSnapshot } from '../__fixtures__/index.js';
 import { RecipeVersionList } from '../RecipeVersionList.js';
-import type { RecipeVersionListProps } from '../model.js';
+import type { RecipeVersionListProps } from '../history.js';
+import { recipeVersionMessages } from '../messages.js';
+
+const { versionList } = recipeVersionMessages.en;
 
 afterEach(cleanup);
 
-const noop = () => undefined;
+const NOW = '2026-04-12T09:00:00.000Z';
 
 function renderList(overrides: Partial<RecipeVersionListProps> = {}) {
     const props: RecipeVersionListProps = {
         versions: [],
         currentVersion: 1,
         restoringVersion: null,
-        onRestore: noop,
+        onRestore: vi.fn(),
+        now: NOW,
+        recipeTitle: 'Slow-roasted lamb',
         ...overrides,
     };
     render(<RecipeVersionList {...props} />);
@@ -33,397 +36,151 @@ function renderList(overrides: Partial<RecipeVersionListProps> = {}) {
 }
 
 const threeVersions = [
-    makeRecipeVersion({ versionNumber: 1, createdAt: '2026-04-01T09:00:00.000Z' }),
-    makeRecipeVersion({ versionNumber: 2, createdAt: '2026-04-05T09:00:00.000Z' }),
-    makeRecipeVersion({ versionNumber: 3, createdAt: '2026-04-10T09:00:00.000Z' }),
+    makeRecipeVersion({
+        versionNumber: 1,
+        createdAt: '2026-04-01T09:00:00.000Z',
+        snapshot: makeSnapshot({ title: 'A' }),
+    }),
+    makeRecipeVersion({
+        versionNumber: 2,
+        createdAt: '2026-04-05T09:00:00.000Z',
+        snapshot: makeSnapshot({ title: 'B' }),
+    }),
+    makeRecipeVersion({
+        versionNumber: 3,
+        createdAt: '2026-04-10T09:00:00.000Z',
+        snapshot: makeSnapshot({ title: 'C' }),
+    }),
 ];
 
 describe('RecipeVersionList (web) — chrome', () => {
-    /**
-     * This surface's own title IS the page title of `/recipes/[id]/versions`, so it must be the `h1`. It used
-     * to be an `h2` under the app shell's hard-coded "Home" `h1`; now that the shell's top-bar title is plain
-     * banner text (one `h1` per page, owned by the page), an `h2` here would leave the route with no `h1` at
-     * all. Level is asserted, not just the name — a silent demotion would otherwise pass.
-     */
-    it('renders the version-history title as the page’s h1', () => {
+    it('titles the page "Version history" with the recipe as its subtitle, in every state', () => {
         renderList();
 
-        expect(screen.getByRole('heading', { level: 1, name: 'Version history' })).toBeTruthy();
+        expect(screen.getByRole('heading', { level: 1, name: versionList.heading })).toBeTruthy();
+        expect(screen.getByText('Slow-roasted lamb')).toBeTruthy();
     });
 
-    it('renders the h1 in the empty state too — the title is never conditional', () => {
-        renderList({ versions: [] });
+    it('offers Back to recipe when the caller wires it', async () => {
+        const user = userEvent.setup();
+        const onBack = vi.fn();
+        renderList({ versions: threeVersions, currentVersion: 3, onBack, backHref: '/en/recipes/rec_1' });
 
-        expect(screen.getByRole('heading', { level: 1, name: 'Version history' })).toBeTruthy();
+        await user.click(screen.getAllByRole('link', { name: 'Back to recipe' })[0] as HTMLElement);
+
+        expect(onBack).toHaveBeenCalledTimes(1);
     });
 });
 
 describe('RecipeVersionList (web) — empty state', () => {
-    it('shows the empty message and no version rows', () => {
-        renderList({ versions: [] });
-
-        expect(screen.getByText('No earlier versions yet.')).toBeTruthy();
-        expect(screen.queryByRole('list')).toBeNull();
-    });
-});
-
-describe('RecipeVersionList (web) — populated state', () => {
-    it('lists every version with its number and timestamp', () => {
-        renderList({ versions: threeVersions, currentVersion: 3 });
-
-        expect(screen.getByText('Version 1')).toBeTruthy();
-        expect(screen.getByText('Version 2')).toBeTruthy();
-        expect(screen.getByText('Version 3')).toBeTruthy();
-        expect(screen.getByText(/Apr 1, 2026/)).toBeTruthy();
-        expect(screen.getByText(/Apr 5, 2026/)).toBeTruthy();
-        expect(screen.getByText(/Apr 10, 2026/)).toBeTruthy();
-    });
-
-    it('orders the versions newest-first regardless of input order', () => {
-        renderList({ versions: threeVersions, currentVersion: 3 });
-
-        const labels = screen.getAllByText(/^Version \d+$/).map((node) => node.textContent);
-        expect(labels).toEqual(['Version 3', 'Version 2', 'Version 1']);
-    });
-
-    it('renders one list item per version', () => {
-        renderList({ versions: threeVersions, currentVersion: 3 });
-
-        expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(3);
-    });
-});
-
-describe('RecipeVersionList (web) — current version', () => {
-    it('marks the current version and offers no restore action for it', () => {
-        renderList({ versions: threeVersions, currentVersion: 3 });
-
-        expect(screen.getByText('Current version')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Restore version 3' })).toBeNull();
-    });
-
-    it('offers a restore action for every non-current version', () => {
-        renderList({ versions: threeVersions, currentVersion: 3 });
-
-        expect(screen.getByRole('button', { name: 'Restore version 1' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Restore version 2' })).toBeTruthy();
-    });
-});
-
-describe('RecipeVersionList (web) — restore interaction', () => {
-    it('reports the chosen version number upward', async () => {
+    it('says there are no earlier versions yet, why, and offers the way back', async () => {
         const user = userEvent.setup();
-        const onRestore = vi.fn();
-        renderList({ versions: threeVersions, currentVersion: 3, onRestore });
+        const onBack = vi.fn();
+        renderList({ onBack });
 
-        await user.click(screen.getByRole('button', { name: 'Restore version 2' }));
+        expect(screen.getByRole('heading', { name: 'No earlier versions yet' })).toBeTruthy();
+        expect(screen.getByText('Each time you save changes, the version before is kept here.')).toBeTruthy();
+        expect(screen.queryByRole('listitem')).toBeNull();
 
-        expect(onRestore).toHaveBeenCalledWith(2);
+        // The empty state's own action, after the header's back link: the last of the two.
+        await user.click(screen.getAllByRole('button', { name: 'Back to recipe' }).at(-1) as HTMLElement);
+        expect(onBack).toHaveBeenCalled();
     });
 });
 
-describe('RecipeVersionList (web) — restoring state', () => {
-    it('announces a busy status for the version being restored', () => {
-        renderList({ versions: threeVersions, currentVersion: 3, restoringVersion: 2 });
+describe('RecipeVersionList (web) — rows', () => {
+    it('lists the versions newest first, each with its number and how long ago it was edited', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
 
-        expect(screen.getByRole('status').textContent).toContain('Restoring version 2');
+        const titles = screen
+            .getAllByRole('listitem')
+            .map((item) => item.querySelector('[data-row-title]')?.textContent);
+
+        expect(titles).toEqual([
+            'Version 3 · Edited 2 days ago',
+            'Version 2 · Edited 7 days ago',
+            'Version 1 · Edited 11 days ago',
+        ]);
     });
 
-    it('disables all restore actions while a restore is in flight', () => {
-        renderList({ versions: threeVersions, currentVersion: 3, restoringVersion: 2 });
+    it('says what each version changed against the one before, and marks the first', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
 
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Restore version 1' }).disabled).toBe(true);
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Restore version 2' }).disabled).toBe(true);
+        const [newest, , oldest] = screen.getAllByRole('listitem');
+
+        expect(within(newest as HTMLElement).getByText('Changed: Title')).toBeTruthy();
+        expect(within(oldest as HTMLElement).getByText(versionList.initialVersion)).toBeTruthy();
     });
 
-    it('does not fire restore when a disabled action is activated', async () => {
-        const user = userEvent.setup();
-        const onRestore = vi.fn();
-        renderList({ versions: threeVersions, currentVersion: 3, restoringVersion: 2, onRestore });
+    it('renders the editor handle as plain text, never as markup', () => {
+        renderList({
+            versions: [makeRecipeVersion({ versionNumber: 1, editorHandle: '<b>chef</b>' })],
+            currentVersion: 1,
+        });
 
-        await user.click(screen.getByRole('button', { name: 'Restore version 1' }));
-
-        expect(onRestore).not.toHaveBeenCalled();
-    });
-});
-
-describe('RecipeVersionList (web) — editor/device attribution', () => {
-    it('shows "by @handle (from device)" when both are present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara', deviceLabel: 'iPhone' })];
-        renderList({ versions, currentVersion: 1 });
-
-        expect(screen.getByText('by @clara (from iPhone)')).toBeTruthy();
+        expect(screen.getByText('by @<b>chef</b>')).toBeTruthy();
     });
 
-    it('shows "by @handle" with no device suffix when only the handle is present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara', deviceLabel: undefined })];
-        renderList({ versions, currentVersion: 1 });
+    it('marks the current version and offers it no ⋯ menu — nothing to restore or compare', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
 
-        expect(screen.getByText('by @clara')).toBeTruthy();
-    });
+        const [current] = screen.getAllByRole('listitem');
 
-    it('renders no attribution line when neither the handle nor the device is present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: undefined, deviceLabel: undefined })];
-        renderList({ versions, currentVersion: 1 });
-
-        expect(screen.queryByText(/^by @/)).toBeNull();
-        expect(screen.queryByText(/undefined/)).toBeNull();
-    });
-
-    it('renders the device label as plain text, never as markup (untrusted free text)', () => {
-        const versions = [
-            makeRecipeVersion({
-                versionNumber: 1,
-                editorHandle: 'clara',
-                deviceLabel: '<img src=x onerror=alert(1)>',
-            }),
-        ];
-        renderList({ versions, currentVersion: 1 });
-
-        expect(screen.getByText('by @clara (from <img src=x onerror=alert(1)>)')).toBeTruthy();
-        expect(document.querySelector('img')).toBeNull();
+        expect(within(current as HTMLElement).getByText(versionList.currentBadge)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'More actions for version 3' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'More actions for version 2' })).toBeTruthy();
     });
 });
 
-describe('RecipeVersionList (web) — changed-fields summary', () => {
-    const priorSnapshot = {
-        version: 1,
-        title: 'Weeknight Pasta',
-        description: 'A fast, comforting weeknight dinner.',
-        steps: [{ id: 'step_1', recipeId: 'rec_1', stepNumber: 1, instruction: 'Boil water.' }],
-        ingredients: [],
-        servings: 4,
-        prepTimeMinutes: 10,
-        cookTimeMinutes: 20,
-    };
-    const revisedSnapshot = {
-        ...priorSnapshot,
-        version: 2,
-        title: 'Weeknight Pasta, Revised',
-        steps: [{ id: 'step_1', recipeId: 'rec_1', stepNumber: 1, instruction: 'Boil salted water.' }],
-    };
-
-    it('shows the localized changed-fields summary versus the immediately-prior version', () => {
-        const versions = [
-            makeRecipeVersion({ versionNumber: 1, snapshot: priorSnapshot }),
-            makeRecipeVersion({ versionNumber: 2, snapshot: revisedSnapshot }),
-        ];
-        renderList({ versions, currentVersion: 2 });
-
-        expect(screen.getByText('Changed: Title, Steps')).toBeTruthy();
-    });
-
-    it('shows the initial-version label (and no Changed line) for the earliest version', () => {
-        const versions = [
-            makeRecipeVersion({ versionNumber: 1, snapshot: priorSnapshot }),
-            makeRecipeVersion({ versionNumber: 2, snapshot: revisedSnapshot }),
-        ];
-        renderList({ versions, currentVersion: 2 });
-
-        const initialRow = screen.getByText('Version 1').closest('li');
-        expect(initialRow).not.toBeNull();
-        expect(within(initialRow as HTMLElement).getByText('Initial version')).toBeTruthy();
-        expect(within(initialRow as HTMLElement).queryByText(/^Changed:/)).toBeNull();
-    });
-
-    it('still renders the existing free-text changeSummary line alongside the computed summary', () => {
-        const versions = [
-            makeRecipeVersion({ versionNumber: 1, snapshot: priorSnapshot }),
-            makeRecipeVersion({
-                versionNumber: 2,
-                snapshot: revisedSnapshot,
-                changeSummary: 'Tweaked the boil step.',
-            }),
-        ];
-        renderList({ versions, currentVersion: 2 });
-
-        expect(screen.getByText('Changed: Title, Steps')).toBeTruthy();
-        expect(screen.getByText('Tweaked the boil step.')).toBeTruthy();
-    });
-});
-
-describe('RecipeVersionList (web) — preview control', () => {
-    it('fires onPreview with the version number for every non-current row', async () => {
+describe('RecipeVersionList (web) — the row menu', () => {
+    it('offers Preview, Restore this version and Compare with current, each reporting the version', async () => {
         const user = userEvent.setup();
         const onPreview = vi.fn();
-        renderList({ versions: threeVersions, currentVersion: 3, onPreview });
+        const onCompare = vi.fn();
+        const props = renderList({ versions: threeVersions, currentVersion: 3, onPreview, onCompare });
 
-        await user.click(screen.getByRole('button', { name: 'Preview version 2' }));
+        await user.click(screen.getByRole('button', { name: 'More actions for version 2' }));
+        expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+            'Preview',
+            'Restore this version',
+            'Compare with current',
+        ]);
+        await user.click(screen.getByRole('menuitem', { name: 'Restore this version' }));
+        expect(props.onRestore).toHaveBeenCalledWith(2);
 
+        await user.click(screen.getByRole('button', { name: 'More actions for version 1' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Compare with current' }));
+        expect(onCompare).toHaveBeenCalledWith(1);
+
+        await user.click(screen.getByRole('button', { name: 'More actions for version 2' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Preview' }));
         expect(onPreview).toHaveBeenCalledWith(2);
     });
 
-    it('renders no Preview control for the current version', () => {
-        renderList({ versions: threeVersions, currentVersion: 3, onPreview: vi.fn() });
-
-        expect(screen.queryByRole('button', { name: 'Preview version 3' })).toBeNull();
-    });
-
-    it('renders no Preview controls at all when onPreview is not provided', () => {
-        renderList({ versions: threeVersions, currentVersion: 3 });
-
-        expect(screen.queryByRole('button', { name: /^Preview/ })).toBeNull();
-    });
-});
-
-describe('RecipeVersionList (web) — back to recipe (V6)', () => {
-    it('renders a back-to-recipe control that activates onBack', async () => {
+    it('draws no Preview or Compare entry when the caller wires neither', async () => {
         const user = userEvent.setup();
-        const onBack = vi.fn();
-        renderList({ versions: threeVersions, currentVersion: 3, onBack });
-
-        await user.click(screen.getByRole('button', { name: /back/i }));
-
-        expect(onBack).toHaveBeenCalledTimes(1);
-    });
-
-    it('renders no back control when onBack is not provided', () => {
         renderList({ versions: threeVersions, currentVersion: 3 });
 
-        expect(screen.queryByRole('button', { name: /back/i })).toBeNull();
-        expect(screen.queryByRole('link', { name: /back/i })).toBeNull();
-    });
+        await user.click(screen.getByRole('button', { name: 'More actions for version 2' }));
 
-    it('renders the back control in the empty state too', () => {
-        const onBack = vi.fn();
-        renderList({ versions: [], onBack });
-
-        expect(screen.getByRole('button', { name: /back/i })).toBeTruthy();
+        expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Restore this version']);
     });
 });
 
-describe('RecipeVersionList (web) — compare selection (W6 Task 5)', () => {
-    it('renders no Compare controls when onToggleCompare is not provided', () => {
-        renderList({ versions: threeVersions, currentVersion: 3 });
+describe('RecipeVersionList (web) — restoring and its failure', () => {
+    it('says which version is restoring and makes every row menu unavailable', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, restoringVersion: 2 });
 
-        expect(screen.queryByRole('checkbox')).toBeNull();
+        expect(screen.getByRole('status').textContent).toBe('Restoring version 2…');
+
+        for (const trigger of screen.getAllByRole('button', { name: /^More actions for version/u })) {
+            expect(trigger.getAttribute('aria-disabled')).toBe('true');
+        }
     });
 
-    it('fires onToggleCompare with the version number when its checkbox is toggled', async () => {
-        const user = userEvent.setup();
-        const onToggleCompare = vi.fn();
-        renderList({ versions: threeVersions, currentVersion: 3, onToggleCompare, selectedForCompare: [] });
+    it('surfaces a failed restore as an alert, never a silent no-op (B17)', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, restoreError: { kind: 'generic', versionNumber: 2 } });
 
-        await user.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
-
-        expect(onToggleCompare).toHaveBeenCalledWith(2);
-    });
-
-    it('shows a selected version as checked', () => {
-        renderList({
-            versions: threeVersions,
-            currentVersion: 3,
-            onToggleCompare: vi.fn(),
-            selectedForCompare: [2],
-        });
-
-        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 2 to compare' }).checked).toBe(
-            true,
-        );
-    });
-
-    it('renders a Compare checkbox for the current version too (compare is not restore-gated)', () => {
-        renderList({ versions: threeVersions, currentVersion: 3, onToggleCompare: vi.fn(), selectedForCompare: [] });
-
-        expect(screen.getByRole('checkbox', { name: 'Select version 3 to compare' })).toBeTruthy();
-    });
-
-    it('caps selection at two — disables every unselected checkbox once two are chosen', () => {
-        renderList({
-            versions: threeVersions,
-            currentVersion: 3,
-            onToggleCompare: vi.fn(),
-            selectedForCompare: [1, 2],
-        });
-
-        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 3 to compare' }).disabled).toBe(
-            true,
-        );
-        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 1 to compare' }).disabled).toBe(
-            false,
-        );
-    });
-
-    it('does not disable an already-selected checkbox even once two are chosen (it must stay toggleable off)', () => {
-        renderList({
-            versions: threeVersions,
-            currentVersion: 3,
-            onToggleCompare: vi.fn(),
-            selectedForCompare: [1, 2],
-        });
-
-        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 2 to compare' }).disabled).toBe(
-            false,
-        );
-    });
-});
-
-/**
- * Measured, not eyeballed: `utilityContrast` resolves the control's OWN rendered `text-*`/`bg-*` utilities to
- * palette colours and composites any tint onto the surface beneath, so the ratio asserted is the one a reader
- * experiences. `seafoam` as a FOREGROUND is 4.02:1 on white and 3.57:1 on its own `/10` tint — both under the
- * 4.5:1 SC 1.4.3 floor for body text; see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts` for the one
- * authoritative statement of when seafoam is still the right token (borders, rings, fills — never read text).
- *
- * Hover is measured as its own state on every control that carries a `hover:bg-*` tint: a label that clears
- * the floor at rest and falls under it once the tint lands is still an inaccessible label.
- */
-describe('RecipeVersionList (web) — WCAG AA text contrast (SC 1.4.3)', () => {
-    it('the "Back to Recipe" control’s label is legible at rest and on its hover tint', () => {
-        renderList({ versions: threeVersions, currentVersion: 3, onBack: vi.fn() });
-        const back = screen.getByRole('button', { name: /back/i });
-
-        expect(
-            utilityContrast(back.className),
-            '"Back to Recipe" label at rest, on the page surface',
-        ).toBeGreaterThanOrEqual(4.5);
-        expect(
-            utilityContrast(back.className, { variant: 'hover' }),
-            '"Back to Recipe" label on its own hover tint',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('the "Current version" badge label is legible on its own tinted pill', () => {
-        renderList({ versions: threeVersions, currentVersion: 3 });
-
-        // The badge paints its own tint and sits on the row's `bg-card` (white), so the default surface applies.
-        expect(
-            utilityContrast(screen.getByText('Current version').className),
-            '"Current version" badge label on its tinted pill',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('the Restore control’s label is legible at rest and on its hover tint', () => {
-        renderList({ versions: threeVersions, currentVersion: 3 });
-        const restore = screen.getByRole('button', { name: 'Restore version 2' });
-
-        expect(utilityContrast(restore.className), 'Restore label at rest, on the row surface').toBeGreaterThanOrEqual(
-            4.5,
-        );
-        expect(
-            utilityContrast(restore.className, { variant: 'hover' }),
-            'Restore label on its own hover tint',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-});
-
-describe('RecipeVersionList (web) — restore error (B17: no silent failure)', () => {
-    it('surfaces the conflict copy when a restore fails because the recipe changed underneath', () => {
-        renderList({ versions: threeVersions, currentVersion: 3, restoreError: 'conflict' });
-
-        expect(screen.getByRole('alert').textContent).toBe(
-            'This recipe changed since you opened its history. Review the refreshed list and try again.',
-        );
-    });
-
-    it('surfaces the generic copy for any other failed restore', () => {
-        renderList({ versions: threeVersions, currentVersion: 3, restoreError: 'generic' });
-
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t restore that version. Please try again.');
-    });
-
-    it('shows no alert when the last restore did not fail', () => {
-        renderList({ versions: threeVersions, currentVersion: 3, restoreError: undefined });
-
-        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.getByRole('alert').textContent).toBe(versionList.restoreGenericError);
     });
 });

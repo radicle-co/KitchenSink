@@ -1,0 +1,127 @@
+appId: io.commise.mobile
+---
+# U16 — the CREATE-MY-OWN-FOOD door (plan U16, ADR-0029). Since plan 002 V1 B8 it is the LAST option of the trailing
+# "Add an ingredient" list (O3 ruling, `docs/design/rowEditorOpenDecisions.md` item 1), and the form is the
+# authored-food bottom sheet. Assumes an authenticated session (the auth login flow runs first in CI ordering) and
+# the app pointed at the PR's deployed recipe service, exactly like `create.yaml`.
+#
+# ⛔ THIS FILE WAS COMMITTED EMPTY (zero bytes, by `4d186d1a`) AND STAYED THAT WAY. It was in `FLOW_PLAN` the
+# whole time, so every heavy run tried to execute it and every heavy run died on `Config Section Required` —
+# the inventory guard only ever asked whether the file EXISTED, which an empty file satisfies. That hole is
+# closed now (`maestroFlowSelection.test.ts` parses each planned flow's config section), and this is the flow
+# it was holding a place for.
+#
+# ⛔ WHAT THIS FLOW ASSERTS: THE HAPPY PATH, against a real food service.
+# `IngredientsService.createAuthoredFood` is a BFF composition. Its FIRST act is
+# `foodClients.standard(caller).createAuthoredFood(input)`: it authors the food IN THE FOOD SERVICE, then admits
+# the ingredient. This flow used to assert the REFUSAL sentence, because the Maestro job then booted
+# recipe-service + Postgres on the runner and nothing else, with nothing listening at `FOOD_SERVICE_URL`. That job
+# is gone. Under the 2026-09-05 owner ruling (ADR-0032, CLAUDE.md), every end-to-end tier drives the PR's
+# DEPLOYED sandbox. The APK is built with `EXPO_PUBLIC_RECIPE_API_URL` set to `recipe-pr-{N}`, whose food service is
+# the live `food-pr-{N}` (`_ci-heavy.yml`, the `resolve-mobile-target` outputs). Run 34863424203 proved it: the
+# create SUCCEEDED ("Added Maestro Nut Butter", line 1 `Resolved`) and the flow failed waiting for a failure that
+# could not happen. The refusal path is now the one no device can reach, and it stays covered by
+# `AuthoredFoodSheet.native.test.tsx` in `@commise/features-recipes`.
+#
+# What this proves on a real device, every run: the door exists; the form renders its per-100g fields and its
+# privacy promise; validation refuses an incomplete draft WITHOUT a request; and a complete draft is authored,
+# admitted and ATTACHED to the line as a resolved ingredient. That last part is the falsifiable core. A create that
+# resolved but never reached the form, or a form that closed without attaching, fails here.
+#
+# ⚠️ The authored food is REAL data in the preview's food service, owned by the signer pool slot. It is private to
+# its author (ADR-0029), and `resetPool --tier maestro` deletes the slot's authored foods before and after every
+# run (its log line reads `-N authored foods`), so it does not build up.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: 'Maestro Authored Food'
+
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+
+# A name deliberately absent from the stage's foods, so the list ends in its "Not listed?" ways, where U16's door
+# lives.
+- inputText: 'Maestro Nut Butter'
+
+# ⛔ THE DOOR ITSELF. `Use “{text}” as written` and `Create my own food` sit in the same group, and they are NOT the
+# same affordance: the first keeps an unbacked name, the second authors a real food with macros. Tapping the wrong
+# one is the regression this asserts against.
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Create my own food'
+- tapOn: 'Create my own food'
+
+# The sheet's form. Its action row is brought into view first, because `assertVisible` does not scroll and a field
+# clipped by the viewport is not in the hierarchy at all (run 33878552289 measured that on the old inline card).
+- scrollUntilVisible:
+      element: 'Create and add'
+      direction: DOWN
+      timeout: 20000
+
+# The form. The typed text is carried into the name field, so the cook never retypes it.
+- assertVisible: 'Nutrition per 100 g'
+- assertVisible: 'Food name'
+- assertVisible: 'Calories (kcal)'
+- assertVisible: 'Protein (g)'
+- assertVisible: 'Carbs (g)'
+- assertVisible: 'Fat (g)'
+
+# D9a/U11 — the promise the backend keeps: an authored food is PRIVATE until a human promotes it. If this
+# line ever disappears, a cook is authoring public data without being told.
+- assertVisible: 'Only you can see foods you create.'
+
+# ⛔ VALIDATION FIRST, AND IT COSTS NO REQUEST. The macros start empty, so submitting now must refuse locally.
+# This is what proves the form is not a thin passthrough that discovers its own bounds from a 400.
+- tapOn: 'Create and add'
+- assertVisible: 'Required'
+- assertNotVisible: 'Creating your food…'
+
+# Now a complete, in-bounds draft (calories <= 900, each macro <= 100 — `authoredMacrosSchema`).
+- tapOn: 'Calories (kcal)'
+- inputText: '588'
+- tapOn: 'Protein (g)'
+- inputText: '21'
+- tapOn: 'Carbs (g)'
+- inputText: '20'
+- tapOn: 'Fat (g)'
+- inputText: '50'
+- assertNotVisible: 'Required'
+
+# Re-anchor: the refused submit added a `Required` line under each field and filling them took the lines away again,
+# so the action row may have moved. `scrollUntilVisible` is a no-op when it is already in view.
+- scrollUntilVisible:
+      element: 'Create and add'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Create and add'
+
+# ⛔ THE FALSIFIABLE CORE. The create goes to the deployed food service and must come back as a line: the sheet
+# closes and line 1 carries the authored food, matched, read by its open control's accessible name (UI overhaul slice
+# 8, build spec §7.5.1). `extendedWaitUntil`, never a fixed sleep: two services are in the path and their latency is
+# not a constant. The control is waited on, not the name, because the sheet's `Food name` field holds the same text
+# until the sheet closes.
+- extendedWaitUntil:
+      visible: 'Edit Maestro Nut Butter'
+      timeout: 40000
+- assertNotVisible: 'Nutrition per 100 g'
+- assertNotVisible: 'Could not create the food. Check your connection and try again.'
+
+# The line itself. The name is ANCHORED, so a sentence that quotes it cannot satisfy it.
+# A matched row shows NO status word (SPECIFY.1 rows 3-4).
+- assertVisible:
+      text: '^Maestro Nut Butter$'
+- assertNotVisible:
+      text: '^Resolved$'
+
+# Throw the scratch recipe away: the editor saves a titled draft on its own (10 s idle, and on exit, §7.3), so a flow
+# that simply stopped here would leave one behind. The authored FOOD is the pool slot's, reset as noted above.
+- runFlow: common/discardDraft.yaml
+- assertVisible: 'Recipes'

@@ -1,130 +1,190 @@
 /**
- * @module @commise/features-recipes — native collection-header view (W5 Task 6 building block).
+ * @module @commise/features-recipes/collections — the native collection header (W5 Task 6; slice 5 of the UI overhaul),
+ * the twin of the web leaf (`docs/design/uiOverhaul/buildSpec.md` §5.2): "‹ Collections" back, the name as the screen's
+ * large title, the meta line — visibility as an icon and a word, "6 recipes" and, for a copy, "Copied from @clara" — the
+ * description, and ONE primary (Add recipes) with ONE ⋯ menu named for the collection (a sheet on native): Rename · Make
+ * private / Make public · Save a copy · Pull updates (copies only) · divider · Delete collection.
  *
- * The React Native leaf of {@link import('./CollectionHeader.js').CollectionHeader} — same presentational
- * contract (name + Edit/Delete, visibility badge, recipe count, source attribution, last-pulled, Back)
- * rendered with RN primitives.
+ * The pair sits at the end of the title row from a 600 container and under the description below it, decided by the host
+ * (`actionsPlacement`), and is drawn once. Colour is read from the theme at render (D15).
+ *
+ * @pattern Composite — the title, meta, description and actions of one collection
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette, tint } from '@commise/ui';
-import type { FC } from 'react';
+import { ActionMenu } from '@commise/ui/action-menu';
+import { Button } from '@commise/ui/button';
+import { Icon } from '@commise/ui/icon';
+import { LargeTitleHeader } from '@commise/ui/large-title-header';
+import { nativeTokens } from '@commise/ui/native';
+import { RefreshNotice } from '@commise/ui/refresh-notice';
+import { useTheme } from '@commise/ui/theme';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
+import type { FC, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate, formatRecipeCount } from '../list/model.js';
+import { formatRecipeCount } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
+import type { CollectionHeaderProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
-import { formatCollectionDate, type CollectionHeaderViewProps } from './model.js';
+import { formatCollectionDate } from './model.js';
 
-export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
+export const CollectionHeader: FC<CollectionHeaderProps> = ({
     name,
     description,
     visibility,
     recipeCount,
     sourceCollectionName,
     sourceOwnerHandle,
+    sourceCollectionId,
     lastPulledAt,
+    actionsPlacement,
+    headingId,
+    headingFocusSignal,
     onBack,
-    onEdit,
+    onAddRecipes,
+    onViewSource,
+    refreshNotice,
+    onRename,
+    onToggleVisibility,
+    onSaveCopy,
+    onPullUpdates,
     onDelete,
 }) => {
-    const { header, detail } = useMessages(collectionMessages);
+    const { detail, list, menu: copy, header } = useMessages(collectionMessages);
     const locale = useLocale();
+    const { colors } = useTheme();
+    const isPublic = visibility === RecipeVisibility.PUBLIC;
+    const isCopy = sourceCollectionName !== undefined || sourceCollectionId !== undefined;
+    // A retry from the refresh notice that succeeds removes the button the viewer pressed, so the cursor goes to the name.
+    const focusSignal = headingFocusSignal + (refreshNotice?.recoveries ?? 0);
 
-    const visibilityLabel = visibility === 'public' ? header.visibilityPublic : header.visibilityPrivate;
-    const recipeCountLabel = formatRecipeCount(
-        recipeCount,
-        { one: header.recipeCountOne, other: header.recipeCountOther },
-        locale,
+    const copiedFrom =
+        sourceOwnerHandle !== undefined
+            ? fillTemplate(detail.copiedFrom, { handle: sourceOwnerHandle })
+            : sourceCollectionName !== undefined
+              ? fillTemplate(detail.copiedFromNamed, { name: sourceCollectionName })
+              : detail.copiedFromUnknown;
+
+    const add = (
+        <Button icon="plus" width={actionsPlacement === 'below' ? 'fill' : 'auto'} onPress={onAddRecipes}>
+            {detail.addRecipeCta}
+        </Button>
     );
-    // FR-011 — attribution is shown only for a cloned collection (`sourceCollectionName` present); the
-    // source owner handle may still be unresolved, in which case the template drops the `@handle` segment
-    // rather than rendering a broken/partial mention.
-    const sourceAttribution =
-        sourceCollectionName === undefined
-            ? undefined
-            : sourceOwnerHandle === undefined
-              ? fillTemplate(header.sourceAttributionNoHandle, { name: sourceCollectionName })
-              : fillTemplate(header.sourceAttribution, { handle: sourceOwnerHandle, name: sourceCollectionName });
-    const lastPulledLabel =
-        lastPulledAt === undefined
-            ? undefined
-            : fillTemplate(header.lastPulled, { date: formatCollectionDate(lastPulledAt, locale) });
+    const menu = (
+        <ActionMenu
+            triggerLabel={fillTemplate(copy.moreActions, { name })}
+            title={name}
+            closeLabel={copy.close}
+            items={[
+                { id: 'rename', label: copy.rename, onSelect: onRename },
+                {
+                    id: 'visibility',
+                    label: isPublic ? copy.makePrivate : copy.makePublic,
+                    onSelect: onToggleVisibility,
+                },
+                { id: 'saveCopy', label: copy.saveCopy, onSelect: onSaveCopy },
+                ...(isCopy ? [{ id: 'pull', label: copy.pullUpdates, onSelect: onPullUpdates }] : []),
+            ]}
+            destructiveItem={{ id: 'delete', label: copy.delete, onSelect: onDelete }}
+        />
+    );
+
+    const metaItem = (key: string, children: ReactNode): ReactNode => (
+        <View key={key} style={styles.metaItem}>
+            {children}
+        </View>
+    );
+    const metaText = [styles.meta, { color: colors.inkMuted }];
 
     return (
-        <View accessibilityLabel={name} style={styles.container}>
-            {onBack !== undefined && (
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={header.backToCollections}
-                    onPress={onBack}
-                    style={styles.textButton}
-                >
-                    <Text style={styles.backLabel}>{header.backToCollections}</Text>
-                </Pressable>
-            )}
-            <View style={styles.titleRow}>
-                <Text accessibilityRole="header" style={styles.heading}>
-                    {name}
-                </Text>
-                <View style={styles.actions}>
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={detail.renameCta}
-                        onPress={onEdit}
-                        style={styles.textButton}
-                    >
-                        <Text style={styles.editLabel}>{detail.renameCta}</Text>
-                    </Pressable>
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={detail.deleteCta}
-                        onPress={onDelete}
-                        style={styles.textButton}
-                    >
-                        <Text style={styles.deleteLabel}>{detail.deleteCta}</Text>
-                    </Pressable>
-                </View>
-            </View>
-            {description !== undefined && description.length > 0 && (
-                <Text style={styles.description}>{description}</Text>
-            )}
+        <View style={styles.stack}>
+            <LargeTitleHeader
+                headingId={headingId}
+                title={name}
+                focusSignal={focusSignal}
+                back={{
+                    label: fillTemplate(detail.backTo, { parent: list.heading }),
+                    parent: list.heading,
+                    onPress: onBack,
+                }}
+                {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add, menu } } : {})}
+            />
             <View style={styles.metaRow}>
-                <Text style={styles.badge}>{visibilityLabel}</Text>
-                <Text style={styles.meta}>{recipeCountLabel}</Text>
+                {metaItem(
+                    'visibility',
+                    <>
+                        <Icon name={isPublic ? 'globe' : 'lock'} size={16} tone="inkMuted" />
+                        <Text style={metaText}>{isPublic ? detail.visibilityPublic : detail.visibilityPrivate}</Text>
+                    </>,
+                )}
+                {metaItem(
+                    'count',
+                    <Text style={metaText}>
+                        {formatRecipeCount(
+                            recipeCount,
+                            { one: detail.recipeCountOne, other: detail.recipeCountOther },
+                            locale,
+                        )}
+                    </Text>,
+                )}
+                {isCopy
+                    ? metaItem(
+                          'source',
+                          onViewSource !== undefined && sourceCollectionId !== undefined ? (
+                              <Pressable
+                                  role="button"
+                                  aria-label={copiedFrom}
+                                  onPress={() => onViewSource(sourceCollectionId)}
+                                  style={styles.link}
+                              >
+                                  <Text style={[styles.meta, { color: colors.actionText }]}>{copiedFrom}</Text>
+                              </Pressable>
+                          ) : (
+                              <Text style={metaText}>{copiedFrom}</Text>
+                          ),
+                      )
+                    : null}
             </View>
-            {sourceAttribution !== undefined && <Text style={styles.meta}>{sourceAttribution}</Text>}
-            {lastPulledLabel !== undefined && <Text style={styles.meta}>{lastPulledLabel}</Text>}
+            {lastPulledAt === undefined ? null : (
+                <Text style={[styles.caption, { color: colors.inkMuted }]}>
+                    {fillTemplate(header.lastPulled, { date: formatCollectionDate(lastPulledAt, locale) })}
+                </Text>
+            )}
+            {description === undefined || description === '' ? null : (
+                <Text style={[styles.body, { color: colors.ink }]}>{description}</Text>
+            )}
+            {actionsPlacement === 'below' ? (
+                <View style={styles.actions}>
+                    <View style={styles.grow}>{add}</View>
+                    {menu}
+                </View>
+            ) : null}
+            {refreshNotice === undefined ? null : (
+                <RefreshNotice
+                    failed={refreshNotice.failed}
+                    refreshing={refreshNotice.refreshing}
+                    onRetry={refreshNotice.onRetry}
+                    labels={{ failed: detail.refreshError, retry: detail.refreshRetry }}
+                />
+            )}
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { gap: 8, paddingHorizontal: 16, paddingVertical: 16 },
-    textButton: { paddingVertical: 6, paddingHorizontal: 10 },
-    // `ocean-dark`, not `seafoam`, on every foreground a reader READS in this header (Back, Rename, the badge
-    // label): seafoam is 4.02:1 on white and 3.57:1 on the badge's own tint, under the 4.5:1 body-text floor.
-    backLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
-    titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-    // `flexShrink: 1` is load-bearing, not cosmetic. RN defaults `flexShrink` to 0, so without it a long
-    // collection name claims its full intrinsic width in this row and pushes `actions` past the screen edge:
-    // on-device (Maestro `collections`, `collections-pagination`) "Rename" was clipped to a 33px slither and
-    // "Delete" fell out of the view hierarchy entirely — deleting a collection was unreachable on mobile.
-    // Shrinking lets the name wrap instead, which is what the web leaf's `min-w-0` + `break-words` already do.
-    heading: { flexShrink: 1, fontSize: 28, fontWeight: '700', color: palette.charcoal },
-    actions: { flexDirection: 'row', flexShrink: 0, gap: 8 },
-    editLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
-    deleteLabel: { color: palette['error-dark'], fontWeight: '500', fontSize: 14 },
-    description: { fontSize: 15, color: palette.slate },
-    metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    badge: {
-        // 10%-alpha tint of `palette.seafoam` (#31807A → rgb(49, 128, 122)) — mirrors the web leaf's
-        // `bg-seafoam/10` Tailwind utility; RN has no alpha-suffix color syntax, so it is spelled out here.
-        backgroundColor: tint(palette.seafoam, 0.1),
-        color: palette['ocean-dark'],
-        fontWeight: '500',
-        fontSize: 12,
-        borderRadius: 999,
-        paddingVertical: 4,
-        paddingHorizontal: 10,
+    stack: { gap: nativeTokens.spacing[3] },
+    metaRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        columnGap: nativeTokens.spacing[3],
+        rowGap: 4,
     },
-    meta: { fontSize: 13, color: palette.slate },
+    metaItem: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
+    link: { minHeight: 24, justifyContent: 'center' },
+    meta: { ...nativeTokens.type.meta },
+    caption: { ...nativeTokens.type.caption },
+    body: { ...nativeTokens.type.body },
+    actions: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
+    grow: { flex: 1, minWidth: 0 },
 });

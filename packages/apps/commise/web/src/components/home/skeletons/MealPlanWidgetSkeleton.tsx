@@ -21,25 +21,37 @@ import { webMessages } from '@/i18n/messages';
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard';
 
 /**
- * The meal-plan widget's skeleton placeholder.
+ * The meal-plan widget's skeleton placeholder: the week as seven equal tiles (`buildSpec.md` §4.2, `repeat(7, 1fr)`).
+ *
+ * A tile shows the narrow name ("M") below the regular container and the short one ("Mon") above it, and is announced
+ * by the full weekday. Seven columns fit 320 px with no sideways scroller, which a keyboard could not reach (F16). The
+ * strip borrows 4 px of the card's padding at each side below `@regular`, so a tile keeps the spec's 36 px at 320.
  *
  * @returns The week strip's shape: real weekdays, no meals.
  */
 export function MealPlanWidgetSkeleton(): JSX.Element {
     const { home } = useMessages(webMessages);
     const locale = useLocale();
+    const narrow = weekdayLabels(locale, 'narrow');
+    const short = weekdayLabels(locale, 'short');
 
     return (
         <PlaceholderWidgetCard title={home.roadmap.titles['meal-plan']}>
-            <ul className="flex gap-3 overflow-x-auto pb-1">
-                {weekdayLabels(locale).map((day) => (
+            <ul className="-mx-1 grid grid-cols-7 gap-0.5 @regular/main:mx-0 @regular/main:gap-2">
+                {weekdayLabels(locale, 'long').map((day, index) => (
                     <li
                         key={day}
-                        className="flex w-24 shrink-0 flex-col items-center gap-2 rounded-[var(--radius-lg)] border border-white/30 bg-white/50 p-3"
+                        className="flex min-w-0 flex-col items-center gap-2 rounded-sm border border-line-divider px-0.5 py-2"
                     >
-                        <span className="text-xs font-medium uppercase tracking-wider text-slate">{day}</span>
+                        <span aria-hidden="true" className="text-caption text-ink-muted @regular/main:hidden">
+                            {narrow[index]}
+                        </span>
+                        <span aria-hidden="true" className="hidden text-caption text-ink-muted @regular/main:inline">
+                            {short[index]}
+                        </span>
+                        <span className="sr-only">{day}</span>
                         {/* The meal thumbnail — the only unknown on this tile. */}
-                        <div aria-hidden="true" className="size-12 rounded-xl bg-pearl" />
+                        <div aria-hidden="true" className="aspect-square w-full max-w-12 rounded-sm bg-surface-muted" />
                     </li>
                 ))}
             </ul>

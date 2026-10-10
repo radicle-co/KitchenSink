@@ -1,0 +1,14 @@
+{
+    "upstreams": {
+        "foods": {
+            "upstream": "alim_2025_11_03.xml",
+            "upstreamSha256": "e0b1de25b3039028205e9d54a96892e403e1b313c2efeb41180fabe132627478"
+        },
+        "composition": {
+            "upstream": "compo_2025_11_03.xml",
+            "upstreamSha256": "8c46a9032ece4eab4ffccc9dfcb0c490ec2f416aa664cc1ee013b241c6bdd4af"
+        }
+    },
+    "extract": "ciqualExtract2025.jsonl",
+    "extractSha256": "6b9ce5089cc66a1ad4c363664f5855873da7b8583770dd669635d31d9ab45a7b"
+}

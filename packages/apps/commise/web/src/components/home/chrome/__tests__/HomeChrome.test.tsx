@@ -1,133 +1,126 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the Home application shell (US-000 / FR-046).
- *
- * The shell owns only ephemeral view state — the collapsed rail and the mobile drawer — so these exercise
- * that state: the surface content lands in the `<main>` landmark, the sidebar and tab bar are both present
- * (the two responsive renderings of the nav), the hamburger opens and the drawer dismisses, and the collapse
- * control flips. Selectors are role/label only.
+ * The web app shell (`buildSpec.md` §3.2; slice 3): no top bar and no drawer; the sidebar and the tab bar switch at
+ * `nav`; `<main>` is the `main` container and reserves the bar plus the floating button; `--bottom-chrome` is the bar's
+ * height below `nav` and 0 from it or on a focused task, where the tab bar is gone; and the collapse writes its cookie.
  */
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
+import { ScrollHost } from '@commise/ui/scroll-host';
 
 import { webMessages } from '@/i18n/messages';
 
 import { HomeChrome } from '../HomeChrome';
+import { SIDEBAR_COOKIE } from '../sidebarPreference';
+import { SidebarPreferenceProvider } from '../sidebarPreferenceContext';
 
-afterEach(cleanup);
+vi.mock('next/navigation', () => ({ usePathname: () => '/en' }));
 
 const chrome = webMessages.en.home.chrome;
 
-const renderChrome = (): void => {
+beforeEach(() => {
+    document.cookie = `${SIDEBAR_COOKIE}=; max-age=0; path=/`;
+});
+afterEach(cleanup);
+
+const renderChrome = ({
+    focusedTask = false,
+    collapsed = false,
+}: { focusedTask?: boolean; collapsed?: boolean } = {}) =>
     render(
-        <HomeChrome
-            chrome={chrome}
-            pageTitle={chrome.pageTitles.home}
-            locale="en"
-            liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
-            activeId="home"
-            displayName="Jane Doe"
-        >
-            <p>surface-content</p>
-        </HomeChrome>,
+        <SidebarPreferenceProvider collapsed={collapsed}>
+            <ScrollHost>
+                <HomeChrome
+                    chrome={chrome}
+                    locale="en"
+                    liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
+                    activeId="home"
+                    profile={{ status: 'ready', name: 'Eliza' }}
+                    focusedTask={focusedTask}
+                    newRecipe={(railed): ReactNode => <button type="button">{railed ? 'rail' : 'New recipe'}</button>}
+                >
+                    <h1>Page</h1>
+                </HomeChrome>
+            </ScrollHost>
+        </SidebarPreferenceProvider>,
     );
-};
 
-describe('HomeChrome', () => {
-    it('renders the surface content inside the main landmark', () => {
+describe('HomeChrome (web)', () => {
+    it('has no top bar, no hamburger and no drawer', () => {
         renderChrome();
 
-        expect(screen.getByRole('main').textContent).toContain('surface-content');
+        expect(screen.queryByRole('banner')).toBeNull();
+        expect(screen.queryByRole('button', { name: /navigation/i })).toBeNull();
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     });
 
-    it('renders both responsive nav renderings (sidebar + tab bar)', () => {
+    it('renders both navigations, which CSS switches at nav: the sidebar from 840, the tab bar below', () => {
         renderChrome();
 
-        // jsdom does not apply the responsive `hidden` classes, so both landmarks are in the tree; in a real
-        // viewport exactly one is display:none. Two named nav landmarks is the contract.
-        expect(screen.getAllByRole('navigation', { name: chrome.primaryNavLabel }).length).toBeGreaterThanOrEqual(1);
-        expect(screen.getByRole('banner')).toBeTruthy();
+        // Both landmarks are named "Main"; only one is ever displayed, because CSS switches them at `nav`.
+        const [sidebarNav, tabBar] = screen.getAllByRole('navigation');
+
+        expect(sidebarNav?.parentElement?.className).toContain('nav:flex');
+        expect(tabBar?.hasAttribute('data-tab-bar')).toBe(true);
+        expect(tabBar?.className).toContain('nav:hidden');
     });
 
-    it('opens the mobile nav drawer from the hamburger and dismisses it, returning focus to the hamburger', async () => {
-        const user = userEvent.setup();
+    it('makes <main> the main container, with the gutters as padding and the bar plus the button reserved at its foot', () => {
         renderChrome();
-
-        // Closed by default.
-        expect(screen.queryByRole('dialog', { name: chrome.primaryNavLabel })).toBeNull();
-
-        const hamburger = screen.getByRole('button', { name: chrome.openNav });
-        await user.click(hamburger);
-        const drawer = screen.getByRole('dialog', { name: chrome.primaryNavLabel });
-        expect(drawer).toBeTruthy();
-
-        // The close control inside the drawer dismisses it.
-        await user.click(within(drawer).getByRole('button', { name: chrome.closeNav }));
-        expect(screen.queryByRole('dialog', { name: chrome.primaryNavLabel })).toBeNull();
-
-        // Radix's FocusScope restores focus via an unmount-cleanup `setTimeout(0)` — a real macrotask, not a
-        // React state update — so this needs one real tick to elapse.
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        expect(document.activeElement).toBe(hamburger);
-    });
-
-    it('closes the mobile drawer on Escape and returns focus to the hamburger (Radix B6/CR-003)', async () => {
-        const user = userEvent.setup();
-        renderChrome();
-
-        const hamburger = screen.getByRole('button', { name: chrome.openNav });
-        await user.click(hamburger);
-        expect(screen.getByRole('dialog', { name: chrome.primaryNavLabel })).toBeTruthy();
-
-        await user.keyboard('{Escape}');
-        expect(screen.queryByRole('dialog', { name: chrome.primaryNavLabel })).toBeNull();
-
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        expect(document.activeElement).toBe(hamburger);
-    });
-
-    it('moves focus to the close control when the mobile drawer opens, and traps it while open', async () => {
-        const user = userEvent.setup();
-        renderChrome();
-
-        await user.click(screen.getByRole('button', { name: chrome.openNav }));
-        const drawer = screen.getByRole('dialog', { name: chrome.primaryNavLabel });
-        const closeControl = within(drawer).getByRole('button', { name: chrome.closeNav });
-
-        expect(document.activeElement).toBe(closeControl);
-
-        // Radix marks everything outside the drawer `aria-hidden` while trapped, so the collapse control is
-        // intentionally unreachable through `getByRole` while open — assert by the surviving accessible name.
-        expect(screen.queryByRole('button', { name: chrome.collapseNav })).toBeNull();
-
-        for (let index = 0; index < 8; index += 1) {
-            await user.tab();
-            expect(drawer.contains(document.activeElement)).toBe(true);
-        }
-    });
-
-    it('flips the collapse control between collapse and expand', async () => {
-        const user = userEvent.setup();
-        renderChrome();
-
-        await user.click(screen.getByRole('button', { name: chrome.collapseNav }));
-        expect(screen.getByRole('button', { name: chrome.expandNav })).toBeTruthy();
-
-        await user.click(screen.getByRole('button', { name: chrome.expandNav }));
-        expect(screen.getByRole('button', { name: chrome.collapseNav })).toBeTruthy();
-    });
-
-    it('clears the fixed tab bar AND the device safe-area inset below the main content (U5)', () => {
-        renderChrome();
-
-        // The main foot clears the 5rem-tall narrow-breakpoint tab bar PLUS the bottom safe-area inset, and
-        // collapses back to the base `lg:pb-6` once the bar becomes a desktop sidebar. `env(...)` is 0 in a
-        // normal viewport, so the base value stays 5rem and desktop is unchanged.
         const main = screen.getByRole('main');
-        expect(main.className).toContain('pb-[calc(5rem+env(safe-area-inset-bottom))]');
-        expect(main.className).toContain('lg:pb-6');
+
+        expect(main.className).toContain('@container/main');
+        expect(main.className).toContain('px-4');
+        expect(main.className).toContain('nav:px-8');
+        expect(main.className).toContain('pb-[calc(var(--bottom-chrome)+6.5rem)]');
+    });
+
+    it('sets --bottom-chrome to the tab bar below nav and 0 from it', () => {
+        const { container } = renderChrome();
+
+        expect(container.firstElementChild?.className).toContain(
+            '[--bottom-chrome:calc(4rem+env(safe-area-inset-bottom))]',
+        );
+        expect(container.firstElementChild?.className).toContain('nav:[--bottom-chrome:0px]');
+    });
+
+    it('drops the tab bar and zeroes --bottom-chrome on a focused task, whose own bar owns the foot', () => {
+        const { container } = renderChrome({ focusedTask: true });
+
+        expect(document.querySelector('[data-tab-bar]')).toBeNull();
+        expect(container.firstElementChild?.className).toContain('[--bottom-chrome:0px]');
+    });
+
+    // F15 (`evaluateFinal.md`): `<main>`'s gutter and top padding framed the editor as an inset card. A focused task's
+    // frame runs edge to edge (its header is a bar at the top edge, `buildSpec.md` §7.1) and owns its inner gutter.
+    it('gives a focused task the whole main box: no gutter and no top padding', () => {
+        renderChrome({ focusedTask: true });
+
+        const main = screen.getByRole('main').className.split(/\s+/u);
+
+        expect(main.filter((utility) => /^(?:\S+:)?(?:px|pt)-/u.test(utility))).toStrictEqual([]);
+    });
+
+    it('keeps the page gutter and top padding on every other page', () => {
+        renderChrome();
+
+        expect(screen.getByRole('main').className.split(/\s+/u)).toEqual(expect.arrayContaining(['px-4', 'pt-6']));
+    });
+
+    it('starts from the server-read preference and writes the collapse to its cookie', () => {
+        renderChrome({ collapsed: true });
+
+        expect(screen.getByRole('button', { name: 'rail' })).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+
+        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+        expect(document.cookie).toContain(`${SIDEBAR_COOKIE}=expanded`);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
+        expect(document.cookie).toContain(`${SIDEBAR_COOKIE}=collapsed`);
     });
 });

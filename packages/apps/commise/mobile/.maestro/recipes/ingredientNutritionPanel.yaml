@@ -1,0 +1,58 @@
+appId: io.commise.mobile
+---
+# Plan 002 US5 on a device: a matched ingredient's info glyph opens its nutrition in the bottom sheet, from the
+# editor's ONE background read (`POST /api/v1/ingredients/food-nutrition`). Mobile mirror of the web Playwright
+# `ingredientNutritionPanel.spec.ts`.
+#
+# ⚠️ WHICH STATE, AND WHY THE ASSERTION ACCEPTS TWO. The matched line is the seeded probe food `Flour`
+# (`e2e-seed`'s `UNATTACHED_PROBE_INGREDIENT`, a food the signer authors), picked from the trailing field's "Your foods"
+# group. The target cannot promise
+# that food's figures are readable to this cook, so the flow accepts food's figures ("Per 100 g") or the owner's
+# neutral "No nutritional data available" — both ANSWERS. ⛔ It does NOT accept the failed copy: a broken read must
+# fail this flow (V1 sign-off item 12). The web spec and both platforms' component tests pin each state's content.
+# What only this flow proves: a TAP opens the sheet on a real device (R32, nothing is hover-only), it shows an
+# answer, and Close dismisses it.
+#
+# Discards its draft at the end, so it leaves the library unchanged.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: 'Maestro Nutrition Panel'
+
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Flour'
+# The cook's own food is named for them (L4.2), which also keeps the tap off the field that holds the typed text.
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Flour, your food'
+- tapOn: 'Flour, your food'
+
+# The matched row is quiet (UI overhaul slice 8, build spec §7.5.1): its figures open from its ⋯ Food details.
+- scrollUntilVisible:
+      element: 'Edit Flour'
+      direction: DOWN
+      timeout: 30000
+- tapOn: 'Actions for Flour'
+- tapOn: 'Food details'
+- extendedWaitUntil:
+      visible: '^(Per 100 g|No nutritional data available)$'
+      timeout: 20000
+
+- tapOn: 'Close details for Flour'
+- extendedWaitUntil:
+      notVisible: '^(Per 100 g|No nutritional data available)$'
+      timeout: 10000
+- assertVisible: 'Edit Flour'
+
+# Throw the scratch draft away: leaving alone would keep it, because the editor saves on exit (§3.5).
+- runFlow: common/discardDraft.yaml
+- assertVisible: 'Recipes'

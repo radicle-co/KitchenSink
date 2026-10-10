@@ -6,6 +6,29 @@
  *
  * @module
  */
+import { isValid as isValidUlid } from 'ulidx';
+import { z } from 'zod';
+
+/**
+ * The consumer's own bound on a display name. It is written to `author_handles.display_name` and denormalized
+ * into `recipes.author_handle` and `recipe_versions.editor_handle` — three unbounded `text` columns — so the
+ * bound has to exist somewhere, and it belongs beside the contract rather than in one of the two services.
+ */
+export const MAX_DISPLAY_NAME_LENGTH = 100;
+
+/**
+ * The contract, as the CONSUMER enforces it.
+ *
+ * ⛔ This module's opening paragraph has always claimed the shape is "defined once here … so the producers and
+ * the consumer can never disagree". It was half true: the TYPE lived here while the recipe-workers consumer
+ * kept its own zod schema, so the only thing stopping a drift was that nobody had changed either. The schema
+ * now lives here too, the consumer imports it, and the producers validate against it before publishing.
+ */
+export const handleSyncMessageSchema = z.object({
+    userId: z.string().refine(isValidUlid, { error: 'must be a valid ULID' }),
+    displayName: z.string().trim().min(1).max(MAX_DISPLAY_NAME_LENGTH),
+    sourceTimestamp: z.iso.datetime(),
+});
 
 /** A display-name rename event. `sourceTimestamp` is the SINGLE monotonic clock the consumer orders on. */
 export interface HandleSyncMessage {
@@ -33,3 +56,13 @@ export function buildHandleSyncMessage(
 ): HandleSyncMessage {
     return { userId, displayName, sourceTimestamp };
 }
+
+/**
+ * Why a handle-sync publish failed, recorded on `profiles.handle_sync_failure_code` (plan U9, R25).
+ *
+ * ⛔ A CLOSED vocabulary shared by both producers and by the backstop that reads it, and a CODE rather than
+ * an exception message — an error text can carry the display name, and the marker exists to make a failure
+ * visible without copying the user's words anywhere new. Two producers write this column (the service's
+ * rename and the webhook's), so a literal in each would be the drift DRY governs.
+ */
+export const HANDLE_SYNC_PUBLISH_FAILED = 'publish_failed';

@@ -3,7 +3,7 @@
  * Used by the search DAL / service / controller unit tests.
  *
  * The search DAL reads via `db.execute` and maps raw (snake_case) `recipes` rows to the shared domain
- * `Recipe` — so the raw-row factory here mirrors {@link makeRawIngredientRow} in the ingredients vertical.
+ * `Recipe`, so the raw-row factory here builds that snake_case shape.
  */
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
 
@@ -23,6 +23,8 @@ export function makeRawRecipeSearchRow(overrides: Partial<Record<string, unknown
         rating_count: 0,
         visibility: 'public',
         status: 'published',
+        // A published row has a first publish (the service's own CHECK, ADR-0058).
+        first_published_at: '2026-07-01T00:00:00.000Z',
         source_type: 'user_created',
         source_url: null,
         source_attribution: null,
@@ -31,7 +33,6 @@ export function makeRawRecipeSearchRow(overrides: Partial<Record<string, unknown
         cuisine: 'italian',
         dietary_flags: ['vegetarian'],
         tags: ['dinner', 'quick'],
-        has_partial_nutrition: false,
         current_version: 1,
         ingredient_names_text: 'pasta tomato garlic',
         deleted_at: null,
@@ -71,7 +72,6 @@ export function makeSearchRecipe(overrides: Partial<Recipe> = {}): Recipe {
         cuisine: 'italian',
         dietaryFlags: ['vegetarian'],
         tags: ['dinner', 'quick'],
-        hasPartialNutrition: false,
         currentVersion: 1,
         ratingCount: 0,
         usesPremiumCapability: false,

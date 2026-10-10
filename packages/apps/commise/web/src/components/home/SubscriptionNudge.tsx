@@ -4,79 +4,27 @@
  * @module home/SubscriptionNudge — the once-per-session subscription upgrade nudge (web).
  *
  * FR-046: a free-tier viewer who taps a premium-gated entry point on Home sees an upgrade nudge **at most
- * once per session**. The nudge is host-owned chrome; a widget triggers it through {@link useHomeNudge}
+ * once per session**. The nudge is host-owned chrome; a widget triggers it through `useHomeNudge`
  * (the seam a future premium-gated widget calls). In Home v1 no live widget is premium-gated, so the
  * mechanism ships ready for the first gated widget (005–009) rather than firing on any current surface.
  *
- * "Once per session" is deliberately **component state** (a ref guard), not persisted — the requirement is
- * per-session, and a page reload legitimately starts a new session.
+ * "Once per session" is deliberately **component state**, not persisted — the requirement is per-session,
+ * and a page reload legitimately starts a new session.
+ *
+ * @pattern Adapter over the house Radix `Dialog` for the nudge surface itself — Radix owns the focus trap,
+ *     Escape-to-dismiss and background inert.
  */
 import * as Dialog from '@radix-ui/react-dialog';
-import { createContext, useCallback, useContext, useRef, useState, type JSX } from 'react';
+import type { JSX } from 'react';
 
 import { useMessages } from '@commise/i18n/react';
+import { Button, buttonSurfaceClass } from '@commise/ui/button';
+import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
+import { Icon } from '@commise/ui/icon';
 
 import { webMessages } from '@/i18n/messages';
 
-/** The nudge trigger seam exposed to widgets via {@link HomeNudgeContext}. */
-export interface HomeNudge {
-    /** Request the upgrade nudge. A no-op after the nudge has already been shown once this session. */
-    readonly trigger: () => void;
-}
-
-/** Context carrying the {@link HomeNudge} trigger down to widgets (provided by the Home surface). */
-export const HomeNudgeContext = createContext<HomeNudge | null>(null);
-
-/**
- * Read the Home nudge trigger. A premium-gated widget calls `useHomeNudge().trigger()` when a free-tier
- * viewer taps its gated entry point.
- *
- * @throws {Error} when used outside the Home widget surface (no provider).
- */
-export function useHomeNudge(): HomeNudge {
-    const nudge = useContext(HomeNudgeContext);
-
-    if (nudge === null) {
-        throw new Error('useHomeNudge must be used within the Home widget surface.');
-    }
-
-    return nudge;
-}
-
-/** The live nudge state owned by the Home surface: whether it is visible plus its trigger/dismiss controls. */
-export interface OncePerSessionNudge {
-    /** Whether the nudge is currently shown. */
-    readonly visible: boolean;
-    /** Show the nudge — a no-op once it has already been shown this session. */
-    readonly trigger: () => void;
-    /** Hide the nudge (does not re-arm it — it stays spent for the session). */
-    readonly dismiss: () => void;
-}
-
-/**
- * Own the once-per-session nudge state. The first {@link OncePerSessionNudge.trigger} shows it; a ref guard
- * makes every later trigger a no-op for the session, so it can appear at most once regardless of how many
- * gated taps occur. Dismissing hides it without re-arming.
- */
-export function useOncePerSessionNudge(): OncePerSessionNudge {
-    const [visible, setVisible] = useState(false);
-    const shown = useRef(false);
-
-    const trigger = useCallback(() => {
-        if (shown.current) {
-            return;
-        }
-
-        shown.current = true;
-        setVisible(true);
-    }, []);
-
-    const dismiss = useCallback(() => setVisible(false), []);
-
-    return { visible, trigger, dismiss };
-}
-
-/** Props for {@link SubscriptionNudge}. */
+/** Props for `SubscriptionNudge`. */
 export interface SubscriptionNudgeProps {
     /** Whether the nudge is shown. */
     readonly open: boolean;
@@ -98,35 +46,25 @@ export interface SubscriptionNudgeProps {
  * Focus-return is handled explicitly, NOT left to Radix's default: the gated widget's own control that calls
  * `useHomeNudge().trigger()` (wired in `HomeWidgetSurface`) is a SIBLING elsewhere in the tree, not an owned
  * `Dialog.Trigger`, so Radix's built-in `onCloseAutoFocus` (which only restores an OWNED trigger — see
- * `PullUpdatesDialog`'s module doc) would silently focus nothing. `triggerRef` captures
- * `document.activeElement` at the render where `open` flips true — BEFORE `Dialog.Content` (and its own
- * autofocus-on-mount) ever commits — and `onCloseAutoFocus` restores it, `preventDefault()`ing Radix's own
- * no-op default.
+ * `PullUpdatesDialog`'s module doc) would silently focus nothing. `useReturnFocusOnClose`
+ * (`@commise/ui/dialog-focus`) owns the repair: it snapshots `document.activeElement` at the render where
+ * `open` flips true — BEFORE `Dialog.Content` (and its own autofocus-on-mount) ever commits — and returns
+ * the `onCloseAutoFocus` handler that restores it.
  */
 export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): JSX.Element | null {
     const { home } = useMessages(webMessages);
 
-    // Capture whatever had focus right before this dialog opened, during render (not an effect) — see the
-    // module doc. Guarded on the false→true edge so it isn't re-captured on every re-render while open.
-    const triggerRef = useRef<HTMLElement | null>(null);
-    const wasOpenRef = useRef(false);
-
-    if (open && !wasOpenRef.current) {
-        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    }
-
-    wasOpenRef.current = open;
+    // Snapshot whatever had focus right before this dialog opened, and restore it on close — see the module
+    // doc. The false→true edge guard lives inside the hook.
+    const onCloseAutoFocus = useReturnFocusOnClose(open);
 
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onDismiss()}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     aria-modal="true"
-                    onCloseAutoFocus={(event) => {
-                        event.preventDefault();
-                        triggerRef.current?.focus();
-                    }}
+                    onCloseAutoFocus={onCloseAutoFocus}
                     // Bottom-pinned sheet: its foot must clear the device home indicator. The bottom padding is
                     // the sheet's `p-8` foot (2rem) PLUS the safe-area inset. `env(...)` is 0 in a normal
                     // viewport, so the base padding equals the foot and only real devices see the extra inset.
@@ -136,23 +74,21 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                     // Tailwind's own ramp, 2rem is `p-8` — which is what keeps this foot equal to the literal
                     // `2rem` in the `calc()` beside it. Change one and you must change the other, or the sheet
                     // goes asymmetric. See `@commise/ui/tokens/themeCss`.
-                    className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-2xl bg-white p-8 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl"
+                    className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-2xl bg-paper p-8 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl"
                 >
-                    <Dialog.Title className="font-display text-lg font-semibold text-charcoal">
+                    <Dialog.Title className="font-display text-lg font-semibold text-ink">
                         {home.nudge.title}
                     </Dialog.Title>
-                    <p className="text-sm text-slate">{home.nudge.body}</p>
+                    <p className="text-sm text-ink-muted">{home.nudge.body}</p>
                     <div className="flex justify-end gap-3">
-                        <Dialog.Close type="button" className="rounded-full px-4 py-2 text-sm font-medium text-slate">
+                        {/* A Radix slot, so it wears the Button surface rather than being one; `clock` is mobile's "later" glyph. */}
+                        <Dialog.Close type="button" className={buttonSurfaceClass('secondary')}>
+                            <Icon name="clock" size={20} />
                             {home.nudge.dismiss}
                         </Dialog.Close>
-                        <button
-                            type="button"
-                            onClick={onDismiss}
-                            className="rounded-full bg-seafoam px-5 py-2 text-sm font-semibold text-white"
-                        >
+                        <Button icon="chevronRight" onPress={onDismiss}>
                             {home.nudge.upgrade}
-                        </button>
+                        </Button>
                     </div>
                 </Dialog.Content>
             </Dialog.Portal>

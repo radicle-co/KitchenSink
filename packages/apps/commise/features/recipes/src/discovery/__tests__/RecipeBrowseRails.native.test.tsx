@@ -1,47 +1,91 @@
 /**
- * Native component tests for the curated browse-rails block (U7), rendered via react-native-web under
- * jsdom. Mirrors the web leaf: the three fixed-sort rails with per-rail "see all", each rail's own
- * loading/error/empty/populated state, the cuisine shortcuts, and the selection contract — so the two
- * platform renders of the net-new browse surface cannot drift.
+ * ⚠️ REWRITTEN for slice 5 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.4), with the web leaf's test: the
+ * teal accent bar is gone (its test is deleted with it), "See all" is a ghost button, the cuisine shortcuts are a row of
+ * chips, a rail's track is a named region, and a card's Save a copy replaces its Clone. Native has no Previous and Next:
+ * a touch screen swipes, and the next card peeks. The heading-cursor, refresh-notice, scrolling and enter-motion
+ * assertions are kept.
+ *
+ * Native component tests for the curated browse-rails block (U7), rendered via react-native-web under jsdom. Mirrors the
+ * web leaf: the three fixed-sort rails with per-rail "see all", each rail's body, the cuisine shortcuts, the enter motion
+ * and the ONE refresh notice — so the two platform renders of the browse surface cannot drift.
+ *
+ * REWRITTEN for the per-rail read boundaries: each rail's body is a slot, so "rail states" moved to
+ * `RecipeBrowseRailLoading.native.test.tsx`, `RecipeBrowseRailLoadError.native.test.tsx` and
+ * `RecipeBrowseRailResults.native.test.tsx`; the bodies here are the real results leaf.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { AccessibilityInfo, Animated } from 'react-native';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
-
-import { computedContrast } from '@commise/test-utils';
-import { palette } from '@commise/ui';
+import { createElement, type ReactNode } from 'react';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
+import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.native.js';
 import { RecipeBrowseRails } from '../RecipeBrowseRails.native.js';
-import type { RecipeBrowseRailsProps, RecipeBrowseRailView } from '../model.js';
+import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from '../model.js';
+
+// react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    // `RefreshControl` is inert under jsdom; react-native-web clones it AROUND the scroll view, so a stand-in that renders
+    // a "pull" button over its children lets a test perform the gesture's effect.
+    const RefreshControl = ({ onRefresh, children }: { onRefresh?: () => void; children?: ReactNode }) =>
+        createElement(
+            'div',
+            null,
+            createElement('button', { type: 'button', onClick: onRefresh }, 'Pull to refresh'),
+            children,
+        );
+
+    return {
+        ...actual,
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        RefreshControl,
+    };
+});
 
 afterEach(cleanup);
 
 const noop = () => undefined;
 
+/** A save-a-copy surface where nothing has been copied. */
+const SAVE_COPY: SaveCopy = { stateOf: () => ({ kind: 'idle' }), save: noop };
+
 function result(recipe: Partial<Recipe> = {}): RecipeSearchResult {
     return { recipe: makeRecipe(recipe) };
 }
 
-function rail(overrides: Partial<RecipeBrowseRailView> & Pick<RecipeBrowseRailView, 'id'>): RecipeBrowseRailView {
-    return { status: 'ready', results: [], onSeeAll: noop, ...overrides };
+/** A rail whose body is the settled results leaf over `results`. */
+function rail(
+    id: RecipeBrowseRailId,
+    results: readonly RecipeSearchResult[],
+    overrides: Partial<RecipeBrowseRailView> & { readonly onSelectRecipe?: (id: string) => void } = {},
+): RecipeBrowseRailView {
+    const { onSelectRecipe = noop, ...view } = overrides;
+
+    return {
+        id,
+        onSeeAll: noop,
+        headingFocusSignal: 0,
+        body: <RecipeBrowseRailResults results={results} saveCopy={SAVE_COPY} onSelectRecipe={onSelectRecipe} />,
+        ...view,
+    };
+}
+
+function threeRails(onSelectRecipe: (id: string) => void = noop): readonly RecipeBrowseRailView[] {
+    return [
+        rail('trending', [result({ id: 'rec_t', title: 'Viral Pad Thai' })], { onSelectRecipe }),
+        rail('new', [result({ id: 'rec_n', title: 'Fresh Ceviche' })], { onSelectRecipe }),
+        rail('quick', [result({ id: 'rec_q', title: 'Ten-Minute Omelette' })], { onSelectRecipe }),
+    ];
 }
 
 function renderRails(overrides: Partial<RecipeBrowseRailsProps> = {}) {
-    const props: RecipeBrowseRailsProps = {
-        rails: [
-            rail({ id: 'trending', results: [result({ id: 'rec_t', title: 'Viral Pad Thai' })] }),
-            rail({ id: 'new', results: [result({ id: 'rec_n', title: 'Fresh Ceviche' })] }),
-            rail({ id: 'quick', results: [result({ id: 'rec_q', title: 'Ten-Minute Omelette' })] }),
-        ],
-        cuisines: [],
-        onSelectRecipe: noop,
-        onClone: noop,
-        ...overrides,
-    };
+    const props: RecipeBrowseRailsProps = { rails: threeRails(), cuisines: [], ...overrides };
     const view = render(<RecipeBrowseRails {...props} />);
 
     return { ...props, container: view.container };
@@ -59,16 +103,14 @@ describe('RecipeBrowseRails (native) — rails', () => {
     it('renders each rail’s recipe cards', () => {
         renderRails();
 
-        expect(screen.getByRole('button', { name: 'Viral Pad Thai' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Fresh Ceviche' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Ten-Minute Omelette' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Viral Pad Thai' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Fresh Ceviche' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Ten-Minute Omelette' })).toBeTruthy();
     });
 
     it('reports a "see all" for the rail that was activated', () => {
         const onSeeAll = vi.fn();
-        renderRails({
-            rails: [rail({ id: 'trending', results: [result({ id: 'rec_t', title: 'Viral Pad Thai' })], onSeeAll })],
-        });
+        renderRails({ rails: [rail('trending', [result({ id: 'rec_t', title: 'Viral Pad Thai' })], { onSeeAll })] });
 
         fireEvent.click(screen.getByRole('button', { name: 'See all Trending' }));
 
@@ -77,67 +119,142 @@ describe('RecipeBrowseRails (native) — rails', () => {
 
     it('reports a selected recipe upward', () => {
         const onSelectRecipe = vi.fn();
-        renderRails({ onSelectRecipe });
+        renderRails({ rails: threeRails(onSelectRecipe) });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Fresh Ceviche' }));
+        fireEvent.click(screen.getByRole('link', { name: 'Fresh Ceviche' }));
 
         expect(onSelectRecipe).toHaveBeenCalledWith('rec_n');
     });
 });
 
-describe('RecipeBrowseRails (native) — U8 rail header accent', () => {
-    it('paints a brand gradient accent on each rail section header', () => {
-        const { container } = render(
+describe('RecipeBrowseRails (native) — the track', () => {
+    it('names each rail’s track a region ("Trending recipes") holding its cards', () => {
+        renderRails();
+
+        expect(
+            within(screen.getByRole('region', { name: 'Trending recipes' })).getByRole('link', {
+                name: 'Viral Pad Thai',
+            }),
+        ).toBeTruthy();
+    });
+
+    it('draws no Previous and Next: a touch screen swipes', () => {
+        renderRails();
+
+        expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Previous' })).toBeNull();
+    });
+});
+
+describe('RecipeBrowseRails (native) — a rail’s own Try again', () => {
+    it('⛔ moves the screen-reader cursor to THAT rail’s heading when its retry signal changes', () => {
+        const { rerender } = render(<RecipeBrowseRails rails={threeRails()} cuisines={[]} />);
+        const [trending, fresh, quick] = threeRails();
+
+        rerender(
             <RecipeBrowseRails
                 rails={[
-                    rail({ id: 'trending', results: [result({ id: 'rec_t', title: 'Viral Pad Thai' })] }),
-                    rail({ id: 'new', results: [result({ id: 'rec_n', title: 'Fresh Ceviche' })] }),
-                    rail({ id: 'quick', results: [result({ id: 'rec_q', title: 'Ten-Minute Omelette' })] }),
+                    trending as RecipeBrowseRailView,
+                    { ...(fresh as RecipeBrowseRailView), headingFocusSignal: 1 },
+                    quick as RecipeBrowseRailView,
                 ]}
                 cuisines={[]}
-                onSelectRecipe={noop}
-                onClone={noop}
             />,
         );
 
-        // Each rail header carries a decorative GradientSurface accent (expo-linear-gradient stub); three
-        // rails ⇒ at least three gradient markers.
-        const accents = container.querySelectorAll('[data-commise-stub="linear-gradient"]');
-        expect(accents.length).toBeGreaterThanOrEqual(3);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
+            screen.getByRole('heading', { name: 'New' }),
+            'focus',
+        );
     });
 });
 
-describe('RecipeBrowseRails (native) — rail states', () => {
-    it('shows a busy status for a loading rail', () => {
-        renderRails({ rails: [rail({ id: 'trending', status: 'loading' })] });
+/**
+ * Resolve the value react-native-web actually APPLIED for a CSS property, by walking the element's atomic `r-*` classes
+ * back to their compiled rules — `getComputedStyle` does not resolve these. Mirrors `RecipeHero.native.test.tsx`.
+ */
+function appliedStyle(element: Element, property: string): string | undefined {
+    const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
+    const sheets = document.styleSheets;
+    let resolved: string | undefined;
 
-        expect(screen.getByRole('status')).toBeTruthy();
+    for (const className of classNames) {
+        for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+            const rules = sheets[sheetIndex]?.cssRules;
+
+            for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+                const rule = rules?.[ruleIndex];
+
+                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                    const value = rule.style.getPropertyValue(property);
+
+                    if (value !== '') {
+                        resolved = value;
+                    }
+                }
+            }
+        }
+    }
+
+    return resolved;
+}
+
+/** Whether `element` or any ancestor is a scroll container react-native-web actually made scrollable. */
+function hasScrollableAncestor(element: Element): boolean {
+    for (let node: Element | null = element; node !== null; node = node.parentElement) {
+        const overflowY = appliedStyle(node, 'overflow-y');
+
+        if (overflowY === 'auto' || overflowY === 'scroll') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Moved from `RecipeDiscoveryResults.native.test.tsx` (review D1). Regression (Maestro `discoverBrowse` /
+ * `searchNavigation`): browse — the DEFAULT state of Discover — is three rails plus cuisine shortcuts, far taller than a
+ * phone. Rendered bare inside the screen's `flex: 1` container NOTHING scrolled: Maestro swiped up 13 times without the
+ * surface moving. The rails block owns its scroll container, and the pull on it refreshes THE RAILS — it used to be the
+ * results leaf's, bound to the main search, which is not what is on screen while browsing.
+ */
+describe('RecipeBrowseRails (native) — scrolling and pull-to-refresh', () => {
+    it('puts the rails in a scrollable container so the third rail and the cuisines are reachable', () => {
+        renderRails({ cuisines: [{ value: 'Thai', onSelect: noop }] });
+
+        expect(hasScrollableAncestor(screen.getByRole('checkbox', { name: 'Thai' }))).toBe(true);
     });
 
-    it('shows an error message for a failed rail', () => {
-        renderRails({ rails: [rail({ id: 'trending', status: 'error' })] });
+    it('refreshes the rails from a pull, and offers no pull when no refresh is wired', () => {
+        const onRefresh = vi.fn();
+        const { rerender } = render(<RecipeBrowseRails rails={threeRails()} cuisines={[]} />);
 
-        expect(screen.getByText('Couldn’t load this row.')).toBeTruthy();
-    });
+        expect(screen.queryByRole('button', { name: 'Pull to refresh' })).toBeNull();
 
-    it('shows an empty message for a settled rail with no recipes', () => {
-        renderRails({ rails: [rail({ id: 'trending', status: 'ready', results: [] })] });
+        rerender(<RecipeBrowseRails rails={threeRails()} cuisines={[]} refresh={{ refreshing: false, onRefresh }} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Pull to refresh' }));
 
-        expect(screen.getByText('Nothing here yet.')).toBeTruthy();
+        expect(onRefresh).toHaveBeenCalledTimes(1);
+        expect(hasScrollableAncestor(screen.getByRole('heading', { name: 'Quick' }))).toBe(true);
     });
 });
 
-describe('RecipeBrowseRails (native) — cuisine shortcuts', () => {
-    it('renders cuisine shortcuts and reports a selection', () => {
+describe('RecipeBrowseRails (native) — browse by cuisine', () => {
+    it('draws the cuisines as a row of chips and reports a selection', () => {
         const onSelect = vi.fn();
         renderRails({ cuisines: [{ value: 'Thai', onSelect }] });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Browse Thai recipes' }));
+        expect(screen.getByRole('heading', { name: 'Browse by cuisine' })).toBeTruthy();
+
+        fireEvent.click(
+            within(screen.getByRole('group', { name: 'Browse by cuisine' })).getByRole('checkbox', { name: 'Thai' }),
+        );
 
         expect(onSelect).toHaveBeenCalledTimes(1);
     });
 
-    it('omits the cuisine section when there are no shortcuts', () => {
+    it('omits the section when there are no shortcuts', () => {
         renderRails({ cuisines: [] });
 
         expect(screen.queryByRole('heading', { name: 'Browse by cuisine' })).toBeNull();
@@ -192,6 +309,7 @@ describe('RecipeBrowseRails (native) — section enter motion (U8 motion pass)',
         expect(timing).not.toHaveBeenCalled();
         const wrappers = enterWrappers(container);
         expect(wrappers.length).toBeGreaterThan(0);
+
         for (const wrapper of wrappers) {
             expect(wrapper.style.opacity).toBe('1');
             expect(wrapper.style.transform).toBe('translateY(0px)');
@@ -204,22 +322,83 @@ describe('RecipeBrowseRails (native) — section enter motion (U8 motion pass)',
         renderRails();
         await settlePreference();
 
-        expect(screen.getByRole('button', { name: 'Viral Pad Thai' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Viral Pad Thai' })).toBeTruthy();
     });
 });
 
-describe('RecipeBrowseRails (native) — text contrast (WCAG 2.1 AA)', () => {
-    it('keeps the per-rail "see all" label legible on the screen background', () => {
-        renderRails();
+describe('RecipeBrowseRails (native) — a failed refresh of the rails on screen', () => {
+    const notice = (overrides: Partial<NonNullable<RecipeBrowseRailsProps['refreshNotice']>> = {}) => ({
+        failed: false,
+        refreshing: false,
+        onRetry: noop,
+        recoveries: 0,
+        ...overrides,
+    });
 
-        // Mirrors the web leaf: "See all" is TEXT, so it owes the 4.5:1 SC 1.4.3 floor, and `seafoam` is
-        // 3.73:1 on the `sand` screen background this rail header sits on. See the palette JSDoc in
-        // `@commise/ui`'s `tokens/colors.ts`. The ratio (not a token equality) is asserted, so a re-theme of
-        // the token cannot silently satisfy it; the leaf paints no tint, so the surface is the screen's own.
-        const label = within(screen.getByRole('button', { name: 'See all Trending' })).getByText('See all');
-        expect(
-            computedContrast(label, { surface: palette.sand }),
-            'see-all label on the sand screen background',
-        ).toBeGreaterThanOrEqual(4.5);
+    it('shows no notice while nothing has failed', () => {
+        renderRails({ refreshNotice: notice() });
+
+        expect(screen.queryByText('We couldn’t refresh these recipes.')).toBeNull();
+    });
+
+    it('⛔ keeps every rail’s rows and shows ONE notice for the block, with a Try again that retries', () => {
+        const onRetry = vi.fn();
+        renderRails({ refreshNotice: notice({ failed: true, onRetry }) });
+
+        expect(screen.getByText('Viral Pad Thai')).toBeTruthy();
+        expect(screen.getByText('Ten-Minute Omelette')).toBeTruthy();
+        expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1);
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ moves focus to the first rail’s heading when a retry from the notice succeeds', () => {
+        const props = renderRails({ refreshNotice: notice({ failed: true }) });
+        cleanup();
+        const { rerender } = render(<RecipeBrowseRails {...props} refreshNotice={notice({ failed: true })} />);
+
+        rerender(<RecipeBrowseRails {...props} refreshNotice={notice({ recoveries: 1 })} />);
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
+            screen.getByRole('heading', { name: 'Trending' }),
+            'focus',
+        );
+    });
+});
+
+/** A scroll host's bind that records what its scroller does with it. */
+function recordingBind() {
+    return {
+        ref: vi.fn(),
+        onScroll: vi.fn(),
+        onScrollBeginDrag: vi.fn(),
+        onMomentumScrollEnd: vi.fn(),
+        scrollEventThrottle: 16 as const,
+    };
+}
+
+/** The node the bind's ref was last handed. */
+function boundScroller(bind: ReturnType<typeof recordingBind>): Element {
+    const node: unknown = bind.ref.mock.calls.at(-1)?.[0];
+
+    if (!(node instanceof Element)) {
+        throw new Error('the scroller never took the bind');
+    }
+
+    return node;
+}
+
+/**
+ * The screen's ONE vertical scroller takes its scroll host's bind (blueprint A7), so the host reads the scroll — the
+ * floating create button shrinks as the cook scrolls down, and a second tap on the tab returns to the top.
+ */
+describe("RecipeBrowseRails (native) — the scroll host's bind", () => {
+    it("binds its scroller to the screen's scroll host, and reports each scroll to it", () => {
+        const bind = recordingBind();
+        renderRails({ scrollBind: bind });
+
+        fireEvent.scroll(boundScroller(bind), { target: { scrollTop: 240 } });
+
+        expect(bind.onScroll).toHaveBeenCalled();
     });
 });

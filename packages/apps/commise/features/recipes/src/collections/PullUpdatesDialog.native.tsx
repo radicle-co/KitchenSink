@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native Pull-Updates preview dialog (W5 Task 10, C2 / FR-011).
  *
- * The React Native leaf of {@link import('./PullUpdatesDialog.js').PullUpdatesDialog}: a
+ * The React Native leaf of `PullUpdatesDialog`: a
  * {@link FullScreenSheet} rendering the SAME controlled, presentational contract as the web leaf — same
  * state precedence, same localized copy, so the two platforms can't drift. `onRequestClose` (the Android
  * hardware-back / web-Escape path RN provides) is wired straight to `onCancel`, the same callback the
@@ -11,7 +11,7 @@
  * The modal window and its safe-area padding belong to `FullScreenSheet`, not here. This leaf previously
  * hand-rolled `<Modal presentationStyle="fullScreen">` over a flat `padding: 20` surface, which on an
  * edge-to-edge Android device drew the heading UNDER the status bar — fully occluded, and therefore absent
- * from the accessibility hierarchy, which is how Maestro's `collections-pull` flow caught it — and put the
+ * from the accessibility hierarchy, which is how Maestro's `collectionsPull` flow caught it — and put the
  * Cancel/Pull row UNDER the navigation bar's own tap targets.
  *
  * A discriminated three-way state (mutually exclusive, matching {@link PullUpdatesDialogProps}'s JSDoc):
@@ -20,15 +20,19 @@
  * end: the counts are hidden (they're no longer trustworthy) but Cancel/back still close the dialog, so the
  * composing container (W5 Task 12) can re-run the preview; (3) the loaded `diff` — added/removed/unchanged
  * COUNTS only (this block never resolves recipe titles, it only received ids), the "not overwritten" note,
- * and the count-templated Pull action, disabled while `isCommitting` or when there is nothing to add.
+ * and the count-templated Pull action, busy while `isCommitting`, disabled when there is nothing to add.
+ *
+ * @pattern Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area
+ *     padding — the same controlled `props → JSX` contract as the web leaf.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
+import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { FullScreenSheet } from '../components/FullScreenSheet.native.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
 import type { PullUpdatesDialogProps } from './model.js';
 
@@ -44,6 +48,8 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     onConfirm,
 }) => {
     const { pull } = useMessages(collectionMessages);
+    const { colors } = useTheme();
+    const muted = { color: colors.inkMuted };
 
     if (!open) {
         return null;
@@ -60,66 +66,57 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     // loading" rather than risking a misleading zero-count flash before the first preview resolves.
     const showLoading = isLoadingPreview || (diff === undefined && error === undefined);
     const showDiff = !showLoading && error === undefined && diff !== undefined;
-    const canConfirm = diff !== undefined && diff.added.length > 0 && !isCommitting;
 
     return (
         <FullScreenSheet label={pull.title} onRequestClose={onCancel}>
             <>
                 <View style={styles.header}>
-                    <Text accessibilityRole="header" style={styles.title}>
+                    <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
                         {pull.title}
                     </Text>
-                    {attribution !== undefined && <Text style={styles.attribution}>{attribution}</Text>}
+                    {attribution !== undefined && <Text style={[styles.attribution, muted]}>{attribution}</Text>}
                 </View>
 
                 {showLoading && (
-                    <Text accessibilityRole="progressbar" accessibilityLabel={pull.loadingLabel} style={styles.body}>
+                    <Text
+                        accessibilityRole="progressbar"
+                        accessibilityLabel={pull.loadingLabel}
+                        style={[styles.body, muted]}
+                    >
                         {pull.loadingLabel}
                     </Text>
                 )}
 
                 {!showLoading && error !== undefined && (
-                    <Text accessibilityRole="alert" style={styles.error}>
+                    <Text accessibilityRole="alert" style={[styles.error, { color: colors.dangerText }]}>
                         {error === 'drift' ? pull.driftMessage : pull.genericErrorMessage}
                     </Text>
                 )}
 
                 {showDiff && diff !== undefined && (
                     <View style={styles.counts}>
-                        <Text style={styles.body}>{fillTemplate(pull.addedCount, { count: diff.added.length })}</Text>
-                        <Text style={styles.body}>
+                        <Text style={[styles.body, muted]}>
+                            {fillTemplate(pull.addedCount, { count: diff.added.length })}
+                        </Text>
+                        <Text style={[styles.body, muted]}>
                             {fillTemplate(pull.removedCount, { count: diff.removed.length })}
                         </Text>
-                        <Text style={styles.body}>
+                        <Text style={[styles.body, muted]}>
                             {fillTemplate(pull.unchangedCount, { count: diff.unchanged.length })}
                         </Text>
-                        <Text style={styles.note}>{pull.ownMembersNote}</Text>
-                        {diff.added.length === 0 && <Text style={styles.body}>{pull.upToDate}</Text>}
+                        <Text style={[styles.note, muted]}>{pull.ownMembersNote}</Text>
+                        {diff.added.length === 0 && <Text style={[styles.body, muted]}>{pull.upToDate}</Text>}
                     </View>
                 )}
 
                 <View style={styles.actions}>
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={pull.cancel}
-                        onPress={onCancel}
-                        style={styles.cancelButton}
-                    >
-                        <Text style={styles.cancelLabel}>{pull.cancel}</Text>
-                    </Pressable>
+                    <Button variant="secondary" icon="x" onPress={onCancel}>
+                        {pull.cancel}
+                    </Button>
                     {showDiff && diff !== undefined && (
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={fillTemplate(pull.confirm, { count: diff.added.length })}
-                            aria-busy={isCommitting || undefined}
-                            disabled={!canConfirm}
-                            onPress={onConfirm}
-                            style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
-                        >
-                            <Text style={styles.confirmLabel}>
-                                {fillTemplate(pull.confirm, { count: diff.added.length })}
-                            </Text>
-                        </Pressable>
+                        <Button icon="check" busy={isCommitting} disabled={diff.added.length === 0} onPress={onConfirm}>
+                            {fillTemplate(pull.confirm, { count: diff.added.length })}
+                        </Button>
                     )}
                 </View>
             </>
@@ -129,16 +126,11 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
 
 const styles = StyleSheet.create({
     header: { gap: 4 },
-    title: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
-    attribution: { fontSize: 14, color: palette.slate },
-    body: { fontSize: 15, lineHeight: 22, color: palette.slate },
+    title: { fontSize: 20, fontWeight: '600' },
+    attribution: { fontSize: 14 },
+    body: { fontSize: 15, lineHeight: 22 },
     counts: { gap: 8 },
-    note: { fontSize: 13, fontStyle: 'italic', color: palette.slate },
-    error: { fontSize: 15, color: palette['error-dark'] },
+    note: { fontSize: 13, fontStyle: 'italic' },
+    error: { fontSize: 15 },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
-    cancelButton: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },
-    cancelLabel: { color: palette.slate, fontWeight: '500', fontSize: 14 },
-    confirmButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 22 },
-    confirmButtonDisabled: { opacity: 0.6 },
-    confirmLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
 });

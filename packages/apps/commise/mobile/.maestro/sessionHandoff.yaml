@@ -1,0 +1,72 @@
+# A cook's cached recipes end with their session (ADR-0054). Cook A (the signer) opens their own PRIVATE recipe, so the
+# app's query cache holds it, then signs out; cook B (the co-author) signs in on the same device without the app being
+# restarted, and B's recipe list must not show A's recipe. Mobile keeps the process across a sign-out, so this is the
+# platform where a missing boundary leaks: the web twin (`web/tests/e2e/sessionHandoff.spec.ts`) cannot fail first,
+# because a web sign-out reloads the document.
+#
+# ⚠️ NOT IN `runMaestroFlows.sh`'s plan yet, and that is a decision, not an oversight. B must sign in by password, and the
+# pool's co-author lane does not (`POOL_ROSTER` in `@kitchensink/e2e-fixtures`' `testPool.ts` gives it no
+# `signsInByPassword`), and nothing supplies `${E2E_COAUTHOR_EMAIL}` (`FIXTURE_ENV_KEYS` in `@kitchensink/e2e-seed`).
+# Planned before both exist, the flow would render the literal variable text and fail for a reason that reads like an
+# app defect.
+#
+# The flow never restarts the app between the two cooks: a restart empties the cache by itself and would hide the
+# defect. The app is cleared only in `onFlowComplete`, so the next flow signs in as the signer again, pass or fail.
+
+appId: io.commise.mobile
+onFlowComplete:
+    - launchApp:
+          clearState: true
+---
+# Cook A signs in on a cleared device, opens the recipes list and their private recipe.
+- launchApp:
+      clearState: true
+- runFlow: auth/signin.yaml
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+- assertVisible: 'Ingredients'
+
+# Back to Home with the system back key (detail, then the list), WITHOUT relaunching the app.
+- back
+- back
+- extendedWaitUntil:
+      visible: 'Profile.*'
+      timeout: 20000
+
+# Cook A signs out from the Profile page. The auth gate puts the sign-in form back.
+- tapOn: 'Profile.*'
+- scrollUntilVisible:
+      element: 'Sign out'
+      direction: DOWN
+- tapOn: 'Sign out'
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 40000
+
+# Cook B signs in on the same process. `signinHome.yaml` finds the form and types B's address.
+- runFlow:
+      file: auth/signinHome.yaml
+      env:
+          E2E_SIGNIN_EMAIL: ${E2E_COAUTHOR_EMAIL}
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
+- tapOn: 'See all recipes'
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 40000
+
+# B's own list has rendered (B's public recipe is in it), and A's private recipe is not, now or after a scroll.
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_RISOTTO}'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible: '${E2E_RECIPE_LAMB}'
+- scrollUntilVisible:
+      element: 'Recipes'
+      direction: UP
+      timeout: 20000
+- assertNotVisible: '${E2E_RECIPE_LAMB}'

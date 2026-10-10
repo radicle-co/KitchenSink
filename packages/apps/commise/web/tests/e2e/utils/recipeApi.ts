@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test';
+import { z } from 'zod';
 import {
     FoodResolutionStatus,
+    ingredientQuantitySchema,
     usesPremiumCapability,
     type Ingredient,
     type PaginatedResponse,
@@ -20,6 +22,7 @@ import type {
     CollectionMemberRecipe,
     CollectionRecipeAddedVia,
     CollectionRecipeMembership,
+    ParseJobResponse,
     PullDiff,
     PullFromSourceResponse,
     RecipeSearchFacets,
@@ -27,6 +30,15 @@ import type {
     RestoreVersionResponse,
     UploadUrlResponse,
 } from '@kitchensink/recipe-service-client';
+import {
+    createIngredientRequestSchema,
+    type CollectionResponse as SchemaCollectionResponse,
+    type CollectionWithRecipesResponse as SchemaCollectionWithRecipesResponse,
+} from '@kitchensink/schema-recipe';
+import { makeUserProfileAccount, makeUserProfileUser } from '@commise/features-account/testing';
+import { SETTINGS_DEFAULTS } from '@kitchensink/schema-identity';
+
+import type { OwnFoodLedger } from './foodApi';
 
 /**
  * The mock "S3" origin the presign step hands back as `uploadUrl` (T067/CP-6/P3 photo-upload e2e). A
@@ -46,7 +58,7 @@ const MOCK_S3_ORIGIN = 'https://mock-s3.recipe-photos.e2e.example.com';
  * UI integration against a controlled contract.
  *
  * **The store is the contract, not a yes-man.** Every handler below mirrors the shape, status code, and
- * READ PROJECTION the deployed service emits (`contracts/api.openapi.yaml` + the service's own response
+ * READ PROJECTION the deployed service emits (`packages/schemas/recipe/openapi.yaml` + the service's own
  * DTOs) — notably that list/search/collection reads return recipe METADATA while only the single-recipe
  * detail reads embed `photos`/`nutrition`. A mock that answers more generously than production is worse
  * than no mock: it stays green forever while the real call 500s.
@@ -61,12 +73,33 @@ const RESTORED_ISO = '2026-01-03T00:00:00.000Z';
 /** The contract's `ErrorResponse` body for a 404 (`required: [code, message]`). */
 const NOT_FOUND_BODY = { code: 'NOT_FOUND', message: 'Resource not found' };
 
-/** The contract's `VersionConflictErrorResponse` body for a 409 (`details.currentVersion`/`conflictingVersion`). */
-function versionConflictBody(currentVersion: number, conflictingVersion: number) {
+/**
+ * The contract's `VersionConflictErrorResponse` body for a 409, in the enriched shape the service ALWAYS sends:
+ * `server` is the version that won, and `base` — the version the losing write was built on — only when the caller
+ * knows it, exactly as `raiseVersionConflict` omits it for a version it has no row for. A bare body with neither
+ * side is one the real service never produces, and the editor can only answer it with its "cannot be resolved"
+ * error, so a spec on the bare body would test a state no user reaches. Pure.
+ *
+ * @param server - The recipe as it stands after the winning write.
+ * @param conflictingVersion - The `expectedVersion` the losing write sent.
+ * @param base - The recipe as it stood at `conflictingVersion`, when the mock still holds it.
+ */
+export function versionConflictBody(server: RecipeDetail, conflictingVersion: number, base?: RecipeDetail) {
+    const side = (detail: RecipeDetail, updatedAt: string): VersionConflictSide => ({
+        versionNumber: detail.currentVersion,
+        updatedAt,
+        snapshot: detailToConflictSnapshot(detail, detail.currentVersion),
+    });
+
     return {
         code: 'VERSION_CONFLICT',
         message: 'Recipe version conflict',
-        details: { currentVersion, conflictingVersion },
+        details: {
+            currentVersion: server.currentVersion,
+            conflictingVersion,
+            server: side(server, new Date().toISOString()),
+            ...(base === undefined ? {} : { base: side(base, base.updatedAt) }),
+        },
     };
 }
 
@@ -76,30 +109,66 @@ function versionConflictBody(currentVersion: number, conflictingVersion: number)
  * (`CreateRecipeIngredientInput`'s own contract: "the server re-resolves the CANONICAL name from the
  * catalog") — so the mock has to resolve it the same way, from the ingredients it has minted.
  */
-type ResolveUserEntered = (ingredientId: string) => boolean;
+/**
+ * What this double's catalog knows about a binding: the name the server would derive for it, its root food, and
+ * whether the cook declared it. The request carries none of these (plan 002 R9), so the double names each line from
+ * its catalog exactly as the service does.
+ */
+interface MockBinding {
+    /** Absent for a nameless line, whose name the service reads at read time (plan 002 R9). */
+    readonly name?: string;
+    readonly foodId?: string;
+    readonly isUserEntered: boolean;
+}
+
+/** Look up a binding the double handed out. */
+type ResolveBinding = (ingredientId: string) => MockBinding | undefined;
 
 /**
- * Project a create/update body's `ingredients` array onto the read projection's ingredient lines, resolving
- * each line's `isUserEntered` through the catalog rather than assuming it. Pure.
+ * Project a create/update body's `ingredients` array onto the read projection's ingredient lines, naming each line
+ * through the catalog — the request carries no name (plan 002 R9). ⛔ A line naming a binding the double never
+ * handed out THROWS, as the service answers `400 UNKNOWN_INGREDIENT`: a double that invented a name would let a spec
+ * pass over a body the real service refuses. Pure.
  *
  * @param lines - The raw `ingredients` array from the request body.
- * @param resolveUserEntered - Catalog lookup for the referenced ingredient's `isUserEntered` flag.
+ * @param resolveBinding - Catalog lookup for the referenced binding.
  * @returns The projected `RecipeDetail['ingredients']`.
  */
 function toIngredientProjection(
     lines: readonly Record<string, unknown>[],
-    resolveUserEntered: ResolveUserEntered,
+    resolveBinding: ResolveBinding,
 ): RecipeDetail['ingredients'] {
     return lines.map((line) => {
         const ingredientId = String(line['ingredientId']);
+        const binding = resolveBinding(ingredientId);
+
+        if (binding === undefined) {
+            throw new Error(`recipeApi double: the line names binding ${ingredientId}, which it never handed out`);
+        }
+
+        if ('name' in line) {
+            throw new Error('recipeApi double: a request line carried `name`, which the service refuses (plan 002)');
+        }
 
         return {
             ingredientId,
-            name: String(line['name']),
-            quantity: Number(line['quantity']),
-            ...(line['unit'] === undefined ? {} : { unit: String(line['unit']) }),
-            ...(line['notes'] === undefined ? {} : { notes: String(line['notes']) }),
-            isUserEntered: resolveUserEntered(ingredientId),
+            ...(binding.name === undefined ? {} : { name: binding.name }),
+            ...(binding.foodId === undefined ? {} : { foodId: binding.foodId }),
+            // U8 — the request carries the `exact | range | absent` value object, and the real service
+            // projects it through unchanged. ⛔ NOT `Number(...)`: that produced `NaN` from the object and
+            // would make this double answer with a shape the read schema rejects, turning a contract change
+            // into a mysterious e2e failure instead of a type error. Parsed rather than cast, so a body this
+            // double could not really have received fails loudly here.
+            quantity: ingredientQuantitySchema.parse(line['quantity']),
+            ...(line['unit'] === undefined ? {} : { unit: z.string().parse(line['unit']) }),
+            ...(line['notes'] === undefined ? {} : { notes: z.string().parse(line['notes']) }),
+            // ⛔ U26/U27 — the DOUBLE has to project these back, or the round trip this suite exists to
+            // prove silently loses them: the editor would send a preparation, the double would drop it, and
+            // the "re-open the editor" assertion would fail with no hint that the mock — not the app — is
+            // what narrowed the recipe. Same class as the `quantity` note above.
+            ...(line['preparation'] === undefined ? {} : { preparation: z.string().parse(line['preparation']) }),
+            ...(line['groupLabel'] === undefined ? {} : { groupLabel: z.string().parse(line['groupLabel']) }),
+            isUserEntered: binding.isUserEntered,
         };
     });
 }
@@ -123,7 +192,7 @@ function toStepProjection(lines: readonly Record<string, unknown>[]): RecipeDeta
 function applyUpdate(
     current: RecipeDetail,
     input: Record<string, unknown>,
-    resolveUserEntered: ResolveUserEntered,
+    resolveBinding: ResolveBinding,
 ): RecipeDetail {
     const next: RecipeDetail = { ...current, currentVersion: current.currentVersion + 1 };
     const scalars = [
@@ -135,8 +204,8 @@ function applyUpdate(
         'cookTimeMinutes',
         'totalTimeMinutes',
         'visibility',
-        // Draft/publish (w3/e7): the wizard's Save Draft / Publish actions both PATCH an explicit `status`
-        // onto the update body (`toUpdateRecipeInput`'s optional second parameter) — apply it exactly like
+        // Draft/publish: the editor's Publish PATCHes an explicit `status` onto the update body
+        // (`toUpdateRecipeInput`'s optional second parameter), and a checkpoint omits it — apply it exactly like
         // any other provided scalar so a spec can observe the persisted status on the next read/list.
         'status',
     ] as const;
@@ -167,10 +236,7 @@ function applyUpdate(
     }
 
     if (Array.isArray(input['ingredients'])) {
-        next.ingredients = toIngredientProjection(
-            input['ingredients'] as Record<string, unknown>[],
-            resolveUserEntered,
-        );
+        next.ingredients = toIngredientProjection(input['ingredients'] as Record<string, unknown>[], resolveBinding);
     }
 
     if (Array.isArray(input['steps'])) {
@@ -190,7 +256,8 @@ function applyUpdate(
  */
 function makeRecipe(over: Partial<Recipe> = {}): Recipe {
     const base = {
-        id: 'rec_seed',
+        // A UUID, as every recipe id in this suite is — see `E2E_RECIPE_IDS`.
+        id: 'ec000000-0000-4000-8000-00000000002c',
         ownerId: 'usr_e2e',
         title: 'Seed Recipe',
         description: 'A seeded recipe.',
@@ -204,7 +271,6 @@ function makeRecipe(over: Partial<Recipe> = {}): Recipe {
         hasSubstantiveEdit: false,
         dietaryFlags: [],
         tags: [],
-        hasPartialNutrition: false,
         currentVersion: 1,
         ratingCount: 0,
         createdAt: ISO,
@@ -225,11 +291,26 @@ export function makeRecipeDetail(over: Partial<RecipeDetail> = {}): RecipeDetail
     return {
         ...makeRecipe(over),
         ingredients: over.ingredients ?? [
-            { ingredientId: 'ing_salt', name: 'Salt', quantity: 1, unit: 'tsp', isUserEntered: false },
+            {
+                ingredientId: E2E_INGREDIENT_IDS.salt,
+                name: 'Salt',
+                // The line's ROOT food — what the recipe search's food filter matches (plan 002 R45).
+                foodId: 'food_salt',
+                quantity: { kind: 'exact', value: 1 } as const,
+                unit: 'tsp',
+                isUserEntered: false,
+            },
         ],
         steps: over.steps ?? [{ stepNumber: 1, instruction: 'Combine and cook.' }],
         photos: over.photos ?? [],
-        nutrition: over.nutrition ?? { calories: 420, proteinG: 12, carbsG: 40, fatG: 18, isComplete: true },
+        nutrition: over.nutrition ?? {
+            calories: 420,
+            proteinG: 12,
+            carbsG: 40,
+            fatG: 18,
+            isComplete: true,
+            freshness: 'fresh',
+        },
     };
 }
 
@@ -240,13 +321,20 @@ function makeVersionSnapshot(over: Partial<RecipeSnapshot> = {}): RecipeSnapshot
         version: 1,
         title: 'Seed Recipe',
         description: 'A seeded recipe.',
-        steps: [{ id: 'step_seed_1', recipeId: 'rec_seed', stepNumber: 1, instruction: 'Combine and cook.' }],
+        steps: [
+            {
+                id: 'step_seed_1',
+                recipeId: 'ec000000-0000-4000-8000-00000000002c',
+                stepNumber: 1,
+                instruction: 'Combine and cook.',
+            },
+        ],
         ingredients: [
             {
                 id: 'ri_seed_1',
-                recipeId: 'rec_seed',
-                ingredientId: 'ing_salt',
-                quantity: 1,
+                recipeId: 'ec000000-0000-4000-8000-00000000002c',
+                ingredientId: E2E_INGREDIENT_IDS.salt,
+                quantity: { kind: 'exact', value: 1 },
                 unit: 'tsp',
                 sortOrder: 1,
                 ingredientName: 'Salt',
@@ -298,8 +386,13 @@ function detailToConflictSnapshot(detail: RecipeDetail, version: number): Recipe
             unit: ingredient.unit !== undefined && ingredient.unit.length > 0 ? ingredient.unit : 'unit',
             sortOrder: index,
             ingredientName: ingredient.name,
+            // Curated U9: the variant's parts, frozen beside the name as `aggregateToSnapshot` freezes them.
+            ...(ingredient.variant === undefined ? {} : { variantParts: ingredient.variant.parts }),
             isUserEntered: ingredient.isUserEntered,
             ...(ingredient.notes === undefined || ingredient.notes === '' ? {} : { displayText: ingredient.notes }),
+            // U26/U27 — carried onto the version-conflict side too, so a conflict can actually differ on them.
+            ...(ingredient.preparation === undefined ? {} : { preparation: ingredient.preparation }),
+            ...(ingredient.groupLabel === undefined ? {} : { groupLabel: ingredient.groupLabel }),
         })),
     };
 }
@@ -312,7 +405,7 @@ export function makeRecipeVersion(over: Partial<RecipeVersion> = {}): RecipeVers
 
     return {
         id: `ver_${versionNumber}`,
-        recipeId: 'rec_seed',
+        recipeId: 'ec000000-0000-4000-8000-00000000002c',
         versionNumber,
         snapshot: makeVersionSnapshot({ version: versionNumber }),
         createdBy: 'usr_e2e',
@@ -354,15 +447,19 @@ export function makeCollection(over: Partial<MockCollection> = {}): MockCollecti
     };
 }
 
-/** The `Collection` wire shape the service emits: the stored record minus its join, plus a derived count. */
-interface CollectionResponse extends Collection {
-    readonly recipeCount: number;
-}
-
-/** The `CollectionWithRecipes` wire shape: a collection plus its member recipes as METADATA + provenance. */
-interface CollectionWithRecipesResponse extends CollectionResponse {
-    readonly recipes: readonly CollectionMemberRecipe[];
-}
+// ⚠️ THE TWO COLLECTION WIRE SHAPES COME FROM THE CONTRACT (§15 rule 4 / ADR-0014), not from here.
+//
+// They were declared locally as `interface CollectionResponse extends Collection { recipeCount: number }` and
+// `interface CollectionWithRecipesResponse extends CollectionResponse { recipes: … }`. A mock that declares its
+// own version of the shape it is standing in for is the worst place for this duplication to live, because the
+// mock IS the oracle a Playwright spec is judged against: the local `recipeCount` was `readonly recipeCount:
+// number` — REQUIRED — while the published `collectionResponseSchema` marks it optional (absent on list reads),
+// so a spec asserting a count on a list row would have been green here and wrong against production.
+//
+// Aliased rather than re-exported under the contract's names because the rest of this module refers to them by
+// these names; each is one definition with one extra name, never a second definition.
+type CollectionResponse = SchemaCollectionResponse;
+type CollectionWithRecipesResponse = SchemaCollectionWithRecipesResponse;
 
 /**
  * Strip a stored {@link RecipeDetail} down to the `Recipe` METADATA the search + collection read paths
@@ -426,12 +523,10 @@ function toCollectionWithRecipes(
         recipes: record.recipeIds
             .map((id) => recipes.get(id))
             .filter((recipe): recipe is RecipeDetail => recipe !== undefined && recipe.deletedAt === undefined)
-            .map(
-                (recipe): CollectionMemberRecipe => ({
-                    ...toRecipeMetadata(recipe),
-                    addedVia: record.memberAddedVia?.[recipe.id] ?? 'manual',
-                }),
-            ),
+            .map((recipe): CollectionMemberRecipe => ({
+                ...toRecipeMetadata(recipe),
+                addedVia: record.memberAddedVia?.[recipe.id] ?? 'manual',
+            })),
     };
 }
 
@@ -494,21 +589,116 @@ function toFacetCounts(values: readonly string[]): RecipeFacetCount[] {
     return [...counts].map(([value, count]) => ({ value, count }));
 }
 
-/** Aggregate the dietary-flag + tag facet buckets over a match set, as the search DAL's facet CTE does. Pure. */
+/**
+ * The stable total-time bucket ids the search DAL aggregates into, in display order. Mutually exclusive, so
+ * the counts sum to the match-set size.
+ */
+const TOTAL_TIME_BUCKET_IDS = ['0-15', '16-30', '31-60', '61+'] as const;
+
+/**
+ * Classify a recipe's total time into its DAL bucket id.
+ *
+ * @param minutes - The recipe's total time in minutes.
+ * @returns The bucket id the DAL would place it in. Pure.
+ */
+function toTotalTimeBucket(minutes: number): (typeof TOTAL_TIME_BUCKET_IDS)[number] {
+    if (minutes <= 15) {
+        return '0-15';
+    }
+
+    if (minutes <= 30) {
+        return '16-30';
+    }
+
+    return minutes <= 60 ? '31-60' : '61+';
+}
+
+/**
+ * Aggregate ALL FOUR facet dimensions over a match set, as the search DAL's facet CTE does. Pure.
+ *
+ * All four are computed, not just the two this helper used to emit: the wire contract requires every dimension
+ * (an empty one is `[]`, never absent), and a fixture that omitted `cuisine`/`totalTime` was asserting against
+ * a response the service cannot actually produce -- which is the whole class of drift the generated contract
+ * exists to remove. `cuisine` excludes recipes with no cuisine, matching the DAL's NULL exclusion.
+ */
 function toSearchFacets(recipes: readonly Recipe[]): RecipeSearchFacets {
+    const bucketed = recipes.map((recipe) => toTotalTimeBucket(recipe.totalTimeMinutes));
+
     return {
         dietaryFlags: toFacetCounts(recipes.flatMap((recipe) => recipe.dietaryFlags)),
         tags: toFacetCounts(recipes.flatMap((recipe) => recipe.tags)),
+        cuisine: toFacetCounts(
+            recipes.map((recipe) => recipe.cuisine).filter((cuisine): cuisine is string => cuisine !== undefined),
+        ),
+        // Ordered by the stable bucket ladder rather than by first appearance, so the fixture's ordering is
+        // deterministic and matches what the DAL returns.
+        totalTime: TOTAL_TIME_BUCKET_IDS.filter((id) => bucketed.includes(id)).map((id) => ({
+            value: id,
+            count: bucketed.filter((entry) => entry === id).length,
+        })),
     };
 }
 
+/**
+ * Catalog ingredient ids, as UUIDs rather than readable `ing_*` slugs.
+ *
+ * `recipeIngredientIdSchema` is `z.uuid()`, and `RecipeServiceClient` now PARSES its outbound bodies — so a
+ * slug id makes every save throw `InvalidRequestError` client-side: no request reaches the wire, and the
+ * editor shows a bare "We couldn't save this recipe". A seed the real service could never have returned
+ * therefore fails the specs that edit it, not the ones that merely render it.
+ */
+export const E2E_INGREDIENT_IDS = {
+    salt: '11111111-1111-4111-8111-111111111111',
+    blackPepper: '22222222-2222-4222-8222-222222222222',
+    oliveOil: '33333333-3333-4333-8333-333333333333',
+    mango: '44444444-4444-4444-8444-444444444444',
+} as const;
+
+/**
+ * Recipe ids for the SEARCH specs (discovery and the library list), as UUIDs rather than readable `rec_*` slugs —
+ * the same trap as {@link E2E_INGREDIENT_IDS}, one request body over.
+ *
+ * Every card on those surfaces mounts a deferred calorie slot, and `recipeNutritionRequestSchema.recipeIds` is
+ * `z.array(z.uuid())`. The client parses that body before the round trip, so a slug id makes the batch throw
+ * `InvalidRequestError` in the browser — the nutrition-batch handler below is never reached, and the spec
+ * exercises a schema rejection production can never produce instead of the batch production always sends.
+ *
+ * ⛔ EVERY recipe id in this suite is a UUID now, and a new spec's must be too: the recipe routes answer 404 for a
+ * segment that is not one (`src/lib/recipeRouteId.ts`), so a slug id cannot even open its page. That closed the
+ * calorie trap above suite-wide — `makeRecipe`'s default, the generated clone (`ec100000-…`) and create (`ec200000-…`)
+ * ids, and every spec's explicit ids were migrated together. Two consequences were predicted and are now live: card
+ * grids issue the nutrition batch they used to skip, and the Argos library baselines in `visualRegression.spec.ts`
+ * photograph figures where they had blank slots.
+ */
+export const E2E_RECIPE_IDS = {
+    paella: 'd1111111-1111-4111-8111-111111111111',
+    pasta: 'd2222222-2222-4222-8222-222222222222',
+    gardenSalad: 'd3333333-3333-4333-8333-333333333333',
+    lamb: 'd4444444-4444-4444-8444-444444444444',
+    scallops: 'd5555555-5555-4555-8555-555555555555',
+    shortRibs: 'd6666666-6666-4666-8666-666666666666',
+    ramen: 'd7777777-7777-4777-8777-777777777777',
+    fruitSalad: 'd8888888-8888-4888-8888-888888888888',
+    lentilSoup: 'd9999999-9999-4999-8999-999999999999',
+    familyStew: 'da000000-0000-4000-8000-000000000001',
+    risotto: 'da000000-0000-4000-8000-000000000002',
+    duck: 'da000000-0000-4000-8000-000000000003',
+    tart: 'da000000-0000-4000-8000-000000000004',
+} as const;
+
 const catalogIngredient: Ingredient = {
-    id: 'ing_salt',
+    id: E2E_INGREDIENT_IDS.salt,
     name: 'Salt',
     foodId: 'food_salt',
     isUserEntered: false,
     createdAt: ISO,
 };
+
+/**
+ * The other catalog food this double admits through `by-food`: a pick admits it as {@link catalogIngredient}, the row
+ * the seeded recipes already name, so a spec that adds Salt and then reads a seeded Salt line sees one ingredient.
+ */
+export const E2E_SALT_FOOD = { foodId: 'food_salt', name: 'Salt' } as const;
 
 /**
  * Search Stage 2 — the food-catalog side of the blended typeahead: a golden record with NO `ingredients` row
@@ -518,9 +708,24 @@ const catalogIngredient: Ingredient = {
 const catalogSuggestionFoodId = 'food_black_pepper';
 const catalogSuggestionName = 'Pepper, black, ground';
 
+/**
+ * A catalog food this double admits through `by-food`. Since plan 002 S5 the editor finds it through food's own catalog
+ * search, which `mockFoodApi` (`./foodApi.ts`) answers with this food, so a pick admits here.
+ */
+export const E2E_CATALOG_FOOD = { foodId: catalogSuggestionFoodId, name: catalogSuggestionName } as const;
+
+/** An ingredient this double hands out, as the binding a recipe line then names. Pure. */
+function bindingOf(ingredient: Ingredient): MockBinding {
+    return {
+        name: ingredient.name,
+        ...(ingredient.foodId === undefined ? {} : { foodId: ingredient.foodId }),
+        isUserEntered: ingredient.isUserEntered,
+    };
+}
+
 /** The `ingredients` row `POST /api/v1/ingredients/by-food` creates for {@link catalogSuggestionFoodId}. */
 const admittedCatalogIngredient: Ingredient = {
-    id: 'ing_black_pepper',
+    id: E2E_INGREDIENT_IDS.blackPepper,
     name: catalogSuggestionName,
     foodId: catalogSuggestionFoodId,
     foodResolutionStatus: FoodResolutionStatus.RESOLVED,
@@ -628,8 +833,7 @@ export async function pollForExternalId(
 }
 
 /**
- * Seed for a one-shot ENRICHED `409 VERSION_CONFLICT` (W7 Task 7) — unlike {@link
- * MockRecipeApiOptions.concurrentEdits}'s bare `{ currentVersion, conflictingVersion }` body, this produces
+ * Seed for a one-shot `409 VERSION_CONFLICT` from another device (W7 Task 7), in
  * the full W8-a.5 wire shape (`details.server`/`details.base`, each a `VersionConflictSide`) the rebuilt
  * conflict resolver's banner + changed-only diff + A/B/C cards + per-element merge actually read, with
  * `server`'s content DIFFERING from `base`'s (via {@link serverChanges}) so a spec observes real changed-only
@@ -640,17 +844,35 @@ export interface EnrichedConflictSeed {
      *  `{ servings: 8 }`) — applied to the store immediately the 409 fires, mirroring how the real service
      *  already committed the other device's write by the time a client observes this conflict. */
     readonly serverChanges: Partial<RecipeDetail>;
-    /** The server side's `deviceLabel` (W8-a.6), when a spec needs to assert the banner's device suffix.
-     *  Omitted → the server side carries no device (the banner renders with no " on {device}" suffix). */
-    readonly deviceLabel?: string;
     /** How many versions the server side is ahead of the base (the X6 staleness signal) — defaults to `1`
      *  (a single intervening save). A spec exercising the >10-versions-behind stale-base warning overrides
      *  this directly rather than the mock replaying N literal intervening writes. */
     readonly versionsAhead?: number;
 }
 
+/**
+ * How the mocked parse job behaves over successive polls (plan U9).
+ *
+ * ⚠️ SCRIPTED, not instantaneous. A job that were `complete` on its first `GET` would let a spec pass
+ * against a surface that never renders the running state at all — and the running state is where the poll,
+ * the progress readout and the whole reason this resource is asynchronous actually live.
+ */
+export interface MockParseJobScript {
+    /** How many `GET`s answer `running` before the job settles. Defaults to `1`. */
+    readonly pollsBeforeSettled?: number;
+    /**
+     * What the job settles into. `partial` leaves one line `failed_retryable` (so the retry control is
+     * reachable), `expired` answers the TTL sweep's terminal state. Defaults to `complete`.
+     */
+    readonly settlesAs?: 'complete' | 'partial' | 'expired';
+    /** When the job's review deadline falls. Defaults to 24 hours ahead, as the service's TTL sets it. */
+    readonly expiresAt?: string;
+}
+
 /** Options for {@link mockRecipeApi}. */
 export interface MockRecipeApiOptions {
+    /** Scripted parse-job behaviour (plan U9). Defaults to "one running poll, then complete". */
+    readonly parseJob?: MockParseJobScript;
     /**
      * Recipes to seed the store with (defaults to one public "Seed Recipe" owned by the viewer).
      *
@@ -668,22 +890,10 @@ export interface MockRecipeApiOptions {
     /** Collections to seed the store with (defaults to none — the collection list starts empty). */
     readonly collections?: readonly MockCollection[];
     /**
-     * One-shot concurrent edits keyed by recipe id (T070). The FIRST update to a listed recipe simulates
-     * another device having saved first: the mock applies these fields, bumps the version, and rejects the
-     * user's write with a `409 VERSION_CONFLICT` (so the client refetches and enters conflict mode). The
-     * entry is then cleared, so the retry against the fresh version succeeds — exactly the optimistic-
-     * concurrency race FR-007c's merge resolves. Modelled in the mock (not by mutating the store mid-test)
-     * so the 409 is deterministic regardless of any client-side refetch timing.
-     */
-    readonly concurrentEdits?: Readonly<Record<string, Partial<RecipeDetail>>>;
-    /**
-     * One-shot ENRICHED conflicts keyed by recipe id (W7 Task 7) — like {@link concurrentEdits} but producing
-     * the full W8-a.5 `server`/`base` wire shape the rebuilt conflict resolver (banner, changed-only diff,
-     * A/B/C cards, per-element merge) actually reads, instead of the bare `{ currentVersion, conflictingVersion
-     * }` body {@link concurrentEdits} returns. The FIRST update to a listed recipe id fires the enriched 409
+     * One-shot conflicts keyed by recipe id (W7 Task 7), in the full W8-a.5 `server`/`base` wire shape the
+     * conflict resolver (banner, changed-only diff, A/B/C cards, per-element merge) reads. The FIRST update to a listed recipe id fires the enriched 409
      * and applies its `serverChanges`, bumping the store; the entry is then cleared, so a retry against the
-     * fresh version succeeds normally. A recipe id present in BOTH this and `concurrentEdits` is not a
-     * supported combination — no spec needs both, and this entry is checked first.
+     * fresh version succeeds normally.
      */
     readonly enrichedConflicts?: Readonly<Record<string, EnrichedConflictSeed>>;
     /**
@@ -715,20 +925,76 @@ export interface MockRecipeApiOptions {
      * exactly as the real restore endpoint does.
      */
     readonly recipeVersions?: Readonly<Record<string, readonly RecipeVersion[]>>;
+    /**
+     * Bindings that no longer exist (plan 002 R52). A restore refuses — 409 `VERSION_LINE_UNRESTORABLE`, naming the
+     * snapshot positions — when a snapshot line points at one of these AND the version saved no name for it, exactly
+     * as `decideRestoreLine` does. Nothing is written.
+     */
+    readonly goneBindingIds?: readonly string[];
+    /**
+     * What the editor's batch nutrition read (`POST /api/v1/ingredients/food-nutrition`, plan 002 U9) answers, by ROOT
+     * food id: figures per 100 g, or `'unavailable'` when food could not be asked. Any other ref answers `absent`.
+     * `hasVariants` is food's statement that the root has a live variant, which offers `Add details` (curated U14).
+     */
+    readonly foodNutrition?: Readonly<
+        Record<
+            string,
+            | {
+                  readonly caloriesPer100g?: number;
+                  readonly proteinGPer100g?: number;
+                  readonly carbsGPer100g?: number;
+                  readonly fatGPer100g?: number;
+                  readonly hasVariants?: boolean;
+              }
+            | 'unavailable'
+        >
+    >;
+    /**
+     * What `GET /api/v1/ingredients/{id}/status` answers (the FAILED row's Try again, plan 002 V1), by binding id.
+     * A binding not listed answers 404.
+     */
+    readonly ingredientStatuses?: Readonly<Record<string, string>>;
+    /**
+     * The cook's own foods, as the food double holds them (`./foodApi.ts`'s `ownFoodLedger`): `by-food` admits each, as
+     * the real service reads the food from food. Pass the SAME ledger to `mockFoodApi`, so a food the cook makes there
+     * can go on a line here.
+     */
+    readonly ownFoods?: OwnFoodLedger;
+    /**
+     * The status food gives the row `POST /api/v1/ingredients/by-name` makes ("Find nutrition for “…”"). The service
+     * answers with a status that is not final, and the editor commits the line as it is: `PENDING` (the default) is
+     * polled, and `UNRESOLVED` waits for the cook to choose on its row.
+     */
+    readonly byNameStatus?: typeof FoodResolutionStatus.PENDING | typeof FoodResolutionStatus.UNRESOLVED;
 }
 
 /**
  * Install the recipe-service route mocks on `page`. Returns the live store so a spec can assert server state.
  *
+ * Installing the double DETACHES from whatever app page is currently live. The caller has usually just
+ * `signInWithTicket`'d onto Home, and that landing document is mid-lifecycle: its recent-recipes rail can
+ * still issue `GET /api/v1/recipes?pageSize=4` and `POST …/nutrition-batch` AFTER the double appears —
+ * served by the double (a Home spec's `?pageSize=4` read hitting the seeded store) and, worse, COUNTED by
+ * any request-counting the spec arms before its own navigation, so an "exactly once" assertion captures
+ * another page's legitimate traffic (this was a ~50% flake on recipeCalories and ssrPrefetch). Navigating to
+ * `about:blank` tears the landing document down and aborts its in-flight fetches, so the double owns exactly
+ * the navigations the spec performs next. The Clerk session lives in the context's cookies, so the next
+ * `page.goto` still carries it; a spec needing the viewer's id must `readViewerAppId` BEFORE installing
+ * (`about:blank` has no `window.Clerk`).
+ *
  * @param page - The Playwright page.
  * @param options - Seed data + viewer identity/tier.
  * @returns The in-memory recipe store (id → detail).
- * @sideEffect Registers a `page.route` handler.
+ * @sideEffect Navigates `page` to `about:blank`, then registers a `page.route` handler.
  */
 export async function mockRecipeApi(
     page: Page,
     options: MockRecipeApiOptions = {},
 ): Promise<Map<string, RecipeDetail>> {
+    // Detach BEFORE the double exists. A route handler that appears while the landing document is live will
+    // serve (and be counted by) that document's own in-flight rail reads; `about:blank` aborts them instead.
+    await page.goto('about:blank');
+
     const viewerId = options.viewerId ?? 'usr_e2e';
     const tier = options.tier ?? 'premium';
     const authorHandles = options.authorHandles ?? {};
@@ -745,25 +1011,89 @@ export async function mockRecipeApi(
     // real trigger: a per-user upsert (re-rating REPLACES, never adds — Sc7) plus an idempotent remove (Sc10).
     const viewerRatings = new Map<string, number>();
     const baseAggregates = new Map<string, { sum: number; count: number }>();
-    // One-shot concurrent edits (T070): consumed on the first update to each listed recipe.
-    const pendingConcurrentEdits = new Map<string, Partial<RecipeDetail>>(
-        Object.entries(options.concurrentEdits ?? {}),
-    );
-    // One-shot ENRICHED conflicts (W7 Task 7): consumed on the first update to each listed recipe, ahead of
-    // `pendingConcurrentEdits` (see its own JSDoc — the two are not meant to be combined for the same id).
+    // One-shot conflicts (W7 Task 7): consumed on the first update to each listed recipe.
     const pendingEnrichedConflicts = new Map<string, EnrichedConflictSeed>(
         Object.entries(options.enrichedConflicts ?? {}),
     );
+    // ── Parse jobs (plan U9) ───────────────────────────────────────────────────────────────────────
+    //
+    // A small scripted store: `POST` splits the pasted text into pending lines, each `GET` decrements a
+    // per-job poll budget, and the job settles once that budget runs out. Lines are mutated in place by a
+    // line edit, so a spec observes the SAME job carrying the corrected text rather than a fresh one.
+    const parseJobScript = options.parseJob ?? {};
+    const parseJobs = new Map<string, ParseJobResponse>();
+    const parseJobPollsLeft = new Map<string, number>();
+    /**
+     * Jobs whose SCRIPTED terminal state has already been served — after which they settle `complete`.
+     *
+     * ⛔ ONE-SHOT, and without this the `partial` script is unusable: a retry that re-settled `partial`
+     * would model a transient enqueue failure that recurs identically forever, so the spec asserting a
+     * retry RECOVERS the job could never pass. One-shot is also the truthful model — `retry` re-drives
+     * exactly the lines that did not go through, and the failure it re-drives them past was transient by
+     * definition (`unparseable` is the terminal one, and no retry touches it).
+     */
+    const parseJobScriptSpent = new Set<string>();
+    let nextParseJobId = 1;
+
+    /** Settle a job's lines into the scripted terminal shape (once) or into `complete` (thereafter). */
+    const settleParseJob = (job: ParseJobResponse): ParseJobResponse => {
+        const settlesAs = parseJobScriptSpent.has(job.id) ? 'complete' : (parseJobScript.settlesAs ?? 'complete');
+        parseJobScriptSpent.add(job.id);
+
+        if (settlesAs === 'expired') {
+            return { ...job, status: 'expired' };
+        }
+
+        return {
+            ...job,
+            status: settlesAs,
+            lines: job.lines.map((line, index) =>
+                // `partial` leaves the LAST line retryable so the retry control is reachable while the rest
+                // of the job still renders its proposals.
+                settlesAs === 'partial' && index === job.lines.length - 1
+                    ? { ...line, status: 'failed_retryable', proposal: null }
+                    : {
+                          ...line,
+                          status: 'parsed',
+                          proposal: {
+                              raw: line.sourceLine,
+                              quantity: { kind: 'exact', value: 2 },
+                              unit: 'cup',
+                              statedMeasure: '2 cups',
+                              foods: [
+                                  {
+                                      name: line.sourceLine.replace(/^[\d\s./]+(cups?|tsp|tbsp)?\s*/i, '') || 'flour',
+                                      prep: null,
+                                  },
+                              ],
+                              reviewReasons: [],
+                          },
+                      },
+            ),
+        };
+    };
+
     let nextId = 1;
     let nextCollectionId = 1;
     // Freeform (user-entered) ingredient create — REQ-032b requires every freeform line to come back
     // flagged `isUserEntered: true`, distinct from the fixed catalog-resolved `catalogIngredient` double.
     let nextFreeformIngredientId = 1;
-    // The ingredient CATALOG this mock has handed out (id → `isUserEntered`), so a recipe write can resolve
-    // each line's flag from the catalog exactly as the service does — the wire input never carries it. Seeded
-    // with the food-backed typeahead double; every freeform `POST /api/v1/ingredients` registers its own row.
-    const ingredientCatalog = new Map<string, boolean>([[catalogIngredient.id, catalogIngredient.isUserEntered]]);
-    const resolveUserEntered: ResolveUserEntered = (ingredientId) => ingredientCatalog.get(ingredientId) ?? false;
+    /** The cook's own foods this session admitted through `by-food` (S5.5), by food id. */
+    const authoredIngredientsByFoodId = new Map<string, Ingredient>();
+    let nextAuthoredFoodId = 1;
+    /** The rows `by-name` made this session, by name: one name is one row, as the service dedupes on the food. */
+    const byNameIngredients = new Map<string, Ingredient>();
+    let nextByNameId = 1;
+    // The bindings this mock has handed out (id → name, root food, declared flag), so a recipe write names each line
+    // from its binding exactly as the service does — the wire input never carries a name (plan 002 R9). Seeded with
+    // the fixed ingredient ids specs put on lines; every admit and every declared name registers its own.
+    const ingredientCatalog = new Map<string, MockBinding>([
+        [catalogIngredient.id, bindingOf(catalogIngredient)],
+        [admittedCatalogIngredient.id, bindingOf(admittedCatalogIngredient)],
+        [E2E_INGREDIENT_IDS.oliveOil, { name: 'Olive oil', foodId: 'food_olive_oil', isUserEntered: false }],
+        [E2E_INGREDIENT_IDS.mango, { name: 'Mango', foodId: 'food_mango', isUserEntered: false }],
+    ]);
+    const resolveBinding: ResolveBinding = (ingredientId) => ingredientCatalog.get(ingredientId);
     // Photos (T067/CP-6/P3): a recipe id → its confirmed photos, in display order. Seeded from each
     // recipe's embedded `photos` so a spec that pre-seeds a cover photo sees it on both the detail's
     // embedded list AND `GET /api/v1/recipes/{id}/photos`, exactly as the two stay in sync in production.
@@ -772,11 +1102,27 @@ export async function mockRecipeApi(
     // One-shot photo-upload failure countdown (w3/e7): decremented on every presign call while positive.
     let remainingPhotoUploadFailures = options.failPhotoUploads ?? 0;
 
-    const seed = options.recipes ?? [makeRecipeDetail({ id: 'rec_seed', ownerId: viewerId, title: 'Seed Recipe' })];
+    const seed = options.recipes ?? [
+        makeRecipeDetail({ id: 'ec000000-0000-4000-8000-00000000002c', ownerId: viewerId, title: 'Seed Recipe' }),
+    ];
 
     for (const recipe of seed) {
         store.set(recipe.id, recipe);
         photoStore.set(recipe.id, [...recipe.photos]);
+
+        // A seeded recipe's lines name bindings the service handed out when that recipe was written, so a save that
+        // keeps them is a save the real service accepts. Registering them here keeps the double's refusal of an
+        // UNKNOWN binding honest without refusing a stored one.
+        for (const line of recipe.ingredients) {
+            if (!ingredientCatalog.has(line.ingredientId)) {
+                ingredientCatalog.set(line.ingredientId, {
+                    ...(line.name === undefined ? {} : { name: line.name }),
+                    ...(line.foodId === undefined ? {} : { foodId: line.foodId }),
+                    isUserEntered: line.isUserEntered,
+                });
+            }
+        }
+
         // Capture the seed's aggregate as the base of OTHER users' ratings — the viewer has not rated yet, so
         // whatever the seed carries is attributable to everyone else. A viewer rating layers on top of this.
         baseAggregates.set(recipe.id, {
@@ -838,43 +1184,79 @@ export async function mockRecipeApi(
         const body = (): Record<string, unknown> =>
             request.postData() ? JSON.parse(request.postData() as string) : {};
 
-        // Identity profile → drives the premium visibility gate.
+        // Identity profile → drives the premium visibility gate. Built from the published contract's factories
+        // rather than a literal: `ProfileServiceClient.getMe` PARSES this against `userProfileSchema`, so a body
+        // short of its seven `user` / five `account` fields fails the query and silently re-gates the viewer to
+        // free — which is how a hand-written literal here left the private-visibility control disabled.
         if (path.endsWith('/api/v1/users/me')) {
             return route.fulfill({
                 json: {
-                    user: { id: viewerId, displayName: 'E2E', email: 'e2e@example.com', status: 'active' },
-                    account: { subscriptionTier: tier },
+                    user: makeUserProfileUser({ id: viewerId, displayName: 'E2E', email: 'e2e@example.com' }),
+                    account: makeUserProfileAccount({ userId: viewerId, subscriptionTier: tier }),
                 },
             });
         }
 
-        // Ingredient typeahead + freeform create.
+        // The shell reads the viewer's settings on every page (the `/` shortcut, ADR-0059). Answered with the published
+        // defaults so no spec reaches a real identity service for it; a spec that needs state registers
+        // `mockSettingsApi` AFTER this and its route wins.
+        if (path.endsWith('/api/v1/users/me/settings') && method === 'GET') {
+            return route.fulfill({ json: SETTINGS_DEFAULTS });
+        }
+
+        // Plan 002 V1 — a FAILED row's Try again: the binding's status read, answered from `options.ingredientStatuses`.
+        const statusPath = path.match(/\/api\/v1\/ingredients\/([^/]+)\/status$/);
+
+        if (statusPath !== null && method === 'GET') {
+            const bindingId = statusPath[1] ?? '';
+            const status = options.ingredientStatuses?.[bindingId];
+
+            if (status === undefined) {
+                return route.fulfill({ status: 404, json: { code: 'NOT_FOUND', message: 'No such ingredient.' } });
+            }
+
+            return route.fulfill({
+                json: {
+                    id: bindingId,
+                    name: bindingId,
+                    isUserEntered: false,
+                    foodResolutionStatus: status,
+                    createdAt: '2026-10-01T00:00:00.000Z',
+                },
+            });
+        }
+
+        // Plan 002 U9 — the editor's ONE batch nutrition read, answered from `options.foodNutrition`.
+        if (path.endsWith('/api/v1/ingredients/food-nutrition') && method === 'POST') {
+            const { refs } = (route.request().postDataJSON() ?? { refs: [] }) as {
+                readonly refs: readonly { readonly kind: string; readonly id: string }[];
+            };
+            const figures = options.foodNutrition ?? {};
+
+            return route.fulfill({
+                json: {
+                    entries: refs.map((ref) => {
+                        const known = ref.kind === 'root' ? figures[ref.id] : undefined;
+
+                        if (known === undefined) {
+                            return { outcome: 'absent', ref };
+                        }
+
+                        return known === 'unavailable'
+                            ? { outcome: 'unavailable', ref }
+                            : { outcome: 'found', ref, freshness: 'fresh', portions: [], ...known };
+                    }),
+                },
+            });
+        }
+
+        // Ingredient search + freeform create.
         //
-        // TWO typeahead routes since search Stage 2, deliberately distinct:
-        //  - `/search` — LOCAL only, an `Ingredient[]`. The recipe-SEARCH ingredient filter's read, whose
-        //    result ids become `ingredientIds` filter values.
-        //  - `/suggest` — the BLENDED envelope the ingredient PICKER reads: the caller's own rows plus
-        //    food-catalog golden records that have no `ingredients` row yet, sectioned by provenance.
+        // `/search` is an `Ingredient[]` of bound foods: the recipe-SEARCH ingredient filter's read, whose result
+        // `foodId`s become `foodIds` filter values. The editor's picker searches food directly (`foodApi.ts`).
         // Matched BEFORE the bare `/api/v1/ingredients` create route so the longer paths win.
         if (path.endsWith('/api/v1/ingredients/search')) {
             return route.fulfill({ json: [catalogIngredient] });
-        }
-
-        if (path.endsWith('/api/v1/ingredients/suggest')) {
-            return route.fulfill({
-                json: {
-                    suggestions: [
-                        { provenance: 'local', ingredient: catalogIngredient },
-                        {
-                            provenance: 'catalog',
-                            foodId: catalogSuggestionFoodId,
-                            name: catalogSuggestionName,
-                            score: 0.88,
-                        },
-                    ],
-                    catalogAvailability: 'ok',
-                },
-            });
         }
 
         // Search Stage 2's pick path: admit a catalog suggestion as a food-backed row that ALREADY carries
@@ -882,6 +1264,36 @@ export async function mockRecipeApi(
         // 202 `by-name` returns). An unknown food id is a 400, mirroring `UNKNOWN_INGREDIENT`.
         if (path.endsWith('/api/v1/ingredients/by-food') && method === 'POST') {
             const { foodId } = body() as { foodId?: string };
+
+            // One of the cook's own foods is admitted once, then held: a second admission answers the same row.
+            const authored = foodId === undefined ? undefined : authoredIngredientsByFoodId.get(foodId);
+
+            if (authored !== undefined) {
+                return route.fulfill({ json: authored });
+            }
+
+            // S5.5: one of the cook's own foods, made through food's create or already theirs.
+            const own = foodId === undefined ? undefined : options.ownFoods?.foods.find((food) => food.id === foodId);
+
+            if (own !== undefined) {
+                const ingredient: Ingredient = {
+                    id: `a0000000-0000-4000-8000-${String(nextAuthoredFoodId++).padStart(12, '0')}`,
+                    name: own.name ?? '',
+                    foodId: own.id,
+                    foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    isUserEntered: false,
+                    createdAt: ISO,
+                };
+
+                authoredIngredientsByFoodId.set(own.id, ingredient);
+                ingredientCatalog.set(ingredient.id, bindingOf(ingredient));
+
+                return route.fulfill({ json: ingredient });
+            }
+
+            if (foodId === E2E_SALT_FOOD.foodId) {
+                return route.fulfill({ json: catalogIngredient });
+            }
 
             if (foodId !== catalogSuggestionFoodId) {
                 return route.fulfill({
@@ -893,17 +1305,47 @@ export async function mockRecipeApi(
             return route.fulfill({ json: admittedCatalogIngredient });
         }
 
+        // "Find nutrition for “…”": food makes a row from the cook's words, and the service answers `202` with the
+        // status `options.byNameStatus` names. The binding is registered, so a save naming it is one the service accepts.
+        if (path.endsWith('/api/v1/ingredients/by-name') && method === 'POST') {
+            // Parsed with the service's own request declaration, so a body it would refuse fails the spec here.
+            const { name } = createIngredientRequestSchema.parse(request.postDataJSON());
+            const known = byNameIngredients.get(name.toLowerCase());
+
+            if (known !== undefined) {
+                return route.fulfill({ status: 202, json: known });
+            }
+
+            const serial = String(nextByNameId++).padStart(12, '0');
+            const ingredient: Ingredient = {
+                // A UUID, as `E2E_INGREDIENT_IDS` explains: the save parses a line's id against `z.uuid()`.
+                id: `b0000000-0000-4000-8000-${serial}`,
+                name,
+                foodId: `food_by_name_${serial}`,
+                foodResolutionStatus: options.byNameStatus ?? FoodResolutionStatus.PENDING,
+                isUserEntered: false,
+                createdAt: ISO,
+            };
+
+            byNameIngredients.set(name.toLowerCase(), ingredient);
+            ingredientCatalog.set(ingredient.id, bindingOf(ingredient));
+
+            return route.fulfill({ status: 202, json: ingredient });
+        }
+
         if (path.endsWith('/api/v1/ingredients') && method === 'POST') {
             const { name } = body() as { name?: string };
             const freeform: Ingredient = {
-                id: `ing_freeform_${nextFreeformIngredientId++}`,
+                // A UUID for the same reason as `E2E_INGREDIENT_IDS`: this id goes straight onto a recipe
+                // line, and the save that follows parses it against `z.uuid()` before sending.
+                id: `f0000000-0000-4000-8000-${String(nextFreeformIngredientId++).padStart(12, '0')}`,
                 name: name ?? 'Custom ingredient',
                 isUserEntered: true,
                 createdAt: ISO,
             };
             // Register it so a recipe line referencing it projects `isUserEntered: true` on the next read —
             // the gate REQ-034's partial-nutrition disclosure turns on.
-            ingredientCatalog.set(freeform.id, freeform.isUserEntered);
+            ingredientCatalog.set(freeform.id, bindingOf(freeform));
 
             return route.fulfill({ status: 201, json: freeform });
         }
@@ -1016,6 +1458,24 @@ export async function mockRecipeApi(
                 return route.fulfill({ status: 404, json: NOT_FOUND_BODY });
             }
 
+            // Plan 002 R52 — refuse the whole restore, before any write, when a line has no binding left and no
+            // saved name to find one by.
+            const gone = new Set(options.goneBindingIds ?? []);
+            const unrestorable = target.snapshot.ingredients.flatMap((ingredient, position) =>
+                gone.has(ingredient.ingredientId) && ingredient.ingredientName === undefined ? [position] : [],
+            );
+
+            if (unrestorable.length > 0) {
+                return route.fulfill({
+                    status: 409,
+                    json: {
+                        code: 'VERSION_LINE_UNRESTORABLE',
+                        message: 'This version cannot be restored: some of its ingredients no longer exist.',
+                        details: { positions: unrestorable },
+                    },
+                });
+            }
+
             const nextVersionNumber =
                 Math.max(current.currentVersion, ...versions.map((version) => version.versionNumber)) + 1;
             const { snapshot } = target;
@@ -1034,6 +1494,8 @@ export async function mockRecipeApi(
                     quantity: ingredient.quantity,
                     ...(ingredient.unit !== undefined ? { unit: ingredient.unit } : {}),
                     ...(ingredient.displayText !== undefined ? { notes: ingredient.displayText } : {}),
+                    ...(ingredient.preparation !== undefined ? { preparation: ingredient.preparation } : {}),
+                    ...(ingredient.groupLabel !== undefined ? { groupLabel: ingredient.groupLabel } : {}),
                     isUserEntered: ingredient.isUserEntered,
                 })),
                 steps: snapshot.steps.map((step) => ({
@@ -1091,13 +1553,21 @@ export async function mockRecipeApi(
 
         if (clone && method === 'POST') {
             const source = store.get(clone[1] as string);
+            // Plan 002: mirror the service's clone — the source's private-food lines (the ones a stranger sees as
+            // RESOLVED_UNAVAILABLE, with no name) KEEP their binding on the clone, and the response carries the
+            // banner's count of them. Only when there is one, like the real wire.
+            const unbound = (source?.ingredients ?? []).filter(
+                (ingredient) => ingredient.resolutionStatus === 'RESOLVED_UNAVAILABLE',
+            ).length;
             const created = makeRecipeDetail({
-                id: `rec_clone_${nextId++}`,
+                id: `ec100000-0000-4000-8000-${String(nextId++).padStart(12, '0')}`,
                 ownerId: viewerId,
                 title: `${source?.title ?? 'Recipe'} (copy)`,
                 visibility: 'private',
                 clonedFromId: clone[1] as string,
                 sourceAttribution: source?.title,
+                ...(source === undefined ? {} : { ingredients: source.ingredients }),
+                ...(unbound > 0 ? { clonePrivateFoodLineCount: unbound } : {}),
             });
             store.set(created.id, created);
 
@@ -1199,29 +1669,16 @@ export async function mockRecipeApi(
 
                 // One-shot ENRICHED conflict (W7 Task 7): another device saved first, reported with the full
                 // W8-a.5 `server`/`base` wire shape the rebuilt conflict resolver reads — see
-                // `EnrichedConflictSeed`'s own JSDoc. Checked ahead of the bare `pendingConcurrentEdits` below.
+                // `EnrichedConflictSeed`'s own JSDoc.
                 const enrichedSeed = pendingEnrichedConflicts.get(id);
 
                 if (enrichedSeed) {
                     pendingEnrichedConflicts.delete(id);
 
-                    const baseVersion = current.currentVersion;
-                    const baseSide: VersionConflictSide = {
-                        versionNumber: baseVersion,
-                        updatedAt: current.updatedAt,
-                        snapshot: detailToConflictSnapshot(current, baseVersion),
-                    };
-                    const serverVersion = baseVersion + (enrichedSeed.versionsAhead ?? 1);
                     const serverDetail: RecipeDetail = {
                         ...current,
                         ...enrichedSeed.serverChanges,
-                        currentVersion: serverVersion,
-                    };
-                    const serverSide: VersionConflictSide = {
-                        versionNumber: serverVersion,
-                        updatedAt: new Date().toISOString(),
-                        snapshot: detailToConflictSnapshot(serverDetail, serverVersion),
-                        ...(enrichedSeed.deviceLabel === undefined ? {} : { deviceLabel: enrichedSeed.deviceLabel }),
+                        currentVersion: current.currentVersion + (enrichedSeed.versionsAhead ?? 1),
                     };
                     // The other device's write already landed — the store reflects it from here on, exactly
                     // as the real service already committed it by the time this 409 is observed.
@@ -1229,35 +1686,7 @@ export async function mockRecipeApi(
 
                     return route.fulfill({
                         status: 409,
-                        json: {
-                            code: 'VERSION_CONFLICT',
-                            message: 'Recipe version conflict',
-                            details: {
-                                currentVersion: serverVersion,
-                                conflictingVersion,
-                                server: serverSide,
-                                base: baseSide,
-                            },
-                        },
-                    });
-                }
-
-                // One-shot concurrent edit: another device saved first. Apply it, bump the version, and reject
-                // this write with a 409 so the client refetches and enters conflict mode.
-                const pending = pendingConcurrentEdits.get(id);
-
-                if (pending) {
-                    pendingConcurrentEdits.delete(id);
-                    const bumped = makeRecipeDetail({
-                        ...current,
-                        ...pending,
-                        currentVersion: current.currentVersion + 1,
-                    });
-                    store.set(id, bumped);
-
-                    return route.fulfill({
-                        status: 409,
-                        json: versionConflictBody(bumped.currentVersion, conflictingVersion),
+                        json: versionConflictBody(serverDetail, conflictingVersion, current),
                     });
                 }
 
@@ -1265,11 +1694,11 @@ export async function mockRecipeApi(
                 if (typeof expectedVersion === 'number' && expectedVersion !== current.currentVersion) {
                     return route.fulfill({
                         status: 409,
-                        json: versionConflictBody(current.currentVersion, expectedVersion),
+                        json: versionConflictBody(current, expectedVersion),
                     });
                 }
 
-                const updated = applyUpdate(current, input, resolveUserEntered);
+                const updated = applyUpdate(current, input, resolveBinding);
                 store.set(id, updated);
 
                 return route.fulfill({ json: updated });
@@ -1282,6 +1711,41 @@ export async function mockRecipeApi(
             }
         }
 
+        // The DEFERRED calorie batch (`POST /api/v1/recipes/nutrition-batch`, ADR-0021). It answers from the
+        // SAME in-memory store the list/detail reads come from, and — deliberately — it OMITS any recipe the
+        // store does not hold, because omission is how the real contract expresses "not for you". A mock that
+        // answered for every id asked would make the omitted-recipe path (the one that renders blank) untestable
+        // from the outside, which is exactly the class of gap the store exists to prevent.
+        if (path.endsWith('/api/v1/recipes/nutrition-batch') && method === 'POST') {
+            const requested = body()['recipeIds'];
+            const ids = Array.isArray(requested) ? requested.filter((id): id is string => typeof id === 'string') : [];
+            const nutrition: Record<string, unknown> = {};
+
+            for (const id of ids) {
+                const recipe = store.get(id);
+
+                if (recipe === undefined) {
+                    continue;
+                }
+
+                const calories = recipe.nutrition?.calories;
+                nutrition[id] =
+                    calories === undefined
+                        ? { state: 'unaccounted', reason: 'no_nutrient_data' }
+                        : {
+                              state: 'known',
+                              caloriesPerServing: calories,
+                              proteinG: recipe.nutrition?.proteinG,
+                              carbsG: recipe.nutrition?.carbsG,
+                              fatG: recipe.nutrition?.fatG,
+                              isComplete: recipe.nutrition?.isComplete ?? true,
+                              freshness: 'fresh',
+                          };
+            }
+
+            return route.fulfill({ json: { nutrition } });
+        }
+
         // Recipes: list + create.
         if (path.endsWith('/api/v1/recipes')) {
             if (method === 'GET') {
@@ -1291,7 +1755,7 @@ export async function mockRecipeApi(
             if (method === 'POST') {
                 const input = body();
                 const created = makeRecipeDetail({
-                    id: `rec_new_${nextId++}`,
+                    id: `ec200000-0000-4000-8000-${String(nextId++).padStart(12, '0')}`,
                     ownerId: viewerId,
                     title: typeof input['title'] === 'string' ? input['title'] : 'New Recipe',
                     servings: typeof input['servings'] === 'number' ? input['servings'] : 4,
@@ -1304,7 +1768,7 @@ export async function mockRecipeApi(
                         ? {
                               ingredients: toIngredientProjection(
                                   input['ingredients'] as Record<string, unknown>[],
-                                  resolveUserEntered,
+                                  resolveBinding,
                               ),
                           }
                         : {}),
@@ -1315,8 +1779,8 @@ export async function mockRecipeApi(
                     ...(typeof input['difficulty'] === 'string'
                         ? { difficulty: input['difficulty'] as RecipeDifficulty }
                         : {}),
-                    // Draft/publish (w3/e7): the wizard's create-flow always sends an explicit `status`
-                    // (Save Draft → 'draft', Publish → 'published') — carry it so a spec can assert the
+                    // Draft/publish: the editor's create always sends an explicit `status` (a checkpoint's create
+                    // → 'draft', a Publish of a recipe not yet stored → 'published') — carry it so a spec can assert the
                     // created recipe's persisted status (e.g. the "Draft" card badge appearing in the list).
                     ...(typeof input['status'] === 'string' ? { status: input['status'] as RecipeStatus } : {}),
                 });
@@ -1608,10 +2072,10 @@ export async function mockRecipeApi(
             const maxTotalTime = maxTotalTimeRaw === null ? undefined : Number(maxTotalTimeRaw);
             const maxCookTimeRaw = url.searchParams.get('maxCookTime');
             const maxCookTime = maxCookTimeRaw === null ? undefined : Number(maxCookTimeRaw);
-            // FR-006 gap #3 — the ingredient filter. Read server-side off the STORED `RecipeDetail.ingredients`
-            // (present on `store`, stripped by `toRecipeMetadata` below) — the real search DAL's
-            // `EXISTS … recipe_ingredients` clause matches the same way, on the recipe's actual ingredient rows.
-            const ingredientIds = url.searchParams.getAll('ingredientIds');
+            // FR-006 gap #3 — the food filter (plan 002 R45). Read server-side off the STORED
+            // `RecipeDetail.ingredients` (present on `store`, stripped by `toRecipeMetadata` below) — the real search
+            // DAL matches the same way, on the root food each line is bound to.
+            const foodIds = url.searchParams.getAll('foodIds');
             // Scope to what the caller may see (public + their own) and drop tombstones, as the DAL does.
             const visible = [...store.values()].filter(
                 (recipe) =>
@@ -1637,8 +2101,10 @@ export async function mockRecipeApi(
                 const cookTimeOk =
                     maxCookTime === undefined || Number.isNaN(maxCookTime) || recipe.cookTimeMinutes <= maxCookTime;
                 const ingredientOk =
-                    ingredientIds.length === 0 ||
-                    recipe.ingredients.some((ingredient) => ingredientIds.includes(ingredient.ingredientId));
+                    foodIds.length === 0 ||
+                    recipe.ingredients.some(
+                        (ingredient) => ingredient.foodId !== undefined && foodIds.includes(ingredient.foodId),
+                    );
 
                 return dietaryOk && tagsOk && timeOk && cookTimeOk && ingredientOk;
             });
@@ -1654,6 +2120,128 @@ export async function mockRecipeApi(
             };
 
             return route.fulfill({ json: response });
+        }
+
+        // ── Parse jobs (plan U9) ───────────────────────────────────────────────────────────────────
+        //
+        // Matched BEFORE the pass-through, and the ORDER within this block states the specificity: the two
+        // sub-resources (`/retry`, `/lines/{i}`) are tested ahead of the bare `/{id}` read.
+        if (path.includes('/api/v1/recipe-parse-jobs')) {
+            const retryMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/retry$/.exec(path);
+            const lineMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/lines\/(\d+)$/.exec(path);
+            const detailMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)$/.exec(path);
+
+            if (method === 'POST' && path.endsWith('/api/v1/recipe-parse-jobs')) {
+                const text = z
+                    .string()
+                    .default('')
+                    .parse((body() as { text?: unknown }).text);
+                const id = `00000000-0000-4000-8000-${String(nextParseJobId).padStart(12, '0')}`;
+                nextParseJobId += 1;
+                const job: ParseJobResponse = {
+                    id,
+                    status: 'running',
+                    createdAt: new Date().toISOString(),
+                    expiresAt: parseJobScript.expiresAt ?? new Date(Date.now() + 86_400_000).toISOString(),
+                    lines: text
+                        .split(/\r?\n/)
+                        .map((line) => line.trim())
+                        .filter((line) => line !== '')
+                        .map((sourceLine, lineIndex) => ({ lineIndex, sourceLine, status: 'pending', proposal: null })),
+                };
+                parseJobs.set(id, job);
+                parseJobPollsLeft.set(id, parseJobScript.pollsBeforeSettled ?? 1);
+
+                return route.fulfill({ status: 202, json: job });
+            }
+
+            if (method === 'POST' && retryMatch) {
+                const job = parseJobs.get(retryMatch[1] as string);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                if (job.status === 'expired') {
+                    return route.fulfill({ status: 409, json: { code: 'PARSE_JOB_EXPIRED', message: 'expired' } });
+                }
+
+                // A retry re-opens the work: the retryable lines go back to pending and the job to running,
+                // exactly as `ParseJobsService.retry` does, and the poll budget restarts with it.
+                const reopened: ParseJobResponse = {
+                    ...job,
+                    status: 'running',
+                    lines: job.lines.map((line) =>
+                        line.status === 'failed_retryable' ? { ...line, status: 'pending' } : line,
+                    ),
+                };
+                parseJobs.set(job.id, reopened);
+                parseJobPollsLeft.set(job.id, parseJobScript.pollsBeforeSettled ?? 1);
+
+                return route.fulfill({ status: 202, json: reopened });
+            }
+
+            if (method === 'PATCH' && lineMatch) {
+                const job = parseJobs.get(lineMatch[1] as string);
+                const lineIndex = Number(lineMatch[2]);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                if (job.status === 'expired') {
+                    return route.fulfill({ status: 409, json: { code: 'PARSE_JOB_EXPIRED', message: 'expired' } });
+                }
+
+                const sourceLine = z
+                    .string()
+                    .default('')
+                    .parse((body() as { sourceLine?: unknown }).sourceLine)
+                    .trim();
+                const edited: ParseJobResponse = {
+                    ...job,
+                    status: 'running',
+                    lines: job.lines.map((line) =>
+                        line.lineIndex === lineIndex
+                            ? { ...line, sourceLine, status: 'pending', proposal: null }
+                            : line,
+                    ),
+                };
+                parseJobs.set(job.id, edited);
+                parseJobPollsLeft.set(job.id, parseJobScript.pollsBeforeSettled ?? 1);
+
+                return route.fulfill({ status: 202, json: edited });
+            }
+
+            if (method === 'GET' && detailMatch) {
+                const job = parseJobs.get(detailMatch[1] as string);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                // ⛔ A job that has already settled is served AS IS. Without this, a second `GET` on a
+                // settled job would re-enter `settleParseJob` and — the script now being spent — resurrect
+                // an `expired` job as `complete`. Polling stops on a terminal state so this is rare, but a
+                // reload issues a fresh read, and a mock that quietly un-expires a job would make the one
+                // assertion the URL-addressed route exists for unfalsifiable.
+                if (job.status !== 'running') {
+                    return route.fulfill({ json: job });
+                }
+
+                const left = parseJobPollsLeft.get(job.id) ?? 0;
+
+                if (left > 0) {
+                    parseJobPollsLeft.set(job.id, left - 1);
+
+                    return route.fulfill({ json: job });
+                }
+
+                const settled = settleParseJob(job);
+                parseJobs.set(job.id, settled);
+
+                return route.fulfill({ json: settled });
+            }
         }
 
         // Pass everything else through untouched. Only the recipe/identity endpoints matched above are

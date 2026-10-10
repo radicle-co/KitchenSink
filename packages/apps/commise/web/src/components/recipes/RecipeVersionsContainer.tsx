@@ -3,10 +3,12 @@
 /**
  * Container for the recipe version-history route: binds the shared, presentational `RecipeVersionList`
  * building block to live data, plus the Preview modal and two-version Compare view (W6 Task 5). It reads the
- * recipe's versions via `useRecipeVersions(id)` and the recipe's current version via `useRecipe(id)` (the
- * block marks that version and makes it non-restorable), and wires the restore action to
- * `useRestoreRecipeVersion`. The fetch-state affordances (loading, error with retry) belong to the app and
- * are localized through the web dictionary; the block owns the list + empty states. The row being restored
+ * recipe's versions and the recipe itself (for its current version, which the block marks and makes
+ * non-restorable) with suspense queries under a `ClientQueryBoundary`, and wires the restore action to
+ * `useRestoreRecipeVersion`. The boundary owns the fetch-state affordances (loading, and an error whose retry
+ * refetches), localized through the web dictionary; the block owns the list + empty states. The boundary is
+ * the hydration-gated one because this route is not server-prefetched: its server render was already the
+ * loading state, and a suspense read there would fetch on the server. The row being restored
  * is busied via `restoringVersion`, with the mutation carrying `{ id, versionNumber }`. It holds no server
  * data of its own — TanStack Query is the source of truth for the remote version list. Wires `onBack` (V6)
  * to navigate to the recipe-detail route, present in EVERY state (loading/error/populated) — the web parity
@@ -16,7 +18,7 @@
  *
  * `onPreview(n)` sets `previewTarget` to `n`; the previewed version's full snapshot is read straight off the
  * already-loaded `versionsQuery.data` (every entry the list endpoint returns carries its own `snapshot` —
- * see `useRecipeVersions`'s JSDoc), so opening the modal makes NO extra fetch. The "changed from current"
+ * see `recipeQueries(client).versions`), so opening the modal makes NO extra fetch. The "changed from current"
  * line needs the CURRENT version's snapshot too, looked up the SAME way (from the list) rather than
  * re-fetched: the DB retention window keeps the newest `VERSION_RETENTION_LIMIT` (10) versions
  * (`versions.dal.ts`), and the current version is BY CONSTRUCTION the highest version number that exists —
@@ -43,20 +45,22 @@ import {
     RecipeVersionList,
     VersionCompareView,
     VersionPreviewModal,
-    diffSnapshots,
+    compareWithCurrent,
+    recipeMessages,
     recipeVersionMessages,
+    classifyRestoreError,
     resolveVersionPreview,
-    type RecipeVersionRestoreError,
 } from '@commise/features-recipes';
-import { toDetailQueryView } from '@commise/features-core';
+import { useSnackbar } from '@commise/ui/snackbar';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import type { RecipeVersion } from '@kitchensink/recipe-core';
-import { isVersionConflictError } from '@kitchensink/recipe-service-client';
-import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
+import { isVersionConflictError, recipeQueries } from '@kitchensink/recipe-service-client';
+import { useRecipeServiceClient, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
+import { useSuspenseQueries } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type FC } from 'react';
 
+import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeVersionsContainer}. */
@@ -65,11 +69,10 @@ export interface RecipeVersionsContainerProps {
     readonly recipeId: string;
 }
 
-/** Shared "Back to Recipe" affordance for the container's loading/error early-returns (V6 fold-in, W6 Task
- *  5). The populated branch instead wires `onBack` straight into `RecipeVersionList`, which renders its own
- *  styled back control as part of its header chrome; this smaller link exists ONLY so the loading/error
- *  branches — which return before ever reaching that component — are never stranded without a way back to
- *  the recipe. Reuses `recipeVersionMessages.versionList.backToRecipe` (the SAME copy `RecipeVersionList`
+/** Shared "Back to Recipe" affordance for the boundary's loading and error fallbacks (V6 fold-in, W6 Task
+ *  5). The settled history instead wires `onBack` straight into `RecipeVersionList`, which renders its own
+ *  styled back control as part of its header chrome; this smaller link exists ONLY so the fallbacks — which
+ *  render in place of that component — are never stranded without a way back to the recipe. Reuses `recipeVersionMessages.versionList.backToRecipe` (the SAME copy `RecipeVersionList`
  *  renders) rather than a second `webMessages` key, so the label is one piece of knowledge either way. */
 const BackToRecipeLink: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
     const { versionList } = useMessages(recipeVersionMessages);
@@ -80,105 +83,130 @@ const BackToRecipeLink: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
             onClick={onBack}
             // `ocean-dark` foreground over a seafoam hover tint: the label is text a reader reads, the tint is a
             // non-text accent (see the palette JSDoc in `@commise/ui`).
-            className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
+            className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-action-text transition hover:bg-action/10"
         >
             {versionList.backToRecipe}
         </button>
     );
 };
 
+/** The version history's pending state: its way back, and what is loading. */
+const VersionsLoading: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
+    const { recipes } = useMessages(webMessages);
+
+    return (
+        <div className="flex max-w-list flex-col gap-3 py-8">
+            <BackToRecipeLink onBack={onBack} />
+            <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-ink-muted">
+                {recipes.versions.loadingLabel}
+            </p>
+        </div>
+    );
+};
+
+/** The version history's failed state: its way back, and a retry. */
+const VersionsError: FC<{ readonly onBack: () => void; readonly onRetry: () => void }> = ({ onBack, onRetry }) => {
+    const { recipes } = useMessages(webMessages);
+
+    return (
+        <div className="flex max-w-list flex-col gap-3 py-8">
+            <BackToRecipeLink onBack={onBack} />
+            <div role="alert">
+                <p>{recipes.versions.errorTitle}</p>
+                <button type="button" onClick={onRetry}>
+                    {recipes.versions.retry}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 /**
- * The live recipe version-history container.
+ * The live recipe version-history container: the route's read boundary around {@link RecipeVersionsView}.
  *
  * @param props - The recipe id whose version history to load.
- * @returns The wired {@link RecipeVersionList} plus the Preview modal and Compare view, or a localized
- *   loading / error affordance (each carrying its own {@link BackToRecipeLink}).
+ * @returns The boundary: the loading and error states (each with its way back) and, once both reads settle, the
+ *   version history.
  */
 export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ recipeId }) => {
-    const { recipes } = useMessages(webMessages);
     const { locale } = useParams<{ locale: string }>();
-    const activeLocale = useLocale();
     const router = useRouter();
-    const versionsQuery = useRecipeVersions(recipeId);
-    const recipeQuery = useRecipe(recipeId);
-    const restore = useRestoreRecipeVersion();
-
-    // W6 Task 5 — Preview: which version (by number) is being previewed, or `null` when the modal is closed.
-    const [previewTarget, setPreviewTarget] = useState<number | null>(null);
-    // W6 Task 5 — Compare: the 0/1/2 version numbers currently selected for the compare view, in the order
-    // they were picked (see `toggleCompare` for the cap-at-two UX this order feeds).
-    const [compareSelection, setCompareSelection] = useState<readonly number[]>([]);
 
     const goToRecipe = (): void => {
         router.push(`/${locale}/recipes/${recipeId}` as Route);
     };
 
-    // B21: ONE derivation of which fetch-state affordance to render, over BOTH queries combined — the pair
-    // is loading while either is, failed if either failed, and ready only with BOTH data present. The
-    // settled-but-absent case (neither loading nor errored, still no data) used to fall into a SECOND loading
-    // branch below the error one, stranding the viewer on a permanent spinner; mobile's
-    // `RecipeVersionsScreen` has always routed it into ERROR, and web now agrees BY CONSTRUCTION.
-    const view = toDetailQueryView({
-        isLoading: versionsQuery.isLoading || recipeQuery.isLoading,
-        isError: versionsQuery.isError || recipeQuery.isError,
-        data:
-            versionsQuery.data === undefined || recipeQuery.data === undefined
-                ? undefined
-                : { versions: versionsQuery.data, recipe: recipeQuery.data },
+    return (
+        <ClientQueryBoundary
+            loading={<VersionsLoading onBack={goToRecipe} />}
+            renderError={({ resetErrorBoundary }) => <VersionsError onBack={goToRecipe} onRetry={resetErrorBoundary} />}
+            resetKeys={[recipeId]}
+        >
+            <RecipeVersionsView recipeId={recipeId} onBack={goToRecipe} />
+        </ClientQueryBoundary>
+    );
+};
+
+/**
+ * The settled version history: both reads have resolved by the time this renders, so it holds no fetch state.
+ *
+ * @param props - The recipe id and the way back to it.
+ * @returns The wired {@link RecipeVersionList} plus the Preview modal and Compare view.
+ * @throws {Error} For an empty recipe id — a read that cannot be made fails into the boundary rather than issuing
+ *   a request for `''` (B21: never a permanent spinner).
+ */
+const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: () => void }> = ({
+    recipeId,
+    onBack,
+}) => {
+    if (recipeId.length === 0) {
+        throw new Error('A recipe version history needs a recipe id.');
+    }
+
+    const activeLocale = useLocale();
+    const { locale } = useParams<{ locale: string }>();
+    const client = useRecipeServiceClient();
+    const [versionsQuery, recipeQuery] = useSuspenseQueries({
+        queries: [recipeQueries(client).versions(recipeId), recipeQueries(client).detail(recipeId)],
     });
+    const restore = useRestoreRecipeVersion();
 
-    if (view.status === 'loading') {
-        return (
-            <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
-                <BackToRecipeLink onBack={goToRecipe} />
-                <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-slate">
-                    {recipes.versions.loadingLabel}
-                </p>
-            </div>
-        );
-    }
+    // W6 Task 5 — Preview: which version (by number) is being previewed, or `null` when the modal is closed.
+    const [previewTarget, setPreviewTarget] = useState<number | null>(null);
+    // §6.6 — Compare is per row, against the current version: which version (by number) is open, or `null`.
+    const [compareTarget, setCompareTarget] = useState<number | null>(null);
+    // "Edited 2 days ago" is measured from the moment the history was read, held so the render stays pure.
+    const [now] = useState(() => new Date().toISOString());
+    const snackbar = useSnackbar();
+    const { versionList } = useMessages(recipeVersionMessages);
+    const { ingredientLineName } = useMessages(recipeMessages);
 
-    if (view.status === 'error') {
-        return (
-            <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
-                <BackToRecipeLink onBack={goToRecipe} />
-                <div role="alert">
-                    <p>{recipes.versions.errorTitle}</p>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            void versionsQuery.refetch();
-                            void recipeQuery.refetch();
-                        }}
-                    >
-                        {recipes.versions.retry}
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    const { versions, recipe } = view.data;
+    const versions = versionsQuery.data;
+    const recipe = recipeQuery.data;
     const restoringVersion = restore.isPending ? restore.variables.versionNumber : null;
 
-    // B17 — a failed restore must never silently no-op. Map the mutation's error to an honest code: a 409 is
-    // the recipe changing underneath (someone saved a new version), so the copy tells the viewer to review the
-    // refreshed list; anything else is generic. The banner clears on the next restore attempt.
-    const restoreError: RecipeVersionRestoreError | undefined =
-        restore.error === null || restore.error === undefined
-            ? undefined
-            : isVersionConflictError(restore.error)
-              ? 'conflict'
-              : 'generic';
+    // B17 — a failed restore must never silently no-op. The shared classifier maps the mutation's error to an honest
+    // code for the version it targeted: a 409 conflict, a refusal naming the lines it cannot restore (plan 002 R52),
+    // or generic. The banner clears on the next restore attempt.
+    const restoreError = classifyRestoreError(restore.error, restore.variables?.versionNumber);
 
     /** Shared restore trigger for BOTH the list's row action and the preview modal's Restore action — same
      *  mutation, same B17 conflict-refetch; `onRestored` (only supplied from the preview modal) additionally
-     *  closes the modal once the restore actually lands. */
+     *  closes the modal once the restore actually lands. A restore makes a NEW version, so it asks no confirmation:
+     *  the snackbar's Undo restores the version that was current before, which makes another (§6.6). */
     const restoreVersion = (versionNumber: number, onRestored?: () => void): void => {
+        const wasCurrent = recipe.currentVersion;
+
         restore.mutate(
             { id: recipeId, versionNumber },
             {
-                onSuccess: onRestored,
+                onSuccess: () => {
+                    onRestored?.();
+                    snackbar.show({
+                        message: fillVersion(versionList.restored, versionNumber),
+                        action: { label: versionList.undo, onAction: () => restoreVersion(wasCurrent) },
+                    });
+                },
                 onError: (error) => {
                     if (isVersionConflictError(error)) {
                         void versionsQuery.refetch();
@@ -199,32 +227,14 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
         restoringVersion,
     });
 
-    // W6 Task 5 — Compare: both selected versions come from the same already-loaded list data (no fetch).
-    const compareVersions = compareSelection
-        .map((versionNumber) => versions.find((v) => v.versionNumber === versionNumber))
-        .filter((version): version is RecipeVersion => version !== undefined);
-    const [olderCompareVersion, newerCompareVersion] =
-        compareVersions.length === 2
-            ? [...compareVersions].sort((a, b) => a.versionNumber - b.versionNumber)
-            : [undefined, undefined];
+    // §6.6 — Compare: both snapshots come from the already-loaded list (no fetch); the current version is by
+    // construction the newest one there (see the module note on Preview).
+    const compareVersion = versions.find((version) => version.versionNumber === compareTarget);
+    const currentEntry = versions.find((version) => version.versionNumber === recipe.currentVersion);
     const compareDiff =
-        olderCompareVersion !== undefined && newerCompareVersion !== undefined
-            ? diffSnapshots(olderCompareVersion.snapshot, newerCompareVersion.snapshot)
+        compareVersion !== undefined && currentEntry !== undefined
+            ? compareWithCurrent(compareVersion, currentEntry, activeLocale, ingredientLineName)
             : undefined;
-
-    // Cap-at-two (W6 Task 5): once two versions are selected, `RecipeVersionList` disables every OTHER row's
-    // checkbox (an explicit "deselect one first" UX) rather than silently evicting the oldest pick. This
-    // handler's own `current.length >= 2` guard is the defensive second half of that contract — a disabled
-    // control shouldn't be reachable, but a direct call is a no-op rather than a surprise eviction.
-    const toggleCompare = (versionNumber: number): void => {
-        setCompareSelection((current) => {
-            if (current.includes(versionNumber)) {
-                return current.filter((selected) => selected !== versionNumber);
-            }
-
-            return current.length >= 2 ? current : [...current, versionNumber];
-        });
-    };
 
     return (
         <>
@@ -233,26 +243,34 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
                 currentVersion={recipe.currentVersion}
                 restoringVersion={restoringVersion}
                 restoreError={restoreError}
-                selectedForCompare={compareSelection}
-                onBack={goToRecipe}
+                now={now}
+                recipeTitle={recipe.title}
+                onBack={onBack}
+                backHref={`/${locale}/recipes/${recipeId}`}
                 onRestore={(versionNumber) => restoreVersion(versionNumber)}
                 onPreview={(versionNumber) => setPreviewTarget(versionNumber)}
-                onToggleCompare={toggleCompare}
+                {...(currentEntry === undefined
+                    ? {}
+                    : { onCompare: (versionNumber: number) => setCompareTarget(versionNumber) })}
             />
             <VersionPreviewModal
                 {...preview}
                 locale={activeLocale}
+                {...(restoreError === undefined ? {} : { restoreError })}
                 onCancel={() => setPreviewTarget(null)}
                 onRestore={(versionNumber) => restoreVersion(versionNumber, () => setPreviewTarget(null))}
             />
             <VersionCompareView
-                open={compareSelection.length === 2}
-                versionA={olderCompareVersion}
-                versionB={newerCompareVersion}
-                diff={compareDiff}
-                locale={activeLocale}
-                onClose={() => setCompareSelection([])}
+                open={compareDiff !== undefined}
+                {...(compareVersion === undefined ? {} : { version: compareVersion })}
+                {...(compareDiff === undefined ? {} : { diff: compareDiff })}
+                onClose={() => setCompareTarget(null)}
             />
         </>
     );
 };
+
+/** A version template with its number filled in. Pure. */
+function fillVersion(template: string, version: number): string {
+    return template.replace('{version}', String(version));
+}

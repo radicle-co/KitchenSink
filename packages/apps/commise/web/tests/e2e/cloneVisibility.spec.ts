@@ -16,44 +16,43 @@ test.describe('clone + visibility (T080)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const publicRecipe = makeRecipeDetail({
-            id: 'rec_pub',
+            id: 'ec000000-0000-4000-8000-00000000001b',
             ownerId: 'usr_other',
             title: 'Public Paella',
             visibility: 'public',
         });
         await mockRecipeApi(page, { viewerId, recipes: [publicRecipe] });
 
-        await page.goto(route('/recipes/rec_pub'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000001b'));
         await expect(page.getByRole('heading', { name: 'Public Paella' })).toBeVisible();
 
-        await page.getByRole('button', { name: 'Clone' }).click();
+        await page.getByRole('button', { name: 'Save a copy' }).click();
 
-        // A successful clone navigates to the newly-created copy's detail.
-        await expect(page).toHaveURL(/\/recipes\/rec_clone_/);
-        await expect(page.getByRole('heading', { name: 'Public Paella (copy)' })).toBeVisible();
+        // A copy needs a real edit before it can be published (FR-005b), so it opens in the editor.
+        await expect(page).toHaveURL(/\/recipes\/ec100000-0000-4000-8000-[^/]+\/edit/);
     });
 
     test('a premium owner switches their public recipe to private', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const ownPublic = makeRecipeDetail({
-            id: 'rec_own',
+            id: 'ec000000-0000-4000-8000-000000000017',
             ownerId: viewerId,
             title: 'My Public Dish',
             visibility: 'public',
         });
         await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [ownPublic] });
 
-        await page.goto(route('/recipes/rec_own'));
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000017'));
         await expect(page.getByRole('heading', { name: 'My Public Dish' })).toBeVisible();
 
-        // The visibility toggle is a secondary owner action, behind the "More" overflow menu (C4).
-        await page.getByRole('button', { name: 'More' }).click();
-        const privateOption = page.getByRole('radio', { name: 'Private' });
-        await expect(privateOption).toBeEnabled();
+        // The visibility change is a secondary owner action, in the ⋯ menu (§6.4).
+        await page.getByRole('button', { name: /^More actions for /u }).click();
+        await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        // Controlled toggle: the click fires the mutation; the option reflects private after the refetch.
-        await privateOption.click();
-        await expect(privateOption).toBeChecked();
+        // After the refetch the rating line says Private, and the menu offers the way back.
+        await expect(page.getByText('Private', { exact: true })).toBeVisible();
+        await page.getByRole('button', { name: /^More actions for /u }).click();
+        await expect(page.getByRole('menuitem', { name: 'Make public' })).toBeVisible();
     });
 });

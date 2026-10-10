@@ -16,23 +16,34 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
-const renderAt = (year: number, monthIndex: number, day: number, hour: number, locale = 'en'): void => {
+const renderAt = (year: number, monthIndex: number, day: number, hour: number, locale = 'en', name?: string): void => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(year, monthIndex, day, hour, 0, 0));
 
-    renderWithProviders(<HomeGreeting />, { locale });
+    renderWithProviders(<HomeGreeting {...(name === undefined ? {} : { name })} />, { locale });
 };
 
 describe('HomeGreeting (mobile) — time-of-day bucket', () => {
     it.each([
-        [8, 'Good morning, Chef!'],
-        [14, 'Good afternoon, Chef!'],
-        [19, 'Good evening, Chef!'],
-        [23, 'Still up, Chef?'],
+        [8, 'Good morning'],
+        [14, 'Good afternoon'],
+        [19, 'Good evening'],
+        [23, 'Still up?'],
     ])('at hour %i greets "%s"', (hour, expected) => {
         renderAt(2026, 4, 31, hour);
 
-        expect(screen.getByText(expected)).toBeTruthy();
+        expect(screen.getByRole('heading', { name: expected })).toBeTruthy();
+    });
+
+    // Slice 3 (`buildSpec.md` §4.2): the greeting is the large title, and names the cook when there is a name.
+    it.each([
+        [14, 'Good afternoon, Eliza'],
+        [23, 'Still up, Eliza?'],
+    ])('at hour %i greets the cook by name: "%s"', (hour, expected) => {
+        renderAt(2026, 4, 31, hour, 'en', 'Eliza');
+
+        expect(screen.getByRole('heading', { name: expected })).toBeTruthy();
+        expect(screen.getAllByRole('heading')).toHaveLength(1);
     });
 });
 

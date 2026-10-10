@@ -9,7 +9,7 @@
 import type { Recipe } from '@kitchensink/recipe-core';
 
 import type {
-    RecipeIngredientRow,
+    IngredientRow,
     RecipePhotoRow,
     RecipeRow,
     RecipeStepRow,
@@ -24,6 +24,8 @@ const BASE_DATE = new Date('2026-01-01T00:00:00.000Z');
  * Owner defaults to a fixed app-user ULID; override `ownerId` to exercise ownership paths.
  */
 export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
+    const status = overrides.status ?? 'published';
+
     return {
         id: '00000000-0000-4000-8000-00000000a001',
         ownerId: '01J000000000000000000FREE0',
@@ -34,10 +36,14 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         totalTimeMinutes: 30,
         servings: 4,
         difficulty: null,
+        mealType: null,
         averageRating: null,
         ratingCount: 0,
         visibility: 'public',
-        status: 'published',
+        status,
+        // Coherent with `recipes_published_has_first_published_at` (ADR-0058): a published row has a first-publish
+        // instant, and a draft defaults to never published. A suite wanting a re-drafted recipe overrides it.
+        firstPublishedAt: status === 'published' ? BASE_DATE : null,
         sourceType: 'user_created',
         sourceUrl: null,
         sourceAttribution: null,
@@ -46,8 +52,6 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         cuisine: 'italian',
         dietaryFlags: [],
         tags: ['dinner'],
-        hasPartialNutrition: false,
-        leadCaloriesPerServing: null,
         authorHandle: null,
         currentVersion: 1,
         ingredientNamesText: 'flour water salt',
@@ -71,18 +75,32 @@ export function makeRecipeStepRow(overrides: Partial<RecipeStepRow> = {}): Recip
     };
 }
 
-/** A persisted `recipe_ingredients` junction row (numeric columns arrive as strings from Drizzle/pg). */
-export function makeRecipeIngredientRow(overrides: Partial<RecipeIngredientRow> = {}): RecipeIngredientRow {
+/**
+ * A persisted `ingredients` row — THE RECIPE LINE (migration 0051). Numeric columns arrive as strings from
+ * Drizzle/pg. The line carries no name and no user-entered flag: both are derived by following
+ * `foodLookupId`.
+ */
+export function makeIngredientLineRow(overrides: Partial<IngredientRow> = {}): IngredientRow {
     return {
         id: '00000000-0000-4000-8000-00000000d001',
         recipeId: '00000000-0000-4000-8000-00000000a001',
-        ingredientId: '00000000-0000-4000-8000-0000000000ff',
+        foodLookupId: '00000000-0000-4000-8000-0000000000ff',
         quantity: '1',
+        /** `null` = "this line states one value, not two". */
+        quantityHigh: null,
         unit: 'unit',
         displayText: null,
+        /** `null` = "this line was AUTHORED, not transcribed". */
+        sourceLine: null,
+        sourcePhrase: null,
+        /** All three `null` = "this line's quantity and unit are what the SOURCE said". */
+        statedQuantity: null,
+        statedQuantityHigh: null,
+        statedUnit: null,
+        /** Both `null` = "this line states no preparation and belongs to no section". */
+        preparation: null,
+        groupLabel: null,
         sortOrder: 0,
-        ingredientName: 'Test Ingredient',
-        isUserEntered: false,
         userCalories: null,
         userProteinG: null,
         userCarbsG: null,
@@ -102,7 +120,6 @@ export function makeVersionRow(overrides: Partial<RecipeVersionRow> = {}): Recip
         s3Key: null,
         createdBy: '01J000000000000000000FREE0',
         changeSummary: null,
-        deviceLabel: null,
         editorHandle: null,
         createdAt: BASE_DATE,
         ...overrides,
@@ -115,6 +132,7 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         id: '00000000-0000-4000-8000-00000000a001',
         ownerId: '01J000000000000000000FREE0',
         title: 'Test Recipe',
+        // Derived, not stored (U10). The fixture states the honest default: not accounted for.
         description: 'A recipe used in tests.',
         prepTimeMinutes: 10,
         cookTimeMinutes: 20,
@@ -127,7 +145,6 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         cuisine: 'italian',
         dietaryFlags: [],
         tags: ['dinner'],
-        hasPartialNutrition: false,
         currentVersion: 1,
         ratingCount: 0,
         usesPremiumCapability: false,

@@ -1,0 +1,35 @@
+appId: io.commise.mobile
+---
+# Screenshots of the slice 3 shell (UI overhaul; ADR-0056) for its EVALUATE pass: the tab bar, Home's large title and
+# its condensed bar once scrolled, the floating "New recipe", Recipes, Discover and the pushed Profile. A capture flow,
+# not an assertion flow: `visual/*` is outside `config.yaml`'s discovery, and it runs by name, once per system theme
+# (`adb shell cmd uimode night yes|no` before the run), through `npm run local:maestro -- flows visual/shellCapture`.
+- runFlow: ../auth/signinHome.yaml
+- extendedWaitUntil:
+      visible: 'Recent recipes'
+      timeout: 40000
+- takeScreenshot: shell_home_top
+- swipe:
+      direction: UP
+      duration: 600
+- takeScreenshot: shell_home_scrolled
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+- takeScreenshot: shell_recipes
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover'
+      timeout: 20000
+- takeScreenshot: shell_discover
+- runFlow: ../shell/goHome.yaml
+- scrollUntilVisible:
+      element: 'Profile.*'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Profile.*'
+- extendedWaitUntil:
+      visible: 'Display name'
+      timeout: 20000
+- takeScreenshot: shell_profile

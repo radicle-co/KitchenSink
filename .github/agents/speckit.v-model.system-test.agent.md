@@ -1,22 +1,22 @@
 ---
 description: Generate ISO 29119-compliant system test cases with named techniques
-  for every system component in the design.
+    for every system component in the design.
 handoffs:
-- label: Build Traceability Matrix
-  agent: speckit.v-model.trace
-  prompt: Build the full traceability matrix including system-level coverage
-  send: true
-- label: Back to System Design
-  agent: speckit.v-model.system-design
-  prompt: Review or update the system design
+    - label: Build Traceability Matrix
+      agent: speckit.v-model.trace
+      prompt: Build the full traceability matrix including system-level coverage
+      send: true
+    - label: Back to System Design
+      agent: speckit.v-model.system-design
+      prompt: Review or update the system design
 scripts:
-  sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-system-design
-  ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs -RequireSystemDesign
+    sh: .specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-system-design
+    ps: .specify/scripts/powershell/setup-v-model.ps1 -Json -RequireReqs -RequireSystemDesign
 ---
-
 
 <!-- Extension: v-model -->
 <!-- Config: .specify/extensions/v-model/ -->
+
 ## User Input
 
 ```text
@@ -36,6 +36,7 @@ Generate an ISO 29119-compliant System Test Plan where **every system component*
 Run `.specify/scripts/bash/setup-v-model.sh --json --require-reqs --require-system-design` from the repository root and parse the JSON output.
 
 The script returns JSON with these keys:
+
 - `VMODEL_DIR`: Path to `specs/{feature}/v-model/` directory
 - `FEATURE_DIR`: Path to `specs/{feature}/` directory
 - `BRANCH`: Current branch name
@@ -50,31 +51,33 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 1. **Load the template**: Read `.specify/templates/system-test-template.md` from the extension directory to understand the required output structure.
 
 2. **Load system design**: Read `system-design.md` from the `VMODEL_DIR` path.
-   - If `system-design.md` does NOT exist: ERROR — "System design not found. Run `/speckit.v-model.system-design` first."
-   - Extract all `SYS-NNN` identifiers from the Decomposition View
-   - Extract the Dependency View (feeds Fault Injection tests)
-   - Extract the Interface View (feeds Interface Contract tests)
-   - Extract the Data Design View (feeds Boundary Value tests)
-   - Note the total SYS count — every SYS must have at least one STP
+    - If `system-design.md` does NOT exist: ERROR — "System design not found. Run `/speckit.v-model.system-design` first."
+    - Extract all `SYS-NNN` identifiers from the Decomposition View
+    - Extract the Dependency View (feeds Fault Injection tests)
+    - Extract the Interface View (feeds Interface Contract tests)
+    - Extract the Data Design View (feeds Boundary Value tests)
+    - Note the total SYS count — every SYS must have at least one STP
 
 3. **Load requirements**: Read `requirements.md` from the `REQUIREMENTS` path for context on what each requirement demands. This helps generate meaningful test conditions.
 
 4. **Load existing system tests** (if `AVAILABLE_DOCS` contains `"system-test.md"`):
-   - Read the existing `system-test.md` to preserve existing STP/STS IDs and content
-   - Identify the highest existing STP number to continue the sequence
-   - New test cases append after existing ones — **never renumber**
+    - Read the existing `system-test.md` to preserve existing STP/STS IDs and content
+    - Identify the highest existing STP number to continue the sequence
+    - New test cases append after existing ones — **never renumber**
 
 ### 2a. Domain Configuration
 
 Load `v-model-config.yml` (if it exists at the repository root).
 
 **If `domain` is set** (e.g., `iso_26262`, `do_178c`, `iec_62304`):
+
 1. Read the command overlay: `commands/overlays/{domain}/system-test.md`
-   - If it exists: note the safety-critical test sections (e.g., structural coverage targets, resource usage verification)
-   - If it does not exist: this domain does not extend this command — proceed with base only
+    - If it exists: note the safety-critical test sections (e.g., structural coverage targets, resource usage verification)
+    - If it does not exist: this domain does not extend this command — proceed with base only
 2. Where the base command has a domain-variant section (marked with "If a domain overlay is loaded, prefer its content"), use the overlay's version instead of the base default
 
 **If `domain` is empty or absent:**
+
 - Proceed with the base command only
 - Use generic best-practice terminology throughout
 - Do NOT include any safety-critical or domain-specific regulatory references
@@ -86,15 +89,15 @@ before generating new content:
 
 1. **Never delete an ID** — mark as `[DEPRECATED]`
 2. **Deprecation types:**
-   - `[DEPRECATED — Superseded by STP-NNN]`: Replaced by a new test case
-   - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
+    - `[DEPRECATED — Superseded by STP-NNN]`: Replaced by a new test case
+    - `[DEPRECATED — Withdrawn: <reason>]`: Removed entirely with justification
 3. **Suspect detection from parent SYS:** If a parent SYS (in `system-design.md`)
    is deprecated or modified, mark each STP/STS that traces to it as
    `[SUSPECT — Parent SYS-NNN {deprecated|modified}]`.
 4. **Suspect resolution:** For each suspect STP/STS:
-   - **Re-parent** to the superseding SYS (if component continues under a new ID)
-   - **Deprecate** (if the component is withdrawn)
-   - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
+    - **Re-parent** to the superseding SYS (if component continues under a new ID)
+    - **Deprecate** (if the component is withdrawn)
+    - **Confirm active** (if still valid despite the parent change — remove the SUSPECT tag)
 5. **Modified test cases:** Update content in-place, preserve the original STP/STS ID.
 
 If no existing `system-test.md` is found, skip this step entirely — all
@@ -108,14 +111,15 @@ For each `SYS-NNN` component in the Decomposition View, generate one or more tes
 
 Each test case MUST name its ISO 29119 technique explicitly. Select based on the design view being verified:
 
-| Design View | Primary Technique | What It Tests |
-|-------------|------------------|---------------|
-| Interface View | **Interface Contract Testing** | API contracts, protocol compliance, error responses |
-| Data Design View | **Boundary Value Analysis** | Data limits, thresholds, ranges |
-| Data Design View | **Equivalence Partitioning** | Representative data classes |
-| Dependency View | **Fault Injection** | Failure propagation, graceful degradation |
+| Design View      | Primary Technique              | What It Tests                                       |
+| ---------------- | ------------------------------ | --------------------------------------------------- |
+| Interface View   | **Interface Contract Testing** | API contracts, protocol compliance, error responses |
+| Data Design View | **Boundary Value Analysis**    | Data limits, thresholds, ranges                     |
+| Data Design View | **Equivalence Partitioning**   | Representative data classes                         |
+| Dependency View  | **Fault Injection**            | Failure propagation, graceful degradation           |
 
 **Rules**:
+
 - Every SYS component gets at least one test case from its most relevant design view
 - Components appearing in multiple views should have test cases from each view
 - A single SYS may have Interface Contract + Boundary Value + Fault Injection test cases
@@ -125,15 +129,15 @@ Each test case MUST name its ISO 29119 technique explicitly. Select based on the
 For components with entries in the Interface View:
 
 1. **External interfaces**: Test protocol compliance, authentication, input validation, error responses
-   - Valid input → expected output
-   - Malformed input → appropriate error code
-   - Missing authentication → rejected with 401/403
-   - Timeout → graceful timeout response
+    - Valid input → expected output
+    - Malformed input → appropriate error code
+    - Missing authentication → rejected with 401/403
+    - Timeout → graceful timeout response
 
 2. **Internal interfaces**: Test contract adherence, data format correctness, failure propagation
-   - Valid contract call → correct response format
-   - Component unavailable → caller handles gracefully
-   - Data format violation → caller detects and reports
+    - Valid contract call → correct response format
+    - Component unavailable → caller handles gracefully
+    - Data format violation → caller detects and reports
 
 **CRITICAL DISTINCTION**: External and internal interface tests are SEPARATE test cases. Auditors expect this distinction to be explicit.
 
@@ -164,6 +168,7 @@ For each test case (`STP-NNN-X`), generate one or more executable scenarios (`ST
 System test scenarios MUST use **technical, component-oriented language**. They verify architectural behavior, not user journeys.
 
 **PROHIBITED phrases** (these belong in acceptance scenarios, not system tests):
+
 - "the user clicks"
 - "the user sees"
 - "the user navigates"
@@ -174,6 +179,7 @@ System test scenarios MUST use **technical, component-oriented language**. They 
 - "the form displays"
 
 **REQUIRED language style**:
+
 - "the [component name] receives [input]"
 - "the [component name] returns [output]"
 - "the [component name] raises [error/exception]"
@@ -184,6 +190,7 @@ System test scenarios MUST use **technical, component-oriented language**. They 
 **Examples**:
 
 ❌ WRONG (user-centric — belongs in acceptance test):
+
 ```
 Given a logged-in user on the dashboard
 When the user clicks "Export Report"
@@ -191,6 +198,7 @@ Then the user sees a download dialog
 ```
 
 ✅ CORRECT (component-centric — system test):
+
 ```
 Given the Report Generator service has a valid dataset of 500 records
 When the export API receives a GET request to /api/reports/export?format=csv
@@ -200,6 +208,7 @@ Then the service returns a 200 response with Content-Type: text/csv within 3 sec
 #### 5.2 Scenario Quality Criteria
 
 Every STS scenario must satisfy:
+
 1. **Technical precision**: References specific components, APIs, data formats, or error codes
 2. **Measurable outcomes**: Includes thresholds, response codes, or state transitions (not subjective judgments)
 3. **Isolation**: Tests one component behavior per scenario (not end-to-end user flows)
@@ -221,9 +230,9 @@ IEEE 1012:2016 §5.5 requires every requirement to be exercised by at least one 
 
 1. **Every `REQ-F-NNN`** has at least one `STP-NNN-X` test case that validates it
 2. **Every `REQ-NF-NNN`** has at least one applicable V&V activity:
-   - **Test** (`STP`) — preferred when the quality characteristic is measurable
-   - **Analysis** — documented in the Coverage Summary when a test is impractical
-   - **Inspection** — documented with rationale when structural examination suffices
+    - **Test** (`STP`) — preferred when the quality characteristic is measurable
+    - **Analysis** — documented in the Coverage Summary when a test is impractical
+    - **Inspection** — documented with rationale when structural examination suffices
 3. **No `REQ-NNN`** is left without any V&V activity — flag uncovered requirements as: `[V&V GAP: REQ-NNN has no system-level V&V activity — IEEE 1012:2016 §5.5]`
 
 #### 7.2 Entry Criteria Check (IEEE 1012:2016 §5.5.1)
@@ -254,6 +263,7 @@ Write the complete system test plan to `{VMODEL_DIR}/system-test.md` using the t
 ### 9. Report Completion
 
 Display a summary:
+
 - Total test cases (STP) and scenarios (STS) generated
 - Coverage: X/Y SYS components covered (must be 100% or flagged)
 - Technique distribution: Interface Contract [N], Boundary Value [N], Fault Injection [N], Equivalence Partitioning [N]
@@ -266,10 +276,10 @@ Display a summary:
 
 This command is governed by the following standards for system testing:
 
-| Standard | Full Name | Role in this Command |
-|----------|-----------|----------------------|
-| **ISO/IEC/IEEE 29119** | Software and Systems Testing | Primary test standard: named test techniques, test case structure, test scenario format, and system-level test design |
-| **IEEE 1012:2016** | IEEE Standard for System, Software, and Hardware Verification and Validation | V&V governance: ensures every requirement is exercised by at least one V&V activity (test, analysis, inspection, or demonstration); distinguishes verification ("built right") from validation ("right product"); prescribes entry/exit criteria for test activities |
+| Standard               | Full Name                                                                    | Role in this Command                                                                                                                                                                                                                                                 |
+| ---------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ISO/IEC/IEEE 29119** | Software and Systems Testing                                                 | Primary test standard: named test techniques, test case structure, test scenario format, and system-level test design                                                                                                                                                |
+| **IEEE 1012:2016**     | IEEE Standard for System, Software, and Hardware Verification and Validation | V&V governance: ensures every requirement is exercised by at least one V&V activity (test, analysis, inspection, or demonstration); distinguishes verification ("built right") from validation ("right product"); prescribes entry/exit criteria for test activities |
 
 > **Domain extensions:** If a domain overlay is loaded (Step 2a), additional structural coverage requirements from the applicable standard (e.g., ISO 26262-6 §9.4.4 MC/DC by ASIL, DO-178C §6.4.4 coverage by DAL) are applied alongside these best-practice standards.
 
@@ -278,6 +288,7 @@ This command is governed by the following standards for system testing:
 ### Strict Translation Rules
 
 When generating from `system-design.md`:
+
 - **DO NOT** invent test conditions for capabilities not in the design
 - **DO NOT** test user journeys — that is the acceptance test plan's job
 - **DO** generate at least one STP per SYS component

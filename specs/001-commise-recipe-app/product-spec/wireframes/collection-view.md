@@ -74,6 +74,21 @@ renders it as a visible TEXT label ("Added by you" / "From source collection", `
 actively misleading for a value the user cannot change, and WCAG 1.4.1 requires this status not be conveyed by
 shape/checked-state alone. The text label is strictly clearer than the glyph it replaces and is kept as-built.
 
+## Refresh Failure State
+
+- **When:** a focus/reconnect refresh fails while the collection is on screen.
+- **Shown:** the collection stays, and an inline notice in the header, below the name and meta, reads "We couldn’t refresh this collection." with **Try again**. A load that failed with nothing to show is the not-found or load-error state instead.
+- **Behaviour:** the notice announces politely, keeps its button (busy) while any retry runs, and clears on the next successful refresh. When its own Try again succeeds, focus moves to the collection name.
+- **Authority:** `docs/CODING_STANDARDS.md` §11.0.
+
+## My Collections List — Loading and Load Error States
+
+There is no separate wireframe for the collections list that "Back to My Collections" returns to (`CollectionList`), so its two load states are recorded here.
+
+- **Loading:** the heading and the **Create collection** button stay on screen and usable. Only the list area shows three skeleton rows, captioned "Loading collections" (`list.loadingLabel`).
+- **Load error:** the heading and **Create collection** stay. The list area is replaced by the error message and **Try again**, announced as an alert. Creating a collection does not depend on this read.
+- **Authority:** `docs/CODING_STANDARDS.md` §11.0 — the pending read suspends the list only, never the header.
+
 ## Pull Updates Preview Dialog (FR-011)
 
 ```

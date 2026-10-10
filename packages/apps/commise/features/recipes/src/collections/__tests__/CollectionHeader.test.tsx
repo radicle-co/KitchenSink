@@ -1,209 +1,274 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web collection-header view (W5 Task 6). Covers every branch the mandate
- * requires — a non-cloned public collection (badge + count, no source/last-pulled lines), a cloned private
- * collection with full source attribution + last-pulled, a cloned collection with an unresolved source
- * owner (name-only attribution, no crash), the web Back affordance (C6), and the Edit/Delete affordances
- * (C4) — asserting on role/name/text so a dropped branch fails.
+ * A collection's header (`docs/design/uiOverhaul/buildSpec.md` §5.2): "‹ Collections" back, the name as the page's one H1,
+ * the meta line — visibility (icon and word), "6 recipes" and, for a copy, "Copied from @clara" — the description, and ONE
+ * primary (Add recipes) with ONE ⋯ menu named for the collection: Rename · Make private / Make public · Save a copy · Pull
+ * updates (copies only) · divider · Delete collection. At a 600 container the pair sits at the end of the title row; below
+ * it, under the description. Either way it is drawn once.
+ *
+ * ⚠️ REWRITTEN for slice 5. The header used to carry its own Edit and Delete buttons and a separate actions panel held
+ * Add, Pull, Clone and the visibility toggle; one primary and one menu replace them all (the pair
+ * `LargeTitleHeader.action` takes).
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { utilityContrast } from '@commise/test-utils';
+import { LocaleProvider } from '@commise/i18n/react';
 
 import { CollectionHeader } from '../CollectionHeader.js';
-import type { CollectionHeaderViewProps } from '../model.js';
+import type { CollectionHeaderProps } from '../detailModel.js';
 
 afterEach(cleanup);
 
-const noop = () => undefined;
+if (typeof Element !== 'undefined') {
+    // jsdom implements neither pointer capture nor scrollIntoView, which Radix's menu calls on open.
+    Element.prototype.hasPointerCapture ??= (): boolean => false;
+    Element.prototype.releasePointerCapture ??= (): void => undefined;
+    Element.prototype.scrollIntoView ??= (): void => undefined;
+}
 
-function renderHeader(overrides: Partial<CollectionHeaderViewProps> = {}) {
-    const props: CollectionHeaderViewProps = {
-        name: 'Keto Week',
-        visibility: 'public',
-        recipeCount: 8,
-        onEdit: noop,
-        onDelete: noop,
-        ...overrides,
+function renderHeader(over: Partial<CollectionHeaderProps> = {}) {
+    const props: CollectionHeaderProps = {
+        name: 'Weeknight Dinners',
+        description: 'Quick dinners for school nights.',
+        visibility: RecipeVisibility.PRIVATE,
+        recipeCount: 6,
+        actionsPlacement: 'title',
+        headingId: 'collection-title',
+        headingFocusSignal: 0,
+        onBack: vi.fn(),
+        onAddRecipes: vi.fn(),
+        onRename: vi.fn(),
+        onToggleVisibility: vi.fn(),
+        onSaveCopy: vi.fn(),
+        onPullUpdates: vi.fn(),
+        onDelete: vi.fn(),
+        ...over,
     };
-    render(<CollectionHeader {...props} />);
+
+    render(
+        <LocaleProvider locale="en">
+            <CollectionHeader {...props} />
+        </LocaleProvider>,
+    );
 
     return props;
 }
 
-describe('CollectionHeader (web) — non-cloned collection', () => {
-    it('renders the name, the Public badge, and the recipe count', () => {
+describe('CollectionHeader (web) — what it says', () => {
+    it('is the name as the page’s one H1', () => {
         renderHeader();
 
-        expect(screen.getByRole('heading', { name: 'Keto Week' })).toBeTruthy();
+        expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+        expect(screen.getByRole('heading', { level: 1, name: 'Weeknight Dinners' }).id).toBe('collection-title');
+    });
+
+    it('goes back to the collections list from “Back to Collections”', async () => {
+        const user = userEvent.setup();
+        const props = renderHeader({ backHref: '/en/recipes?segment=collections' });
+
+        await user.click(screen.getByRole('link', { name: 'Back to Collections' }));
+
+        expect(props.onBack).toHaveBeenCalledOnce();
+    });
+
+    it('states visibility as a word, the recipe count, and the description', () => {
+        renderHeader({ visibility: RecipeVisibility.PUBLIC, recipeCount: 1 });
+
         expect(screen.getByText('Public')).toBeTruthy();
-        expect(screen.getByText('8 recipes')).toBeTruthy();
+        expect(screen.getByText('1 recipe')).toBeTruthy();
+        expect(screen.getByText('Quick dinners for school nights.')).toBeTruthy();
     });
 
-    it('renders no source-attribution or last-pulled line', () => {
-        renderHeader();
-
-        expect(screen.queryByText(/^Source:/)).toBeNull();
-        expect(screen.queryByText(/^Last pulled/)).toBeNull();
-    });
-});
-
-describe('CollectionHeader (web) — cloned collection with full attribution', () => {
-    it('renders the Private badge, the templated source attribution, and the last-pulled date', () => {
-        renderHeader({
-            visibility: 'private',
-            sourceCollectionName: 'Keto Staples',
-            sourceOwnerHandle: 'clara',
-            lastPulledAt: '2026-05-01T00:00:00.000Z',
-        });
+    it('says Private for a private collection', () => {
+        renderHeader({ visibility: RecipeVisibility.PRIVATE });
 
         expect(screen.getByText('Private')).toBeTruthy();
-        expect(screen.getByText('Source: @clara’s "Keto Staples"')).toBeTruthy();
-        expect(screen.getByText(/Last pulled: May 1, 2026/)).toBeTruthy();
-    });
-});
-
-describe('CollectionHeader (web) — cloned collection with an unresolved source owner', () => {
-    it('shows the source name without an @handle, and does not crash', () => {
-        renderHeader({ sourceCollectionName: 'Keto Staples', sourceOwnerHandle: undefined });
-
-        expect(screen.getByText('Source: "Keto Staples"')).toBeTruthy();
-        expect(screen.queryByText(/@/)).toBeNull();
-    });
-});
-
-describe('CollectionHeader (web) — Back affordance (C6)', () => {
-    it('fires onBack when the Back control is activated', async () => {
-        const user = userEvent.setup();
-        const onBack = vi.fn();
-        renderHeader({ onBack });
-
-        await user.click(screen.getByRole('button', { name: /back/i }));
-
-        expect(onBack).toHaveBeenCalledTimes(1);
     });
 
-    it('renders no Back control when onBack is omitted', () => {
-        renderHeader({ onBack: undefined });
-
-        expect(screen.queryByRole('button', { name: /back/i })).toBeNull();
-    });
-});
-
-/**
- * Delete is painted in the ERROR register — with the error hue, not coral.
- *
- * The control already labelled itself `text-error-dark` (#B1442B) but tinted its hover with `bg-coral/10`
- * (#E8917A) — two adjacent-but-different hues inside one control, and the wrong one for a destructive action:
- * coral is a brand accent (the mockups spend it on tags and warm highlights), `error` is the destructive
- * token, and the design system's own `destructive` Button tier already tints with `hover:bg-error/10`. The
- * native leaf never had the coral at all (`palette.error` text, no tint), so this was a WEB-ONLY drift.
- */
-describe('CollectionHeader (web) — Delete stays in the error register', () => {
-    it('tints Delete’s hover with the error token, never coral', () => {
-        renderHeader();
-        const className = screen.getByRole('button', { name: 'Delete' }).className;
-
-        expect(className).toContain('text-error-dark');
-        expect(className).toContain('hover:bg-error/10');
-        expect(className).not.toContain('coral');
-    });
-
-    it('leaves the non-destructive Rename out of the error register entirely', () => {
-        renderHeader();
-        const className = screen.getByRole('button', { name: 'Rename' }).className;
-
-        // The counterweight assertion: "no coral" must not be reachable by painting EVERYTHING error-toned.
-        expect(className).not.toContain('error');
-        expect(className).not.toContain('coral');
-    });
-});
-
-/**
- * Three seafoam FOREGROUNDS in this header are read as text — Back, Rename, and the visibility badge — so all
- * three carry the 4.5:1 body-text floor, not the 3:1 accent floor `seafoam` clears. Measured: 4.02:1 for Back
- * and Rename on white, 3.57:1 for Rename once `hover:bg-seafoam/10` lands, and 3.57:1 for the badge, whose own
- * `bg-seafoam/10` tint is composited before the ratio is taken. See `@commise/ui`'s palette JSDoc for the one
- * authoritative statement of where seafoam remains correct (this badge's TINT is one of those places).
- */
-describe('CollectionHeader (web) — the seafoam text foregrounds clear the AA body-text floor', () => {
-    it('keeps the Back control legible', () => {
-        renderHeader({ onBack: noop });
-
-        expect(
-            utilityContrast(screen.getByRole('button', { name: /back/i }).className),
-            'Back to My Collections',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('keeps the Rename control legible at rest AND over its hover tint', () => {
-        renderHeader();
-        const rename = screen.getByRole('button', { name: 'Rename' });
-
-        expect(utilityContrast(rename.className), 'Rename at rest').toBeGreaterThanOrEqual(4.5);
-        expect(utilityContrast(rename.className, { variant: 'hover' }), 'Rename on hover').toBeGreaterThanOrEqual(4.5);
-    });
-
-    it('keeps the visibility badge legible over its own seafoam tint, in both visibility states', () => {
-        renderHeader({ visibility: 'public' });
-        expect(utilityContrast(screen.getByText('Public').className), 'Public badge').toBeGreaterThanOrEqual(4.5);
-
+    it('says a copy’s source: by handle, by name alone, or in general — and nothing for an original', () => {
+        renderHeader({ sourceCollectionName: 'Dinners', sourceOwnerHandle: 'clara' });
+        expect(screen.getByText('Copied from @clara')).toBeTruthy();
         cleanup();
-        renderHeader({ visibility: 'private' });
-        expect(utilityContrast(screen.getByText('Private').className), 'Private badge').toBeGreaterThanOrEqual(4.5);
-    });
 
-    it('keeps the badge’s seafoam TINT — a background, which the 4.5 floor never governed', () => {
+        renderHeader({ sourceCollectionName: 'Dinners' });
+        expect(screen.getByText('Copied from “Dinners”')).toBeTruthy();
+        cleanup();
+
+        renderHeader({ sourceCollectionId: 'col_9' });
+        expect(screen.getByText('Copied from another collection')).toBeTruthy();
+        cleanup();
+
         renderHeader();
-
-        // The counterweight: the fix must demote the LABEL only. Dropping the tint would erase the badge's
-        // own affordance to satisfy a floor that applies to its text, not to its fill.
-        expect(screen.getByText('Public').className).toContain('bg-seafoam/10');
+        expect(screen.queryByText(/Copied from/u)).toBeNull();
     });
-});
 
-describe('CollectionHeader (web) — Edit/Delete affordances (C4)', () => {
-    it('reports edit and delete requests upward', async () => {
+    it('opens the original from “Copied from …” when it knows which one that is', async () => {
         const user = userEvent.setup();
-        const onEdit = vi.fn();
-        const onDelete = vi.fn();
-        renderHeader({ onEdit, onDelete });
-
-        await user.click(screen.getByRole('button', { name: 'Rename' }));
-        await user.click(screen.getByRole('button', { name: 'Delete' }));
-
-        expect(onEdit).toHaveBeenCalledTimes(1);
-        expect(onDelete).toHaveBeenCalledTimes(1);
-    });
-});
-
-/**
- * Cross-platform parity for the native leaf's `flexShrink` fix (Maestro `collections` /
- * `collections-pagination`, where a long name pushed Rename/Delete off the screen edge on Android). CSS
- * flex items default to `flex-shrink: 1`, so web degraded more gracefully than RN — but the `h1`'s
- * `min-width: auto` still lets a single long token overflow, and the action group could itself be squeezed.
- * Pinning both here keeps the two leaves' overflow behaviour from drifting again.
- */
-describe('CollectionHeader (web) — title row cannot squeeze its actions off-screen', () => {
-    it('lets a long name shrink and wrap rather than overflow the row', () => {
-        renderHeader({ name: 'Maestro renamed collection with a deliberately very long name' });
-
-        const heading = screen.getByRole('heading', {
-            name: 'Maestro renamed collection with a deliberately very long name',
+        const onViewSource = vi.fn();
+        renderHeader({
+            sourceCollectionName: 'Dinners',
+            sourceOwnerHandle: 'clara',
+            sourceCollectionId: 'col_9',
+            onViewSource,
         });
 
-        expect(heading.className).toContain('min-w-0');
-        expect(heading.className).toContain('break-words');
+        await user.click(screen.getByRole('button', { name: 'Copied from @clara' }));
+
+        expect(onViewSource).toHaveBeenCalledExactlyOnceWith('col_9');
     });
 
-    it('never shrinks the action group itself, so neither control is clipped', () => {
-        renderHeader({ name: 'Maestro renamed collection with a deliberately very long name' });
+    it('says when the copy last took updates from the original', () => {
+        renderHeader({ sourceCollectionName: 'Dinners', lastPulledAt: '2026-04-19T09:30:00.000Z' });
 
-        const actions = screen.getByRole('button', { name: 'Delete' }).parentElement;
+        expect(screen.getByText(/Last pulled: Apr 19, 2026/u)).toBeTruthy();
+    });
 
-        expect(actions).not.toBeNull();
-        expect(actions?.className).toContain('shrink-0');
+    it('draws no description when there is none', () => {
+        renderHeader({ description: undefined });
+
+        expect(screen.queryByText('Quick dinners for school nights.')).toBeNull();
+    });
+});
+
+describe.each(['title', 'below'] as const)('CollectionHeader (web) — actions placed in the %s', (actionsPlacement) => {
+    it('draws one Add recipes and one ⋯ menu named for the collection, whichever placement', async () => {
+        const user = userEvent.setup();
+        const props = renderHeader({ actionsPlacement });
+
+        expect(screen.getAllByRole('button', { name: 'Add recipes' })).toHaveLength(1);
+        expect(screen.getAllByRole('button', { name: 'More actions for Weeknight Dinners' })).toHaveLength(1);
+
+        await user.click(screen.getByRole('button', { name: 'Add recipes' }));
+
+        expect(props.onAddRecipes).toHaveBeenCalledOnce();
+    });
+});
+
+describe('CollectionHeader (web) — placement in the document', () => {
+    it('puts the pair in the title row from a 600 container, ahead of the description', () => {
+        renderHeader({ actionsPlacement: 'title' });
+        const add = screen.getByRole('button', { name: 'Add recipes' });
+        const description = screen.getByText('Quick dinners for school nights.');
+
+        expect(add.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('puts the pair under the description below it, with Add recipes filling the row', () => {
+        renderHeader({ actionsPlacement: 'below' });
+        const add = screen.getByRole('button', { name: 'Add recipes' });
+        const description = screen.getByText('Quick dinners for school nights.');
+
+        expect(description.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(add.className).toContain('w-full');
+    });
+});
+
+describe('CollectionHeader (web) — the ⋯ menu', () => {
+    async function open(user: ReturnType<typeof userEvent.setup>) {
+        await user.click(screen.getByRole('button', { name: 'More actions for Weeknight Dinners' }));
+
+        return within(await screen.findByRole('menu'));
+    }
+
+    it('lists Rename, Make public (for a private collection) and Save a copy for an original, then Delete after a divider', async () => {
+        const user = userEvent.setup();
+        renderHeader({ visibility: RecipeVisibility.PRIVATE });
+        const menu = await open(user);
+
+        expect(menu.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+            'Rename',
+            'Make public',
+            'Save a copy',
+            'Delete collection',
+        ]);
+        expect(screen.getByRole('separator')).toBeTruthy();
+    });
+
+    it('offers Make private for a public collection', async () => {
+        const user = userEvent.setup();
+        renderHeader({ visibility: RecipeVisibility.PUBLIC });
+        const menu = await open(user);
+
+        expect(menu.getByRole('menuitem', { name: 'Make private' })).toBeTruthy();
+        expect(menu.queryByRole('menuitem', { name: 'Make public' })).toBeNull();
+    });
+
+    it('adds Pull updates, after Save a copy, for a copy only', async () => {
+        const user = userEvent.setup();
+        renderHeader({ sourceCollectionName: 'Dinners' });
+        const menu = await open(user);
+
+        expect(menu.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+            'Rename',
+            'Make public',
+            'Save a copy',
+            'Pull updates',
+            'Delete collection',
+        ]);
+    });
+
+    it.each([
+        ['Rename', 'onRename'],
+        ['Make public', 'onToggleVisibility'],
+        ['Save a copy', 'onSaveCopy'],
+        ['Delete collection', 'onDelete'],
+    ] as const)('%s reports what it asks for', async (label, callback) => {
+        const user = userEvent.setup();
+        const props = renderHeader({ visibility: RecipeVisibility.PRIVATE });
+        const menu = await open(user);
+
+        await user.click(menu.getByRole('menuitem', { name: label }));
+
+        await vi.waitFor(() => expect(props[callback]).toHaveBeenCalledOnce());
+    });
+
+    it('Pull updates reports it', async () => {
+        const user = userEvent.setup();
+        const props = renderHeader({ sourceCollectionName: 'Dinners' });
+        const menu = await open(user);
+
+        await user.click(menu.getByRole('menuitem', { name: 'Pull updates' }));
+
+        await vi.waitFor(() => expect(props.onPullUpdates).toHaveBeenCalledOnce());
+    });
+});
+
+describe('CollectionHeader (web) — a failed refresh', () => {
+    const notice = (over: Partial<NonNullable<CollectionHeaderProps['refreshNotice']>> = {}) => ({
+        failed: false,
+        refreshing: false,
+        onRetry: vi.fn(),
+        recoveries: 0,
+        ...over,
+    });
+
+    it('says so, with a Try again that retries', async () => {
+        const user = userEvent.setup();
+        const refreshNotice = notice({ failed: true });
+        renderHeader({ refreshNotice });
+
+        expect(screen.getAllByText('We couldn’t refresh this collection.').length).toBeGreaterThan(0);
+
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+        expect(refreshNotice.onRetry).toHaveBeenCalledOnce();
+    });
+
+    it('moves focus to the H1 when the heading’s signal advances', () => {
+        const props = renderHeader();
+        const view = (signal: number) => (
+            <LocaleProvider locale="en">
+                <CollectionHeader {...props} headingFocusSignal={signal} />
+            </LocaleProvider>
+        );
+        cleanup();
+        const { rerender } = render(view(0));
+
+        rerender(view(1));
+
+        expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }));
     });
 });

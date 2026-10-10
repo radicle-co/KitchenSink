@@ -1,144 +1,497 @@
 /**
- * `FoodsController` (ARCH-001, MOD-001) — the source-agnostic `/api/v1/foods/*` HTTP surface. Validates
- * input at the boundary, delegates to {@link FoodsService}, and maps the service's typed domain errors
- * to HTTP responses under the FR-051 precedence `401 → 403 → 400 → 404/202/200`:
+ * `FoodsController` (ARCH-001, MOD-001) — the source-agnostic `/api/v1/foods/*` HTTP surface. Validates input at
+ * the boundary, delegates to {@link FoodsService}, and otherwise gets out of the way.
  *
- * - `FoodPendingError` → `202` (PENDING/UNRESOLVED)
- * - `FoodNotFoundError` → `404` (NOT_FOUND/FAILED/no row; status still in the body)
- * - `CandidateMismatchError` / `NotResolvableError` → `409`
- * - `FetchUnavailableError` → `503` + `Retry-After` (backpressure / flood-shed / resolve cap; never `429`)
+ * ── IT NO LONGER MAPS DOMAIN ERRORS TO STATUS CODES, AND THAT IS A DELETION, NOT AN OMISSION ──
  *
- * The `401` (authn) layer is the {@link FoodAuthGuard} middleware mounted ahead of this controller; it
- * sets `req.user` from the verified Clerk `sub` only. Operational `/refetch` additionally requires the
- * `food:admin` scope (`403` otherwise) — checked BEFORE id validation so `403` precedes `400`. Internal/DB
- * errors are never leaked; they propagate to Nest's generic `500`.
+ * It used to: `mapReadError` / `mapResolveError` / `mapWriteError` turned each {@link FoodsService} error into a
+ * `NotFoundException` / `ConflictException` / `ServiceUnavailableException` with a `{ error, …extras }` body. Every
+ * one of those decisions was ALREADY made, exhaustively and in one table, by `ApiExceptionFilter` +
+ * `FOOD_ERROR_STATUS` — which the same errors reached anyway whenever they escaped a `try` block. So one piece of
+ * knowledge ("a `CandidateMismatchError` is a 409") had two authors that nothing forced to agree, and the
+ * controller's copy was also the one emitting the second of this service's three legacy error shapes.
+ *
+ * The domain errors now simply propagate. The FR-051 precedence `401 → 403 → 400 → 404/202/200` is unchanged and
+ * still asserted end-to-end (`tests/foodsApi.integration.test.ts`); what changed is that only ONE place decides
+ * it. Do not re-add a `catch` that re-raises a domain error as an `HttpException`.
+ *
+ * What genuinely belongs here, and stays:
+ *
+ *  - **`202` on the pending READ.** `GET /{id}` answering a `FoodPendingError` with the `PendingResponse` body is
+ *    a SUCCESS shape (`{ id, status, estimatedWaitSeconds? }`), not an error envelope, so the controller is the
+ *    only layer that can produce it.
+ *  - **Boundary rejections** — a malformed `{id}`, and the batch cap. Both raised through {@link apiError}, so the
+ *    status still comes from the one table.
+ *  - **The `403` scope check on `/refetch`**, deliberately BEFORE id validation so `403` precedes `400` (FR-051).
+ *
+ * The `401` (authn) layer is the `FoodAuthGuard` middleware mounted ahead of this controller; it sets
+ * `req.user` from the verified Clerk `sub` only. Internal/DB errors are never leaked — they reach the filter's
+ * generic `500`.
  *
  * @implements FR-002 FR-003 FR-004 FR-005 FR-006 FR-007 FR-008 FR-012 FR-039 FR-045 FR-046 FR-051 FR-RES-1 FR-RES-2
  */
 import {
-    BadRequestException,
     Body,
-    ConflictException,
     Controller,
-    ForbiddenException,
+    Delete,
     Get,
+    Header,
+    HttpCode,
     HttpStatus,
+    Inject,
+    Logger,
     NotFoundException,
     Param,
     Patch,
     Post,
+    Put,
     Query,
     Req,
     Res,
-    ServiceUnavailableException,
     UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
+import { sanitizeFoodName } from '@kitchensink/recipe-core/food-name';
 
 import {
     FOOD_ADMIN_SCOPE,
     hasScope,
     IDENTITY_SYNC_PENDING_CODE,
+    isServicePrincipalSub,
     resolveRequesterId,
     type AuthenticatedPrincipal,
     type AuthenticatedRequest,
-} from '../auth/authenticated-principal.js';
+} from '../auth/authenticatedPrincipal.js';
+import { apiError } from '../common/apiError.js';
+import { AdoptRateLimit, ResolveRateLimit, SearchRateLimit } from '../common/throttle/throttle.decorators.js';
+import {
+    canonicalizeNutritionIds,
+    isNutritionIdListError,
+    MAX_NUTRITION_IDS,
+    type FoodNutritionBatchResponse,
+} from './foods.schema.js';
 import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
-import {
-    isCandidateMismatchError,
-    isFetchUnavailableError,
-    isFoodNotFoundError,
-    isFoodPendingError,
-    isNotResolvableError,
-} from './foods.errors.js';
+import { CitedSourcesService } from './citedSources.service.js';
+import type { DataSourcesResponse } from './dataSources.schema.js';
+import { evaluateTestPurgeAccess } from './domain/testPurgePolicy.js';
+import { isFoodPendingError } from './foods.errors.js';
 import { FoodsService } from './foods.service.js';
+import { frameLine } from './progressive/frameLine.js';
+import { ProgressiveFoodSearch } from './progressive/ProgressiveFoodSearch.js';
+import { PROGRESSIVE_SEARCH_CONTENT_TYPE } from './progressiveSearch.schema.js';
+import { AdoptRemoteFood } from './remote/AdoptRemoteFood.js';
+import { TestPrincipalPurgeService } from './testPrincipalPurge.service.js';
+// The AUTHORED wire contract (CODING_STANDARDS §15.2): the request schemas below are the validators this
+// controller runs AND the definitions `@kitchensink/schema-food` publishes to every client, so there is one
+// representation of each shape instead of a server-side check and a client-side belief about it.
+import {
+    AddFoodBodyDto,
+    AdoptRemoteFoodBodyDto,
+    BatchAddFoodBodyDto,
+    CreateAuthoredFoodBodyDto,
+    FoodNutritionQueryDto,
+    ResolveFoodBodyDto,
+    ResolveFoodRefsBodyDto,
+    SearchFoodQueryDto,
+    SearchTermQueryDto,
+    UpdateAuthoredFoodBodyDto,
+} from './dto/foods.dto.js';
 import type {
     AddResponse,
+    AdoptRemoteFoodResponse,
+    AuthoredFoodSearchResponse,
+    AuthoredFoodTestPurgeResponse,
     BatchResponse,
     CandidatesResponse,
+    CatalogSearchResponse,
     FoodResponse,
     PendingResponse,
+    ResolveFoodRefsResponse,
     ResolveResponse,
     SearchResponse,
     StatusResponse,
-} from './foods.types.js';
+    CorroboratedResponse,
+} from './foods.schema.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
 // `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
 // webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+/**
+ * The exception Nest's own not-found handler throws for a path no route matches —
+ * `@nestjs/core/router/routes-resolver.js`, `registerNotFoundHandler`: `new NotFoundException(`Cannot ${method} ${url}`)`
+ * with the Express adapter's `request.method` and `request.originalUrl`. Thrown by a door that must be
+ * indistinguishable from absent, it reaches `ApiExceptionFilter` by the identical path and renders the identical
+ * envelope. `tests/authoredFoodsTestPurge.integration.test.ts` compares it against a REAL unrouted request, so a
+ * Nest upgrade that changes the message fails there rather than silently exposing the door.
+ *
+ * @param req - The request being refused.
+ * @returns The exception to throw. Pure.
+ */
+function unroutedNotFound(req: AuthenticatedRequest): NotFoundException {
+    return new NotFoundException(`Cannot ${req.method} ${req.originalUrl}`);
+}
+
 @Controller(['api/v1/foods', 'v1/foods'])
 export class FoodsController {
+    private readonly logger = new Logger(FoodsController.name);
+
     public constructor(
         private readonly foodsService: FoodsService,
         private readonly config: ConfigService<Environment, true>,
+        /** ADR-0040's authored-food test purge — reached only past `evaluateTestPurgeAccess`. */
+        private readonly testPurge: TestPrincipalPurgeService,
+        /** The Data sources read (plan R55). The one method the controller calls, so a test passes no cast. */
+        @Inject(CitedSourcesService) private readonly citedSources: Pick<CitedSourcesService, 'list'>,
+        /** The remote pick (ADR-0055 point 10). The one method the controller calls. */
+        @Inject(AdoptRemoteFood) private readonly adoptRemote: Pick<AdoptRemoteFood, 'execute'>,
+        /** The progressive search (ADR-0055 point 5). The one method the controller calls. */
+        @Inject(ProgressiveFoodSearch) private readonly progressive: Pick<ProgressiveFoodSearch, 'run'>,
     ) {}
 
-    /** `GET /api/v1/foods/search?query=` — local fuzzy/crosswalk search (declared before `:id`). */
+    /**
+     * `GET /api/v1/foods/search?query=` — local fuzzy/crosswalk search (declared before `:id`).
+     *
+     * The query is now VALIDATED — trimmed, required, length-bounded — by the globally bound pipe against
+     * {@link SearchFoodQueryDto}. It previously arrived as a bare `@Query('query') query?: string` and went to
+     * the DAO as `query ?? ''`, so the published `searchFoodQuerySchema` described a check that never ran.
+     */
     @Get('search')
-    public async search(@Query('query') query?: string): Promise<SearchResponse> {
-        return this.foodsService.search(query ?? '');
+    @Header('Cache-Control', 'private, no-store')
+    public async search(@Query() query: SearchFoodQueryDto, @Req() req: AuthenticatedRequest): Promise<SearchResponse> {
+        // R20 (plan U11): the requester key scopes authored rows — the caller's own private foods rank
+        // beside the catalog; nobody else's ever leave the DAO. A `svc_*` principal owns no foods and gets
+        // pure catalog, which is exactly right for machine callers.
+        return this.foodsService.search(query.query, this.requireRequesterId(req), query.withNutrition === 'true');
+    }
+
+    /**
+     * `GET /api/v1/foods/catalog/search?query=` — the SHARED catalog search (plan 002 R40, S3).
+     *
+     * ⛔ It takes the validated term and NOTHING about the caller — no `@Req` — so no principal can reach its answer.
+     * The production edge shares that answer across every caller on the URL alone (ADR-0020), so it sends no
+     * `Cache-Control` on a `200` (the edge decides, as for `GET /nutrition`); every error it answers is
+     * `private, no-store` through `ApiExceptionFilter`. Capped per caller by {@link SearchRateLimit} (R42).
+     *
+     * ⚠️ Declared BEFORE every `:id` route (the `nutrition` route's warning).
+     */
+    @Get('catalog/search')
+    @SearchRateLimit()
+    public async searchCatalog(@Query() query: SearchTermQueryDto): Promise<CatalogSearchResponse> {
+        return this.foodsService.searchCatalog(query.query);
+    }
+
+    /**
+     * `GET /api/v1/foods/authored/search?query=` — the caller's OWN authored foods matching the term (plan 002 R40,
+     * S3), the per-caller half beside {@link searchCatalog}. A service principal owns no foods, so it
+     * gets an empty list with no read; an unsynced user token defers with `401 IDENTITY_SYNC_PENDING`.
+     *
+     * ⚠️ Declared BEFORE every `:id` route (the `nutrition` route's warning).
+     */
+    @Get('authored/search')
+    @Header('Cache-Control', 'private, no-store')
+    @SearchRateLimit()
+    public async searchAuthored(
+        @Query() query: SearchTermQueryDto,
+        @Req() req: AuthenticatedRequest,
+    ): Promise<AuthoredFoodSearchResponse> {
+        if (isServicePrincipalSub(this.requirePrincipal(req).sub)) {
+            return { results: [] };
+        }
+
+        return this.foodsService.searchAuthored(query.query, this.requireUserUlid(req));
+    }
+
+    /**
+     * `GET /api/v1/foods/search/progressive?query=` — the one search the apps read (ADR-0055 points 5 and 9; plan 002
+     * R62 to R67): newline-delimited JSON, our database's frame first, then one frame per remote source as it settles,
+     * then `complete`. See {@link ProgressiveFoodSearch} for what each frame holds.
+     *
+     * Everything that refuses the whole search runs before the first byte and answers the ordinary error envelope: the
+     * auth guard (`401`), the validation pipe on the canonical term (`400`), the per-minute cap
+     * (`429 SEARCH_RATE_LIMITED`, {@link SearchRateLimit}) and the requester key (`401 IDENTITY_SYNC_PENDING`). After
+     * the first byte every failure is a frame. The per-cook source budget is charged per source, at admission, never
+     * here, so a cook at their limit still gets the database frame and every cached answer. The body ends with
+     * `complete`; the search gaps are recorded after it.
+     *
+     * Per caller, so `private, no-store`, and on no shared edge path (ADR-0020). A service principal authored nothing,
+     * so its authored group is empty with no read.
+     *
+     * @param query - The validated canonical term.
+     * @param req - The guard-authenticated request.
+     * @param res - The response, which this handler streams itself.
+     * @throws (→ 401) the {@link requireRequesterId} cases, before the first byte.
+     * @sideEffect Streams frames; may call the search service, charge the caller's budget and record search gaps.
+     */
+    @Get('search/progressive')
+    @Header('Cache-Control', 'private, no-store')
+    @SearchRateLimit()
+    public async searchProgressive(
+        @Query() query: SearchTermQueryDto,
+        @Req() req: AuthenticatedRequest,
+        @Res() res: Response,
+    ): Promise<void> {
+        const requesterId = this.requireRequesterId(req);
+        const authorId = isServicePrincipalSub(this.requirePrincipal(req).sub) ? undefined : requesterId;
+        const caller = new AbortController();
+
+        res.on('close', () => {
+            caller.abort();
+        });
+        // Set here, past every refusal: an error envelope raised before this line must not be labelled a stream.
+        res.setHeader('Content-Type', PROGRESSIVE_SEARCH_CONTENT_TYPE);
+
+        try {
+            await this.progressive.run(
+                { term: query.query, requesterId, authorId, signal: caller.signal },
+                {
+                    write: (frame) => {
+                        res.write(frameLine(frame));
+
+                        // `complete` is the last frame, so the body ends with it; the search's gap writes follow.
+                        if (frame.type === 'complete') {
+                            res.end();
+                        }
+                    },
+                },
+            );
+        } catch (error) {
+            // Past the first byte the filter cannot answer; the body ends with no `complete`, which a client reads as
+            // incomplete.
+            this.logger.error('progressive-search-failed', { cause: String(error) });
+        } finally {
+            if (!res.writableEnded) {
+                res.end();
+            }
+        }
+    }
+
+    /**
+     * `GET /api/v1/foods/sources` — the sources a stored nutrition value cites, for the Data sources page (plan R55).
+     *
+     * ⚠️ **Declared BEFORE every `:id` route**, or `GET /:id` answers `sources` as a malformed id (`400`).
+     *
+     * Authenticated like every route here (FR-035): the page is for a signed-in cook, and `FoodAuthGuard` is mounted on
+     * this whole controller. Any verified principal may read it, a `svc_*` one included, because the answer does not
+     * depend on who asks. For the same reason it sends no `Cache-Control`, as `GET /nutrition` sends none: the edge
+     * decides what a caller-independent read may share (ADR-0020).
+     */
+    @Get('sources')
+    public async listDataSources(): Promise<DataSourcesResponse> {
+        return this.citedSources.list();
+    }
+
+    /**
+     * `POST /api/v1/foods/authored` — create a user-authored food → `201` + the COMPLETE entity (plan
+     * U10, D9a: the sibling CREATE door, beside add-by-name's `202` + PENDING).
+     *
+     * ⚠️ Declared BEFORE every `:id` route (Nest matches in declaration order — the `nutrition` route's
+     * own warning). The author comes from the VERIFIED principal, never the body; a `svc_*` principal
+     * cannot author a food (authored rows belong to people).
+     */
+    @Post('authored')
+    public async createAuthored(
+        @Body() body: CreateAuthoredFoodBodyDto,
+        @Req() req: AuthenticatedRequest,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<FoodResponse> {
+        const result = await this.foodsService.createAuthored(this.requireUserUlid(req), body);
+        res.status(HttpStatus.CREATED);
+
+        return result;
+    }
+
+    /**
+     * `POST /api/v1/foods/authored/test-purge` — a TEST PRINCIPAL deletes its own private authored foods → `200` with
+     * the counts (ADR-0040, food half; owner ruling: "purge them too as long as it doesn't change the desired flow
+     * for normal users").
+     *
+     * ⚠️ Declared BEFORE every `:id` route, beside `authored` (the `nutrition` route's warning). No `@Body()`, so no
+     * pipe runs ahead of the gate and nothing can answer a `400` that reveals the route.
+     *
+     * ⛔ The gate runs FIRST and every refusal is {@link unroutedNotFound}: the pure `evaluateTestPurgeAccess`
+     * decides from the verified claim alone and absorbs the `svc_*` `403` and the `IDENTITY_SYNC_PENDING` `401`
+     * that `requireUserUlid` would otherwise emit, so to any caller it does not admit the door is indistinguishable
+     * from an unrouted path. Not a route Guard: ADR-0023/0040 keep authorization in pure policy modules.
+     *
+     * ⚠️ That holds for AUTHENTICATED callers only (measured): with no or an invalid token this path answers
+     * `401 UNAUTHORIZED` where an unrouted sibling answers `404 NOT_FOUND`, because `FoodAuthGuard` is mounted on
+     * this controller's routes — the same property recipe-service's `test-reset` has. It is not closed on purpose:
+     * the fixes are un-authenticating the route or breaking every food route's published `401`, and learning the
+     * route exists grants nothing without a signed `testPrincipal` claim.
+     *
+     * ⚠️ One witness only — food keeps no `test_principals` registry (recipe-service's `test-reset` has one, written from
+     * the same claim, so not independent either; ADR-0040 §4 sets the precondition for both). The
+     * purge's predicate (own, private, not mid-erasure) is what bounds a mis-marked account. Because it lives on this
+     * controller it also inherits the deprecated `v1/foods` alias (ADR-0011); nothing depends on that.
+     *
+     * @param req - The guard-authenticated request.
+     * @returns The purge counts.
+     * @throws {NotFoundException} (→ the unrouted 404) for every caller the policy does not admit.
+     */
+    @Post('authored/test-purge')
+    @HttpCode(HttpStatus.OK)
+    public async purgeTestPrincipalFoods(@Req() req: AuthenticatedRequest): Promise<AuthoredFoodTestPurgeResponse> {
+        const verdict = evaluateTestPurgeAccess(this.requirePrincipal(req));
+
+        if (verdict.kind === 'not-found') {
+            throw unroutedNotFound(req);
+        }
+
+        return this.testPurge.purge(verdict.userId);
     }
 
     /** `POST /api/v1/foods` — add by name → `202` + `id` (FR-005); empty name → `400` (FR-006). */
     @Post()
     public async addByName(
-        @Body() body: unknown,
+        @Body() body: AddFoodBodyDto,
         @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<AddResponse> {
-        const name = this.requireName(body);
+        const result = await this.foodsService.addByName(this.visibleName(body.name), this.requireRequesterId(req));
+        res.status(HttpStatus.ACCEPTED);
 
-        try {
-            const result = await this.foodsService.addByName(name, this.requireRequesterId(req));
-            res.status(HttpStatus.ACCEPTED);
-
-            return result;
-        } catch (error) {
-            throw this.mapWriteError(error, res);
-        }
+        return result;
     }
 
     /** `POST /api/v1/foods/batch` — batch add-by-name; ≤100 names (`400` over) (FR-045). */
     @Post('batch')
-    public async batch(
-        @Body() body: unknown,
+    public async batch(@Body() body: BatchAddFoodBodyDto, @Req() req: AuthenticatedRequest): Promise<BatchResponse> {
+        const names = this.boundedNames(body.names);
+
+        return this.foodsService.batchAdd(names, this.requireRequesterId(req));
+    }
+
+    /**
+     * `POST /api/v1/foods/refs/resolve` — what the CALLER may know about each food a recipe line names (curated
+     * plan U8, roots slice; KTD-15): its name and status, or the one concealed `absent` answer.
+     *
+     * ⚠️ Declared BEFORE every `:id` route (Nest matches in declaration order — the `nutrition` route's warning).
+     *
+     * ⛔ PER CALLER, so it is deliberately NOT under `/nutrition*`: ADR-0020's edge cache keys that prefix on the
+     * URL alone and would serve one caller's answer to another. `private, no-store` on top; the real protection
+     * is the path. The answer is decided by the SAME authorship policy `GET /{id}` applies, over the verified
+     * requester — a `svc_*` principal authored nothing, so every private food is `absent` to it.
+     *
+     * A `POST` answering `200`, not Nest's POST default `201`: it creates nothing.
+     *
+     * @param body - The validated refs (1…`MAX_FOOD_REFS`; duplicates allowed).
+     * @param req - The guard-authenticated request.
+     * @returns One entry per distinct ref, in order of first appearance.
+     * @throws (→ 401) the {@link requireRequesterId} cases.
+     */
+    @Post('refs/resolve')
+    @HttpCode(HttpStatus.OK)
+    @Header('Cache-Control', 'private, no-store')
+    public async resolveRefs(
+        @Body() body: ResolveFoodRefsBodyDto,
         @Req() req: AuthenticatedRequest,
-        @Res({ passthrough: true }) res: Response,
-    ): Promise<BatchResponse> {
-        const names = this.requireNames(body);
-
-        try {
-            return await this.foodsService.batchAdd(names, this.requireRequesterId(req));
-        } catch (error) {
-            throw this.mapWriteError(error, res);
-        }
+    ): Promise<ResolveFoodRefsResponse> {
+        return this.foodsService.resolveRefs(body.refs, this.requireRequesterId(req));
     }
 
-    /** `GET /api/v1/foods/{id}/status` — lifecycle poll (FR-007). */
+    /**
+     * `POST /api/v1/foods/remote/adopt` — pick a remote hit by the reference food issued with it (ADR-0055 point 10):
+     * `200 { id }`, the catalog root the hit now is. The app commits the line as it commits any catalog pick.
+     *
+     * ⚠️ Declared BEFORE every `:id` route (the `nutrition` route's warning).
+     *
+     * {@link AdoptRateLimit} caps it per caller and charges the one source call it can make to the caller's hourly
+     * budget before it runs, giving it back when the catalog already stood for the item. A `POST` answering `200`: it is
+     * idempotent on the item, so a repeat answers the same root and creates nothing.
+     *
+     * @param body - The validated reference.
+     * @returns The root's id.
+     * @throws (→ 409 `REMOTE_FOOD_GONE`, 503 `FETCH_UNAVAILABLE`) as `AdoptRemoteFood.execute` says.
+     */
+    @Post('remote/adopt')
+    @HttpCode(HttpStatus.OK)
+    @Header('Cache-Control', 'private, no-store')
+    @AdoptRateLimit()
+    public async adoptRemoteFood(@Body() body: AdoptRemoteFoodBodyDto): Promise<AdoptRemoteFoodResponse> {
+        return this.adoptRemote.execute(body.reference);
+    }
+
+    /**
+     * `GET /api/v1/foods/nutrition?ids=a,b,c` — batch per-100g nutrition + normalized portions (plan U8).
+     *
+     * ⚠️ **Declared BEFORE `:id/status` and every other `:id` route.** Nest matches in declaration order, so
+     * a route registered after a `:id` pattern would be swallowed by it — `nutrition` would bind as an id and
+     * this endpoint would 404 with no clue why.
+     *
+     * ⛔ **GET, deliberately against this controller's own `POST /batch` precedent.** CloudFront does not
+     * cache POST responses AT ALL, so following the local precedent would have silently voided the entire
+     * reason food has a distribution (ADR-0020). The `ids` list is canonicalized — sorted, de-duplicated,
+     * capped — so two callers asking for the same foods produce byte-identical URLs and therefore share a
+     * cache entry.
+     *
+     * The response must not vary by caller; the edge keys it on the URL alone.
+     */
+    /**
+     * `GET /api/v1/foods/authored-nutrition?ids=…` — the AUTHENTICATED, per-caller half of ADR-0020's
+     * cache split (plan U18): nutrition for the caller's OWN authored foods.
+     *
+     * ⛔ The path deliberately avoids the `/nutrition*` prefix — that is the edge's shared-cache pattern,
+     * and a per-caller body under it would be cached URL-only and served across callers. `no-store`
+     * belt-and-braces on top; the real protection is the path.
+     */
+    @Get('authored-nutrition')
+    @Header('Cache-Control', 'private, no-store')
+    public async getAuthoredNutritionBatch(
+        @Query() query: FoodNutritionQueryDto,
+        @Req() req: AuthenticatedRequest,
+    ): Promise<FoodNutritionBatchResponse> {
+        return this.foodsService.getAuthoredNutritionBatch(
+            this.requireNutritionIds(query.ids),
+            this.requireUserUlid(req),
+        );
+    }
+
+    @Get('nutrition')
+    public async getNutritionBatch(@Query() query: FoodNutritionQueryDto): Promise<FoodNutritionBatchResponse> {
+        return this.foodsService.getNutritionBatch(this.requireNutritionIds(query.ids));
+    }
+
+    /**
+     * `GET /api/v1/foods/{id}/status` — lifecycle poll (FR-007).
+     *
+     * The requester feeds the SAME authorship gate `GET /{id}` runs: a stranger polling another user's private
+     * food gets the 404 a missing id gets.
+     */
     @Get(':id/status')
-    public async getStatus(@Param('id') id: string): Promise<StatusResponse> {
+    @Header('Cache-Control', 'private, no-store')
+    public async getStatus(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<StatusResponse> {
         this.requireId(id);
 
-        try {
-            return await this.foodsService.getStatus(id);
-        } catch (error) {
-            throw this.mapReadError(error, id);
-        }
+        return this.foodsService.getStatus(id, this.requireRequesterId(req));
     }
 
-    /** `GET /api/v1/foods/{id}/candidates` — disambiguation candidate set (FR-RES-1). */
+    /**
+     * `GET /api/v1/foods/{id}/candidates` — disambiguation candidate set (FR-RES-1), behind the same authorship
+     * gate as `GET /{id}`.
+     */
     @Get(':id/candidates')
-    public async getCandidates(@Param('id') id: string): Promise<CandidatesResponse> {
+    @Header('Cache-Control', 'private, no-store')
+    public async getCandidates(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<CandidatesResponse> {
         this.requireId(id);
 
-        try {
-            return await this.foodsService.getCandidates(id);
-        } catch (error) {
-            throw this.mapReadError(error, id);
-        }
+        return this.foodsService.getCandidates(id, this.requireRequesterId(req));
+    }
+
+    /**
+     * `POST /api/v1/foods/{id}/corroborated` (plan U19, R10) — the recipe side's corroboration-promotion
+     * trigger: a PENDING food completes and leaves the sync queue; every other status no-ops with the
+     * current status. Open to any authenticated caller — see `FoodsService.corroborateFood`'s residual
+     * note for why this is a quality signal rather than a guarded command.
+     */
+    @Post(':id/corroborated')
+    @HttpCode(HttpStatus.OK)
+    public async corroborated(@Param('id') id: string): Promise<CorroboratedResponse> {
+        this.requireId(id);
+
+        return this.foodsService.corroborateFood(id);
     }
 
     /** `POST /api/v1/foods/{id}/refetch` — admin-scoped manual re-enqueue; `403` without scope (FR-039). */
@@ -150,63 +503,103 @@ export class FoodsController {
     ): Promise<AddResponse> {
         // 403 (authz scope) precedes 400 (id validation) per FR-051.
         if (!hasScope(req.user, FOOD_ADMIN_SCOPE)) {
-            throw new ForbiddenException({ error: 'Forbidden', message: 'Operation requires elevated scope' });
+            throw apiError('FORBIDDEN', 'Operation requires elevated scope');
         }
 
         this.requireId(id);
 
-        try {
-            const result = await this.foodsService.refetch(id, this.requireRequesterId(req));
-            res.status(HttpStatus.ACCEPTED);
+        const result = await this.foodsService.refetch(id, this.requireRequesterId(req));
+        res.status(HttpStatus.ACCEPTED);
 
-            return result;
-        } catch (error) {
-            throw this.mapReadError(this.mapWriteError(error, res), id);
-        }
+        return result;
     }
 
-    /** `PATCH /api/v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2). */
+    /**
+     * `PATCH /api/v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2).
+     *
+     * NO REQUESTER IS PASSED, AND THAT IS THE DESIGN, not an omission. A resolve is not an enqueue: its source
+     * calls are charged to the caller's source budget by {@link ResolveRateLimit}, before the handler, and it
+     * writes no `fetch_requesters` row — so the service has nothing to key on a requester. It used to receive one anyway,
+     * computed by a `requesterTrace(req)` helper that fell back to the raw Clerk `sub` and then to the string
+     * `'unknown'`; the callee's parameter was underscore-prefixed and read exactly nowhere, so the value was
+     * derived, carried across a module boundary, and discarded. Both are deleted. Adding a requester here is a
+     * deliberate decision with a privacy cost (`fetch_requesters` is the "user X asked for food Y" linkage the
+     * erasure leg deletes), not a signature to restore for symmetry with the enqueue routes.
+     */
     @Patch(':id')
+    @ResolveRateLimit()
     public async patchResolve(
         @Param('id') id: string,
-        @Body() body: unknown,
-        @Req() req: AuthenticatedRequest,
+        @Body() body: ResolveFoodBodyDto,
         @Res({ passthrough: true }) res: Response,
     ): Promise<ResolveResponse> {
         this.requireId(id);
-        const candidateIds = this.requireCandidateIds(body);
 
-        try {
-            const result = await this.foodsService.patchResolve(id, candidateIds, this.requesterTrace(req));
-            res.status(HttpStatus.OK);
+        const result = await this.foodsService.patchResolve(id, body.candidateIds);
+        res.status(HttpStatus.OK);
 
-            return result;
-        } catch (error) {
-            throw this.mapResolveError(this.mapWriteError(error, res), id);
-        }
+        return result;
     }
 
     /** `GET /api/v1/foods/{id}` — golden-record read with lifecycle status codes (FR-002/FR-003/FR-004). */
+    /**
+     * `PUT /api/v1/foods/{id}` — full replacement of an AUTHORED food (plan U10). Authorization is the
+     * pure `authorshipPolicy`, evaluated in the service BEFORE anything else touches the row: stranger +
+     * private → 404, stranger + promoted → 403, pipeline food → 409 `NOT_EDITABLE`.
+     */
+    @Put(':id')
+    public async updateAuthored(
+        @Param('id') id: string,
+        @Body() body: UpdateAuthoredFoodBodyDto,
+        @Req() req: AuthenticatedRequest,
+    ): Promise<FoodResponse> {
+        this.requireId(id);
+
+        return this.foodsService.updateAuthored(this.requireUserUlid(req), id, body);
+    }
+
+    /**
+     * `DELETE /api/v1/foods/{id}` — the author WITHDRAWS their own food (owner rulings 1, 2, 5).
+     *
+     * A `204` and one status flip. ⛔ No cross-service call: this service does not ask recipe-service
+     * anything, and the recipe side detects the withdrawal lazily when a recipe is read. The row is
+     * RETAINED, so a referencing line is never left pointing at nothing.
+     */
+    @Delete(':id')
+    @HttpCode(HttpStatus.NO_CONTENT)
+    public async deleteAuthored(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<void> {
+        this.requireId(id);
+        await this.foodsService.deleteAuthored(this.requireUserUlid(req), id);
+    }
+
     @Get(':id')
+    @Header('Cache-Control', 'private, no-store')
     public async getFood(
         @Param('id') id: string,
+        @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<FoodResponse | PendingResponse> {
         this.requireId(id);
 
         try {
-            const food = await this.foodsService.getFood(id);
+            // The requester key feeds the authorship gate (plan U10): a stranger reading a PRIVATE
+            // authored food must get the same 404 a missing id gets. A `svc_*` principal is a stranger
+            // to every authored food by construction.
+            const food = await this.foodsService.getFood(id, this.requireRequesterId(req));
             res.status(HttpStatus.OK);
 
             return food;
         } catch (error) {
+            // THE ONE domain error this controller still intercepts, because a `202` here is a SUCCESS body
+            // (`PendingResponse`), not an error envelope — see the class doc. Everything else propagates to the
+            // filter, which owns the status for it.
             if (isFoodPendingError(error)) {
                 res.status(HttpStatus.ACCEPTED);
 
                 return { id: error.id, status: error.status, estimatedWaitSeconds: error.estimatedWaitSeconds };
             }
 
-            throw this.mapReadError(error, id);
+            throw error;
         }
     }
 
@@ -219,30 +612,43 @@ export class FoodsController {
      *
      * @param req - The guard-authenticated request.
      * @returns The resolved requester key.
-     * @throws {UnauthorizedException} (→ 401) when `req.user` is absent (defensive) or the app-user ULID
-     *   is not yet available (first-token sync race).
+     * @throws (→ 401) when `req.user` is absent (defensive) or the app-user ULID is not yet available (the
+     *   first-token sync race, `IDENTITY_SYNC_PENDING`).
      */
     private requireRequesterId(req: AuthenticatedRequest): string {
         const principal = this.requirePrincipal(req);
         const resolution = resolveRequesterId(principal);
 
         if (resolution.status === IDENTITY_SYNC_PENDING_CODE) {
-            throw new UnauthorizedException({
-                code: IDENTITY_SYNC_PENDING_CODE,
-                message: 'App-user identity (external_id) not yet available; retry with a refreshed token.',
-            });
+            // `IDENTITY_SYNC_PENDING_CODE` is `auth/authenticatedPrincipal.ts`'s constant and `apiError` takes a
+            // PUBLISHED `FoodErrorCode`, so the two agreeing is a `typecheck` obligation rather than a
+            // convention: change the auth constant's string and this line stops compiling.
+            throw apiError(
+                IDENTITY_SYNC_PENDING_CODE,
+                'App-user identity (external_id) not yet available; retry with a refreshed token.',
+            );
         }
 
         return resolution.requesterId;
     }
 
     /**
-     * A best-effort requester id for a NON-enqueue path (e.g. PATCH-resolve, which records no requester).
-     * Prefers the app-user ULID, falls back to the Clerk `sub` for trace only, and NEVER throws on a
-     * sync-race — resolving does not depend on `external_id`.
+     * The requester key, narrowed to a PERSON (plan U10): the authored-food routes take a user's app ULID
+     * and refuse a `svc_*` service principal with `403` — authored rows belong to people, and a service
+     * writing one would put un-attributable content behind a person-shaped column.
+     *
+     * @param req - The guard-authenticated request.
+     * @returns The caller's app-user ULID.
+     * @throws (→ 401) the {@link requireRequesterId} cases; (→ 403) for a service principal.
      */
-    private requesterTrace(req: AuthenticatedRequest): string {
-        return req.user?.userId ?? req.user?.sub ?? 'unknown';
+    private requireUserUlid(req: AuthenticatedRequest): string {
+        const requesterId = this.requireRequesterId(req);
+
+        if (requesterId.startsWith('svc_')) {
+            throw apiError('FORBIDDEN', 'Authored foods belong to user accounts, not service principals.');
+        }
+
+        return requesterId;
     }
 
     /** Narrow the guard-populated principal, failing closed with `401` if somehow absent. */
@@ -257,103 +663,98 @@ export class FoodsController {
     /** Validate the `id` path param is a structurally valid ULID (FR-006) → else `400`. */
     private requireId(id: string): void {
         if (!isFoodId(id)) {
-            throw new BadRequestException({ error: 'Invalid id' });
+            throw apiError('INVALID_ID', 'The id is not a valid food (ingredient) ULID');
         }
     }
 
-    /** Validate + extract a non-empty `name` from the add body → else `400`. */
-    private requireName(body: unknown): string {
-        const name = this.field(body, 'name');
+    /**
+     * Canonicalize the `?ids=` list, translating its typed failure into this API's structured error.
+     *
+     * The canonicalization is NOT validation-for-its-own-sake: the URL is the cache key (ADR-0020), so an
+     * unsorted or duplicated list is a second cache entry for the same data, and an uncapped list is an
+     * unbounded database read from a single request.
+     *
+     * ⚠️ **`details` is REQUIRED on both codes, not decoration.** `foodErrorSchema` publishes
+     * `BATCH_TOO_LARGE` as carrying `details.maxNames` ("so a caller can re-chunk without guessing it") and
+     * `VALIDATION_FAILED` as carrying `details.fields`. Raising either with a bare message emits a body the
+     * service's OWN published schema rejects — so a client following §15 and validating food's envelope
+     * cannot parse food's `400`, on the one endpoint where re-chunking is the whole recovery. `POST /batch`
+     * has always reported `maxNames`; this path shipped without it (caught by `tests/e2e/foodsNutrition.e2e.test.ts`).
+     *
+     * @param ids - The raw `ids` query value.
+     * @returns The canonical id list.
+     * @throws (→ 400 `BATCH_TOO_LARGE` / `VALIDATION_FAILED`) when the list is over the cap or empty.
+     */
+    private requireNutritionIds(ids: string): string[] {
+        try {
+            return canonicalizeNutritionIds(ids);
+        } catch (error) {
+            if (isNutritionIdListError(error)) {
+                // Mapped onto the EXISTING published codes rather than minting a new one: the error
+                // taxonomy is part of the wire contract, and a new member is a schema-package change every
+                // client must absorb. Over-cap is the same condition `BATCH_TOO_LARGE` already names for
+                // `POST /batch`; an empty list is an ordinary validation failure.
+                if (error.message.includes('exceeds')) {
+                    // The published key is `maxNames` because the code is shared with `POST /batch`; here it
+                    // caps ids rather than names, and the number is what a caller needs either way.
+                    throw apiError('BATCH_TOO_LARGE', error.message, { maxNames: MAX_NUTRITION_IDS });
+                }
 
-        if (typeof name !== 'string' || name.trim().length === 0) {
-            throw new BadRequestException({ error: 'Empty name' });
+                // The message already leads with the field it rejects, so it IS the rendered entry —
+                // restating `'ids'` beside it would be a second copy of the same fact.
+                throw apiError('VALIDATION_FAILED', error.message, { fields: [error.message] });
+            }
+
+            throw error;
         }
-
-        return name;
     }
 
-    /** Validate + extract the `names` array (≤100, all strings) → else `400`. */
-    private requireNames(body: unknown): string[] {
-        const names = this.field(body, 'names');
-
-        if (!Array.isArray(names) || names.some((entry) => typeof entry !== 'string')) {
-            throw new BadRequestException({ error: 'Invalid names' });
-        }
-
-        const cleaned = (names as string[]).map((name) => name.trim()).filter((name) => name.length > 0);
+    /**
+     * Apply the two batch rules that deliberately do NOT live in the published contract.
+     *
+     * The array's SHAPE is validated by the pipe against {@link BatchAddFoodBodyDto}. These two are different in
+     * kind and belong here:
+     *  - dropping blank entries is server-side NORMALIZATION, not a shape a caller must satisfy — and as a
+     *    `.transform()` it could not be represented in the published JSON Schema at all;
+     *  - the cap is `FOOD_MAX_BATCH_NAMES`, a RUNTIME configuration value. A static bound in the contract would
+     *    be a second representation that silently disagrees the moment the environment variable is tuned, so
+     *    the configured value is enforced here and reported in the `400` body where a caller can read it.
+     *
+     * @param names - The trimmed names the pipe accepted.
+     * @returns The non-blank names, guaranteed within the configured cap.
+     * @throws (→ 400 `BATCH_TOO_LARGE`) when more names remain than the configured maximum.
+     */
+    private boundedNames(names: readonly string[]): string[] {
+        const cleaned = names.map((name) => sanitizeFoodName(name)).filter((name) => name.length > 0);
         const maxNames = this.config.get('FOOD_MAX_BATCH_NAMES', { infer: true });
 
         if (cleaned.length > maxNames) {
-            throw new BadRequestException({ error: 'Batch too large', maxNames });
+            throw apiError('BATCH_TOO_LARGE', `At most ${maxNames} names per batch`, { maxNames });
         }
 
         return cleaned;
     }
 
-    /** Validate + extract the non-empty `candidateIds` array (malformed body → `400`, DSN-14). */
-    private requireCandidateIds(body: unknown): string[] {
-        const ids = this.field(body, 'candidateIds');
-
-        if (!Array.isArray(ids) || ids.length === 0 || ids.some((entry) => typeof entry !== 'string')) {
-            throw new BadRequestException({ error: 'Invalid candidateIds' });
-        }
-
-        return ids as string[];
-    }
-
-    /** Read a property off an unknown body, or `undefined`. */
-    private field(body: unknown, key: string): unknown {
-        return body !== null && typeof body === 'object' ? (body as Record<string, unknown>)[key] : undefined;
-    }
-
-    /** Map a read-path error: `FoodNotFoundError` → `404` with the status in the body; else rethrow. */
-    private mapReadError(error: unknown, id: string): unknown {
-        if (isFoodNotFoundError(error)) {
-            return new NotFoundException({
-                error: 'Food not found',
-                id,
-                status: error.status,
-                message:
-                    error.status === 'NOT_FOUND'
-                        ? 'No source has this food; tombstoned until TTL (default 30 days)'
-                        : error.status === 'FAILED'
-                          ? 'All sources errored after retries; try again later'
-                          : 'No such food',
-            });
-        }
-
-        return error;
-    }
-
-    /** Map a resolve-path error: candidate/lifecycle conflicts → `409`; else fall through to read mapping. */
-    private mapResolveError(error: unknown, id: string): unknown {
-        if (isCandidateMismatchError(error)) {
-            return new ConflictException({ error: "Candidate not in food's candidate set" });
-        }
-
-        if (isNotResolvableError(error)) {
-            return new ConflictException({ error: 'Food is not awaiting disambiguation', status: error.status });
-        }
-
-        return this.mapReadError(error, id);
-    }
-
     /**
-     * Map a {@link FetchUnavailableError} to a `503` + `Retry-After` (backpressure / flood-shed / resolve
-     * cap, never `429`): set the `Retry-After` header on `res` (it survives Nest's exception filter, which
-     * reuses the same response) and return a {@link ServiceUnavailableException}. Any other error is
-     * returned unchanged for the caller's read/resolve mapper (or Nest's generic `500`).
+     * Reduce a caller's name to the canonical form the catalog stores, rejecting one that carries no visible
+     * content at all.
+     *
+     * Here rather than in the published contract, for the reason {@link boundedNames} records: this is
+     * server-side NORMALIZATION, and a `.transform()` cannot be represented in the derived JSON Schema. The
+     * `400` is the same `VALIDATION_FAILED` the pipe raises for `""`, because `"\u200B"` is the same condition
+     * written in characters a caller cannot see — see `../foodName.ts` for why it is the catalog's business.
+     *
+     * @param raw - The name the pipe accepted (length-bounded, JS-trimmed, non-empty).
+     * @returns The canonical name, guaranteed to carry visible content.
+     * @throws (→ 400 `VALIDATION_FAILED`) when nothing visible survives canonicalization.
      */
-    private mapWriteError(error: unknown, res: Response): unknown {
-        if (isFetchUnavailableError(error)) {
-            res.setHeader('Retry-After', String(error.retryAfterSeconds));
+    private visibleName(raw: string): string {
+        const name = sanitizeFoodName(raw);
 
-            return new ServiceUnavailableException({
-                error: 'Fetch temporarily unavailable',
-                retryAfterSeconds: error.retryAfterSeconds,
-            });
+        if (name.length === 0) {
+            throw apiError('VALIDATION_FAILED', 'A food name must contain at least one visible character');
         }
 
-        return error;
+        return name;
     }
 }

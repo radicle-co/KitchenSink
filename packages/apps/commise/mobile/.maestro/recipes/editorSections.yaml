@@ -1,0 +1,63 @@
+appId: io.commise.mobile
+---
+# The one-page editor's sections and its section index, on a phone (UI overhaul slice 7; build spec §7.1, §7.2;
+# owner decisions D1, D2). Mobile mirror of the web Playwright `recipeEditor.spec.ts` section-jump tests.
+#
+# What only this tier proves: on a real device the four sections are ONE scrolling page, in order; the phone's
+# section index is the bar under the header ('Sections. Current: {section}.'), which opens a sheet of the four
+# sections; choosing one scrolls the page to it, and the bar then names it as current (the scroll spy reads real
+# layout, which jsdom has none of). Then × leaves at once, with no dialog, and an untouched new recipe creates
+# nothing (build spec §3.5).
+#
+# Read-only: it types nothing, so nothing is saved, and it can run anywhere in the plan.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+# The editor's own × is the entry checkpoint ('New recipe' is also the FAB's label).
+- assertVisible: 'Close editor'
+
+# The four sections, in page order, on one page: each heading is reached by scrolling DOWN from the one before.
+- assertVisible: 'Details'
+- scrollUntilVisible:
+      element: 'Ingredients'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: 'Steps'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: 'Photos & publish'
+      direction: DOWN
+      timeout: 20000
+
+# Back to the top, where the bar names Details as current.
+- scrollUntilVisible:
+      element: 'Title'
+      direction: UP
+      timeout: 20000
+- assertVisible:
+      text: 'Sections\. Current: Details\..*'
+
+# The bar opens the sheet of sections; choosing Steps takes the page there.
+- tapOn:
+      text: 'Sections\. Current: Details\..*'
+- extendedWaitUntil:
+      visible: 'Close sections'
+      timeout: 20000
+- tapOn: 'Steps'
+- extendedWaitUntil:
+      notVisible: 'Close sections'
+      timeout: 20000
+# The Steps section is on screen: its own control, which no other section has. The bar's name is NOT asserted: a new
+# recipe's page is too short to bring Steps to the top, so at the page's end the scroll spy names the last section.
+- extendedWaitUntil:
+      visible: 'Add step'
+      timeout: 20000
+
+# × leaves at once: no dialog, and nothing was typed, so nothing was created.
+- tapOn: 'Close editor'
+- assertNotVisible: 'Discard this draft?'
+- assertNotVisible: 'Close editor'
+- assertVisible: 'Recipes'

@@ -1,122 +1,85 @@
 'use client';
 
 /**
- * @module @commise/features-recipes/form/ChipInput — web token (chip) input for the recipe form's tags +
- * dietary-flags fields (U6). Replaces the old single comma-separated `<input>` (`values.tags.join(', ')` →
- * `parseCommaList`) that re-parsed the whole string on every keystroke — a UX bug on web too: a comma inside a
- * tag split it, and the value round-tripped as raw text rather than discrete tokens.
+ * @module @commise/features-recipes/form/ChipInput — the web chip input for the recipe's tags and dietary flags
+ * (`docs/design/uiOverhaul/buildSpec.md` §7.4): a labelled field that adds a value on Enter or a comma, and the values
+ * already added as `input` chips named "Remove {value}".
  *
- * Controlled + presentational: the committed chips live in the form's `values` (the single source of truth);
- * only the in-progress DRAFT text is local UI state. Each entry commits ONE chip via the pure {@link addChip}
- * (trim + case-insensitive de-dupe), on Enter or comma; Backspace on an empty draft removes the last chip
- * (standard token-field affordance); every chip carries its own labelled remove control. No comma parsing —
- * a comma is a commit key, never split into the token. The native leaf is {@link
- * import('./ChipInput.native.js').ChipInput}; the two share this contract so the platforms cannot drift.
+ * Controlled: the added values live in the draft. Only the text being typed is local state. Each value goes through
+ * the pure `addChip` (trimmed, a duplicate in any case dropped). A comma is read in the text itself, so a pasted
+ * "a, b, c" adds `a` and `b` and keeps `c` being typed. Leaving the field adds what was typed, so nothing typed is
+ * lost silently. The native leaf (`ChipInput.native.tsx`) shares this contract.
  */
-import type { FC, KeyboardEvent } from 'react';
+import { Chip, ChipRow } from '@commise/ui/chip';
+import { FieldLabel, Input, fieldHintId } from '@commise/ui/input';
+import type { FC } from 'react';
 import { useState } from 'react';
 
-import { fillTemplate } from '../list/model.js';
-import { addChip, removeChipAt } from './props.js';
+import { fillTemplate } from '../format/fillTemplate.js';
+import { addChips, removeChipAt, splitAtCommas } from './props.js';
 
 /** Props for {@link ChipInput}. */
 export interface ChipInputProps {
-    /** The field's visible + accessible label (also the text input's accessible name — e.g. "Tags"). */
+    /** The field's id, unique on the page. */
+    readonly id: string;
+    /** The field's visible label, which also names its chips' group (e.g. "Tags"). */
     readonly label: string;
-    /** The committed chips (from the form's `values`). */
+    /** How to add a value, shown under the label and linked to the field. */
+    readonly hint: string;
+    /** The added values (from the draft). */
     readonly values: readonly string[];
-    /** Called with the next chip list on every add or remove. */
+    /** Called with the next values on every add or remove. */
     readonly onChange: (next: string[]) => void;
-    /** Placeholder shown in the draft text input (the type-and-enter hint). */
-    readonly placeholder: string;
-    /** Accessible-label template for a chip's remove control (contains `{value}`). */
+    /** A chip's accessible name template (contains `{value}`). */
     readonly removeChipLabel: string;
 }
 
-const fieldLabel = 'text-body-sm font-medium text-slate';
-// `min-w-0 break-words` + the remove control's `shrink-0` are one contract: a long tag yields (and breaks)
-// rather than squeezing out the only affordance that can remove it. The native leaf carries the same contract
-// as `flexShrink: 1` / `flexShrink: 0` — see `ChipInput.native.tsx`.
-// Contrast (WCAG 2.1 AA): the chip's tint stays seafoam; its READABLE parts — the tag label and the `×` remove
-// glyph (a text glyph, not an icon) — take `ocean-dark`. See `@commise/ui`'s palette JSDoc for the one
-// authoritative statement of which seafoam sites are accents and which are text.
-const chip =
-    'inline-flex min-w-0 items-center gap-1 break-words rounded-full bg-seafoam/10 py-1 pl-3 pr-1 text-body-sm font-medium text-ocean-dark';
-// The hover tint is `/15`, not `/20`, because it STACKS on the chip's own `/10`: `seafoam/20` over `seafoam/10`
-// composites to #c8dedd, where even `ocean-dark` is only 4.41:1 — a hover-only AA failure. `/15` composites to
-// #d1e4e3 (4.70:1) and still reads as a deepening of the disc.
-//
-// The focus ring is `seafoam`, not `seafoam-light` (#114). A ring is a 3:1 SC 1.4.11 graphic rather than text,
-// but this ring is the hardest one in the app to satisfy: it is drawn OUTSIDE the button, on the CHIP's own
-// `seafoam/10` over the white field, so the backdrop is #eaf2f1 — where `seafoam-light` is 2.45:1 (its worst
-// reading anywhere) and `seafoam` is 4.10:1. Measured against that composited surface in the tests, not
-// against a nominal white, which would have flattered it by 0.33 and hidden the failure.
-const chipRemove =
-    'flex size-5 shrink-0 items-center justify-center rounded-full text-ocean-dark transition hover:bg-seafoam/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam';
-const chipField =
-    'flex flex-wrap items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal focus-within:ring-2 focus-within:ring-seafoam';
-const chipDraft = 'min-w-24 flex-1 border-none bg-transparent p-0 text-body-md text-charcoal outline-none';
-
-/**
- * The web tag/dietary-flag chip input.
- *
- * @param props - The label, the committed chips, the change handler, the placeholder, and the remove-label
- *   template.
- * @returns The labelled chip row plus the draft text input.
- */
-export const ChipInput: FC<ChipInputProps> = ({ label, values, onChange, placeholder, removeChipLabel }) => {
+/** The web tag and dietary-flag chip input. */
+export const ChipInput: FC<ChipInputProps> = ({ id, label, hint, values, onChange, removeChipLabel }) => {
     const [draft, setDraft] = useState('');
 
-    const commit = (): void => {
-        const next = addChip(values, draft);
+    const commit = (tokens: readonly string[], rest: string): void => {
+        const next = addChips(values, tokens);
 
-        // Only emit when the token actually added a chip (blank/duplicate draft is a no-op); always clear the
-        // draft so a duplicate entry doesn't leave stale text behind.
         if (next.length !== values.length) {
             onChange(next);
         }
 
-        setDraft('');
-    };
-
-    const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-        if (event.key === 'Enter' || event.key === ',') {
-            // A comma is a COMMIT key here, never a separator folded into the token (that was the old bug).
-            event.preventDefault();
-            commit();
-        } else if (event.key === 'Backspace' && draft === '' && values.length > 0) {
-            onChange(removeChipAt(values, values.length - 1));
-        }
+        setDraft(rest);
     };
 
     return (
-        <label className="flex flex-col gap-1">
-            <span className={fieldLabel}>{label}</span>
-            <span className={chipField}>
-                {values.map((value, index) => (
-                    <span key={value} className={chip}>
-                        {value}
-                        <button
-                            type="button"
-                            aria-label={fillTemplate(removeChipLabel, { value })}
-                            onClick={() => onChange(removeChipAt(values, index))}
-                            className={chipRemove}
-                        >
-                            <span aria-hidden="true">×</span>
-                        </button>
-                    </span>
-                ))}
-                <input
-                    type="text"
-                    aria-label={label}
-                    placeholder={placeholder}
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    onKeyDown={onKeyDown}
-                    onBlur={commit}
-                    className={chipDraft}
-                />
-            </span>
-        </label>
+        <div className="flex flex-col gap-2" onBlur={() => commit([draft], '')}>
+            <FieldLabel forId={id} label={label} hint={hint} />
+            {values.length === 0 ? null : (
+                <ChipRow mode="input" label={label} overflow="wrap">
+                    {values.map((value, index) => (
+                        <Chip
+                            key={value}
+                            kind="input"
+                            label={value}
+                            removeLabel={fillTemplate(removeChipLabel, { value })}
+                            onRemove={() => onChange(removeChipAt(values, index))}
+                        />
+                    ))}
+                </ChipRow>
+            )}
+            <Input
+                id={id}
+                value={draft}
+                describedBy={fieldHintId(id)}
+                enterKeyHint="done"
+                onChangeText={(text) => {
+                    const { finished, rest } = splitAtCommas(text);
+
+                    if (finished.length === 0) {
+                        setDraft(text);
+                    } else {
+                        commit(finished, rest);
+                    }
+                }}
+                onSubmit={() => commit([draft], '')}
+            />
+        </div>
     );
 };

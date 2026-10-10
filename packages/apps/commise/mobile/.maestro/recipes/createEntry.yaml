@@ -1,0 +1,31 @@
+appId: io.commise.mobile
+---
+# The one-tap create entry (build spec §3.4; owner decision D4; UI overhaul slice 8) on a real device. REPLACES
+# `speedDial.yaml`: the dial and its menu are gone, because paste lives in the editor's Ingredients section, so the
+# floating "New recipe" opens the empty editor in ONE tap.
+#
+# What only this tier proves: on a device the button is the design system's floating `CreateFab`, a single tap lands in
+# the editor with no menu between, and × leaves at once, having created nothing. It leaves through the editor's own ×,
+# so it needs no Android back key and runs on iOS too.
+#
+# Read-only: it types nothing, so nothing is saved, and it can run anywhere in the plan.
+- runFlow: ../auth/signin.yaml
+
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 40000
+- assertVisible: 'New recipe'
+
+- tapOn: 'New recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 30000
+# One tap: no menu was ever disclosed.
+- assertNotVisible: 'Create from Scratch'
+- assertNotVisible: 'Paste an Ingredient List'
+
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 20000
+- assertVisible: 'Recipes'

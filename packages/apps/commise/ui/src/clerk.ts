@@ -1,223 +1,166 @@
-import { palette, semantic, tint } from './tokens/colors.js';
+import { themeFor, type ColorSchemeName } from './theme/themeFor.js';
 import { radius } from './tokens/radius.js';
-import { shadows } from './tokens/shadows.js';
 import { fonts, fontSizes, fontWeights } from './tokens/typography.js';
 
 /**
- * @module @commise/ui/clerk — the appearance object Clerk's hosted components render the auth surface with.
+ * @module @commise/ui/clerk — the appearance object Clerk's hosted components render the auth surface with, in BOTH
+ * themes (`docs/design/uiOverhaul/ownerDecisions.md` D15; `docs/design/uiOverhaul/buildSpec.md` §8).
  *
- * ## Contrast here is invisible to every other test in the repo (#113)
+ * ## Two kinds of colour, two mechanisms
  *
- * These values are consumed by a THIRD-PARTY renderer, so no jsdom component test ever measures what they
- * paint — and this object had no test at all. It therefore shipped the auth form's primary button with a white
- * label on `seafoam-light` (2.78:1) hovering to `seafoam` (4.02:1): both states under the 4.5:1 body floor, on
- * the first screen every user sees. Its link/action TEXT spent the same light teal at 2.78:1, and the secondary
- * button's label spent `coral` at 2.40:1 — the accent-as-text failure `colors.ts` documents, reproduced inside
- * the auth form.
+ * Clerk derives its incidental shades (hover washes, spinners, disabled fills) from `variables`, which must be
+ * CONCRETE colours — it cannot be handed a CSS custom property. So `variables` come from `themeFor(scheme).colors` and
+ * the appearance is built PER SCHEME: the web page picks the scheme from the system setting
+ * (`useColorScheme`) and Clerk re-mounts its styles. Every named colour of the form, though — the card, the fields,
+ * the buttons, the links — is a CLASS STRING of role utilities (`bg-paper`, `text-ink-muted`…), which swap with the
+ * theme by custom property and so need no scheme at all.
  *
- * The corrected pairings follow the palette's ONE rule rather than restating it: a filled teal CTA carries
- * `white`, and a teal that is TEXT is `ocean-dark`. `__tests__/clerk.test.ts` measures every pair in here, so a
- * future re-theme cannot quietly reintroduce an illegible state.
+ * ## Why the classes beat Clerk's own styles
  *
- * `variables.colorPrimary` stays `seafoam-light`: Clerk derives its incidental accents (spinners, subtle
- * washes) from it, and that is the role the light teal is correct in. Every element where the colour lands
- * under TEXT states its own value below.
+ * Clerk's styles are unlayered emotion CSS, which out-ranks anything in a Tailwind `@layer` regardless of specificity.
+ * `cssLayerName` moves them into a named layer — set on `<ClerkProvider appearance>` (`appDocument`), which is where Clerk
+ * reads this global option — and `globals.css` declares that layer BELOW `utilities` (`@layer theme,
+ * base, clerk, components, utilities`), so a utility on an element wins. Without the declaration the classes below
+ * would silently lose; `tests/e2e/authPages.spec.ts` reads computed colours in a real browser to prove they do not.
  *
- * ## …and every element where it lands on a FOCUS INDICATOR states its own value too (#114)
+ * ## Contrast here is invisible to every other test (#113, #114)
  *
- * `colorPrimary` was ALSO reaching the focused field borders, and that claim — "the input focus ring […] is
- * the role the light teal is correct in" — was right about the role and wrong about the measurement:
- * `seafoam-light` is **2.78:1** on the white card, under the 3:1 SC 1.4.11 floor a non-text UI component
- * boundary owes, and only 1.46:1 against the `mist` hairline it replaces on focus. So
- * `formFieldInput__focus` and `otpCodeFieldInput__focus` now state `seafoam` (4.67:1) explicitly, the same
- * move the app's 15 Tailwind `ring-seafoam-light` call sites took. `__tests__/clerk.test.ts` measures both.
+ * Clerk is a third-party renderer, so no component test measures what it paints; the object once shipped the primary
+ * button at 2.78:1 and a focus border at 2.78:1 for that reason. `__tests__/clerk.test.ts` measures every pair in both
+ * schemes, reading each element's roles back out of its classes.
  *
- * ⚠️ RESIDUAL, deliberately not chased here: anything Clerk derives from `colorPrimary` that we do NOT
- * override is still the light teal, and its rendered ratio is not observable from this side of the boundary.
- * If Clerk ever paints a focus outline on an element with no override below, it will be under the floor.
+ * ## The layout (buildSpec §8, E23)
+ *
+ * Below 480 px there is no card: the form sits on the canvas inside the page's 24 px side padding (a 272 px column at
+ * 320). From 480 it is a 440 px `paper` card; from 1024 the page is a split and the form a bare 400 px column. All of
+ * that is class strings: a style OBJECT's `padding` out-ranks a class, which is how the card kept its 40 px padding at
+ * 320 px.
  */
-export const clerkAppearance = {
-    variables: {
-        colorPrimary: palette['seafoam-light'],
-        colorBackground: palette.white,
-        colorText: palette.charcoal,
-        colorTextSecondary: palette.slate,
-        colorTextOnPrimaryBackground: palette.white,
-        colorDanger: palette['error-dark'],
-        colorSuccess: palette.success,
-        colorInputBackground: palette.white,
-        colorInputText: palette.charcoal,
-        fontFamily: fonts.body,
-        fontFamilyButtons: fonts.body,
-        borderRadius: radius.md,
-        fontSize: fontSizes['body-md'],
-        fontWeight: {
-            normal: Number(fontWeights.normal),
-            medium: Number(fontWeights.medium),
-            bold: Number(fontWeights.semibold),
-        },
-    },
-    layout: {
-        socialButtonsPlacement: 'bottom' as const,
-        socialButtonsVariant: 'blockButton' as const,
-    },
-    elements: {
-        card: {
-            backgroundColor: semantic.card,
-            border: 'none',
-            borderRadius: radius.lg,
-            boxShadow: shadows.sm,
-            padding: '2.5rem',
-        },
-        cardBox: {
-            borderRadius: radius.lg,
-        },
-        headerTitle: {
-            fontFamily: fonts.display,
-            fontSize: fontSizes['display-md'],
-            fontWeight: fontWeights.bold,
-            color: semantic.foreground,
-        },
-        headerSubtitle: {
-            fontSize: fontSizes['body-sm'],
-            color: semantic.foreground,
-        },
-        dividerLine: {
-            borderColor: palette.mist,
-            borderWidth: '1px',
-        },
-        dividerText: {
-            color: palette.slate,
-            fontSize: fontSizes.caption,
-        },
-        formFieldLabel: {
-            color: semantic.foreground,
-            fontSize: fontSizes['body-sm'],
-            fontWeight: fontWeights.medium,
-        },
-        formFieldInput: {
-            backgroundColor: semantic.card,
-            borderColor: palette.mist,
-            borderStyle: 'solid',
-            borderWidth: '1px',
+
+/**
+ * The variables Clerk 7 reads (`@clerk/ui`'s `Variables`), by the names it now uses. ⚠️ Clerk renamed them from the
+ * `colorText` / `colorInputText` / `colorTextOnPrimaryBackground` family it used to read, and an old name is IGNORED
+ * without a word: the object below sat on three dead names until a real browser showed Clerk's own near-black in the
+ * field. A literal checked against this list cannot misspell one; whether Clerk still reads each is what
+ * `tests/e2e/authPages.spec.ts` proves, by computed colour.
+ */
+interface ClerkVariables {
+    readonly colorPrimary: string;
+    readonly colorPrimaryForeground: string;
+    readonly colorForeground: string;
+    readonly colorMutedForeground: string;
+    readonly colorMuted: string;
+    readonly colorBackground: string;
+    readonly colorInput: string;
+    readonly colorInputForeground: string;
+    readonly colorBorder: string;
+    readonly colorRing: string;
+    readonly colorNeutral: string;
+    readonly colorDanger: string;
+    readonly colorSuccess: string;
+    readonly colorModalBackdrop: string;
+    readonly fontFamily: string;
+    readonly fontFamilyButtons: string;
+    readonly borderRadius: string;
+    readonly fontSize: string;
+    readonly fontWeight: { readonly normal: number; readonly medium: number; readonly bold: number };
+}
+
+/** The CSS layer Clerk's own styles are placed in; `globals.css` orders it below `utilities`. */
+export const CLERK_CSS_LAYER = 'clerk';
+
+/**
+ * A text field: 48 px, a 12 px radius, a `lineControl` edge and a `focusRing` border that is the focus indicator.
+ * `max-h-none` lifts Clerk's own `max-height: 2.25rem`, which held `h-12` at 36 px (F20).
+ */
+const FIELD =
+    'h-12 max-h-none rounded-md border border-line-control bg-paper px-4 text-body text-ink shadow-none outline-none ' +
+    'focus:border-focus-ring focus:ring-2 focus:ring-focus-ring';
+
+/**
+ * A one-time-code cell: the field's edge, fill and focus, with NO horizontal padding and the digit centred. The cell is
+ * a narrow box (a 272 px column holds the whole row), and the field's 16 px of padding on each side would leave a digit
+ * 8 px to sit in.
+ */
+const OTP_FIELD =
+    'h-12 max-h-none rounded-md border border-line-control bg-paper text-center text-body text-ink shadow-none outline-none ' +
+    'focus:border-focus-ring focus:ring-2 focus:ring-focus-ring';
+
+/**
+ * Clerk's appearance for one colour scheme.
+ *
+ * @param scheme - The scheme the page is in.
+ * @returns The appearance, for `<SignIn appearance>` and `<SignUp appearance>`. Pure.
+ */
+export function clerkAppearanceFor(scheme: ColorSchemeName) {
+    const { colors } = themeFor(scheme);
+
+    return {
+        variables: {
+            colorPrimary: colors.action,
+            colorPrimaryForeground: colors.onAction,
+            colorForeground: colors.ink,
+            colorMutedForeground: colors.inkMuted,
+            colorMuted: colors.surfaceMuted,
+            colorBackground: colors.paper,
+            colorInput: colors.paper,
+            colorInputForeground: colors.ink,
+            colorBorder: colors.lineDivider,
+            colorRing: colors.focusRing,
+            colorNeutral: colors.ink,
+            colorDanger: colors.dangerText,
+            colorSuccess: colors.actionText,
+            colorModalBackdrop: colors.scrim,
+            fontFamily: fonts.body,
+            fontFamilyButtons: fonts.body,
             borderRadius: radius.md,
             fontSize: fontSizes['body-md'],
-            color: semantic.foreground,
-            padding: '0.75rem 1rem',
+            fontWeight: {
+                normal: Number(fontWeights.normal),
+                medium: Number(fontWeights.medium),
+                bold: Number(fontWeights.semibold),
+            },
+        } satisfies ClerkVariables,
+        layout: {
+            // Google is the first thing offered, above the email form (§8).
+            socialButtonsPlacement: 'top' as const,
+            socialButtonsVariant: 'blockButton' as const,
         },
-        // The focused border IS the focus indicator here — Clerk renders no separate ring — so it owes the 3:1
-        // of SC 1.4.11 against the field it outlines. `semantic.primary` (`seafoam-light`) measured 2.78:1, and
-        // only 1.46:1 against the `mist` resting hairline it replaces, so the focused state was neither
-        // compliant nor visibly distinct. `seafoam` is 4.67:1 (and 3.20:1 vs the resting hairline) — the same
-        // move the app's 15 `ring-seafoam-light` call sites took in #114. Do NOT "fix" this by darkening
-        // `seafoam-light`: it IS `semantic.primary`, and the lightness needed would collapse it into `seafoam`.
-        formFieldInput__focus: {
-            borderColor: palette.seafoam,
+        elements: {
+            // A size container, so the title's `text-large-title` clamps against THIS column (28 px) and not the window.
+            rootBox: '@container w-full max-w-[27.5rem] lg:max-w-[25rem]',
+            cardBox: 'w-full shadow-none',
+            card:
+                'w-full gap-6 border-0 bg-transparent p-0 shadow-none ' +
+                'min-[480px]:rounded-xl min-[480px]:bg-paper min-[480px]:p-8 min-[480px]:shadow-sm ' +
+                'lg:bg-transparent lg:p-0 lg:shadow-none',
+            headerTitle: 'font-display text-large-title text-ink',
+            // The brand line, "Your recipes, in one place." (`localization.signIn.start.subtitle`).
+            headerSubtitle: 'text-body text-ink-muted',
+            dividerLine: 'bg-line-divider',
+            dividerText: 'text-meta text-ink-muted',
+            formFieldLabel: 'text-label text-ink',
+            formFieldInput: FIELD,
+            // An OTP field is one 6-digit input (SC 3.3.8 favours letting the OS fill it); its focused edge is the cue.
+            otpCodeFieldInput: OTP_FIELD,
+            // Inside the 48 px field: a 44 px target, the coarse-pointer floor (it drew 32 × 30).
+            formFieldInputShowPasswordButton: 'min-h-11 min-w-11 text-ink-muted',
+            formFieldAction: 'text-meta font-medium text-action-text hover:text-ink',
+            // The filled primary: 52 px, the `action` fill with a white label, `actionPressed` on hover.
+            formButtonPrimary:
+                'h-[3.25rem] w-full rounded-full bg-action text-label normal-case text-on-action shadow-sm ' +
+                'hover:bg-action-pressed',
+            formButtonReset: 'rounded-full border border-line-control bg-paper text-label normal-case text-ink',
+            socialButtonsBlockButton:
+                'h-12 rounded-full border border-line-control bg-paper text-label normal-case text-ink shadow-none ' +
+                'hover:bg-ink/6',
+            // The cross-link is the ONLY way to register (FR-045a), so its text never breaks across lines.
+            footerActionText: 'whitespace-nowrap text-meta text-ink-muted',
+            footerActionLink: 'whitespace-nowrap text-meta font-medium text-action-text hover:underline',
+            alert: 'rounded-xl border border-danger/40 bg-danger/10',
+            alertText: 'text-meta text-danger-text',
+            identityPreviewEditButton: 'text-action-text',
+            formResendCodeLink: 'text-action-text',
         },
-        // "Forgot password?" and friends are LINKS a reader reads, so the teal is `ocean-dark`, not the light
-        // accent (2.78:1). Hover deepens to the charcoal foreground rather than to `seafoam` (which was 4.02:1).
-        formFieldAction: {
-            color: palette['ocean-dark'],
-            fontSize: fontSizes['body-sm'],
-            fontWeight: fontWeights.medium,
-        },
-        formFieldAction__hover: {
-            color: semantic.foreground,
-        },
-        // The FILLED CTA — `seafoam` → `ocean-dark`, the same ramp the design-system `Button` primary tier
-        // paints as `from-seafoam to-ocean-dark`. Under `colorTextOnPrimaryBackground` (white) that is 4.67:1
-        // resting and 6.20:1 hovered. It used to be `semantic.primary` (2.78:1) hovering to `seafoam` (4.02:1).
-        formButtonPrimary: {
-            backgroundColor: palette.seafoam,
-            borderRadius: radius.full,
-            fontSize: fontSizes['body-md'],
-            fontWeight: fontWeights.semibold,
-            textTransform: 'none' as const,
-            padding: '0.75rem 1.5rem',
-        },
-        formButtonPrimary__hover: {
-            backgroundColor: palette['ocean-dark'],
-        },
-        // Coral survives on the BORDER (an accent, 3:1 territory) and is demoted on the LABEL, which was
-        // 2.40:1 — the identical split `buttonSurfaceClass`'s `secondary` tier already makes on web.
-        formButtonSecondary: {
-            borderColor: semantic.secondary,
-            borderWidth: '1px',
-            borderRadius: radius.full,
-            color: palette.slate,
-            fontSize: fontSizes['body-md'],
-            fontWeight: fontWeights.medium,
-            textTransform: 'none' as const,
-        },
-        formButtonSecondary__hover: {
-            backgroundColor: tint(palette.coral, 0.08),
-        },
-        socialButtonsBlockButton: {
-            borderRadius: radius.full,
-            borderColor: palette.mist,
-            borderWidth: '1px',
-            fontSize: fontSizes['body-sm'],
-            fontWeight: fontWeights.medium,
-            textTransform: 'none' as const,
-            backgroundColor: semantic.card,
-            color: semantic.foreground,
-        },
-        socialButtonsBlockButton__hover: {
-            backgroundColor: semantic.muted,
-        },
-        socialButtonsIconButton: {
-            borderRadius: radius.full,
-            borderColor: palette.mist,
-        },
-        // The "Sign up" / "Sign in" cross-link — the ONLY route to registration (see the no-landing-screen
-        // decision), so it is load-bearing text and takes the text-grade teal.
-        footerActionLink: {
-            color: palette['ocean-dark'],
-            fontSize: fontSizes['body-sm'],
-            fontWeight: fontWeights.medium,
-        },
-        footerActionLink__hover: {
-            color: semantic.foreground,
-            textDecoration: 'underline',
-        },
-        footerActionText: {
-            color: palette.slate,
-            fontSize: fontSizes['body-sm'],
-        },
-        alertText: {
-            color: semantic.destructive,
-            fontSize: fontSizes['body-sm'],
-        },
-        alert: {
-            borderRadius: radius.md,
-        },
-        otpCodeFieldInput: {
-            borderRadius: radius.md,
-            borderColor: palette.mist,
-        },
-        // Same reasoning as `formFieldInput__focus` — and it matters more here: an OTP field is a row of
-        // single-character boxes where the focused box is the only cue to which digit you are entering.
-        otpCodeFieldInput__focus: {
-            borderColor: palette.seafoam,
-        },
-        identityPreviewEditButton: {
-            color: palette['ocean-dark'],
-        },
-        formResendCodeLink: {
-            color: palette['ocean-dark'],
-        },
-        userButtonPopoverCard: {
-            borderRadius: radius.lg,
-            boxShadow: shadows.md,
-        },
-        userButtonPopoverActionButton__hover: {
-            backgroundColor: tint(palette['seafoam-light'], 0.08),
-        },
-        userButtonPopoverActionButtonText: {
-            color: semantic.foreground,
-        },
-        userButtonPopoverFooter: {
-            borderTop: `1px solid ${semantic.border}`,
-        },
-    },
-};
+    };
+}

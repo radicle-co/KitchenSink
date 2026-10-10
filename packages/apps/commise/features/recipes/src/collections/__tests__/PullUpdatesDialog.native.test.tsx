@@ -9,13 +9,26 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import type { PullDiff } from '@kitchensink/recipe-service-client';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PullUpdatesDialog } from '../PullUpdatesDialog.native.js';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { PullUpdatesDialogProps } from '../model.js';
+import { collectionMessages } from '../messages.js';
 
-afterEach(cleanup);
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
+afterEach(() => {
+    cleanup();
+    systemScheme.current = null;
+});
 
 const noop = () => undefined;
 
@@ -160,5 +173,35 @@ describe('PullUpdatesDialog (native) — dismissal', () => {
         await user.keyboard('{Escape}');
 
         expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('PullUpdatesDialog (native) — the design-system Button (UI overhaul slice 2)', () => {
+    it('pulls through a primary check Button and cancels through a secondary x one, the ConfirmDialog’s Keep', () => {
+        render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff })} />);
+
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Pull 2 Recipes' }), 'primary', 'check');
+        expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Cancel' }), 'secondary', 'x');
+    });
+});
+
+// D15: the dialog paints from roles at render: the title in ink, the counts and notes in inkMuted, an error in dangerText.
+describe.each(['light', 'dark'] as const)('PullUpdatesDialog (native) — the %s scheme', (scheme) => {
+    const colours = scheme === 'dark' ? roleDark : role;
+    const pull = collectionMessages.en.pull;
+
+    it('paints the title in ink and the diff copy in inkMuted', () => {
+        systemScheme.current = scheme;
+        render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff })} />);
+
+        expect(getComputedStyle(screen.getByRole('heading', { name: pull.title })).color).toBe(rgb(colours.ink));
+        expect(getComputedStyle(screen.getByText(pull.ownMembersNote)).color).toBe(rgb(colours.inkMuted));
+    });
+
+    it('says a drift in dangerText', () => {
+        systemScheme.current = scheme;
+        render(<PullUpdatesDialog {...baseProps({ error: 'drift' })} />);
+
+        expect(getComputedStyle(screen.getByText(pull.driftMessage)).color).toBe(rgb(colours.dangerText));
     });
 });

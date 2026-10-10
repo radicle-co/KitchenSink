@@ -43,7 +43,7 @@ export function AccountStateGate({ children }: AccountStateGateProps) {
 
     if (state.status === 'loading') {
         return (
-            <p role="status" className="text-body-md text-slate">
+            <p role="status" className="text-body-md text-ink-muted">
                 {stateCopy.loading}
             </p>
         );

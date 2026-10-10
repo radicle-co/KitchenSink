@@ -1,6 +1,9 @@
+import { jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+import { lucideNativeStub } from '@commise/ui/testing/lucide-native';
 import { defineConfig, type Plugin } from 'vitest/config';
 
 /**
@@ -42,10 +45,15 @@ function preferNativeLeaves(): Plugin {
  * default (web) run excludes them. `npm test` runs both.
  */
 export default defineConfig({
-    plugins: [preferNativeLeaves()],
+    // `lucide-react-native/icons/*` draws through `react-native-svg`, which has no jsdom runtime.
+    plugins: [preferNativeLeaves(), lucideNativeStub()],
     test: {
         globals: true,
         environment: 'jsdom',
+        // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
+        setupFiles: [jsdomPolyfillsSetup, '@commise/ui/testing/screen-reader-shim', './vitest.setup.native.ts'],
+        // Above `ASYNC_UTIL_TIMEOUT_MS` (`@commise/test-utils/async-util-budget`).
+        testTimeout: 15_000,
         include: ['**/__tests__/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
     },
@@ -59,21 +67,21 @@ export default defineConfig({
             // recipe/collection/discovery lists (U4) render through a react-native-web stub under these tests
             // (same reasoning as `expo-image`). Virtualization itself is a device/Maestro concern.
             '@shopify/flash-list': path.resolve(import.meta.dirname, 'test-utils/flashListStub.tsx'),
-            // `@expo/vector-icons` ships extensionless internal ESM imports (`./createIconSet`, required
-            // from `AntDesign.js`) that a cold Vitest dependency scan cannot reliably resolve (w3: exposed by
-            // the wizard's new `Feather` usage — mirrors `@commise/mobile`'s identical fix, same root cause).
-            // Icons are decorative in these tests, so stub the whole module.
-            '@expo/vector-icons': path.resolve(import.meta.dirname, 'test-utils/expoVectorIconsStub.tsx'),
-            // `expo-linear-gradient` / `expo-blur` back the U8 brand surfaces (`@commise/ui/surface`) the
-            // hero native leaves adopt; both bridge to native views absent under jsdom, so stub them. Real
-            // gradient/blur rendering is a device/Maestro concern.
+            // F1 — the analytics event-id minter's native leaf delegates to expo-crypto (Hermes has no
+            // `crypto` global); the stub answers Node's own UUIDs.
+            'expo-crypto': path.resolve(import.meta.dirname, 'test-utils/expoCryptoStub.ts'),
+            // `expo-linear-gradient` backs the brand gradient surface (`@commise/ui/surface`); it bridges to a native
+            // view absent under jsdom, so stub it. Real gradient rendering is a device/Maestro concern.
             'expo-linear-gradient': path.resolve(import.meta.dirname, 'test-utils/expoLinearGradientStub.tsx'),
-            'expo-blur': path.resolve(import.meta.dirname, 'test-utils/expoBlurStub.tsx'),
+            // `@commise/ui/keep-awake`'s native hold calls a native module with no jsdom runtime; the stub records holds.
+            'expo-keep-awake': fileURLToPath(import.meta.resolve('@commise/ui/testing/expo-keep-awake')),
             // `react-native-safe-area-context` reports the device's window insets from a native module with
-            // no jsdom runtime; the full-screen modal sheets (`FullScreenSheet.native.tsx`) read them so their
+            // no jsdom runtime; the full-screen modal sheets (`@commise/ui/full-screen-sheet`) read them so their
             // content clears the status/navigation bars. The stub serves fixed NON-ZERO insets so those
             // assertions stay falsifiable (same reasoning as the expo stubs above).
-            'react-native-safe-area-context': path.resolve(import.meta.dirname, 'test-utils/safeAreaContextStub.tsx'),
+            'react-native-safe-area-context': fileURLToPath(
+                import.meta.resolve('@commise/ui/testing/safe-area-context'),
+            ),
         },
     },
 });

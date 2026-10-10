@@ -1,0 +1,66 @@
+appId: io.commise.mobile
+---
+# The quantity-first add field (build spec §7.5.3; blueprint A1, A2; UI overhaul slice 8). Mobile mirror of the web
+# Playwright `addIngredientLoop.spec.ts`'s amount-first cases.
+#
+# What only this tier proves:
+#   1. ⛔ THE HERMES PRECONDITION (blueprint A1). The add field's reader parses amounts with `numeric-quantity`, which
+#      compiles `/\p{Nd}/gu` when its module loads, and the reader's own glued-unit split uses `\p{L}`. Both need
+#      Hermes' Unicode property escapes on the RN 0.86 Android build. If Hermes lacked them the bundle would not load
+#      and nothing below would run; the live reading of a typed amount is the regex RUNNING, not just compiling.
+#   2. The amount and a known unit typed in front of the food are read as the cook types ("2 cups · Flou"), the food
+#      search is asked for the food alone, and picking a food from the list adds the line with that amount and unit.
+#   3. The loop: the field empties after a pick, so the next line is typed straight away.
+#
+# It types into a new recipe and discards it, so it leaves the library as it found it. It picks the run's probe food
+# `Flour` (`e2e-seed provision`), so it needs the food service.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: 'Maestro Amount First'
+
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: '2 cups Flou'
+# The live reading: the amount and the known unit, then the food the search is asked for.
+- extendedWaitUntil:
+      visible: '2 cups · Flou'
+      timeout: 20000
+      label: 'the leading-measure reader ran on Hermes and read "2 cups"'
+- extendedWaitUntil:
+      visible: 'Your foods'
+      timeout: 30000
+- tapOn: 'Flour, your food'
+
+# The line is added with the cook's amount and unit, read amount first (build spec §7.5.1), and the field empties for
+# the next one.
+- extendedWaitUntil:
+      visible: 'Edit 2 cup Flour'
+      timeout: 40000
+      label: 'the pick added the line with its amount and unit'
+- assertNotVisible: '2 cups · Flou'
+
+# The loop: type the next line at once. A food alone shows no reading (the field already says it).
+- tapOn: 'Add an ingredient'
+- inputText: 'Flou'
+- assertNotVisible: '.* · .*'
+- eraseText: 10
+
+# Enter with nothing picked stores nothing and says to pick from the list.
+- inputText: '1 tbsp Flou'
+- pressKey: Enter
+# The note sits directly under the field; the field is at the screen's foot, so bring it into view.
+- scrollUntilVisible:
+      element: 'Pick a food from the list.'
+      direction: DOWN
+      centerElement: true
+      timeout: 10000
+- assertNotVisible: 'Edit 1 tablespoon Flour'
+
+- runFlow: common/discardDraft.yaml

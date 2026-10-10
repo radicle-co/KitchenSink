@@ -1,104 +1,123 @@
 appId: io.commise.mobile
 ---
-# Recipe edit happy path (US1, T067; rewritten w3/e8 for the 4-step SCREEN-PER-STEP wizard). Assumes an
-# authenticated session (auth flow runs first in CI) and a seeded recipe API. Drives list -> detail -> edit,
-# walks the wizard's 4 steps, changes the title, clears the stated difficulty, and Publishes. Mobile mirror of
-# the web Playwright `recipeCrud.spec.ts` edit path (cross-platform mandate).
-#
-# w3 replaced the editor's old single tall Basics form with `Wizard.Step`s that each fill the viewport as
-# their own "screen"; `Wizard.TopBar` (Save Draft / Preview / Cancel / Publish) is a STICKY header rendered
-# OUTSIDE the scrolling step body, so Publish never needs scrolling into view (unlike the old flow's
-# foot-of-form "Save changes"); only the FOOTER `Next: …` nav (inside each step's own scroll) does.
+# Recipe edit happy path (US1, T067). REWRITTEN for slice 7: the four-step wizard is retired; the recipe is edited
+# on the ONE scrolling editor page (build spec §7). Assumes an authenticated session (auth flow runs first in CI) and
+# a seeded recipe API. Drives list -> detail -> edit, changes the title, clears the stated difficulty, adds a line
+# and a step, and saves. The seeded lamb is PUBLISHED (the schema's default status), so its edits stay on the device
+# until Save changes, which is ONE write (owner decision D1) — the bar's primary is `Save changes`, not `Publish`.
+# Mobile mirror of the web Playwright `recipeCrud.spec.ts` edit path (cross-platform mandate).
 #
 # The seed is guaranteed present (the CI loop reseeds the DB before every flow), so the target recipe is
 # reached by scrolling to it rather than a `when: visible` guard that would silently SKIP the whole flow when
 # the recipe is below the fold (the list scrolls; only ~1 tall cover card fits the viewport at a time). The
-# seed recipe itself carries no ingredients or steps, but a full Publish (whole-form validation, unchanged by
-# the wizard) needs >= 1 of each — added via the freeform create on steps 2/3, exactly as before the wizard.
+# seed recipe now arrives WITH five ingredient lines and four steps of its own (it did not when this flow was
+# written), so the >= 1-of-each a save requires is already satisfied when the editor opens. The
+# "as written" add and the step add are kept anyway — they are this flow's coverage of those paths — but BOTH of
+# their checkpoints had to be re-aimed at the row/step this flow itself adds, because the ones written against an
+# empty fixture now land on SEEDED content instead (see Ingredients and Steps below).
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
 
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
-# RecipeDetailScreen: the owner's edit entry point sits in the owner-action block at the foot of the detail,
-# which scrolls — reach it rather than asserting blind.
+- tapOn: '${E2E_RECIPE_LAMB}'
+# RecipeDetailScreen: the owner's edit entry point sits in the detail's TITLE BAND, beside the recipe name
+# (it used to sit at the foot of the detail). The band is below the hero image, so it is not guaranteed to be
+# in the first viewport — reach it rather than asserting blind.
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
 
-# Step 1 of 4 (Basic) — the wizard opens here, seeded with the recipe's current title/difficulty. No page
-# heading of its own (that copy belonged to the retired flat `RecipeForm`), so the step-progress label is the
-# entry checkpoint instead.
-- assertVisible: 'Step 1 of 4'
-- tapOn: 'Title'
-- eraseText
-- inputText: 'Mediterranean Grilled Lamb (edited)'
-# Clear the stated difficulty (FR-001b): choosing "Not stated" sends the three-state update's explicit clear
-# (null), not an omit. It sits further down Basic (w3/e5 added a taller cuisine picker above it), so scroll
-# defensively rather than assume it is already on screen.
+# Details — the editor opens seeded with the recipe's current title/difficulty. Its × is the entry checkpoint.
+- assertVisible: 'Close editor'
+# Empty the title first: the run-scoped seed title defeats a single erase (see the sub-flow).
+- runFlow: common/clearTitle.yaml
+- inputText: '${E2E_RECIPE_LAMB} (edited)'
+# A difficulty chip clears by being pressed again (slice 7: the row has no "Not stated" chip). The seeded lamb states
+# none, so choose Hard, then clear it; the wire's explicit null is `recipeCrud.spec.ts`'s. It sits further down
+# Details, so scroll defensively rather than assume it is on screen.
 - scrollUntilVisible:
       element: 'Difficulty'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Not stated'
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
+- tapOn: 'Hard'
+- assertVisible:
+      text: 'Hard'
+      checked: true
+- tapOn: 'Hard'
+- assertVisible:
+      text: 'Hard'
+      checked: false
 
-# Step 2 of 4 (Ingredients) — the seed carries none; Publish requires >= 1. Add one via the freeform create
-# (no food-service dependency, same as before the wizard). The picker sits at the top of this step's body.
-- assertVisible: 'Step 2 of 4'
+# Ingredients — the seeded recipe already carries five lines, so this add is no longer what satisfies the >= 1 a
+# save needs; it is this flow's coverage of a line declared "as written" (no food-service dependency).
+# Since plan 002 V1 B8 the entry is the trailing "Add an ingredient" field, AFTER the last seeded line.
 - scrollUntilVisible:
-      element: 'Search ingredients'
-      direction: UP
+      element: 'Add an ingredient'
+      direction: DOWN
       timeout: 20000
-- tapOn: 'Search ingredients'
+- tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
-- scrollUntilVisible:
-      element:
-          text: 'Create .*Tomato.*'
-      direction: DOWN
-      timeout: 20000
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
 - tapOn:
-      text: 'Create .*Tomato.*'
-- scrollUntilVisible:
-      element: 'Ingredient 1 name'
-      direction: DOWN
+      text: 'Use .*Tomato.* as written.*'
+# ⛔ THE CHECKPOINT THAT THE DECLARATION REACHED THE FORM. This was `Ingredient 1 name`, and that was a
+# real proof only while the seed inserted the recipe row ALONE: `packages/services/recipe-service/src/database/seed.ts`
+# now gives every seeded recipe its own lines (the lamb has five), so `Ingredient 1 name` is the FIRST SEEDED
+# line's field — on screen before this flow typed anything, and therefore passing whether or not the create
+# resolved. Two assertions replace it, both about THIS flow's own action:
+#   1. The trailing field EMPTIES. The entry clears its text only AFTER the line is committed, so "Use “Tomato” as
+#      written" disappearing IS the declaration landing; a failed one leaves the text — and this option — in
+#      place, and the wait goes red. (It is also the wait for the round trip.)
+#   2. The LINE ITSELF, addressed by the name this flow typed rather than by its position — the fact under
+#      test, and one that does not move when the fixture grows. A TextInput's own value is matchable text in
+#      this suite (see `searchNavigation.yaml`'s "Flour" note, and why `ingredientUsdaSearch.yaml` types
+#      'Flou'), and after (1) the trailing field is empty, so the row is the only thing that can
+#      satisfy it. Anchored at the START only: `^Tomato` cannot be met by a substring of another row, and the
+#      open end tolerates the emulator's occasional last-character input duplication that the `Use .*Tomato.*`
+#      pattern above already allows for.
+# The count-derived alternative (`Ingredient 6 name` — 5 seeded lines + 1) was rejected: it re-couples this
+# flow to the fixture's line COUNT, and it would also be satisfied by a blank sixth row.
+- extendedWaitUntil:
+      notVisible: 'Use .*Tomato.* as written.*'
       timeout: 30000
 - scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
+      element:
+          text: '^Tomato'
+      # The line lands above the add field the cook is at: one page, so it is UP.
+      direction: UP
+      timeout: 30000
 
-# Step 3 of 4 (Instructions) — same reason, the seed carries no steps.
-- assertVisible: 'Step 3 of 4'
+# Steps — as with Ingredients, the seeded recipe already has steps, so this add is coverage of the add-a-step path,
+# not what opens the gate.
+#
+# ⛔ `Step 5`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
+# (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row this flow just
+# created is the fifth. This index is the one place the flow is coupled to the fixture's COUNT; it is stated
+# rather than derived because Maestro has no "last match" selector. Typing into `Step 1` does not merely assert the
+# wrong row — it appends this text to the SEEDED first step and leaves the added step EMPTY, which the save below
+# then has to refuse ('Fill in or remove the empty step').
 - scrollUntilVisible:
       element: 'Add step'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
-- inputText: 'Combine everything and simmer.'
-- scrollUntilVisible:
-      element: 'Next: Photos'
+      # DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Add step'
+- tapOn: 'Step 5'
+- inputText: 'Combine everything and simmer.'
 
-# Step 4 of 4 (Photos) — Publish is the sticky top-bar action, present on every step; no scroll needed.
-- assertVisible: 'Step 4 of 4'
-- tapOn: 'Publish'
+# Save changes is the pinned action bar's primary, on screen wherever the page is scrolled: ONE write.
+- tapOn: 'Save changes'
 # Back on the detail with the new title (regex tolerates Maestro's occasional last-char input dup).
 - extendedWaitUntil:
       visible:
-          text: 'Mediterranean Grilled Lamb .edited.*'
+          text: '${E2E_RECIPE_LAMB} .edited.*'
       timeout: 40000

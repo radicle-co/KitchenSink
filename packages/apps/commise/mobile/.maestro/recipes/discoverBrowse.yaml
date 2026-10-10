@@ -1,0 +1,112 @@
+appId: io.commise.mobile
+---
+# Discovery browse overhaul (U7). Proves the three U7 discovery behaviours end-to-end on device:
+#   1. no query/filter -> the curated browse RAILS (Trending / New / Quick), not a bare relevance stream;
+#   2. the facets live behind a "Filters" BOTTOM SHEET (opened on demand, closed by its "Show {n} recipes" button);
+#   3. typing a query DEBOUNCES into the result list (rails give way to results), and clearing it returns
+#      to the rails;
+#   4. a rail's "See all" leaves browse for the full list, and the pinned "Back to browse" returns to the rails.
+# Read-only: it types and clears text but mutates nothing, so it is order-independent. Anchored on the
+# seeded public row "Herb Risotto" that no other flow renames.
+- runFlow: ../auth/signin.yaml
+
+# Recipes list is the initial destination; cross to Discover.
+- assertVisible: 'Recipes'
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover'
+      timeout: 40000
+
+# 1. Browsable default: the curated rails render (their headings are static, so this is seed-drift-immune).
+#
+# `Trending` and `New` are above the fold; `Quick` is the THIRD rail and sits below it on a phone viewport
+# (each rail is a heading plus a row of tall recipe cards — on the CI emulator the "New" heading lands at
+# ~88% of the screen height, so the Quick heading is off-screen entirely). `assertVisible` only sees the
+# CURRENT viewport, so it must be scrolled into view rather than asserted blind. Scrolling — not deleting the
+# assertion — is the point: the third rail existing is a U7 requirement.
+- assertVisible: 'Trending'
+# The rails are cards in the full variant now (slice 5), so "New" can sit below the fold too: scroll to it.
+- scrollUntilVisible:
+      element: 'New'
+      direction: DOWN
+      timeout: 20000
+- assertVisible: 'See all'
+- scrollUntilVisible:
+      element: 'Quick'
+      direction: DOWN
+      timeout: 20000
+
+# Back to the top so the steps below act on the search field and the Filters button, not on wherever the
+# scroll left the surface.
+- scrollUntilVisible:
+      element: 'Discover'
+      direction: UP
+      timeout: 20000
+
+# 2. Filters are a bottom sheet (`@commise/ui/sheet`, ingredientSpecialization.md §S8.1a): the facet ladders are
+# hidden until the "Filters" button opens the sheet, titled "Filters". Every close route shuts it: "Show {n} recipes",
+# the × "Close filters", the system back key, and a swipe down from the title. The component tests cannot prove
+# the last two: react-native-web has no hardware back key and no touch gesture.
+- assertNotVisible: 'Under 60 min'
+- tapOn: 'Filters.*'
+- extendedWaitUntil:
+      visible: 'Under 60 min'
+      timeout: 40000
+- assertVisible: 'Close filters'
+- tapOn: 'Show \d+ recipes?|Show recipes'
+- assertNotVisible: 'Under 60 min'
+
+- tapOn: 'Filters.*'
+- extendedWaitUntil:
+      visible: 'Under 60 min'
+      timeout: 40000
+- tapOn: 'Close filters'
+- assertNotVisible: 'Under 60 min'
+
+- tapOn: 'Filters.*'
+- extendedWaitUntil:
+      visible: 'Under 60 min'
+      timeout: 40000
+- back
+- assertNotVisible: 'Under 60 min'
+
+- tapOn: 'Filters.*'
+- extendedWaitUntil:
+      visible: 'Under 60 min'
+      timeout: 40000
+# From the sheet's title row (the title is the same word as the Filters button, so a name cannot name it).
+- swipe:
+      start: 40%, 55%
+      end: 40%, 95%
+- extendedWaitUntil:
+      notVisible: 'Under 60 min'
+      timeout: 10000
+
+# 3. Typing switches from the rails to the result list (the query is debounced, then the results settle).
+- tapOn: 'Search recipes'
+- inputText: 'Risotto'
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_RISOTTO}'
+      timeout: 40000
+- assertNotVisible: 'Trending'
+
+# Clearing the query returns to the curated rails.
+- tapOn: 'Search recipes'
+- eraseText
+- extendedWaitUntil:
+      visible: 'Trending'
+      timeout: 40000
+
+# 4. "See all" leaves browse for the full list, with no query. "Back to browse" sits in the pinned frame above the
+# results — not inside them — so it is reachable whether the list is loading, failed or loaded; before 5.4 it lived
+# in the result list and was stranded while that list loaded. The first "See all" belongs to Trending.
+- tapOn: 'See all'
+- extendedWaitUntil:
+      visible: 'Back to browse'
+      timeout: 40000
+- assertNotVisible: 'Trending'
+- tapOn: 'Back to browse'
+- extendedWaitUntil:
+      visible: 'Trending'
+      timeout: 40000
+- assertNotVisible: 'Back to browse'

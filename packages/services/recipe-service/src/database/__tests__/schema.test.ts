@@ -6,7 +6,6 @@ import {
     RecipeSourceType as RecipeCoreSourceType,
     RecipeDifficulty as RecipeCoreDifficulty,
     RecipeStatus as RecipeCoreStatus,
-    FoodResolutionStatus as RecipeCoreFoodResolutionStatus,
     RecipeCollectionAddedVia as RecipeCoreCollectionAddedVia,
     RecipeVersionArchiveStatus as RecipeCoreVersionArchiveStatus,
 } from '@kitchensink/recipe-core';
@@ -16,7 +15,8 @@ import {
     recipes,
     recipeSteps,
     ingredients,
-    recipeIngredients,
+    foodLookups,
+    unresolvedFoods,
     recipePhotos,
     recipeRatings,
     authorHandles,
@@ -29,11 +29,13 @@ import {
     RECIPE_SOURCE_TYPES,
     RECIPE_DIFFICULTIES,
     RECIPE_STATUSES,
-    FOOD_RESOLUTION_STATUSES,
     COLLECTION_VISIBILITIES,
     RECIPE_COLLECTION_ADDED_VIA,
     PENDING_ARCHIVE_STATUSES,
     ERASURE_JOB_STATUSES,
+    analyticsEvents,
+    recipeImpactSignals,
+    ANALYTICS_EVENT_TYPES,
 } from '../schema/index.js';
 import type {
     RecipeRow,
@@ -112,6 +114,11 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             servings: { type: 'integer', notNull: true },
             // CR-001: nullable difficulty (no default) + trigger-maintained rating aggregate.
             difficulty: { type: 'text', notNull: false },
+            // U34 — nullable with NO default: "the author did not say" is a first-class state, exactly as
+            // for `difficulty` above. The seven-member domain is policed by `recipes_meal_type_check`, which
+            // this tier cannot see — `__tests__/integration/database/recipeMealType.integration.test.ts` proves
+            // the constraint is enforced against a real Postgres.
+            meal_type: { type: 'text', notNull: false },
             average_rating: { type: 'numeric(3,2)', notNull: false },
             rating_count: { type: 'integer', notNull: true },
             visibility: { type: 'text', notNull: true },
@@ -123,10 +130,11 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             cuisine: { type: 'text', notNull: false },
             dietary_flags: { type: 'text[]', notNull: true },
             tags: { type: 'text[]', notNull: true },
-            has_partial_nutrition: { type: 'boolean', notNull: true },
-            lead_calories_per_serving: { type: 'numeric(8,1)', notNull: false },
             author_handle: { type: 'text', notNull: false },
             status: { type: 'text', notNull: true },
+            // ADR-0058 — nullable: NULL exactly while the recipe has never been published. Set and kept by the 0053
+            // trigger, which `tests/e2e/draftVersions.e2e.test.ts` proves against a real Postgres.
+            first_published_at: { type: 'timestamp with time zone', notNull: false },
             current_version: { type: 'integer', notNull: true },
             ingredient_names_text: { type: 'text', notNull: true },
             search_vector: { type: 'tsvector', notNull: false },
@@ -147,36 +155,90 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
         });
     });
 
-    it('ingredients (T012)', () => {
-        expect(getTableName(ingredients)).toBe('ingredients');
-        expectColumns(ingredients, {
+    it('unresolved_foods — the cascade`s failure record (0051)', () => {
+        expect(getTableName(unresolvedFoods)).toBe('unresolved_foods');
+        expectColumns(unresolvedFoods, {
             id: { type: 'uuid', notNull: true },
+            // The food name that FAILED to resolve — the unresolved arm's contribution to a display name.
             name: { type: 'text', notNull: true },
+            // The raw phrase `name` came from. Deliberately duplicated with the LINE's `source_phrase`,
+            // which is a different grain: the line's is what one cook wrote, this is what the SHARED
+            // record stands for.
+            source_phrase: { type: 'text', notNull: false },
+            normalized_key: { type: 'text', notNull: true },
+            status: { type: 'text', notNull: true },
+            reason_code: { type: 'text', notNull: true },
+            food_handle_id: { type: 'text', notNull: false },
+            // ⛔ NOT NULL is load-bearing on the `cascade_unavailable` CHECK, not a tidy default:
+            // `cardinality(NULL)` is NULL and a CHECK that evaluates to NULL is SATISFIED, so a nullable
+            // column would admit the exact row that constraint refuses.
+            tiers_consulted: { type: 'text[]', notNull: true },
+            tiers_unavailable: { type: 'text[]', notNull: true },
+            // Operator-only free text about one attempt. NEVER on the wire.
+            detail: { type: 'text', notNull: false },
+            attempts: { type: 'integer', notNull: true },
+            first_attempted_at: { type: 'timestamp with time zone', notNull: true },
+            last_attempted_at: { type: 'timestamp with time zone', notNull: true },
+            // Where a food-service answer settled the failure; NULL while it stands (plan 002 R13).
+            settled_lookup_id: { type: 'uuid', notNull: false },
+        });
+    });
+
+    it('food_lookups — the binding, carrying NO name and NO discriminator (0051)', () => {
+        expect(getTableName(foodLookups)).toBe('food_lookups');
+        // ⛔ THE ABSENCES ARE THE CONTRACT, and `expectColumns` asserts the column set EXACTLY, so this is
+        // what fails the day somebody re-adds `name`, `kind`, `food_resolution_status`, `is_user_entered`
+        // or a ranking column. The arm is READ OFF `food_id` / `food_variant_id` / `unresolved_food_id`
+        // under `food_lookups_one_arm`; a discriminator would be a second statement of the same fact, and a
+        // second statement can disagree with the first.
+        expectColumns(foodLookups, {
+            id: { type: 'uuid', notNull: true },
+            // Opaque food-service ULID (003). Not a cross-DB FK — ADR-0006 — so it MAY dangle.
             food_id: { type: 'text', notNull: false },
-            food_resolution_status: { type: 'text', notNull: false },
-            is_user_entered: { type: 'boolean', notNull: true },
-            calories_per_100g: { type: 'numeric(8,2)', notNull: false },
-            protein_g_per_100g: { type: 'numeric(8,2)', notNull: false },
-            carbs_g_per_100g: { type: 'numeric(8,2)', notNull: false },
-            fat_g_per_100g: { type: 'numeric(8,2)', notNull: false },
-            portions: { type: 'jsonb', notNull: false },
-            search_vector: { type: 'tsvector', notNull: false },
+            // The curated catalog's variant id (U20). Opaque and never a cross-DB FK, like `food_id`.
+            food_variant_id: { type: 'text', notNull: false },
+            unresolved_food_id: { type: 'uuid', notNull: false },
+            // R20 (from 0040): the admitting AUTHOR's ULID for a PRIVATE authored food; NULL = shared.
+            food_owner_id: { type: 'varchar(255)', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
         });
     });
 
-    it('recipe_ingredients (T012)', () => {
-        expect(getTableName(recipeIngredients)).toBe('recipe_ingredients');
-        expectColumns(recipeIngredients, {
+    it('ingredients — THE RECIPE LINE, replacing recipe_ingredients (0051)', () => {
+        expect(getTableName(ingredients)).toBe('ingredients');
+        expectColumns(ingredients, {
             id: { type: 'uuid', notNull: true },
             recipe_id: { type: 'uuid', notNull: true },
-            ingredient_id: { type: 'uuid', notNull: true },
-            quantity: { type: 'numeric(10,3)', notNull: true },
+            // ⛔ NOT NULL: a line cannot exist without a binding, so there is no such thing as an
+            // ingredient that is neither a food nor an unresolved one. ⛔ And `ingredient_name` /
+            // `is_user_entered` are ABSENT — both are DERIVED by following this column, and the exact
+            // column set asserted here is what fails the day a denormalized copy is re-added.
+            food_lookup_id: { type: 'uuid', notNull: true },
+            // U8/R41 — NULLABLE since migration 0020: `NULL` is the ONE representation of "the source
+            // stated no amount". `quantity_high` carries the upper bound of a stated range (R36).
+            quantity: { type: 'numeric(10,3)', notNull: false },
+            quantity_high: { type: 'numeric(10,3)', notNull: false },
             unit: { type: 'text', notNull: true },
             display_text: { type: 'text', notNull: false },
+            // U11/U14 — the RAW line the cook's source stated. NULLABLE, and the null is a STATEMENT rather
+            // than missing data: it means the line was AUTHORED, not transcribed, which `decideVerification`
+            // reads as `skip: 'no-source-text'`.
+            source_line: { type: 'text', notNull: false },
+            // ⛔ A SECOND COLUMN, and the pair must stay two. `verificationKey()` hashes the normalized
+            // LINE, so merging them changes every key — and because absence of a verdict PUBLISHES
+            // (migration 0023), that break would be SILENT rather than an error.
+            source_phrase: { type: 'text', notNull: false },
+            // U7/U11 — what the SOURCE printed, before a historical measure was restated into one the USDA
+            // household-portion table carries. Without them the gate is shown `0.5 cup` beside a source
+            // reading `one gill of milk` and correctly disagrees with a line we parsed RIGHT.
+            stated_quantity: { type: 'numeric(10,3)', notNull: false },
+            stated_quantity_high: { type: 'numeric(10,3)', notNull: false },
+            stated_unit: { type: 'text', notNull: false },
+            // U26/U27 — how this recipe prepares the food, and which section the line sits in. Both
+            // NULLABLE, and `NULL` is the ONLY spelling of absent: a CHECK refuses `''` and whitespace-only.
+            preparation: { type: 'text', notNull: false },
+            group_label: { type: 'text', notNull: false },
             sort_order: { type: 'integer', notNull: true },
-            ingredient_name: { type: 'text', notNull: true },
-            is_user_entered: { type: 'boolean', notNull: true },
             user_calories: { type: 'numeric(8,2)', notNull: false },
             user_protein_g: { type: 'numeric(8,2)', notNull: false },
             user_carbs_g: { type: 'numeric(8,2)', notNull: false },
@@ -224,7 +286,6 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             s3_key: { type: 'text', notNull: false },
             created_by: { type: 'varchar(255)', notNull: true },
             change_summary: { type: 'text', notNull: false },
-            device_label: { type: 'text', notNull: false },
             editor_handle: { type: 'text', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
         });
@@ -315,9 +376,6 @@ describe('recipe-service schema — controlled value sets (CHECK enums)', () => 
     it('recipe source_type', () => {
         expect(RECIPE_SOURCE_TYPES).toEqual(['user_created', 'imported_public', 'imported_physical', 'imported_paid']);
     });
-    it('food_resolution_status mirrors the food client FoodStatus (UPPER_SNAKE, incl. terminals)', () => {
-        expect(FOOD_RESOLUTION_STATUSES).toEqual(['PENDING', 'UNRESOLVED', 'RESOLVED', 'NOT_FOUND', 'FAILED']);
-    });
     it('collection visibility (private by default)', () => {
         expect(COLLECTION_VISIBILITIES).toEqual(['public', 'private']);
     });
@@ -350,9 +408,6 @@ describe('recipe-service schema — value sets are tied to @kitchensink/recipe-c
     it('RECIPE_STATUSES set-equals recipe-core RecipeStatus', () => {
         expectSetEqual(RECIPE_STATUSES, Object.values(RecipeCoreStatus));
     });
-    it('FOOD_RESOLUTION_STATUSES set-equals recipe-core FoodResolutionStatus', () => {
-        expectSetEqual(FOOD_RESOLUTION_STATUSES, Object.values(RecipeCoreFoodResolutionStatus));
-    });
     it('COLLECTION_VISIBILITIES set-equals recipe-core RecipeVisibility (Collection.visibility reuses it)', () => {
         expectSetEqual(COLLECTION_VISIBILITIES, Object.values(RecipeCoreVisibility));
     });
@@ -361,6 +416,48 @@ describe('recipe-service schema — value sets are tied to @kitchensink/recipe-c
     });
     it('PENDING_ARCHIVE_STATUSES set-equals recipe-core RecipeVersionArchiveStatus', () => {
         expectSetEqual(PENDING_ARCHIVE_STATUSES, Object.values(RecipeCoreVersionArchiveStatus));
+    });
+});
+
+describe('recipe-service schema — analytics_events + recipe_impact_signals (analytics plan U1, 0043)', () => {
+    it('analytics_events (append-only fact table; anonymize-on-erase nullability)', () => {
+        expect(getTableName(analyticsEvents)).toBe('analytics_events');
+        expectColumns(analyticsEvents, {
+            id: { type: 'bigint', notNull: true },
+            event_id: { type: 'uuid', notNull: false },
+            event_type: { type: 'text', notNull: true },
+            user_id: { type: 'varchar(255)', notNull: false },
+            recipe_id: { type: 'uuid', notNull: false },
+            query_text: { type: 'text', notNull: false },
+            payload: { type: 'jsonb', notNull: true },
+            occurred_at: { type: 'timestamp with time zone', notNull: true },
+            created_at: { type: 'timestamp with time zone', notNull: true },
+        });
+    });
+
+    it("recipe_impact_signals (KTD2: 015's future home — bigint lifetime counts, cook_count provisioned)", () => {
+        expect(getTableName(recipeImpactSignals)).toBe('recipe_impact_signals');
+        expectColumns(recipeImpactSignals, {
+            recipe_id: { type: 'uuid', notNull: true },
+            save_count: { type: 'bigint', notNull: true },
+            view_count: { type: 'bigint', notNull: true },
+            cook_count: { type: 'bigint', notNull: true },
+            updated_at: { type: 'timestamp with time zone', notNull: true },
+        });
+    });
+
+    it('⛔ recipe_impact_signals is VIEWER-LESS — 012-FR-024: no viewer/user column may ever exist here', () => {
+        // expectColumns above already pins the whole set; this names the rule so a future "viewer_id"
+        // or "user_id" column fails a test that SAYS why, not just a set diff.
+        const names = Object.values(getTableColumns(recipeImpactSignals)).map((c) => (c as PgColumn).name);
+
+        for (const name of names) {
+            expect(name).not.toMatch(/viewer|user/);
+        }
+    });
+
+    it('the closed v1 event vocabulary (extension is additive, per origin R8)', () => {
+        expect(ANALYTICS_EVENT_TYPES).toEqual(['recipe_saved', 'recipe_viewed', 'query_outcome']);
     });
 });
 
@@ -377,8 +474,10 @@ describe('recipe-service schema — inferred row types compile with correct null
     });
 
     it('IngredientRow / RecipeVersionRow / CollectionRow / AccountErasureJobRow compile', () => {
-        expectTypeOf<IngredientRow['foodId']>().toEqualTypeOf<string | null>();
-        expectTypeOf<IngredientRow['isUserEntered']>().toEqualTypeOf<boolean>();
+        // The recipe LINE (0051): bound through its lookup, and carrying no name — a name is derived (R9).
+        expectTypeOf<IngredientRow['foodLookupId']>().toEqualTypeOf<string>();
+        expectTypeOf<IngredientRow>().not.toHaveProperty('name');
+        expectTypeOf<IngredientRow>().not.toHaveProperty('isUserEntered');
         expectTypeOf<RecipeVersionRow['snapshot']>().not.toBeNever();
         expectTypeOf<RecipeVersionRow['createdBy']>().toEqualTypeOf<string>();
         expectTypeOf<CollectionRow['sourceCollectionId']>().toEqualTypeOf<string | null>();

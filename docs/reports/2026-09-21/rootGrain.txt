@@ -1,0 +1,25 @@
+covered SR Legacy foods        :   4126
+ROOTS at raw FoodOn-label grain:   2036
+  naming exactly one food      :   1315  (65%)
+  multi-member roots           :    721
+  foods inside a multi root    :   2811  (68%)
+
+widest roots:
+  n=90   ham (cured)
+  n=36   beef (ground)
+  n=23   beef small end rib roast
+  n=19   beef ribeye steak (raw)
+  n=18   beef ribeye steak
+  n=17   potato (french-fried)
+
+multi-member roots with 2+ measurable energies :   719
+  ... min-to-max spread >= 10%                 :   474  (66%)
+   377.2%  n=7    sweet red bell pepper                    16-314 kcal
+   305.5%  n=90   ham (cured)                              91-591 kcal
+   301.6%  n=12   white sweet corn kernel                  64-386 kcal
+   292.3%  n=3    black tea (decaffeinated)                0-38 kcal
+   289.3%  n=7    sweet green bell pepper                  16-116 kcal
+
+  election "lowest fdc_id": median 14.8%  p90 63.5%  max 17450%
+
+  election "median energy": median 10.3%  p90 43.4%  max 3700%

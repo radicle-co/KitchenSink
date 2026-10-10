@@ -45,12 +45,18 @@ import { borderSubtle } from './scale.js';
  *    must READ — validation copy, an alert banner's message, the flat destructive button's label and the icon
  *    beside it — use **`error-dark`** (5.63:1 on white, 5.23:1 on `sand`, 4.95:1 on `error/10` over white).
  *    `error-dark` is `error` moved in OKLCH lightness only, so the two are the same red.
+ *  - **`warning` is the caution FILL and nothing else** — 6.74:1 under a charcoal label, but only 1.88:1 as
+ *    text on white, below even the 3:1 floor SC 1.4.11 sets for a meaningful graphic. Where the amber is the
+ *    colour of text a reader must READ — a disabled-reason note, a caution status label, a terminal notice —
+ *    use **`warning-dark`** (5.87:1 on white, 5.45:1 on `sand`, 5.08:1 on `pearl`/linen). Unlike the reds there is
+ *    no tint pairing to measure: every warning-tinted surface in the product carries a `charcoal` label, so
+ *    the amber is never painted on its own tint.
  *  - On a DARK surface the pairing INVERTS: `seafoam` is 2.72:1 on `charcoal` and `slate` is 2.42:1, so
  *    cook-mode-style chrome over a charcoal fill takes `white` (12.68:1), `mist` (6.67:1) or `seafoam-light`
  *    (4.56:1) instead.
  *  - **`mist` is a HAIRLINE/divider tone, never a text tone.** It is 1.90:1 on white — below even the 3:1
  *    floor SC 1.4.11 sets for a meaningful graphic. Text, placeholder text, empty rating pips and labelled
- *    `role="img"` placeholders take **`slate`** (5.24:1 on white).
+ *    `role="img"` placeholders take **`slate`** (5.83:1 on white).
  *  - **An ALPHA-tinted text colour is not a text colour.** `text-slate/60` measures 2.41:1 over white — the
  *    token passes, the rendered pixel does not. A dimmed/gated label uses the opaque `slate` and leans on the
  *    surrounding affordances (`cursor-not-allowed`, a "coming soon" name) to read as inactive.
@@ -70,12 +76,21 @@ export const palette = {
     sand: '#FAF6F0',
     'ocean-dark': '#2A6B65',
     charcoal: '#2D3436',
-    slate: '#636E72',
-    mist: '#B2BEC3',
-    pearl: '#F5F5F5',
+    // D11 warm greys (`ownerDecisions.md`; values from `modernizeB.md` §3 and `darkTheme.md` §1): the neutrals take
+    // the sand page's temperature. `pearl` IS linen now — the name stays so its legacy readers keep compiling while they
+    // move to `surfaceMuted`.
+    slate: '#6B645C',
+    mist: '#C9C1B6',
+    pearl: '#F3EEE6',
     white: '#FFFFFF',
     success: '#4CAF7C',
+    // The caution FILL, under a charcoal label (6.74:1). It is NOT a text colour — see `warning-dark`.
     warning: '#F5B041',
+    // The caution FOREGROUND, `warning` moved in OKLCH lightness only (0.804 → 0.543) at the same hue, so the
+    // two are the same amber. Text has the harder constraint of the two: it is measured against the near-white
+    // surface BENEATH it rather than a label on top. 5.87:1 on `white`, 5.45:1 on `sand`, 5.08:1 on `pearl` (linen).
+    // `darkTheme.md` §1: #966400 → #8C5A00 closes attention on linen and on its own tint, and the Medium badge on sand.
+    'warning-dark': '#8C5A00',
     // The destructive FILL. Darkened from #E17055 in OKLCH lightness only (0.672 → 0.576) so a white label
     // clears 4.5:1 (3.16 → 4.66). This is as close to the mockups' brand red as AA allows for a filled
     // control; it is NOT a text colour — see `error-dark`.
@@ -88,6 +103,13 @@ export const palette = {
     // failing while only the flat backgrounds were being checked.
     'error-dark': '#B1442B',
     premium: '#D4A574',
+    // The control EDGE (§1.4 `lineControl`): input, unselected chip, checkbox and secondary-button outlines. A divider
+    // tone is under 3:1 on white and fails SC 1.4.11, so a component boundary drawn in it is invisible to the readers who
+    // need it most. 3.70:1 on white, 3.44:1 on sand, 3.21:1 on linen (D11).
+    pewter: '#8A847C',
+    // The filled-STAR tone (§1.4 `rating`). 4.43:1 on white: it clears SC 1.4.11 as a graphic and deliberately not
+    // SC 1.4.3, so it is never text — the number beside the stars is `ink`. The amber it replaces was 1.88:1.
+    honey: '#A86A12',
 } as const;
 
 export const semantic = {
@@ -152,6 +174,100 @@ export function tint(color: string, alpha: number): string {
 
     return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
+
+/**
+ * The colour ROLES (`docs/design/uiOverhaul/buildSpec.md` §1.4). A screen names a role — what the colour is FOR —
+ * and never a palette tier, so a re-theme moves one line here instead of every call site.
+ *
+ * Each role points at a palette entry, except two fills that are derived and say so:
+ *  - `selectedFill` is 14% `seafoam` composited over white, written as the opaque result because a chip is filled
+ *    over many surfaces and must read the same on each. `__tests__/colors.test.ts` recomputes it from the token.
+ *  - `attentionTint` is 20% `warning`, kept translucent, under an `ink` or an `attention` label: since `darkTheme.md`
+ *    §1 set `attention` to #8C5A00, that pair clears 4.5:1 in both themes (`__tests__/themeRoles.test.ts`).
+ *
+ * ⚠️ These are ADDITIONS (A19, expand-contract). `semantic.secondary` (coral) and `semantic.ring` (seafoam-light)
+ * keep their meaning until their consumers have moved, and are then deleted with a zero-readers guard. Do not
+ * repurpose an existing key: a key that changes meaning breaks its readers silently.
+ *
+ * The contrast of every pairing the spec states is asserted in `__tests__/colors.test.ts`.
+ *
+ * @pattern Registry — a closed set of role names over the palette; the web emission (`themeCss.ts`) and native read
+ *   the same record
+ */
+export const role = {
+    canvas: palette.sand,
+    paper: palette.white,
+    ink: palette.charcoal,
+    inkMuted: palette.slate,
+    lineControl: palette.pewter,
+    lineDivider: palette.mist,
+    action: palette.seafoam,
+    actionText: palette['ocean-dark'],
+    selectedFill: '#E2EDEC',
+    selectedEdge: palette.seafoam,
+    hereBar: palette.seafoam,
+    focusRing: palette['ocean-dark'],
+    rating: palette.honey,
+    attention: palette['warning-dark'],
+    attentionTint: tint(palette.warning, 0.2),
+    danger: palette.error,
+    dangerText: palette['error-dark'],
+    // `darkTheme.md` §1 additions (A19: new keys, no key changes meaning).
+    paperRaised: palette.white,
+    paperOverlay: palette.white,
+    surfaceMuted: palette.pearl,
+    inverse: palette.charcoal,
+    inverseInk: palette.white,
+    inverseAction: palette['seafoam-light'],
+    photoChip: tint(palette.white, 0.92),
+    scrim: tint(palette.charcoal, 0.4),
+    // The label on the `action` and `danger` fills: white in BOTH themes (the spec's "white label"). ⚠️ Named here, not
+    // in `darkTheme.md` — a filled control needs a role for its label so that nothing reads `palette.white`.
+    onAction: palette.white,
+    // The `action` fill under a press or a fine-pointer hover: #2A6B65 in BOTH themes (`darkTheme.md` §1, "Pressed and
+    // hover"). ⚠️ Named here, like `onAction`: the spec states the value, not a role for it, and `actionText` cannot
+    // stand in — it is a light teal in the dark theme.
+    actionPressed: palette['ocean-dark'],
+} as const;
+
+/** A colour role's name. */
+export type Role = keyof typeof role;
+
+/**
+ * Every role's value in the DARK theme (`docs/design/uiOverhaul/darkTheme.md` §1), beside {@link role} so that the two
+ * cannot drift. Typed `Record<Role, string>`: a role added to `role` without a dark value here does not compile.
+ * Web emits these as a `prefers-color-scheme: dark` override of the same custom properties (`themeCss.ts`); native
+ * reads them through `useTheme()`. The values are the designer's; none is derived here.
+ */
+export const roleDark: Readonly<Record<Role, string>> = {
+    canvas: '#141210',
+    paper: '#1E1B18',
+    paperRaised: '#272320',
+    paperOverlay: '#302C28',
+    surfaceMuted: '#2B2825',
+    ink: '#EDE9E4',
+    inkMuted: '#B6B0A9',
+    lineControl: '#857F79',
+    lineDivider: '#3B3734',
+    action: palette.seafoam,
+    actionText: '#7DC7C0',
+    onAction: palette.white,
+    actionPressed: palette['ocean-dark'],
+    selectedFill: '#243935',
+    selectedEdge: '#65B5AE',
+    hereBar: '#65B5AE',
+    focusRing: '#7DC7C0',
+    rating: '#EAA950',
+    attention: '#EFBA64',
+    attentionTint: tint(palette.warning, 0.2),
+    danger: palette.error,
+    dangerText: '#EC8E76',
+    inverse: '#EDE9E4',
+    inverseInk: palette.charcoal,
+    inverseAction: palette['ocean-dark'],
+    photoChip: tint('#302C28', 0.92),
+    scrim: tint('#000000', 0.6),
+};
 
 export type Palette = typeof palette;
 export type Semantic = typeof semantic;

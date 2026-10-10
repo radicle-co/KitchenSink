@@ -48,17 +48,35 @@ describe('ROADMAP_WIDGET_SPECS', () => {
         expect(ROADMAP_WIDGET_SPECS.map((spec) => spec.id)).not.toContain('recipes');
     });
 
-    it('weights every placeholder ABOVE the recipe widget, matching the mockup order', () => {
-        // Mockup order top→bottom: Today's Nutrition, Resume cooking, This Week's Meals, Recent Recipes.
+    it('weights every placeholder BELOW the recipe widget, so recent recipes lead Home', () => {
+        // Owner ruling (ownerDecisions.md, adopted recommendations; buildSpec.md §4.2): "Home shows recent recipes
+        // first … The required placeholders come after them." The old mockup order put the recipe widget last.
         for (const spec of ROADMAP_WIDGET_SPECS) {
-            expect(spec.defaultWeight).toBeGreaterThan(RECIPE_WIDGET_DEFAULT_WEIGHT_REFERENCE);
+            expect(spec.defaultWeight).toBeLessThan(RECIPE_WIDGET_DEFAULT_WEIGHT_REFERENCE);
         }
     });
 
-    it('orders the specs by descending weight so the declaration reads as the mockup layout', () => {
+    it('orders the specs by descending weight so the declaration reads as the Coming soon group', () => {
         const weights = ROADMAP_WIDGET_SPECS.map((spec) => spec.defaultWeight);
 
         expect(weights).toEqual([...weights].sort((a, b) => b - a));
+    });
+
+    it('curates the recipe widget ahead of every placeholder', () => {
+        const recipe = {
+            kind: 'live' as const,
+            id: 'recipes',
+            load: noopLoad,
+            defaultWeight: RECIPE_WIDGET_DEFAULT_WEIGHT_REFERENCE,
+            capability: 'recipes',
+            minTier: 'free',
+        };
+        const curated = curateHomeWidgets([...createRoadmapPlaceholders(noopLoaders), recipe], {
+            liveCapabilities: ['recipes'],
+            tier: 'free',
+        });
+
+        expect(curated.map((widget) => widget.id)).toEqual(['recipes', 'nutrition', 'resume-cooking', 'meal-plan']);
     });
 
     it('exposes ROADMAP_WIDGET_IDS as exactly the spec ids (the parity keystone apps key their skeletons by)', () => {

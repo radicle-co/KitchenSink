@@ -1,16 +1,16 @@
 ---
 name: speckit.product-forge.portfolio
 description: 'Cross-cutting portfolio view over every feature managed by Product Forge.
-  Reads every feature''s `.forge-status.yml` (via the Path-Resolution Contract''s
-  `enumerate()`, so flat and domain-nested layouts both work) plus optional `tasks.md`,
-  and produces a consolidated report covering feature status, file/module conflicts
-  between in-flight features, a dependency graph, and a suggested merge order. Use:
-  "show portfolio", "feature portfolio", "what''s blocked", "/speckit.product-forge.portfolio"'
+    Reads every feature''s `.forge-status.yml` (via the Path-Resolution Contract''s
+    `enumerate()`, so flat and domain-nested layouts both work) plus optional `tasks.md`,
+    and produces a consolidated report covering feature status, file/module conflicts
+    between in-flight features, a dependency graph, and a suggested merge order. Use:
+    "show portfolio", "feature portfolio", "what''s blocked", "/speckit.product-forge.portfolio"'
 ---
-
 
 <!-- Extension: product-forge -->
 <!-- Config: .specify/extensions/product-forge/ -->
+
 # Product Forge — Portfolio View
 
 You are the **Portfolio Analyst** for Product Forge.
@@ -28,6 +28,7 @@ $ARGUMENTS
 ```
 
 Parse for optional flags:
+
 - `--features-dir=<path>` — override default `features/` (from config).
 - `--include-archived` — include `features/_archived/*` in the scan.
 - `--format=markdown|html` — output format. `markdown` is default; `html`
@@ -38,6 +39,7 @@ Parse for optional flags:
 ## Step 0: Load Config
 
 Read `.product-forge/config.yml`:
+
 - `features_dir` (default `features`)
 - `project_name` (for report header)
 
@@ -57,6 +59,7 @@ descend from `{features_dir}/`, treat the first directory that contains a
 3. Read `<phase>/digest.md` files where `digest_path` is set.
 
 Directories to skip:
+
 - `_`-prefixed top-level dirs (e.g. `_portfolio`, `_archived`) are **always**
   excluded by `enumerate()`. When `--include-archived` is given, run a **second,
   explicit pass** over `_archived/<…>/.forge-status.yml` (outside `enumerate()`)
@@ -71,7 +74,7 @@ Directories to skip:
 Columns:
 
 | feature | mode | current phase | status | days in phase | backfilled | blocked_by |
-|---------|------|---------------|--------|---------------|------------|-----------|
+| ------- | ---- | ------------- | ------ | ------------- | ---------- | ---------- |
 
 - `current phase` = first non-completed, non-skipped phase in the feature's mode map.
 - `days in phase` = `now - phases[<current>].started_at`, or `now - last_updated` if unset.
@@ -100,12 +103,12 @@ following sources in priority order:
 
 For each feature, record the extraction accuracy:
 
-| Accuracy level | Source used |
-|----------------|-------------|
-| exact | `task_log[].paths` |
-| pre-implementation | `tasks.md` `Paths:` lines |
-| module-level | `plan.md` module names |
-| unknown | no source available — feature appears in report without conflict rows |
+| Accuracy level     | Source used                                                           |
+| ------------------ | --------------------------------------------------------------------- |
+| exact              | `task_log[].paths`                                                    |
+| pre-implementation | `tasks.md` `Paths:` lines                                             |
+| module-level       | `plan.md` module names                                                |
+| unknown            | no source available — feature appears in report without conflict rows |
 
 For every pair of in-flight features `(A, B)`:
 
@@ -115,12 +118,12 @@ For every pair of in-flight features `(A, B)`:
   Two features touching `backend:src/users.ts` overlap; a feature on
   `backend:src/users.ts` vs one on `frontend:src/users.ts` do NOT.
 - Severity:
-  - **HIGH** — ≥3 overlapping paths OR any overlapping path is a
-    config/schema file (`*.schema.*`, `migrations/*`, `*.config.*`,
-    `*.env*`, `docker-compose*.yml`).
-  - **MEDIUM** — 1–2 overlapping paths.
-  - **LOW** — no direct overlap but shared parent module (module-level
-    accuracy only).
+    - **HIGH** — ≥3 overlapping paths OR any overlapping path is a
+      config/schema file (`*.schema.*`, `migrations/*`, `*.config.*`,
+      `*.env*`, `docker-compose*.yml`).
+    - **MEDIUM** — 1–2 overlapping paths.
+    - **LOW** — no direct overlap but shared parent module (module-level
+      accuracy only).
 - Record `(A, B, severity, overlapping_paths[], accuracy[A], accuracy[B], workspaces_touched)`.
 - If both features are at `module-level` accuracy, cap the severity at
   MEDIUM — the data isn't precise enough to call it HIGH.
@@ -212,7 +215,7 @@ Console output example:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Ask: *"Open the portfolio report?"* — do not auto-open.
+Ask: _"Open the portfolio report?"_ — do not auto-open.
 
 ---
 

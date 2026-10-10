@@ -1,7 +1,7 @@
 /**
  * @module components/AuthGate — the app-wide authentication gate (the root's render map).
  *
- * Selects the surface for the CURRENT {@link AuthState} derived by `@commise/features-account` (the same
+ * Selects the surface for the CURRENT `AuthState` derived by `@commise/features-account` (the same
  * derivation web uses, so the two platforms cannot disagree on which sessions are blocked): a named loading
  * affordance while the session resolves, the sign-in form when signed out, a localized notice for a blocked or
  * failed session, and the app itself once authenticated.
@@ -12,8 +12,8 @@
  * the sign-in form's own control, which is now its ONLY entry point on mobile.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { JSX, ReactNode } from 'react';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -47,6 +47,9 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
     const { auth, common } = useMessages(mobileMessages);
     const { state } = useAuth();
     const [screen, setScreen] = useState<Screen>('login');
+    const { colors } = useTheme();
+    const title = [styles.title, { color: colors.ink }];
+    const body = [styles.body, { color: colors.inkMuted }];
 
     switch (state.status) {
         case 'loading':
@@ -62,8 +65,8 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
         case 'blocked':
             return (
                 <View style={styles.center}>
-                    <Text style={styles.title}>{state.reason.title}</Text>
-                    <Text style={styles.body}>{state.reason.body}</Text>
+                    <Text style={title}>{state.reason.title}</Text>
+                    <Text style={body}>{state.reason.body}</Text>
                 </View>
             );
         case 'error':
@@ -71,8 +74,8 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
             // provider's own diagnostic and is passed through as-is.
             return (
                 <View style={styles.center}>
-                    <Text style={styles.title}>{common.somethingWentWrong}</Text>
-                    <Text style={styles.body}>{state.error.message}</Text>
+                    <Text style={title}>{common.somethingWentWrong}</Text>
+                    <Text style={body}>{state.error.message}</Text>
                 </View>
             );
         case 'authenticated':
@@ -88,6 +91,6 @@ const styles = StyleSheet.create({
         padding: nativeTokens.spacing[5],
         gap: nativeTokens.spacing[2],
     },
-    title: { fontSize: nativeTokens.fontSize.headingMd, fontWeight: '600', color: palette.charcoal },
-    body: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center', color: palette.slate },
+    title: { fontSize: nativeTokens.fontSize.headingMd, fontWeight: '600' },
+    body: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center' },
 });

@@ -2,8 +2,8 @@
  * @module home/HomeWidgetErrorNotice — what a FAILED Home widget shows in place of its body (mobile).
  *
  * A pure render component (`props → JSX`, no props, no state, no effects) used as the `fallback` of BOTH
- * per-widget error boundaries on this surface: the host's ({@link import('./HomeWidgetSurface.js')}) and the
- * recipe slot's inner one ({@link import('./RecipeWidgetSlot.js')}). Both previously rendered `null`, so a
+ * per-widget error boundaries on this surface: the host's (`./HomeWidgetSurface.tsx`) and the
+ * recipe slot's inner one (`./RecipeWidgetSlot.tsx`). Both previously rendered `null`, so a
  * failed widget left unexplained blank space — and, for a screen-reader user, nothing whatsoever. This is the
  * mobile counterpart of the web host's localized `home.surface.widgetError` fallback: mirroring web's
  * CONTRACT (a localized explanation, and no recovery affordance) rather than its markup.
@@ -17,8 +17,8 @@
  * boundary would re-throw instantly and read as a dead button.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
@@ -31,6 +31,7 @@ import { mobileMessages } from '../../i18n/messages.js';
  */
 export function HomeWidgetErrorNotice(): JSX.Element {
     const { home } = useMessages(mobileMessages);
+    const { colors } = useTheme();
 
     // A LIVE REGION, but a POLITE one — `status`, not `alert`. The region is required (the notice appears
     // only after the widget has already failed mid-session, so plain text leaves a viewer using assistive
@@ -44,14 +45,14 @@ export function HomeWidgetErrorNotice(): JSX.Element {
     // Either alone leaves one of the three hosts silent. The assertive pairing in `RecipePhotoManager.native`
     // is the same construction one register louder.
     return (
-        <Text role="status" accessibilityLiveRegion="polite" style={styles.notice}>
+        <Text role="status" accessibilityLiveRegion="polite" style={[styles.notice, { color: colors.inkMuted }]}>
             {home.widgetError}
         </Text>
     );
 }
 
 const styles = StyleSheet.create({
-    // The native projection of web's `text-body-sm text-slate` — sourced from the SHARED tokens, so the two
+    // The native projection of web's `text-body-sm text-ink-muted` — sourced from the SHARED tokens, so the two
     // platforms' failure copy reads at the same weight in the layout rather than drifting apart by hand.
-    notice: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+    notice: { fontSize: nativeTokens.fontSize.bodySm },
 });

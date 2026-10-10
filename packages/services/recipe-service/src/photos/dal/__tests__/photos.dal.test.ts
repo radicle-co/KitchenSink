@@ -14,7 +14,7 @@ import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import { MAX_PHOTOS_PER_RECIPE, PhotosDal } from '../photos.dal.js';
 import { isRecipeDomainError } from '../../photo.error.js';
 import type { RecipeDrizzle } from '../../../database/client.js';
-import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/make-fake-drizzle.js';
+import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
 import { makeRecipePhotoRow } from '../../../__fixtures__/index.js';
 
 /** A chainable, thenable query stub: builder methods return `this`; awaiting shifts one queued result. */

@@ -25,156 +25,149 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to it rather than a
 # `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
 - scrollUntilVisible:
-      element: 'Mediterranean Grilled Lamb'
+      element: '${E2E_RECIPE_LAMB}'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Mediterranean Grilled Lamb'
+- tapOn: '${E2E_RECIPE_LAMB}'
 
-# ── EDIT 1 (creates version 2) ── the seed carries no ingredients/steps; Publish (whole-form validation)
-# needs >= 1 of each, added via the freeform create exactly as `edit.yaml` does.
+# ── EDIT 1 (creates version 2) ── the seeded recipe now arrives WITH five ingredient lines and four steps of
+# its own (`packages/services/recipe-service/src/database/seed.ts`), so a save's ">= 1 of each" is already
+# satisfied when the editor opens. An ingredient and a step are still added here — exactly as `edit.yaml` does
+# — so that v2 differs from the seed in CONTENT as well as title, which is what makes the version-history
+# assertions further down about a real edit rather than a title rename.
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
-- assertVisible: 'Step 1 of 4'
-- tapOn: 'Title'
-- eraseText
-- inputText: 'Mediterranean Grilled Lamb (v2)'
+- assertVisible: 'Close editor'
+# Empty the title first: the run-scoped seed title defeats a single erase (see the sub-flow).
+- runFlow: common/clearTitle.yaml
+- inputText: '${E2E_RECIPE_LAMB} (v2)'
 - scrollUntilVisible:
-      element: 'Next: Ingredients'
+      element: 'Add an ingredient'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Ingredients'
-- assertVisible: 'Step 2 of 4'
-- scrollUntilVisible:
-      element: 'Search ingredients'
-      direction: UP
-      timeout: 20000
-- tapOn: 'Search ingredients'
+- tapOn: 'Add an ingredient'
 - inputText: 'Tomato'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
+- tapOn:
+      text: 'Use .*Tomato.* as written.*'
+# ⛔ THE CHECKPOINT THAT THE DECLARATION REACHED THE FORM (the same pair `edit.yaml` carries, for the same
+# reason). It was `Ingredient 1 name`, which stopped proving anything the moment the seed gained lines of its
+# own: that is the FIRST SEEDED line's field, present before this flow typed a character. Instead:
+#   1. The trailing field EMPTIES — the entry clears its text only AFTER the line is committed, so "Use “Tomato”
+#      as written" disappearing IS the declaration landing (and this is the wait for the round trip). A failed
+#      one leaves the text and the option in place, and this goes red.
+#   2. The LINE ITSELF by the NAME this flow typed, not by position — count-independent, and the only thing
+#      left on screen that can carry that text once the trailing field has been cleared by (1). `^Tomato` is
+#      anchored at the start only, so the emulator's occasional last-character input duplication (the reason
+#      the `Use .*Tomato.*` pattern above is loose) still matches.
+- extendedWaitUntil:
+      notVisible: 'Use .*Tomato.* as written.*'
+      timeout: 30000
 - scrollUntilVisible:
       element:
-          text: 'Create .*Tomato.*'
-      direction: DOWN
-      timeout: 20000
-- tapOn:
-      text: 'Create .*Tomato.*'
-- scrollUntilVisible:
-      element: 'Ingredient 1 name'
+          text: '^Tomato'
       direction: DOWN
       timeout: 30000
 - scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
-- assertVisible: 'Step 3 of 4'
-- scrollUntilVisible:
       element: 'Add step'
-      direction: UP
+      # DOWN: Steps sits below Ingredients on the one page, and `Add step` below the seeded steps.
+      direction: DOWN
       timeout: 20000
 - tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
+# ⛔ `Step 5`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
+# (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row just created is
+# the fifth. The index is this flow's one coupling to the fixture's COUNT — stated because Maestro has no
+# "last match" selector. `Step 1` would append this text to the SEEDED first step and leave the added step EMPTY,
+# which the save below would refuse.
+- tapOn: 'Step 5'
 - inputText: 'Marinate for two hours.'
-# Publish is the STEP-4 FOOTER PRIMARY, not a sticky top-bar action. U6 collapsed the wizard chrome to one
-# contextual footer primary — `Next: …` on steps 1-3, swapping to `Publish` on step 4 (`Wizard.native.tsx`'s
-# module doc: "Publish is NO LONGER live on steps 1-3"); the header holds only Preview + the More-actions
-# overflow (Save Draft / Cancel). This flow used to tap `Publish` from step 3 on the pre-U6 assumption and
-# failed there. Walk forward to step 4 and publish from its footer, exactly as `create.yaml` does.
-- scrollUntilVisible:
-      element: 'Next: Photos'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Photos'
-- assertVisible: 'Step 4 of 4'
-- tapOn: 'Publish'
+# The seeded lamb is PUBLISHED, so the pinned bar's primary is `Save changes`: ONE write, one version (owner
+# decision D1 — a published recipe's checkpoints never reach the server, so no extra versions appear).
+- tapOn: 'Save changes'
 - extendedWaitUntil:
       visible:
-          text: 'Mediterranean Grilled Lamb .v2.*'
+          text: '${E2E_RECIPE_LAMB} .v2.*'
       timeout: 40000
 
 # ── EDIT 2 (creates version 3, the new current) ── the ingredient/step added in EDIT 1 already persist, so
-# this pass changes ONLY the title, then walks straight through to step 4 to Publish. It is still the lighter
-# second pass (no ingredient/step work — steps 2 and 3 are already valid from EDIT 1 and are merely passed
-# through), keeping this flow's cost down while still producing a second, DIFFERENT version to
-# preview/compare/restore against. The walk itself is not optional: Publish only exists on step 4 (U6).
+# this pass changes ONLY the title and saves. It is the lighter second pass (no ingredient/step work), keeping this
+# flow's cost down while still producing a second, DIFFERENT version to preview/compare/restore against.
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
-- assertVisible: 'Step 1 of 4'
-- tapOn: 'Title'
-- eraseText
-- inputText: 'Mediterranean Grilled Lamb (v3)'
-- scrollUntilVisible:
-      element: 'Next: Ingredients'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Ingredients'
-- scrollUntilVisible:
-      element: 'Next: Instructions'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Instructions'
-- scrollUntilVisible:
-      element: 'Next: Photos'
-      direction: DOWN
-      timeout: 20000
-- tapOn: 'Next: Photos'
-- assertVisible: 'Step 4 of 4'
-- tapOn: 'Publish'
+- assertVisible: 'Close editor'
+- runFlow: common/clearTitle.yaml
+- inputText: '${E2E_RECIPE_LAMB} (v3)'
+- tapOn: 'Save changes'
 - extendedWaitUntil:
       visible:
-          text: 'Mediterranean Grilled Lamb .v3.*'
+          text: '${E2E_RECIPE_LAMB} .v3.*'
       timeout: 40000
 
-# ── VERSION HISTORY ── the owner-action entry point sits behind the "More" overflow menu (C4 wireframe
-# parity), alongside "Edit recipe" at the foot of the detail.
+# ── VERSION HISTORY ── the owner's entry point is the ⋯ "More actions for {title}" menu beside "Edit recipe" in the
+# detail's action row (build spec §6.4); the menu is a bottom sheet of menu items.
 - scrollUntilVisible:
-      element: 'More'
-      direction: DOWN
+      element: 'More actions for .*'
+      direction: UP
       timeout: 20000
-- tapOn: 'More'
-- scrollUntilVisible:
-      element: 'Version history'
-      direction: DOWN
-      timeout: 20000
+- tapOn: 'More actions for .*'
 - tapOn: 'Version history'
 - assertVisible: 'Version history'
 
-# v3 (current, not restorable) changed ONLY the title versus its immediate prior (v2, the OLDEST recorded
-# version — the seed itself recorded none, so v2 has no prior of its own and reads "Initial version").
+# The current version changed ONLY the title versus its immediate prior; the OLDEST recorded version has no
+# prior of its own and reads "Initial version".
+#
+# ⛔ `scrollUntilVisible`, not a bare assert. U34's auto-save writes a DRAFT on a 2s debounce, and FR-007b
+# makes every save record a version — so this screen now holds MORE cards than before and the oldest one
+# sits below the fold. MEASURED on CI 2026-08-26: the accessibility dump showed `Version 4` rendered at
+# y≈2274-2400 on a 2400-high screen with `visible: false`, and the bare assert failed on a list that was
+# entirely correct. Asserting without scrolling makes this flow a function of card height, which is not
+# what it is testing.
 - assertVisible: 'Current version'
 - assertVisible: 'Changed: Title'
+- scrollUntilVisible:
+      element: 'Initial version'
+      direction: DOWN
+      timeout: 20000
 - assertVisible: 'Initial version'
 
 # PREVIEW — a past version's own content, plus its changed-from-current summary. v2 and v3 share the SAME
-# ingredients/steps (only the title differs, by design above), so the tally is honestly all-zero.
-- tapOn: 'Preview version 2'
+# ingredients/steps (only the title differs, by design above), so the tally is honestly all-zero. Every past
+# version's actions are in its row's ⋯ menu (§6.6).
+- tapOn: 'More actions for version 2'
+- tapOn: 'Preview'
 - assertVisible:
-      text: 'Version 2 Preview: Mediterranean Grilled Lamb .v2.*'
+      text: 'Version 2 Preview: ${E2E_RECIPE_LAMB} .v2.*'
 - assertVisible: 'Changed from current: 0 ingredients, 0 steps'
 - tapOn: 'Keep current version'
 - assertNotVisible: 'Keep current version'
 
-# COMPARE — select the past version and the current one; the Diff Summary + changed-only fields render. Only
-# the title changed between v2 and v3, so Modified: 1 and no adds/removes.
-- tapOn: 'Select version 2 to compare'
-- tapOn: 'Select version 3 to compare'
-- assertVisible: 'Compare v3 vs v2'
-- assertVisible: 'Added: 0'
-- assertVisible: 'Removed: 0'
-- assertVisible: 'Modified: 1'
+# COMPARE — per row, against the current version. Only the title changed between v2 and v3, so the one row is
+# the title, as what v2 said and what the recipe says now.
+- tapOn: 'More actions for version 2'
+- tapOn: 'Compare with current'
+- assertVisible: 'Version 2 and the current version'
 - assertVisible: 'Title'
+- assertVisible: 'Current'
 - tapOn: 'Close compare'
-- assertNotVisible: 'Close compare'
+- assertNotVisible: 'Version 2 and the current version'
 
-# RESTORE — restoring v2 records a NEW version (4) and advances `currentVersion` past 3: observable as v3
-# losing its current status and becoming restorable again, once the post-restore refetch lands.
-- assertNotVisible: 'Restore version 3'
-- tapOn: 'Restore version 2'
+# RESTORE — restoring v2 records a NEW version (4) and advances `currentVersion` past 3: observable as v3 losing its
+# current status and gaining a menu, once the post-restore refetch lands. The snackbar says so, with Undo.
+- assertNotVisible: 'More actions for version 3'
+- tapOn: 'More actions for version 2'
+- tapOn: 'Restore this version'
 - extendedWaitUntil:
-      visible: 'Restore version 3'
+      visible: 'Restored version 2.'
+      timeout: 30000
+- extendedWaitUntil:
+      visible: 'More actions for version 3'
       timeout: 30000

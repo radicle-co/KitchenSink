@@ -17,6 +17,8 @@
  * |---|---|
  * | {@link classifyHealth} | the service is down or crash-looping |
  * | {@link classifyPreflight} | browsers cannot reach it cross-origin (CORS absent, or auth answering preflights) |
+ * | {@link classifyPreflightDenied} | a path, or a whole service, that must refuse browsers has started admitting one |
+ * | {@link classifyForeignPreflight} | a service that admits ANY origin, which every admit check above would pass |
  * | {@link classifyImageCurrency} | a healthy, correct, but OUT-OF-DATE build is running |
  *
  * ## Why three was still not enough — the ECOSYSTEM checks (issue #124)
@@ -32,6 +34,14 @@
  * | {@link classifyDependencyWiring} | the running task is configured for the WRONG food service (or none) |
  * | {@link classifyDependencyReachability} | this PR's food service is absent, unrouted, or erroring |
  *
+ * ## The production edge's own `401` (plan 002 C1)
+ *
+ * In prod, CloudFront's viewer-request verifier answers a tokenless request itself, so the origin's CORS layer never
+ * sees it. {@link classifyEdgeUnauthorized} asserts that the edge's `401` is readable by the web origin and by nothing
+ * else, run in its own mode ({@link runEdgeUnauthorizedSmoke}, `--edge-unauthorized-path`) against each edge host. Where
+ * no edge stands in front of the service, {@link classifyUnauthorized} asserts the same of the service's own `401`
+ * (`--unauthorized-path`).
+ *
  * ⛔ The trap in the reachability check: `GET /api/v1/foods/search` answers **401 by design** — food requires a
  * Clerk-verified token. So "200 or bust" would fail every correctly-wired preview. A 401 from the real host
  * is PROOF (DNS, the shared-ALB host rule and food's own auth layer all had to work to produce it); a
@@ -41,6 +51,51 @@
  * The classifiers are pure so they are unit-tested directly; {@link main} owns all I/O.
  */
 import { parseArgs } from 'node:util';
+
+/** The methods a deploy leg preflights a route for. */
+const PREFLIGHT_METHODS = ['GET', 'POST'] as const;
+
+/** A method a deploy leg preflights a route for. */
+export type PreflightMethod = (typeof PREFLIGHT_METHODS)[number];
+
+/** A route a browser preflights: the method its request is made with, and the path. */
+export interface PreflightRoute {
+    readonly method: PreflightMethod;
+    readonly path: string;
+}
+
+/** A `--preflight-path` value: a bare path, or a method, a colon and the path. */
+const PREFLIGHT_ROUTE_SPEC = /^(?:(?<method>[A-Z]+):)?(?<path>\/\S*)$/u;
+
+/**
+ * Read a `--preflight-path` or `--deny-preflight-path` value. A bare path is a route a browser calls with `GET`;
+ * `POST:/api/v1/foods/remote/adopt` names its method. The value holds no space, so a workflow passes it unquoted.
+ * Pure.
+ *
+ * @param spec - The flag's value.
+ * @returns The route.
+ * @throws {TypeError} for any other value, so a typo is a usage error rather than a preflight for the wrong method.
+ */
+export function parsePreflightRoute(spec: string): PreflightRoute {
+    const groups = PREFLIGHT_ROUTE_SPEC.exec(spec)?.groups;
+    const path = groups?.['path'];
+    const method = PREFLIGHT_METHODS.find((known) => known === (groups?.['method'] ?? 'GET'));
+
+    if (path === undefined || method === undefined) {
+        throw new TypeError(
+            `"${spec}" is not a preflight route: give a path, or ${PREFLIGHT_METHODS.join(' or ')}, a colon and a path`,
+        );
+    }
+
+    return { method, path };
+}
+
+/**
+ * The route preflighted when a leg names none: the recipe service's, because this module is the recipe service's
+ * smoke. Identity and food legs name their own routes (`--preflight-path`), since a recipe path on another service
+ * is a claim about a route that service does not have.
+ */
+const DEFAULT_PREFLIGHT_ROUTE: PreflightRoute = { method: 'GET', path: '/api/v1/recipes' };
 
 /** The CANONICAL food catalog-search path this smoke probes — every endpoint lives under `/api/{version}/`. */
 const FOOD_SEARCH_PATH = '/api/v1/foods/search?q=smoke';
@@ -54,6 +109,19 @@ const FOOD_SEARCH_PATH = '/api/v1/foods/search?q=smoke';
  * be deleted once every stage is known to serve the canonical path.
  */
 const LEGACY_FOOD_SEARCH_PATH = '/v1/foods/search?q=smoke';
+
+/**
+ * An origin no policy admits, preflighted beside the web origin. A service that reflects any origin echoes the web
+ * origin too, so only a probe from an origin nobody admits can see it. `.invalid` is reserved (RFC 2606), so this can
+ * never be a real caller.
+ */
+export const FOREIGN_PREFLIGHT_ORIGIN = 'https://evil.invalid';
+
+/**
+ * The `x-cache` CloudFront sets on a response its viewer-request function generated, as measured on prod's edge. A
+ * `401` without it came from somewhere else, so it says nothing about the edge's verifier.
+ */
+export const EDGE_GENERATED_X_CACHE = 'LambdaGeneratedResponse from cloudfront';
 
 /** The outcome of one smoke assertion. `reason` is written to be actionable in a CI log. */
 export interface SmokeVerdict {
@@ -112,7 +180,16 @@ export function classifyPreflight(origin: string, observed: PreflightObservation
         };
     }
 
-    if (allowOrigin !== '*' && allowOrigin !== origin) {
+    // No policy of ours sends `*`: the shared policy's origin is always a list (ADR-0047). A `*` means the service
+    // is not running that policy, and it admits every origin.
+    if (allowOrigin === '*') {
+        return {
+            ok: false,
+            reason: 'CORS preflight allowed "*", which admits every origin. The shared policy never sends it.',
+        };
+    }
+
+    if (allowOrigin !== origin) {
         return {
             ok: false,
             reason: `CORS preflight allowed "${allowOrigin}" but the caller is "${origin}"`,
@@ -120,6 +197,67 @@ export function classifyPreflight(origin: string, observed: PreflightObservation
     }
 
     return { ok: true, reason: `CORS preflight allows ${origin}` };
+}
+
+/**
+ * The service refuses an origin nobody admits ({@link FOREIGN_PREFLIGHT_ORIGIN}). Pure.
+ *
+ * Stricter than {@link classifyPreflightDenied}: ANY allow-origin value fails, not only a match. The shared policy
+ * either echoes an admitted origin or sends nothing, so a value here means the service is not running it. A 5xx
+ * fails because it proves nothing about the policy.
+ *
+ * @param observed - Status + `access-control-allow-origin` from a preflight sent from the foreign origin.
+ */
+export function classifyForeignPreflight(observed: PreflightObservation): SmokeVerdict {
+    const { status, allowOrigin } = observed;
+
+    if (status >= 500) {
+        return {
+            ok: false,
+            reason: `CORS preflight from ${FOREIGN_PREFLIGHT_ORIGIN} returned ${status}, so its policy cannot be read`,
+        };
+    }
+
+    if (allowOrigin !== undefined && allowOrigin !== '') {
+        return {
+            ok: false,
+            reason:
+                `CORS preflight from ${FOREIGN_PREFLIGHT_ORIGIN}, an origin nothing admits, got allow-origin ` +
+                `"${allowOrigin}". The service is not running the shared policy, and may admit any origin.`,
+        };
+    }
+
+    return { ok: true, reason: `CORS preflight refuses ${FOREIGN_PREFLIGHT_ORIGIN}` };
+}
+
+/**
+ * A browser can NOT call this path from `origin`: the service answered, and it did not admit the origin. Pure.
+ *
+ * Used where a path or a whole service must stay closed to browsers: a leg run with `--expect-cors deny`, or a
+ * `--deny-preflight-path`. Any answer below 500 without a matching `access-control-allow-origin` is a refusal: a
+ * router's 404 and an auth layer's 401 both mean the browser is blocked. A 5xx proves nothing about the policy, so it
+ * fails.
+ *
+ * @param origin - The web origin that must NOT be admitted.
+ * @param observed - Status + `access-control-allow-origin` from the preflight.
+ */
+export function classifyPreflightDenied(origin: string, observed: PreflightObservation): SmokeVerdict {
+    const { status, allowOrigin } = observed;
+
+    if (status >= 500) {
+        return { ok: false, reason: `CORS preflight (OPTIONS) returned ${status}, so its policy cannot be read` };
+    }
+
+    if (allowOrigin === '*' || allowOrigin === origin) {
+        return {
+            ok: false,
+            reason:
+                `CORS preflight admits "${allowOrigin}" for ${origin}, but this surface must refuse browsers. ` +
+                'If that change is intended, flip this leg to --expect-cors admit in the same change.',
+        };
+    }
+
+    return { ok: true, reason: `CORS preflight refuses ${origin}` };
 }
 
 /**
@@ -192,8 +330,8 @@ export function classifyDependencyWiring(expected: string, configured: string | 
         return {
             ok: false,
             reason:
-                `the running recipe task carries no FOOD_SERVICE_URL — it cannot reach ${expected}, so the ` +
-                'ingredient typeahead can only ever report catalogAvailability: "unavailable" ' +
+                `the running recipe task carries no FOOD_SERVICE_URL — it cannot reach ${expected}, so every ` +
+                'ingredient route that asks food answers 502 SOURCE_UNAVAILABLE ' +
                 '(pass RECIPE_FOOD_SERVICE_URL at deploy time)',
         };
     }
@@ -338,17 +476,283 @@ export function classifyDependencyReachability(
     return { ok: false, reason: `${dependency} answered an unexpected ${status}; expected 401 (unauthenticated)` };
 }
 
+/** What a tokenless request observed. */
+export interface UnauthorizedObservation {
+    readonly status: number;
+    /** The `access-control-allow-origin` response header, if any. */
+    readonly allowOrigin?: string;
+}
+
+/** What a tokenless GET through the edge observed. */
+export interface EdgeUnauthorizedObservation extends UnauthorizedObservation {
+    /** The `x-cache` response header, if any. */
+    readonly xCache?: string;
+}
+
+/**
+ * Whether a `401`'s `Allow-Origin` admits `origin`, or refuses it, as `expectation` says. Pure.
+ *
+ * The web origin must be admitted, or a browser reads the `401` as a network error and the app cannot tell the user
+ * to sign in again. An origin that must be refused gets no `Allow-Origin` at all.
+ *
+ * @param subject - What sent the `401`, as the verdict names it.
+ * @param origin - The `Origin` the request carried.
+ * @param expectation - Whether that origin must be admitted or refused.
+ * @param allowOrigin - The `access-control-allow-origin` the `401` carried, if any.
+ * @param admitHint - Appended to an admit failure: what else can explain it.
+ */
+function judgeUnauthorizedCors(
+    subject: string,
+    origin: string,
+    expectation: CorsExpectation,
+    allowOrigin: string | undefined,
+    admitHint = '',
+): SmokeVerdict {
+    if (expectation === 'admit' && allowOrigin !== origin) {
+        return {
+            ok: false,
+            reason:
+                `${subject} carried access-control-allow-origin "${allowOrigin ?? '(none)'}" for ${origin}, so a ` +
+                `browser reads it as a network error.${admitHint}`,
+        };
+    }
+
+    if (expectation === 'deny' && allowOrigin !== undefined && allowOrigin !== '') {
+        return {
+            ok: false,
+            reason: `${subject} admitted ${origin}, which it must refuse (access-control-allow-origin "${allowOrigin}")`,
+        };
+    }
+
+    return { ok: true, reason: `${subject} ${expectation === 'admit' ? 'admits' : 'refuses'} ${origin}` };
+}
+
+/**
+ * The edge's own `401` to a tokenless request from `origin` admits it, or refuses it, as `expectation` says. Pure.
+ *
+ * @param origin - The `Origin` the request carried.
+ * @param expectation - Whether that origin must be admitted or refused.
+ * @param observed - What the response carried.
+ */
+export function classifyEdgeUnauthorized(
+    origin: string,
+    expectation: CorsExpectation,
+    observed: EdgeUnauthorizedObservation,
+): SmokeVerdict {
+    const { status, xCache, allowOrigin } = observed;
+
+    if (status !== 401) {
+        return {
+            ok: false,
+            reason: `a tokenless request from ${origin} returned ${status}; the edge's verifier must answer it 401 itself`,
+        };
+    }
+
+    if (xCache !== EDGE_GENERATED_X_CACHE) {
+        return {
+            ok: false,
+            reason:
+                `the 401 carried x-cache "${xCache ?? '(none)'}", not "${EDGE_GENERATED_X_CACHE}", so it did not come ` +
+                "from the edge's verifier and proves nothing about it",
+        };
+    }
+
+    return judgeUnauthorizedCors(
+        "the edge's 401",
+        origin,
+        expectation,
+        allowOrigin,
+        ' If the edge was just deployed, its new version may still be propagating.',
+    );
+}
+
+/**
+ * The service's own `401` to a tokenless request from `origin` admits it, or refuses it, as `expectation` says. Pure.
+ *
+ * {@link classifyEdgeUnauthorized} for a stage with no edge in front of the service (ADR-0020 is production only):
+ * there the service's CORS layer answers first, so its `401` is the one a browser reads.
+ *
+ * @param origin - The `Origin` the request carried.
+ * @param expectation - Whether that origin must be admitted or refused.
+ * @param observed - What the response carried.
+ */
+export function classifyUnauthorized(
+    origin: string,
+    expectation: CorsExpectation,
+    observed: UnauthorizedObservation,
+): SmokeVerdict {
+    if (observed.status !== 401) {
+        return {
+            ok: false,
+            reason: `a tokenless request from ${origin} returned ${observed.status}; the service must refuse it 401`,
+        };
+    }
+
+    return judgeUnauthorizedCors('the 401', origin, expectation, observed.allowOrigin);
+}
+
 /** Read `access-control-allow-origin` case-insensitively (header casing is not guaranteed). */
 function allowOriginOf(headers: Headers): string | undefined {
     return headers.get('access-control-allow-origin') ?? undefined;
+}
+
+/** Whether a leg's preflights must admit the web origin or refuse it. */
+export type CorsExpectation = 'admit' | 'deny';
+
+/**
+ * Send one preflight as a browser at `origin` would before calling the route.
+ *
+ * @param baseUrl - The service origin.
+ * @param route - The route to preflight.
+ * @param origin - The browser origin.
+ * @returns The status and allow-origin the browser would see.
+ * @sideEffect Performs a network request.
+ */
+async function sendPreflight(baseUrl: string, route: PreflightRoute, origin: string): Promise<PreflightObservation> {
+    const response = await fetch(`${baseUrl}${route.path}`, {
+        method: 'OPTIONS',
+        headers: {
+            origin,
+            'access-control-request-method': route.method,
+            'access-control-request-headers': 'authorization',
+        },
+        signal: AbortSignal.timeout(15_000),
+    });
+
+    return { status: response.status, allowOrigin: allowOriginOf(response.headers) };
+}
+
+/**
+ * Preflight one route as a browser at `origin` would, and judge it.
+ *
+ * @param baseUrl - The service origin.
+ * @param route - The route to preflight.
+ * @param origin - The browser origin.
+ * @param expectation - Whether the route must admit or refuse the origin.
+ * @returns The verdict, its reason prefixed with the route so a log names which one failed.
+ * @sideEffect Performs a network request.
+ */
+async function preflight(
+    baseUrl: string,
+    route: PreflightRoute,
+    origin: string,
+    expectation: CorsExpectation,
+): Promise<SmokeVerdict> {
+    const observed = await sendPreflight(baseUrl, route, origin);
+    const verdict =
+        expectation === 'admit' ? classifyPreflight(origin, observed) : classifyPreflightDenied(origin, observed);
+
+    return { ok: verdict.ok, reason: `${route.method} ${route.path}: ${verdict.reason}` };
+}
+
+/**
+ * Preflight one route from {@link FOREIGN_PREFLIGHT_ORIGIN}, and judge it.
+ *
+ * @param baseUrl - The service origin.
+ * @param route - The route to preflight.
+ * @returns The verdict, its reason prefixed with the route.
+ * @sideEffect Performs a network request.
+ */
+async function foreignPreflight(baseUrl: string, route: PreflightRoute): Promise<SmokeVerdict> {
+    const verdict = classifyForeignPreflight(await sendPreflight(baseUrl, route, FOREIGN_PREFLIGHT_ORIGIN));
+
+    return { ok: verdict.ok, reason: `${route.method} ${route.path}: ${verdict.reason}` };
+}
+
+/**
+ * Send one tokenless GET from `origin`, and judge what came back.
+ *
+ * A transport failure is a failing verdict, not a crash, so the log names the host and the reason.
+ *
+ * @param baseUrl - The host's origin.
+ * @param path - The path probed.
+ * @param origin - The browser origin.
+ * @param judge - The classifier of what came back.
+ * @returns The verdict, its reason prefixed with the path.
+ * @sideEffect Performs a network request.
+ */
+async function tokenlessProbe(
+    baseUrl: string,
+    path: string,
+    origin: string,
+    judge: (observed: EdgeUnauthorizedObservation) => SmokeVerdict,
+): Promise<SmokeVerdict> {
+    try {
+        const response = await fetch(`${baseUrl}${path}`, {
+            headers: { origin, accept: 'application/json' },
+            redirect: 'manual',
+            signal: AbortSignal.timeout(15_000),
+        });
+        const verdict = judge({
+            status: response.status,
+            xCache: response.headers.get('x-cache') ?? undefined,
+            allowOrigin: allowOriginOf(response.headers),
+        });
+
+        return { ok: verdict.ok, reason: `${path}: ${verdict.reason}` };
+    } catch (error) {
+        return {
+            ok: false,
+            reason: `${path}: ${baseUrl} did not answer (${error instanceof Error ? error.message : String(error)})`,
+        };
+    }
+}
+
+/** What the edge mode probes. */
+export interface EdgeSmokeTarget {
+    /** The edge host's origin, e.g. `https://food.commise.app`. */
+    readonly baseUrl: string;
+    /** The browser origin the edge's `401` must admit. */
+    readonly webOrigin: string;
+    /** A path the edge verifies: never `/health*` or `/…/internal/*`, which it passes through. */
+    readonly path: string;
+}
+
+/**
+ * Probe the edge's own `401`: once from the web origin, which it must admit, and once from
+ * {@link FOREIGN_PREFLIGHT_ORIGIN}, which it must refuse. Neither request carries a token.
+ *
+ * @param target - What to probe; see {@link EdgeSmokeTarget}.
+ * @returns The two verdicts, web origin first.
+ * @sideEffect Performs network requests.
+ */
+export async function runEdgeUnauthorizedSmoke(target: EdgeSmokeTarget): Promise<readonly SmokeVerdict[]> {
+    const { baseUrl, webOrigin, path } = target;
+
+    return [
+        await tokenlessProbe(baseUrl, path, webOrigin, (observed) =>
+            classifyEdgeUnauthorized(webOrigin, 'admit', observed),
+        ),
+        await tokenlessProbe(baseUrl, path, FOREIGN_PREFLIGHT_ORIGIN, (observed) =>
+            classifyEdgeUnauthorized(FOREIGN_PREFLIGHT_ORIGIN, 'deny', observed),
+        ),
+    ];
 }
 
 /** Everything the smoke run needs to know about the deployment it is verifying. */
 export interface SmokeTarget {
     /** The recipe service origin, e.g. `https://recipe-pr-73.commise.app`. */
     readonly baseUrl: string;
-    /** The front-end origin that must be CORS-allowed. */
-    readonly webOrigin: string;
+    /**
+     * The browser origin the preflights are sent from. Omit to skip every preflight.
+     *
+     * A browser-facing service must ADMIT it; a service that enables no CORS must REFUSE it (`expectCors: 'deny'`,
+     * plan 002 S2). Which one a deploy leg owes is not a judgement call left to the caller:
+     * `prodDeploySmokeDepth.test.ts` derives it from whether the service's `main.ts` enables CORS.
+     */
+    readonly webOrigin?: string;
+    /** The routes preflighted with {@link webOrigin}; default the recipe service's own ({@link DEFAULT_PREFLIGHT_ROUTE}). */
+    readonly preflightRoutes?: readonly PreflightRoute[];
+    /** Whether those routes must admit {@link webOrigin} (default) or refuse it. */
+    readonly expectCors?: CorsExpectation;
+    /** Routes that must refuse {@link webOrigin} whatever {@link expectCors} says. */
+    readonly denyPreflightRoutes?: readonly PreflightRoute[];
+    /**
+     * Paths whose tokenless GET the service must refuse `401` itself ({@link classifyUnauthorized}): from
+     * {@link webOrigin}, as {@link expectCors} says, and from {@link FOREIGN_PREFLIGHT_ORIGIN}, refused. Skipped with
+     * the preflights when there is no web origin.
+     */
+    readonly unauthorizedPaths?: readonly string[];
     /** Image tag this deploy pushed; omit to skip the currency check. */
     readonly expectedImageTag?: string;
     /** Image tag read from the running task (resolved by the caller via the AWS CLI). */
@@ -401,24 +805,37 @@ async function probeDependency(foodOrigin: string, path: string): Promise<Depend
 export async function runSmoke(target: SmokeTarget): Promise<readonly SmokeVerdict[]> {
     const { baseUrl, webOrigin, expectedImageTag, runningImageTag, foodOrigin, configuredFoodOrigin } = target;
     const verdicts: SmokeVerdict[] = [];
+    const preflightRoutes = target.preflightRoutes ?? [DEFAULT_PREFLIGHT_ROUTE];
 
     const health = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(15_000) });
 
     verdicts.push(classifyHealth(health.status));
 
-    const preflight = await fetch(`${baseUrl}/api/v1/recipes`, {
-        method: 'OPTIONS',
-        headers: {
-            origin: webOrigin,
-            'access-control-request-method': 'GET',
-            'access-control-request-headers': 'authorization',
-        },
-        signal: AbortSignal.timeout(15_000),
-    });
+    // Gated the same way the ecosystem checks below are: an absent flag means "this assertion does not
+    // apply to this service", not "assert it against nothing". Sending the preflight with an undefined
+    // origin would produce a verdict about a browser that does not exist.
+    if (webOrigin !== undefined) {
+        for (const route of preflightRoutes) {
+            verdicts.push(await preflight(baseUrl, route, webOrigin, target.expectCors ?? 'admit'));
+            // A service that reflects any origin passes the check above, because it reflects the web origin too.
+            verdicts.push(await foreignPreflight(baseUrl, route));
+        }
 
-    verdicts.push(
-        classifyPreflight(webOrigin, { status: preflight.status, allowOrigin: allowOriginOf(preflight.headers) }),
-    );
+        for (const route of target.denyPreflightRoutes ?? []) {
+            verdicts.push(await preflight(baseUrl, route, webOrigin, 'deny'));
+        }
+
+        for (const path of target.unauthorizedPaths ?? []) {
+            verdicts.push(
+                await tokenlessProbe(baseUrl, path, webOrigin, (observed) =>
+                    classifyUnauthorized(webOrigin, target.expectCors ?? 'admit', observed),
+                ),
+                await tokenlessProbe(baseUrl, path, FOREIGN_PREFLIGHT_ORIGIN, (observed) =>
+                    classifyUnauthorized(FOREIGN_PREFLIGHT_ORIGIN, 'deny', observed),
+                ),
+            );
+        }
+    }
 
     if (expectedImageTag !== undefined) {
         verdicts.push(classifyImageCurrency(runningImageTag, expectedImageTag));
@@ -446,8 +863,57 @@ export async function runSmoke(target: SmokeTarget): Promise<readonly SmokeVerdi
 
 /** How the CLI is invoked, printed on misuse. */
 const USAGE =
-    'usage: deployedSmoke.ts --base-url <url> --web-origin <url> [--expected-image-tag <tag>]\n' +
-    '                        [--running-image-tag <tag>] [--food-origin <url>] [--configured-food-origin <url>]';
+    'usage: deployedSmoke.ts --base-url <url> [--web-origin <url>] [--preflight-path [POST:]<path>]...\n' +
+    '                        [--deny-preflight-path [POST:]<path>]... [--expect-cors admit|deny]\n' +
+    '                        [--unauthorized-path <path>]...\n' +
+    '                        [--expected-image-tag <tag>] [--running-image-tag <tag>]\n' +
+    '                        [--food-origin <url>] [--configured-food-origin <url>]\n' +
+    '       deployedSmoke.ts --base-url <url> --web-origin <url> --edge-unauthorized-path <path>';
+
+/** The only flags the edge mode reads. Any other flag would be silently ignored there, so it is refused. */
+const EDGE_MODE_FLAGS: ReadonlySet<string> = new Set(['base-url', 'web-origin', 'edge-unauthorized-path']);
+
+/**
+ * The `::error::` line a failed run ends with, naming the service by the origin it probed. Pure.
+ *
+ * @param baseUrl - The probed service origin.
+ * @returns The annotation.
+ */
+export function failureAnnotation(baseUrl: string): string {
+    return `::error::the DEPLOYED service at ${baseUrl} failed post-deploy verification`;
+}
+
+/**
+ * Parse the CLI flags. `parseArgs` infers each flag's type from its option, so only the repeatable flags are arrays.
+ *
+ * @param argv - The arguments after the script name.
+ * @returns The flag values.
+ * @throws {TypeError} on an unknown flag or a flag missing its value (`strict`).
+ */
+function parseFlags(argv: readonly string[]) {
+    return parseArgs({
+        args: [...argv],
+        strict: true,
+        options: {
+            'base-url': { type: 'string' },
+            'web-origin': { type: 'string' },
+            'preflight-path': { type: 'string', multiple: true },
+            'deny-preflight-path': { type: 'string', multiple: true },
+            'expect-cors': { type: 'string' },
+            'expected-image-tag': { type: 'string' },
+            'running-image-tag': { type: 'string' },
+            'food-origin': { type: 'string' },
+            'configured-food-origin': { type: 'string' },
+            'edge-unauthorized-path': { type: 'string' },
+            'unauthorized-path': { type: 'string', multiple: true },
+        },
+    }).values;
+}
+
+/** A repeatable flag's values, blanks dropped (a blank interpolated variable is "not supplied"). Pure. */
+function many(values: readonly string[] | undefined): string[] {
+    return (values ?? []).filter((entry) => entry !== '');
+}
 
 /** Treat an absent or empty flag as "not supplied" — a shell that interpolates a blank var yields `''`. */
 function optional(value: string | undefined): string | undefined {
@@ -464,21 +930,14 @@ function optional(value: string | undefined): string | undefined {
  * @sideEffect Network requests, stdout, and `process.exitCode`.
  */
 export async function main(argv: readonly string[]): Promise<void> {
-    let values: Record<string, string | undefined>;
+    let values: ReturnType<typeof parseFlags>;
+    let preflightRoutes: PreflightRoute[];
+    let denyPreflightRoutes: PreflightRoute[];
 
     try {
-        ({ values } = parseArgs({
-            args: [...argv],
-            strict: true,
-            options: {
-                'base-url': { type: 'string' },
-                'web-origin': { type: 'string' },
-                'expected-image-tag': { type: 'string' },
-                'running-image-tag': { type: 'string' },
-                'food-origin': { type: 'string' },
-                'configured-food-origin': { type: 'string' },
-            },
-        }));
+        values = parseFlags(argv);
+        preflightRoutes = many(values['preflight-path']).map(parsePreflightRoute);
+        denyPreflightRoutes = many(values['deny-preflight-path']).map(parsePreflightRoute);
     } catch (error) {
         console.error(`${error instanceof Error ? error.message : String(error)}\n${USAGE}`);
         process.exitCode = 2;
@@ -488,31 +947,46 @@ export async function main(argv: readonly string[]): Promise<void> {
 
     const baseUrl = optional(values['base-url']);
     const webOrigin = optional(values['web-origin']);
+    const expectCors = optional(values['expect-cors']) ?? 'admit';
+    const edgePath = optional(values['edge-unauthorized-path']);
+    const edgeModeMisused =
+        edgePath !== undefined &&
+        (webOrigin === undefined || Object.keys(values).some((flag) => !EDGE_MODE_FLAGS.has(flag)));
 
-    if (baseUrl === undefined || webOrigin === undefined) {
+    if (baseUrl === undefined || (expectCors !== 'admit' && expectCors !== 'deny') || edgeModeMisused) {
         console.error(USAGE);
         process.exitCode = 2;
 
         return;
     }
 
-    const verdicts = await runSmoke({
-        baseUrl,
-        webOrigin,
-        expectedImageTag: optional(values['expected-image-tag']),
-        runningImageTag: optional(values['running-image-tag']),
-        foodOrigin: optional(values['food-origin']),
-        configuredFoodOrigin: optional(values['configured-food-origin']),
-    });
+    const verdicts =
+        edgePath !== undefined && webOrigin !== undefined
+            ? await runEdgeUnauthorizedSmoke({ baseUrl, webOrigin, path: edgePath })
+            : await runSmoke({
+                  baseUrl,
+                  webOrigin,
+                  ...(preflightRoutes.length === 0 ? {} : { preflightRoutes }),
+                  expectCors,
+                  denyPreflightRoutes,
+                  unauthorizedPaths: many(values['unauthorized-path']),
+                  expectedImageTag: optional(values['expected-image-tag']),
+                  runningImageTag: optional(values['running-image-tag']),
+                  foodOrigin: optional(values['food-origin']),
+                  configuredFoodOrigin: optional(values['configured-food-origin']),
+              });
 
-    console.log(`Post-deploy smoke — ${baseUrl} (browser origin ${webOrigin})`);
+    console.log(
+        `Post-deploy smoke — ${baseUrl}` +
+            (webOrigin === undefined ? ' (no browser origin: preflight skipped)' : ` (browser origin ${webOrigin})`),
+    );
 
     for (const verdict of verdicts) {
         console.log(`  ${verdict.ok ? 'OK  ' : 'FAIL'} ${verdict.reason}`);
     }
 
     if (verdicts.some((verdict) => !verdict.ok)) {
-        console.error('\n::error::the DEPLOYED recipe service failed post-deploy verification');
+        console.error(`\n${failureAnnotation(baseUrl)}`);
         process.exitCode = 1;
     }
 }

@@ -1,0 +1,8 @@
+# Prettier resolves .prettierignore from its CWD, and turbo runs `format:check` with CWD = the package, so the root
+# .prettierignore does not apply here.
+node_modules
+dist
+*.tsbuildinfo
+dist-lambda
+infra/cdk.out
+infra/cdk.context.json

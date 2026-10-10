@@ -1,0 +1,43 @@
+{
+    "name": "@kitchensink/remote-search-infra",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "//": [
+        "⛔ NOT AN npm WORKSPACE, like every CDK directory: `aws-cdk-lib` installs here and never enters the root tree.",
+        "",
+        "⚠️ `@kitchensink/usda-client` and `@kitchensink/schema-remote-search` are IMPORTED but not DECLARED: they are",
+        "unpublished workspace packages, so declaring them would make `npm install` here resolve them from the registry and",
+        "404. Node finds them by walking up to the repo root. Same trade as every other CDK directory."
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "bundle:lambda": "npm run bundle:lambda --prefix ..",
+        "deploy": "npm run bundle:lambda --prefix .. && cdk deploy --app 'npx tsx bin/app.ts'",
+        "synth": "npm run bundle:lambda --prefix .. && cdk synth --app 'npx tsx bin/app.ts'",
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@aws-sdk/cloudfront-signer": "^3.1138.0",
+        "@radicle-co/infra-shared": "0.1.0-alpha.999",
+        "aws-cdk-lib": "^2.267.0",
+        "constructs": "^10.8.1",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@types/node": "^24.13.3",
+        "aws-cdk": "^2.1134.0",
+        "tsx": "^4.23.12",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    },
+    "kitchensink": {
+        "localSandbox": {
+            "skipSynth": "the remote search service is deployed where food is, at `prod` and once per pull request, so its app refuses every other stage, the local one included; a local run reaches the real handler through its own LOCAL e2e tier, never through this stack."
+        }
+    }
+}

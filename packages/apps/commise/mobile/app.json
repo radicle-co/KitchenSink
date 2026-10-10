@@ -3,7 +3,7 @@
         "name": "Commise",
         "slug": "commise-mobile",
         "version": "1.0.0",
-        "orientation": "portrait",
+        "orientation": "default",
         "icon": "./src/assets/icon.png",
         "scheme": "commise",
         "userInterfaceStyle": "automatic",
@@ -26,7 +26,7 @@
         "android": {
             "package": "io.commise.mobile",
             "adaptiveIcon": {
-                "foregroundImage": "./src/assets/adaptive-icon.png",
+                "foregroundImage": "./src/assets/adaptiveIcon.png",
                 "backgroundColor": "#ffffff"
             },
             "packageCredentials": []
@@ -51,9 +51,6 @@
                     "appleSignIn": false
                 }
             ]
-        ],
-        "experiments": {
-            "typedRoutes": true
-        }
+        ]
     }
 }

@@ -1,9 +1,9 @@
 /**
  * @module screens/signup — the mobile sign-up surface (U2 rebuild).
  *
- * The sibling of {@link import('./login.js').LoginScreen}: a custom Clerk sign-up form on the design system
+ * The sibling of `LoginScreen`: a custom Clerk sign-up form on the design system
  * (`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,
- * associated field labels, and a `SafeAreaView` + `KeyboardAvoidingView` shell. It runs `signUp.create` →
+ * associated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It runs `signUp.create` →
  * `signUp.password` → `setActive` on completion; anything short of `complete` surfaces the localized
  * additional-verification notice.
  *
@@ -15,16 +15,18 @@
  */
 import { useClerk, useSignUp } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
-import { Input } from '@commise/ui/input';
-import { palette } from '@commise/ui';
+import { FieldLabel, Input } from '@commise/ui/input';
+import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import { useMessages } from '@commise/i18n/react';
-import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { authFailureMessage } from '../auth/authFailureMessage.js';
+import { AuthHeader } from '../components/auth/AuthHeader.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 export interface SignUpScreenProps {
@@ -33,12 +35,15 @@ export interface SignUpScreenProps {
 
 export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
+    const { colors } = useTheme();
     const { setActive } = useClerk();
     const { signUp } = useSignUp();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+
+    const failureCopy = { networkError: t.networkError, fallback: t.signUpFailed };
 
     async function handleSignUp() {
         if (!signUp) {
@@ -52,11 +57,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
             const createResult = await signUp.create({ emailAddress: email });
 
             if (createResult.error) {
-                setError(
-                    typeof createResult.error === 'string'
-                        ? createResult.error
-                        : (createResult.error.message ?? t.signUpFailed),
-                );
+                setError(authFailureMessage(createResult.error, failureCopy));
 
                 return;
             }
@@ -64,9 +65,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
             const pwResult = await signUp.password({ password });
 
             if (pwResult.error) {
-                setError(
-                    typeof pwResult.error === 'string' ? pwResult.error : (pwResult.error.message ?? t.signUpFailed),
-                );
+                setError(authFailureMessage(pwResult.error, failureCopy));
 
                 return;
             }
@@ -77,7 +76,7 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
                 setError(t.additionalVerification);
             }
         } catch (e) {
-            setError(e instanceof Error && e.message ? e.message : t.signUpFailed);
+            setError(authFailureMessage(e, failureCopy));
         } finally {
             setBusy(false);
         }
@@ -85,95 +84,77 @@ export function SignUpScreen({ onBack }: SignUpScreenProps): JSX.Element {
 
     return (
         <SafeAreaView style={styles.safe}>
-            <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <KeyboardAvoider style={styles.flex}>
                 <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-                    <Text style={styles.brand}>{t.brand}</Text>
-                    <Text style={styles.heading}>{t.createHeading}</Text>
+                    <AuthHeader title={t.createHeading} />
 
                     <View style={styles.fields}>
-                        <Input
-                            label={t.emailLabel}
-                            placeholder={t.emailPlaceholder}
-                            value={email}
-                            onChangeText={setEmail}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoComplete="email"
-                            textContentType="emailAddress"
-                            returnKeyType="next"
-                        />
-                        <Input
-                            label={t.passwordLabel}
-                            placeholder={t.passwordPlaceholder}
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                            autoComplete="new-password"
-                            textContentType="newPassword"
-                            returnKeyType="go"
-                            onSubmitEditing={() => void handleSignUp()}
-                        />
+                        <View style={styles.field}>
+                            <FieldLabel forId="signup-email" label={t.emailLabel} />
+                            <Input
+                                id="signup-email"
+                                placeholder={t.emailPlaceholder}
+                                value={email}
+                                onChangeText={setEmail}
+                                inputMode="email"
+                                autoCapitalize="none"
+                                autoComplete="email"
+                                enterKeyHint="next"
+                                disabled={busy}
+                            />
+                        </View>
+                        <View style={styles.field}>
+                            <FieldLabel forId="signup-password" label={t.passwordLabel} />
+                            <Input
+                                id="signup-password"
+                                placeholder={t.passwordPlaceholder}
+                                value={password}
+                                onChangeText={setPassword}
+                                secret
+                                autoComplete="new-password"
+                                enterKeyHint="go"
+                                disabled={busy}
+                                onSubmit={() => void handleSignUp()}
+                            />
+                        </View>
                     </View>
 
                     {error ? (
-                        <Text role="alert" style={styles.error}>
+                        <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
                             {error}
                         </Text>
                     ) : null}
 
-                    <Button
-                        icon={<Feather name="user-plus" size={16} color={palette.white} />}
-                        busy={busy}
-                        disabled={!signUp}
-                        onPress={() => void handleSignUp()}
-                    >
+                    <Button icon="userPlus" busy={busy} disabled={!signUp} onPress={() => void handleSignUp()}>
                         {t.createAccountAction}
                     </Button>
 
                     <View style={styles.toggle}>
-                        <Text style={styles.togglePrompt}>{t.haveAccountPrompt}</Text>
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="log-in" size={16} color={palette.charcoal} />}
-                            onPress={onBack}
-                        >
+                        <Text style={[nativeTokens.type.meta, { color: colors.inkMuted }]}>{t.haveAccountPrompt}</Text>
+                        <Button variant="secondary" icon="logIn" onPress={onBack}>
                             {t.signInLink}
                         </Button>
                     </View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: palette.sand },
+    // A label and its field are one group: closer to each other than to the next field (spec §1.6).
+    field: { gap: nativeTokens.spacing[1] },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    safe: { flex: 1, backgroundColor: 'transparent' },
     flex: { flex: 1 },
     container: {
         flexGrow: 1,
-        justifyContent: 'center',
-        gap: nativeTokens.spacing[4],
+        gap: nativeTokens.spacing[5],
         paddingHorizontal: nativeTokens.spacing[5],
         paddingVertical: nativeTokens.spacing[6],
     },
-    brand: {
-        fontSize: nativeTokens.fontSize.displayLg,
-        fontWeight: '700',
-        color: palette.charcoal,
-        textAlign: 'center',
-    },
-    heading: {
-        fontSize: nativeTokens.fontSize.bodyMd,
-        color: palette.slate,
-        textAlign: 'center',
-        marginBottom: nativeTokens.spacing[2],
-    },
     fields: { gap: nativeTokens.spacing[3] },
-    error: {
-        fontSize: nativeTokens.fontSize.bodySm,
-        color: palette['error-dark'],
-        textAlign: 'center',
-    },
-    toggle: { alignItems: 'center', gap: nativeTokens.spacing[2] },
-    togglePrompt: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+    error: { ...nativeTokens.type.meta },
+    toggle: { alignItems: 'flex-start', gap: nativeTokens.spacing[2] },
 });

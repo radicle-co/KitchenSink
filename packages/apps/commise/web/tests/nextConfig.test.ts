@@ -56,6 +56,30 @@ describe('next.config — Server Action allowed origins', () => {
 });
 
 /**
+ * Unknown URLs are answered by `src/app/global-not-found.tsx`, which Next serves only with this flag on. Without it the
+ * file is ignored and an unknown URL falls back to Next's bare built-in 404, so the flag is asserted in every posture —
+ * including a preview, where `experimental` also carries the Server Action allowlist and a spread could drop it.
+ */
+describe('next.config — global not-found page', () => {
+    afterEach(() => {
+        for (const key of PREVIEW_ENV_KEYS) {
+            delete process.env[key];
+        }
+
+        vi.resetModules();
+    });
+
+    it.each([
+        ['production', { SANDBOX_PREVIEW_MODE: undefined, VERCEL_GIT_PULL_REQUEST_ID: undefined }],
+        ['a subdomain preview', { SANDBOX_PREVIEW_MODE: 'subdomain', VERCEL_GIT_PULL_REQUEST_ID: '73' }],
+    ])('enables it in %s', async (_posture, env) => {
+        const config = await loadConfig(env);
+
+        expect(config.experimental?.globalNotFound).toBe(true);
+    });
+});
+
+/**
  * `Referrer-Policy` is the ONLY thing that closes the analytics query-string leak on the same-origin
  * beacon — `beforeSend` cannot reach it.
  *

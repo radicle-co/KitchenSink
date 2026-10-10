@@ -1,0 +1,21 @@
+appId: io.commise.mobile
+---
+# Reusable sub-flow: empty the Title field of the seeded lamb (`${E2E_RECIPE_LAMB}`), the recipe every caller edits.
+#
+# REWRITTEN for slice 7. The wizard showed a `0/64` counter, which made "empty" observable. The editor shows a counter
+# only from 100 characters, and its placeholder is no signal on Android, which reports a field's hint as its text
+# even while the field holds text: a loop keyed on the placeholder was satisfied at once and erased nothing (the
+# measured run appended the edit to the seeded title). So it erases until the lamb's own title is gone from the
+# screen. The editor's header says "Edit recipe", never the recipe's title, so the field is the only place it shows.
+# The run-scoped seed title is long enough that one erase can fall short, hence the loop.
+- tapOn: 'Title'
+- repeat:
+      times: 4
+      while:
+          visible:
+              text: '${E2E_RECIPE_LAMB}.*'
+      commands:
+          - tapOn: 'Title'
+          - eraseText: 200
+- assertNotVisible:
+      text: '${E2E_RECIPE_LAMB}.*'

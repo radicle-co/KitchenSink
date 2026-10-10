@@ -26,10 +26,14 @@ import {
     clampPageSize,
     clampPage,
     DEFAULT_SEARCH_PAGE_SIZE,
-    MAX_SEARCH_PAGE_SIZE,
     FACET_SAMPLE_SIZE,
+    MAX_FACET_SAMPLE_SIZE,
     type RecipeSearchFilters,
 } from '../search.dal.js';
+// The clamp's own ceiling, from the clamp's own module. It used to be spelled `MAX_SEARCH_PAGE_SIZE` and
+// imported from `search.dal.js`; that name is now the WIRE bound in `@kitchensink/recipe-core` (which is a
+// different concern — see `../../__tests__/pageSizeBound.test.ts`, which asserts the two agree).
+import { MAX_PAGE_SIZE } from '../../../common/pagination.js';
 
 /** A minimal `db.execute` mock. */
 function makeDb(): { db: RecipeDrizzle; execute: ReturnType<typeof vi.fn> } {
@@ -50,6 +54,17 @@ const dialect = new PgDialect();
  */
 function sqlText(value: unknown): string {
     return dialect.sqlToQuery(value as Parameters<PgDialect['sqlToQuery']>[0]).sql;
+}
+
+/**
+ * The parameters bound to the statement handed to `db.execute`, rendered by the same production dialect.
+ *
+ * The companion to {@link sqlText}: asserting a value is in `params` (and NOT in the text) is what
+ * distinguishes a parameterised query from one that spliced the value in, which `sqlText` alone cannot tell
+ * apart — the number appears either way.
+ */
+function sqlParams(value: unknown): unknown[] {
+    return dialect.sqlToQuery(value as Parameters<PgDialect['sqlToQuery']>[0]).params;
 }
 
 const OWNER = '01J000000000000000000FREE0';
@@ -202,7 +217,7 @@ describe('clampPageSize / clampPage', () => {
 
     it('clamps page size into [1, MAX] and truncates fractions', () => {
         expect(clampPageSize(0)).toBe(1);
-        expect(clampPageSize(999)).toBe(MAX_SEARCH_PAGE_SIZE);
+        expect(clampPageSize(999)).toBe(MAX_PAGE_SIZE);
         expect(clampPageSize(7.9)).toBe(7);
     });
 
@@ -252,6 +267,43 @@ describe('SearchDal.search', () => {
         expect(pageSql).toContain('OFFSET');
     });
 
+    describe("scope 'community' (UX F13: Discover shows other cooks' public, published recipes only)", () => {
+        it('replaces the viewer-widened predicates with public + published + not-the-viewer on ALL THREE reads', async () => {
+            primeExecute(execute);
+
+            await dal.search(filters({ scope: 'community', query: 'pasta' }));
+
+            expect(execute).toHaveBeenCalledTimes(3);
+
+            for (const [statement] of execute.mock.calls) {
+                const text = sqlText(statement);
+                const params = sqlParams(statement);
+
+                expect(text).toContain('"deleted_at" is null');
+                expect(text).toContain('"visibility" =');
+                expect(text).toContain('"status" =');
+                expect(params).toEqual(expect.arrayContaining(['public', 'published']));
+                expect(text).toContain('"owner_id" <>');
+                // The widening terms are GONE: no `visibility = public OR owner_id = viewer`.
+                expect(text).not.toContain('"owner_id" =');
+                expect(params).toContain(OWNER);
+            }
+        });
+
+        it("keeps the viewer-widened predicates when no scope is given (absent is today's behaviour)", async () => {
+            primeExecute(execute);
+
+            await dal.search(filters());
+
+            for (const [statement] of execute.mock.calls) {
+                const text = sqlText(statement);
+
+                expect(text).toContain('"owner_id" =');
+                expect(text).not.toContain('"owner_id" <>');
+            }
+        });
+    });
+
     it('omits the FTS predicate when no query is supplied (browse mode)', async () => {
         primeExecute(execute);
 
@@ -265,7 +317,7 @@ describe('SearchDal.search', () => {
         expect(pageSql).toContain('"visibility" =');
     });
 
-    it('adds cuisine, dietary-flag, tag, time, and ingredient predicates when present', async () => {
+    it('adds cuisine, dietary-flag, tag, time, and food predicates when present', async () => {
         primeExecute(execute);
 
         await dal.search(
@@ -277,7 +329,7 @@ describe('SearchDal.search', () => {
                 maxPrepTime: 15,
                 maxCookTime: 20,
                 maxTotalTime: 45,
-                ingredientIds: ['00000000-0000-4000-8000-0000000000aa'],
+                foodFilter: { rootIds: ['01JFOODSEARCH0000000000001'], variantIds: ['01JVARSEARCH00000000000001'] },
             }),
         );
 
@@ -289,7 +341,11 @@ describe('SearchDal.search', () => {
         expect(pageSql).toContain('prep_time_minutes <=');
         expect(pageSql).toContain('cook_time_minutes <=');
         expect(pageSql).toContain('total_time_minutes <=');
-        expect(pageSql).toContain('recipe_ingredients');
+        // The food filter follows each line to its binding, and a private food matches only for its author.
+        expect(pageSql).toContain('FROM ingredients i JOIN food_lookups fl');
+        expect(pageSql).toContain('fl.food_owner_id IS NULL OR fl.food_owner_id =');
+        // Curated U9: a root matches its own lines OR its live variants' lines.
+        expect(pageSql).toMatch(/fl\.food_id IN \(.*\) OR fl\.food_variant_id IN \(/su);
     });
 
     it('omits the cook-time predicate when maxCookTime is absent (REQ-030f)', async () => {
@@ -300,6 +356,31 @@ describe('SearchDal.search', () => {
         const pageSql = sqlText(execute.mock.calls[0]![0]);
 
         expect(pageSql).not.toContain('cook_time_minutes <=');
+    });
+
+    describe('facet sample size is bounded at construction (fail closed)', () => {
+        // This is the value that used to be spliced into the statement with `sql.raw(String(...))`. It is now a
+        // bound parameter, so injection is off the table; what remains is an absurd sample making EVERY search
+        // scan the table, because the facet CTE runs on every request. Refusing it here turns a silent
+        // production pathology into an immediate boot failure. These cases red if the guard is removed.
+        it.each([
+            ['zero', 0],
+            ['negative', -1],
+            ['fractional', 2.5],
+            ['NaN', Number.NaN],
+            ['Infinity', Number.POSITIVE_INFINITY],
+            ['above the ceiling', MAX_FACET_SAMPLE_SIZE + 1],
+        ])('refuses %s', (_label, size) => {
+            expect(() => new SearchDal({} as never, size)).toThrow(RangeError);
+        });
+
+        it.each([
+            ['the default', FACET_SAMPLE_SIZE],
+            ['a small test value', 2],
+            ['the ceiling itself', MAX_FACET_SAMPLE_SIZE],
+        ])('accepts %s', (_label, size) => {
+            expect(() => new SearchDal({} as never, size)).not.toThrow();
+        });
     });
 
     it('aggregates facets via a rank-sampling CTE that unnests dietary_flags and tags', async () => {
@@ -313,7 +394,13 @@ describe('SearchDal.search', () => {
         expect(facetSql).toContain('dietary_flags');
         expect(facetSql).toContain('tags');
         expect(facetSql).toContain('count(*)');
-        expect(facetSql).toContain(String(FACET_SAMPLE_SIZE)); // the rank sample ceiling
+        // The rank sample ceiling is a BOUND PARAMETER, so it is in the params and NOT in the statement text.
+        // This assertion used to be `toContain(String(FACET_SAMPLE_SIZE))`, which passed only because
+        // `sql.raw(String(...))` spliced the number into the SQL — i.e. the old test was inadvertently
+        // asserting the injection-prone form. Flipped deliberately: it now reds if `sql.raw` comes back.
+        expect(facetSql).not.toContain(String(FACET_SAMPLE_SIZE));
+        expect(facetSql).toMatch(/LIMIT\s+\$\d+/);
+        expect(sqlParams(execute.mock.calls[2]![0])).toContain(FACET_SAMPLE_SIZE);
         // W8-a.9 facet dimensions: cuisine (non-null scalar) + total-time buckets (mutually-exclusive CASE).
         expect(facetSql).toContain("'cuisine'");
         expect(facetSql).toContain('cuisine IS NOT NULL');

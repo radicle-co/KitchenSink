@@ -1,96 +1,104 @@
 'use client';
 
 /**
- * @module home/chrome/HomeTabBar — the mobile bottom tab bar (web; US-000 / FR-046).
+ * @module home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`
+ * §3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a
+ * 24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`).
  *
- * The fixed bottom navigation from the mockup, shown only below the `lg` breakpoint (the desktop sidebar
- * takes over above it). It is the COMPACT rendering of the same shared nav model the sidebar renders — icon
- * over a short label — so the two can never list different destinations.
+ * - The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.
+ *   Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is
+ *   told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)
+ * - A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top
+ *   (`tabRootOf`; the page's `ScrollHost` moves the document).
+ * - 64 px plus the bottom safe-area inset; each item at least 96 × 56 at 320 px.
  *
- * Gated destinations render exactly as they do in the sidebar: non-interactive, `aria-disabled`, with a
- * "coming soon" accessible name — never a tab that navigates to a 404.
+ * ⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second
+ * tap. Everything it draws is derived from props.
+ *
+ * @pattern Adapter from the shared nav model and the current route to tab links
  */
-import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { ChromeSurface } from '@commise/ui/chrome-surface';
+import { Icon } from '@commise/ui/icon';
+import { useScrollHost } from '@commise/ui/scroll-host';
 import Link from 'next/link';
-import type { JSX } from 'react';
+import { usePathname } from 'next/navigation';
+import type { JSX, MouseEvent, Ref } from 'react';
 
 import type { WebMessages } from '@/i18n/messages';
 
-import { HomeIcon } from './icons';
-import { homeNavHref } from './navHref';
-
-/** The chrome copy slice this bar renders. */
-type ChromeMessages = WebMessages['home']['chrome'];
+import { homeNavHref, tabRootOf } from './navHref';
 
 /** Props for {@link HomeTabBar}. */
 export interface HomeTabBarProps {
-    /** The chrome copy (labels + accessible names), resolved for the active locale. */
-    readonly chrome: ChromeMessages;
-    /** The active locale segment, for building destination routes. */
+    /** The chrome copy, resolved for the active locale. */
+    readonly chrome: WebMessages['home']['chrome'];
+    /** The active locale segment. */
     readonly locale: string;
-    /** Capabilities whose backing service is live — decides which tabs are reachable. */
+    /** Capabilities whose backing service is live — which destinations show. */
     readonly liveCapabilities: readonly string[];
-    /** The currently active destination (Home, for this surface) — marked `aria-current`. */
-    readonly activeId: HomeNavItemId;
+    /** The active destination, marked `aria-current`; `null` on a page that is none of them (Profile, the 404). */
+    readonly activeId: HomeNavItemId | null;
+    /** Receives the laid-out bar, so the shell can tell its popups what the bar covers (`tabBarInsets`). */
+    readonly ref?: Ref<HTMLElement>;
 }
 
 /**
- * The mobile bottom tab bar.
+ * The web bottom tab bar.
  *
- * @param props - The chrome copy, locale, live capabilities, and active destination.
- * @returns The fixed bottom navigation (hidden at `lg`+).
+ * @param props - The chrome copy, locale, live capabilities and active destination.
+ * @returns The fixed bottom navigation (gone from `nav`).
  */
-export function HomeTabBar({ chrome, locale, liveCapabilities, activeId }: HomeTabBarProps): JSX.Element {
-    const destinations = resolveHomeNav(liveCapabilities);
+export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, ref }: HomeTabBarProps): JSX.Element {
+    const pathname = usePathname();
+    const host = useScrollHost();
+
+    const onTabClick = (id: HomeNavItemId) => (event: MouseEvent<HTMLAnchorElement>) => {
+        const route = tabRootOf(pathname, locale);
+
+        // The second tap AT the root scrolls to the top; from a pushed route the link's own navigation goes to the root.
+        if (id === activeId && route.tab === id && route.atRoot) {
+            event.preventDefault();
+            host.scrollToTop();
+        }
+    };
 
     return (
         <nav
+            ref={ref}
+            data-tab-bar=""
             aria-label={chrome.tabNavLabel}
-            // The bar grows by the device's bottom safe-area inset and pads its foot by the same amount, so the
-            // 64px (`4rem`) icon row sits clear ABOVE the home indicator rather than being squished under it.
-            // `env(safe-area-inset-bottom)` is 0 in a normal viewport, so height stays 4rem and the browser
-            // output is unchanged; the bar is `lg:hidden`, so desktop never renders it at all.
-            className="fixed inset-x-0 bottom-0 z-50 flex h-[calc(4rem+env(safe-area-inset-bottom))] items-center justify-around border-t border-white/30 bg-gradient-to-t from-white/90 to-white/80 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-[24px] lg:hidden"
+            // The bar grows by the bottom safe-area inset and pads its foot by the same amount, so the 64 px row sits
+            // clear above the home indicator. `env(...)` is 0 in a normal viewport.
+            className="fixed inset-x-0 bottom-0 z-50 isolate flex h-[calc(4rem+env(safe-area-inset-bottom))] justify-around px-2 pb-[env(safe-area-inset-bottom)] nav:hidden"
         >
-            {destinations.map((item) => {
-                const label = chrome.destinations[item.id];
-                const isActive = item.id === activeId;
-
-                if (!item.reachable) {
-                    return (
-                        <button
-                            key={item.id}
-                            type="button"
-                            aria-disabled="true"
-                            aria-label={`${label}, ${chrome.comingSoonSuffix}`}
-                            // Contrast (WCAG 2.1 AA, #113): the OPAQUE `slate` (5.24:1), not `text-slate/50` — that
-                            // composited to 2.05:1 on the frosted bar. The control still reads as inactive from
-                            // `cursor-not-allowed`, `aria-disabled` and the "coming soon" name, and the ACTIVE tab
-                            // stays distinct because it is `text-ocean-dark`. Matches the native tab bar, which
-                            // already used the opaque tone.
-                            className="flex flex-1 cursor-not-allowed flex-col items-center gap-1 py-2 text-slate"
-                        >
-                            <HomeIcon name={item.id} className="size-6" />
-                            <span className="text-xs">{label}</span>
-                        </button>
-                    );
-                }
-
+            <ChromeSurface edge="top" />
+            {resolveHomeNav(liveCapabilities).map((item) => {
                 const href = homeNavHref(item.id, locale);
+                const active = item.id === activeId;
+
+                if (href === undefined) {
+                    return null;
+                }
 
                 return (
                     <Link
                         key={item.id}
-                        href={href ?? (`/${locale}` as never)}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={`flex flex-1 flex-col items-center gap-1 py-2 ${
-                            // The active colour reaches the `text-xs` LABEL as well as the glyph, so it must be a
-                            // text-grade token: `ocean-dark` (see the palette JSDoc in `@commise/ui`).
-                            isActive ? 'text-ocean-dark' : 'text-slate'
+                        href={href}
+                        aria-current={active ? 'page' : undefined}
+                        onClick={onTabClick(item.id)}
+                        className={`relative flex min-h-14 min-w-24 flex-1 flex-col items-center justify-center gap-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
+                            active ? 'text-ink' : 'text-ink-muted'
                         }`}
                     >
-                        <HomeIcon name={item.id} className="size-6" />
-                        <span className={`text-xs ${isActive ? 'font-semibold' : ''}`}>{label}</span>
+                        <span
+                            aria-hidden="true"
+                            className={`absolute top-0 h-[3px] w-8 rounded-b-full ${active ? 'bg-here-bar' : ''}`}
+                        />
+                        <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
+                        <span className={`text-caption ${active ? 'font-semibold' : ''}`}>
+                            {chrome.destinations[item.id]}
+                        </span>
                     </Link>
                 );
             })}

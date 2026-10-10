@@ -185,7 +185,25 @@ remain. **No waiver is permitted for the Catastrophic-hazard requirements** (REQ
 
 ---
 
-## Requirement Validation: REQ-007 (Photo/OCR import produces a draft)
+## Requirement Validation: REQ-007 (Photo/OCR import produces a draft) — ⛔ TRANSFERRED TO 011, 2026-08-16
+
+> **Where the coverage went.** REQ-007 and REQ-IF-002 moved to
+> [011-recipe-digitization](../../011-recipe-digitization/spec.md) with the photo channel (D-001 as amended
+> 2026-08-14; ADR-0019 §3). **ATP-007-A and ATP-007-B are NOT deleted and NOT abandoned — they are 011's to
+> run**, against 011's pipeline, and 011 MUST inherit them rather than re-derive them. Two changes apply when
+> they are re-homed, both of which would silently invalidate them if missed:
+>
+> 1. **SCN-007-A1's expected `sourceType` is now `imported_paid`, not `imported_physical`.** A client-declared
+>    `imported_physical` is not representable in 004's DTO (REQ-032, HAZ-057). The assertion the scenario is
+>    really making — the draft confirms to a **private** recipe that can never be public — holds identically
+>    under the shipped C-004 policy, because both classes are private-only.
+> 2. **011 adds a tier 004 never had:** an on-device-first attempt (011 §A-1) and a manual "re-run in the
+>    cloud" escape hatch (011 §A-2). A legible-print scenario that asserts a **cloud** OCR call would now be
+>    asserting the wrong thing — the correct assertion for SCN-007-A1 on device-capable hardware is **zero**
+>    calls to the OCR provider.
+>
+> 004 retains **no** photo acceptance test. What 004 still owes the photo method is covered by REQ-016 (the
+> chooser shows it unavailable-until-011, with a reason) and by the bulk-contract tests for `FR-047`.
 
 #### Test Case: ATP-007-A (Legible photo yields a reviewable draft)
 
@@ -434,6 +452,66 @@ remain. **No waiver is permitted for the Catastrophic-hazard requirements** (REQ
     - **Given** a public URL that responds with a redirect to `http://169.254.169.254/`
     - **When** an authenticated user imports the public URL
     - **Then** the import is refused and no connection is made to the link-local address
+
+---
+
+## Requirement Validation: REQ-036 (Raw-text paste produces a draft with declared provenance)
+
+#### Test Case: ATP-036-A (Pasted text yields a reviewable draft synchronously)
+
+**Linked Requirement:** REQ-036 (`FR-052`)
+**Description:** A user pastes a recipe's text and declares it as their own content.
+**Validation Condition:** The text flows through the shared normalize → parse → classify → draft path, and the draft is returned in the response rather than through a job.
+**Expected Result:** `201` carrying the draft; `sourceType = user_created`; no import job is created.
+
+- **User Scenario: SCN-036-A1**
+    - **Given** an authenticated user and a pasted body containing ingredient lines and instruction steps
+    - **When** the user submits it with `declaredSource = own`
+    - **Then** a reviewable draft is returned **in the same response**, classified `user_created`, and no job id is issued
+
+- **User Scenario: SCN-036-A2**
+    - **Given** the same user and a pasted body that is mostly prose, with only two parseable ingredient lines
+    - **When** the user submits it
+    - **Then** a draft is still produced, the unparseable lines are preserved **verbatim** with a null quantity and flagged for correction, and the request does **not** fail
+
+#### Test Case: ATP-036-B (Provenance is declared and whitelisted, never inferred)
+
+**Linked Requirement:** REQ-036, REQ-032
+**Description:** The endpoint's `declaredSource` whitelist is the enforcement point for provenance.
+**Validation Condition:** Only `own` and `paid-source` are accepted; `paid-source` additionally requires a citation.
+**Expected Result:** `own` → `user_created`; `paid-source` + citation → `imported_paid`, private-only; `paid-source` without a citation → rejected; `imported_public` / `imported_physical` → rejected as not representable.
+
+- **User Scenario: SCN-036-B1**
+    - **Given** an authenticated user pasting content they attest came from a cookbook
+    - **When** they submit it with `declaredSource = paid-source` **and** a source citation
+    - **Then** the draft is classified `imported_paid`, and confirming it produces a recipe the shipped `evaluateVisibility` will **never** allow to be public
+
+- **User Scenario: SCN-036-B2**
+    - **Given** the same submission **without** a citation
+    - **When** it is submitted
+    - **Then** it is rejected with a clear reason, and no draft is created
+
+- **User Scenario: SCN-036-B3**
+    - **Given** a caller who submits `declaredSource` values of `imported_public` and then `imported_physical`
+    - **When** each is submitted
+    - **Then** each is rejected at validation as **not representable**, because either would let a free-tier caller grant itself a private recipe the C-004 policy reserves for premium (REQ-032, HAZ-057)
+
+#### Test Case: ATP-036-C (The pasted body is bounded and never logged)
+
+**Linked Requirement:** REQ-036, REQ-NF-012
+**Description:** A paste is user-supplied, potentially third-party copyrighted text, arriving at an untrusted boundary.
+**Validation Condition:** The body is size-bounded and rejected when empty; its content never reaches a log sink.
+**Expected Result:** A body at the bound succeeds, one byte over is rejected, an empty or whitespace-only body is rejected, and no log line contains any of the pasted content.
+
+- **User Scenario: SCN-036-C1**
+    - **Given** a paste one byte larger than the documented bound
+    - **When** it is submitted
+    - **Then** it is rejected before any parsing work is done, and the rejection names the limit
+
+- **User Scenario: SCN-036-C2**
+    - **Given** a successful paste import
+    - **When** the request's log output is inspected
+    - **Then** no fragment of the pasted body appears in it
 
 ---
 

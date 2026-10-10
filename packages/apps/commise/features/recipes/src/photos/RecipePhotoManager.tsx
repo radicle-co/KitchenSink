@@ -24,10 +24,11 @@
  * same pure check on the same file and re-fails — Retry there is a dead affordance. Such a cell offers Remove
  * only (and still says WHY it failed); a transport/server failure keeps both.
  */
+import { BUSY_CONTROL_CLASS, busyControlProps } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { photoMessages } from './messages.js';
 import {
     isAtPhotoCap,
@@ -57,25 +58,25 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
 
     return (
         <section aria-label={m.heading} className="flex flex-col gap-3">
-            <h3 className="font-display text-heading-md font-semibold text-charcoal">{m.heading}</h3>
+            <h3 className="font-display text-heading-md font-semibold text-ink">{m.heading}</h3>
 
             {/* The upload-in-flight affordance carries its label as CONTENT, not only as `aria-label`: an empty
                 `role="status"` paragraph is a zero-height node — nothing for a sighted viewer to see, and
                 nothing for a screen reader to announce (a live region announces content CHANGES). Same
                 doctrine as the mobile `LoadingState`: the contextual label doubles as the visible caption. */}
             {uploading === true ? (
-                <p role="status" aria-label={m.uploadingLabel} className="text-body-sm text-slate">
+                <p role="status" aria-label={m.uploadingLabel} className="text-body-sm text-ink-muted">
                     {m.uploadingLabel}
                 </p>
             ) : null}
             {errorMessage !== undefined ? (
-                <p role="alert" className="text-body-sm text-error-dark">
+                <p role="alert" className="text-body-sm text-danger-text">
                     {errorMessage}
                 </p>
             ) : null}
 
             {photos.length === 0 && pendingItems.length === 0 ? (
-                <p className="text-body-sm text-slate">{m.emptyBody}</p>
+                <p className="text-body-sm text-ink-muted">{m.emptyBody}</p>
             ) : (
                 <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {photos.map((photo, index) => {
@@ -83,7 +84,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                         const isCover = isCoverPhoto(photos, photo.id);
 
                         return (
-                            <li key={photo.id} className="relative overflow-hidden rounded-xl ring-1 ring-border">
+                            <li key={photo.id} className="relative overflow-hidden rounded-xl ring-1 ring-line-divider">
                                 <img
                                     src={photo.url}
                                     alt={fillTemplate(m.photoAlt, { index: index + 1 })}
@@ -95,17 +96,15 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     index-0 photo the server resolves as `coverPhotoUrl`, and only where the surface
                                     offers cover selection. */}
                                 {onSetCover !== undefined && isCover ? (
-                                    <span className="absolute left-2 top-2 rounded-full bg-seafoam px-2 py-1 text-caption font-semibold text-white">
+                                    <span className="absolute left-2 top-2 rounded-full bg-action px-2 py-1 text-caption font-semibold text-on-action">
                                         {m.coverBadge}
                                     </span>
                                 ) : null}
                                 <button
                                     type="button"
                                     aria-label={fillTemplate(m.removeLabel, { index: index + 1 })}
-                                    aria-busy={removing}
-                                    disabled={removing}
-                                    onClick={() => onRemovePhoto(photo.id)}
-                                    className="absolute right-2 top-2 rounded-full bg-charcoal/70 px-3 py-1 text-caption font-medium text-white transition hover:bg-error disabled:opacity-60"
+                                    {...busyControlProps({ busy: removing, onClick: () => onRemovePhoto(photo.id) })}
+                                    className={`absolute right-2 top-2 rounded-full bg-photo-chip px-3 py-1 text-caption font-medium text-ink transition hover:bg-danger hover:text-on-action ${BUSY_CONTROL_CLASS}`}
                                 >
                                     {removing ? m.removing : m.remove}
                                 </button>
@@ -118,14 +117,14 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                             the checked state derives from `isCoverPhoto`, so after the container's
                                             reorder + refetch reprojects `photos[0]`, the check follows. */}
                                         {onSetCover !== undefined ? (
-                                            <span className="rounded-full bg-charcoal/70 p-1.5">
+                                            <span className="rounded-full bg-photo-chip p-1.5">
                                                 {/* Accessible name via `aria-label` (the indexed setCoverLabel); the
                                                     visible "Cover" state is the badge above + the checked circle, so no
                                                     duplicate "Cover" text here. */}
                                                 <input
                                                     type="radio"
                                                     name="recipe-cover-photo"
-                                                    className="block accent-seafoam"
+                                                    className="block accent-selected-edge"
                                                     aria-label={fillTemplate(m.setCoverLabel, { index: index + 1 })}
                                                     checked={isCover}
                                                     onChange={() => onSetCover(photo.id)}
@@ -137,7 +136,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                                 type="button"
                                                 aria-label={fillTemplate(m.replaceLabel, { index: index + 1 })}
                                                 onClick={() => onReplacePhoto(photo.id)}
-                                                className="rounded-full bg-white px-3 py-1 text-caption font-medium text-charcoal shadow-sm transition hover:bg-pearl"
+                                                className="rounded-full bg-paper px-3 py-1 text-caption font-medium text-ink shadow-sm transition hover:bg-ink/6"
                                             >
                                                 {m.replace}
                                             </button>
@@ -158,7 +157,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                         return (
                             <li
                                 key={item.fileId}
-                                className="relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden rounded-xl bg-pearl ring-1 ring-border"
+                                className="relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden rounded-xl bg-surface-muted ring-1 ring-line-divider"
                             >
                                 {item.previewUri !== undefined ? (
                                     <img
@@ -173,42 +172,54 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     role={item.status === 'failed' ? 'alert' : 'status'}
                                     aria-label={statusWord}
                                     className={`relative rounded-full px-2 py-1 text-caption font-medium ${
-                                        item.status === 'failed' ? 'bg-error text-white' : 'bg-charcoal/70 text-white'
+                                        item.status === 'failed' ? 'bg-danger text-on-action' : 'bg-photo-chip text-ink'
                                     }`}
                                 >
                                     {statusWord}
                                 </span>
                                 {item.status === 'failed' && item.errorMessage !== undefined ? (
-                                    <p className="relative px-2 text-center text-caption text-error-dark">
+                                    <p className="relative px-2 text-center text-caption text-danger-text">
                                         {item.errorMessage}
                                     </p>
                                 ) : null}
-                                {item.status === 'failed' ? (
+                                {/* ⛔ `queued` is offered a Remove too, not only `failed`. A file that has not
+                                    started uploading is the one a cook is most likely to want back — and on
+                                    the CREATE path every draft pick sits `queued` until the recipe exists, so
+                                    without this the photo chosen before the first save was the ONE field of
+                                    the editor that could not be changed. Retry stays `failed`-only: there is
+                                    nothing to retry about a file that has not tried yet. */}
+                                {item.status === 'failed' || item.status === 'queued' ? (
                                     <div className="relative flex items-center gap-2">
                                         {/* Retry is offered ONLY where it can plausibly succeed. The queue
                                             re-validates on retry by design, so a client-rejected file (too
                                             large / wrong type) would re-fail identically — a dead affordance.
                                             `retryable` is the queue's own discriminator for that. */}
-                                        {item.retryable ? (
+                                        {item.status === 'failed' && item.retryable ? (
                                             <button
                                                 type="button"
                                                 aria-label={fillTemplate(m.queueRetryLabel, {
                                                     fileName: item.fileName,
                                                 })}
                                                 onClick={() => onRetryQueueItem?.(item.fileId)}
-                                                className="rounded-full bg-white px-3 py-1 text-caption font-medium text-charcoal shadow-sm transition hover:bg-pearl"
+                                                className="rounded-full bg-paper px-3 py-1 text-caption font-medium text-ink shadow-sm transition hover:bg-ink/6"
                                             >
                                                 {m.queueRetry}
                                             </button>
                                         ) : null}
-                                        <button
-                                            type="button"
-                                            aria-label={fillTemplate(m.queueRemoveLabel, { fileName: item.fileName })}
-                                            onClick={() => onRemoveQueueItem?.(item.fileId)}
-                                            className="rounded-full bg-white px-3 py-1 text-caption font-medium text-charcoal shadow-sm transition hover:bg-pearl"
-                                        >
-                                            {m.remove}
-                                        </button>
+                                        {/* Offered only when wired: a container withholds removal by not
+                                            wiring it, and an unwired Remove would do nothing. */}
+                                        {onRemoveQueueItem === undefined ? null : (
+                                            <button
+                                                type="button"
+                                                aria-label={fillTemplate(m.queueRemoveLabel, {
+                                                    fileName: item.fileName,
+                                                })}
+                                                onClick={() => onRemoveQueueItem(item.fileId)}
+                                                className="rounded-full bg-paper px-3 py-1 text-caption font-medium text-ink shadow-sm transition hover:bg-ink/6"
+                                            >
+                                                {m.remove}
+                                            </button>
+                                        )}
                                     </div>
                                 ) : null}
                             </li>
@@ -218,10 +229,10 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
             )}
 
             {atCap ? (
-                <p className="text-body-sm text-slate">{fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}</p>
+                <p className="text-body-sm text-ink-muted">{fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}</p>
             ) : (
                 <>
-                    <p className="text-caption text-slate">
+                    <p className="text-caption text-ink-muted">
                         {fillTemplate(m.formatHint, { maxMb: MAX_RECIPE_PHOTO_UPLOAD_MB })}
                     </p>
                     {addControl}

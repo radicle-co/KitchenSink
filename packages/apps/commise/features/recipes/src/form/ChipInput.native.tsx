@@ -1,158 +1,99 @@
 /**
- * @module @commise/features-recipes/form/ChipInput — native token (chip) input for the recipe form's tags +
- * dietary-flags fields (U6). The React Native leaf of {@link import('./ChipInput.js').ChipInput} — same
- * controlled contract and same pure transitions ({@link addChip}/{@link removeChipAt}), RN primitives.
- * Replaces the old single comma-separated `TextInput` (`values.tags.join(', ')` → `parseCommaList`): the
- * committed chips live in the form's `values`, only the in-progress draft is local state, and each entry
- * commits ONE chip (trim + case-insensitive de-dupe) via the draft field's submit or the explicit Add control.
+ * @module @commise/features-recipes/form/ChipInput — the native chip input for the recipe's tags and dietary flags
+ * (`docs/design/uiOverhaul/buildSpec.md` §7.4): the React Native leaf of `ChipInput`, on the same contract and the
+ * same pure transitions ({@link addChips}, {@link splitAtCommas}, {@link removeChipAt}).
+ *
+ * A value is added on the return key, on a comma, or with the Add control: a touch keyboard's return key says "done"
+ * and is easy to miss, so the control is the visible way. There is no add-on-blur here: no design-system field reports
+ * its blur on native, so what is typed stays in the field until it is added.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette, tint } from '@commise/ui';
-import { Feather } from '@expo/vector-icons';
+import { Button } from '@commise/ui/button';
+import { Chip, ChipRow } from '@commise/ui/chip';
+import { FieldLabel, Input, fieldHintId } from '@commise/ui/input';
+import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeFormMessages } from './messages.js';
-import { addChip, removeChipAt } from './props.js';
+import { addChips, removeChipAt, splitAtCommas } from './props.js';
 
 /** Props for {@link ChipInput}. */
 export interface ChipInputProps {
-    /** The field's visible + accessible label (also the draft input's accessible name — e.g. "Tags"). */
+    /** The field's id, unique on the screen. */
+    readonly id: string;
+    /** The field's visible label, which also names its chips' group (e.g. "Tags"). */
     readonly label: string;
-    /** The committed chips (from the form's `values`). */
+    /** How to add a value, shown under the label and linked to the field. */
+    readonly hint: string;
+    /** The added values (from the draft). */
     readonly values: readonly string[];
-    /** Called with the next chip list on every add or remove. */
+    /** Called with the next values on every add or remove. */
     readonly onChange: (next: string[]) => void;
-    /** Placeholder shown in the draft text input (the type-and-enter hint). */
-    readonly placeholder: string;
-    /** Accessible-label template for a chip's remove control (contains `{value}`). */
+    /** A chip's accessible name template (contains `{value}`). */
     readonly removeChipLabel: string;
 }
 
-/**
- * The native tag/dietary-flag chip input.
- *
- * @param props - The label, the committed chips, the change handler, the placeholder, and the remove-label
- *   template.
- * @returns The labelled chip row plus the draft text input and its Add control.
- */
-export const ChipInput: FC<ChipInputProps> = ({ label, values, onChange, placeholder, removeChipLabel }) => {
+/** The native tag and dietary-flag chip input. */
+export const ChipInput: FC<ChipInputProps> = ({ id, label, hint, values, onChange, removeChipLabel }) => {
     const m = useMessages(recipeFormMessages);
     const [draft, setDraft] = useState('');
 
-    const commit = (): void => {
-        const next = addChip(values, draft);
+    const commit = (tokens: readonly string[], rest: string): void => {
+        const next = addChips(values, tokens);
 
         if (next.length !== values.length) {
             onChange(next);
         }
 
-        setDraft('');
+        setDraft(rest);
     };
 
     return (
         <View style={styles.field}>
-            <Text style={styles.fieldLabel}>{label}</Text>
-            <View style={styles.chipRow}>
-                {values.map((value, index) => (
-                    <View key={value} style={styles.chip}>
-                        <Text style={styles.chipLabel}>{value}</Text>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={fillTemplate(removeChipLabel, { value })}
-                            onPress={() => onChange(removeChipAt(values, index))}
-                            style={styles.chipRemove}
-                        >
-                            {/* Contrast (WCAG 2.1 AA): the `×` is the chip's removal affordance and takes the
-                                same tone as the label beside it — seafoam on the chip tint is 3.66:1, and a
-                                seafoam × next to an ocean-dark label would render one chip in two greens. */}
-                            <Feather name="x" size={14} color={palette['ocean-dark']} />
-                        </Pressable>
-                    </View>
-                ))}
-            </View>
-            <View style={styles.entryRow}>
-                <TextInput
-                    accessibilityLabel={label}
-                    placeholder={placeholder}
-                    // Placeholder text is TEXT, so it takes `slate`, never the `mist` hairline tone — see the
-                    // palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
-                    placeholderTextColor={palette.slate}
-                    value={draft}
-                    onChangeText={setDraft}
-                    onSubmitEditing={commit}
-                    blurOnSubmit={false}
-                    returnKeyType="done"
-                    style={styles.input}
-                />
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={fillTemplate(m.addChipLabel, { field: label })}
-                    onPress={commit}
-                    style={styles.addButton}
-                >
-                    <Feather name="plus" size={16} color={palette.charcoal} />
-                </Pressable>
+            <FieldLabel forId={id} label={label} hint={hint} />
+            {values.length === 0 ? null : (
+                <ChipRow mode="input" label={label} overflow="wrap">
+                    {values.map((value, index) => (
+                        <Chip
+                            key={value}
+                            kind="input"
+                            label={value}
+                            removeLabel={fillTemplate(removeChipLabel, { value })}
+                            onRemove={() => onChange(removeChipAt(values, index))}
+                        />
+                    ))}
+                </ChipRow>
+            )}
+            <Input
+                id={id}
+                value={draft}
+                describedBy={fieldHintId(id)}
+                enterKeyHint="done"
+                onChangeText={(text) => {
+                    const { finished, rest } = splitAtCommas(text);
+
+                    if (finished.length === 0) {
+                        setDraft(text);
+                    } else {
+                        commit(finished, rest);
+                    }
+                }}
+                onSubmit={() => commit([draft], '')}
+            />
+            {/* Under the field, not beside it: at 320 pt a label beside the field would wrap or squeeze it. */}
+            <View style={styles.add}>
+                <Button variant="ghost" icon="plus" onPress={() => commit([draft], '')}>
+                    {fillTemplate(m.addChipLabel, { field: label })}
+                </Button>
             </View>
         </View>
     );
 };
 
-const border = 'rgba(178, 190, 195, 0.3)';
-
 const styles = StyleSheet.create({
-    field: { gap: 6 },
-    fieldLabel: { fontSize: 13, fontWeight: '500', color: palette.slate },
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    // `chipRow` wraps BETWEEN chips, which cannot help a single over-long tag: RN defaults `flexShrink` to 0,
-    // so one long tag used to claim its full intrinsic width and push its OWN remove control off the field —
-    // and that control is the only way to remove it, so the tag became permanent. The chip (and its label)
-    // therefore yield width while the 20pt remove target never does. The web leaf spells the same pair
-    // `min-w-0 break-words` / `shrink-0`.
-    chip: {
-        flexShrink: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        borderRadius: 999,
-        backgroundColor: tint(palette.seafoam, 0.12),
-        paddingVertical: 4,
-        paddingLeft: 12,
-        paddingRight: 6,
-    },
-    // Contrast (WCAG 2.1 AA): the chip's tint stays; the label a reader READS takes `ocean-dark`. Mirrors the
-    // web leaf's `text-ocean-dark`; see `@commise/ui`'s palette JSDoc for the accent-vs-text split.
-    chipLabel: { flexShrink: 1, fontSize: 13, fontWeight: '500', color: palette['ocean-dark'] },
-    chipRemove: {
-        flexShrink: 0,
-        width: 20,
-        height: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 999,
-    },
-    entryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    input: {
-        flex: 1,
-        backgroundColor: palette.white,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: border,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        fontSize: 16,
-        color: palette.charcoal,
-    },
-    addButton: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: border,
-        backgroundColor: palette.white,
-    },
+    field: { gap: nativeTokens.spacing[2] },
+    add: { alignSelf: 'flex-start' },
 });

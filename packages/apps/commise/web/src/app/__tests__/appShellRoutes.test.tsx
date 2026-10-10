@@ -27,6 +27,9 @@ import type { HomeNavItemId } from '@commise/features-core';
 
 import { SHELL_SURFACE_IDS, type ShellSurfaceId } from '@/components/app/shellSurfaces';
 
+// `/recipes` reads its list/grid cookie (slice 4); there is no request scope under vitest.
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
+
 vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }));
 vi.mock('next/navigation', () => ({
     redirect: vi.fn((url: string) => {
@@ -55,11 +58,12 @@ interface ShellRoute {
 }
 
 const localeParams = () => ({ params: Promise.resolve({ locale: 'en' }) });
-const idParams = () => ({ params: Promise.resolve({ locale: 'en', id: 'rec_1' }) });
+// A UUID: the recipe pages answer not-found for a segment that is not a recipe id (`recipeRouteIds.test.tsx`).
+const idParams = () => ({ params: Promise.resolve({ locale: 'en', id: '0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60' }) });
 
 /**
- * Every route whose page wraps the shell itself. `/profile`, `/account`, and `/settings` wrap inside their own
- * `*Content` component instead (their suites assert the shell there), so they appear only in the
+ * Every route whose page wraps the shell itself. `/profile` wraps inside its own
+ * `*Content` component instead (its suite asserts the shell there), so it appears only in the
  * `force-dynamic` table below.
  */
 const shellRoutes: readonly ShellRoute[] = [
@@ -102,7 +106,7 @@ const shellRoutes: readonly ShellRoute[] = [
         path: '/[locale]/discover',
         load: () => import('../[locale]/discover/page'),
         props: () => ({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) }),
-        activeId: 'recipes',
+        activeId: 'discover',
         titleId: 'discover',
     },
     {
@@ -113,32 +117,11 @@ const shellRoutes: readonly ShellRoute[] = [
         titleId: 'collections',
     },
     {
-        path: '/[locale]/collections/new',
-        load: () => import('../[locale]/collections/new/page'),
-        props: localeParams,
-        activeId: 'recipes',
-        titleId: 'collectionNew',
-    },
-    {
         path: '/[locale]/collections/[id]',
         load: () => import('../[locale]/collections/[id]/page'),
         props: idParams,
         activeId: 'recipes',
         titleId: 'collectionDetail',
-    },
-    {
-        path: '/[locale]/collections/[id]/add',
-        load: () => import('../[locale]/collections/[id]/add/page'),
-        props: idParams,
-        activeId: 'recipes',
-        titleId: 'collectionAddRecipes',
-    },
-    {
-        path: '/[locale]/collections/[id]/rename',
-        load: () => import('../[locale]/collections/[id]/rename/page'),
-        props: idParams,
-        activeId: 'recipes',
-        titleId: 'collectionRename',
     },
 ];
 
@@ -146,8 +129,7 @@ const shellRoutes: readonly ShellRoute[] = [
 const contentSplitRoutes: readonly { readonly path: string; readonly load: () => Promise<{ dynamic?: string }> }[] = [
     { path: '/[locale]', load: () => import('../[locale]/page') },
     { path: '/[locale]/profile', load: () => import('../[locale]/profile/page') },
-    { path: '/[locale]/account', load: () => import('../[locale]/account/page') },
-    { path: '/[locale]/settings', load: () => import('../[locale]/settings/page') },
+    { path: '/[locale]/legal/sources', load: () => import('../[locale]/legal/sources/page') },
 ];
 
 /** Resolve `auth()` as an authenticated caller with a fixed session token. */
@@ -212,9 +194,9 @@ describe('every authenticated route renders inside the app navigation shell', ()
             const shell = findElementByType(element, AppShell);
 
             expect(shell, `${route.path} renders no AppShell`).toBeDefined();
-            expect((shell?.props as { activeId?: string }).activeId).toBe(route.activeId);
+            expect((shell?.props as { activeId?: string } | undefined)?.activeId).toBe(route.activeId);
             // The shell wraps the surface — it is never rendered empty beside it.
-            expect((shell?.props as { children?: ReactNode }).children).toBeDefined();
+            expect((shell?.props as { children?: ReactNode } | undefined)?.children).toBeDefined();
         });
     }
 });
@@ -231,7 +213,7 @@ describe('every authenticated route names ITSELF in the top bar', () => {
             const element = await Page(route.props() as never);
             const shell = findElementByType(element, AppShell);
 
-            expect((shell?.props as { titleId?: string }).titleId).toBe(route.titleId);
+            expect((shell?.props as { titleId?: string } | undefined)?.titleId).toBe(route.titleId);
         });
     }
 
@@ -248,8 +230,9 @@ describe('every authenticated route names ITSELF in the top bar', () => {
             ...shellRoutes.map((route) => route.titleId),
             'home',
             'profile',
-            'account',
-            'settings',
+            'dataSources',
+            // The 404 page: no route renders it, a boundary does (`NotFoundSurface.test.tsx`).
+            'notFound',
         ]);
 
         expect([...SHELL_SURFACE_IDS].filter((id) => !covered.has(id))).toEqual([]);

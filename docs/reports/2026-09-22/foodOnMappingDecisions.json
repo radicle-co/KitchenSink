@@ -1,0 +1,5332 @@
+{
+    "decisions": {
+        "167612": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sea squirt\""
+        },
+        "167622": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"venison\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02022164",
+            "label": "piece of sitka deer meat (raw)"
+        },
+        "167623": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match: beluga/bowhead whale (Alaska Native) has no FoodOn root and no catalog food; USDA name stays"
+        },
+        "167624": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match: beluga/bowhead whale (Alaska Native) has no FoodOn root and no catalog food; USDA name stays"
+        },
+        "167630": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: chilchen (Navajo red berry beverage): a prepared drink"
+        },
+        "167631": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried corn\""
+        },
+        "167632": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: Navajo Indian squash: no_match; not clearly the same as any catalog squash"
+        },
+        "167644": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried caribou meat\""
+        },
+        "167653": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried sweet corn\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03310640",
+            "label": "corn kernel (dried)"
+        },
+        "167666": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: left under its USDA name"
+        },
+        "167670": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: left under its USDA name"
+        },
+        "167672": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: left under its USDA name"
+        },
+        "167682": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"liquid pectin\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03316189",
+            "label": "pectin (liquid)"
+        },
+        "167703": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cottage cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303720",
+            "label": "cottage cheese (lowfat)"
+        },
+        "167715": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"shredded wheat cereal\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303943",
+            "label": "shredded wheat breakfast cereal"
+        },
+        "167716": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cottage cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303720",
+            "label": "cottage cheese (lowfat)"
+        },
+        "167724": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"puffed millet cereal\""
+        },
+        "167732": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"banana baby food\""
+        },
+        "167735": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mozzarella cheese\""
+        },
+        "167737": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"vegetable oil\""
+        },
+        "167748": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lemon juice\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03305747",
+            "label": "lemon juice (reconstituted)"
+        },
+        "167750": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"prickly pears\""
+        },
+        "167754": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pomelo\""
+        },
+        "167771": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"apple juice\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03310588",
+            "label": "apple juice (canned)"
+        },
+        "167782": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"abiyuch\""
+        },
+        "167790": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen naranjilla pulp\""
+        },
+        "167791": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"horned melon\""
+        },
+        "167801": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lemon juice\""
+        },
+        "167802": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lemon juice\""
+        },
+        "167850": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork shoulder blade steak\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000330",
+            "label": "pork butt steak"
+        },
+        "167851": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork shoulder blade steak\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000330",
+            "label": "pork butt steak"
+        },
+        "167859": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork feet\""
+        },
+        "167870": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pickled pigs feet\""
+        },
+        "167887": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"New York pork chop\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000307",
+            "label": "New York chop (boneless)"
+        },
+        "167909": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"ham\""
+        },
+        "167937": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pound cake\""
+        },
+        "167939": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen garlic bread\""
+        },
+        "167943": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"potato bread\""
+        },
+        "167944": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cheese bread\""
+        },
+        "167950": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"corn nuts\""
+        },
+        "167953": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"fruit syrup\""
+        },
+        "167957": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"fruit syrup\""
+        },
+        "168016": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen sweet potato puffs\""
+        },
+        "168017": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match: mouse nuts (Alaska Native) have no FoodOn root; USDA name stays"
+        },
+        "168018": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match: mouse nuts (Alaska Native) have no FoodOn root; USDA name stays"
+        },
+        "168026": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: ringed seal liver: no_match; the catalog holds ringed seal meat, and an organ is its own food"
+        },
+        "168027": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: homemade Alaska Native fish soup: a dish"
+        },
+        "168040": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: Navajo Indian squash: no_match; not clearly the same as any catalog squash"
+        },
+        "168049": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried caribou meat\""
+        },
+        "168050": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"caribou meat\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306460",
+            "label": "piece of caribou meat (raw)"
+        },
+        "168092": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"turkey ham\""
+        },
+        "168101": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef bologna\""
+        },
+        "168106": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"papad\""
+        },
+        "168114": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cottage cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303720",
+            "label": "cottage cheese (lowfat)"
+        },
+        "168121": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"American cheese\""
+        },
+        "168124": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Swiss cheese\""
+        },
+        "168128": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"baked beans\""
+        },
+        "168141": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Swiss cheese\""
+        },
+        "168147": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"vital wheat gluten\""
+        },
+        "168150": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"java plums\""
+        },
+        "168152": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried jujubes\""
+        },
+        "168156": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lime juice\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005465",
+            "label": "lime juice (unpasteurized)"
+        },
+        "168175": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sugar apple\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005626",
+            "label": "custard apple fruit (raw)"
+        },
+        "168176": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"feijoa\""
+        },
+        "168188": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen apple juice concentrate\""
+        },
+        "168198": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"fruit juice blend\""
+        },
+        "168217": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: industrial ingredient: no US store sells a raspberry juice concentrate (search 59 found only blended juice-drink concentrates); rule 6a keeps a concentrate apart from its juice, so it fits no catalog food [Raspberry juice concentrate]"
+        },
+        "168219": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork\""
+        },
+        "168261": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork shoulder blade steak\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000330",
+            "label": "pork butt steak"
+        },
+        "168262": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork shoulder blade steak\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000330",
+            "label": "pork butt steak"
+        },
+        "168267": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork heart\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02021676",
+            "label": "pork heart (raw)"
+        },
+        "168270": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork kidneys\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02021678",
+            "label": "pork kidney (raw)"
+        },
+        "168290": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork feet\""
+        },
+        "168294": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"New York pork chop\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000307",
+            "label": "New York chop (boneless)"
+        },
+        "168320": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork loin\""
+        },
+        "168372": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"ground pork\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02021719",
+            "label": "pork meat (ground, raw)"
+        },
+        "168383": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Canadian bacon\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003149",
+            "label": "Canadian bacon"
+        },
+        "168384": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"alfalfa sprouts\""
+        },
+        "168391": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bitter melon leaves\""
+        },
+        "168392": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bitter melon leaves\""
+        },
+        "168402": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"black-eyed peas\""
+        },
+        "168403": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen black-eyed peas\""
+        },
+        "168404": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen black-eyed peas\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306820",
+            "label": "blackeyed pea (cooked)"
+        },
+        "168406": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cowpea leaves\""
+        },
+        "168407": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"garden cress\""
+        },
+        "168410": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen edamame\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00002809",
+            "label": "edamame"
+        },
+        "168411": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen edamame\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00002809",
+            "label": "edamame"
+        },
+        "168412": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"curly endive\""
+        },
+        "168413": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"escarole\""
+        },
+        "168414": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"luffa\""
+        },
+        "168415": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"luffa\""
+        },
+        "168416": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"moringa leaves\""
+        },
+        "168417": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"moringa leaves\""
+        },
+        "168418": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried wood ear mushrooms\""
+        },
+        "168419": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"molokhia\""
+        },
+        "168420": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"molokhia\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000111",
+            "label": "nalta jute leaf"
+        },
+        "168425": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"kohlrabi\""
+        },
+        "168430": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lotus root\""
+        },
+        "168438": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"komatsuna\""
+        },
+        "168440": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"New Zealand spinach\""
+        },
+        "168441": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"New Zealand spinach\""
+        },
+        "168451": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"daikon\""
+        },
+        "168452": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"daikon\""
+        },
+        "168453": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried daikon\""
+        },
+        "168456": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing for fresh raw Irish moss (only sun-dried moss and sea moss gel); rule 3a bars joining dried Irish moss [Seaweed, irishmoss, raw]"
+        },
+        "168457": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"kelp\""
+        },
+        "168459": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: same sesbania search as 169368 [Sesbania flower, raw]"
+        },
+        "168460": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"soybean sprouts\""
+        },
+        "168461": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"soybean sprouts\""
+        },
+        "168463": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"spinach\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003908",
+            "label": "spinach (cooked)"
+        },
+        "168486": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"taro root\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003752",
+            "label": "taro root"
+        },
+        "168493": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: 3 searches (Kroger, Walmart, Safeway, Whole Foods, Instacart, Target; Instacart 99 Ranch fetch) found none; only a wholesale purveyor [Arrowhead, cooked, boiled, drained, with salt]"
+        },
+        "168495": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bitter melon leaves\""
+        },
+        "168506": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beets\""
+        },
+        "168508": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beet greens\""
+        },
+        "168509": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"borage\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000063",
+            "label": "borage leaf"
+        },
+        "168522": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chrysanthemum leaves\""
+        },
+        "168523": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"collard greens\""
+        },
+        "168524": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen collard greens\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03310954",
+            "label": "collard greens (frozen)"
+        },
+        "168526": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"black-eyed peas\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306820",
+            "label": "blackeyed pea (cooked)"
+        },
+        "168527": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen black-eyed peas\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306820",
+            "label": "blackeyed pea (cooked)"
+        },
+        "168529": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cowpea leaves\""
+        },
+        "168530": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"luffa\""
+        },
+        "168531": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"moringa leaves\""
+        },
+        "168532": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"moringa drumsticks\""
+        },
+        "168534": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lamb's quarters\""
+        },
+        "168536": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lotus root\""
+        },
+        "168553": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: Hawaiian tree fern (hapu'u) is a famine food, not sold [Tree fern, cooked, with salt]"
+        },
+        "168559": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned pimientos\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306922",
+            "label": "pimiento (canned)"
+        },
+        "168571": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"nopales\""
+        },
+        "168572": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"napa cabbage\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005337",
+            "label": "napa cabbage head"
+        },
+        "168573": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lemongrass\""
+        },
+        "168581": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried wood ear mushrooms\""
+        },
+        "168583": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wasabi root\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03305495",
+            "label": "wasabi (food product)"
+        },
+        "168584": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen fiddlehead ferns\""
+        },
+        "168587": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: sisymbrium (hedge or tansy mustard) seed is a wild Native food; the search found only herbal seed sellers on Amazon and Etsy, no grocery store (search 70) [Seeds, sisymbrium sp. seeds, whole, dried]"
+        },
+        "168591": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lotus seeds\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003796",
+            "label": "lotus seed"
+        },
+        "168771": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chewing gum\""
+        },
+        "168819": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"orange marmalade\""
+        },
+        "168820": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"molasses\"",
+            "iri": "http://purl.obolibrary.org/obo/CHEBI_83163",
+            "label": "molasses"
+        },
+        "168869": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"self-rising yellow cornmeal\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03316846",
+            "label": "yellow cornmeal (self-rising)"
+        },
+        "168871": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"millet\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004438",
+            "label": "common millet (cooked)"
+        },
+        "168875": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"medium-grain brown rice\""
+        },
+        "168876": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"long-grain brown rice\""
+        },
+        "168884": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"rye berries\""
+        },
+        "168889": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat berries\""
+        },
+        "168890": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat berries\""
+        },
+        "168891": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat berries\""
+        },
+        "168896": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bread flour\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304043",
+            "label": "white bread flour"
+        },
+        "168897": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wild rice\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005623",
+            "label": "wild rice kernel (cooked)"
+        },
+        "168908": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"somen noodles\""
+        },
+        "168909": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"somen noodles\""
+        },
+        "168913": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bread flour\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304043",
+            "label": "white bread flour"
+        },
+        "168917": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"quinoa\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004405",
+            "label": "quinoa seed (dried, cooked)"
+        },
+        "168918": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"teff\""
+        },
+        "168920": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried corn\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003562",
+            "label": "field corn kernel"
+        },
+        "168922": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"white cornmeal\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03317234",
+            "label": "white cornmeal (degerminated)"
+        },
+        "168924": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"self-rising white cornmeal\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03316845",
+            "label": "white cornmeal (self-rising)"
+        },
+        "168978": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sea squirt\""
+        },
+        "168979": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match: beluga/bowhead whale (Alaska Native) has no FoodOn root and no catalog food; USDA name stays"
+        },
+        "168980": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match: beluga/bowhead whale (Alaska Native) has no FoodOn root and no catalog food; USDA name stays"
+        },
+        "168987": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match gate: Alaska Native devilfish is not clearly the same as a catalog food"
+        },
+        "168995": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lamb's quarters\""
+        },
+        "168996": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: prairie turnips: no_match; no catalog food is the same"
+        },
+        "169000": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Steller sea lion liver\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02022123",
+            "label": "steller sea lion liver"
+        },
+        "169001": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Steller sea lion kidney\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02022122",
+            "label": "steller sea lion kidney"
+        },
+        "169002": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Steller sea lion heart\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02022121",
+            "label": "steller sea lion heart"
+        },
+        "169003": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Steller sea lion meat\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02022114",
+            "label": "piece of steller sea lion meat"
+        },
+        "169005": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match gate: Klamath wocas is not clearly the same as a catalog food"
+        },
+        "169050": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"muenster cheese\""
+        },
+        "169051": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mozzarella cheese\""
+        },
+        "169078": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cottage cheese\""
+        },
+        "169079": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream cheese\""
+        },
+        "169080": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"American cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000482",
+            "label": "pasteurized process american cheese"
+        },
+        "169086": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lychees\""
+        },
+        "169087": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried lychees\""
+        },
+        "169099": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"orange juice\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03305981",
+            "label": "orange juice (canned)"
+        },
+        "169146": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beets\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03317254",
+            "label": "beetroot"
+        },
+        "169190": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"ground pork\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02021719",
+            "label": "pork meat (ground, raw)"
+        },
+        "169203": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: same arrowhead searches as 168493 [Arrowhead, raw]"
+        },
+        "169204": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: same arrowhead searches as 168493 [Arrowhead, cooked, boiled, drained, without salt]"
+        },
+        "169220": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"black-eyed peas\""
+        },
+        "169222": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Chinese long beans\""
+        },
+        "169223": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Chinese long beans\""
+        },
+        "169224": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cowpea leaves\""
+        },
+        "169227": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dandelion greens\""
+        },
+        "169232": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"opo squash\""
+        },
+        "169233": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"opo squash\""
+        },
+        "169235": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"hyacinth beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005292",
+            "label": "hyacinth bean (immature)"
+        },
+        "169237": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wood ear mushrooms\""
+        },
+        "169238": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"kale\""
+        },
+        "169244": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lamb's quarters\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005190",
+            "label": "lambs quarters leaf (raw)"
+        },
+        "169245": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lamb's quarters\""
+        },
+        "169250": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lotus root\""
+        },
+        "169270": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"squash blossoms\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00002571",
+            "label": "squash flower"
+        },
+        "169271": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"squash blossoms\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00002571",
+            "label": "squash flower"
+        },
+        "169275": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"purslane\""
+        },
+        "169277": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"salsify\""
+        },
+        "169278": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"salsify\""
+        },
+        "169281": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: same sesbania search as 169368 [Sesbania flower, cooked, steamed, without salt]"
+        },
+        "169282": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"edamame\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00002809",
+            "label": "edamame"
+        },
+        "169283": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"edamame\""
+        },
+        "169301": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"water spinach\""
+        },
+        "169308": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"taro root\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03309801",
+            "label": "taro root (raw)"
+        },
+        "169310": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Tahitian taro\""
+        },
+        "169334": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"butterbur\""
+        },
+        "169338": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cardoon\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000049",
+            "label": "cardoon stalk"
+        },
+        "169341": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"celery root\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004120",
+            "label": "celeriac root"
+        },
+        "169342": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"celery\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003411",
+            "label": "celery stalk"
+        },
+        "169343": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Swiss chard\""
+        },
+        "169351": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dandelion greens\""
+        },
+        "169353": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"opo squash\""
+        },
+        "169354": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"molokhia\""
+        },
+        "169355": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"kale\""
+        },
+        "169357": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"kohlrabi\""
+        },
+        "169359": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Chinese long beans\""
+        },
+        "169368": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: sesbania (katuray, agati) flower search found none [Sesbania flower, cooked, steamed, with salt]"
+        },
+        "169369": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"soybean sprouts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003837",
+            "label": "soybean sprout"
+        },
+        "169370": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"soybean sprouts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003837",
+            "label": "soybean sprout"
+        },
+        "169371": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sorrel\""
+        },
+        "169387": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"arugula\""
+        },
+        "169388": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"nopales\""
+        },
+        "169392": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Chinese broccoli\""
+        },
+        "169398": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"epazote\""
+        },
+        "169400": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Malabar spinach\""
+        },
+        "169401": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"malanga\""
+        },
+        "169404": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Chinese broccoli\""
+        },
+        "169405": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"fiddlehead ferns\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000170",
+            "label": "fiddlehead leaf (raw)"
+        },
+        "169407": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"watermelon seeds\""
+        },
+        "169418": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sunflower seeds\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003581",
+            "label": "sunflower seed (whole kernel)"
+        },
+        "169422": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cashews\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003615",
+            "label": "cashew nut"
+        },
+        "169430": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef\""
+        },
+        "169431": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef\""
+        },
+        "169640": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"honey\"",
+            "iri": "http://purl.obolibrary.org/obo/UBERON_0036016",
+            "label": "honey"
+        },
+        "169657": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"aspartame sweetener\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003948",
+            "label": "aspartame-based sweetener"
+        },
+        "169658": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"maple sugar\""
+        },
+        "169694": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"masa harina\""
+        },
+        "169696": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"masa harina\""
+        },
+        "169698": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cornstarch\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005791",
+            "label": "corn starch"
+        },
+        "169700": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"couscous\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005532",
+            "label": "couscous"
+        },
+        "169702": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"millet\""
+        },
+        "169703": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"long-grain brown rice\""
+        },
+        "169704": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"long-grain brown rice\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004373",
+            "label": "long-grain brown rice kernel (cooked)"
+        },
+        "169705": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"oat groats\""
+        },
+        "169706": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"medium-grain brown rice\""
+        },
+        "169715": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"semolina\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303411",
+            "label": "coarse semolina (durum wheat)"
+        },
+        "169716": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sorghum grain\""
+        },
+        "169718": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"triticale\""
+        },
+        "169719": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat berries\""
+        },
+        "169720": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat berries\""
+        },
+        "169721": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat berries\""
+        },
+        "169724": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"flour tortilla mix\""
+        },
+        "169725": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sprouted wheat\""
+        },
+        "169726": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wild rice\""
+        },
+        "169739": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"barley flour\""
+        },
+        "169743": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Kamut khorasan wheat\""
+        },
+        "169744": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Kamut khorasan wheat\""
+        },
+        "169745": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"spelt\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000254",
+            "label": "spelt kernel (raw)"
+        },
+        "169746": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"spelt\""
+        },
+        "169747": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"teff\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000256",
+            "label": "teff kernel (raw)"
+        },
+        "169749": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"masa harina\""
+        },
+        "169795": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match: beluga/bowhead whale (Alaska Native) has no FoodOn root and no catalog food; USDA name stays"
+        },
+        "169796": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match: beluga/bowhead whale (Alaska Native) has no FoodOn root and no catalog food; USDA name stays"
+        },
+        "169797": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no_match: beluga/bowhead whale (Alaska Native) has no FoodOn root and no catalog food; USDA name stays"
+        },
+        "169803": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cockles\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301658",
+            "label": "cockle (raw)"
+        },
+        "169805": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lingonberries\""
+        },
+        "169809": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lingcod\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03309162",
+            "label": "lingcod (raw)"
+        },
+        "169815": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lamb's quarters\""
+        },
+        "169816": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"nopales\""
+        },
+        "169818": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: prairie turnips: no_match; no catalog food is the same"
+        },
+        "169819": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"stinging nettles\""
+        },
+        "169821": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pine nuts\""
+        },
+        "169824": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Steller sea lion meat\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02022114",
+            "label": "piece of steller sea lion meat"
+        },
+        "169825": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Steller sea lion fat\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02022119",
+            "label": "steller sea lion fat"
+        },
+        "169831": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: left under its USDA name"
+        },
+        "169848": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: left under its USDA name"
+        },
+        "169882": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chewing gum\""
+        },
+        "169905": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"squab meat\""
+        },
+        "169909": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mammee apple\""
+        },
+        "169922": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen orange juice concentrate\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301829",
+            "label": "orange juice concentrate (frozen, unsweetened)"
+        },
+        "169923": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen orange juice concentrate\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301829",
+            "label": "orange juice concentrate (frozen, unsweetened)"
+        },
+        "169940": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pear nectar\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301289",
+            "label": "pear nectar"
+        },
+        "169960": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned shellie beans\""
+        },
+        "169981": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cardoon\""
+        },
+        "169982": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cardoon\""
+        },
+        "169987": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"celery root\""
+        },
+        "169989": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"celery\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003411",
+            "label": "celery stalk"
+        },
+        "169990": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"celtuce\""
+        },
+        "169992": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicory greens\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000038",
+            "label": "chicory leaf (raw)"
+        },
+        "169995": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chrysanthemum leaves\""
+        },
+        "169997": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cilantro\""
+        },
+        "169998": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"yellow sweet corn\""
+        },
+        "170006": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"green onions\""
+        },
+        "170010": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"snow peas\""
+        },
+        "170011": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"snow peas\""
+        },
+        "170012": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen snow peas\""
+        },
+        "170030": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"russet potatoes\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004971",
+            "label": "Russet potato"
+        },
+        "170038": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"scalloped potatoes\""
+        },
+        "170039": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"instant mashed potatoes\""
+        },
+        "170064": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned mixed vegetables\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303882",
+            "label": "mixed vegetables (canned)"
+        },
+        "170065": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned mixed vegetables\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303882",
+            "label": "mixed vegetables (canned)"
+        },
+        "170066": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"water chestnuts\""
+        },
+        "170067": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned water chestnuts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304635",
+            "label": "water chestnut (canned)"
+        },
+        "170068": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"watercress\""
+        },
+        "170069": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"winter melon\""
+        },
+        "170075": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"freeze-dried chives\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304734",
+            "label": "chive (freeze-dried)"
+        },
+        "170076": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sorrel\""
+        },
+        "170077": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sorrel\""
+        },
+        "170078": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"eppaw\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003122",
+            "label": "oregon yampah root"
+        },
+        "170079": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned mung bean sprouts\""
+        },
+        "170098": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"okra\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003681",
+            "label": "okra pod"
+        },
+        "170099": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen okra\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003681",
+            "label": "okra pod"
+        },
+        "170119": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"squash blossoms\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00002571",
+            "label": "squash flower"
+        },
+        "170121": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"purslane\""
+        },
+        "170122": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"daikon\""
+        },
+        "170126": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"yellow squash\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000079",
+            "label": "straightneck squash"
+        },
+        "170136": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Tahitian taro\""
+        },
+        "170139": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"turnip greens\""
+        },
+        "170142": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen mixed vegetables\""
+        },
+        "170147": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: industrial ingredient: cottonseed meal is sold only as livestock feed and garden fertilizer (search 74), and it is not the cottonseed flour the catalog holds [Seeds, cottonseed meal, partially defatted (glandless)]",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301766",
+            "label": "cottonseed meal"
+        },
+        "170148": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"hemp hearts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004400",
+            "label": "hemp seed (dehulled, raw)"
+        },
+        "170167": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried chestnuts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301873",
+            "label": "chestnut (dried)"
+        },
+        "170168": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chestnuts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003563",
+            "label": "chestnut"
+        },
+        "170183": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pecans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003699",
+            "label": "pecan"
+        },
+        "170190": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chestnuts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003563",
+            "label": "chestnut"
+        },
+        "170204": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pastrami\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003884",
+            "label": "pastrami"
+        },
+        "170271": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dark chocolate\""
+        },
+        "170272": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dark chocolate\""
+        },
+        "170273": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dark chocolate\""
+        },
+        "170276": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"maple syrup\""
+        },
+        "170286": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"buckwheat groats\""
+        },
+        "170288": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried corn\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003781",
+            "label": "yellow dent corn kernel"
+        },
+        "170376": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beet greens\""
+        },
+        "170381": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"broccoli rabe\""
+        },
+        "170382": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"broccoli rabe\""
+        },
+        "170385": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"butterbur\""
+        },
+        "170386": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"butterbur\""
+        },
+        "170387": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned butterbur\""
+        },
+        "170390": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bok choy\""
+        },
+        "170391": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bok choy\""
+        },
+        "170400": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"celery root\""
+        },
+        "170401": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Swiss chard\""
+        },
+        "170405": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chrysanthemum leaves\""
+        },
+        "170407": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"collard greens\""
+        },
+        "170416": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"parsley\""
+        },
+        "170418": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen snow peas\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000117",
+            "label": "edible pea pod"
+        },
+        "170442": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"au gratin potatoes\""
+        },
+        "170447": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"au gratin potatoes\""
+        },
+        "170448": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"au gratin potatoes\""
+        },
+        "170449": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"scalloped potatoes\""
+        },
+        "170450": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"scalloped potatoes\""
+        },
+        "170455": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Tahitian taro\""
+        },
+        "170464": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: same tree fern search as 168553 [Tree fern, cooked, without salt]"
+        },
+        "170466": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"turnip greens\""
+        },
+        "170471": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen mixed vegetables\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03310847",
+            "label": "mixed vegetables (frozen)"
+        },
+        "170472": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen mixed vegetables\""
+        },
+        "170474": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Malabar spinach\""
+        },
+        "170475": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"winter melon\""
+        },
+        "170481": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"borage\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000064",
+            "label": "borage leaf (raw)"
+        },
+        "170482": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"borage\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000063",
+            "label": "borage leaf"
+        },
+        "170483": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"moringa drumsticks\""
+        },
+        "170484": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"moringa drumsticks\""
+        },
+        "170486": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"freeze-dried parsley\""
+        },
+        "170496": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wakame\""
+        },
+        "170506": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"New Zealand spinach\""
+        },
+        "170509": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"snow peas\""
+        },
+        "170510": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen snow peas\""
+        },
+        "170524": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"au gratin potatoes\""
+        },
+        "170525": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"scalloped potatoes\""
+        },
+        "170529": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"salsify\""
+        },
+        "170530": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"edamame\""
+        },
+        "170549": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"winter melon\""
+        },
+        "170556": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pumpkin seeds\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004886",
+            "label": "pumpkin seed"
+        },
+        "170565": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"acorns\""
+        },
+        "170569": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Brazil nuts\""
+        },
+        "170574": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chestnuts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03310978",
+            "label": "chestnut (raw)"
+        },
+        "170575": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chestnuts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03310978",
+            "label": "chestnut (raw)"
+        },
+        "170576": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried chestnuts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301873",
+            "label": "chestnut (dried)"
+        },
+        "170591": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pine nuts\""
+        },
+        "170592": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pine nuts\""
+        },
+        "170607": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"smoked chopped beef\""
+        },
+        "170682": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"amaranth\""
+        },
+        "170683": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"amaranth\""
+        },
+        "170806": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef chuck mock tender steak\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000048",
+            "label": "beef chuck tender steak"
+        },
+        "170843": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"fontina cheese\""
+        },
+        "170845": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mozzarella cheese\""
+        },
+        "170846": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mozzarella cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03316862",
+            "label": "mozzarella cheese (low moisture)"
+        },
+        "170847": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mozzarella cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303877",
+            "label": "mozzarella cheese (part-skim)"
+        },
+        "170850": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"provolone cheese\""
+        },
+        "170851": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"ricotta cheese\""
+        },
+        "170853": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"American cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000483",
+            "label": "pasteurized process american cheese (vitamin D fortified)"
+        },
+        "170854": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"American cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03316867",
+            "label": "pasteurized process pimento cheese"
+        },
+        "170855": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pasteurized process Swiss cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03302991",
+            "label": "pasteurized process swiss cheese"
+        },
+        "170856": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cheese spread\""
+        },
+        "170860": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whipped cream\""
+        },
+        "170863": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"American cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000481",
+            "label": "american cheese (fat free)"
+        },
+        "170869": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"imitation sour cream\""
+        },
+        "170879": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chocolate milk\""
+        },
+        "170880": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chocolate milk\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000289",
+            "label": "chocolate milk (reduced fat)"
+        },
+        "170881": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chocolate milk\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304793",
+            "label": "chocolate milk (low fat)"
+        },
+        "170893": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen whole eggs\""
+        },
+        "170897": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Swiss cheese\""
+        },
+        "170899": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cheddar cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304590",
+            "label": "cheddar cheese (sharp)"
+        },
+        "170900": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mozzarella cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303579",
+            "label": "mozzarella cheese (low-moisture, part-skim)"
+        },
+        "170908": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen yogurt\""
+        },
+        "170910": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chocolate milk\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304793",
+            "label": "chocolate milk (low fat)"
+        },
+        "170922": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"coriander seed\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000224",
+            "label": "coriander seed (whole or pieces)"
+        },
+        "170930": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried parsley\""
+        },
+        "170931": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"black pepper\""
+        },
+        "170936": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"ground savory\""
+        },
+        "170985": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"apple juice baby food\""
+        },
+        "171028": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"grapeseed oil\""
+        },
+        "171047": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whole chicken\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301121",
+            "label": "chicken (whole or pieces, raw)"
+        },
+        "171050": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whole chicken\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004237",
+            "label": "chicken (whole or pieces)"
+        },
+        "171051": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken meat\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02020209",
+            "label": "piece of chicken meat (with skin)"
+        },
+        "171057": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken giblets\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03305358",
+            "label": "chicken giblet (raw)"
+        },
+        "171058": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken giblets\""
+        },
+        "171074": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken backs\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02020271",
+            "label": "piece of chicken back (skinless)"
+        },
+        "171083": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"turkey giblets\""
+        },
+        "171084": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"turkey giblets\""
+        },
+        "171100": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned goose liver pâté\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306998",
+            "label": "goose liver paste"
+        },
+        "171139": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"turkey backs\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02020537",
+            "label": "piece of turkey back (with skin)"
+        },
+        "171145": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken soup\""
+        },
+        "171146": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of chicken soup\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304199",
+            "label": "cream of chicken soup (condensed)"
+        },
+        "171147": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken gumbo soup\""
+        },
+        "171149": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken vegetable soup\""
+        },
+        "171153": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"minestrone soup\""
+        },
+        "171155": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of mushroom soup\""
+        },
+        "171157": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"split pea with ham soup\""
+        },
+        "171158": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of potato soup\""
+        },
+        "171163": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"vegetable beef soup\""
+        },
+        "171165": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"onion soup mix\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03309457",
+            "label": "onion soup mix"
+        },
+        "171167": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"teriyaki sauce\""
+        },
+        "171170": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mushroom gravy\""
+        },
+        "171171": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mushroom gravy mix\""
+        },
+        "171176": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"tomato soup\""
+        },
+        "171185": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pesto\""
+        },
+        "171189": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"vegetable beef soup\""
+        },
+        "171191": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cheese sauce\""
+        },
+        "171240": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"gjetost cheese\""
+        },
+        "171241": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"gouda cheese\""
+        },
+        "171242": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"gruyère cheese\""
+        },
+        "171243": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"limburger cheese\""
+        },
+        "171244": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mozzarella cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303579",
+            "label": "mozzarella cheese (low-moisture, part-skim)"
+        },
+        "171245": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"muenster cheese\""
+        },
+        "171248": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"ricotta cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000486",
+            "label": "ricotta cheese (part-skim)"
+        },
+        "171249": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"romano cheese\""
+        },
+        "171250": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Roquefort cheese\""
+        },
+        "171251": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Swiss cheese\""
+        },
+        "171252": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"American cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000490",
+            "label": "pasteurized process american cheese food (vitamin D fortified)"
+        },
+        "171253": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pasteurized process Swiss cheese\""
+        },
+        "171254": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cheese spread\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000485",
+            "label": "pasteurized process american cheese spread"
+        },
+        "171256": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"light sour cream\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000477",
+            "label": "light sour cream"
+        },
+        "171257": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sour cream\""
+        },
+        "171258": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"eggnog\""
+        },
+        "171287": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"eggs\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02020152",
+            "label": "chicken egg (raw)"
+        },
+        "171290": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"American cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000482",
+            "label": "pasteurized process american cheese"
+        },
+        "171291": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"American cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000484",
+            "label": "pasteurized process american cheese food"
+        },
+        "171292": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cheddar cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03311360",
+            "label": "cheddar cheese (reduced fat)"
+        },
+        "171295": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cheddar cheese\""
+        },
+        "171303": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chocolate milk\""
+        },
+        "171317": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried basil\""
+        },
+        "171318": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried chervil\""
+        },
+        "171322": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried dill\""
+        },
+        "171328": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried oregano\""
+        },
+        "171330": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "FoodOn \"poppy seed\" names exactly the spice \"Spices, poppy seed\" (loop 3); curated food \"poppy seeds\""
+        },
+        "171333": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried rosemary\""
+        },
+        "171372": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"zwieback\""
+        },
+        "171422": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"palm kernel oil\""
+        },
+        "171424": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: tomato seed oil: no US grocery store sells it (only cosmetic and wholesale suppliers); search found no store listing [Oil, tomatoseed]"
+        },
+        "171425": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"tea seed oil\""
+        },
+        "171446": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whole chicken\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004237",
+            "label": "chicken (whole or pieces)"
+        },
+        "171455": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken giblets\""
+        },
+        "171472": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken backs\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02020271",
+            "label": "piece of chicken back (skinless)"
+        },
+        "171505": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"ground turkey\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02020578",
+            "label": "turkey meat (ground, raw)"
+        },
+        "171537": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of asparagus soup\""
+        },
+        "171539": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef noodle soup\""
+        },
+        "171540": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of celery soup\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03311117",
+            "label": "cream of celery soup (condensed, canned)"
+        },
+        "171541": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cheddar cheese soup\""
+        },
+        "171543": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken noodle soup\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304209",
+            "label": "chicken noodle soup (condensed)"
+        },
+        "171550": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"minestrone soup\""
+        },
+        "171551": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"French onion soup\""
+        },
+        "171554": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"green pea soup\""
+        },
+        "171555": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"split pea with ham soup\""
+        },
+        "171564": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef gravy\""
+        },
+        "171565": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"brown gravy mix\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03305336",
+            "label": "brown gravy mix"
+        },
+        "171566": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken gravy\""
+        },
+        "171567": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken gravy mix\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03305360",
+            "label": "chicken gravy mix"
+        },
+        "171571": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken noodle soup mix\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304938",
+            "label": "chicken noodle soup mix"
+        },
+        "171575": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"peanut sauce\""
+        },
+        "171579": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pesto\""
+        },
+        "171580": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pesto\""
+        },
+        "171581": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pesto\""
+        },
+        "171582": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pesto\""
+        },
+        "171587": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"tomato soup\""
+        },
+        "171591": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"tomato soup\""
+        },
+        "171592": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"green pea soup\""
+        },
+        "171593": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken noodle soup\""
+        },
+        "171602": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of chicken soup\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304199",
+            "label": "cream of chicken soup (condensed)"
+        },
+        "171605": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"green chile sauce\""
+        },
+        "171606": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"fish stock\""
+        },
+        "171607": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of mushroom soup\""
+        },
+        "171610": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Worcestershire sauce\""
+        },
+        "171621": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"liverwurst\""
+        },
+        "171622": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bratwurst\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00002911",
+            "label": "bratwurst"
+        },
+        "171657": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Cream of Wheat\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005563",
+            "label": "cream of wheat"
+        },
+        "171715": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"starfruit\""
+        },
+        "171826": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"tartar sauce\""
+        },
+        "171831": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wasabi paste\""
+        },
+        "171850": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat bread\""
+        },
+        "171851": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat bread\""
+        },
+        "171959": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mahi mahi\""
+        },
+        "171962": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"grouper\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03308027",
+            "label": "grouper (raw)"
+        },
+        "171963": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"grouper\""
+        },
+        "171990": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cod\""
+        },
+        "172026": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"gluten-free pasta\""
+        },
+        "172027": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"gluten-free pasta\""
+        },
+        "172176": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"brick cheese\""
+        },
+        "172177": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"brie cheese\""
+        },
+        "172178": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"camembert cheese\""
+        },
+        "172179": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cottage cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03302973",
+            "label": "cottage cheese (creamed)"
+        },
+        "172180": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cottage cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03302973",
+            "label": "cottage cheese (creamed)"
+        },
+        "172181": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cottage cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301783",
+            "label": "cottage cheese (dry)"
+        },
+        "172182": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cottage cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303720",
+            "label": "cottage cheese (lowfat)"
+        },
+        "172188": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried whole eggs\""
+        },
+        "172202": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen whole eggs\""
+        },
+        "172207": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream cheese\""
+        },
+        "172215": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"provolone cheese\""
+        },
+        "172223": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"queso fresco\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004528",
+            "label": "queso fresco"
+        },
+        "172226": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"ice cream sandwiches\""
+        },
+        "172232": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"basil\""
+        },
+        "172238": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"capers\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303373",
+            "label": "caper (canned)"
+        },
+        "172239": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried mint\""
+        },
+        "172276": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sweet potato baby food\""
+        },
+        "172331": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"shortening\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304167",
+            "label": "shortening (hydrogenated)"
+        },
+        "172333": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"shortening\""
+        },
+        "172334": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"shortening\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03316585",
+            "label": "confectioner's shortening"
+        },
+        "172394": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whole chicken\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301121",
+            "label": "chicken (whole or pieces, raw)"
+        },
+        "172396": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken giblets\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03305358",
+            "label": "chicken giblet (raw)"
+        },
+        "172397": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken giblets\""
+        },
+        "172399": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"stewing hen\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004237",
+            "label": "chicken (whole or pieces)"
+        },
+        "172406": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"capon\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301121",
+            "label": "chicken (whole or pieces, raw)"
+        },
+        "172407": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"capon\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004237",
+            "label": "chicken (whole or pieces)"
+        },
+        "172416": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"guinea hen meat\""
+        },
+        "172424": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lupini beans\""
+        },
+        "172425": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"moth beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000196",
+            "label": "moth bean (raw, mature)"
+        },
+        "172428": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"split peas\""
+        },
+        "172436": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried pigeon peas\""
+        },
+        "172437": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried pigeon peas\""
+        },
+        "172442": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"miso\""
+        },
+        "172443": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"natto\""
+        },
+        "172445": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"soy flour\""
+        },
+        "172452": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"okara\""
+        },
+        "172468": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"firm tofu\""
+        },
+        "172472": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried pigeon peas\""
+        },
+        "172523": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"squirrel meat\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02021625",
+            "label": "piece of squirrel meat (raw)"
+        },
+        "172545": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lamb\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02021242",
+            "label": "lamb retail cut (raw)"
+        },
+        "172672": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cracked wheat bread\""
+        },
+        "172678": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"oatmeal bread\""
+        },
+        "172679": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"oatmeal bread\""
+        },
+        "172680": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"raisin bread\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03302693",
+            "label": "raisin bread (enriched)"
+        },
+        "172681": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"raisin bread\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03302693",
+            "label": "raisin bread (enriched)"
+        },
+        "172686": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat bread\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03302200",
+            "label": "wheat bread"
+        },
+        "172687": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat bread\""
+        },
+        "172688": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whole wheat bread\""
+        },
+        "172689": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whole wheat bread\""
+        },
+        "172690": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whole wheat bread\""
+        },
+        "172691": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whole wheat bread\""
+        },
+        "172697": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chocolate cake\""
+        },
+        "172704": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pound cake\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03302768",
+            "label": "butter pound cake"
+        },
+        "172777": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"banana cream pie\""
+        },
+        "172780": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cherry pie\""
+        },
+        "172781": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cherry pie\""
+        },
+        "172786": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pecan pie\""
+        },
+        "172791": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"phyllo dough\""
+        },
+        "172809": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"protein bread\""
+        },
+        "172816": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pita bread\""
+        },
+        "172817": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"raisin bread\""
+        },
+        "172818": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"white bread\""
+        },
+        "172826": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"white bread\""
+        },
+        "172847": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"ground turkey\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02020578",
+            "label": "turkey meat (ground, raw)"
+        },
+        "172880": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pizza sauce\""
+        },
+        "172882": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"tomato soup\""
+        },
+        "172886": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"hoisin sauce\""
+        },
+        "172887": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of mushroom soup\""
+        },
+        "172890": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"teriyaki sauce\""
+        },
+        "172891": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of asparagus soup\""
+        },
+        "172893": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of celery soup\""
+        },
+        "172894": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cheddar cheese soup\""
+        },
+        "172896": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"green pea soup\""
+        },
+        "172897": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of potato soup\""
+        },
+        "172906": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef noodle soup\""
+        },
+        "172907": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of celery soup\""
+        },
+        "172908": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken gumbo soup\""
+        },
+        "172909": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken noodle soup\""
+        },
+        "172913": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"minestrone soup\""
+        },
+        "172915": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of mushroom soup\""
+        },
+        "172916": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"split pea with ham soup\""
+        },
+        "172917": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of potato soup\""
+        },
+        "172925": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken noodle soup mix\""
+        },
+        "172928": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned chicken liver pâté\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303695",
+            "label": "liver paste (canned)"
+        },
+        "172929": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned goose liver pâté\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306998",
+            "label": "goose liver paste"
+        },
+        "172931": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: Oscar Mayer Luxury Loaf is discontinued and no store sells a luxury loaf (search 6) [Luxury loaf, pork]",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005588",
+            "label": "pork loaf"
+        },
+        "172932": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: mother's loaf appears only in nutrition databases (search 5) [Mother's loaf, pork]"
+        },
+        "172942": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Vienna sausages\""
+        },
+        "172948": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"turkey smoked sausage\""
+        },
+        "172949": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"hot dogs\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03302012",
+            "label": "frankfurter"
+        },
+        "172952": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: left under its USDA name"
+        },
+        "172953": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"kielbasa\""
+        },
+        "172954": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"kielbasa\""
+        },
+        "172958": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bratwurst\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00002911",
+            "label": "bratwurst"
+        },
+        "172964": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"hot dogs\""
+        },
+        "172970": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bologna\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306503",
+            "label": "bologna"
+        },
+        "172986": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"oat bran cereal\""
+        },
+        "173032": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried goji berries\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004359",
+            "label": "goji berry food product"
+        },
+        "173041": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"grape juice\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301127",
+            "label": "grape juice"
+        },
+        "173043": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"goldenberries\""
+        },
+        "173095": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef tripe\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03315155",
+            "label": "tripe food product"
+        },
+        "173121": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef top round steak\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000015",
+            "label": "beef top round steak (raw)"
+        },
+        "173122": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef bottom round roast\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000009",
+            "label": "beef bottom round roast (raw)"
+        },
+        "173177": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whey protein isolate\""
+        },
+        "173239": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"apple pie\""
+        },
+        "173243": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pound cake\""
+        },
+        "173263": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"long-grain brown rice\""
+        },
+        "173264": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"gluten-free pasta\""
+        },
+        "173265": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"gluten-free pasta\""
+        },
+        "173343": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"potato salad\""
+        },
+        "173413": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"caraway cheese\""
+        },
+        "173415": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Cheshire cheese\""
+        },
+        "173416": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"colby cheese\""
+        },
+        "173417": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cottage cheese\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303720",
+            "label": "cottage cheese (lowfat)"
+        },
+        "173418": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream cheese\""
+        },
+        "173419": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"edam cheese\""
+        },
+        "173420": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"feta cheese\""
+        },
+        "173424": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"eggs\""
+        },
+        "173425": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried whole eggs\""
+        },
+        "173442": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"light sour cream\""
+        },
+        "173443": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"light sour cream\""
+        },
+        "173450": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chocolate milk\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000289",
+            "label": "chocolate milk (reduced fat)"
+        },
+        "173461": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dulce de leche\""
+        },
+        "173464": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen yogurt\""
+        },
+        "173470": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"thyme\""
+        },
+        "173473": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"rosemary\""
+        },
+        "173475": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mint\""
+        },
+        "173563": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: cupuacu oil: no US grocery store sells it (only cosmetic and craft suppliers); search found no store listing [Oil, cupu assu]"
+        },
+        "173565": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"vegetable oil\""
+        },
+        "173569": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"shortening\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304167",
+            "label": "shortening (hydrogenated)"
+        },
+        "173584": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"shortening\""
+        },
+        "173597": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"shortening\""
+        },
+        "173598": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"vegetable oil\""
+        },
+        "173607": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"shortening\""
+        },
+        "173633": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whole chicken\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004237",
+            "label": "chicken (whole or pieces)"
+        },
+        "173640": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"stewing hen\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301121",
+            "label": "chicken (whole or pieces, raw)"
+        },
+        "173641": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken giblets\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03305358",
+            "label": "chicken giblet (raw)"
+        },
+        "173642": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken giblets\""
+        },
+        "173647": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"water\""
+        },
+        "173723": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned sockeye salmon\""
+        },
+        "173727": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"adzuki beans\""
+        },
+        "173731": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"baked beans\""
+        },
+        "173732": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"baked beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301466",
+            "label": "pork and beans (canned)"
+        },
+        "173733": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork and beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03307027",
+            "label": "pork and beans with tomato sauce (canned)"
+        },
+        "173738": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: same French beans search as 175241 [Beans, french, mature seeds, raw]"
+        },
+        "173739": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: same French beans search as 175241 [Beans, french, mature seeds, cooked, boiled, without salt]"
+        },
+        "173762": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"extra firm tofu\""
+        },
+        "173763": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"firm tofu\""
+        },
+        "173764": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"silken tofu\""
+        },
+        "173783": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"soft tofu\""
+        },
+        "173784": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"silken tofu\""
+        },
+        "173785": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"extra firm tofu\""
+        },
+        "173786": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"silken tofu\""
+        },
+        "173787": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"soft tofu\""
+        },
+        "173788": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"firm tofu\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005540",
+            "label": "firm tofu"
+        },
+        "173802": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried lima beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005284",
+            "label": "lima bean (mature)"
+        },
+        "173804": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lupini beans\""
+        },
+        "173805": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"moth beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005286",
+            "label": "moth bean (mature)"
+        },
+        "173845": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bear meat\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02021772",
+            "label": "piece of bear meat (raw)"
+        },
+        "173853": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"caribou meat\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306460",
+            "label": "piece of caribou meat (raw)"
+        },
+        "173854": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"caribou meat\""
+        },
+        "173858": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken spread\""
+        },
+        "173859": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chorizo\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03316070",
+            "label": "chorizo"
+        },
+        "173865": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chopped ham\""
+        },
+        "173872": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bologna\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306503",
+            "label": "bologna"
+        },
+        "173883": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pork sausage\""
+        },
+        "173928": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"apples\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004473",
+            "label": "apple (peeled)"
+        },
+        "173929": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"apples\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004473",
+            "label": "apple (peeled)"
+        },
+        "173934": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen apple juice concentrate\""
+        },
+        "173952": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"natal plums\""
+        },
+        "174013": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef\""
+        },
+        "174064": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken noodle soup\""
+        },
+        "174067": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cocktail sauce\""
+        },
+        "174070": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"peanut sauce\""
+        },
+        "174073": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef barley soup\""
+        },
+        "174074": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"enchilada sauce\""
+        },
+        "174080": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chocolate cookies\""
+        },
+        "174189": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned cod\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02021812",
+            "label": "piece of atlantic cod"
+        },
+        "174215": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cuttlefish\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02022288",
+            "label": "piece(s) of cuttlefish (raw)"
+        },
+        "174218": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"octopus\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02022054",
+            "label": "common octopus"
+        },
+        "174252": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried lima beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000210",
+            "label": "lima bean (whole,raw, mature)"
+        },
+        "174255": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried baby lima beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000211",
+            "label": "baby lima bean (raw, mature)"
+        },
+        "174256": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mung beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000197",
+            "label": "mung bean (raw, mature)"
+        },
+        "174272": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"tempeh\""
+        },
+        "174281": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried yardlong beans\""
+        },
+        "174282": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried yardlong beans\""
+        },
+        "174288": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chickpea flour\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03601071",
+            "label": "gram flour"
+        },
+        "174297": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"super firm tofu\""
+        },
+        "174301": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"soy protein concentrate\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005578",
+            "label": "soy protein concentrate"
+        },
+        "174302": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"soy protein isolate\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03310553",
+            "label": "soy protein isolate"
+        },
+        "174306": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried yardlong beans\""
+        },
+        "174384": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen lamb\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02021242",
+            "label": "lamb retail cut (raw)"
+        },
+        "174465": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken giblets\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03305358",
+            "label": "chicken giblet (raw)"
+        },
+        "174466": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chicken giblets\""
+        },
+        "174471": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"guinea hen meat\""
+        },
+        "174493": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"ground turkey\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02020578",
+            "label": "turkey meat (ground, raw)"
+        },
+        "174529": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"oyster sauce\""
+        },
+        "174530": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"minestrone soup\""
+        },
+        "174531": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"fish sauce\""
+        },
+        "174537": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of chicken soup\""
+        },
+        "174538": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"vegetable soup\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03303897",
+            "label": "vegetable soup (canned)"
+        },
+        "174540": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of mushroom soup\""
+        },
+        "174546": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"tomato soup\""
+        },
+        "174549": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of asparagus soup\""
+        },
+        "174550": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cheddar cheese soup\""
+        },
+        "174553": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of chicken soup\""
+        },
+        "174561": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"green pea soup\""
+        },
+        "174565": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"vegetable beef soup\""
+        },
+        "174567": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of chicken soup\""
+        },
+        "174568": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"onion soup mix\""
+        },
+        "174569": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"tomato soup\""
+        },
+        "174577": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"kielbasa\""
+        },
+        "174586": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Italian sausage\""
+        },
+        "174592": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"turkey bacon\""
+        },
+        "174598": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"hard salami\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03312067",
+            "label": "salami"
+        },
+        "174600": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"turkey sausage\""
+        },
+        "174604": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"turkey smoked sausage\""
+        },
+        "174610": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"bologna\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03306503",
+            "label": "bologna"
+        },
+        "174614": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef hot dogs\""
+        },
+        "174635": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wheat bran\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03304608",
+            "label": "wheat bran"
+        },
+        "174769": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"beef tripe\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03315155",
+            "label": "tripe food product"
+        },
+        "174807": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: left under its USDA name"
+        },
+        "174895": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lamb leg\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000253",
+            "label": "lamb leg"
+        },
+        "174896": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"lamb leg\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02000254",
+            "label": "lamb leg (raw)"
+        },
+        "174912": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Irish soda bread\""
+        },
+        "174913": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Italian bread\""
+        },
+        "174915": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pita bread\""
+        },
+        "174916": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"whole wheat pita bread\""
+        },
+        "174918": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pumpernickel bread\""
+        },
+        "174924": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"white bread\""
+        },
+        "174925": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"white bread\""
+        },
+        "174926": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"white bread\""
+        },
+        "174927": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"white bread\""
+        },
+        "174934": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"chocolate cake\""
+        },
+        "174940": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pound cake\""
+        },
+        "175011": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"apple pie\""
+        },
+        "175012": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"apple pie\""
+        },
+        "175013": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"banana cream pie\""
+        },
+        "175017": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"coconut cream pie\""
+        },
+        "175019": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"mince pie\""
+        },
+        "175020": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"peach pie\""
+        },
+        "175021": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pecan pie\""
+        },
+        "175040": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"baking soda\""
+        },
+        "175041": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cream of tartar\""
+        },
+        "175042": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"fresh yeast\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03311884",
+            "label": "compressed yeast"
+        },
+        "175043": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"active dry yeast\""
+        },
+        "175053": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pound cake\""
+        },
+        "175096": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"water\""
+        },
+        "175103": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"water\""
+        },
+        "175174": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned sockeye salmon\""
+        },
+        "175178": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"cod\""
+        },
+        "175182": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"baked beans\""
+        },
+        "175183": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"baked beans\""
+        },
+        "175184": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"baked beans\""
+        },
+        "175185": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"baked beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03301466",
+            "label": "pork and beans (canned)"
+        },
+        "175201": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned pinto beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03315783",
+            "label": "pinto bean (canned)"
+        },
+        "175207": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned chili\""
+        },
+        "175210": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried hyacinth beans\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000199",
+            "label": "hyacinth bean (raw, mature)"
+        },
+        "175233": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"firm tofu\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005540",
+            "label": "firm tofu"
+        },
+        "175234": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"super firm tofu\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005544",
+            "label": "super firm tofu"
+        },
+        "175235": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"extra firm tofu\""
+        },
+        "175236": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"firm tofu\""
+        },
+        "175241": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: no US store listing: no dried \"French beans\" sold; flageolet is a distinct named variety and USDA does not say flageolet [Beans, french, mature seeds, cooked, boiled, with salt]"
+        },
+        "175256": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"black gram\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005287",
+            "label": "black gram bean (mature)"
+        },
+        "747997": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"egg whites\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02020156",
+            "label": "chicken egg white (raw)"
+        },
+        "2261420": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"almond flour\""
+        },
+        "2512378": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"buckwheat groats\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004234",
+            "label": "buckwheat seed (dried)"
+        },
+        "2512380": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"long-grain brown rice\""
+        },
+        "2515380": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pumpkin seeds\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00004886",
+            "label": "pumpkin seed"
+        },
+        "2644284": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"dried black-eyed peas\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_03000202",
+            "label": "blackeyed pea (raw, mature)"
+        },
+        "2644293": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"canned black-eyed peas\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00003414",
+            "label": "cowpea"
+        },
+        "2646170": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"boneless skinless chicken breasts\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_02020280",
+            "label": "piece of chicken breast (skinless, boneless, raw)"
+        },
+        "2710821": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"wild rice\""
+        },
+        "2710822": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"baby arugula\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005223",
+            "label": "arugula leaf (raw)"
+        },
+        "2710825": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"black rice\""
+        },
+        "2710827": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"einkorn\""
+        },
+        "2710828": {
+            "verdict": "replace",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"farro\"",
+            "iri": "http://purl.obolibrary.org/obo/FOODON_00005281",
+            "label": "farro kernel (raw)"
+        },
+        "2710830": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"Kamut khorasan wheat\""
+        },
+        "2710835": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"masa harina\""
+        },
+        "2710838": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"red rice\""
+        },
+        "2710839": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "not curated: industrial ingredient: sorghum bran is sold to cereal makers, no consumer listing found; it fits no food (sorghum grain and flour are other milling fractions) [Sorghum bran, white, unenriched, dry, raw]"
+        },
+        "2710841": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sorghum grain\""
+        },
+        "2710842": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sorghum grain\""
+        },
+        "2747662": {
+            "verdict": "no_match",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"poblano peppers\""
+        },
+        "2747671": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"frozen squid\""
+        },
+        "2758975": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"rhubarb\""
+        },
+        "2758977": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"grapefruit\""
+        },
+        "2758983": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"baked beans\""
+        },
+        "2758989": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"peanut butter\""
+        },
+        "2758990": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"sweetened condensed milk\""
+        },
+        "2758993": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"white bread\""
+        },
+        "2768188": {
+            "verdict": "confirm",
+            "source": "review loop",
+            "at": "2026-09-28",
+            "note": "curated food \"pollock\""
+        }
+    }
+}

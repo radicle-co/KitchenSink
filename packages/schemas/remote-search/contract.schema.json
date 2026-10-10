@@ -1,0 +1,315 @@
+{
+    "$comment": "⚠️ GENERATED FILE — DO NOT EDIT. A comparison fingerprint of the published wire contract, regenerated and diffed by CI (`npm run contract:verify`).",
+    "blindTo": "A zod `.refine()`/`.superRefine()` predicate does NOT project into JSON Schema, so a business rule changed inside a refinement is invisible here and to the breaking-change classifier. A `.transform()` is recorded as `unrepresentable` rather than dropped.",
+    "contract": "@kitchensink/schema-remote-search",
+    "derivedBy": "z.toJSONSchema(schema, { io: 'output' }) over every zod export of ./src/schemas.ts",
+    "notCodegen": "This document GENERATES NOTHING — no type, no zod, no client. It is not the type authority (the zod in ./src is), and it is not ADR-0014 §1’s rejected \"derive types through OpenAPI\": it exists only to be compared against its own previous version.",
+    "regenerate": "npm run contract:generate --workspace=@kitchensink/remote-search-service",
+    "schemas": {
+        "remoteSearchAnswerSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "items": {
+                            "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "externalKey": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "lineageKey": {
+                                        "anyOf": [
+                                            {
+                                                "type": "string"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "externalKey",
+                                    "name",
+                                    "lineageKey"
+                                ],
+                                "type": "object"
+                            },
+                            "minItems": 1,
+                            "type": "array"
+                        },
+                        "outcome": {
+                            "const": "found",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "outcome",
+                        "items"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "outcome": {
+                            "const": "empty",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "outcome"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "remoteSearchEmptySchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "outcome": {
+                    "const": "empty",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "outcome"
+            ],
+            "type": "object"
+        },
+        "remoteSearchErrorSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "code": {
+                            "const": "INVALID_REQUEST",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "parameter": {
+                                    "enum": [
+                                        "q",
+                                        "admit",
+                                        "rid"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "parameter"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "code": {
+                            "const": "SOURCE_ERROR",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "sourceStatus": {
+                                    "maximum": 599,
+                                    "minimum": 100,
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "sourceStatus"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "code": {
+                            "enum": [
+                                "NOT_FOUND",
+                                "METHOD_NOT_ALLOWED",
+                                "SOURCE_INVALID_RESPONSE",
+                                "SOURCE_TIMEOUT",
+                                "INTERNAL"
+                            ],
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "remoteSearchFoundSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "items": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "externalKey": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "lineageKey": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "externalKey",
+                            "name",
+                            "lineageKey"
+                        ],
+                        "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                },
+                "outcome": {
+                    "const": "found",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "outcome",
+                "items"
+            ],
+            "type": "object"
+        },
+        "remoteSearchItemSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "externalKey": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "lineageKey": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "externalKey",
+                "name",
+                "lineageKey"
+            ],
+            "type": "object"
+        },
+        "remoteSearchNotAdmittedSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "outcome": {
+                    "const": "notAdmitted",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "outcome"
+            ],
+            "type": "object"
+        },
+        "remoteSearchParameterSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "q",
+                "admit",
+                "rid"
+            ],
+            "type": "string"
+        },
+        "remoteSearchQuerySchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "admit": {
+                    "enum": [
+                        "0",
+                        "1"
+                    ],
+                    "type": "string"
+                },
+                "q": {
+                    "type": "string"
+                },
+                "rid": {
+                    "pattern": "^[0-9A-Za-z-]{16,64}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "q",
+                "admit",
+                "rid"
+            ],
+            "type": "object"
+        },
+        "remoteSearchSourceSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "usda"
+            ],
+            "type": "string"
+        }
+    }
+}

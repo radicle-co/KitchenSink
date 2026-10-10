@@ -1,146 +1,193 @@
 /**
- * @module screens/profile — the mobile profile-editing surface (U2 rebuild).
+ * @module screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), pushed from the
+ * avatar. It replaces the old profile form AND the `AccountSettings` hub: who the cook is, the one thing they can
+ * change (the display name), preferences, sign out, and the danger zone.
  *
- * The profile half of the account/profile surface: edit the display name and the avatar. On the design
- * system now — a tokenized {@link Input} (label associated) for the name, the {@link AvatarField} device
- * image-picker (replacing the old paste-a-URL text box), and a `@commise/ui` {@link Button} with a real
- * `busy` state for Save — all copy from `mobileMessages`, wrapped in a `SafeAreaView` + `KeyboardAvoidingView`
- * so the keyboard never occludes the field. The account-level controls (security, sign out, close/erase)
- * live in the reachable {@link import('./AccountSettings.js').AccountSettingsScreen} hub, entered via the
- * "Account settings" action here (`onOpenAccountSettings`), so destructive actions have a single home.
+ * ORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the display-name editor and
+ * the photo write, and hands the render leaves from `@commise/features-account/profile` their state. The read decides
+ * one of three states — loading, failed, ready — and ONLY the Account group depends on it: sign out and the danger zone
+ * need no profile, so a failed read never takes them away (E15). That is why this is a plain query and not a suspense
+ * read under a boundary: a boundary would replace the whole page with its error.
+ *
+ * Sign out is `SignOutButton`, which issues the one verified sign-out command (ADR-0009); close and erase are
+ * `AccountDangerZone`, which keeps its own dialogs and flows. Nothing here calls Clerk's `signOut`.
+ *
+ * THE PHOTO. The spec's 72 pt avatar is "initials, or the native `AvatarField` photo". `ProfileHeader` is shared with
+ * web and draws initials only, so the native-only photo control sits as the first row of the Account group instead.
+ * A picked photo is an explicit act and is written ALONE (`{ avatarUrl }`) through its own mutation; the display name is
+ * written only from the sheet's Save, so the two never share a pending or failed state.
+ *
+ * @pattern Composition root over the Profile render leaves — the read, the editor and the navigator's back meet here and
+ *     nowhere below
  */
-import { Button } from '@commise/ui/button';
-import { Input } from '@commise/ui/input';
-import { palette } from '@commise/ui';
-import { nativeTokens } from '@commise/ui/native';
+import { useUser } from '@clerk/expo';
+import { initialsFor } from '@commise/features-core';
+import { DataSourcesScreen } from '@commise/features-recipes/data-sources/mobile';
+import {
+    DisplayNameSheet,
+    ProfileGroup,
+    ProfileHeader,
+    ProfileRow,
+    profileMessages,
+    profileReadOf,
+    useDisplayNameEditor,
+} from '@commise/features-account/profile';
 import { useMessages } from '@commise/i18n/react';
-import { Feather } from '@expo/vector-icons';
-import type { JSX } from 'react';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { CondensedTitleBar, LargeTitleHeader } from '@commise/ui/large-title-header';
+import { nativeTokens } from '@commise/ui/native';
+import { ScrollHost, useScrollHost, type ScrollBind } from '@commise/ui/scroll-host';
+import { useTheme } from '@commise/ui/theme';
+import { useId, useState, type JSX } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { AccountDangerZone } from '../components/account/AccountDangerZone.js';
 import { AvatarField } from '../components/account/AvatarField.js';
-import { LoadingState } from '../components/LoadingState.js';
+import { SignOutButton } from '../components/account/SignOutButton.js';
 import { SuspensionBanner } from '../components/SuspensionBanner.js';
-import { useUpdateProfile, useUserProfile } from '../hooks/useUserProfile.js';
+import { useUpdateProfile } from '../hooks/useUpdateProfile.js';
+import { useUserProfile } from '../hooks/useUserProfile.js';
 import { mobileMessages } from '../i18n/messages.js';
-
-/** The loaded profile query data (non-undefined). */
-type ProfileData = NonNullable<ReturnType<typeof useUserProfile>['data']>;
 
 /** Props for {@link ProfileScreen}. */
 export interface ProfileScreenProps {
-    /** When provided, renders the entry into the account hub (security + sign-out + danger zone). */
-    readonly onOpenAccountSettings?: () => void;
+    /** Leave Profile: pop to the screen it was pushed from. */
+    readonly onBack: () => void;
 }
 
-export function ProfileScreen({ onOpenAccountSettings }: ProfileScreenProps = {}): JSX.Element {
-    const { profile: t } = useMessages(mobileMessages);
-    const { data, isLoading, error } = useUserProfile();
-
-    if (isLoading) {
-        return (
-            <SafeAreaView style={styles.safe}>
-                <LoadingState label={t.loading} />
-            </SafeAreaView>
-        );
-    }
-
-    if (error || !data) {
-        return (
-            <SafeAreaView style={styles.safe}>
-                <View style={styles.center}>
-                    <Text style={styles.errorText}>{t.loadError}</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
-    // B1 — seed the edit form ONCE from the cache via the `useState` initializer (no clobber `useEffect`).
-    // `key={data.user.id}` remounts the form only when the profile IDENTITY changes, so a background refetch
-    // or a post-save invalidation of the SAME profile never overwrites unsaved edits.
-    return <ProfileEditForm key={data.user.id} profile={data} onOpenAccountSettings={onOpenAccountSettings} />;
+/** Props for the page inside its scroll host. */
+interface ProfileSurfaceProps extends ProfileScreenProps {
+    /** The bind for the page's one vertical scroller. */
+    readonly scrollBind: ScrollBind;
 }
 
-/** The controlled edit form, seeded once from the cached profile on mount. */
-function ProfileEditForm({
-    profile,
-    onOpenAccountSettings,
-}: {
-    readonly profile: ProfileData;
-    readonly onOpenAccountSettings?: () => void;
-}): JSX.Element {
-    const { profile: t, account } = useMessages(mobileMessages);
-    const updateProfile = useUpdateProfile();
-    const [displayName, setDisplayName] = useState(profile.user.displayName ?? '');
-    const [avatarUrl, setAvatarUrl] = useState(profile.user.avatarUrl ?? '');
+/**
+ * The Profile page, inside its own scroll host (it is a pushed screen, not a tab root).
+ *
+ * @param props - The way back.
+ * @returns The page.
+ */
+export function ProfileScreen({ onBack }: ProfileScreenProps): JSX.Element {
+    return <ScrollHost>{(bind) => <ProfileSurface scrollBind={bind} onBack={onBack} />}</ScrollHost>;
+}
+
+/** The page. */
+function ProfileSurface({ scrollBind, onBack }: ProfileSurfaceProps): JSX.Element {
+    const t = useMessages(profileMessages);
+    const { profile: photo } = useMessages(mobileMessages);
+    const { colors } = useTheme();
+    const { condensed } = useScrollHost();
+    const headingId = useId();
+    const query = useUserProfile();
+    const read = profileReadOf(query);
+    const saved = read.status === 'ready' ? read.displayName : '';
+    const { user: clerkUser } = useUser();
+    // The name and the photo are two mutations, so a photo upload never reads as the name saving, and back.
+    const nameUpdate = useUpdateProfile();
+    const editor = useDisplayNameEditor({ saved, user: clerkUser, update: nameUpdate });
+    const photoUpdate = useUpdateProfile();
+    const [sourcesOpen, setSourcesOpen] = useState(false);
+    // Each close of the sheet advances this, which takes the reading cursor back to the row that opened it (§10).
+    const [sourcesClosed, setSourcesClosed] = useState(0);
+    const user = query.data?.user;
+    const back = { label: t.back, parent: t.homeParent, onPress: onBack };
+    // While a new photo is being saved the preview shows it, so the pick does not appear to be lost.
+    const photoUrl = photoUpdate.isPending ? (photoUpdate.variables.avatarUrl ?? '') : (user?.avatarUrl ?? '');
 
     return (
-        <SafeAreaView style={styles.safe}>
-            <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-                    <SuspensionBanner status={profile.user.status} />
-
-                    <Input
-                        label={t.displayName}
-                        placeholder={t.displayNamePlaceholder}
-                        value={displayName}
-                        onChangeText={setDisplayName}
-                        autoCapitalize="words"
-                        autoComplete="name"
-                        textContentType="name"
-                        returnKeyType="done"
+        <View style={styles.screen}>
+            <ScrollView
+                {...scrollBind}
+                style={styles.region}
+                contentContainerStyle={styles.content}
+                keyboardShouldPersistTaps="handled"
+            >
+                <LargeTitleHeader headingId={headingId} title={t.title} back={back} />
+                {user === undefined ? null : <SuspensionBanner status={user.status} />}
+                <ProfileHeader
+                    read={read}
+                    initials={read.status === 'ready' ? initialsFor(read.displayName) : ''}
+                    onRetry={() => void query.refetch()}
+                />
+                {read.status === 'ready' ? (
+                    <ProfileGroup label={t.account}>
+                        <View>
+                            <AvatarField
+                                value={photoUrl}
+                                onChange={(avatarUrl) => photoUpdate.mutate({ avatarUrl })}
+                                messages={{
+                                    label: photo.avatarLabel,
+                                    imageLabel: photo.avatarImageLabel,
+                                    changeAction: photo.avatarChangeAction,
+                                    uploadError: photo.avatarUploadError,
+                                    tooLargeError: photo.avatarTooLargeError,
+                                    unsupportedTypeError: photo.avatarUnsupportedTypeError,
+                                }}
+                            />
+                            {photoUpdate.isError ? (
+                                <Text role="alert" style={[styles.photoError, { color: colors.dangerText }]}>
+                                    {photo.avatarUploadError}
+                                </Text>
+                            ) : null}
+                        </View>
+                        <ProfileRow
+                            label={t.displayName}
+                            value={read.displayName === '' ? t.displayNameUnset : read.displayName}
+                            tone="ink"
+                            chevron
+                            onPress={editor.openSheet}
+                        />
+                    </ProfileGroup>
+                ) : null}
+                <ProfileGroup heading={t.preferences}>
+                    <ProfileRow
+                        label={t.dataSources}
+                        tone="ink"
+                        chevron
+                        focusSignal={sourcesClosed}
+                        onPress={() => setSourcesOpen(true)}
                     />
-
-                    <AvatarField
-                        value={avatarUrl}
-                        onChange={setAvatarUrl}
-                        messages={{
-                            label: t.avatarLabel,
-                            imageLabel: t.avatarImageLabel,
-                            changeAction: t.avatarChangeAction,
-                            uploadError: t.avatarUploadError,
-                            tooLargeError: t.avatarTooLargeError,
-                            unsupportedTypeError: t.avatarUnsupportedTypeError,
-                        }}
-                    />
-
-                    <Button
-                        icon={<Feather name="check" size={16} color={palette.white} />}
-                        busy={updateProfile.isPending}
-                        // Pin the accessible name so it stays stable while the visible label reads "Saving…"
-                        // (busy is announced via `aria-busy`); keeps name-based selection stable.
-                        accessibilityLabel={t.save}
-                        onPress={() => updateProfile.mutate({ displayName, avatarUrl })}
-                    >
-                        {updateProfile.isPending ? t.saving : t.save}
-                    </Button>
-
-                    {onOpenAccountSettings ? (
-                        <Button
-                            variant="secondary"
-                            icon={<Feather name="settings" size={16} color={palette.charcoal} />}
-                            onPress={onOpenAccountSettings}
-                        >
-                            {account.settingsAction}
-                        </Button>
-                    ) : null}
-                </ScrollView>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
+                </ProfileGroup>
+                <ProfileGroup label={t.signOut}>
+                    <SignOutButton />
+                </ProfileGroup>
+                <AccountDangerZone />
+            </ScrollView>
+            <CondensedTitleBar title={t.title} back={back} visible={condensed} />
+            <DisplayNameSheet
+                open={editor.open}
+                onOpenChange={editor.setOpen}
+                draft={editor.draft}
+                onDraftChange={editor.setDraft}
+                canSave={editor.canSave}
+                saving={editor.saving}
+                failed={editor.failed}
+                onSave={editor.save}
+            />
+            {sourcesOpen ? (
+                <DataSourcesScreen
+                    onRequestClose={() => {
+                        setSourcesOpen(false);
+                        setSourcesClosed((count) => count + 1);
+                    }}
+                />
+            ) : null}
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: palette.sand },
-    flex: { flex: 1 },
-    center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    container: {
-        flexGrow: 1,
-        gap: nativeTokens.spacing[4],
-        paddingHorizontal: nativeTokens.spacing[5],
-        paddingVertical: nativeTokens.spacing[6],
+    // Transparent so the root `AppCanvas` wash shows through (issue #145).
+    screen: { flex: 1, backgroundColor: 'transparent' },
+    region: { flex: 1 },
+    content: {
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingTop: nativeTokens.spacing[2],
+        paddingBottom: nativeTokens.spacing[6],
+        gap: nativeTokens.spacing[5],
     },
-    errorText: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.slate },
+    photoError: {
+        ...nativeTokens.type.caption,
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingBottom: nativeTokens.spacing[3],
+    },
 });

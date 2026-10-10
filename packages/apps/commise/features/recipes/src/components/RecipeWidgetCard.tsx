@@ -1,27 +1,47 @@
 /**
- * @module @commise/features-recipes — web recipe-widget card shell (skeleton building block).
+ * @module @commise/features-recipes — the web shell of Home's "Recent recipes" block: an H2 heading row with "See all"
+ * at its end (`docs/design/uiOverhaul/buildSpec.md` §4.2), then the block's content. It carries no surface of its own
+ * — the heading sits on the page canvas and the cards are the only boxes (§1.6 "No box in a box").
  */
-
+import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
+import { recipeMessages } from '../messages.js';
 import type { RecipeWidgetCardProps } from './props.js';
 
 /**
- * Section container for the recipe Home widget on web. The accessible name is the
- * widget title so assistive tech can navigate between Home widgets by heading.
+ * Whether a click should be handed to `onPress` rather than followed: a plain primary click only.
  *
- * Deliberately carries NO surface of its own — no background, shadow, or ring. The mockup's
- * section-level Home widgets (Recent Recipes, This Week's Meals) are a heading row plus their grid
- * directly on the page background, and the U8 frosted-glass treatment lives on each CARD inside.
- * An opaque `bg-card` (#FFFFFF) here would sit between the page and `glass.card`'s translucent
- * rgba(255,255,255,0.85), rendering the glass and its saturate() as flat white-on-white — the brand
- * surface would be present in the DOM yet invisible on screen. (The roadmap placeholders are a
- * different shape: they ARE cards, via `PlaceholderWidgetCard`.)
+ * @param event - The click.
+ * @returns `true` for a plain primary click.
  */
-export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, children }) => {
+function isPlainClick(event: React.MouseEvent<HTMLAnchorElement>): boolean {
+    return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+}
+
+export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, seeAll, children }) => {
+    const { home } = useMessages(recipeMessages);
+
     return (
         <section aria-label={title} className="flex flex-col gap-4">
-            <h3 className="font-display text-heading-md font-semibold text-charcoal">{title}</h3>
+            <div className="flex items-center justify-between gap-3">
+                <h2 className="text-section-title text-ink">{title}</h2>
+                {seeAll === undefined ? null : (
+                    <a
+                        href={seeAll.href}
+                        aria-label={home.seeAllLabel}
+                        onClick={(event) => {
+                            if (seeAll.href === undefined || isPlainClick(event)) {
+                                event.preventDefault();
+                                seeAll.onPress();
+                            }
+                        }}
+                        className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-label text-action-text hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    >
+                        {home.seeAll}
+                    </a>
+                )}
+            </div>
             {children}
         </section>
     );

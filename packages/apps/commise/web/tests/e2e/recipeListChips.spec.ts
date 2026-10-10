@@ -22,7 +22,7 @@ import { signInWithTicket } from './utils/auth';
  * Selectors are role/label only (repo policy). Serial (Clerk-authed).
  */
 test.describe('recipe list — timestamp + quick-filter chip (#2/#4)', () => {
-    test('shows a relative-timestamp footer and a working "Quick (<30m)" chip', async ({ page }) => {
+    test('shows a relative-timestamp footer and a working "Under 30 min" chip with its count', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
 
@@ -30,13 +30,13 @@ test.describe('recipe list — timestamp + quick-filter chip (#2/#4)', () => {
         // to narrow. Both seed with equal createdAt/updatedAt (the mock's default `ISO`), so both cards read
         // "Created", not "Edited" (see `formatRelativeTime`'s CR-002 rule in `card/model.ts`).
         const quick = makeRecipeDetail({
-            id: 'rec_quick',
+            id: 'ec000000-0000-4000-8000-00000000001d',
             ownerId: viewerId,
             title: 'Overnight Oats',
             totalTimeMinutes: 5,
         });
         const slow = makeRecipeDetail({
-            id: 'rec_slow',
+            id: 'ec000000-0000-4000-8000-00000000002f',
             ownerId: viewerId,
             title: "Grandma's Pasta",
             totalTimeMinutes: 45,
@@ -45,25 +45,26 @@ test.describe('recipe list — timestamp + quick-filter chip (#2/#4)', () => {
 
         await page.goto(route('/recipes'));
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Overnight Oats' })).toBeVisible();
-        await expect(page.getByRole('button', { name: "Grandma's Pasta" })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Overnight Oats' })).toBeVisible();
+        await expect(page.getByRole('link', { name: "Grandma's Pasta" })).toBeVisible();
 
         // #2 — every card shows the relative-timestamp footer ("Created {n}{unit} ago").
-        const oatsCard = page.getByRole('button', { name: 'Overnight Oats' });
-        const pastaCard = page.getByRole('button', { name: "Grandma's Pasta" });
+        const oatsCard = page.getByRole('article', { name: 'Overnight Oats' });
+        const pastaCard = page.getByRole('article', { name: "Grandma's Pasta" });
+        // Slice 4: the list view's row card carries the timestamp at the end of its status line.
         await expect(oatsCard.getByText(/^Created \d+[mhdw] ago$/)).toBeVisible();
         await expect(pastaCard.getByText(/^Created \d+[mhdw] ago$/)).toBeVisible();
 
         // #4 — the Quick (<30m) chip appears (Overnight Oats qualifies) and narrows to only that recipe.
         const chips = page.getByRole('group', { name: 'Quick filters' });
-        await expect(chips.getByRole('button', { name: 'Quick (<30m)' })).toBeVisible();
+        await expect(chips.getByRole('button', { name: /^Under 30 min 1$/ })).toBeVisible();
 
-        await chips.getByRole('button', { name: 'Quick (<30m)' }).click();
-        await expect(page.getByRole('button', { name: 'Overnight Oats' })).toBeVisible();
-        await expect(page.getByRole('button', { name: "Grandma's Pasta" })).not.toBeVisible();
+        await chips.getByRole('button', { name: /^Under 30 min 1$/ }).click();
+        await expect(page.getByRole('link', { name: 'Overnight Oats' })).toBeVisible();
+        await expect(page.getByRole('link', { name: "Grandma's Pasta" })).not.toBeVisible();
 
         // "All" restores the full list.
         await chips.getByRole('button', { name: 'All' }).click();
-        await expect(page.getByRole('button', { name: "Grandma's Pasta" })).toBeVisible();
+        await expect(page.getByRole('link', { name: "Grandma's Pasta" })).toBeVisible();
     });
 });

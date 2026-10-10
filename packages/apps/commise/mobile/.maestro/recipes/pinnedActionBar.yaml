@@ -1,0 +1,107 @@
+appId: io.commise.mobile
+---
+# U32 — THE PINNED ACTION BAR, ON A DEVICE, ON A LONG INGREDIENT LIST.
+#
+# REWRITTEN for slice 7: the wizard's `Next`/`Save Draft` bar is retired; the one-page editor's action bar holds
+# `Preview` and the primary (`Publish`, or `Save changes` on a published recipe), outside the scroller, at the foot of
+# the screen (build spec §7.1).
+#
+# ⛔ WHAT THIS COVERS THAT NOTHING ELSE CAN. The wizard's controls once rendered INSIDE the editor's single
+# `ScrollView`, so on a recipe with a long ingredient list the primary sat below the whole list and a cook had to
+# scroll past every row to reach it. The one-page editor makes that worse if it regresses: every section is on the
+# same scroller, so a bar inside it would sit below the photos at the very end of the page.
+#
+# The component test (`RecipeEditorView.native.test.tsx`) asserts the structure — the bar is not a descendant of
+# the scroller. That is the structural half. It cannot assert the thing a cook
+# experiences, because jsdom has no layout and nothing is ever off-screen in it. This flow is the other half:
+# on a real emulator, with a real scroll, the bar is still there.
+#
+# ⚠️ THE ASSERTION IS DELIBERATELY `assertVisible` AFTER A SCROLL, WITH NO `scrollUntilVisible` ANYWHERE NEAR
+# IT. `scrollUntilVisible` would PASS against the defect — it would simply scroll until the bar came into
+# view, which is precisely the behaviour being removed. A bare `assertVisible` on an element that must already
+# be on screen is the only form of this check that can fail.
+#
+# The seeded recipe carries five ingredient lines; three more are added here so the list is long enough to
+# push a scrolling bar off a phone screen. Nothing reaches the server — the lamb is PUBLISHED, so its changes stay on
+# the device until Save changes (owner decision D1) — and the flow discards them at the end, leaving the recipe as
+# it found it.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+# The editor's own × is the entry checkpoint. Unlike a bare `Back`, it cannot be satisfied by Android's three-button
+# navigation bar, which publishes a node named exactly `Back` (`com.android.systemui:id/back`) — the selector trap
+# that cost this flow two red CI runs (35416012654, 35440474860) when it still tapped the wizard's back arrow.
+- assertVisible: 'Close editor'
+
+# The bar is present at the TOP of the page WITHOUT scrolling, and carries both controls.
+- assertVisible: 'Preview'
+- assertVisible: 'Save changes'
+
+# Lengthen the list past a phone's height. Each add declares a name "as written" from the trailing field, a name
+# deliberately outside the stage's foods, so it cannot collide with `searchNavigation.yaml`'s "Flour" filter.
+- repeat:
+      times: 3
+      commands:
+          - scrollUntilVisible:
+                element: 'Add an ingredient'
+                direction: DOWN
+                timeout: 20000
+          - tapOn: 'Add an ingredient'
+          - inputText: 'Tamarind'
+          - runFlow:
+                file: common/scrollOpenList.yaml
+                env:
+                    TARGET: 'Use .*Tamarind.* as written.*'
+          - tapOn:
+                text: 'Use .*Tamarind.* as written.*'
+          - extendedWaitUntil:
+                notVisible: 'Use .*Tamarind.* as written.*'
+                timeout: 30000
+
+# ⛔ THE ASSERTION. Scroll to the very BOTTOM of the ingredient list, then assert, with no further scrolling, that both
+# controls are still on screen. The trailing field is the list's last item. No `hideKeyboard` here: on Android
+# Maestro delivers it as a BACK event, which leaves the editor (build spec §3.5).
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 30000
+- assertVisible: 'Preview'
+- assertVisible: 'Save changes'
+
+# And at the very END of the page — the last section's last control — the bar is still there.
+- scrollUntilVisible:
+      element: 'Add photo'
+      direction: DOWN
+      timeout: 30000
+- assertVisible: 'Preview'
+- assertVisible: 'Save changes'
+
+# And the bar still WORKS from there — it is not merely painted over the content.
+- tapOn: 'Preview'
+- extendedWaitUntil:
+      visible: 'Preview. This is how it looks to others.'
+      timeout: 20000
+- tapOn: 'Close preview'
+- assertVisible: 'Close editor'
+
+# Leave the recipe as found: throw the device changes away through the header's menu. A published recipe's item is
+# 'Discard changes', and the recipe stays as it was last saved; the editor returns to the detail.
+- tapOn: 'More editor actions'
+- tapOn: 'Discard changes'
+- assertVisible: 'Discard your changes?'
+- tapOn: 'Discard'
+- extendedWaitUntil:
+      visible: 'Edit recipe'
+      timeout: 20000
+- assertNotVisible: 'Close editor'

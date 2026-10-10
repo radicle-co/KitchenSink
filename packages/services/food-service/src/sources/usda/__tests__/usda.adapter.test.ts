@@ -7,14 +7,20 @@
  * Traceability: FR-IDN-2, FR-023, FR-024, FR-ADP-2, FR-ADP-3.
  */
 import { UsdaApiClient } from '@kitchensink/usda-client';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
-import { isAdapterValidationError, isSourceApiError } from '../../food-source-adapter.js';
+import { isAdapterValidationError, isSourceApiError } from '../../foodSource.errors.js';
+import { makeBulkFoodBundle, makeBulkLookups } from '../bulk/__fixtures__/usdaBulk.fixtures.js';
+import { mapBulkFoodToCanonical } from '../bulk/usdaBulk.parser.js';
+import type { BulkPortionRow } from '../bulk/usdaBulk.types.js';
 import { UsdaSourceAdapter } from '../usda.adapter.js';
 import {
+    type UsdaPortionBody,
     makeAbortingFetch,
     makeJsonFetch,
     makeStatusFetch,
+    makeUsdaAliasAttributes,
     makeUsdaBrandedLabelBody,
     makeUsdaFoodDetailBody,
     makeUsdaSearchResultBody,
@@ -32,8 +38,112 @@ describe('UsdaSourceAdapter.searchByName', () => {
         const candidates = await adapter.searchByName('broccoli');
 
         expect(candidates).toHaveLength(2);
-        expect(candidates[0]).toEqual({ source: 'usda', externalKey: '171688', name: 'Broccoli, raw' });
+        expect(candidates[0]).toEqual({
+            source: 'usda',
+            externalKey: '171688',
+            name: 'Broccoli, raw',
+            lineageKey: null,
+        });
         expect(Object.keys(candidates[0] ?? {})).not.toContain('fdcId');
+    });
+
+    // USDA gives an updated food a new FDC id and keeps its NDB number, so a Foundation hit's NDB number links it to
+    // the item the seed pinned. Only a Foundation hit gets a key: SR Legacy is frozen, and an SR Legacy item often
+    // shares its NDB number with a different Foundation item (broccoli: 747447 and 170379 are both 11090).
+    it.each<[string, string | undefined, number | string | undefined, string | null]>([
+        ['a Foundation hit', 'Foundation', 11090, 'foundation:11090'],
+        ['a Foundation hit whose NDB number is a string', 'Foundation', '11090', 'foundation:11090'],
+        ['a Foundation hit with no NDB number', 'Foundation', undefined, null],
+        ['an SR Legacy hit with the same NDB number', 'SR Legacy', 11090, null],
+        ['an FNDDS hit', 'Survey (FNDDS)', 11090, null],
+        ['a Branded hit', 'Branded', 11090, null],
+        ['a hit with no data type', undefined, 11090, null],
+    ])('gives %s its lineage key', async (_label, dataType, ndbNumber, lineageKey) => {
+        const hit = {
+            fdcId: 747447,
+            description: 'Broccoli, raw',
+            ...(dataType === undefined ? {} : { dataType }),
+            ...(ndbNumber === undefined ? {} : { ndbNumber }),
+        };
+        const adapter = makeAdapter(makeJsonFetch(makeUsdaSearchResultBody({ foods: [hit], totalHits: 1 })));
+
+        const [candidate] = await adapter.searchByName('broccoli');
+
+        expect(candidate?.lineageKey).toBe(lineageKey);
+    });
+
+    // An item no admitted dataset covers can never be stored (R52), so it must never become a key: asking USDA for the
+    // admitted data types alone is what keeps it out of a batch. Pinned to exactly the four, so a change to the
+    // client's search statement turns this red here, where the datasets are. The data types travel in the search's
+    // JSON body (ADR-0055 point 1).
+    it('asks USDA for exactly the data types an admitted dataset covers', async () => {
+        const fetchFn = vi.fn(makeJsonFetch(makeUsdaSearchResultBody()));
+
+        await makeAdapter(fetchFn).searchByName('broccoli');
+
+        const sent = fetchFn.mock.calls[0]?.[1]?.body;
+
+        if (typeof sent !== 'string') {
+            throw new Error('The adapter sent no search body.');
+        }
+
+        const asked = z.object({ dataType: z.array(z.string()) }).parse(JSON.parse(sent)).dataType;
+
+        expect([...asked].sort()).toEqual(['Branded', 'Foundation', 'SR Legacy', 'Survey (FNDDS)']);
+    });
+});
+
+/**
+ * CURATED ALIASES (plan U2 / KTD-2) — the adapter is the boundary that carries USDA's alias table onto
+ * the source-agnostic candidate. Nothing downstream may see `foodAttributes` or `foodAttributeType`
+ * (FR-ADP-1/FR-IDN-2): the canonical field is `aliases`, a plain ordered list.
+ *
+ * Mutation lens: reds if the field is dropped, if the WWEIA category attribute leaks in as an alias, if
+ * a USDA-native term appears on the candidate, or if a food with no aliases yields anything but `[]`.
+ */
+describe('UsdaSourceAdapter — curated aliases (U2)', () => {
+    it('carries USDA additional descriptions onto the canonical candidate, in rank order', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch(
+                makeUsdaFoodDetailBody({
+                    foodAttributes: makeUsdaAliasAttributes(['sharp cheese', 'Tillamook', 'Longhorn']),
+                }),
+            ),
+        );
+
+        const candidate = await adapter.fetchByKey('171688');
+
+        expect(candidate.aliases).toEqual(['sharp cheese', 'Tillamook', 'Longhorn']);
+    });
+
+    it('surfaces no USDA-native attribute term on the canonical candidate', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch(makeUsdaFoodDetailBody({ foodAttributes: makeUsdaAliasAttributes(['Tillamook']) })),
+        );
+
+        const candidate = await adapter.fetchByKey('171688');
+
+        expect(Object.keys(candidate)).not.toContain('foodAttributes');
+        expect(Object.keys(candidate)).not.toContain('additionalDescriptions');
+        expect(candidate.aliases).not.toContain('Cheese');
+    });
+
+    it('yields an empty list for a food USDA publishes no aliases for (Foundation / SR Legacy)', async () => {
+        const adapter = makeAdapter(makeJsonFetch(makeUsdaFoodDetailBody()));
+
+        const candidate = await adapter.fetchByKey('171688');
+
+        expect(candidate.aliases).toEqual([]);
+    });
+
+    it('carries them through the BATCH path too — the one the fan-out worker uses', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch([makeUsdaFoodDetailBody({ foodAttributes: makeUsdaAliasAttributes(['Tillamook', 'Coon']) })]),
+        );
+
+        const [candidate] = await adapter.fetchByKeys(['171688']);
+
+        expect(candidate?.aliases).toEqual(['Tillamook', 'Coon']);
     });
 });
 
@@ -89,6 +199,79 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
         expect(candidate.portions).toEqual([{ label: '1 cup chopped', gramWeight: '91' }]);
     });
 
+    it.each<[string, UsdaPortionBody, string]>([
+        [
+            'an SR portion',
+            { gramWeight: 113, amount: 4, measureUnit: { name: 'undetermined' }, modifier: 'oz' },
+            '4 oz',
+        ],
+        [
+            'an FNDDS portion, by its description and never its portion code',
+            { gramWeight: 240, measureUnit: { name: 'undetermined' }, portionDescription: '1 cup', modifier: '10205' },
+            '1 cup',
+        ],
+    ])('labels %s with the amount USDA states', async (_case, portion, label) => {
+        const adapter = makeAdapter(makeJsonFetch(makeUsdaFoodDetailBody({ foodPortions: [portion] })));
+
+        const candidate = await adapter.fetchByKey('171688');
+
+        expect(candidate.portions.map((stored) => stored.label)).toEqual([label]);
+    });
+
+    it('skips a portion that states no measure, rather than storing a code or a bare unit', async () => {
+        const adapter = makeAdapter(
+            makeJsonFetch(
+                makeUsdaFoodDetailBody({
+                    foodPortions: [
+                        {
+                            gramWeight: 86,
+                            measureUnit: { name: 'undetermined' },
+                            portionDescription: 'Quantity not specified',
+                            modifier: '90000',
+                        },
+                        { gramWeight: 142, amount: 0, measureUnit: { name: 'undetermined' }, modifier: 'cup' },
+                    ],
+                }),
+            ),
+        );
+
+        const candidate = await adapter.fetchByKey('171688');
+
+        expect(candidate.portions).toEqual([]);
+    });
+
+    it.each<[string, BulkPortionRow, UsdaPortionBody]>([
+        [
+            'an SR row',
+            {
+                amount: '0.5',
+                measureUnitId: '9999',
+                portionDescription: '',
+                modifier: 'cup, chopped',
+                gramWeight: '45',
+            },
+            { amount: 0.5, measureUnit: { name: 'undetermined' }, modifier: 'cup, chopped', gramWeight: 45 },
+        ],
+        [
+            'a Foundation row, whose CSV amount reads `1.0`',
+            { amount: '1.0', measureUnitId: '1000', portionDescription: '', modifier: 'chopped', gramWeight: '91' },
+            { amount: 1, measureUnit: { name: 'cup' }, modifier: 'chopped', gramWeight: 91 },
+        ],
+        [
+            'an FNDDS row, whose CSV amount is blank and whose API amount is absent',
+            { amount: '', measureUnitId: '9999', portionDescription: '1 cup', modifier: '10205', gramWeight: '240' },
+            { measureUnit: { name: 'undetermined' }, portionDescription: '1 cup', modifier: '10205', gramWeight: 240 },
+        ],
+    ])('labels %s the same from the bulk file and the live API', async (_case, bulkRow, livePortion) => {
+        const bulk = mapBulkFoodToCanonical(makeBulkFoodBundle({ portions: [bulkRow] }), makeBulkLookups());
+        const live = await makeAdapter(
+            makeJsonFetch(makeUsdaFoodDetailBody({ foodPortions: [livePortion] })),
+        ).fetchByKey('171688');
+
+        expect(bulk?.portions).toHaveLength(1);
+        expect(live.portions).toEqual(bulk?.portions);
+    });
+
     it('maps a Branded record to kind=branded and carries the brand owner', async () => {
         const body = makeUsdaFoodDetailBody({
             dataType: 'Branded',
@@ -119,6 +302,7 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
         const adapter = makeAdapter(makeJsonFetch(body));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -132,6 +316,7 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
         const adapter = makeAdapter(makeJsonFetch(makeUsdaFoodDetailBody()));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('not-a-number');
         } catch (error) {
@@ -140,6 +325,33 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
 
         expect(isAdapterValidationError(thrown)).toBe(true);
     });
+});
+
+describe('UsdaSourceAdapter — the dataset a candidate cites (curated catalog plan U4, KTD-22)', () => {
+    it.each([
+        ['Foundation', 'usdaSrFoundation'],
+        ['SR Legacy', 'usdaSrFoundation'],
+        ['Survey (FNDDS)', 'usdaFndds'],
+        ['Branded', 'usdaBranded'],
+    ])('maps a %s item to the %s dataset', async (dataType, dataset) => {
+        const adapter = makeAdapter(makeJsonFetch(makeUsdaFoodDetailBody({ dataType })));
+
+        expect((await adapter.fetchByKey('171688')).dataset).toBe(dataset);
+    });
+
+    it.each([['Experimental'], [undefined]])(
+        'refuses an item of data type %s, which no admitted dataset covers (R52), naming the field',
+        async (dataType) => {
+            const adapter = makeAdapter(makeJsonFetch(makeUsdaFoodDetailBody({ dataType })));
+            const thrown = await adapter.fetchByKey('171688').then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+
+            expect(isAdapterValidationError(thrown)).toBe(true);
+            expect(isAdapterValidationError(thrown) ? thrown.field : undefined).toBe('dataType');
+        },
+    );
 });
 
 describe('UsdaSourceAdapter.fetchByKey — branded labelNutrients (per-serving panel, D-PERSERVING)', () => {
@@ -218,6 +430,7 @@ describe('UsdaSourceAdapter.fetchByKey — branded labelNutrients (per-serving p
         );
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('555001');
         } catch (error) {
@@ -233,6 +446,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeStatusFetch(429));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -247,6 +461,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeStatusFetch(404));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -261,6 +476,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeStatusFetch(503));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -275,6 +491,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeAbortingFetch());
 
         let thrown: unknown;
+
         try {
             await adapter.searchByName('broccoli');
         } catch (error) {
@@ -291,6 +508,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeJsonFetch({ totalHits: 1, foods: [{ description: 'no fdcId' }] }));
 
         let thrown: unknown;
+
         try {
             await adapter.searchByName('broccoli');
         } catch (error) {

@@ -1,166 +1,139 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web collection member row (W5 Task 9, C3). Covers every state the row adds on top
- * of the shared `RecipeCard` — the source-indicator (owner-added/protected vs from-source/will-sync), the
- * `by @handle` attribution (present/absent), the card-composed fields (title, calories, version badge past
- * v1, visibility) — plus select/remove reporting and the mandatory double-fire guard (Remove must never also
- * fire `onSelect`, since the two are sibling controls, not nested).
+ * A collection's member (`docs/design/uiOverhaul/buildSpec.md` §5.2): the shared `RecipeCard`, as a list row or a grid
+ * card, with its source label ("Added by you" or "From the original collection") on the row's last line and a trailing ⋯
+ * menu — Open recipe, Remove from collection. The card is one link; the menu sits beside it, never inside, so one press
+ * cannot do both. Removing here only ASKS: the screen hides the row and offers Undo (`useMemberRemoval`).
+ *
+ * ⚠️ REWRITTEN for slice 5. The row used to be a bespoke arrangement with a text "Remove" button beside the title; the
+ * remove control is now a menu item, the card is the shared one, and the source label moved to the last line.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-
 import { RecipeCollectionAddedVia } from '@kitchensink/recipe-core';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { LocaleProvider } from '@commise/i18n/react';
 
 import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
 import { CollectionMemberRow } from '../CollectionMemberRow.js';
-import type { CollectionMemberRowProps } from '../model.js';
+import type { CollectionMemberRowProps } from '../detailModel.js';
 
 afterEach(cleanup);
 
-const noop = () => undefined;
+if (typeof Element !== 'undefined') {
+    // jsdom implements neither pointer capture nor scrollIntoView, which Radix's menu calls on open.
+    Element.prototype.hasPointerCapture ??= (): boolean => false;
+    Element.prototype.releasePointerCapture ??= (): void => undefined;
+    Element.prototype.scrollIntoView ??= (): void => undefined;
+}
 
-function renderRow(overrides: Partial<CollectionMemberRowProps> = {}) {
+function renderRow(over: Partial<CollectionMemberRowProps> = {}) {
     const props: CollectionMemberRowProps = {
-        member: makeCollectionMemberRecipe(),
-        onSelect: noop,
-        onRemove: noop,
-        ...overrides,
+        member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Pasta' }),
+        variant: 'row',
+        onSelect: vi.fn(),
+        onRemove: vi.fn(),
+        ...over,
     };
-    render(<CollectionMemberRow {...props} />);
+
+    render(
+        <LocaleProvider locale="en">
+            <CollectionMemberRow {...props} />
+        </LocaleProvider>,
+    );
 
     return props;
 }
 
-describe('CollectionMemberRow (web) — source indicator', () => {
-    it('shows the owner-added/protected indicator when addedVia is manual', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ addedVia: RecipeCollectionAddedVia.MANUAL }) });
+describe.each(['row', 'grid', 'compact'] as const)('CollectionMemberRow (web, %s)', (variant) => {
+    it('draws the shared card in that variant, one link named by the title', () => {
+        renderRow({ variant, href: '/en/recipes/rec_1' });
+
+        expect(screen.getByRole('article', { name: 'Pasta' }).getAttribute('data-card-variant')).toBe(variant);
+        expect(screen.getByRole('link', { name: 'Pasta' }).getAttribute('href')).toBe('/en/recipes/rec_1');
+    });
+
+    it('says where the recipe came from: added by the cook, or from the original collection', () => {
+        const { unmount } = render(
+            <LocaleProvider locale="en">
+                <CollectionMemberRow
+                    member={makeCollectionMemberRecipe({ addedVia: RecipeCollectionAddedVia.MANUAL })}
+                    variant={variant}
+                    onSelect={vi.fn()}
+                    onRemove={vi.fn()}
+                />
+            </LocaleProvider>,
+        );
 
         expect(screen.getByText('Added by you')).toBeTruthy();
-        expect(screen.queryByText('From source collection')).toBeNull();
+        unmount();
+
+        for (const addedVia of [RecipeCollectionAddedVia.CLONE_SEED, RecipeCollectionAddedVia.PULL]) {
+            const view = render(
+                <LocaleProvider locale="en">
+                    <CollectionMemberRow
+                        member={makeCollectionMemberRecipe({ addedVia })}
+                        variant={variant}
+                        onSelect={vi.fn()}
+                        onRemove={vi.fn()}
+                    />
+                </LocaleProvider>,
+            );
+
+            expect(screen.getByText('From the original collection')).toBeTruthy();
+            view.unmount();
+        }
     });
 
-    it('shows the from-source/will-sync indicator when addedVia is clone_seed', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ addedVia: RecipeCollectionAddedVia.CLONE_SEED }) });
+    it('offers a ⋯ menu named for the recipe, beside the link and not inside it', () => {
+        renderRow({ variant, href: '/en/recipes/rec_1' });
+        const menu = screen.getByRole('button', { name: 'More actions for Pasta' });
 
-        expect(screen.getByText('From source collection')).toBeTruthy();
-        expect(screen.queryByText('Added by you')).toBeNull();
+        expect(menu.getAttribute('aria-haspopup')).toBe('menu');
+        expect(screen.getByRole('link', { name: 'Pasta' }).contains(menu)).toBe(false);
     });
 
-    it('shows the from-source/will-sync indicator when addedVia is pull', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ addedVia: RecipeCollectionAddedVia.PULL }) });
-
-        expect(screen.getByText('From source collection')).toBeTruthy();
-        expect(screen.queryByText('Added by you')).toBeNull();
-    });
-});
-
-describe('CollectionMemberRow (web) — by @handle', () => {
-    it('renders the by-@handle line when the member has an author handle', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ authorHandle: 'alexk' }) });
-
-        expect(screen.getByText('by @alexk')).toBeTruthy();
-    });
-
-    it('omits the by-@handle line when the member has no author handle (never "by @undefined")', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ authorHandle: undefined }) });
-
-        expect(screen.queryByText(/^by @/)).toBeNull();
-    });
-});
-
-describe('CollectionMemberRow (web) — composes RecipeCard (not a hand-rolled duplicate)', () => {
-    it('renders the title, version badge past v1, visibility, and calories via the shared RecipeCard', () => {
-        renderRow({
-            member: makeCollectionMemberRecipe({
-                title: 'Chicken Alfredo',
-                currentVersion: 3,
-                visibility: 'private',
-                status: 'published',
-                leadCaloriesPerServing: 520,
-            }),
-        });
-
-        expect(screen.getByText('Chicken Alfredo')).toBeTruthy();
-        expect(screen.getByLabelText('Version 3').textContent).toBe('v3');
-        expect(screen.getByText('Private')).toBeTruthy();
-        expect(screen.getByText('520 cal')).toBeTruthy();
-    });
-
-    it('hides the version badge at v1 and renders no calorie line when calories are absent (never 0)', () => {
-        renderRow({
-            member: makeCollectionMemberRecipe({ currentVersion: 1, leadCaloriesPerServing: undefined }),
-        });
-
-        expect(screen.queryByLabelText(/Version/)).toBeNull();
-        expect(screen.queryByText(/cal$/)).toBeNull();
-        expect(screen.queryByText('0 cal')).toBeNull();
-    });
-});
-
-describe('CollectionMemberRow (web) — select / remove', () => {
-    it('reports the recipe id upward when the select target is activated', async () => {
+    it('opens the menu with Open recipe and Remove from collection, and each reports what it asks for', async () => {
         const user = userEvent.setup();
-        const onSelect = vi.fn();
-        renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }), onSelect });
+        const props = renderRow({ variant });
 
-        await user.click(screen.getByRole('button', { name: 'Weeknight Pasta' }));
+        await user.click(screen.getByRole('button', { name: 'More actions for Pasta' }));
+        const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
 
-        expect(onSelect).toHaveBeenCalledWith('rec_1');
+        expect(items.map((item) => item.textContent)).toEqual(['Open recipe', 'Remove from collection']);
+
+        await user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Remove from collection' }));
+
+        await vi.waitFor(() => expect(props.onRemove).toHaveBeenCalledExactlyOnceWith({ id: 'rec_1', title: 'Pasta' }));
+        expect(props.onSelect).not.toHaveBeenCalled();
     });
 
-    it('reports the recipe id upward when the remove control is activated', async () => {
+    it('Open recipe selects it', async () => {
         const user = userEvent.setup();
-        const onRemove = vi.fn();
-        renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }), onRemove });
+        const props = renderRow({ variant });
 
-        await user.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
+        await user.click(screen.getByRole('button', { name: 'More actions for Pasta' }));
+        await user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Open recipe' }));
 
-        expect(onRemove).toHaveBeenCalledWith('rec_1');
+        await vi.waitFor(() => expect(props.onSelect).toHaveBeenCalledExactlyOnceWith('rec_1'));
+        expect(props.onRemove).not.toHaveBeenCalled();
     });
 
-    it('does NOT also fire onSelect when Remove is activated (double-fire guard — sibling controls, never nested)', async () => {
-        const user = userEvent.setup();
-        const onSelect = vi.fn();
-        const onRemove = vi.fn();
-        renderRow({
-            member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }),
-            onSelect,
-            onRemove,
-        });
+    it('opening the card from its title reports the selection and not a removal', () => {
+        const props = renderRow({ variant });
 
-        await user.click(screen.getByRole('button', { name: 'Remove Weeknight Pasta' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Pasta' }));
 
-        expect(onRemove).toHaveBeenCalledWith('rec_1');
-        expect(onSelect).not.toHaveBeenCalled();
-    });
-});
-
-/**
- * Remove is painted in the ERROR register — with the error hue, not coral.
- *
- * The control already labelled itself `text-error-dark` (#B1442B) but tinted its hover with `bg-coral/10`
- * (#E8917A) — two adjacent-but-different hues inside one control, and the wrong one for a destructive action:
- * coral is a brand accent (the mockups spend it on tags and warm highlights), `error` is the destructive
- * token, and the design system's own `destructive` Button tier already tints with `hover:bg-error/10`. The
- * native leaf never had the coral at all (`palette.error` text, no tint), so this was a WEB-ONLY drift.
- */
-describe('CollectionMemberRow (web) — Remove stays in the error register', () => {
-    it('tints Remove’s hover with the error token, never coral', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }) });
-        const className = screen.getByRole('button', { name: 'Remove Weeknight Pasta' }).className;
-
-        expect(className).toContain('text-error-dark');
-        expect(className).toContain('hover:bg-error/10');
-        expect(className).not.toContain('coral');
+        expect(props.onSelect).toHaveBeenCalledExactlyOnceWith('rec_1');
+        expect(props.onRemove).not.toHaveBeenCalled();
     });
 
-    it('leaves the non-destructive select target out of the error register entirely', () => {
-        renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }) });
-        const className = screen.getByRole('button', { name: 'Weeknight Pasta' }).className;
+    it('renders the host’s nutrition figure in the card’s meta', () => {
+        renderRow({ variant, nutrition: <span>612 cal</span> });
 
-        // The counterweight assertion: "no coral" must not be reachable by painting EVERYTHING error-toned.
-        expect(className).not.toContain('error');
-        expect(className).not.toContain('coral');
+        if (variant !== 'compact') {
+            expect(screen.getByText('612 cal')).toBeTruthy();
+        }
     });
 });

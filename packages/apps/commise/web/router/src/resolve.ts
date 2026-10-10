@@ -37,7 +37,14 @@ export interface RouteDecision {
     host?: string;
 }
 
-/** The routing-relevant slice of the viewer request: its URI and (for subdomain routing) its Host. */
+/**
+ * The routing-relevant slice of the viewer request: its URI and (for subdomain routing) its Host.
+ *
+ * @notWireShape A CloudFront Function EVENT, not one of our services' wire shapes. This module compiles into
+ *   `router.cff.js` and runs inside CloudFront, where the input is AWS's `event.request` — an API we do not
+ *   serve and could not publish a contract for (CODING_STANDARDS §15.3). It is narrowed to the two fields the
+ *   pure decision reads so the routing rule is testable without fabricating a whole CFF event.
+ */
 export interface RouteRequest {
     readonly uri: string;
     readonly host?: string;

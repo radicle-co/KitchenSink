@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * @module @commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2).
+ * @module @commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2). It is the recipe
+ * detail's hero (`RecipeHero`), so it is the screen's one photo surface (F2).
  *
  * Replaces the static photo grid with a swipeable, scroll-snap strip of slides, a dot-navigation strip
  * (shown only when there is more than one photo), and a full-screen lightbox opened by activating a slide.
@@ -15,13 +16,16 @@
  * B7: offscreen slides are `loading="lazy"` so a 10-photo recipe does not eagerly paint ~50 MB of
  * full-size originals; the lightbox image is eager (the user asked to see it). A service-side gallery
  * thumbnail rendition remains the fuller fix (tracked with the gallery projection) — out of scope here.
+ *
+ * @pattern Adapter over the house Radix `Dialog` for the lightbox — Radix owns the focus trap, Escape-to-dismiss,
+ *     background inert and focus-return to the activating slide; the open slide is local view state, not data.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useState, type FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 
 /** Props for {@link PhotoCarousel} — the recipe's photos (display order) and the recipe title for alt text. */
@@ -60,7 +64,10 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                                 alt={altFor(index)}
                                 loading={index === 0 ? 'eager' : 'lazy'}
                                 decoding="async"
-                                className="aspect-[4/3] w-full object-cover"
+                                // The hero box (`specRecipeAndWizard.md` S2.1): 4:3 on a phone, never taller than 40% of the
+                                // window, so the title stays on a sideways phone's first screen; 16:9 up to 480 px from
+                                // `md`. The photo crops (`object-cover`) rather than squeezing.
+                                className="aspect-[4/3] max-h-[min(40vh,480px)] w-full object-cover md:aspect-video"
                             />
                         </button>
                     </li>
@@ -81,7 +88,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                             >
                                 <span
                                     aria-hidden
-                                    className="block size-2.5 rounded-full bg-mist transition hover:bg-seafoam"
+                                    className="block size-2.5 rounded-full bg-line-divider transition hover:bg-action"
                                 />
                             </a>
                         </li>
@@ -91,7 +98,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
 
             <Dialog.Root open={activeIndex !== null} onOpenChange={(open) => !open && setActiveIndex(null)}>
                 <Dialog.Portal>
-                    <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/80" />
+                    <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                     <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <Dialog.Title className={srOnly}>
                             {activeIndex !== null ? altFor(activeIndex) : ''}
@@ -107,7 +114,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                             aria-label={detail.lightboxClose}
                             // Touch floor: `size-11` (44px) everywhere — this is overlay chrome on a
                             // full-screen image, so there is no desktop-density reason to shrink it.
-                            className="absolute right-4 top-4 flex size-11 items-center justify-center rounded-full bg-card/90 text-charcoal shadow-lg transition hover:bg-card"
+                            className="absolute right-4 top-4 flex size-11 items-center justify-center rounded-full bg-paper text-ink shadow-lg transition hover:bg-paper"
                         >
                             <span aria-hidden>×</span>
                         </Dialog.Close>

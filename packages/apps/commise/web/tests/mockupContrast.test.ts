@@ -7,7 +7,7 @@
  *
  * #113 moved two palette tiers in OKLCH and gave the pastel tiers dark labels, because a white label on a
  * filled accent was measuring as low as 1.88:1. The mockups were left behind: they still declared the
- * PRE-#113 hexes and still paired `text-white` with every fill (35 white labels against 4 charcoal), so all
+ * PRE-#113 hexes and still paired `text-on-action` with every fill (35 white labels against 4 charcoal), so all
  * six pastel/mid tiers failed AA on the page a designer or an agent opens to answer "what should this look
  * like?". A stale visual contract is not a cosmetic problem — it is a REGRESSION GENERATOR: every future
  * "match the mockups" pass faithfully re-introduces the defect the product just fixed, and does so with the
@@ -49,6 +49,7 @@ import { resolve } from 'node:path';
 import { compositeOver, contrastRatio } from '@commise/test-utils';
 import type { ContrastUse } from '@commise/test-utils';
 import { chart, palette, semantic } from '@commise/ui/colors';
+import { gradient, gradientCss } from '@commise/ui/tokens/gradients';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -92,7 +93,7 @@ const ACCENT_FILLS: readonly string[] = [
 /**
  * The colour the mockups' own base layer gives text that declares none: their `@layer base` rule is
  * `body { color: var(--color-charcoal) }`. Modelling it explicitly is what keeps an unlabelled span on a
- * filled accent from being silently skipped — inheriting charcoal onto `bg-seafoam` is a real 2.72:1.
+ * filled accent from being silently skipped — inheriting charcoal onto `bg-action` is a real 2.72:1.
  */
 const INHERITED_LABEL = 'charcoal';
 
@@ -101,7 +102,7 @@ const COLOR_TOKEN = /--color-([a-z-]+):\s*(#[0-9a-fA-F]{3,8})/g;
 
 /**
  * A RESTING-state Tailwind colour utility: the role, the tier it names, and an optional `/NN` opacity —
- * `bg-coral`, `text-white`, `from-white/12`, `to-seafoam/8`.
+ * `bg-coral`, `text-on-action`, `from-white/12`, `to-seafoam/8`.
  *
  * Variant-prefixed utilities (`hover:bg-coral`) do NOT match, on purpose: this file measures the resting
  * pair. Non-colour utilities that share a prefix (`text-sm`, `bg-gradient-to-br`, `to-transparent`) match the
@@ -151,6 +152,77 @@ describe('docs/mockups — design-token parity with @commise/ui', () => {
 
     it("README's extracted-token table quotes the shipped values", () => {
         expect(readmeColorTable()).toEqual(normalized(palette));
+    });
+});
+
+/**
+ * The CANVAS gradient is a third representation of the palette, and it is held to the same parity floor.
+ *
+ * All nine screens declare `--gradient-beach-glow` and paint it on `body`; the apps painted a flat colour
+ * instead (issue #145). `@commise/ui`'s `gradient.hero` is now the single definition both platforms consume —
+ * web through the emitted `--background-image-hero`, native through `AppCanvas`/`toNativeGradient` — so the
+ * archive and the token must agree, screen for screen. If they drift, one side is lying about what the app
+ * looks like, which is exactly the regression-generator problem this file exists to prevent.
+ *
+ * Comparison is normalized for case and inter-token whitespace only (the archive is minified, the composer
+ * pretty-prints); the angle, the stop order and every position are compared verbatim.
+ */
+describe('docs/mockups — canvas gradient parity with @commise/ui', () => {
+    /** Case/whitespace-insensitive form of a CSS gradient value. Pure. */
+    const normalizeGradient = (value: string): string =>
+        value
+            .toLowerCase()
+            .replace(/\s*,\s*/g, ',')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+    it.each(SCREENS)('%s declares the shipped beach-glow canvas ramp', (screen) => {
+        const declared = /--gradient-beach-glow:\s*(linear-gradient\([^;]+\))\s*;/.exec(read(`screens/${screen}`));
+
+        expect(declared, `${screen} declares no --gradient-beach-glow`).not.toBeNull();
+        expect(normalizeGradient((declared as RegExpExecArray)[1] as string)).toBe(
+            normalizeGradient(gradientCss(gradient.hero)),
+        );
+    });
+
+    it.each(SCREENS)('%s paints that ramp on its page, not a flat colour', (screen) => {
+        // The `body` rule is what makes the ramp the PAGE canvas rather than a decoration used somewhere.
+        expect(read(`screens/${screen}`)).toMatch(/body\s*\{[^}]*background:\s*var\(--gradient-beach-glow\)/);
+    });
+});
+
+/**
+ * Text sitting on the canvas gradient must clear WCAG 2.1 AA at EVERY stop, not just the lightest one.
+ *
+ * A gradient background is a moving target for contrast: the ramp's terminal tint is the darkest point of the
+ * page, so a foreground that passes on flat sand can fail at the far corner. This repo has a documented
+ * history of exactly that class of defect (a `text-action-text` tier measuring ~2.2:1 across ~37 sites, white on
+ * coral at 2.40), so replacing a flat canvas with a ramp is not allowed to be a contrast regression.
+ *
+ * The stops are read from the TOKEN, so re-toning the ramp re-runs the measurement automatically. Only
+ * foregrounds the design system actually places on the page canvas are checked: `foreground` is body copy and
+ * `slate` is secondary copy. `mist` is excluded because the archive's own token table designates it
+ * "Borders/dividers — hairline only, never text", and `seafoam` because it is a FILL tier whose label is
+ * white; both are asserted elsewhere and neither is a page-canvas text colour.
+ */
+describe('docs/mockups — text on the canvas gradient clears AA at both ends', () => {
+    const stops = gradient.hero.stops.map((stop) => stop.color);
+    const canvasText = { foreground: semantic.foreground, slate: palette.slate } as const;
+    const cases = Object.entries(canvasText).flatMap(([role, color]) =>
+        stops.map((stop) => [role, color, stop] as const),
+    );
+
+    it.each(cases)('%s text clears 4.5:1 on the %s stop of the canvas', (_role, color, stop) => {
+        expect(contrastRatio(color, stop)).toBeGreaterThanOrEqual(AA_FLOOR['normal-text']);
+    });
+
+    it('measures the DARKEST stop, so the worst case on the page is the one asserted', () => {
+        // Guards the measurement itself: if the ramp were re-toned so its terminal tint went darker than the
+        // floor allows, the loop above must be the thing that fails — not a case nobody generated.
+        const worst = Math.min(...stops.map((stop) => contrastRatio(semantic.foreground, stop)));
+
+        expect(worst).toBeGreaterThanOrEqual(AA_FLOOR['normal-text']);
+        expect(stops.length).toBeGreaterThanOrEqual(3);
     });
 });
 
@@ -259,7 +331,7 @@ function violationsIn(screen: string): readonly Violation[] {
     const found = new Map<string, Violation>();
 
     for (const element of document.querySelectorAll('*')) {
-        const use = useOf(element);
+        const use = contrastUseOf(element);
 
         if (use === undefined) {
             continue;
@@ -303,9 +375,9 @@ function violationsIn(screen: string): readonly Violation[] {
  *
  * A `currentColor` SVG is included because it is coloured by the very `text-*` utility this walk resolves:
  * the mockups' circular quick-action buttons are icon-ONLY, so skipping them would have missed
- * `text-white` on `bg-sky` (1.79:1) and on `bg-warning` (1.88:1) — under even the 3:1 graphic floor.
+ * `text-on-action` on `bg-sky` (1.79:1) and on `bg-warning` (1.88:1) — under even the 3:1 graphic floor.
  */
-function useOf(element: Element): ContrastUse | undefined {
+function contrastUseOf(element: Element): ContrastUse | undefined {
     if (ownText(element) !== '') {
         return 'normal-text';
     }
@@ -330,7 +402,7 @@ function ownText(element: Element): string {
  * The opaque colour(s) a reader sees behind the element's text, and the accent FILL the chain bottoms out on.
  *
  * The walk climbs self → ancestors, collecting each level's background layers, and stops at the first OPAQUE
- * one. Translucent layers above it are then composited back down, so a `text-charcoal` label on a
+ * one. Translucent layers above it are then composited back down, so a `text-ink` label on a
  * `from-white/12` glass pane over `bg-charcoal` is measured against the ~#464c4e a reader actually sees
  * rather than against charcoal. A gradient contributes ALL its stops as alternative backdrops, and the caller
  * scores the worst of them — a label that is legible at one end of a gradient and not the other is illegible.

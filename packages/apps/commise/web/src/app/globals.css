@@ -8,21 +8,61 @@
    theme import does NOT fix that, which a real `next build` shows and the file-shape guard alone cannot.
    Guarded by `tests/globalsCss.test.ts`; verified by grepping `.next/static/css` after a production build. */
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+/* Clerk's own styles live in the `clerk` layer (`CLERK_CSS_LAYER`) so that the role classes on its elements win: the
+   statement ranks the layer between `base` and `components`, below `utilities`. It must come BEFORE the theme import,
+   whose Tailwind import declares its own order, because the first ordering statement of a layer name fixes its place.
+   A bare `@layer` statement may precede an `@import`; any block rule may not. */
+@layer theme, base, clerk, components, utilities;
 @import '@commise/ui/theme.css';
 
 /* Tailwind v4 auto-scans THIS app's files but not workspace packages. The recipe UI (list, detail, form,
    discovery, collections, …) is rendered from the shared @commise/features-recipes building blocks, so
    scan their source too — otherwise the utility classes they use are never generated. */
 @source "../../../features/recipes/src/**/*.{ts,tsx}";
+/* The account surfaces (profile, danger zone, erase and close dialogs) render from @commise/features-account. */
+@source "../../../features/account/src/**/*.{ts,tsx}";
 /* The shared design-system components (e.g. @commise/ui/button) carry their own utility classes — scan
    their source too, or the Button's tier/surface classes are never generated. */
 @source "../../../ui/src/**/*.{ts,tsx}";
 
 @layer base {
+    /* The document is the scroller, so the reservation under the tab bar and the floating create button (88 px) is its
+       `scroll-padding-bottom`: a focused control scrolled into view is never left under them (WCAG 2.2 SC 2.4.11).
+       Keyed on the bar being in the page, so a page without it (sign-in, a focused task) reserves nothing; the bar is
+       `display: none` from 840, where `:has` still matches, so the value is reset there. Same numbers as `<main>`'s foot
+       in `HomeChrome.tsx`. */
+    html:has([data-tab-bar]) {
+        scroll-padding-bottom: calc(4rem + env(safe-area-inset-bottom) + 6.5rem);
+    }
+
+    @media (width >= 52.5rem) {
+        html:has([data-tab-bar]) {
+            scroll-padding-bottom: 0;
+        }
+    }
+
     body {
         font-family: var(--font-body);
-        background-color: var(--color-background);
-        color: var(--color-foreground);
+        /* The brand beach-glow canvas (issue #145). All nine wireframes paint their `body` with the SAME named
+           token — `--gradient-beach-glow`, which IS `@commise/ui`'s `gradient.hero` — while the app painted a
+           flat colour, so every surface read as a plain sand page. Applying it HERE, once, is what makes the
+           whole app (and every route added later) inherit the wash: the shell used to hand-spell its own
+           three-stop `bg-gradient-to-br` ramp, which covered only shell-hosted routes, left sign-in/sign-up
+           flat, and had already drifted from the token it duplicated (its mid/end tints were #F5F8FA and
+           #EDF5F8 against the wireframes' own #F0F7F4 and #E8F4F8). Tailwind v4 scans source files as TEXT,
+           comments included, so those classes are DESCRIBED here and never spelled out — writing one verbatim
+           regenerates the very utility this replaced.
+           `background-color` STAYS as the fallback beneath it — an unsupported or not-yet-painted canvas shows
+           sand rather than nothing, and it is what `prefers-contrast`/forced-colors modes fall back to.
+           Verified in the COMPILED stylesheet (`tests/__integration__/tailwindTheme.integration.test.ts`) and
+           in a real browser (`tests/e2e/visualRegression.spec.ts`) — a token that exists is not a token that
+           renders. Deliberately NOT `background-attachment: fixed`: the wireframes let the ramp span the whole
+           body box, so a long page stretches it exactly as they do. */
+        background-color: var(--color-canvas);
+        background-image: var(--background-image-hero);
+        /* Guarantees the ramp fills the viewport even when the document is shorter than one screen. */
+        min-height: 100vh;
+        color: var(--color-ink);
     }
 }
 
@@ -64,5 +104,24 @@
     to {
         opacity: 1;
         transform: none;
+    }
+}
+
+/* The `@commise/ui/pending-bar` reveal: a ZERO-length opacity animation whose `both` fill holds the bar invisible
+   through the `animation-delay` the component sets inline from `PENDING_BAR_DELAY_MS` (single-sourced there, not
+   here). It is a delay, not motion, so it is applied WITHOUT `motion-safe:` — a reduce-motion viewer needs the same
+   signal. Without this token the utility compiles to nothing and the bar paints on the first frame of every search
+   (asserted in `tailwindTheme.integration.test.ts`). */
+@theme {
+    --animate-pending-bar-reveal: pending-bar-reveal 0s linear both;
+}
+
+@keyframes pending-bar-reveal {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
     }
 }

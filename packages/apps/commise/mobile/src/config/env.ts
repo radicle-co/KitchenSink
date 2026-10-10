@@ -39,18 +39,31 @@ export const env = createEnv({
     client: {
         EXPO_PUBLIC_RECIPE_API_URL: endpointUrl,
         EXPO_PUBLIC_IDENTITY_API_URL: endpointUrl,
+        EXPO_PUBLIC_FOOD_API_URL: endpointUrl,
     },
 
     runtimeEnv: {
         EXPO_PUBLIC_RECIPE_API_URL: process.env.EXPO_PUBLIC_RECIPE_API_URL,
         EXPO_PUBLIC_IDENTITY_API_URL: process.env.EXPO_PUBLIC_IDENTITY_API_URL,
+        EXPO_PUBLIC_FOOD_API_URL: process.env.EXPO_PUBLIC_FOOD_API_URL,
     },
 
     /** A blank value is a missing value, not an origin. */
     emptyStringAsUndefined: true,
 
     onValidationError: (issues) => {
-        const names = [...new Set(issues.map((issue) => issue.path?.join('.')).filter(Boolean))].join(', ');
+        const names = [
+            ...new Set(
+                issues
+                    .map((issue) =>
+                        issue.path
+                            // A Standard Schema path segment is a key or a `{ key }` object; name the key either way.
+                            ?.map((segment) => String(typeof segment === 'object' ? segment.key : segment))
+                            .join('.'),
+                    )
+                    .filter(Boolean),
+            ),
+        ].join(', ');
 
         throw new Error(
             `Invalid environment variables: ${names}. ` +

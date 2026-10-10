@@ -19,6 +19,9 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { PgPoolProvider } from '../database/database.module.js';
 import type pg from 'pg';
+import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
+
+import { SeedOwnedFoodNotQueueableError } from './enqueue.errors.js';
 
 /** `LISTEN/NOTIFY` channel the Fargate consumer worker subscribes to. */
 const NOTIFY_CHANNEL = 'fetch_queued';
@@ -64,6 +67,7 @@ export class EnqueueEmitter {
 
         try {
             await client.query('BEGIN');
+            await this.refuseSeedOwned(client, [input.id]);
             await this.enqueueOne(client, input.id, input.requestedBy, input.reactivate ?? false);
             // pg_notify's channel cannot be a bound identifier, so the channel is a literal and the
             // food id is the bound payload (a string parameter — no SQL injection).
@@ -92,6 +96,10 @@ export class EnqueueEmitter {
 
         try {
             await client.query('BEGIN');
+            await this.refuseSeedOwned(
+                client,
+                input.foods.map((food) => food.id),
+            );
 
             // Acquire the per-id advisory locks in a consistent order so two overlapping batches can
             // never deadlock on opposite lock orderings.
@@ -114,6 +122,30 @@ export class EnqueueEmitter {
     }
 
     /**
+     * Refuse the whole publish when any id names a food the seed owns (KTD-12): the seed is that food's one writer,
+     * so a queued fetch could never land. Every route refuses such a food first; this is the writer's own check, so a
+     * caller that forgot cannot queue one. `seed_owned` is immutable after insert, so no later write can falsify it.
+     *
+     * @param client - The transaction-scoped pg client.
+     * @param ids - Every food id the publish names.
+     * @throws {SeedOwnedFoodNotQueueableError} for the first seed-owned id; the caller's transaction rolls back.
+     * @sideEffect Reads `food` and `food_item`.
+     */
+    private async refuseSeedOwned(client: pg.PoolClient, ids: readonly string[]): Promise<void> {
+        const seeded = await client.query<{ id: string }>(
+            `SELECT f.id FROM food f JOIN food_item i ON i.id = f.item_id
+              WHERE f.id = ANY($1::text[]) AND i.seed_owned
+              LIMIT 1`,
+            [ids],
+        );
+        const [first] = seeded.rows;
+
+        if (first !== undefined) {
+            throw new SeedOwnedFoodNotQueueableError(first.id);
+        }
+    }
+
+    /**
      * Record the distinct requester and upsert (or reactivate) the queue row for one id, within a
      * transaction. `request_count` is recomputed as the live distinct-requester count — never a raw `+1`.
      *
@@ -131,7 +163,7 @@ export class EnqueueEmitter {
     ): Promise<void> {
         // Serialize concurrent enqueues for the SAME id so the distinct-requester recompute below cannot
         // race on the committed `fetch_requesters` snapshot (FR-044). Released on COMMIT/ROLLBACK.
-        await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [id]);
+        await client.query(`SELECT pg_advisory_xact_lock($1, hashtext($2))`, [ADVISORY_LOCK_CLASSES.foodEnqueue, id]);
 
         await client.query(
             `INSERT INTO fetch_requesters (food_id, requester_id) VALUES ($1, $2)

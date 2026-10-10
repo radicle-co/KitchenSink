@@ -9,50 +9,62 @@
  */
 import { weekdayLabels } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { useContainerClass } from '@commise/ui/layout';
+import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../../../i18n/messages.js';
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
 
 /**
- * The meal-plan widget's skeleton placeholder (mobile).
+ * The meal-plan widget's skeleton placeholder (mobile): the week as seven equal tiles in one row (`buildSpec.md` §4.2).
+ *
+ * A phone draws the narrow name ("M") and a wider window the short one ("Mon"); each tile is announced by the full
+ * weekday. Seven equal tiles fit the narrowest phone, so there is no sideways scroller to hide days behind (F16).
  *
  * @returns The week strip's shape: real weekdays, no meals.
  */
 export function MealPlanWidgetSkeleton(): JSX.Element {
     const { home } = useMessages(mobileMessages);
     const locale = useLocale();
+    const { colors } = useTheme();
+    const shown = weekdayLabels(locale, useContainerClass() === 'narrow' ? 'narrow' : 'short');
 
     return (
-        <PlaceholderWidgetCard title={home.roadmap.titles['meal-plan']} comingSoonLabel={home.roadmap.comingSoon}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
-                {weekdayLabels(locale).map((day) => (
-                    <View key={day} style={styles.tile}>
-                        {/* The weekday name is REAL data — exposed, not hidden. */}
-                        <Text style={styles.day}>{day}</Text>
-                        {/* The meal thumbnail — the only unknown on this tile. */}
-                        <View style={styles.meal} />
+        <PlaceholderWidgetCard title={home.roadmap.titles['meal-plan']} soonLabel={home.roadmap.soon}>
+            <View style={styles.strip}>
+                {weekdayLabels(locale, 'long').map((day, index) => (
+                    <View
+                        key={day}
+                        accessible
+                        accessibilityLabel={day}
+                        style={[styles.tile, { borderColor: colors.lineDivider }]}
+                    >
+                        {/* The weekday is REAL data — announced by its full name. Only the meal is unknown. */}
+                        <Text style={[styles.day, { color: colors.inkMuted }]}>{shown[index]}</Text>
+                        {/* The meal thumbnail — the only unknown on this tile, so the only thing hidden. */}
+                        <View aria-hidden style={[styles.meal, { backgroundColor: colors.surfaceMuted }]} />
                     </View>
                 ))}
-            </ScrollView>
+            </View>
         </PlaceholderWidgetCard>
     );
 }
 
 const styles = StyleSheet.create({
-    strip: { flexDirection: 'row', gap: 12, paddingBottom: 4 },
+    strip: { flexDirection: 'row', gap: 2, marginHorizontal: -nativeTokens.spacing[1] },
     tile: {
-        width: 72,
+        flex: 1,
+        minWidth: 0,
         alignItems: 'center',
-        gap: 8,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.3)',
-        backgroundColor: 'rgba(255, 255, 255, 0.5)',
-        padding: 12,
+        gap: nativeTokens.spacing[2],
+        borderRadius: nativeTokens.radius.sm,
+        borderWidth: StyleSheet.hairlineWidth,
+        paddingVertical: nativeTokens.spacing[2],
+        paddingHorizontal: 2,
     },
-    day: { fontSize: 12, fontWeight: '500', color: palette.slate, letterSpacing: 1, textTransform: 'uppercase' },
-    meal: { width: 48, height: 48, borderRadius: 12, backgroundColor: palette.pearl },
+    day: { ...nativeTokens.type.caption },
+    meal: { width: '100%', maxWidth: 48, aspectRatio: 1, borderRadius: nativeTokens.radius.sm },
 });

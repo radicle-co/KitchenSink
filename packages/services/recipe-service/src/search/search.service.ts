@@ -66,6 +66,7 @@ export class SearchService {
             maxCookTime: params.maxCookTime,
             maxTotalTime: params.maxTotalTime,
             ...(foodFilter === undefined ? {} : { foodFilter }),
+            ...(params.scope === undefined ? {} : { scope: params.scope }),
             page,
             pageSize,
             sortBy,

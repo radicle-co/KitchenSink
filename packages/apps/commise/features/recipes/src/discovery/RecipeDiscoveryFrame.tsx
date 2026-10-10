@@ -132,9 +132,13 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
             </div>
         );
 
-    // Mounted empty and never unmounted by a body swap: this is the live region.
+    // Mounted empty and never unmounted by a body swap: this is the live region. When nothing was found the no-result
+    // heading below already shows the same sentence, so the line keeps ANNOUNCING it but stops showing it.
     const count = (
-        <p role="status" className="min-w-0 text-meta text-ink-muted tabular-nums lining-nums">
+        <p
+            role="status"
+            className={`min-w-0 text-meta text-ink-muted tabular-nums lining-nums${resultsSummary?.count === 0 ? ' sr-only' : ''}`}
+        >
             {resultsSummary === undefined ? '' : formatDiscoveryResultsSummary(resultsSummary, discovery, locale)}
         </p>
     );

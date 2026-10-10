@@ -83,6 +83,17 @@ describe('SearchService.searchRecipes', () => {
         );
     });
 
+    it("forwards scope 'community' to the DAL, and omits it when the request carries none", async () => {
+        const { dal, search } = fakeDal(dalResult());
+        const service = new SearchService(dal, NO_EXPANSION);
+
+        await service.searchRecipes(OWNER, undefined, { scope: 'community' });
+        await service.searchRecipes(OWNER, undefined, {});
+
+        expect(search.mock.calls[0]?.[0]).toMatchObject({ scope: 'community' });
+        expect(search.mock.calls[1]?.[0]).not.toHaveProperty('scope');
+    });
+
     it('honors explicit pagination + sort', async () => {
         const { dal, search } = fakeDal(dalResult());
         const params: RecipeSearchQuery = { page: 3, pageSize: 10, sortBy: RecipeSearchSortBy.TITLE };

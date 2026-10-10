@@ -244,21 +244,13 @@ export interface RecipeFormMessages {
     /** The same disclosure for a figure computed from the UPPER bound (R38). */
     readonly nutritionRangeDerivedHigh: string;
 
-    /** Resolution-status badge: awaiting resolution. */
-    readonly statusPending: string;
-    /** Resolution-status badge: not yet resolved. */
-    readonly statusUnresolved: string;
     /** Resolution-status badge: resolved to a catalog item. */
     readonly statusResolved: string;
-    /** Resolution-status badge: no catalog match found. */
-    readonly statusNotFound: string;
-    /** Resolution-status badge: resolution failed. */
-    readonly statusFailed: string;
     /**
      * Resolution-status badge: the U11 verification gate contradicted this line (plan U14 / R15).
      *
-     * ⛔ Distinct from every badge above. Those describe the FOOD LINK's lifecycle as food-service reports it;
-     * this one is OUR own doubt about the match, and it is the only status a cook can act on by re-picking.
+     * ⛔ Distinct from the lookup words (`rowState*`). Those describe the FOOD LINK's lifecycle as food-service
+     * reports it; this one is OUR own doubt about the match, and it is the only status a cook can act on by re-picking.
      */
     readonly statusNeedsReview: string;
     /**
@@ -267,23 +259,8 @@ export interface RecipeFormMessages {
      * wait; the total re-flows as verdicts land), which is what separates it from `statusNeedsReview`.
      */
     readonly statusPendingVerification: string;
-    /** U13 (D7/R9): the gate abstained over materially-different candidates — the pick affordance's badge. */
-    readonly statusAmbiguous: string;
     /** U13 (R20): another author's private food — details unavailable to this viewer, never an error. */
     readonly statusResolvedUnavailable: string;
-    /**
-     * A line whose food its AUTHOR withdrew (owner rulings 3 + 4).
-     *
-     * ⛔ Distinct copy from {@link statusResolvedUnavailable} and {@link statusNotFound}, because it is a
-     * distinct fact: unavailable means "exists, not served to you"; not-found means "no source ever had
-     * it"; this means "we had it and it was taken away". The line keeps its amount.
-     *
-     * ⛔ "Food removed", NOT "Ingredient removed" — the first draft said the latter and it is FALSE. The
-     * ingredient was not removed; it is right there with its quantity and unit intact. That is the
-     * exact claim the detail surface spends a sentence denying, and asserting it here — on the surface
-     * where a cook is most likely to act — was the worst place to say it.
-     */
-    readonly statusFoodRemoved: string;
     /**
      * A bound line whose food could not be read just now (plan 002 R2, R36).
      *
@@ -612,16 +589,10 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         nutritionRangeDerivedLow: 'Estimated from the lower amount of each stated range',
         nutritionRangeDerivedHigh: 'Estimated from the upper amount of each stated range',
 
-        statusPending: 'Resolving…',
-        statusUnresolved: 'Not resolved',
         statusResolved: 'Resolved',
-        statusNotFound: 'No match found',
-        statusFailed: 'Resolution failed',
         statusNeedsReview: 'Needs review',
         statusPendingVerification: 'Checking…',
-        statusAmbiguous: 'Needs a pick',
         statusResolvedUnavailable: 'Ingredient details unavailable',
-        statusFoodRemoved: 'Food removed',
         statusFoodUnreachable: 'Not loaded',
         statusFreeform: 'Your own wording',
 

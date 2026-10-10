@@ -24,8 +24,11 @@ export interface OutstandingWrite {
     /** The outbox record's sequence number: how its answer is recognised. */
     readonly seq: number;
     readonly kind: 'create' | 'update';
-    /** The draft the record carries — what the server holds once it syncs. */
-    readonly sent: RecipeFormValues;
+    /**
+     * The draft the record carries — what the server holds once it syncs. `undefined` for a record this editor did not
+     * queue ({@link LaneEvent} `tracked`): its body is unknown here, so its answer is adopted as the server states it.
+     */
+    readonly sent: RecipeFormValues | undefined;
     /**
      * Whether it FINISHES the edit — a Publish, or a published recipe's Save changes: its answer takes the cook to the
      * recipe. A checkpoint does not.
@@ -46,6 +49,15 @@ export interface LaneState {
      * synchronously, inside the exit — and must see it before the next render does.
      */
     readonly closed?: true;
+    /**
+     * A Discard that cannot finish yet (finding 2 of the 2026-10-10 review): `asking` while the outbox decides whether a
+     * create of this recipe stands in the way, `waiting` for the answer of one on the wire. No checkpoint runs and no
+     * device draft is written meanwhile, for `closed`'s reason. Only `waiting` can be taken back (Keep): by then nothing
+     * has been queued, whereas the outbox may already have removed a queued create while `asking`.
+     */
+    readonly discarding?: 'asking' | 'waiting';
+    /** The editor was left (unmounted) while a Discard waited: it finishes with no hand-off, for nobody is there. */
+    readonly left?: true;
 }
 
 /** What happened to the lane. */
@@ -57,12 +69,20 @@ export type LaneEvent =
           readonly sent: RecipeFormValues;
           readonly finishing: boolean;
       }
+    /**
+     * The outbox reported a record of this recipe on the wire that the lane does not hold: another editor of the same
+     * recipe queued it (an exit checkpoint, then Back and Forward). The lane waits on it, so its answer is this editor's.
+     */
+    | { readonly type: 'tracked'; readonly seq: number; readonly kind: OutstandingWrite['kind'] }
     | { readonly type: 'refusedInFlight'; readonly trigger: CheckpointTrigger }
     | { readonly type: 'synced'; readonly seq: number }
     | { readonly type: 'parked'; readonly seq: number }
     | { readonly type: 'withdrawn'; readonly seq: number }
     | { readonly type: 'deferredTaken' }
-    | { readonly type: 'closed' };
+    | { readonly type: 'closed' }
+    | { readonly type: 'discarding'; readonly phase: 'asking' | 'waiting' }
+    | { readonly type: 'discardCancelled' }
+    | { readonly type: 'left' };
 
 /** A lane with nothing outstanding. */
 export const EMPTY_LANE: LaneState = {};
@@ -121,6 +141,21 @@ export function laneReducer(state: LaneState, event: LaneEvent): LaneState {
             };
         }
 
+        case 'tracked':
+            // ⛔ Never over the lane's own write: that one's `sent` is what the server will hold.
+            return state.outstanding === undefined
+                ? {
+                      ...state,
+                      outstanding: {
+                          seq: event.seq,
+                          kind: event.kind,
+                          sent: undefined,
+                          finishing: false,
+                          parked: false,
+                      },
+                  }
+                : state;
+
         case 'refusedInFlight':
             return { ...state, deferred: strongerTrigger(state.deferred, event.trigger) };
 
@@ -141,8 +176,25 @@ export function laneReducer(state: LaneState, event: LaneEvent): LaneState {
             return rest;
         }
 
-        case 'closed':
-            return state.closed === true ? state : { ...state, closed: true };
+        case 'closed': {
+            const { discarding: _done, ...rest } = state;
+
+            return state.closed === true ? state : { ...rest, closed: true };
+        }
+
+        case 'discarding':
+            return state.closed === true || state.discarding === event.phase
+                ? state
+                : { ...state, discarding: event.phase };
+
+        case 'discardCancelled': {
+            const { discarding: _taken, ...rest } = state;
+
+            return state.discarding === 'waiting' ? rest : state;
+        }
+
+        case 'left':
+            return state.left === true ? state : { ...state, left: true };
 
         default: {
             const unreachable: never = event;
@@ -162,7 +214,7 @@ export interface LaneStore<A> {
     readonly subscribe: (listener: () => void) => () => void;
     /** Keep an answer for a record the lane has not recorded (yet): the outbox answered before the submit returned. */
     readonly keepEarly: (seq: number, answer: A) => void;
-    /** Be handed a kept answer the moment the lane records its record (`queued`). Returns the unsubscribe. */
+    /** Be handed a kept answer the moment the lane records its record (`queued`, `tracked`). Returns the unsubscribe. */
     readonly subscribeEarly: (listener: (answer: A) => void) => () => void;
 }
 
@@ -207,7 +259,8 @@ export function createLaneStore<A>(): LaneStore<A> {
                 }
             }
 
-            const kept = event.type === 'queued' ? early.find((entry) => entry.seq === event.seq) : undefined;
+            const recorded = event.type === 'queued' || event.type === 'tracked' ? event.seq : undefined;
+            const kept = recorded === undefined ? undefined : early.find((entry) => entry.seq === recorded);
 
             if (kept !== undefined) {
                 early = early.filter((entry) => entry !== kept);

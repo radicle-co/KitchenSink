@@ -57,11 +57,13 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
             .getByRole('option', { name: 'Salt', exact: true })
             .click();
 
-        // ⛔ The line lands in the group, read amount first with its preparation after the name. The reader stores the
-        // unit in its canonical spelling (`readLeadingMeasure`: "cups" is `cup`).
+        // ⛔ The line lands in the group, read amount first with its preparation after the name. REWRITTEN for owner
+        // ruling D21 (`ownerDecisions.md`): the row shows the cook's OWN amount and unit ("2 cups"), then the catalog
+        // food name, then the preparation. It used to show the reader's canonical unit ("2 cup"); that spelling is no
+        // longer shown, so the row's name and text carry the unit as typed.
         await expect(
-            page.getByRole('list', { name: 'For the marinade' }).getByRole('button', { name: 'Edit 2 cup Salt' }),
-        ).toHaveText('2 cupSalt · finely chopped');
+            page.getByRole('list', { name: 'For the marinade' }).getByRole('button', { name: 'Edit 2 cups Salt' }),
+        ).toHaveText('2 cupsSalt · finely chopped');
 
         await addStep(page, 'Marinate and grill.');
         await page.getByRole('button', { name: 'Publish' }).click();

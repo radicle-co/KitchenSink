@@ -78,23 +78,30 @@ describe('discardPlanOf', () => {
         });
     });
 
-    it('a new recipe with nothing sent: the device draft goes, and nothing else', () => {
-        expect(plan('unsaved', unsaved)).toEqual({
+    /**
+     * REWRITTEN (finding 2 of the 2026-10-10 review): a recipe the server may not hold yet is asked of the outbox
+     * whether this lane saw a create or not — another editor of the recipe may have queued one this lane never saw.
+     * The outbox drops a delete nothing can address, so "nothing sent" still sends nothing (`outboxLog.test.ts`).
+     */
+    it.each([
+        ['nothing sent from this editor', undefined],
+        ['a create on its way (queued or on the wire)', write({})],
+    ])('a new recipe with %s: the delete of its local ref is asked of the outbox', (_case, outstanding) => {
+        expect(plan('unsaved', unsaved, outstanding)).toEqual({
             draftRef: LOCAL,
             withdraw: undefined,
-            remove: undefined,
+            remove: {
+                kind: 'ofCreate',
+                intent: {
+                    entity: 'recipe',
+                    intentKind: 'delete',
+                    localId: LOCAL,
+                    dependsOn: [LOCAL],
+                    payload: { id: LOCAL },
+                },
+            },
             mayLeaveServerCopy: false,
             exit: { kind: 'discarded' },
-        });
-    });
-
-    it('a create on its way (queued or on the wire): a delete that waits for it, by its local ref', () => {
-        expect(plan('unsaved', unsaved, write({})).remove).toEqual({
-            entity: 'recipe',
-            intentKind: 'delete',
-            localId: LOCAL,
-            dependsOn: [LOCAL],
-            payload: { id: LOCAL },
         });
     });
 
@@ -119,11 +126,14 @@ describe('discardPlanOf', () => {
 
     it('a stored draft: deleted by its id, after any parked update is withdrawn', () => {
         const expected = {
-            entity: 'recipe',
-            intentKind: 'delete',
-            localId: 'rec_1',
-            dependsOn: [],
-            payload: { id: 'rec_1' },
+            kind: 'byId',
+            intent: {
+                entity: 'recipe',
+                intentKind: 'delete',
+                localId: 'rec_1',
+                dependsOn: [],
+                payload: { id: 'rec_1' },
+            },
         };
 
         expect(plan('neverPublished', stored())).toMatchObject({ withdraw: undefined, remove: expected });

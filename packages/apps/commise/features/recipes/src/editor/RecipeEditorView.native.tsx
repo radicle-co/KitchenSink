@@ -30,6 +30,7 @@ import {
     useScrollerDragHost,
 } from '@commise/ui/field-reveal';
 import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
+import { gutterOf } from '@commise/ui/container-class';
 import { useContainerClass, useKeyboardShown, usePinnedFooter } from '@commise/ui/layout';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
@@ -37,7 +38,7 @@ import { ScrollHost, useScrollHost, type ScrollBind } from '@commise/ui/scroll-h
 import { SectionIndex } from '@commise/ui/section-index';
 import { useTheme } from '@commise/ui/theme';
 import { useState, type FC } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { RecipeConflictView } from '../versions/RecipeConflictView.js';
 import { EditorActionBar } from './EditorActionBar.js';
@@ -97,6 +98,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
     const { colors } = useTheme();
     const host = useScrollHost();
     const wide = useContainerClass() === 'wide';
+    const gutter = gutterOf(useWindowDimensions().width);
     const pinning = usePinnedFooter();
     const keyboardShown = useKeyboardShown();
     // The field reveal reads the host's ONE scroller rather than holding a second handle to it (blueprint A7).
@@ -208,7 +210,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                 {...bind}
                                 onScrollBeginDrag={onScrollBeginDrag}
                                 style={styles.scroll}
-                                contentContainerStyle={styles.content}
+                                contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]}
                                 keyboardShouldPersistTaps="handled"
                                 onLayout={reveal.onViewportLayout}
                             >
@@ -260,6 +262,8 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                     keep={{ label: m.discard.keep }}
                     onConfirm={page.confirmDiscard}
                     onKeep={page.keepEditing}
+                    busy={page.discarding}
+                    busyLabel={m.discard.discarding}
                 />
             )}
         </KeyboardAvoider>
@@ -271,7 +275,12 @@ const styles = StyleSheet.create({
     frame: { flex: 1 },
     body: { flex: 1, flexDirection: 'row' },
     scroll: { flex: 1 },
-    content: { gap: nativeTokens.spacing[6], padding: nativeTokens.spacing[4], paddingBottom: nativeTokens.spacing[7] },
+    // The horizontal gutter is not here: it steps with the window (`gutterOf`), so the frame sets it at render.
+    content: {
+        gap: nativeTokens.spacing[6],
+        paddingTop: nativeTokens.spacing[4],
+        paddingBottom: nativeTokens.spacing[7],
+    },
     railFooter: { gap: nativeTokens.spacing[1] },
     caption: { ...nativeTokens.type.caption },
 });

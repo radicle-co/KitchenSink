@@ -114,20 +114,37 @@ export type ExclusiveAppend =
     /** A record of the same entity is on the wire; nothing was queued. */
     | { readonly kind: 'inFlight'; readonly seq: number }
     /** A record of the same entity is parked and waits for the cook; nothing was queued. */
-    | { readonly kind: 'parked'; readonly seq: number; readonly status?: number };
+    | { readonly kind: 'parked'; readonly seq: number; readonly status?: number }
+    /**
+     * The ref this create produces already resolved: the create happened, and the server holds the entity as
+     * `serverId`. Nothing was queued; the caller adopts the id.
+     */
+    | { readonly kind: 'resolved'; readonly serverId: string };
 
 /**
  * Queue an intent only when no other record of the same entity is on the wire or parked: the editor's one server write
  * per recipe (slice 7). A pending record of the same kind is replaced, losslessly, because the editor sends whole drafts.
+ * A delete is applied as {@link supersede} applies it, so a Discard learns whether it must wait for a create's answer:
+ * `inFlight` queues nothing, rather than a delete that would wait forever behind a create that parks.
  *
  * ⛔ DECIDED INSIDE THE SERIALIZED MUTATION, never by the caller reading the log first: a caller's check races the
  * drain's claim, and the second write would then 409 against the cook's own first one.
  *
+ * ⛔ A CREATE WHOSE REF IS ALREADY RESOLVED IS REFUSED, before anything else is asked. Its synced record has left the
+ * log, so nothing else stands in its way, and an editor that never heard the answer (reopened by Back and Forward while
+ * the create was on the wire) would otherwise create the recipe a second time.
+ *
  * @param log - The current log.
  * @param incoming - The intent to queue.
- * @returns The new log and the record's number, or which record stood in the way. Pure.
+ * @returns The new log and the record's number, which record stood in the way, or the id a create already made. Pure.
  */
 export function appendExclusive(log: OutboxLog, incoming: Intent): ExclusiveAppend {
+    const made = incoming.produces === undefined ? undefined : log.resolutions[incoming.produces];
+
+    if (made !== undefined) {
+        return { kind: 'resolved', serverId: made };
+    }
+
     const blocking = log.records.find(
         (record) =>
             record.entity === incoming.entity &&
@@ -147,7 +164,10 @@ export function appendExclusive(log: OutboxLog, incoming: Intent): ExclusiveAppe
         };
     }
 
-    return { kind: 'queued', seq: log.nextSeq, log: appendIntent(log, incoming) };
+    // A delete with nothing on the wire or parked supersedes what it makes moot: a create still queued goes with it.
+    const next = incoming.intentKind === 'delete' ? supersede(log, incoming) : appendIntent(log, incoming);
+
+    return { kind: 'queued', seq: log.nextSeq, log: next };
 }
 
 /**
@@ -288,6 +308,16 @@ export function supersede(log: OutboxLog, incoming: Intent): OutboxLog {
     // with the server id the create returns substituted for the ref in its payload.
     const produced = inFlight.flatMap((record) => (record.produces === undefined ? [] : [record.produces]));
     const dependsOn = [...incoming.dependsOn, ...produced.filter((ref) => !incoming.dependsOn.includes(ref))];
+
+    // ⛔ A DELETE NOTHING CAN EVER ADDRESS IS DROPPED. A ref no record still produces and no drain resolved names an
+    // entity the server never held; queued, the delete would wait pending for the rest of the session.
+    const unaddressable = dependsOn.some(
+        (ref) => log.resolutions[ref] === undefined && !survivors.some((record) => record.produces === ref),
+    );
+
+    if (unaddressable) {
+        return { ...log, records: survivors, nextSeq };
+    }
 
     return { ...log, records: [...survivors, { ...incoming, dependsOn, seq: log.nextSeq, state: 'pending' }], nextSeq };
 }

@@ -44,14 +44,9 @@ export const PasteStepsControl: FC<PasteStepsControlProps> = ({ onAdd }) => {
                 closeLabel={m.pasteStepsClose}
                 size="content"
                 footer={
-                    <View style={styles.footer}>
-                        <Button variant="ghost" onPress={() => paste.setOpen(false)}>
-                            {s.pasteCancel}
-                        </Button>
-                        <Button icon="plus" disabled={paste.steps.length === 0} onPress={paste.add}>
-                            {pluralOf(s.pasteAdd, paste.steps.length, locale)}
-                        </Button>
-                    </View>
+                    <Button icon="plus" width="fill" disabled={paste.steps.length === 0} onPress={paste.add}>
+                        {pluralOf(s.pasteAdd, paste.steps.length, locale)}
+                    </Button>
                 }
             >
                 <View style={styles.field}>
@@ -70,6 +65,5 @@ export const PasteStepsControl: FC<PasteStepsControlProps> = ({ onAdd }) => {
 };
 
 const styles = StyleSheet.create({
-    footer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: nativeTokens.spacing[2] },
     field: { gap: nativeTokens.spacing[1] },
 });

@@ -126,7 +126,11 @@ import {
     parseJobResponseSchema,
     parseProposalSchema,
 } from '../src/recipes/parseJobs.schema.js';
-import { RECIPE_SEARCH_SORT_BY, recipeSearchResponseSchema } from '../src/search/search.schema.js';
+import {
+    RECIPE_SEARCH_SCOPES,
+    RECIPE_SEARCH_SORT_BY,
+    recipeSearchResponseSchema,
+} from '../src/search/search.schema.js';
 import { restoreVersionResponseSchema } from '../src/versions/versions.schema.js';
 
 /**
@@ -866,6 +870,13 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
                     in: 'query',
                     description: 'Sort key.',
                     schema: z.enum(RECIPE_SEARCH_SORT_BY),
+                },
+                {
+                    name: 'scope',
+                    in: 'query',
+                    description:
+                        "Narrow to `community`: other cooks' public, published recipes (the caller's own are excluded). Absent keeps the default visibility.",
+                    schema: z.enum(RECIPE_SEARCH_SCOPES),
                 },
             ],
             responses: {

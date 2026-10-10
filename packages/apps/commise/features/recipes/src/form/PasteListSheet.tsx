@@ -34,13 +34,19 @@ export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, fai
             closeLabel={m.pasteListClose}
             size="content"
             footer={
-                <div className="flex flex-wrap justify-end gap-2">
-                    <Button variant="ghost" onPress={() => sheet.setOpen(false)}>
-                        {t.pasteCancel}
-                    </Button>
-                    <Button icon="plus" disabled={!canSubmit} busy={submitting} onPress={sheet.add}>
-                        {pluralOf(t.pasteAdd, lineCount, locale)}
-                    </Button>
+                /* Below 840 the primary fills the sheet and the × is the only way out; at 840+ a ghost Cancel sits beside a
+                    content-width primary (`buildSpec.md` §5.1, F11). */
+                <div className="flex flex-col gap-3 nav:flex-row nav:justify-end">
+                    <div className="hidden nav:block">
+                        <Button variant="ghost" onPress={() => sheet.setOpen(false)}>
+                            {t.pasteCancel}
+                        </Button>
+                    </div>
+                    <div>
+                        <Button icon="plus" width="fill" disabled={!canSubmit} busy={submitting} onPress={sheet.add}>
+                            {pluralOf(t.pasteAdd, lineCount, locale)}
+                        </Button>
+                    </div>
                 </div>
             }
         >

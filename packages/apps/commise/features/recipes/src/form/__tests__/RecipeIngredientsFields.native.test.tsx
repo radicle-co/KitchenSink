@@ -417,6 +417,20 @@ describe('RecipeIngredientsFields (native) — the ⋯ (§7.5.1)', () => {
         expect(dispatched).toEqual([{ kind: 'removeIngredient', key: expect.any(String) }]);
         expect(rowItems()).toHaveLength(2);
     });
+
+    it('Remove raises a focus request, and the next row’s open control takes it once (useFocusRequest)', () => {
+        const send = vi.mocked(AccessibilityInfo.sendAccessibilityEvent);
+        render(<StatefulLeaf initial={THREE} />);
+        send.mockClear();
+
+        choose('Flour', en.statusActionRemove);
+
+        const taken = send.mock.calls.filter(([, event]) => event === 'focus').map(([node]) => node as unknown as Node);
+        const target = screen.getByRole('button', { name: 'Edit 300 g Sugar' });
+
+        expect(taken.length).toBeGreaterThanOrEqual(1);
+        expect(taken.some((node) => node === target || node.contains(target))).toBe(true);
+    });
 });
 
 describe('RecipeIngredientsFields (native) — the row editor on a phone: a sheet (§7.5.2, §7.12)', () => {
@@ -436,6 +450,17 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
 
         fireEvent.click(within(sheet).getByRole('button', { name: en.rowDone }));
         expect(queryDialogTitled('Arborio rice')).toBeNull();
+    });
+
+    // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): the phone sheet's one primary fills it, and it has no Cancel.
+    it('the line editor sheet’s Done fills the sheet and the sheet has no Cancel', () => {
+        render(<StatefulLeaf initial={[RICE]} />);
+
+        press('Edit 300 g Arborio rice');
+        const sheet = dialogTitled('Arborio rice');
+
+        expect(within(sheet).getByRole('button', { name: en.rowDone }).style.alignSelf).toBe('stretch');
+        expect(within(sheet).queryByRole('button', { name: /cancel/i })).toBeNull();
     });
 
     /** 2026-10-09 review, High 3: "1/2" stored no amount and the field emptied when it lost focus. */

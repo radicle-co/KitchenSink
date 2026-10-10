@@ -14,8 +14,12 @@ import { SectionSwitch } from '../SectionSwitch.js';
  * own, so these tests render it inside a real `ScrollHost`.
  *
  * ⚠️ REWRITTEN when the switch's own `jumpToSection` was deleted for the host's: the behaviour asserted is the same,
- * now reached through the host, and the history state the host keeps (Next stores its router state there) is
- * asserted instead of the `null` the old jump wrote over it.
+ * now reached through the host.
+ *
+ * ⚠️ REWRITTEN AGAIN (code-reviewer High 4, 2026-10-09): the host records the hash with a `null` state, not the current
+ * `history.state`. Passing the state carried Next's internal `__NA` flag, so Next skipped its router sync, never learned
+ * the hash, and its next commit rewrote the URL without it. The press must therefore leave the state `null`; the host's
+ * own test (`ScrollHost.test.tsx`) pins the same contract from the other side.
  */
 
 /** The switch inside its screen's scroll host, as every page mounts it. */
@@ -60,7 +64,7 @@ describe('SectionSwitch (web)', () => {
     });
 
     it('a press scrolls the heading into view smoothly, focuses it, and replaces the hash', () => {
-        window.history.replaceState({ router: 'state' }, '');
+        window.history.replaceState({ __NA: true }, '');
         const replaceState = vi.spyOn(window.history, 'replaceState');
         const onJump = vi.fn();
         render(<SectionSwitch label="Recipe sections" sections={SECTIONS} onJump={onJump} />);
@@ -70,7 +74,7 @@ describe('SectionSwitch (web)', () => {
         const heading = document.getElementById('steps');
         expect(heading?.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
         expect(document.activeElement).toBe(heading);
-        expect(replaceState).toHaveBeenCalledWith({ router: 'state' }, '', '#steps');
+        expect(replaceState).toHaveBeenCalledWith(null, '', '#steps');
         expect(onJump).toHaveBeenCalledWith('steps');
     });
 

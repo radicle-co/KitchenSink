@@ -120,6 +120,8 @@ export interface EditorMessages {
         readonly mayBeSavedBodyTab: string;
         readonly confirm: string;
         readonly keep: string;
+        /** Said while a confirmed Discard waits for the recipe's create to answer (the confirm is busy). */
+        readonly discarding: string;
     };
 
     /** The inline alert above the action bar for a parked write. */
@@ -304,6 +306,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             mayBeSavedBodyTab: 'This recipe may already be saved. Discarding removes it from this tab only.',
             confirm: 'Discard',
             keep: 'Keep editing',
+            discarding: 'Discarding…',
         },
 
         failure: {

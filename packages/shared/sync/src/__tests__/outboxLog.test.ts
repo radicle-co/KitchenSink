@@ -441,6 +441,97 @@ describe('supersede — a record being sent', () => {
     });
 });
 
+/**
+ * The editor's Discard of a recipe the server may not hold yet (finding 2 of the 2026-10-10 review). Its delete names the
+ * create's local ref, and only the outbox knows, inside its serialized mutation, whether that create is still queued
+ * (remove both), on the wire (wait for its answer: nothing is queued), parked (the cook's consent withdraws it), or
+ * already synced (delete the id it made).
+ */
+describe('appendExclusive — a delete of a recipe its create may still be making', () => {
+    const REF = 'local:recipe:d';
+    const create = intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF });
+    const remove = intent({
+        entity: 'recipe',
+        intentKind: 'delete',
+        localId: REF,
+        dependsOn: [REF],
+        payload: { id: REF },
+    });
+
+    it('⛔ a create on the wire: reports it and queues NOTHING — no delete waits on a create that may park', () => {
+        const sending = markSending(appendIntent(EMPTY, create), 1);
+
+        expect(appendExclusive(sending, remove)).toStrictEqual({ kind: 'inFlight', seq: 1 });
+    });
+
+    it('a create still queued: both go, and nothing is left to send', () => {
+        const result = appendExclusive(appendIntent(EMPTY, create), remove);
+
+        expect(result.kind).toBe('queued');
+        expect(result.kind === 'queued' ? result.log.records : undefined).toStrictEqual([]);
+    });
+
+    it('a parked create: reports it, for the caller to withdraw with the cook`s consent', () => {
+        const parked = settle(appendIntent(EMPTY, create), { seq: 1, outcome: 'parked', status: 400 });
+
+        expect(appendExclusive(parked, remove)).toStrictEqual({ kind: 'parked', seq: 1, status: 400 });
+    });
+
+    it('a create that already synced: the delete is queued, to be sent with the id the create made', () => {
+        const synced = settle(appendIntent(EMPTY, create), {
+            seq: 1,
+            outcome: 'synced',
+            serverId: 'rec_d',
+            produces: REF,
+        });
+        const result = appendExclusive(synced, remove);
+
+        expect(result.kind === 'queued' ? result.log.records.map((record) => record.intentKind) : []).toStrictEqual([
+            'delete',
+        ]);
+    });
+
+    it('⛔ no create anywhere and no id made: nothing is queued — that delete could never be sent', () => {
+        const result = appendExclusive(EMPTY, remove);
+
+        expect(result.kind === 'queued' ? result.log.records : undefined).toStrictEqual([]);
+    });
+});
+
+describe('supersede — a delete nothing can ever address', () => {
+    /**
+     * ⛔ A DELETE WAITING ON A REF NO RECORD PRODUCES AND NO DRAIN RESOLVED IS NEVER SENDABLE. Queued, it sat pending for
+     * the life of the session and kept "not synced" up. It names an entity the server never held, so it is moot.
+     */
+    it('⛔ drops a delete whose local ref nothing produces and nothing resolved', () => {
+        const after = supersede(
+            EMPTY,
+            intent({
+                entity: 'recipe',
+                intentKind: 'delete',
+                localId: 'local:recipe:z',
+                dependsOn: ['local:recipe:z'],
+            }),
+        );
+
+        expect(after.records).toStrictEqual([]);
+    });
+
+    it('keeps a delete whose ref resolved (one behind an in-flight create: `supersede — a record being sent`)', () => {
+        const resolved = supersede(
+            { ...EMPTY, resolutions: { 'local:recipe:z': 'rec_z' } },
+            intent({
+                entity: 'recipe',
+                intentKind: 'delete',
+                localId: 'local:recipe:z',
+                dependsOn: ['local:recipe:z'],
+            }),
+        );
+
+        expect(resolved.records.map((record) => record.intentKind)).toStrictEqual(['delete']);
+    });
+});
+
 describe('claimForSending', () => {
     it('marks a queued record sending', () => {
         const queued = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' }));
@@ -542,6 +633,46 @@ describe('appendExclusive', () => {
         expect(
             appendExclusive(settle(appendIntent(EMPTY, edit(1)), { seq: 1, outcome: 'parked' }), edit(2)),
         ).toStrictEqual({ kind: 'parked', seq: 1 });
+    });
+
+    /**
+     * Finding 1 of the 2026-10-10 review: Back queues the create, Forward reopens an editor that never saw its answer,
+     * and the create syncs and leaves the log. The reopened editor's next checkpoint built `create local:X` again, and
+     * nothing stood in its way: two recipes. The resolution IS the record that the create happened.
+     */
+    it('⛔ refuses a create whose ref is already resolved, answering the server id, and queues nothing', () => {
+        const create = intent({
+            entity: 'recipe',
+            intentKind: 'create',
+            localId: 'local:recipe:x',
+            produces: 'local:recipe:x',
+        });
+        const synced = settle(appendIntent(EMPTY, create), {
+            seq: 1,
+            outcome: 'synced',
+            serverId: 'rec_x',
+            produces: 'local:recipe:x',
+        });
+
+        expect(appendExclusive(synced, create)).toStrictEqual({ kind: 'resolved', serverId: 'rec_x' });
+        expect(appendExclusive(synced, { ...create, localId: 'local:recipe:y', produces: 'local:recipe:y' }).kind).toBe(
+            'queued',
+        );
+    });
+
+    it('⛔ answers the resolution before any record of the same entity that stands in the way', () => {
+        const create = intent({
+            entity: 'recipe',
+            intentKind: 'create',
+            localId: 'local:recipe:x',
+            produces: 'local:recipe:x',
+        });
+        const resolvedAndParked = settle(
+            { ...appendIntent(EMPTY, create), resolutions: { 'local:recipe:x': 'rec_x' } },
+            { seq: 1, outcome: 'parked' },
+        );
+
+        expect(appendExclusive(resolvedAndParked, create)).toStrictEqual({ kind: 'resolved', serverId: 'rec_x' });
     });
 
     it('ignores other entities and other recipes', () => {

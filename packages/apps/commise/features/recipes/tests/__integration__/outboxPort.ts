@@ -4,10 +4,13 @@
  *
  * The app composes the same pieces in `@commise/query/sync` (`SyncProvider` + `recipeSender`); this package cannot
  * depend on the app layer, so the suite builds the composition it needs from the domain package. Only `fetch` behind
- * the client is a double. The drain runs as soon as a write is queued, the way the provider's `submit` flushes.
+ * the client is a double. The drain runs as soon as a write is queued, the way the provider's `submit` flushes, and it
+ * claims each record through `claimForSending` as the provider does, so a record on the wire reads `sending` to the
+ * next submit. `setOnline(false)` holds every drain, as the provider does offline, until `setOnline(true)`.
  */
 import {
     appendExclusive,
+    claimForSending,
     createMemoryOutboxStore,
     drain,
     outboxMutatorFor,
@@ -84,19 +87,37 @@ export function makeOutboxPort(client: RecipeServiceClient): {
     readonly port: EditorWritePort;
     readonly idle: () => Promise<void>;
     readonly records: () => Promise<readonly OutboxRecord[]>;
+    readonly setOnline: (online: boolean) => void;
 } {
     const mutator = outboxMutatorFor(createMemoryOutboxStore(), 'user_cook');
     const listeners = new Set<(event: SettlementEvent<EditorWriteAnswer>) => void>();
     let draining: Promise<void> = Promise.resolve();
     let failures: EditorWritePort['failures'] = [];
+    let online = true;
 
     const flush = (): void => {
+        if (!online) {
+            return;
+        }
+
         draining = draining.then(async () => {
             const log = await mutator.read();
 
             await drain(log, (record) => send(client, record), {
                 journal: {
-                    claim: async () => true,
+                    claim: async (seq) => {
+                        let claimed = false;
+
+                        await mutator.mutate((current) => {
+                            const next = claimForSending(current, seq);
+
+                            claimed = next !== undefined;
+
+                            return next ?? current;
+                        });
+
+                        return claimed;
+                    },
                     settle: async (settlement) => {
                         const next = await mutator.mutate((current) => settle(current, settlement));
                         failures = next.records
@@ -168,5 +189,13 @@ export function makeOutboxPort(client: RecipeServiceClient): {
         },
     };
 
-    return { port, idle: () => draining, records: async () => (await mutator.read()).records };
+    return {
+        port,
+        idle: () => draining,
+        records: async () => (await mutator.read()).records,
+        setOnline: (next) => {
+            online = next;
+            flush();
+        },
+    };
 }

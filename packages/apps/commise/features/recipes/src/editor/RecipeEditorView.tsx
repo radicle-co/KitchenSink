@@ -27,6 +27,7 @@ import { useCallback, type FC } from 'react';
 import { RecipeConflictView } from '../versions/RecipeConflictView.js';
 import { readChromeInsets } from './chromeInsets.js';
 import { EditorActionBar } from './EditorActionBar.js';
+import { EDITOR_GUTTER } from './editorGutter.js';
 import { EditorHeader } from './EditorHeader.js';
 import { FailureAlert } from './FailureAlert.js';
 import { ResumeNotice } from './ResumeNotice.js';
@@ -145,7 +146,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                             )
                         }
                     />
-                    <div className="flex w-full max-w-list min-w-0 flex-1 flex-col gap-10 px-4 pt-6">
+                    <div className={`flex w-full max-w-list min-w-0 flex-1 flex-col gap-10 pt-6 ${EDITOR_GUTTER}`}>
                         {chrome.resumeBody !== undefined && (
                             <ResumeNotice
                                 body={chrome.resumeBody}
@@ -207,6 +208,8 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                     keep={{ label: m.discard.keep }}
                     onConfirm={page.confirmDiscard}
                     onKeep={page.keepEditing}
+                    busy={page.discarding}
+                    busyLabel={m.discard.discarding}
                 />
             )}
         </PopupInsetsContext>

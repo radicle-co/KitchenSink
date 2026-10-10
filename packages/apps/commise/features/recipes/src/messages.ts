@@ -611,7 +611,7 @@ export interface IngredientLineNameMessages {
      * The line's food is gone and took its name with it (`FOOD_REMOVED` with no name).
      *
      * ⛔ "Removed FOOD", never "Removed ingredient": the line is still in the recipe with its amount, and only its
-     * food was removed — the same ruling `recipeFormMessages`' `statusFoodRemoved` records.
+     * food was removed — the same ruling `recipeFormMessages`' `rowStateFoodRemoved` records.
      */
     readonly removedFood: string;
     /**

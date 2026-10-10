@@ -76,14 +76,24 @@ export interface DiscardInput {
 export type DiscardExit =
     { readonly kind: 'leftForRecipe'; readonly recipeId: string } | { readonly kind: 'discarded' };
 
+/** The delete a Discard queues, and how. */
+export type DiscardRemove =
+    /** The server holds the recipe: its delete goes behind whatever of it is still queued (`supersede`). */
+    | { readonly kind: 'byId'; readonly intent: Intent }
+    /**
+     * Only a create can have made it, and it may be queued, on the wire, parked, synced or never sent — which only the
+     * outbox knows. The delete is submitted exclusively (`appendExclusive`), and a create on the wire is waited for.
+     */
+    | { readonly kind: 'ofCreate'; readonly intent: Intent };
+
 /** What a Discard does. */
 export interface DiscardPlan {
     /** The device draft to drop. */
     readonly draftRef: string | undefined;
     /** The parked record to withdraw first: the cook's confirmed Discard is the consent it needs (ADR-0057). */
     readonly withdraw: number | undefined;
-    /** The delete to queue once the withdrawal is done, if the server holds (or will hold) the recipe. */
-    readonly remove: Intent | undefined;
+    /** The delete to queue once the withdrawal is done, if the server holds (or may come to hold) the recipe. */
+    readonly remove: DiscardRemove | undefined;
     /**
      * The only server state was a create whose outcome is unknown: it may exist on the server, and nothing can name it
      * to delete it. The container tells the cook before they confirm (code-reviewer High 1).
@@ -92,8 +102,13 @@ export interface DiscardPlan {
     readonly exit: DiscardExit;
 }
 
-/** A delete of the recipe the server knows as `id`; a local ref names the create it waits for. Pure. */
-function deleteOf(id: string): Intent {
+/**
+ * A delete of the recipe the server knows as `id`; a local ref names the create it waits for. Pure.
+ *
+ * @param id - The server id, or the create's local ref.
+ * @returns The intent.
+ */
+export function recipeDeleteIntent(id: string): Intent {
     // ⛔ A server id is never a dependency (`appendIntent` refuses it); a local ref is, so the delete drains after the
     // create and is sent with the id the create returns.
     return {
@@ -105,14 +120,27 @@ function deleteOf(id: string): Intent {
     };
 }
 
+/** The delete for a recipe the server knows as `serverId`, or that a create of `ref` may still make. Pure. */
+function removeOf(serverId: string | undefined, ref: string | undefined): DiscardRemove | undefined {
+    if (serverId !== undefined) {
+        return { kind: 'byId', intent: recipeDeleteIntent(serverId) };
+    }
+
+    return ref === undefined ? undefined : { kind: 'ofCreate', intent: recipeDeleteIntent(ref) };
+}
+
 /**
  * What a Discard does: a published recipe's device changes are dropped and nothing else; a recipe never published is
- * deleted through the outbox if the server holds it or a create is on its way to it.
+ * deleted through the outbox if the server holds it or a create may still make it.
  *
  * ⛔ A PARKED CREATE IS NOT ON ITS WAY. Withdrawing it removes the only record that could produce the server id, so a
  * delete naming its local ref would wait for it forever and "not synced" would never clear (code-reviewer High 1). No
  * delete is queued; if its outcome is unknown the recipe may exist on the server, and the plan says so rather than
  * guessing.
+ *
+ * ⛔ ANY OTHER RECIPE THE SERVER MAY NOT HOLD YET IS ASKED OF THE OUTBOX, whatever this editor's lane says: a create
+ * another editor of the recipe queued (an exit checkpoint, then Back and Forward) is invisible to this lane. The
+ * outbox removes a queued create, reports one on the wire to wait for, and queues nothing for a ref nothing produced.
  *
  * @param input - The lifecycle, the server facts, the ref, the outstanding write and its failure class.
  * @returns The plan. Pure.
@@ -133,13 +161,11 @@ export function discardPlanOf(input: DiscardInput): DiscardPlan {
 
     const parked = outstanding?.parked === true ? outstanding : undefined;
     const parkedCreate = serverId === undefined && parked?.kind === 'create';
-    const createOnItsWay = outstanding !== undefined && parked === undefined;
-    const target = serverId ?? (createOnItsWay ? ref : undefined);
 
     return {
         draftRef: ref,
         withdraw: parked?.seq,
-        remove: target === undefined ? undefined : deleteOf(target),
+        remove: removeOf(serverId, parkedCreate ? undefined : ref),
         mayLeaveServerCopy: parkedCreate && input.parkedFailure === 'unknown',
         exit: { kind: 'discarded' },
     };

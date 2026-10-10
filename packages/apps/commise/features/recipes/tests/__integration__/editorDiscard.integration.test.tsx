@@ -7,7 +7,9 @@
  * mobile, in AsyncStorage. The fake port in the unit tier cannot show a record STUCK in a journal; this tier can.
  */
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
-import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { RecipeStatus } from '@kitchensink/recipe-core';
+import { makeRecipeDetail } from '@kitchensink/recipe-core/testing';
+import { DEFAULT_REQUEST_TIMEOUT_MS, RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DraftStore } from '../../src/editor/draftStore.js';
@@ -47,7 +49,15 @@ function mountEditor(client: RecipeServiceClient) {
     const view = renderHook(() =>
         useRecipeEditor(
             {},
-            { locale: 'en', port: outbox.port, drafts: NO_DRAFTS, keep: 'disk', onExit, rebindLine: vi.fn() },
+            {
+                locale: 'en',
+                port: outbox.port,
+                drafts: NO_DRAFTS,
+                keep: 'disk',
+                onExit,
+                rebindLine: vi.fn(),
+                readRecipe: (id) => client.getRecipeById(id),
+            },
         ),
     );
 
@@ -109,5 +119,206 @@ describe('Discard while the create is parked (real outbox)', () => {
         await waitFor(async () => expect(await view.records()).toEqual([]));
         // One create was sent, and no delete ever was (the client's own `/health` probe after a refusal is not ours).
         expect(requests.filter((request) => request.includes('/api/v1/recipes'))).toEqual(['POST /api/v1/recipes']);
+    });
+});
+
+/**
+ * Discard while the create is ON THE WIRE (finding 2 of the 2026-10-10 review). Discard used to queue a delete behind
+ * the create and close; when the create then parked, nothing withdrew it, and the parked create and its delete stayed
+ * in the journal. Discard now waits for the create's answer. The create's response is held until the test releases it
+ * with the answer it chooses.
+ */
+describe('Discard while the create is on the wire (real outbox)', () => {
+    const RECIPE_ID = '00000000-0000-4000-8000-00000000c001';
+
+    /**
+     * A client whose first create waits for `answer`, and which answers a delete with 204. `timeoutMs` is the client's
+     * per-attempt timeout, raised above the Discard's bound by the test of that bound so the bound fires first.
+     */
+    function heldCreate(timeoutMs?: number) {
+        const requests: string[] = [];
+        let answer: (response: Response | Error) => void = () => undefined;
+        const held = new Promise<Response | Error>((resolve) => (answer = resolve));
+        const client = new RecipeServiceClient({
+            baseUrl: 'https://recipes.test',
+            token: 'tok',
+            ...(timeoutMs === undefined ? {} : { timeoutMs }),
+            fetch: async (input, init) => {
+                const request = new Request(input, init);
+                const path = new URL(request.url).pathname;
+
+                if (path === '/health') {
+                    return Response.json({});
+                }
+
+                requests.push(`${request.method} ${path}`);
+
+                if (request.method === 'DELETE') {
+                    return new Response(null, { status: 204 });
+                }
+
+                const response = await held;
+
+                if (response instanceof Error) {
+                    throw response;
+                }
+
+                return response;
+            },
+        });
+
+        return { client, requests, answer: (response: Response | Error) => answer(response) };
+    }
+
+    async function discardOnTheWire(service: ReturnType<typeof heldCreate>) {
+        const view = mountEditor(service.client);
+        act(() => {
+            view.result.current.setField('title', 'Soup');
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await waitFor(() => expect(service.requests).toEqual(['POST /api/v1/recipes']));
+
+        act(() => {
+            view.result.current.discard();
+        });
+        await waitFor(() => expect(view.result.current.discarding).toBe(true));
+
+        return view;
+    }
+
+    const ours = (requests: readonly string[]) => requests.filter((request) => request.includes('/api/v1/recipes'));
+
+    it('⛔ the create syncs: the recipe is deleted by its id, and the journal is left empty', async () => {
+        const service = heldCreate();
+        const view = await discardOnTheWire(service);
+
+        service.answer(
+            Response.json(makeRecipeDetail({ id: RECIPE_ID, title: 'Soup', status: RecipeStatus.DRAFT }), {
+                status: 201,
+            }),
+        );
+
+        await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
+        await waitFor(() =>
+            expect(ours(service.requests)).toEqual(['POST /api/v1/recipes', `DELETE /api/v1/recipes/${RECIPE_ID}`]),
+        );
+        await act(async () => {
+            await view.idle();
+        });
+        expect(await view.records()).toEqual([]);
+    });
+
+    it.each([
+        ['a dropped connection (unknown outcome)', () => new TypeError('Failed to fetch')],
+        ['a refusal', () => Response.json({ error: { code: 'VALIDATION' } }, { status: 400 })],
+    ])(
+        '⛔ the create parks after %s: it is withdrawn, no delete is sent, and the journal is left empty',
+        async (_case, make) => {
+            const service = heldCreate();
+            const view = await discardOnTheWire(service);
+
+            service.answer(make());
+
+            await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
+            await waitFor(async () => expect(await view.records()).toEqual([]));
+            expect(ours(service.requests)).toEqual(['POST /api/v1/recipes']);
+        },
+    );
+
+    /**
+     * The bound. A send that never answers parks at the client's own per-attempt timeout, which started before the
+     * press, so the bound is reached only when retries stretch a send past it; this client's timeout is raised to stand
+     * for that. Past the bound the delete waits behind the create, so a create that still syncs is deleted.
+     */
+    it('past the bound: the editor closes, and a create that syncs later is still deleted by its id', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+
+        try {
+            const service = heldCreate(10 * DEFAULT_REQUEST_TIMEOUT_MS);
+            const view = await discardOnTheWire(service);
+
+            await act(async () => {
+                vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
+            });
+            await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
+            expect(ours(service.requests)).toEqual(['POST /api/v1/recipes']);
+
+            service.answer(
+                Response.json(makeRecipeDetail({ id: RECIPE_ID, title: 'Soup', status: RecipeStatus.DRAFT }), {
+                    status: 201,
+                }),
+            );
+
+            await waitFor(() =>
+                expect(ours(service.requests)).toEqual(['POST /api/v1/recipes', `DELETE /api/v1/recipes/${RECIPE_ID}`]),
+            );
+            await waitFor(async () => expect(await view.records()).toEqual([]));
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('the editor is left while it waits: no hand-off, and a create that syncs later is still deleted', async () => {
+        const service = heldCreate();
+        const view = await discardOnTheWire(service);
+
+        view.unmount();
+        service.answer(
+            Response.json(makeRecipeDetail({ id: RECIPE_ID, title: 'Soup', status: RecipeStatus.DRAFT }), {
+                status: 201,
+            }),
+        );
+
+        await waitFor(() =>
+            expect(ours(service.requests)).toEqual(['POST /api/v1/recipes', `DELETE /api/v1/recipes/${RECIPE_ID}`]),
+        );
+        await waitFor(async () => expect(await view.records()).toEqual([]));
+        expect(view.onExit).not.toHaveBeenCalled();
+    });
+
+    it('a create still queued (offline): both go at once, and nothing is ever sent', async () => {
+        const service = heldCreate();
+        const view = mountEditor(service.client);
+        view.setOnline(false);
+        act(() => {
+            view.result.current.setField('title', 'Soup');
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await waitFor(async () => expect(await view.records()).toHaveLength(1));
+
+        act(() => {
+            view.result.current.discard();
+        });
+
+        await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
+        expect(await view.records()).toEqual([]);
+        view.setOnline(true);
+        await act(async () => {
+            await view.idle();
+        });
+        expect(ours(service.requests)).toEqual([]);
+    });
+
+    it('a new recipe nothing was sent for: the outbox queues no delete, and the journal stays empty', async () => {
+        const service = heldCreate();
+        const view = mountEditor(service.client);
+        act(() => {
+            view.result.current.setField('description', 'Below the draft floor: no create.');
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+
+        act(() => {
+            view.result.current.discard();
+        });
+
+        await waitFor(() => expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' }));
+        expect(await view.records()).toEqual([]);
+        expect(ours(service.requests)).toEqual([]);
     });
 });

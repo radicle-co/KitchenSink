@@ -19,7 +19,10 @@ import type { RecipeEditorViewProps } from '../frameProps.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeEditorView } from '../RecipeEditorView.native.js';
 
-const { keyboard } = vi.hoisted(() => ({ keyboard: { shown: false } }));
+const { keyboard, win } = vi.hoisted(() => ({
+    keyboard: { shown: false },
+    win: { width: undefined as number | undefined },
+}));
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
@@ -27,6 +30,11 @@ vi.mock('react-native', async (importOriginal) => {
     return {
         ...actual,
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        // A window width a test sets; unset, the real one.
+        useWindowDimensions: () =>
+            win.width === undefined
+                ? actual.useWindowDimensions()
+                : { ...actual.useWindowDimensions(), width: win.width },
         // The on-screen keyboard, as `useKeyboardShown` reads it: a test sets `keyboard.shown` before rendering.
         Keyboard: {
             ...actual.Keyboard,
@@ -40,6 +48,7 @@ vi.mock('react-native', async (importOriginal) => {
 afterEach(() => {
     cleanup();
     keyboard.shown = false;
+    win.width = undefined;
 });
 
 /** Says whether its section is the one the cook is in, as a leaf reads it. */
@@ -70,6 +79,30 @@ function view(editor: UseRecipeEditorResult, over: Partial<RecipeEditorViewProps
         </LocaleProvider>
     );
 }
+
+describe('the content gutter (buildSpec §1.2)', () => {
+    /** The first ancestor of the Details heading that pads its content, i.e. the scroller's content container. */
+    const paddingOf = (): string => {
+        let node: HTMLElement | null = screen.getByRole('heading', { name: 'Details' });
+
+        while (node !== null && Number.parseFloat(getComputedStyle(node).paddingLeft) === 0) {
+            node = node.parentElement;
+        }
+
+        return node === null ? '' : getComputedStyle(node).paddingLeft;
+    };
+
+    it.each([
+        { width: 390, gutter: '16px' },
+        { width: 700, gutter: '24px' },
+        { width: 1000, gutter: '32px' },
+    ])('pads the content $gutter at a $width pt window', ({ width, gutter }) => {
+        win.width = width;
+        render(view(makeEditorResult()));
+
+        expect(paddingOf()).toBe(gutter);
+    });
+});
 
 describe('the native editor', () => {
     it('heads the screen with the task, and holds the four section headings in order', () => {
@@ -279,5 +312,30 @@ describe('section presence', () => {
         expect(screen.getByText('details: here')).toBeTruthy();
         expect(screen.getByText('ingredients: away')).toBeTruthy();
         expect(screen.getByText('steps: away')).toBeTruthy();
+    });
+});
+
+/**
+ * A confirmed Discard that waits for the recipe's create to answer (finding 2 of the 2026-10-10 review): the confirm
+ * stays open and busy, saying so in words, and Keep editing takes the discard back.
+ */
+describe('a Discard that waits for its create', () => {
+    it('keeps the confirm open, busy, saying "Discarding…"; Keep editing takes it back', () => {
+        const cancelDiscard = vi.fn();
+        const discard = vi.fn();
+        render(
+            view(makeEditorResult({ values: makeFilledRecipeFormValues(), discarding: true, cancelDiscard, discard })),
+        );
+
+        // The native dialog is announced as an interrupting `alert`, its title a heading (`ConfirmDialog.native`).
+        const dialog = screen.getByRole('alert');
+        expect(within(dialog).getByRole('heading', { name: 'Discard this draft?' })).toBeTruthy();
+        expect(within(dialog).getByText('Discarding…')).toBeTruthy();
+
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
+        expect(discard).not.toHaveBeenCalled();
+
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+        expect(cancelDiscard).toHaveBeenCalledTimes(1);
     });
 });

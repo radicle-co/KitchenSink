@@ -355,11 +355,12 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * deleted, not reclassified — `Field.native.tsx` (no importer), and `MoreActionsMenu` and `RecipeSourceTab` with the
  * dead source tabs. No component gained a layer statement.
  *
- * ⚠️ It went 93 → 94 on the shared working tree of the overhaul's review round. `GlassCard` was deleted (D12 keeps
- * glass off cards); `ServingScaleControl` arrived without a layer statement; and `[locale]/layout.tsx`'s `LocaleLayout`
- * entered the catalogue when the extractor stopped requiring JSX in a single-default-export file (a route segment).
+ * ⚠️ It stayed at 93 through the overhaul's review round, measured on the committed tree (CI at ea7f67b86). `GlassCard`
+ * was deleted (D12 keeps glass off cards) and `[locale]/layout.tsx`'s `LocaleLayout` entered the catalogue when the
+ * extractor stopped requiring JSX in a single-default-export file (a route segment). A 94 projected from the shared
+ * working tree mid-round was never the committed count.
  */
-const LAYER_UNSTATED_CENSUS = 94;
+const LAYER_UNSTATED_CENSUS = 93;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

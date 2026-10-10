@@ -64,7 +64,7 @@ describe('recipeIdPagesOf', () => {
 
 describe('discoverySearchParams', () => {
     it('sends the sort with no query and no filter dimension when nothing is narrowed', () => {
-        expect(discoverySearchParams(criteria())).toEqual({ sortBy: RecipeSearchSortBy.RELEVANCE });
+        expect(discoverySearchParams(criteria())).toEqual({ scope: 'community', sortBy: RecipeSearchSortBy.RELEVANCE });
     });
 
     it('sends the trimmed query, every active filter and the sort', () => {
@@ -76,7 +76,18 @@ describe('discoverySearchParams', () => {
                     sortBy: RecipeSearchSortBy.QUICKEST,
                 }),
             ),
-        ).toEqual({ query: 'pad thai', tags: ['quick'], cuisine: 'Thai', sortBy: RecipeSearchSortBy.QUICKEST });
+        ).toEqual({
+            scope: 'community',
+            query: 'pad thai',
+            tags: ['quick'],
+            cuisine: 'Thai',
+            sortBy: RecipeSearchSortBy.QUICKEST,
+        });
+    });
+
+    it("⛔ always asks for the community scope — Discover is other cooks' public, published recipes, never the viewer's own", () => {
+        expect(discoverySearchParams(criteria()).scope).toBe('community');
+        expect(discoverySearchParams(criteria({ query: 'x', browseDismissed: true })).scope).toBe('community');
     });
 
     it('ignores whether browse was dismissed — leaving browse changes what renders, not what is fetched', () => {
@@ -117,11 +128,11 @@ describe('isDiscoveryBrowsing', () => {
 });
 
 describe('browseRailSearchParams', () => {
-    it('reads each rail at its own sort, capped to the teaser page', () => {
+    it('reads each rail at its own sort, capped to the teaser page, in the community scope', () => {
         expect(RECIPE_BROWSE_RAILS.map(browseRailSearchParams)).toEqual([
-            { sortBy: RecipeSearchSortBy.MOST_CLONED, pageSize: RECIPE_BROWSE_RAIL_PAGE_SIZE },
-            { sortBy: RecipeSearchSortBy.RECENT, pageSize: RECIPE_BROWSE_RAIL_PAGE_SIZE },
-            { sortBy: RecipeSearchSortBy.QUICKEST, pageSize: RECIPE_BROWSE_RAIL_PAGE_SIZE },
+            { scope: 'community', sortBy: RecipeSearchSortBy.MOST_CLONED, pageSize: RECIPE_BROWSE_RAIL_PAGE_SIZE },
+            { scope: 'community', sortBy: RecipeSearchSortBy.RECENT, pageSize: RECIPE_BROWSE_RAIL_PAGE_SIZE },
+            { scope: 'community', sortBy: RecipeSearchSortBy.QUICKEST, pageSize: RECIPE_BROWSE_RAIL_PAGE_SIZE },
         ]);
     });
 

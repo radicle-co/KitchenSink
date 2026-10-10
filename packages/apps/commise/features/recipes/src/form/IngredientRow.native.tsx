@@ -19,6 +19,7 @@
 import { ActionMenu } from '@commise/ui/action-menu';
 import { useBackIntercept } from '@commise/ui/back-intercept';
 import { Combobox } from '@commise/ui/combobox';
+import { useFocusRequest } from '@commise/ui/focus-request';
 import { Icon } from '@commise/ui/icon';
 import { useKeyboardHidden } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
@@ -28,7 +29,7 @@ import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
-import { useEffect, useEffectEvent, useRef, useState, type FC, type ReactNode } from 'react';
+import { useRef, useState, type FC, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -88,17 +89,8 @@ const OpenControl: FC<{
     const { colors, wash } = useTheme();
     const node = useRef<View>(null);
     const { requested, onHandled } = row.openFocus;
-    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
-    const acknowledge = useEffectEvent(() => onHandled());
 
-    useEffect(() => {
-        if (!requested) {
-            return;
-        }
-
-        moveScreenReaderFocus(node.current);
-        acknowledge();
-    }, [requested]);
+    useFocusRequest(requested, () => moveScreenReaderFocus(node.current), onHandled);
 
     return (
         <Pressable

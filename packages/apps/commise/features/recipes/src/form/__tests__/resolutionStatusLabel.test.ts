@@ -1,10 +1,13 @@
 /**
- * U14 — the badge copy for an ingredient line's resolution status, and the one status that is OURS.
+ * The badge copy for an ingredient line's resolution status (U14, F19 in `docs/design/uiOverhaul/evaluateFinal.md`).
  *
- * `resolutionStatusLabel` is an exhaustive switch with no default branch: a status added to the union is a
- * compile error rather than a line that renders a blank badge. That property is worth nothing if the test
- * only covers the five arms that existed when it was written, so this file asserts totality over the union
- * itself rather than over a hand-listed set.
+ * `resolutionStatusLabel` is an exhaustive switch with no default branch: a status added to the union is a compile
+ * error rather than a line that renders a blank badge. That property is worth nothing if the test only covers the
+ * arms that existed when it was written, so the table below is keyed over the union itself and a second test fails
+ * when the union grows past the table.
+ *
+ * The words are the glossary's (`buildSpec.md` §2.1): the page and the editor's rows say the same thing, so each
+ * status that the editor's row names reads the editor's own `rowState*` key, not a second copy of the word.
  */
 import { describe, expect, it } from 'vitest';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
@@ -14,80 +17,64 @@ import { resolutionStatusLabel } from '../props.js';
 
 const en = recipeFormMessages.en;
 
+/** Every status, and the exact word it must show. */
+const EXPECTED: Record<FoodResolutionStatus, string> = {
+    [FoodResolutionStatus.PENDING]: en.rowStateLookingUp,
+    [FoodResolutionStatus.UNRESOLVED]: en.rowStateChooseMatch,
+    [FoodResolutionStatus.RESOLVED]: en.statusResolved,
+    [FoodResolutionStatus.NOT_FOUND]: en.rowStateNoMatch,
+    [FoodResolutionStatus.FAILED]: en.rowStateLookupFailed,
+    [FoodResolutionStatus.NEEDS_REVIEW]: en.statusNeedsReview,
+    [FoodResolutionStatus.PENDING_VERIFICATION]: en.statusPendingVerification,
+    [FoodResolutionStatus.AMBIGUOUS]: en.rowStateChooseMatch,
+    [FoodResolutionStatus.RESOLVED_UNAVAILABLE]: en.statusResolvedUnavailable,
+    [FoodResolutionStatus.FOOD_REMOVED]: en.rowStateFoodRemoved,
+    [FoodResolutionStatus.FOOD_UNREACHABLE]: en.statusFoodUnreachable,
+};
+
+/** The words glossary §2.1 retires, and the other retired words the old catalogue carried. */
+const RETIRED = ['Needs a pick', 'Not resolved', 'Resolution failed', 'Resolving…', 'Resolving...'];
+
 describe('resolutionStatusLabel', () => {
-    it('gives every status in the union its own non-empty copy', () => {
-        const labels = Object.values(FoodResolutionStatus).map((status) => resolutionStatusLabel(en, status));
-
-        expect(new Set(labels).size).toBe(Object.values(FoodResolutionStatus).length);
-        expect(labels.every((label) => label.length > 0)).toBe(true);
+    it('is keyed over every status in the union', () => {
+        expect(Object.keys(EXPECTED).sort()).toEqual(Object.values(FoodResolutionStatus).sort());
     });
 
-    it('labels a gate-contradicted line NEEDS_REVIEW', () => {
-        expect(resolutionStatusLabel(en, FoodResolutionStatus.NEEDS_REVIEW)).toBe(en.statusNeedsReview);
+    it.each(Object.values(FoodResolutionStatus))('says the glossary word for %s', (status) => {
+        expect(resolutionStatusLabel(en, status)).toBe(EXPECTED[status]);
     });
 
-    it('labels a KTD-A pending line with its own calm copy, distinct from every other badge (plan U4c)', () => {
-        const label = resolutionStatusLabel(en, FoodResolutionStatus.PENDING_VERIFICATION);
+    it.each(Object.values(FoodResolutionStatus))('never says a retired word for %s', (status) => {
+        const label = resolutionStatusLabel(en, status);
 
-        expect(label).toBe(en.statusPendingVerification);
-        // ⛔ Not the food-lifecycle 'Resolving…' and not the actionable 'Needs review' — pending is OUR
-        // in-flight check with nothing for the cook to do yet.
-        expect(label).not.toBe(en.statusPending);
-        expect(label).not.toBe(en.statusNeedsReview);
-    });
-
-    it('⛔ does NOT reuse a food-lifecycle badge for it — the doubt is ours, and it is actionable', () => {
-        // `NOT_FOUND`/`FAILED` are terminal facts about the food link, which a cook can only respond to by
-        // going freeform. A contradicted line HAS a food and a figure; the cook's move is to re-pick, so the
-        // badge must not read like a dead end.
-        const label = resolutionStatusLabel(en, FoodResolutionStatus.NEEDS_REVIEW);
-
-        expect(label).not.toBe(en.statusNotFound);
-        expect(label).not.toBe(en.statusFailed);
-        expect(label).not.toBe(en.statusUnresolved);
-    });
-});
-
-describe('the U13 members', () => {
-    it('labels an AMBIGUOUS line with its own pick copy — never the disambiguation picker’s UNRESOLVED', () => {
-        const label = resolutionStatusLabel(en, FoodResolutionStatus.AMBIGUOUS);
-
-        expect(label).toBe(en.statusAmbiguous);
-        // ⛔ UNRESOLVED drives the candidate picker over a catalog row's own set; AMBIGUOUS is the gate's
-        // abstention over a ranked shortlist — reusing the copy would send a cook to the wrong affordance.
-        expect(label).not.toBe(en.statusUnresolved);
-        expect(label).not.toBe(en.statusNeedsReview);
-    });
-
-    it('labels a viewer-unavailable line with the details-unavailable copy — never an error tone', () => {
-        const label = resolutionStatusLabel(en, FoodResolutionStatus.RESOLVED_UNAVAILABLE);
-
-        expect(label).toBe(en.statusResolvedUnavailable);
-        expect(label).not.toBe(en.statusFailed);
-        expect(label).not.toBe(en.statusNotFound);
-    });
-
-    it('⛔ labels a REMOVED-food line distinctly from every neighbouring state', () => {
-        const label = resolutionStatusLabel(en, FoodResolutionStatus.FOOD_REMOVED);
-
-        expect(label).toBe(en.statusFoodRemoved);
-        // ⛔ NOT "details unavailable": that says the food EXISTS and is not served to this viewer — a
-        // privacy answer with nothing wrong. This says the food is gone for everyone, permanently.
-        expect(label).not.toBe(en.statusResolvedUnavailable);
-        // ⛔ NOT "not found": that means no wired source ever had it. This one we HAD, and its author
-        // withdrew it — which is why the line still knows its own name.
-        expect(label).not.toBe(en.statusNotFound);
-        expect(label).not.toBe(en.statusFailed);
-    });
-
-    it('⛔ labels an UNREACHABLE line as not loaded — never removed, missing or failed (plan 002 R2)', () => {
-        const label = resolutionStatusLabel(en, FoodResolutionStatus.FOOD_UNREACHABLE);
-
-        expect(label).toBe(en.statusFoodUnreachable);
         expect(label).toMatch(/\S/);
-        // An outage must never read as a permanent fact about the cook's recipe.
-        expect(label).not.toBe(en.statusFoodRemoved);
-        expect(label).not.toBe(en.statusNotFound);
-        expect(label).not.toBe(en.statusFailed);
+        expect(RETIRED).not.toContain(label);
+    });
+
+    it('spells the editor row’s words exactly (the glossary: Choose a match, No match found, Couldn’t look up)', () => {
+        expect(resolutionStatusLabel(en, FoodResolutionStatus.AMBIGUOUS)).toBe('Choose a match');
+        expect(resolutionStatusLabel(en, FoodResolutionStatus.NOT_FOUND)).toBe('No match found');
+        expect(resolutionStatusLabel(en, FoodResolutionStatus.FAILED)).toBe('Couldn’t look up');
+        expect(resolutionStatusLabel(en, FoodResolutionStatus.FOOD_REMOVED)).toBe('Food no longer listed');
+        expect(resolutionStatusLabel(en, FoodResolutionStatus.PENDING)).toBe('Looking it up…');
+    });
+
+    it('keeps the states a cook acts on apart from the ones that are only information', () => {
+        // A gate-contradicted line HAS a food: the cook's move is to re-pick, so it must not read like a dead end.
+        expect(resolutionStatusLabel(en, FoodResolutionStatus.NEEDS_REVIEW)).not.toBe(
+            resolutionStatusLabel(en, FoodResolutionStatus.NOT_FOUND),
+        );
+        // KTD-A's in-flight check is calm, and is not the lookup's own wait.
+        expect(resolutionStatusLabel(en, FoodResolutionStatus.PENDING_VERIFICATION)).not.toBe(
+            resolutionStatusLabel(en, FoodResolutionStatus.PENDING),
+        );
+        // An outage is never a permanent fact about the recipe, and a private food is not an error.
+        const outage = resolutionStatusLabel(en, FoodResolutionStatus.FOOD_UNREACHABLE);
+
+        expect(outage).not.toBe(resolutionStatusLabel(en, FoodResolutionStatus.FOOD_REMOVED));
+        expect(outage).not.toBe(resolutionStatusLabel(en, FoodResolutionStatus.FAILED));
+        expect(resolutionStatusLabel(en, FoodResolutionStatus.RESOLVED_UNAVAILABLE)).not.toBe(
+            resolutionStatusLabel(en, FoodResolutionStatus.FOOD_REMOVED),
+        );
     });
 });

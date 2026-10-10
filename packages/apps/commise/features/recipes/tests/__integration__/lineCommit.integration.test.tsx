@@ -172,6 +172,9 @@ function useEditForm(recipe: RecipeDetail, port: ReturnType<typeof makeOutboxPor
             keep: 'disk',
             onExit: () => undefined,
             rebindLine: (address, target) => rebind.mutateAsync(rebindRequestOf(address, target)),
+            readRecipe: async () => {
+                throw new Error('readRecipe: this suite`s recipe is stored from the start');
+            },
             pastePending: false,
         },
     );

@@ -688,6 +688,7 @@ describe('RecipeServiceClient — search & account', () => {
             page: 2,
             pageSize: 10,
             sortBy: 'relevance',
+            scope: 'community',
         };
         // ⚠️ RATCHET, and it must come first: every field is OPTIONAL, so a contract that grows a twelfth one
         // would leave this case quietly exercising eleven and reporting success. Asserting the INPUT covers the

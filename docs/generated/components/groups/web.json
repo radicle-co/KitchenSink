@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 79,
-        "implementations": 79,
-        "props": 101,
-        "documentedComponents": 76,
-        "implementationsWithModuleDoc": 60,
-        "implementationsWithComponentDoc": 59,
-        "documentedProps": 65,
-        "classifiedComponents": 34,
-        "componentsWithPatternTag": 25,
+        "components": 80,
+        "implementations": 80,
+        "props": 102,
+        "documentedComponents": 77,
+        "implementationsWithModuleDoc": 61,
+        "implementationsWithComponentDoc": 60,
+        "documentedProps": 66,
+        "classifiedComponents": 35,
+        "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -3481,7 +3481,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/profile",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Controlled Component — `checked` in, `onChange` out; the boolean draws the thumb, it selects no behaviour"
+            ],
             "platforms": [
                 "web"
             ],
@@ -3499,6 +3501,10 @@
                         {
                             "name": "module",
                             "text": "components/profile/ShortcutSwitchRow — Profile › Keyboard shortcuts (web only): the switch that turns the `/`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Controlled Component — `checked` in, `onChange` out; the boolean draws the thumb, it selects no behaviour"
                         }
                     ],
                     "description": "The keyboard-shortcuts switch row.",
@@ -3843,6 +3849,58 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/recipes/EditorStateFrame",
+            "name": "EditorStateFrame",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/recipes",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "EditorStateFrame",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/recipes/EditorStateFrame.tsx",
+                    "dir": "packages/apps/commise/web/src/components/recipes",
+                    "moduleDoc": "EditorStateFrame — the editor's loading and error states, in the editor's gutter.\n\nA focused task's `<main>` carries no gutter (the editor frame runs edge to edge and owns its own, F15), so a state\ndrawn before the frame exists would sit against the window's edge. This gives those states the frame's gutter.\n\nPresentational: `children → JSX`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "EditorStateFrame — the editor's loading and error states, in the editor's gutter."
+                        }
+                    ],
+                    "description": "The editor's page gutter around a state drawn before the editor itself.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The state to draw: a loading line or a load error.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/EditorStateFrame.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

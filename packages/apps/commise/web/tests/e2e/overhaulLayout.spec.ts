@@ -381,6 +381,30 @@ for (const [scheme, colors] of THEMES) {
                     expect(Math.round(bar?.left ?? -1)).toBe(Math.round(main?.x ?? -2));
                 });
 
+                // The editor's frame owns the page gutter (`<main>` gives a focused task none): 16 below 600, 24 from 600,
+                // 32 from 840 (`buildSpec.md` §1.2).
+                test('Editor: the content column keeps the page gutter for this width', async ({ page }) => {
+                    await seedLamb(page);
+                    await page.goto(route(`/recipes/${LAMB_ID}/edit`));
+
+                    const heading = page.getByRole('heading', { level: 2, name: 'Details' });
+                    await expect(heading).toBeVisible();
+                    const gutters = await heading.evaluate((node) => {
+                        const column = node.closest('section')?.parentElement;
+                        const style = column === null || column === undefined ? null : getComputedStyle(column);
+
+                        return style === null
+                            ? null
+                            : {
+                                  left: Number.parseFloat(style.paddingLeft),
+                                  right: Number.parseFloat(style.paddingRight),
+                              };
+                    });
+                    const expected = width < 600 ? 16 : width < 840 ? 24 : 32;
+
+                    expect(gutters).toEqual({ left: expected, right: expected });
+                });
+
                 // F18 — the 404 is the branded page: the large title and a primary Back to Home.
                 test('404: the large title and the primary Back to Home', async ({ page }) => {
                     await signInWithTicket(page);

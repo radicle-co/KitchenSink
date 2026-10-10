@@ -61,7 +61,7 @@
 import type { Locale } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import type { RecipeDetail, VersionConflictSide } from '@kitchensink/recipe-core';
-import { isVersionConflictError } from '@kitchensink/recipe-service-client';
+import { DEFAULT_REQUEST_TIMEOUT_MS, isVersionConflictError } from '@kitchensink/recipe-service-client';
 import {
     isLocalRef,
     mintLocalRef,
@@ -105,7 +105,7 @@ import {
     type EditorCoreState,
     type EditorCoreStore,
 } from '../editor/editorCore.js';
-import { recipeWriteIntent } from '../editor/editorIntents.js';
+import { recipeDeleteIntent, recipeWriteIntent, type DiscardPlan } from '../editor/editorIntents.js';
 import {
     conflictInfoOf,
     earlierParkedOf,
@@ -146,7 +146,9 @@ export type EditorWriteAnswer =
 export type EditorSubmitOutcome =
     | { readonly kind: 'queued'; readonly seq: number }
     | { readonly kind: 'inFlight'; readonly seq: number }
-    | { readonly kind: 'parked'; readonly seq: number; readonly status?: number };
+    | { readonly kind: 'parked'; readonly seq: number; readonly status?: number }
+    /** A create whose ref already resolved: the server holds the recipe as `serverId` (`appendExclusive`). */
+    | { readonly kind: 'resolved'; readonly serverId: string };
 
 /** A parked write, as the outbox reports it (the app's `ParkedFailure`, structurally). */
 export interface EditorParkedWrite extends SyncFailure {
@@ -213,6 +215,11 @@ export interface UseRecipeEditorOptions {
     /** Sends one rebind command: how Save changes drains a published recipe's held re-picks (`useRebindIngredientLine`). */
     readonly rebindLine: RebindLineSend;
     /**
+     * Reads the recipe the server holds as `id`: how the editor adopts a create another editor of the recipe made, whose
+     * answer it never heard (the outbox answers `resolved`). A cache read where the outbox's answer is already cached.
+     */
+    readonly readRecipe: (id: string) => Promise<RecipeDetail>;
+    /**
      * Whether a pasted list is still joining the draft: it holds the server create (`serverWriteFor`).
      *
      * @deprecated Pass {@link pasteHold} instead: a value passed here is copied through render, one render late.
@@ -265,6 +272,11 @@ export interface UseRecipeEditorResult {
      * confirm (code-reviewer High 1); the editor never guesses a delete for it.
      */
     readonly discardMayLeaveServerCopy: boolean;
+    /**
+     * A confirmed Discard waits for the recipe's create to answer before it finishes (it may have to withdraw it): the
+     * confirm shows it busy, and the editor stays mounted. Bounded by the request timeout.
+     */
+    readonly discarding: boolean;
     readonly setValues: (values: RecipeFormValues) => void;
     readonly setField: <K extends keyof RecipeFormValues>(field: K, value: RecipeFormValues[K]) => void;
     /** Apply one draft transition to the draft as it is when it lands. Stable. */
@@ -282,6 +294,11 @@ export interface UseRecipeEditorResult {
      * changes are dropped. The container confirms with the cook first.
      */
     readonly discard: () => void;
+    /**
+     * Take back a Discard that waits for its create (Keep, while the confirm is busy). Lossless: nothing has been queued
+     * or dropped yet. A no-op once the outbox is being asked, or when no Discard waits.
+     */
+    readonly cancelDiscard: () => void;
     /** The rebind command's port, for `useLineCommit`. */
     readonly lineCommand: LineCommandPort;
     /** Abandon an open conflict without resolving it (the conflict view's "Discard and close"). */
@@ -355,7 +372,10 @@ function lifecycleNow(ctx: EditorContext): RecipeLifecycle {
 
 /** Whether the editor has handed off: closed in the lane, which a same-tick trigger reads synchronously. */
 function isClosed(ctx: EditorContext): boolean {
-    return ctx.lane.get().closed === true;
+    const lane = ctx.lane.get();
+
+    // A Discard that waits to finish writes nothing either: the draft it is about to drop must not be written back.
+    return lane.closed === true || lane.discarding !== undefined;
 }
 
 /** The write the editor waits on as of now, an earlier session's parked record included. */
@@ -499,12 +519,23 @@ function drainHeld(ctx: EditorContext): boolean {
 function recordSubmit(
     ctx: EditorContext,
     outcome: EditorSubmitOutcome,
-    sent: Omit<OutstandingWrite, 'seq' | 'parked'> & {
+    sent: Pick<OutstandingWrite, 'kind' | 'finishing'> & {
+        readonly sent: RecipeFormValues;
         readonly trigger: CheckpointTrigger;
     },
 ): void {
+    if (outcome.kind === 'resolved') {
+        adoptResolved(ctx, outcome.serverId, sent.trigger);
+
+        return;
+    }
+
     if (outcome.kind === 'inFlight') {
         ctx.lane.dispatch({ type: 'refusedInFlight', trigger: sent.trigger });
+        // ⛔ The write on the wire may be another editor's of this recipe (an exit checkpoint, then Back and Forward):
+        // the lane waits on it, so its answer is adopted here and the deferred trigger runs against it. After the
+        // deferral, because a kept early answer is replayed at once and runs what was deferred.
+        ctx.lane.dispatch({ type: 'tracked', seq: outcome.seq, kind: sent.kind });
 
         return;
     }
@@ -650,12 +681,11 @@ function conflictFor(
     });
 }
 
-/** A synced answer for the outstanding write: the server facts move, and a finishing write hands off. @sideEffect */
-function adoptWritten(ctx: EditorContext, detail: RecipeDetail, pending: OutstandingWrite): void {
+/** The server holds `detail`: the server facts move, and the URL and the device draft follow its id. @sideEffect */
+function adoptServerFacts(ctx: EditorContext, detail: RecipeDetail, sent: RecipeFormValues | undefined): void {
     const previousRef = ctx.core.get().server.ref;
-    const wasPublished = lifecycleNow(ctx) === 'published';
 
-    ctx.core.dispatch({ type: 'written', detail, sent: pending.sent });
+    ctx.core.dispatch({ type: 'written', detail, sent });
 
     if (previousRef !== undefined && isLocalRef(previousRef)) {
         ctx.opts.onRecipeRef?.(detail.id);
@@ -664,6 +694,38 @@ function adoptWritten(ctx: EditorContext, detail: RecipeDetail, pending: Outstan
     if (previousRef !== undefined) {
         void ctx.opts.drafts.adopt(previousRef, { serverId: detail.id, version: detail.currentVersion });
     }
+}
+
+/**
+ * The outbox refused a create because its ref already resolved: an earlier editor of this recipe created it, and this
+ * one never heard the answer. Read the recipe the server holds, adopt it, and run the trigger again as an update.
+ *
+ * ⛔ Nothing is guessed: no version without the read. A read that fails (offline) leaves the editor unsaved, and the
+ * next checkpoint meets the same refusal and reads again — the recipe is never created twice. ⛔ Never a hand-off: this
+ * can answer an exit checkpoint after the editor has unmounted, where only the draft and the server may move.
+ *
+ * @sideEffect Reads the recipe, then moves the server facts and may submit an update.
+ */
+function adoptResolved(ctx: EditorContext, serverId: string, trigger: CheckpointTrigger): void {
+    void ctx.opts.readRecipe(serverId).then(
+        (detail) => {
+            // Another answer may have taught the editor the recipe while the read was out.
+            if (ctx.core.get().server.kind === 'stored' || detail.id !== serverId) {
+                return;
+            }
+
+            adoptServerFacts(ctx, detail, undefined);
+            runCheckpoint(ctx, trigger);
+        },
+        () => undefined,
+    );
+}
+
+/** A synced answer for the outstanding write: the server facts move, and a finishing write hands off. @sideEffect */
+function adoptWritten(ctx: EditorContext, detail: RecipeDetail, pending: OutstandingWrite): void {
+    const wasPublished = lifecycleNow(ctx) === 'published';
+
+    adoptServerFacts(ctx, detail, pending.sent);
 
     if (!pending.finishing) {
         return;
@@ -721,6 +783,12 @@ function onSettled(ctx: EditorContext, event: Settlement): void {
         if (event.entity === 'recipe') {
             ctx.lane.keepEarly(event.seq, event);
         }
+
+        return;
+    }
+
+    if (ctx.lane.get().discarding !== undefined) {
+        onDiscardSettled(ctx, event);
 
         return;
     }
@@ -965,9 +1033,9 @@ function retry(ctx: EditorContext): void {
     });
 }
 
-/** Discard, as `discardPlanOf` decides it. @sideEffect */
-function discard(ctx: EditorContext): void {
-    const plan = editorViewOf({
+/** What a Discard does as of now (`discardPlanOf`). */
+function discardPlanNow(ctx: EditorContext): DiscardPlan {
+    return editorViewOf({
         core: ctx.core.get(),
         lane: ctx.lane.get(),
         failures: ctx.opts.port.failures,
@@ -975,6 +1043,26 @@ function discard(ctx: EditorContext): void {
         keep: ctx.opts.keep,
         memento: ctx.memento,
     }).discard;
+}
+
+/**
+ * Discard, as `discardPlanOf` decides it. A recipe the server holds, or one nothing was ever sent for, finishes at once;
+ * a recipe only a create can have made asks the outbox first ({@link discardOfCreate}). @sideEffect
+ */
+function discard(ctx: EditorContext): void {
+    // A second press while one finishes.
+    if (isClosed(ctx)) {
+        return;
+    }
+
+    const plan = discardPlanNow(ctx);
+    const { remove } = plan;
+
+    if (remove?.kind === 'ofCreate') {
+        discardOfCreate(ctx, remove.intent);
+
+        return;
+    }
 
     ctx.lane.dispatch({ type: 'closed' });
 
@@ -984,13 +1072,184 @@ function discard(ctx: EditorContext): void {
 
     // The cook confirmed the discard, which is the consent a parked record needs before it may go.
     const cleared = plan.withdraw === undefined ? Promise.resolve() : ctx.opts.port.withdraw(plan.withdraw);
-    const { remove } = plan;
 
     if (remove !== undefined) {
-        void cleared.then(() => ctx.opts.port.submit(remove));
+        void cleared.then(() => ctx.opts.port.submit(remove.intent));
     }
 
     ctx.opts.onExit(plan.exit);
+}
+
+/**
+ * A Discard is done: the editor closes, the device drafts go, and — unless the cook already left — it hands off.
+ *
+ * @sideEffect Closes the lane, discards drafts and may navigate.
+ */
+function finishDiscard(ctx: EditorContext, refs: readonly (string | undefined)[]): void {
+    const { closed, left } = ctx.lane.get();
+
+    if (closed === true) {
+        return;
+    }
+
+    ctx.lane.dispatch({ type: 'closed' });
+
+    for (const ref of new Set(refs)) {
+        if (ref !== undefined) {
+            void ctx.opts.drafts.discard(ref);
+        }
+    }
+
+    if (left !== true) {
+        ctx.opts.onExit({ kind: 'discarded' });
+    }
+}
+
+/**
+ * Discard a recipe only a create can have made (finding 2 of the 2026-10-10 review). Only the outbox knows, inside its
+ * serialized mutation, what became of that create (`appendExclusive`): still queued, both go and the discard is done;
+ * parked, the cook's confirmed Discard is the consent to withdraw it; on the wire, NOTHING is queued and the editor
+ * waits for its answer, busy and mounted, so a create that parks is withdrawn rather than left in the outbox with no
+ * editor to withdraw it. The wait is bounded ({@link discardBoundPassed}).
+ *
+ * @sideEffect Submits to the outbox and moves the lane.
+ */
+function discardOfCreate(ctx: EditorContext, remove: Intent): void {
+    ctx.lane.dispatch({ type: 'discarding', phase: 'asking' });
+
+    void ctx.opts.port.submitExclusive(remove).then(
+        (outcome) => {
+            discardAnswered(ctx, remove, outcome);
+        },
+        () => {
+            // Storage refused the change, so the outbox is as it was: the cook's discard still drops the draft.
+            finishDiscard(ctx, [remove.localId]);
+        },
+    );
+}
+
+/** What the outbox said about a Discard's delete. @sideEffect */
+function discardAnswered(ctx: EditorContext, remove: Intent, outcome: EditorSubmitOutcome): void {
+    // The create's answer may have finished the discard while the outbox was asked.
+    if (ctx.lane.get().closed === true) {
+        return;
+    }
+
+    switch (outcome.kind) {
+        case 'inFlight':
+            if (ctx.lane.get().left === true) {
+                discardBehindCreate(ctx, remove);
+
+                return;
+            }
+
+            ctx.lane.dispatch({ type: 'discarding', phase: 'waiting' });
+            // After `waiting`, because a kept early answer is replayed at once and must find the discard waiting.
+            ctx.lane.dispatch({ type: 'tracked', seq: outcome.seq, kind: 'create' });
+
+            return;
+
+        case 'parked': {
+            const finish = (): void => {
+                finishDiscard(ctx, [remove.localId]);
+            };
+
+            void ctx.opts.port.withdraw(outcome.seq).then(finish, finish);
+
+            return;
+        }
+
+        case 'queued':
+        case 'resolved':
+            finishDiscard(ctx, [remove.localId]);
+
+            return;
+
+        default: {
+            const unreachable: never = outcome;
+
+            return unreachable;
+        }
+    }
+}
+
+/**
+ * The create a Discard waited for answered. Synced: the recipe is deleted by the id it got (both device drafts go: the
+ * outbox's draft observer moves the draft to that id on the same answer). Parked: withdrawn — its delete would wait
+ * forever — and nothing more; an unknown outcome may have left a copy, which the confirm already said.
+ *
+ * @sideEffect Submits to the outbox, withdraws, and finishes the discard.
+ */
+function onDiscardSettled(ctx: EditorContext, event: Settlement): void {
+    const ref = ctx.core.get().server.ref;
+
+    if (event.outcome === 'synced') {
+        const id = event.serverId ?? (event.answer?.kind === 'recipeWritten' ? event.answer.detail.id : undefined);
+
+        if (id !== undefined) {
+            void ctx.opts.port.submit(recipeDeleteIntent(id));
+        }
+
+        finishDiscard(ctx, [ref, id]);
+
+        return;
+    }
+
+    const finish = (): void => {
+        finishDiscard(ctx, [ref]);
+    };
+
+    void ctx.opts.port.withdraw(event.seq).then(finish, finish);
+}
+
+/**
+ * Finish a Discard whose create has not answered: its delete is queued behind it, depending on its ref (`supersede`),
+ * so a create that still syncs is deleted. A create that parks after this keeps its delete beside it until the session
+ * ends — the residual of a bounded wait.
+ *
+ * @sideEffect Submits to the outbox and finishes the discard.
+ */
+function discardBehindCreate(ctx: EditorContext, remove: Intent): void {
+    void ctx.opts.port.submit(remove).catch(() => undefined);
+    finishDiscard(ctx, [remove.localId]);
+}
+
+/** The bound on a Discard's wait passed: finish it behind the create. @sideEffect */
+function discardBoundPassed(ctx: EditorContext): void {
+    const { discarding, closed } = ctx.lane.get();
+    const { remove } = discardPlanNow(ctx);
+
+    if (closed === true || discarding === undefined) {
+        return;
+    }
+
+    if (discarding === 'waiting' && remove?.kind === 'ofCreate') {
+        discardBehindCreate(ctx, remove.intent);
+
+        return;
+    }
+
+    finishDiscard(ctx, [ctx.core.get().server.ref]);
+}
+
+/**
+ * The editor unmounted while a Discard waited (browser Back, the session ending): nobody is there to hand off to. A
+ * wait for a create finishes as the bound would; a question still with the outbox is finished by its answer.
+ *
+ * @sideEffect Moves the lane, and may submit and finish the discard.
+ */
+function discardLeft(ctx: EditorContext): void {
+    const { discarding, closed } = ctx.lane.get();
+
+    if (closed === true || discarding === undefined) {
+        return;
+    }
+
+    ctx.lane.dispatch({ type: 'left' });
+
+    if (discarding === 'waiting') {
+        discardBoundPassed(ctx);
+    }
 }
 
 // ── Conflict resolutions ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -1127,6 +1386,39 @@ function createEditorStores(seed: EditorSeed) {
     };
 }
 
+/**
+ * The bound on a Discard's wait for its create, and the editor leaving during it.
+ *
+ * ⛔ The bound is the request timeout the outbox's client already applies to each attempt (`DEFAULT_REQUEST_TIMEOUT_MS`),
+ * not a figure of the editor's own. The drain may retry a transient refusal past it, which the bound accepts.
+ *
+ * ⛔ The cleanup tells an unmount apart without a ref: the flag flips back only when the discard finishes (the lane
+ * closes) or is taken back (no longer discarding), so a cleanup that still finds it discarding is the editor leaving.
+ */
+function useDiscardBound(ctx: EditorContext, discarding: boolean): void {
+    const boundPassed = useEffectEvent((): void => {
+        discardBoundPassed(ctx);
+    });
+    const left = useEffectEvent((): void => {
+        discardLeft(ctx);
+    });
+
+    useEffect(() => {
+        if (!discarding) {
+            return undefined;
+        }
+
+        const timer = setTimeout(() => {
+            boundPassed();
+        }, DEFAULT_REQUEST_TIMEOUT_MS);
+
+        return () => {
+            clearTimeout(timer);
+            left();
+        };
+    }, [discarding]);
+}
+
 /** The idle timers: the device draft after a pause, a never-published draft's server checkpoint after a longer one. */
 function useIdleTimers(ctx: EditorContext, draft: RecipeFormValues, armed: boolean): void {
     const writeDeviceNow = useEffectEvent((): void => {
@@ -1245,6 +1537,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     const persistedKeys = useMemo(() => persistedLineKeysOf(serverValues?.ingredients ?? []), [serverValues]);
 
     useSettlements(ctx, opts.port);
+    useDiscardBound(ctx, lane.discarding !== undefined);
     useIdleTimers(ctx, core.draft, core.touched && view.status !== 'done');
     useCommandRunner(ctx, core, view.outstanding);
 
@@ -1285,6 +1578,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
             createSubmitted: view.outstanding?.kind === 'create',
         }),
         discardMayLeaveServerCopy: view.discard.mayLeaveServerCopy,
+        discarding: lane.discarding !== undefined,
         setValues,
         setField,
         dispatch,
@@ -1298,6 +1592,9 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         },
         discard: () => {
             discard(ctx);
+        },
+        cancelDiscard: () => {
+            stores.lane.dispatch({ type: 'discardCancelled' });
         },
         lineCommand: {
             persistedKeys,

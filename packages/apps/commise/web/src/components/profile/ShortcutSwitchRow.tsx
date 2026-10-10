@@ -13,6 +13,8 @@
  *
  * ⚠️ The track and thumb are drawn here from role colours because the design system names no row switch
  * (`KeepAwakeToggle` is a chip). It is a gap for `staff-ux-engineer` to specify and for `@commise/ui` to own.
+ *
+ * @pattern Controlled Component — `checked` in, `onChange` out; the boolean draws the thumb, it selects no behaviour
  */
 import { useMessages } from '@commise/i18n/react';
 import { profileMessages } from '@commise/features-account/profile';

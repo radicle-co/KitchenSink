@@ -366,7 +366,9 @@ describe('Try again that resolves under another binding (integration)', () => {
                 foodResolutionStatus: 'FAILED',
                 createdAt: '2026-10-01T00:00:00.000Z',
             });
-        const sentence = en.statusLookupSettled.replace('{food}', 'Saffron').replace('{status}', en.statusFailed);
+        const sentence = en.statusLookupSettled
+            .replace('{food}', 'Saffron')
+            .replace('{status}', en.rowStateLookupFailed);
         const region = announcement();
 
         await tryAgain(user);

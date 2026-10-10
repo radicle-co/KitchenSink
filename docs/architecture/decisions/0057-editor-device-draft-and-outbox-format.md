@@ -184,11 +184,21 @@ The rules on top of the format:
   about and has not decided on — a create parked with an unknown outcome may exist on the server, and replacing its
   body would send a second create. It leaves the log only through `withdraw(seq)`, which refuses any record that is not
   parked. A delete of an entity whose create is on the wire waits behind that create and depends on its ref. Withdrawing
-  that create also removes that delete: the delete exists only after Discard closed the editor, so nothing resubmits
-  the create, no id will ever exist for the entity, and the delete would wait forever. Only that delete: anything else waiting on the ref is the cook's work, and
-  the editor's Retry resubmits a withdrawn create under the same ref. ⚠️ The editor is `withdraw`'s only caller, so a
-  create that parks after its editor was discarded has no surface to be withdrawn from yet; its delete waits until one
-  exists.
+  that create also removes that delete: no id will ever exist for the entity, so the delete would wait forever. Only
+  that delete: anything else waiting on the ref is the cook's work, and the editor's Retry resubmits a withdrawn create
+  under the same ref. A delete whose ref no record still produces and no drain resolved is never queued at all
+  (`supersede`): it names an entity the server never held.
+- **Discard waits for a create on the wire.** The editor is `withdraw`'s only caller, so a create that parked after its
+  editor had closed had no surface to be withdrawn from. A Discard of a recipe only a create can have made therefore
+  submits its delete exclusively: the outbox removes a create still queued, reports a parked one for the editor to
+  withdraw, and reports one on the wire while queueing nothing. The editor then waits for that create's answer, the
+  confirm busy and the editor mounted: synced, it deletes the recipe by its id; parked, it withdraws it. The wait is
+  bounded by the recipe client's request timeout (`DEFAULT_REQUEST_TIMEOUT_MS`), and an editor that unmounts during it
+  finishes the same way. A single attempt that never answers parks at that same per-attempt timeout, which started
+  before the press, so it is withdrawn before the bound; only transient retries or a `401` replay can stretch a send
+  past it. Past the bound the delete is queued behind the create, as before, so a create that still syncs is deleted;
+  one that parks after the bound keeps its delete beside it until the session ends. Keep, while the confirm is busy,
+  takes the Discard back: nothing has been queued or dropped by then.
 - **The session-end clear is one more change in the same queue.** `clear()` runs behind every change asked for before
   it, and a change that leaves no records is never written over an absent key, so a drain's answer that lands after the
   clear cannot bring the old cook's journal back.
@@ -196,6 +206,11 @@ The rules on top of the format:
   record of the same entity is on the wire or parked, and answers which record stood in the way. A pending one of the
   same kind is replaced, losslessly, because the editor sends whole drafts. The check is made inside the serialized
   mutation, so it cannot race the drain's claim.
+- **One recipe, one lane, across editors of it.** A create whose ref already resolved is refused first, with the
+  server id (`resolved`): its synced record has left the log, so nothing else would stand in its way, and an editor
+  reopened by Back and Forward that never heard the answer would create the recipe twice. That editor reads the recipe
+  and continues as stored. An editor told that a record of its recipe it does not hold is on the wire tracks that
+  record's number, so the answer is its own; it adopts the values from the answer, because it never saw the body.
 - **Answers travel back in memory.** A sender's `SendResult` may carry an `answer` (the recipe a write returned, a
   409's two sides). The drain hands each synced or parked record's settlement, with its answer and its `seq`, to an
   `onSettled` listener after the journal wrote it; the provider publishes it to `SyncQueue.subscribe`. Nothing of an
@@ -235,7 +250,10 @@ subject)` (`@commise/features-recipes`, both apps bind it to their store) clears
   each through its own writer, and the tab's cook marks. It runs from `signOutAndVerify` (ADR-0009, ADR-0054) only once
   the session is proven ended, so a failed sign-out keeps both. On web it also runs whenever Clerk's cook changes from a
   cook to `null` or to another cook (`useDeviceSessionScope`): a sign-out in another tab, an expiry or revocation, the
-  UserButton. Clerk's loading `undefined` is ignored. Mobile clears on its own sign-out only; whether an expired
+  UserButton. Clerk's loading `undefined` is ignored. The cook those stores were kept for is recorded in the same store
+  (an IdP subject, nothing else), so a reload is no gap: a first value of `null` or of another cook after it still
+  ends the first cook's session. The editor is keyed by the cook, so a switch remounts it and the first cook's exit
+  checkpoint runs against their own stores before the clear. Mobile clears on its own sign-out only; whether an expired
   session on a phone should discard unsent saves is an open owner question.
 - **The editor owns the CAS token across consecutive updates.** Each `update` carries an `expectedVersion`, and an
   update sent while an earlier one is on the wire would name the version the earlier one started from and meet a 409
@@ -311,7 +329,14 @@ subject)` (`@commise/features-recipes`, both apps bind it to their store) clears
 - `packages/shared/sync/src/__tests__/tabCopyProbe.test.ts` (fresh tab, reload, duplicate, a duplicate of a duplicate,
   no Web Locks), `outboxLog.test.ts` (`recoverInterrupted` over a copy, a withdrawal taking its superseding delete) and
   `outboxMutator.test.ts` (the copy probe on the first read, the queued `clear`, no key brought back after it).
-- `features-recipes`'s `session/__tests__/deviceSession.test.tsx` (one clear, its triggers, the loading `undefined`)
+- `outboxLog.test.ts` (a create of a resolved ref refused; a delete decided against a create queued, on the wire,
+  parked, synced or never made), `useRecipeEditor.test.tsx` (a second editor of a recipe whose create the first
+  queued; Discard waiting for a create on the wire, each answer, the bound, Keep and an unmount) and, over the real
+  outbox, `editorReopenedOnItsCreate.integration.test.tsx` and `editorDiscard.integration.test.tsx`.
+- The cook switch: `web/tests/components/recipes/RecipeEditorContainer.test.tsx` and
+  `mobile/tests/screens/RecipeEditorScreen.native.test.tsx` (the first cook's exit checkpoint in their own outbox).
+- `features-recipes`'s `session/__tests__/deviceSession.test.tsx` (one clear, its triggers, the loading `undefined`, a
+  reload followed by nobody or by another cook)
   and `sessionEndWithEditorOpen.test.tsx` (the editor's exit checkpoint and the clear in one commit: nothing left);
   `editor/__tests__/useRecipeEditorSession.test.tsx` (the unmount is a leave; a second exit does nothing) and
   `useEditorPage.test.tsx` (the background as an event).

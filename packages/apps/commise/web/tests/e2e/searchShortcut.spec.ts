@@ -31,7 +31,8 @@ async function openRecipes(page: import('@playwright/test').Page) {
         ],
     });
     const settings = await mockSettingsApi(page);
-    await page.goto(route('/recipes'));
+    // Wait for the settings read: until it lands the `/` listener may not be armed, and a slash pressed first is lost.
+    await gotoAfterSettingsRead(page, route('/recipes'));
     await expect(page.getByRole('searchbox').first()).toBeVisible();
 
     return settings;

@@ -362,6 +362,10 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
   `recipes.first_published_at` (a trigger sets it, nothing clears it), never `status`: a published recipe set back to
   draft keeps versioning. The wire carries it as `firstPublishedAt`, and the editor's lifecycle keys on it. Do not key
   the skip on `status = 'draft'`, and do not add a caller flag to skip a version.
+- **ADR-0059 — user settings are typed, nullable columns in identity's `settings` table; NULL means "never chosen"
+  (D19).** Defaults live once in code (`SETTINGS_DEFAULTS`) and resolve on read, so no setting column has a SQL
+  `DEFAULT`, and no row exists until the first PATCH. Do not move settings to JSONB or key/value, and do not keep a
+  preference in browser storage. Erasure deletes the row; `erasureCoverage.test.ts` guards every user-keyed table.
 - **ADR-0057 — the editor keeps a DEVICE draft, promotes it at checkpoints, and the outbox has one writer and a fixed
   v1 format.** Both persisted formats are one-way doors. Never re-send a parked or interrupted record blindly: an unknown
   create is a duplicate recipe. On web the draft AND the outbox journal live in the tab's `sessionStorage` (D7), so a

@@ -136,3 +136,55 @@ describe('createLaneStore — an answer before the record`s number', () => {
         expect(handed).toEqual([5]);
     });
 });
+
+/**
+ * The lane across editors of one recipe and through a waiting Discard (findings 1 and 2 of the 2026-10-10 review).
+ */
+describe('laneReducer — a record another editor queued, and a Discard that waits', () => {
+    it('tracks a record it does not hold, with no body of its own', () => {
+        expect(laneReducer(EMPTY_LANE, { type: 'tracked', seq: 7, kind: 'create' })).toStrictEqual({
+            outstanding: { seq: 7, kind: 'create', sent: undefined, finishing: false, parked: false },
+        });
+    });
+
+    it.each([
+        ['the same', 1],
+        ['another', 9],
+    ])(
+        '⛔ never tracks over its own write (%s record): a Publish on the wire keeps `finishing` and its body',
+        (_case, seq) => {
+            const publishing = queued(1, true);
+
+            expect(laneReducer(publishing, { type: 'tracked', seq, kind: 'update' })).toBe(publishing);
+        },
+    );
+
+    it('hands a kept answer over when it tracks that record', () => {
+        const store = createLaneStore<string>();
+        const handed: string[] = [];
+        store.subscribeEarly((answer) => handed.push(answer));
+
+        store.keepEarly(7, 'answer for 7');
+        store.dispatch({ type: 'tracked', seq: 7, kind: 'create' });
+
+        expect(handed).toEqual(['answer for 7']);
+    });
+
+    it('a Discard can be taken back only while it waits for a create, not while the outbox is being asked', () => {
+        const asking = laneReducer(queued(1), { type: 'discarding', phase: 'asking' });
+        const waiting = laneReducer(asking, { type: 'discarding', phase: 'waiting' });
+
+        expect(laneReducer(asking, { type: 'discardCancelled' })).toBe(asking);
+        expect(laneReducer(waiting, { type: 'discardCancelled' }).discarding).toBeUndefined();
+    });
+
+    it('closing ends a Discard, and a closed lane starts none', () => {
+        const closed = laneReducer(laneReducer(queued(1), { type: 'discarding', phase: 'waiting' }), {
+            type: 'closed',
+        });
+
+        expect(closed.discarding).toBeUndefined();
+        expect(closed.closed).toBe(true);
+        expect(laneReducer(closed, { type: 'discarding', phase: 'asking' })).toBe(closed);
+    });
+});

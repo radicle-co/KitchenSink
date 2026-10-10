@@ -15,6 +15,12 @@ import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
  * Selectors are role/label only (repo policy); no `data-testid`, no `waitForTimeout`. Serial (Clerk-authed). The
  * identity service is mocked at the network edge (`mockRecipeApi` answers `GET /users/me`), and the display-name write
  * is captured so the spec can assert exactly what reaches the wire.
+ *
+ * ⚠️ DELETED: "the keyboard-shortcuts switch is on by default, turns off, and stays off after a reload (per device)". It
+ * encoded the old per-device `localStorage` setting, which owner ruling D19 and ADR-0059 overturned: the setting now
+ * lives on the identity service and follows the cook, not the browser. Its coverage moved to `profileSettings.spec.ts`
+ * (on by default, saved to the server and kept across a reload, nothing in browser storage, a refused save), which
+ * drives a stateful settings fake instead of browser storage. This spec keeps only the switch's presence on the page.
  */
 
 /** `#RRGGBB` → the `rgb(r, g, b)` spelling a computed style uses. */
@@ -140,25 +146,6 @@ test.describe('the display name', () => {
 
         expect(patches).toEqual([]);
         await expect(page.getByRole('button', { name: /Display name/ })).toContainText('Eliza Moreno');
-    });
-});
-
-test.describe('the keyboard-shortcuts switch', () => {
-    test('is on by default, turns off, and stays off after a reload (per device)', async ({ page }) => {
-        await openProfile(page);
-        const toggle = page.getByRole('switch', { name: 'Keyboard shortcuts' });
-
-        await expect(toggle).toHaveAttribute('aria-checked', 'true');
-
-        await toggle.click();
-        await expect(toggle).toHaveAttribute('aria-checked', 'false');
-
-        await page.reload();
-        await expect(page.getByRole('switch', { name: 'Keyboard shortcuts' })).toHaveAttribute('aria-checked', 'false');
-
-        // Leave the device as found: the shared browser state outlives this test.
-        await page.getByRole('switch', { name: 'Keyboard shortcuts' }).click();
-        await expect(page.getByRole('switch', { name: 'Keyboard shortcuts' })).toHaveAttribute('aria-checked', 'true');
     });
 });
 

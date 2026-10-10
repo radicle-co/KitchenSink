@@ -17,12 +17,13 @@
  */
 import { ActionMenu } from '@commise/ui/action-menu';
 import { Combobox } from '@commise/ui/combobox';
+import { useFocusRequest } from '@commise/ui/focus-request';
 import { Icon } from '@commise/ui/icon';
 import { Popover } from '@commise/ui/popover';
 import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
-import { useEffect, useEffectEvent, useRef, type FC, type ReactNode } from 'react';
+import { useRef, type FC, type ReactNode } from 'react';
 
 import {
     ingredientCommitFailureId,
@@ -54,17 +55,8 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
 }) => {
     const node = useRef<HTMLButtonElement>(null);
     const { requested, onHandled } = row.openFocus;
-    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
-    const acknowledge = useEffectEvent(() => onHandled());
 
-    useEffect(() => {
-        if (!requested) {
-            return;
-        }
-
-        node.current?.focus();
-        acknowledge();
-    }, [requested]);
+    useFocusRequest(requested, () => node.current?.focus(), onHandled);
 
     return (
         <button

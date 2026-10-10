@@ -220,8 +220,16 @@ describe('[locale]/discover/page.tsx SSR prefetch', () => {
 
         expect(queries).toHaveLength(1);
         // sortBy defaults to RELEVANCE, matching the container's initial (URL-independent) view state.
+        // UPDATED for `evaluateFinal.md` F13: Discover shows only other cooks' public published recipes, so every
+        // discovery search carries `scope: 'community'` (one `DISCOVERY_SCOPE`, shared with the client container through
+        // `discoverySearchParams`). The key must carry it too, or SSR data would hydrate under a key the client never reads.
         expect(queries[0]?.queryKey).toEqual(
-            recipeServiceKeys.recipeSearchInfinite({ query: 'paella', dietaryFlags: ['vegan'], sortBy: 'relevance' }),
+            recipeServiceKeys.recipeSearchInfinite({
+                query: 'paella',
+                dietaryFlags: ['vegan'],
+                sortBy: 'relevance',
+                scope: 'community',
+            }),
         );
         // The infinite query shape: one fetched page, page 1.
         expect(queries[0]?.state.data).toEqual({ pages: [response], pageParams: [1] });

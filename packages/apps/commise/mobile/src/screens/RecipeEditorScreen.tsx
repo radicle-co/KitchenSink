@@ -131,7 +131,9 @@ function NewRecipeEditor(props: RecipeEditorScreenProps): JSX.Element | null {
         return null;
     }
 
-    return <RecipeEditorSession {...props} mode="create" drafts={cook.drafts} seed={{}} />;
+    // ⛔ Keyed by the cook: a switch of cook must remount the editor, so the previous cook's exit checkpoint runs against
+    // THEIR outbox and draft store, and the next cook opens a fresh editor rather than the previous cook's draft.
+    return <RecipeEditorSession key={cook.subject} {...props} mode="create" drafts={cook.drafts} seed={{}} />;
 }
 
 /** An existing recipe, once read, with its device draft. */
@@ -141,7 +143,8 @@ function StoredRecipeEditor(
     const cook = useCookDrafts();
     const { data: recipe } = useSuspenseQuery(recipeQueries(useRecipeServiceClient()).detail(props.recipeId));
 
-    return cook === undefined ? null : <SeededEditor {...props} cook={cook} recipe={recipe} />;
+    // Keyed by the cook, for `NewRecipeEditor`'s reason.
+    return cook === undefined ? null : <SeededEditor key={cook.subject} {...props} cook={cook} recipe={recipe} />;
 }
 
 /** The device draft, read (a suspense read under the same boundary), then the session over it. */

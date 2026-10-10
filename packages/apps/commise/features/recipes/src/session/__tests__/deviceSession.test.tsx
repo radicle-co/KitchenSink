@@ -11,6 +11,7 @@
 import {
     appendIntent,
     createMemoryOutboxStore,
+    createWebStorageStore,
     loadOutbox,
     outboxMutatorFor,
     quarantineKeyFor,
@@ -166,5 +167,69 @@ describe('useDeviceSessionScope', () => {
         await flush();
 
         expect(await keptFor(store, 'user_a')).toHaveLength(4);
+    });
+});
+
+/**
+ * A reload (finding 4 of the 2026-10-10 review). The data the scope guards lives in the tab's `sessionStorage`, so the cook
+ * it guards for must too: a scope that remembered the cook only in memory saw nobody after a reload, and when Clerk's
+ * first value was then `null` (an expiry while the tab was closed to the network) or another cook, it cleared nothing —
+ * the first cook's drafts and journal survived, against D7, and were sent if they signed back in.
+ *
+ * ⛔ Each "document" gets a FRESH store object over the same `sessionStorage`, as a reload does: reusing one object would
+ * let anything the scope keeps per object in memory pass for what it keeps in the tab.
+ */
+describe('useDeviceSessionScope across a reload', () => {
+    function documentStore(): OutboxStore {
+        return createWebStorageStore(() => window.sessionStorage);
+    }
+
+    async function signedInThenReloaded(): Promise<OutboxStore> {
+        const before = documentStore();
+        await seedCook(before, 'user_a');
+        const first = render(<Scope store={before} subject="user_a" />);
+        await flush();
+        first.unmount();
+
+        return documentStore();
+    }
+
+    it.each([
+        ['nobody (the session expired)', null],
+        ['another cook', 'user_b'],
+    ] as const)(
+        '⛔ ends the first cook`s device session when Clerk`s first value after it is %s',
+        async (_case, next) => {
+            const after = await signedInThenReloaded();
+            const view = render(<Scope store={after} subject={undefined} />);
+
+            view.rerender(<Scope store={after} subject={next} />);
+            await flush();
+
+            expect(await keptFor(after, 'user_a')).toEqual([]);
+            expect(window.sessionStorage.getItem(cookMarksKey('user_a', 'rec_1'))).toBeNull();
+        },
+    );
+
+    it('keeps everything when the same cook comes back after the reload', async () => {
+        const after = await signedInThenReloaded();
+        const view = render(<Scope store={after} subject={undefined} />);
+
+        view.rerender(<Scope store={after} subject="user_a" />);
+        await flush();
+
+        expect(await keptFor(after, 'user_a')).toHaveLength(4);
+    });
+
+    it('⛔ a fast cook, nobody, cook sequence still ends the first session (the decisions run in order)', async () => {
+        const store = documentStore();
+        await seedCook(store, 'user_a');
+        const view = render(<Scope store={store} subject="user_a" />);
+
+        view.rerender(<Scope store={store} subject={null} />);
+        view.rerender(<Scope store={store} subject="user_b" />);
+        await flush();
+
+        expect(await keptFor(store, 'user_a')).toEqual([]);
     });
 });

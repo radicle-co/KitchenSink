@@ -415,4 +415,55 @@ test.describe('leaving the one-page editor and coming back', () => {
         await expect.poll(() => writes.filter((write) => write.method === 'POST')).toHaveLength(1);
         await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST', 'PATCH']);
     });
+
+    /**
+     * Finding 1 of the 2026-10-10 review: Back queues the create as the editor unmounts; Forward reopens the editor on
+     * `?draft=local:…` while that create is still on the wire. The reopened editor never heard the create's answer, and
+     * its next checkpoint, once the synced record had left the outbox, created the recipe a second time. The create's
+     * response is held until after Forward, so the race is the test's, not the network's.
+     */
+    test('⛔ Back then Forward while the create is on the wire: one recipe, and the edit made after Forward is saved', async ({
+        page,
+    }) => {
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        const writes = recipeWrites(page);
+        let release: () => void = () => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        await page.route('**/api/v1/recipes', async (request) => {
+            if (request.request().method() === 'POST') {
+                await held;
+            }
+
+            await request.fallback();
+        });
+
+        await page.goto(route('/recipes'));
+        await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
+        await page.getByRole('button', { name: 'New recipe' }).click();
+        await expect(page).toHaveURL(/\/recipes\/new/u);
+        await page.getByLabel('Title').fill('E2E Forward Soup');
+        await expect(page).toHaveURL(/draft=local/u);
+        await page.goBack();
+        await expect(page).toHaveURL(/\/recipes$/u);
+        await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST']);
+
+        await page.goForward();
+        await expect(page.getByLabel('Title')).toHaveValue('E2E Forward Soup', { timeout: 30_000 });
+        await page.getByLabel('Description').fill('Typed after Forward.');
+        await jumpTo(page, 'Steps');
+        release();
+        await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST', 'PATCH']);
+        // A later checkpoint is where the second create used to go out.
+        await jumpTo(page, 'Photos & publish');
+        await page.getByLabel('Description').fill('Typed after Forward, again.');
+        await jumpTo(page, 'Ingredients');
+        await expect.poll(() => writes.filter((write) => write.method === 'PATCH').length).toBeGreaterThan(1);
+
+        await page.goto(route('/recipes'));
+        await expect(page.getByRole('article', { name: 'E2E Forward Soup' })).toHaveCount(1);
+        expect(writes.filter((write) => write.method === 'POST')).toHaveLength(1);
+    });
 });

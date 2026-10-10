@@ -56,11 +56,15 @@ export interface ParkedFailure extends SyncFailure {
     readonly seq: number;
 }
 
-/** What {@link SyncQueue.submitExclusive} did: queued, or which record of the same entity stood in the way. */
+/**
+ * What {@link SyncQueue.submitExclusive} did: queued, which record of the same entity stood in the way, or — for a create
+ * whose ref already resolved — the id the server made (`appendExclusive`).
+ */
 export type ExclusiveSubmit =
     | { readonly kind: 'queued'; readonly seq: number }
     | { readonly kind: 'inFlight'; readonly seq: number }
-    | { readonly kind: 'parked'; readonly seq: number; readonly status?: number };
+    | { readonly kind: 'parked'; readonly seq: number; readonly status?: number }
+    | { readonly kind: 'resolved'; readonly serverId: string };
 
 /** What a surface can see and do with the queue. */
 export interface SyncQueue {

@@ -66,6 +66,20 @@ describe('PasteStepsControl (web)', () => {
         expect(within(dialog).getByRole('button', { name: 'Add 3 steps' })).toBeTruthy();
     });
 
+    // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): below 840 the primary fills the sheet and the × is the only way out;
+    // at 840+ a ghost Cancel sits beside a content-width primary.
+    it('fills the primary and shows Cancel only from 840', async () => {
+        const user = userEvent.setup();
+        render(<PasteStepsControl onAdd={vi.fn()} />);
+        const dialog = await open(user);
+
+        const add = within(dialog).getByRole('button', { name: 'Add 0 steps' });
+        const cancel = within(dialog).getByRole('button', { name: s.pasteCancel });
+
+        expect(add.className.split(' ')).toContain('w-full');
+        expect((cancel.closest('.hidden') as HTMLElement | null)?.className.split(' ')).toContain('nav:block');
+    });
+
     it('adds the split steps and closes the sheet', async () => {
         const user = userEvent.setup();
         const onAdd = vi.fn();

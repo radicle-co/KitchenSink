@@ -1157,6 +1157,7 @@ export class RecipeServiceClient {
             page: params.page,
             pageSize: params.pageSize,
             sortBy: params.sortBy,
+            scope: params.scope,
         });
 
         return this.expect(res, 200, recipeSearchResponseSchema);

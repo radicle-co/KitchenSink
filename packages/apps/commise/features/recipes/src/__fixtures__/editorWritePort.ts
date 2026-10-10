@@ -17,7 +17,9 @@ type Settlement = SettlementEvent<EditorWriteAnswer>;
 /**
  * Build a fake write port.
  *
- * @returns The port, with the test's handles: `claim`, `sync`, `park`, `lastSeq`, and what was submitted or withdrawn.
+ * @returns The port, with the test's handles: `claim`, `sync`, `park`, `lastSeq`, and what was submitted or withdrawn. A
+ *   synced create records its ref's resolution, and a create of a resolved ref is answered `resolved`, as the real log
+ *   does (`appendExclusive`).
  */
 export function makeFakeEditorWritePort() {
     const listeners = new Set<(event: Settlement) => void>();
@@ -36,6 +38,8 @@ export function makeFakeEditorWritePort() {
 
     const submitted: Intent[] = [];
     const withdrawn: number[] = [];
+    /** The refs a synced create resolved, as the real log keeps them (`OutboxLog.resolutions`). */
+    const resolutions = new Map<string, string>();
 
     const writePort = {
         failures,
@@ -45,6 +49,12 @@ export function makeFakeEditorWritePort() {
             return { queued: true as const };
         }),
         submitExclusive: vi.fn(async (intent: Intent) => {
+            const made = intent.produces === undefined ? undefined : resolutions.get(intent.produces);
+
+            if (made !== undefined) {
+                return { kind: 'resolved' as const, serverId: made };
+            }
+
             const same = [...records.entries()].find(
                 ([, record]) => record.intent.entity === intent.entity && record.intent.localId === intent.localId,
             );
@@ -67,8 +77,15 @@ export function makeFakeEditorWritePort() {
 
             const seq = nextSeq;
             nextSeq += 1;
-            records.set(seq, { intent, state: 'pending' });
             submitted.push(intent);
+
+            // A delete supersedes, as the real log applies it: a create still queued goes with it, and a delete of a ref
+            // nothing resolved is never queued at all.
+            const addressable = intent.dependsOn.every((ref) => [...resolutions.keys()].includes(ref));
+
+            if (intent.intentKind !== 'delete' || addressable) {
+                records.set(seq, { intent, state: 'pending' });
+            }
 
             return { kind: 'queued' as const, seq };
         }),
@@ -103,10 +120,17 @@ export function makeFakeEditorWritePort() {
         },
         /** The newest record's sequence number. */
         lastSeq: () => nextSeq - 1,
+        /** What the outbox holds now, oldest first. */
+        queued: () => [...records.values()].map((record) => record.intent),
         /** The drain answered: synced. */
         sync: (seq: number, detail: RecipeDetail) => {
             const record = records.get(seq);
             records.delete(seq);
+
+            if (record?.intent.produces !== undefined) {
+                resolutions.set(record.intent.produces, detail.id);
+            }
+
             const event: Settlement = {
                 seq,
                 entity: 'recipe',

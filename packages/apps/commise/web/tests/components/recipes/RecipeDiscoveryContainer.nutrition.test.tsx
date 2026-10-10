@@ -270,7 +270,7 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup on the browse
         // the rails for real).
         const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
         queryClient.setQueryData(
-            recipeQueries(client).searchInfinite({ sortBy: RecipeSearchSortBy.RELEVANCE }).queryKey,
+            recipeQueries(client).searchInfinite({ scope: 'community', sortBy: RecipeSearchSortBy.RELEVANCE }).queryKey,
             onePage(PAGE_ONE),
         );
 

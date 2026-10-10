@@ -9,15 +9,15 @@
  * WCAG 2.1.4 (Character Key Shortcuts) lets a single-character shortcut stand only if it can be turned off. That
  * switch is Profile › Keyboard shortcuts, and the choice is a SETTING ON THE SERVER (`searchShortcut`, owner ruling
  * D19, ADR-0059), read here through the settings query. It follows the cook to another browser, and none of it is kept
- * in browser storage. Until the first read answers, the query's placeholder is the server's published default, which is
- * on, so the shortcut works from the first paint and a cook who turned it off sees it go quiet once the read lands.
+ * in browser storage. Until the first read answers, the query holds the server's published default as a placeholder, and
+ * the shortcut stays OFF: a cook who turned it off must never see `/` act on a guess (WCAG 2.1.4). It comes on when
+ * the real setting arrives and says on.
  *
- * Mounted once, in `AppShell`. The listener is not attached at all while the setting is off.
+ * Mounted once, in `AppShell`. The listener is not attached at all until the real setting is known and on.
  *
- * @pattern Observer — one document `keydown` listener, attached only while the setting is on
+ * @pattern Observer — one document `keydown` listener, attached only once the real setting is on
  * @sideEffect Adds a `keydown` listener on `document` and moves focus.
  */
-import { SETTINGS_DEFAULTS } from '@kitchensink/schema-identity';
 import { useEffect } from 'react';
 
 import { useUserSettings } from '@/hooks/useUserSettings';
@@ -26,7 +26,9 @@ import { findSearchField, hasOpenModal, isEditableTarget, isSearchShortcut } fro
 
 /** Focus the page's search field on `/`. */
 export function useSearchShortcut(): void {
-    const enabled = useUserSettings().data?.searchShortcut ?? SETTINGS_DEFAULTS.searchShortcut;
+    const { data, isPlaceholderData } = useUserSettings();
+    // The placeholder is the published default, not the cook's choice: only a real read may switch the key on.
+    const enabled = !isPlaceholderData && data?.searchShortcut === true;
 
     useEffect(() => {
         if (!enabled) {

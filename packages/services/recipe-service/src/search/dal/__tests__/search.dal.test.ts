@@ -267,6 +267,43 @@ describe('SearchDal.search', () => {
         expect(pageSql).toContain('OFFSET');
     });
 
+    describe("scope 'community' (UX F13: Discover shows other cooks' public, published recipes only)", () => {
+        it('replaces the viewer-widened predicates with public + published + not-the-viewer on ALL THREE reads', async () => {
+            primeExecute(execute);
+
+            await dal.search(filters({ scope: 'community', query: 'pasta' }));
+
+            expect(execute).toHaveBeenCalledTimes(3);
+
+            for (const [statement] of execute.mock.calls) {
+                const text = sqlText(statement);
+                const params = sqlParams(statement);
+
+                expect(text).toContain('"deleted_at" is null');
+                expect(text).toContain('"visibility" =');
+                expect(text).toContain('"status" =');
+                expect(params).toEqual(expect.arrayContaining(['public', 'published']));
+                expect(text).toContain('"owner_id" <>');
+                // The widening terms are GONE: no `visibility = public OR owner_id = viewer`.
+                expect(text).not.toContain('"owner_id" =');
+                expect(params).toContain(OWNER);
+            }
+        });
+
+        it("keeps the viewer-widened predicates when no scope is given (absent is today's behaviour)", async () => {
+            primeExecute(execute);
+
+            await dal.search(filters());
+
+            for (const [statement] of execute.mock.calls) {
+                const text = sqlText(statement);
+
+                expect(text).toContain('"owner_id" =');
+                expect(text).not.toContain('"owner_id" <>');
+            }
+        });
+    });
+
     it('omits the FTS predicate when no query is supplied (browse mode)', async () => {
         primeExecute(execute);
 

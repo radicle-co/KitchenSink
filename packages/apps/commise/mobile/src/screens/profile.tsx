@@ -28,7 +28,6 @@ import {
     ProfileGroup,
     ProfileHeader,
     ProfileRow,
-    ProfileValueRow,
     profileMessages,
     profileReadOf,
     useDisplayNameEditor,
@@ -137,7 +136,6 @@ function ProfileSurface({ scrollBind, onBack }: ProfileSurfaceProps): JSX.Elemen
                             chevron
                             onPress={editor.openSheet}
                         />
-                        <ProfileValueRow label={t.email} value={read.email} />
                     </ProfileGroup>
                 ) : null}
                 <ProfileGroup heading={t.preferences}>

@@ -44,13 +44,19 @@ export const PasteStepsControl: FC<PasteStepsControlProps> = ({ onAdd }) => {
                 closeLabel={m.pasteStepsClose}
                 size="content"
                 footer={
-                    <div className="flex flex-wrap justify-end gap-2">
-                        <Button variant="ghost" onPress={() => paste.setOpen(false)}>
-                            {s.pasteCancel}
-                        </Button>
-                        <Button icon="plus" disabled={paste.steps.length === 0} onPress={paste.add}>
-                            {pluralOf(s.pasteAdd, paste.steps.length, locale)}
-                        </Button>
+                    /* Below 840 the primary fills the sheet and the × is the only way out; at 840+ a ghost Cancel sits beside a
+                        content-width primary (`buildSpec.md` §5.1, F11). */
+                    <div className="flex flex-col gap-3 nav:flex-row nav:justify-end">
+                        <div className="hidden nav:block">
+                            <Button variant="ghost" onPress={() => paste.setOpen(false)}>
+                                {s.pasteCancel}
+                            </Button>
+                        </div>
+                        <div>
+                            <Button icon="plus" width="fill" disabled={paste.steps.length === 0} onPress={paste.add}>
+                                {pluralOf(s.pasteAdd, paste.steps.length, locale)}
+                            </Button>
+                        </div>
                     </div>
                 }
             >

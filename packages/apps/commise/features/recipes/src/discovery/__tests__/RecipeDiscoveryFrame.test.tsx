@@ -360,6 +360,12 @@ describe('RecipeDiscoveryFrame (web) — the count line, which is also the live 
         expect(countLine().textContent).toBe('No recipes for “tiramisu”');
     });
 
+    it('⛔ shows a no-result sentence ONCE: the line still announces it but is visually hidden, the heading is the visible copy', () => {
+        renderFrame({ resultsSummary: { count: 0, query: 'tiramisu', kind: 'query' } });
+
+        expect(countLine().classList.contains('sr-only')).toBe(true);
+    });
+
     it('keeps the line outside the boundary’s body, so swapping the body never remounts it', () => {
         const { rerender } = renderFrame({ resultsSummary: { count: 2, query: '', kind: undefined } });
         const first = countLine();

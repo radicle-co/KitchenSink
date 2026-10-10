@@ -435,6 +435,7 @@ export { DataSourcesScreen } from './dataSources/DataSourcesScreen.js';
 // Registry, the device draft store, and the observer that records the outbox's answers in it while the editor is closed.
 export { RecipeEditorView } from './editor/RecipeEditorView.js';
 export type { RecipeEditorViewProps } from './editor/frameProps.js';
+export { EDITOR_GUTTER } from './editor/editorGutter.js';
 export { EDITOR_SECTIONS, isEditorSectionId, sectionFromHash } from './editor/sections.js';
 export type { EditorSectionId } from './editor/sections.js';
 export { draftStoreFor } from './editor/draftStore.js';

@@ -14,8 +14,8 @@ import { recipeSender } from '@commise/query/recipe-sender';
 import { SyncProvider } from '@commise/query/sync';
 import { NotFoundError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import { focusManager } from '@tanstack/react-query';
-import { EMPTY_OUTBOX, saveOutbox, type OutboxStore } from '@kitchensink/sync';
+import { focusManager, onlineManager } from '@tanstack/react-query';
+import { EMPTY_OUTBOX, loadOutbox, saveOutbox, type OutboxStore } from '@kitchensink/sync';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { defaultRecipeFormValues, mintLineKey, recipeFormMessages } from '@commise/features-recipes';
 
@@ -25,17 +25,18 @@ import { editorDraftsFor } from '@/components/recipes/editorDrafts';
 
 import { makeRecipeDetail } from './__fixtures__/recipeFixtures';
 
-const { pushMock, replaceMock, profile } = vi.hoisted(() => ({
+const { pushMock, replaceMock, profile, auth } = vi.hoisted(() => ({
     pushMock: vi.fn(),
     replaceMock: vi.fn(),
     profile: { tier: undefined as string | undefined },
+    auth: { userId: 'user_cook' },
 }));
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: pushMock, replace: replaceMock }),
     useSearchParams: () => new URLSearchParams(window.location.search),
 }));
-vi.mock('@clerk/nextjs', () => ({ useAuth: () => ({ userId: 'user_cook' }) }));
+vi.mock('@clerk/nextjs', () => ({ useAuth: () => ({ userId: auth.userId }) }));
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({
         data: profile.tier === undefined ? undefined : { account: { subscriptionTier: profile.tier } },
@@ -50,6 +51,7 @@ afterEach(() => {
     replaceMock.mockReset();
     vi.restoreAllMocks();
     profile.tier = undefined;
+    auth.userId = 'user_cook';
     window.sessionStorage.clear();
     window.history.replaceState(null, '', '/');
 });
@@ -216,6 +218,93 @@ describe('RecipeEditorContainer (web)', () => {
  * under the edit address, where typing made a second recipe. The URL now stays on the new route, `?draft=` naming the
  * local ref and then the server id; the new route, reopened on a recipe the server holds, goes to its edit route.
  */
+/**
+ * Clerk multi-session: the signed-in cook changes from A to B with the editor open (finding 3 of the 2026-10-10 review).
+ * The scope ends A's session (`useDeviceSessionScope`), but a container that was not keyed by the cook kept the editor
+ * mounted across the switch: Suspense keeps a subtree's state, so the core still held A's draft and resumed with B's
+ * draft store and B's outbox — A's recipe saved into B's drafts and created on B's account.
+ *
+ * Offline, so both journals hold what each port queued; no scope is mounted, so A's data stays to be inspected.
+ */
+describe('RecipeEditorContainer (web) — the signed-in cook changes', () => {
+    afterEach(() => {
+        onlineManager.setOnline(true);
+    });
+
+    it('⛔ A`s exit checkpoint goes to A`s outbox, B`s stores hold nothing of A`s, and B gets a fresh editor', async () => {
+        onlineManager.setOnline(false);
+        window.history.replaceState(null, '', '/en/recipes/new');
+        auth.userId = 'user_a';
+        const client = createFakeRecipeServiceClient();
+        const tree = () =>
+            withFoodClient(
+                <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={webDeviceStore}>
+                    <RecipeEditorContainer locale="en" />
+                </SyncProvider>,
+            );
+        const view = renderWithRecipeClient(tree(), client);
+        await userEvent.type(await screen.findByRole('textbox', { name: /title/iu }), 'Soup of A');
+
+        auth.userId = 'user_b';
+        view.rerender(tree());
+
+        await waitFor(() => expect(screen.getByRole('textbox', { name: /title/iu })).toHaveProperty('value', ''));
+        // B's editor leaves too, so any checkpoint still holding A's draft would have run against B's ports by now.
+        view.unmount();
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        const titlesIn = async (subject: string) =>
+            (await loadOutbox(webDeviceStore, subject)).records.map(
+                (record) => (record.payload as { readonly input?: { readonly title?: string } }).input?.title,
+            );
+        expect(await titlesIn('user_a')).toEqual(['Soup of A']);
+        expect(await titlesIn('user_b')).toEqual([]);
+        const keptForB = Object.keys(window.sessionStorage)
+            .filter((key) => key.endsWith('user_b'))
+            .map((key) => window.sessionStorage.getItem(key) ?? '');
+        expect(keptForB.filter((value) => value.includes('Soup of A'))).toEqual([]);
+        expect(
+            Object.keys(window.sessionStorage).some((key) => key.startsWith('editor.draft') && key.endsWith('user_a')),
+        ).toBe(true);
+    });
+    it('⛔ the same on the edit route: A`s update goes to A`s outbox and B opens the recipe as the server holds it', async () => {
+        // Online, so B can read the recipe; the update never answers, so it stays in the journal that queued it.
+        auth.userId = 'user_a';
+        const client = createFakeRecipeServiceClient();
+        const stored = makeRecipeDetail({ id: 'rec_1', title: 'Stew', status: RecipeStatus.DRAFT, currentVersion: 2 });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(stored);
+        vi.spyOn(client, 'updateRecipe').mockReturnValue(new Promise(() => undefined));
+        const tree = () =>
+            withFoodClient(
+                <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={webDeviceStore}>
+                    <RecipeEditorContainer locale="en" recipeId="rec_1" />
+                </SyncProvider>,
+            );
+        const view = renderWithRecipeClient(tree(), client);
+        const title = await screen.findByRole('textbox', { name: /title/iu });
+        await userEvent.clear(title);
+        await userEvent.type(title, 'Stew of A');
+
+        auth.userId = 'user_b';
+        view.rerender(tree());
+
+        await waitFor(() => expect(screen.getByRole('textbox', { name: /title/iu })).toHaveProperty('value', 'Stew'));
+        view.unmount();
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        const titlesIn = async (subject: string) =>
+            (await loadOutbox(webDeviceStore, subject)).records.map(
+                (record) => (record.payload as { readonly input?: { readonly title?: string } }).input?.title,
+            );
+        expect(await titlesIn('user_a')).toEqual(['Stew of A']);
+        expect(await titlesIn('user_b')).toEqual([]);
+    });
+});
+
 describe('RecipeEditorContainer (web) — the URL after the first save', () => {
     const SERVER_ID = '0b7f8a52-3c1d-4e2f-9a6b-5c4d3e2f1a0b';
 

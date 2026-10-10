@@ -97,6 +97,13 @@ export const RECIPE_BROWSE_RAILS = [
     { id: 'quick', sortBy: RecipeSearchSortBy.QUICKEST },
 ] as const satisfies readonly RecipeBrowseRailDefinition[];
 
+/**
+ * The scope every Discover search asks for: OTHER cooks' public, published recipes. Without it the service also returns
+ * the viewer's own drafts and private recipes. The ONE place it is stated, so the rails, the result list and both
+ * platforms cannot disagree.
+ */
+const DISCOVERY_SCOPE = 'community' satisfies NonNullable<RecipeSearchQuery['scope']>;
+
 /** A single browse rail is a teaser row, not the full list — cap each rail's fetch to a small page. */
 export const RECIPE_BROWSE_RAIL_PAGE_SIZE = 12;
 
@@ -108,6 +115,7 @@ export const RECIPE_BROWSE_RAIL_PAGE_SIZE = 12;
  * @returns The search params for that rail.
  */
 export const browseRailSearchParams = ({ sortBy }: RecipeBrowseRailDefinition): RecipeSearchQuery => ({
+    scope: DISCOVERY_SCOPE,
     sortBy,
     pageSize: RECIPE_BROWSE_RAIL_PAGE_SIZE,
 });
@@ -143,6 +151,7 @@ export const discoverySearchParams = ({
 }: Pick<RecipeDiscoveryCriteria, 'filters' | 'query' | 'sortBy'>): RecipeSearchQuery => ({
     ...filtersToSearchParams(filters, query),
     sortBy,
+    scope: DISCOVERY_SCOPE,
 });
 
 /**

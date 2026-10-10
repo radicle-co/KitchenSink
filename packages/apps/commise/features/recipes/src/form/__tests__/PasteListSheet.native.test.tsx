@@ -58,6 +58,15 @@ describe('PasteListSheet (native)', () => {
         expect(screen.getByText(t.pasteHint)).toBeTruthy();
     });
 
+    // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): the primary fills the sheet and the × is the only way out, as the
+    // New collection sheet does on a phone.
+    it('fills the primary and has no Cancel', () => {
+        render(<Host paste={fakePaste()} />);
+
+        expect(screen.getByRole('button', { name: 'Add 0 ingredients' }).style.alignSelf).toBe('stretch');
+        expect(screen.queryByRole('button', { name: t.pasteCancel })).toBeNull();
+    });
+
     it('counts live, disabled at 0, and adds what was pasted', () => {
         const submit = vi.fn();
         render(<Host paste={fakePaste({ submit })} />);

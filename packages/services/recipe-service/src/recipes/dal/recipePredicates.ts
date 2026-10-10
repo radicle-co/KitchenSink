@@ -15,7 +15,7 @@
  *
  * @module
  */
-import { and, eq, isNull, or, type SQL } from 'drizzle-orm';
+import { and, eq, isNull, ne, or, type SQL } from 'drizzle-orm';
 
 import { recipes } from '../../database/schema/index.js';
 
@@ -58,4 +58,21 @@ export function publishedOrOwnedBy(viewerId: string): SQL {
  */
 export function readableBy(viewerId: string): SQL {
     return and(activeRecipe(), viewableBy(viewerId), publishedOrOwnedBy(viewerId)) as SQL;
+}
+
+/**
+ * The community read predicate: {@link activeRecipe} AND `visibility = 'public'` AND `status = 'published'` AND NOT
+ * owned by `viewerId` — what the Discover surface shows: other cooks' finished, shared recipes. It is STRICTER than
+ * {@link readableBy} on purpose (no owner widening), so it can only ever narrow what a viewer may read; it is a
+ * relevance scope, not an authorization grant.
+ *
+ * @param viewerId - The requesting principal's app-user ULID, whose own recipes are excluded.
+ */
+export function communityOf(viewerId: string): SQL {
+    return and(
+        activeRecipe(),
+        eq(recipes.visibility, 'public'),
+        eq(recipes.status, 'published'),
+        ne(recipes.ownerId, viewerId),
+    ) as SQL;
 }

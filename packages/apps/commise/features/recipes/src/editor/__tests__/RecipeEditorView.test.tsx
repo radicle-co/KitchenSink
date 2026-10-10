@@ -16,6 +16,9 @@ import { makeEditorResult } from '../../__fixtures__/editorResult.js';
 import { makeFilledRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { UseRecipeEditorResult } from '../../hooks/useRecipeEditor.js';
+import { gutterOf } from '@commise/ui/container-class';
+
+import { EDITOR_GUTTER } from '../editorGutter.js';
 import { SectionPresenceContext } from '../sectionPresence.js';
 import { EDITOR_TOP_CHROME_IDS, type RecipeEditorViewProps } from '../frameProps.js';
 import { RecipeEditorView } from '../RecipeEditorView.js';
@@ -137,6 +140,28 @@ describe('the frame', () => {
 
         expect(first).toHaveBeenCalledTimes(1);
         expect(second).not.toHaveBeenCalled();
+    });
+});
+
+describe('the content gutter (buildSpec §1.2)', () => {
+    // F15 left the editor's frame edge to edge, so the frame owns the page gutter: 16 compact, 24 medium, 32 expanded.
+    it('pads the content column with the page gutter at each viewport class, not 16 everywhere', () => {
+        render(view(makeEditorResult()));
+
+        const column = screen.getByRole('heading', { name: 'Details' }).closest('section')?.parentElement;
+        const classes = column?.className.split(/\s+/u) ?? [];
+
+        expect(classes).toEqual(expect.arrayContaining(EDITOR_GUTTER.split(' ')));
+        expect(classes.filter((name) => /^px-/u.test(name))).toEqual(['px-4']);
+    });
+
+    it('spells the spec’s three gutters in Tailwind steps of 4 px (the layout tokens’ numbers)', () => {
+        const pxOf = (utility: string): number => Number(utility.replace(/^.*px-/u, '')) * 4;
+        const [compact, medium, expanded] = EDITOR_GUTTER.split(' ').map(pxOf);
+
+        expect([compact, medium, expanded]).toEqual([gutterOf(390), gutterOf(700), gutterOf(1000)]);
+        expect(EDITOR_GUTTER.split(' ')[1]).toMatch(/^medium:/u);
+        expect(EDITOR_GUTTER.split(' ')[2]).toMatch(/^nav:/u);
     });
 });
 
@@ -595,5 +620,28 @@ describe('the unload prompt (web, D7)', () => {
 
         rerender(view(makeEditorResult()));
         expect(asks()).toBe(false);
+    });
+});
+
+/**
+ * A confirmed Discard that waits for the recipe's create to answer (finding 2 of the 2026-10-10 review): the confirm
+ * stays open and busy, saying so in words, and Keep editing takes the discard back.
+ */
+describe('a Discard that waits for its create', () => {
+    it('keeps the confirm open, busy, saying "Discarding…"; Keep editing takes it back', () => {
+        const cancelDiscard = vi.fn();
+        const discard = vi.fn();
+        render(
+            view(makeEditorResult({ values: makeFilledRecipeFormValues(), discarding: true, cancelDiscard, discard })),
+        );
+
+        const dialog = screen.getByRole('alertdialog', { name: 'Discard this draft?' });
+        expect(within(dialog).getByRole('status').textContent).toBe('Discarding…');
+
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
+        expect(discard).not.toHaveBeenCalled();
+
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+        expect(cancelDiscard).toHaveBeenCalledTimes(1);
     });
 });

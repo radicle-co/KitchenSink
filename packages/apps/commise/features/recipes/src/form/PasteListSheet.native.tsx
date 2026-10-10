@@ -36,14 +36,9 @@ export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, fai
             closeLabel={m.pasteListClose}
             size="content"
             footer={
-                <View style={styles.footer}>
-                    <Button variant="ghost" onPress={() => sheet.setOpen(false)}>
-                        {t.pasteCancel}
-                    </Button>
-                    <Button icon="plus" disabled={!canSubmit} busy={submitting} onPress={sheet.add}>
-                        {pluralOf(t.pasteAdd, lineCount, locale)}
-                    </Button>
-                </View>
+                <Button icon="plus" width="fill" disabled={!canSubmit} busy={submitting} onPress={sheet.add}>
+                    {pluralOf(t.pasteAdd, lineCount, locale)}
+                </Button>
             }
         >
             <View style={styles.field}>
@@ -72,7 +67,6 @@ export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, fai
 };
 
 const styles = StyleSheet.create({
-    footer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: nativeTokens.spacing[2] },
     field: { gap: nativeTokens.spacing[1] },
     count: { ...nativeTokens.type.meta, fontVariant: ['tabular-nums'] },
     message: { ...nativeTokens.type.meta },

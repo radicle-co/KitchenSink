@@ -10,10 +10,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // The preference lives on the server (D19, ADR-0059); the hook reads it through the settings query. The query is the
 // seam: what it answers is what the hook obeys, so the tests set the answer and never touch browser storage.
 const { settings } = vi.hoisted(() => ({
-    settings: { current: { searchShortcut: true } as { searchShortcut: boolean } | undefined },
+    settings: {
+        current: { searchShortcut: true } as { searchShortcut: boolean } | undefined,
+        placeholder: false,
+    },
 }));
 
-vi.mock('@/hooks/useUserSettings', () => ({ useUserSettings: () => ({ data: settings.current }) }));
+vi.mock('@/hooks/useUserSettings', () => ({
+    useUserSettings: () => ({ data: settings.current, isPlaceholderData: settings.placeholder }),
+}));
 
 import { AccountEraseDialog } from '@commise/features-account/danger';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -23,6 +28,7 @@ import { useSearchShortcut } from '../useSearchShortcut';
 
 beforeEach(() => {
     settings.current = { searchShortcut: true };
+    settings.placeholder = false;
 });
 
 afterEach(cleanup);
@@ -243,7 +249,23 @@ describe('useSearchShortcut', () => {
         add.mockRestore();
     });
 
-    it('uses the published default while the first read is in flight (no data yet)', () => {
+    it('attaches NO listener while the settings are the placeholder default, even though the default is on (WCAG 2.1.4)', () => {
+        const add = vi.spyOn(document, 'addEventListener');
+
+        settings.current = { searchShortcut: true };
+        settings.placeholder = true;
+        render(<Page />);
+        screen.getByRole('button', { name: 'Elsewhere' }).focus();
+
+        const event = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
+        screen.getByRole('button', { name: 'Elsewhere' }).dispatchEvent(event);
+
+        expect(add.mock.calls.filter(([type]) => type === 'keydown')).toHaveLength(0);
+        expect(event.defaultPrevented).toBe(false);
+        add.mockRestore();
+    });
+
+    it('attaches NO listener when the query has no data at all', () => {
         settings.current = undefined;
         render(<Page />);
         screen.getByRole('button', { name: 'Elsewhere' }).focus();
@@ -251,7 +273,7 @@ describe('useSearchShortcut', () => {
         const event = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
         screen.getByRole('button', { name: 'Elsewhere' }).dispatchEvent(event);
 
-        expect(event.defaultPrevented).toBe(true);
+        expect(event.defaultPrevented).toBe(false);
     });
 
     it('obeys a change made while mounted — off then on', () => {

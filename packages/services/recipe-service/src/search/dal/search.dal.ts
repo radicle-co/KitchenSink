@@ -26,11 +26,11 @@ import type { Recipe, RecipeFacetCount, RecipeSearchResult } from '@kitchensink/
 
 // The CONTRACT owns this shape (it is a public response-body field); the DAL merely computes a value of
 // it. It used to be declared and exported here, which made a data-access internal define the public API.
-import type { RecipeSearchFacets } from '../search.schema.js';
+import type { RecipeSearchFacets, RecipeSearchQuery } from '../search.schema.js';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE } from '../../common/pagination.js';
-import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipePredicates.js';
+import { communityOf, readableBy } from '../../recipes/dal/recipePredicates.js';
 import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipeRowToDomain.js';
 import { resolveCdnUrl } from '../../photos/photoView.js';
 import type { FoodFilter } from '../foodFilterExpansion.gateway.js';
@@ -117,6 +117,11 @@ export interface RecipeSearchFilters {
     readonly pageSize: number;
     /** Result ordering. */
     readonly sortBy: RecipeSearchSortBy;
+    /**
+     * `community` narrows to other cooks' public, published recipes (the viewer's own are excluded) in place of the
+     * viewer-widened default. Absent keeps the default.
+     */
+    readonly scope?: RecipeSearchQuery['scope'];
 }
 
 /** What {@link SearchDal.search} returns: the ranked page, its facets, and the unpaged total. */
@@ -487,8 +492,11 @@ export class SearchDal {
 
     /** Build the AND-joined visibility + filter predicate shared by all three reads. */
     private buildWhere(filters: RecipeSearchFilters): SQL {
-        // W8-a.3 draft boundary: a public DRAFT must not surface in search to anyone but its owner.
-        const conditions: SQL[] = [activeRecipe(), viewableBy(filters.ownerId), publishedOrOwnedBy(filters.ownerId)];
+        // W8-a.3 draft boundary: a public DRAFT must not surface in search to anyone but its owner. The community
+        // scope is strictly narrower (no owner widening at all), and replaces — never adds to — the default terms.
+        const conditions: SQL[] = [
+            filters.scope === 'community' ? communityOf(filters.ownerId) : readableBy(filters.ownerId),
+        ];
 
         if (filters.query !== undefined) {
             conditions.push(sql`search_vector @@ plainto_tsquery('english', ${filters.query})`);

@@ -164,14 +164,14 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         expect(onBack).toHaveBeenCalledTimes(1);
     });
 
-    it('shows the name and email in the header and both rows in the Account group', () => {
+    it('shows the email once, in the header, and the display-name row in the Account group', () => {
         renderProfile();
 
         const account = screen.getByRole('button', { name: t.displayName });
         expect(account.textContent).toContain('Eliza Moreno');
-        // Header and the read-only Email row both carry the address.
-        expect(screen.getAllByText('eliza@example.com').length).toBeGreaterThanOrEqual(2);
-        expect(screen.getByText(t.email)).toBeTruthy();
+        // The header carries the address; a read-only Email row would repeat it (evaluateFinal.md).
+        expect(screen.getAllByText('eliza@example.com')).toHaveLength(1);
+        expect(screen.queryByText(t.email)).toBeNull();
     });
 
     it('holds Preferences with the data sources row, sign out, and the danger zone with both hints', () => {

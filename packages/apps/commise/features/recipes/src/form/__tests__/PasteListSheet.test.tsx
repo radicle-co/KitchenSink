@@ -76,6 +76,18 @@ describe('PasteListSheet (web)', () => {
         expect(isDisabled(addButton('Add 2 ingredients'))).toBe(false);
     });
 
+    // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): below 840 the primary fills the sheet and the × is the only way out;
+    // at 840+ a ghost Cancel sits beside a content-width primary.
+    it('fills the primary and shows Cancel only from 840', () => {
+        render(<Host paste={fakePaste()} />);
+
+        const add = addButton('Add 0 ingredients');
+        const cancel = within(dialog()).getByRole('button', { name: t.pasteCancel });
+
+        expect(add.className.split(' ')).toContain('w-full');
+        expect((cancel.closest('.hidden') as HTMLElement | null)?.className.split(' ')).toContain('nav:block');
+    });
+
     it('adding sends the text to the paste', async () => {
         const user = userEvent.setup();
         const submit = vi.fn();

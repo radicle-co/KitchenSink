@@ -350,6 +350,17 @@ describe('RecipeDiscoveryFrame (native) — the count line, which is also the li
 
         expect(countLine(container).textContent).toBe('No recipes for “tiramisu”');
     });
+
+    it('⛔ shows a no-result sentence ONCE: the line still announces it but is taken out of the layout, the heading is the visible copy', () => {
+        const { container, rerender } = renderFrame({ resultsSummary: { count: 12, query: 'lamb', kind: 'query' } });
+
+        expect(getComputedStyle(countLine(container)).position).not.toBe('absolute');
+
+        rerender(frame({ resultsSummary: { count: 0, query: 'tiramisu', kind: 'query' } }));
+
+        expect(countLine(container).textContent).toBe('No recipes for “tiramisu”');
+        expect(getComputedStyle(countLine(container)).position).toBe('absolute');
+    });
 });
 
 describe('RecipeDiscoveryFrame (native) — heading focus', () => {

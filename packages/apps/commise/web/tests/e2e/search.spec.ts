@@ -121,6 +121,40 @@ test.describe('recipe search (T110)', () => {
         await expect(discoverySentence(page, '1 recipe for “paella”')).toHaveCount(1);
     });
 
+    test("asks the service for the community scope: Discover is other cooks' recipes, never the viewer's own", async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [makeRecipeDetail({ id: E2E_RECIPE_IDS.paella, ownerId: 'usr_other', title: 'Seafood Paella' })],
+        });
+        const searchRequests: URL[] = [];
+        page.on('request', (request) => {
+            const url = new URL(request.url());
+
+            if (url.pathname.endsWith('/api/v1/search/recipes')) {
+                searchRequests.push(url);
+            }
+        });
+
+        await page.goto(route('/discover'));
+        await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
+        const typedSearch = page.waitForRequest(
+            (request) =>
+                request.url().includes('/api/v1/search/recipes') && new URL(request.url()).searchParams.has('query'),
+        );
+        await page.getByRole('searchbox', { name: 'Search recipes' }).fill('paella');
+        await typedSearch;
+
+        // The browse rails AND the typed search both went out, and every one of them carried the scope.
+        expect(searchRequests.length).toBeGreaterThan(1);
+        expect(searchRequests.map((url) => url.searchParams.get('scope'))).toEqual(
+            searchRequests.map(() => 'community'),
+        );
+    });
+
     test('shows the empty state when nothing matches the term', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);

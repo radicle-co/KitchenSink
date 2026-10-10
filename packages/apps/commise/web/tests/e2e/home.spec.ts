@@ -64,6 +64,7 @@ test.describe('Home widget surface (T104)', () => {
         // a visible "Soon".
         const comingSoon = page.getByRole('region', { name: 'Coming soon' });
         await expect(comingSoon.getByRole('heading', { level: 2, name: 'Coming soon' })).toBeVisible();
+
         for (const title of ['Today’s nutrition', 'Resume cooking', 'This week’s meals']) {
             const placeholder = comingSoon.getByRole('region', { name: title });
             await expect(placeholder).toBeVisible();

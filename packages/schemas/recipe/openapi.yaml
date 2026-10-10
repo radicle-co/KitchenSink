@@ -2018,6 +2018,15 @@ paths:
               - title
               - most-cloned
               - quickest
+        - name: scope
+          in: query
+          required: false
+          description: "Narrow to `community`: other cooks' public, published recipes (the caller's own are excluded). Absent
+            keeps the default visibility."
+          schema:
+            type: string
+            enum:
+              - community
   /api/v1/ingredients/search:
     get:
       operationId: searchIngredients

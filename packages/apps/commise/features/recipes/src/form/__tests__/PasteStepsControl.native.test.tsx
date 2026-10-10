@@ -14,6 +14,7 @@ vi.mock('react-native', async (importOriginal) => {
 });
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { recipeFormMessages } from '../messages.js';
 import { editorMessages } from '../../editor/messages.js';
 import { PasteStepsControl } from '../PasteStepsControl.native.js';
 
@@ -61,13 +62,18 @@ describe('PasteStepsControl (native)', () => {
         expect(screen.getByRole('button', { name: 'Add 1 step' })).toBeTruthy();
     });
 
-    it('Cancel closes without adding, and the next open starts empty', () => {
+    // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): the primary fills the sheet and the × is the only way out, as the
+    // New collection sheet does on a phone.
+    it('fills the primary and has no Cancel; the × closes without adding, and the next open starts empty', () => {
         const onAdd = vi.fn();
         render(<PasteStepsControl onAdd={onAdd} />);
         fireEvent.click(screen.getByRole('button', { name: s.paste }));
 
+        expect(screen.getByRole('button', { name: 'Add 0 steps' }).style.alignSelf).toBe('stretch');
+        expect(screen.queryByRole('button', { name: s.pasteCancel })).toBeNull();
+
         fireEvent.change(field(), { target: { value: 'Boil.' } });
-        fireEvent.click(screen.getByRole('button', { name: s.pasteCancel }));
+        fireEvent.click(screen.getByRole('button', { name: recipeFormMessages.en.pasteStepsClose }));
 
         expect(onAdd).not.toHaveBeenCalled();
         expect(screen.queryByRole('textbox', { name: s.pasteLabel })).toBeNull();

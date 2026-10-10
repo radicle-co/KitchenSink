@@ -198,7 +198,12 @@ describe('RecipeDiscoveryContainer — result list', () => {
         await user.click(await screen.findByRole('menuitemradio', { name: 'Quickest' }));
 
         await vi.waitFor(() =>
-            expect(searchSpy).toHaveBeenCalledWith({ tags: ['quick'], sortBy: 'quickest', page: 1 }),
+            expect(searchSpy).toHaveBeenCalledWith({
+                scope: 'community',
+                tags: ['quick'],
+                sortBy: 'quickest',
+                page: 1,
+            }),
         );
     });
 
@@ -277,7 +282,12 @@ describe('RecipeDiscoveryContainer — URL criteria', () => {
         await openFilters(userEvent.setup());
         const chip = await screen.findByRole('button', { name: 'vegan 2' });
         expect(chip.getAttribute('aria-pressed')).toBe('true');
-        expect(searchSpy).toHaveBeenCalledWith({ dietaryFlags: ['vegan'], sortBy: 'relevance', page: 1 });
+        expect(searchSpy).toHaveBeenCalledWith({
+            scope: 'community',
+            dietaryFlags: ['vegan'],
+            sortBy: 'relevance',
+            page: 1,
+        });
     });
 
     it('writes a toggled facet to the URL', async () => {
@@ -414,7 +424,7 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
 
         // The main (facet-providing) search still runs with the default relevance sort and no query param.
-        expect(searchSpy).toHaveBeenCalledWith({ sortBy: 'relevance', page: 1 });
+        expect(searchSpy).toHaveBeenCalledWith({ scope: 'community', sortBy: 'relevance', page: 1 });
     });
 
     it('offers no sort while browsing, and offers it on the keystroke that starts a search', async () => {
@@ -470,7 +480,9 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
 
         // The full result list now runs with the rail's sort (most-cloned) and no rail page cap. REWRITTEN to wait for
         // the rails to go: leaving browse rides with the deferred criteria, so the rails stay until that list settles.
-        await vi.waitFor(() => expect(searchSpy).toHaveBeenCalledWith({ sortBy: 'most-cloned', page: 1 }));
+        await vi.waitFor(() =>
+            expect(searchSpy).toHaveBeenCalledWith({ scope: 'community', sortBy: 'most-cloned', page: 1 }),
+        );
         await waitFor(() => expect(screen.queryByRole('heading', { name: 'Trending' })).not.toBeInTheDocument());
     });
 
@@ -1034,6 +1046,8 @@ describe('RecipeDiscoveryContainer — across the server render', () => {
                     sortBy: RecipeSearchSortBy.RELEVANCE,
                 }),
             ).queryKey,
-        ).toEqual(recipeQueries(client).searchInfinite({ sortBy: RecipeSearchSortBy.RELEVANCE }).queryKey);
+        ).toEqual(
+            recipeQueries(client).searchInfinite({ scope: 'community', sortBy: RecipeSearchSortBy.RELEVANCE }).queryKey,
+        );
     });
 });

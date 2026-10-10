@@ -141,6 +141,13 @@ const minutesFilterSchema = z.preprocess(
 export const RECIPE_SEARCH_SORT_BY = Object.values(RecipeSearchSortBy);
 
 /**
+ * The scopes a search may be narrowed to. Absent means "everything this viewer may see" (public, published recipes
+ * plus the viewer's own drafts and private recipes). `community` is the Discover surface: OTHER cooks' public,
+ * published recipes only. A single-member enum rather than a boolean so a later scope is an additive change.
+ */
+export const RECIPE_SEARCH_SCOPES = ['community'] as const;
+
+/**
  * The `GET /api/v1/search/recipes` query — SOURCE OF TRUTH for what the endpoint accepts.
  *
  * Coerced, because a query bag is strings on the wire. `.int()` REJECTS `2.5` rather than truncating it: a
@@ -191,6 +198,11 @@ export const recipeSearchQuerySchema = z.object({
     pageSize: z.preprocess(blankAsAbsent, z.coerce.number().int().positive().max(MAX_SEARCH_PAGE_SIZE).optional()),
     /** Sort key. Defaulted to `relevance` by `SearchService`, not here. */
     sortBy: z.preprocess(blankAsAbsent, z.enum(RECIPE_SEARCH_SORT_BY).optional()),
+    /**
+     * Narrow the search to `community`: other cooks' public, published recipes (the viewer's own are excluded).
+     * Absent keeps the default, viewer-widened visibility.
+     */
+    scope: z.preprocess(blankAsAbsent, z.enum(RECIPE_SEARCH_SCOPES).optional()),
 });
 
 /** The parsed `GET /api/v1/search/recipes` query. */

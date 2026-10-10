@@ -130,6 +130,10 @@ test.describe('collections (T109)', () => {
         );
         await page.getByRole('button', { name: 'More actions for Weeknight Pasta' }).click();
         await page.getByRole('menuitem', { name: 'Remove from collection' }).click();
+        // The pointer is still where the menu item was, and on a 1280 x 720 window that is where the snackbar rises
+        // (measured: it covers y 652-712). The snackbar pauses its timer while the pointer is over it (SC 2.2.1, by
+        // design — `UndoSnackbar`), so a cook who walks away lets it run out and this test must do the same.
+        await page.mouse.move(0, 0);
         await expect(page.getByText('Removed Weeknight Pasta from Weeknight dinners.')).toHaveCount(0, {
             timeout: 15_000,
         });

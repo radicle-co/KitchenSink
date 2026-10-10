@@ -116,8 +116,11 @@ export type EditorCoreEvent =
     | { readonly type: 'draftRestored'; readonly draft: RecipeFormValues }
     /** A ref was minted for a recipe the server has never stored (A4). */
     | { readonly type: 'refMinted'; readonly ref: string }
-    /** A recipe write answered: the server holds `sent`, at the answer's version. */
-    | { readonly type: 'written'; readonly detail: RecipeDetail; readonly sent: RecipeFormValues }
+    /**
+     * A recipe write answered: the server holds `sent`, at the answer's version. `sent` is `undefined` for a write this
+     * editor did not author (another editor of the recipe queued it): the server's values are then read from `detail`.
+     */
+    | { readonly type: 'written'; readonly detail: RecipeDetail; readonly sent: RecipeFormValues | undefined }
     /** The server is at `version` and already holds the draft's content (a phantom 409, an agreeing refusal, a resend). */
     | { readonly type: 'versionAdopted'; readonly version: number }
     /** A rebind command answered with `detail`, which re-points the line `key` to `binding`. */
@@ -263,7 +266,7 @@ function rebound(state: EditorCoreState, event: Extract<EditorCoreEvent, { type:
 }
 
 /** A recipe write's answer: every server fact from it at once. */
-function written(state: EditorCoreState, detail: RecipeDetail, sent: RecipeFormValues): EditorCoreState {
+function written(state: EditorCoreState, detail: RecipeDetail, sent: RecipeFormValues | undefined): EditorCoreState {
     const { server } = state;
 
     return {
@@ -272,7 +275,7 @@ function written(state: EditorCoreState, detail: RecipeDetail, sent: RecipeFormV
             kind: 'stored',
             ref: detail.id,
             recipe: detail,
-            values: sent,
+            values: sent ?? toRecipeFormValues(detail),
             baseVersion: detail.currentVersion,
             held: server.kind === 'stored' ? server.held : [],
             drainFailed: server.kind === 'stored' && server.drainFailed,

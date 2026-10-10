@@ -62,6 +62,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, type FC, type ReactNode } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
+import { EditorStateFrame } from '@/components/recipes/EditorStateFrame';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { editorDraftsFor } from '@/components/recipes/editorDrafts';
 import { opensPasteSheet } from '@/components/recipes/pasteIngredientsHref';
@@ -95,9 +96,11 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
     // This opening of the editor, minted OUTSIDE the read boundary: its device-draft read is its own (`useDeviceDraft`).
     const [opening] = useState(nextEditorOpening);
     const loading = (
-        <p role="status" aria-label={recipes.detail.loadingLabel} className="px-4 py-8 text-body-md text-ink-muted">
-            {recipes.detail.loadingLabel}
-        </p>
+        <EditorStateFrame>
+            <p role="status" aria-label={recipes.detail.loadingLabel} className="py-8 text-body-md text-ink-muted">
+                {recipes.detail.loadingLabel}
+            </p>
+        </EditorStateFrame>
     );
 
     if (recipeId === undefined) {
@@ -105,7 +108,9 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
             <ClientQueryBoundary
                 loading={null}
                 renderError={({ error, resetErrorBoundary }) => (
-                    <RecipeLoadError error={error} onRetry={resetErrorBoundary} />
+                    <EditorStateFrame>
+                        <RecipeLoadError error={error} onRetry={resetErrorBoundary} />
+                    </EditorStateFrame>
                 )}
             >
                 <NewRecipeEditor locale={locale} opening={opening} />
@@ -119,7 +124,9 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
         <ClientQueryBoundary
             loading={loading}
             renderError={({ error, resetErrorBoundary }) => (
-                <RecipeLoadError error={error} onRetry={resetErrorBoundary} />
+                <EditorStateFrame>
+                    <RecipeLoadError error={error} onRetry={resetErrorBoundary} />
+                </EditorStateFrame>
             )}
             resetKeys={[recipeId]}
         >
@@ -142,9 +149,12 @@ const NewRecipeEditor: FC<{ readonly locale: string; readonly opening: number }>
         return null;
     }
 
+    // ⛔ Keyed by the cook as well as the ref: a switch of cook (Clerk multi-session) must remount the editor, so the
+    // previous cook's exit checkpoint runs against THEIR ports before the session scope clears their stores. Suspense
+    // keeps a subtree's state, so an unkeyed editor resumed the first cook's draft with the second cook's outbox.
     return (
         <DraftDestination
-            key={draftRef ?? 'new'}
+            key={`${cook.subject}:${draftRef ?? 'new'}`}
             locale={locale}
             cook={cook}
             draftRef={draftRef}
@@ -247,8 +257,10 @@ const StoredRecipeEditor: FC<{
         return null;
     }
 
+    // Keyed by the cook, for `NewRecipeEditor`'s reason.
     return (
         <SeededEditor
+            key={cook.subject}
             locale={locale}
             mode="edit"
             cook={cook}

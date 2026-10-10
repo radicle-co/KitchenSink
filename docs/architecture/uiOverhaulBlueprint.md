@@ -571,9 +571,10 @@ re-add would plausibly come back as "Added by you" (inferred, not verified serve
 
 ### A18 — Keyboard shortcuts preference
 
-**Decision.** Per device, in web `localStorage` `prefs.v1.searchShortcut`. It is a web-only affordance tied to
-the keyboard in use, it is not personal data, and storing it per account would need an identity-service field
-for one boolean.
+**Decision.** The preference is a server-side user setting (`searchShortcut`), not a per-device value. Owner
+ruling D19 superseded the earlier plan to keep it in web `localStorage`. The setting follows the cook to another
+browser, and ADR-0059 records the settings endpoint it is read from. The switch is web-only, because the `/` key
+is a keyboard affordance. Native shows no switch, and ADR-0059 records that waiver.
 
 ### A19 — `ui` token roles
 

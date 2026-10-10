@@ -14,7 +14,8 @@ import { SyncProvider } from '@commise/query/sync';
 import { recipeSender } from '@commise/query/recipe-sender';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import { createMemoryOutboxStore } from '@kitchensink/sync';
+import { createMemoryOutboxStore, loadOutbox } from '@kitchensink/sync';
+import { onlineManager } from '@tanstack/react-query';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { recipeFormMessages } from '@commise/features-recipes';
 
@@ -38,7 +39,10 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
-vi.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: 'user_cook' }) }));
+/** The signed-in cook: one unless a test switches it (Clerk multi-session). */
+const auth = vi.hoisted(() => ({ userId: 'user_cook' }));
+
+vi.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: auth.userId }) }));
 
 // The device draft over a memory store: this suite is about the screen and the outbox, not AsyncStorage.
 vi.mock('../../src/storage/editorDrafts.js', async () => {
@@ -53,7 +57,10 @@ vi.mock('../../src/storage/editorDrafts.js', async () => {
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: () => ({ data: undefined }) }));
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    auth.userId = 'user_cook';
+});
 
 /** Render the screen under the real outbox, sending with `client`. */
 function renderScreen(client: RecipeServiceClient, props: Partial<Parameters<typeof RecipeEditorScreen>[0]> = {}) {
@@ -208,6 +215,49 @@ describe('RecipeEditorScreen (native)', () => {
 });
 
 /** Paste a list (build spec §7.5.4; blueprint A5; owner decision D10), through the screen over a fake client. */
+/**
+ * The signed-in cook changes from A to B with the editor open (finding 3 of the 2026-10-10 review): the screen must
+ * remount the editor, so A's exit checkpoint runs against A's outbox and B opens a fresh editor. Unkeyed, the editor kept
+ * A's draft and wrote it through B's outbox. Offline, so each journal keeps what it was given.
+ */
+describe('RecipeEditorScreen (native) — the signed-in cook changes', () => {
+    afterEach(() => {
+        onlineManager.setOnline(true);
+    });
+
+    it('⛔ A`s exit checkpoint goes to A`s outbox, B`s holds nothing of A`s, and B gets a fresh editor', async () => {
+        onlineManager.setOnline(false);
+        auth.userId = 'user_a';
+        const client = createFakeRecipeServiceClient();
+        const store = createMemoryOutboxStore();
+        const handlers = { onFinished: vi.fn(), onClose: vi.fn(), onDiscarded: vi.fn() };
+        const tree = () =>
+            withFoodClient(
+                <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={store}>
+                    <RecipeEditorScreen {...handlers} />
+                </SyncProvider>,
+            );
+        const view = renderWithRecipeClient(tree(), client);
+        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Soup of A' } });
+
+        auth.userId = 'user_b';
+        view.rerender(tree());
+
+        await waitFor(() => expect(screen.getByLabelText('Title')).toHaveProperty('value', ''));
+        view.unmount();
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        const titlesIn = async (subject: string) =>
+            (await loadOutbox(store, subject)).records.map(
+                (record) => (record.payload as { readonly input?: { readonly title?: string } }).input?.title,
+            );
+        expect(await titlesIn('user_a')).toEqual(['Soup of A']);
+        expect(await titlesIn('user_b')).toEqual([]);
+    });
+});
+
 describe('RecipeEditorScreen (native) — Paste a list', () => {
     it('a new recipe’s empty Ingredients section offers it; the pasted line is looked up by name', async () => {
         const client = createFakeRecipeServiceClient();

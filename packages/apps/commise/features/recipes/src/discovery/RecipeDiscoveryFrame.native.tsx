@@ -88,12 +88,20 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
         />
     );
 
-    // Mounted empty and never unmounted by a body swap: this is the live region.
-    const count = (
-        <LiveRegion politeness="polite" style={[styles.count, { color: colors.inkMuted }]}>
-            {resultsSummary === undefined ? '' : formatDiscoveryResultsSummary(resultsSummary, discovery, locale)}
-        </LiveRegion>
-    );
+    // Mounted empty and never unmounted by a body swap: this is the live region. When nothing was found the no-result
+    // heading below already shows the same sentence, so the line keeps ANNOUNCING it but stops showing it.
+    const summary =
+        resultsSummary === undefined ? '' : formatDiscoveryResultsSummary(resultsSummary, discovery, locale);
+    const count =
+        resultsSummary?.count === 0 ? (
+            <LiveRegion politeness="polite" visuallyHidden>
+                {summary}
+            </LiveRegion>
+        ) : (
+            <LiveRegion politeness="polite" style={[styles.count, { color: colors.inkMuted }]}>
+                {summary}
+            </LiveRegion>
+        );
 
     const body = (
         <View style={panel === undefined ? styles.fill : styles.resultsColumn}>

@@ -34,6 +34,7 @@ import {
     useRecipeServiceClient,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
 import type { LookupRetry, ObservedIngredientStatus, SettledAnswer } from '../form/ingredientStatus.js';
@@ -125,6 +126,7 @@ export interface RecipeEditorSession {
 export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): RecipeEditorSession {
     const { seed, locale, keep, port, drafts, navigation, onRecipeRef, openPaste } = options;
     const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
     const setVisibility = useSetRecipeVisibility();
     const rebind = useRebindIngredientLine();
     const guided = useLibraryEmpty(recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey);
@@ -177,6 +179,8 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         onExit,
         ...(onRecipeRef === undefined ? {} : { onRecipeRef }),
         rebindLine: (address, target) => rebind.mutateAsync(rebindRequestOf(address, target)),
+        // The outbox's cache observer writes each synced recipe write's answer here, so this is usually a cache read.
+        readRecipe: (id) => queryClient.ensureQueryData(recipeQueries(client).detail(id)),
         pasteHold,
     });
 

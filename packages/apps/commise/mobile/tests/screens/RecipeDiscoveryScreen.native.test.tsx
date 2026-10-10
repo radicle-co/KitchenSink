@@ -374,7 +374,9 @@ describe('RecipeDiscoveryScreen — browse rails (U7)', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'See all Trending' }));
 
         await waitFor(() => expect(screen.queryByRole('heading', { name: 'Trending' })).toBeNull());
-        expect(search).toHaveBeenCalledWith({ sortBy: 'most-cloned', page: 1 });
+        // UPDATED for `evaluateFinal.md` F13: every discovery search, a rail's full list included, is scoped to the community
+        // (other cooks' public published recipes) through the one `DISCOVERY_SCOPE`.
+        expect(search).toHaveBeenCalledWith({ scope: 'community', sortBy: 'most-cloned', page: 1 });
 
         fireEvent.click(screen.getByRole('button', { name: 'Back to browse' }));
 

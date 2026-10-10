@@ -16,6 +16,7 @@ import {
     type VersionConflictSide,
 } from '@kitchensink/recipe-core';
 import { makeRecipeVersion } from '@kitchensink/recipe-core/testing';
+import { DEFAULT_REQUEST_TIMEOUT_MS } from '@kitchensink/recipe-service-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeFakeEditorWritePort as fakePort } from '../../__fixtures__/editorWritePort.js';
@@ -69,13 +70,15 @@ function sideAt(
 const PUBLISHED = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.PUBLISHED });
 const NEVER_PUBLISHED = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT });
 
-function mount(seed: EditorSeed = {}, pasteHold?: PasteHold) {
-    const port = fakePort();
+function mount(seed: EditorSeed = {}, pasteHold?: PasteHold, port = fakePort()) {
     const drafts = fakeDrafts();
     const onExit = vi.fn<(exit: EditorExit) => void>();
     const onRecipeRef = vi.fn<(ref: string) => void>();
     const rebindLine = vi.fn<RebindLineSend>(async () => {
         throw new Error('rebindLine: not expected in this test');
+    });
+    const readRecipe = vi.fn<(id: string) => Promise<RecipeDetail>>(async () => {
+        throw new Error('readRecipe: not expected in this test');
     });
     const view = renderHook(
         (props: { readonly seed: EditorSeed; readonly pastePending?: boolean }) =>
@@ -87,6 +90,7 @@ function mount(seed: EditorSeed = {}, pasteHold?: PasteHold) {
                 onExit,
                 onRecipeRef,
                 rebindLine,
+                readRecipe,
                 pastePending: props.pastePending ?? false,
                 ...(pasteHold === undefined ? {} : { pasteHold }),
                 now: () => new Date('2026-10-09T12:00:00.000Z'),
@@ -94,7 +98,7 @@ function mount(seed: EditorSeed = {}, pasteHold?: PasteHold) {
         { initialProps: { seed } as { readonly seed: EditorSeed; readonly pastePending?: boolean } },
     );
 
-    return { ...view, port, drafts, onExit, onRecipeRef, rebindLine };
+    return { ...view, port, drafts, onExit, onRecipeRef, rebindLine, readRecipe };
 }
 
 /** Type a title (the draft floor's one requirement). */
@@ -308,7 +312,7 @@ describe('an answer that lands before the editor recorded the write', () => {
         port.submitExclusive.mockImplementationOnce(async (intent) => {
             const outcome = await queue!(intent);
             // The drain answers before the editor sees `queued`.
-            port.sync(outcome.seq, created);
+            port.sync(outcome.kind === 'resolved' ? 0 : outcome.seq, created);
 
             return outcome;
         });
@@ -325,6 +329,168 @@ describe('an answer that lands before the editor recorded the write', () => {
             serverId: 'rec_fast',
             version: 1,
         });
+    });
+});
+
+/**
+ * One recipe, one lane, across two editors of it (finding 1 of the 2026-10-10 review). Back unmounts the editor, whose
+ * exit checkpoint queues the create; Forward (or a reload) opens a second editor on the same local ref before the create
+ * has answered. That editor's checkpoint met the create on the wire, recorded only a deferred trigger, and dropped the
+ * record's number, so the create's answer went to nobody; the next checkpoint, once the synced record had left the log,
+ * created the recipe again. Every case below allows exactly ONE create.
+ */
+describe('a second editor of a recipe whose create the first one queued', () => {
+    const CREATED = makeRecipeDetail({ id: 'rec_x', title: 'Soup', currentVersion: 1, status: RecipeStatus.DRAFT });
+
+    /** The first editor: titled, then left (Back), its exit checkpoint queuing the create. */
+    async function leftWithCreateQueued() {
+        const first = mount();
+        typeTitle(first.result);
+        act(() => {
+            first.result.current.checkpoint('editorExit');
+        });
+        await settle();
+        const ref = first.port.submitted[0]?.localId ?? '';
+        first.unmount();
+
+        return { port: first.port, ref, seq: first.port.lastSeq() };
+    }
+
+    /** The device draft the first editor left: what the second one opens with. */
+    function mementoOf(ref: string): DraftMemento {
+        return {
+            recipeRef: ref,
+            baseVersion: null,
+            values: toDraftValues({ ...toRecipeFormValues(CREATED), title: 'Soup', ingredients: [] }),
+            pendingRebinds: [],
+            savedAt: '2026-10-09T11:59:00.000Z',
+        };
+    }
+
+    const creates = (port: ReturnType<typeof fakePort>) =>
+        port.submitted.filter((intent) => intent.intentKind === 'create');
+
+    it('⛔ the create on the wire: the second editor adopts its answer, and sends its own edit as an update', async () => {
+        const { port, ref, seq } = await leftWithCreateQueued();
+        port.claim(seq);
+        const second = mount({ memento: mementoOf(ref) }, undefined, port);
+
+        act(() => {
+            second.result.current.setField('description', 'Typed after Forward.');
+        });
+        act(() => {
+            second.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        act(() => {
+            port.sync(seq, CREATED);
+        });
+        await settle();
+        await settle();
+
+        expect(creates(port)).toHaveLength(1);
+        expect(second.result.current.recipeId).toBe('rec_x');
+        expect(port.submitted.at(-1)).toMatchObject({
+            intentKind: 'update',
+            localId: 'rec_x',
+            payload: { id: 'rec_x', input: { description: 'Typed after Forward.', expectedVersion: 1 } },
+        });
+        expect(second.onRecipeRef).toHaveBeenCalledWith('rec_x');
+    });
+
+    it('⛔ the create answers before the second editor learns it was in the way: the early answer is still adopted', async () => {
+        const { port, ref, seq } = await leftWithCreateQueued();
+        port.claim(seq);
+        const second = mount({ memento: mementoOf(ref) }, undefined, port);
+        const queue = port.submitExclusive.getMockImplementation();
+        port.submitExclusive.mockImplementationOnce(async (intent) => {
+            const outcome = await queue!(intent);
+            port.sync(seq, CREATED);
+
+            return outcome;
+        });
+
+        act(() => {
+            second.result.current.setField('description', 'Typed after Forward.');
+        });
+        act(() => {
+            second.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        await settle();
+        await settle();
+
+        expect(creates(port)).toHaveLength(1);
+        expect(second.result.current.recipeId).toBe('rec_x');
+    });
+
+    it('⛔ the create already synced: the outbox answers `resolved`, and the editor reads the recipe and updates it', async () => {
+        const { port, ref, seq } = await leftWithCreateQueued();
+        act(() => {
+            port.sync(seq, CREATED);
+        });
+        const second = mount({ memento: mementoOf(ref) }, undefined, port);
+        second.readRecipe.mockResolvedValue(CREATED);
+
+        act(() => {
+            second.result.current.setField('description', 'Typed after Forward.');
+        });
+        act(() => {
+            second.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        await settle();
+        await settle();
+
+        expect(second.readRecipe).toHaveBeenCalledWith('rec_x');
+        expect(creates(port)).toHaveLength(1);
+        expect(second.result.current.recipeId).toBe('rec_x');
+        expect(second.drafts.adopt).toHaveBeenCalledWith(ref, { serverId: 'rec_x', version: 1 });
+        expect(port.submitted.at(-1)).toMatchObject({
+            intentKind: 'update',
+            payload: { id: 'rec_x', input: { description: 'Typed after Forward.', expectedVersion: 1 } },
+        });
+    });
+
+    it('a `resolved` met by the exit checkpoint of an untouched second editor moves the draft and never navigates', async () => {
+        const { port, ref, seq } = await leftWithCreateQueued();
+        act(() => {
+            port.sync(seq, CREATED);
+        });
+        const second = mount({ memento: mementoOf(ref) }, undefined, port);
+        second.readRecipe.mockResolvedValue(CREATED);
+
+        act(() => {
+            second.result.current.checkpoint('editorExit');
+        });
+        second.unmount();
+        await settle();
+        await settle();
+
+        expect(creates(port)).toHaveLength(1);
+        expect(second.drafts.adopt).toHaveBeenCalledWith(ref, { serverId: 'rec_x', version: 1 });
+        expect(second.onExit).not.toHaveBeenCalled();
+    });
+
+    it('⛔ the recipe cannot be read (offline): no second create, now or at the next checkpoint', async () => {
+        const { port, ref, seq } = await leftWithCreateQueued();
+        act(() => {
+            port.sync(seq, CREATED);
+        });
+        const second = mount({ memento: mementoOf(ref) }, undefined, port);
+        second.readRecipe.mockRejectedValue(new Error('offline'));
+
+        act(() => {
+            second.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        act(() => {
+            second.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+
+        expect(creates(port)).toHaveLength(1);
+        expect(second.result.current.recipeId).toBeUndefined();
     });
 });
 
@@ -832,31 +998,177 @@ describe('the rebind command (ADR-0045), in the lane', () => {
  * drains after the create and is sent with the id the create returns. The editor states it itself rather than relying
  * on the outbox's supersession to add it, and names it only while the ref is local (`appendIntent` refuses a server id).
  */
+/**
+ * Discard while the create is on the wire (finding 2 of the 2026-10-10 review). REWRITTEN: Discard used to queue a delete
+ * behind the create, depending on its ref, and close at once. When that create then parked (a dropped connection, a
+ * 4xx), the editor was gone, so nothing ever withdrew it: the parked create and its delete stayed in the outbox for the
+ * session and "not synced" never cleared. Discard now waits for the create's answer before it finishes, with the confirm
+ * busy and the editor mounted, bounded by the request timeout the outbox's client already uses.
+ */
 describe('discard while the create is on the wire', () => {
-    it('submits a delete that depends on the create`s local ref', async () => {
-        const { result, port } = mount();
+    const CREATED = makeRecipeDetail({ id: 'rec_x', currentVersion: 1, status: RecipeStatus.DRAFT });
 
-        typeTitle(result);
+    async function discardingOnTheWire() {
+        const view = mount();
+        typeTitle(view.result);
         act(() => {
-            result.current.checkpoint('sectionChange');
+            view.result.current.checkpoint('sectionChange');
         });
         await settle();
-        const localRef = port.submitted[0]?.localId ?? '';
-        port.claim(port.lastSeq());
+        const ref = view.port.submitted[0]?.localId ?? '';
+        const seq = view.port.lastSeq();
+        view.port.claim(seq);
 
         act(() => {
-            result.current.discard();
+            view.result.current.discard();
         });
         await settle();
 
-        expect(localRef).toMatch(/^local:recipe:/u);
-        expect(port.submitted.at(-1)).toEqual({
+        return { ...view, ref, seq };
+    }
+
+    it('waits: nothing is queued yet, the editor stays, and it says it is discarding', async () => {
+        const { result, port, onExit, drafts } = await discardingOnTheWire();
+
+        expect(result.current.discarding).toBe(true);
+        expect(port.queued().filter((intent) => intent.intentKind === 'delete')).toEqual([]);
+        expect(port.submit).not.toHaveBeenCalled();
+        expect(onExit).not.toHaveBeenCalled();
+        expect(drafts.discard).not.toHaveBeenCalled();
+    });
+
+    it('⛔ the create syncs: the recipe is deleted by the id it got, both device drafts go, and the editor closes', async () => {
+        const { port, onExit, drafts, ref, seq } = await discardingOnTheWire();
+
+        act(() => {
+            port.sync(seq, CREATED);
+        });
+        await settle();
+        await settle();
+
+        expect(port.submit).toHaveBeenCalledTimes(1);
+        expect(port.submit).toHaveBeenCalledWith({
             entity: 'recipe',
             intentKind: 'delete',
-            localId: localRef,
-            dependsOn: [localRef],
-            payload: { id: localRef },
+            localId: 'rec_x',
+            dependsOn: [],
+            payload: { id: 'rec_x' },
         });
+        expect(drafts.discarded).toEqual(expect.arrayContaining([ref, 'rec_x']));
+        expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+    });
+
+    it.each([
+        ['its outcome is unknown', undefined],
+        ['it is refused', 400],
+    ])(
+        '⛔ the create parks (%s): it is withdrawn, no delete is queued, and the editor closes',
+        async (_case, status) => {
+            const { port, onExit, drafts, ref, seq } = await discardingOnTheWire();
+
+            act(() => {
+                port.park(seq, status);
+            });
+            await settle();
+            await settle();
+
+            expect(port.withdrawn).toEqual([seq]);
+            expect(port.submit).not.toHaveBeenCalled();
+            expect(port.queued()).toEqual([]);
+            expect(drafts.discarded).toEqual([ref]);
+            expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+        },
+    );
+
+    it('the wait is bounded by the request timeout: then a delete waits on the create, and the editor closes', async () => {
+        const { port, onExit, ref } = await discardingOnTheWire();
+
+        act(() => {
+            vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS - 1);
+        });
+        await settle();
+        expect(onExit).not.toHaveBeenCalled();
+
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        await settle();
+        await settle();
+
+        expect(port.submit).toHaveBeenCalledWith({
+            entity: 'recipe',
+            intentKind: 'delete',
+            localId: ref,
+            dependsOn: [ref],
+            payload: { id: ref },
+        });
+        expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+    });
+
+    it('Keep, while it waits, takes the discard back: the editor carries on and adopts the create`s answer', async () => {
+        const { result, port, onExit, seq } = await discardingOnTheWire();
+
+        act(() => {
+            result.current.cancelDiscard();
+        });
+        act(() => {
+            port.sync(seq, CREATED);
+        });
+        await settle();
+        act(() => {
+            vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
+        });
+        await settle();
+
+        expect(result.current.discarding).toBe(false);
+        expect(result.current.recipeId).toBe('rec_x');
+        expect(port.submit).not.toHaveBeenCalled();
+        expect(onExit).not.toHaveBeenCalled();
+    });
+
+    it('a checkpoint while it waits writes nothing, to the device or the server', async () => {
+        const { result, port, drafts } = await discardingOnTheWire();
+        const saves = drafts.saved.length;
+        const submits = port.submitExclusive.mock.calls.length;
+
+        act(() => {
+            result.current.checkpoint('fieldBlur');
+            vi.advanceTimersByTime(SERVER_CHECKPOINT_IDLE_MS);
+        });
+        await settle();
+
+        expect(drafts.saved.length).toBe(saves);
+        expect(port.submitExclusive.mock.calls.length).toBe(submits);
+    });
+
+    it('⛔ the editor is left while it waits (browser Back): the discard finishes as the bound would, with no hand-off', async () => {
+        const { port, onExit, drafts, ref, unmount } = await discardingOnTheWire();
+
+        unmount();
+        await settle();
+
+        expect(port.submit).toHaveBeenCalledWith(expect.objectContaining({ intentKind: 'delete', dependsOn: [ref] }));
+        expect(drafts.discarded).toEqual([ref]);
+        expect(onExit).not.toHaveBeenCalled();
+    });
+
+    it('a create still queued (not on the wire): both go at once, and nothing is left to send', async () => {
+        const view = mount();
+        typeTitle(view.result);
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+
+        act(() => {
+            view.result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(view.port.queued()).toEqual([]);
+        expect(view.port.submit).not.toHaveBeenCalled();
+        expect(view.onExit).toHaveBeenCalledWith({ kind: 'discarded' });
     });
 });
 

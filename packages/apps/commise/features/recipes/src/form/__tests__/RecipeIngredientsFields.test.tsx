@@ -502,6 +502,18 @@ describe('RecipeIngredientsFields (web) — the row editor as a phone sheet (§7
         expect(within(sheet).queryByLabelText(/section|group/i)).toBeNull();
     });
 
+    // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): the phone sheet's one primary fills it, and it has no Cancel.
+    it('the line editor sheet’s Done fills the sheet and the sheet has no Cancel', async () => {
+        const user = userEvent.setup();
+        render(<StatefulLeaf initial={[RICE]} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
+        const sheet = screen.getByRole('dialog', { name: 'Arborio rice' });
+
+        expect(within(sheet).getByRole('button', { name: en.rowDone }).className.split(' ')).toContain('w-full');
+        expect(within(sheet).queryByRole('button', { name: /cancel/i })).toBeNull();
+    });
+
     it('edits reach the draft, and Done closes the sheet and returns focus to the row', async () => {
         const user = userEvent.setup();
         const seen: RecipeFormValues[] = [];

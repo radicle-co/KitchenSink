@@ -71,6 +71,7 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
     switch (props.form) {
         case 'route':
             return <RouteControl {...props} />;
+
         case 'view': {
             // An icon-only switch takes its glyphs' width; a labelled one shares the row.
             const width: SegmentWidth = props.labelVisibility === 'hidden' ? 'content' : 'share';

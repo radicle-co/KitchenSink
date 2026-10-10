@@ -199,3 +199,24 @@ describe('the search query contract — everything is optional', () => {
         expect(parse({})).toEqual({});
     });
 });
+
+describe('the search query contract — scope', () => {
+    it("accepts scope 'community'", () => {
+        expect(parse({ scope: 'community' }).scope).toBe('community');
+    });
+
+    it("leaves scope absent when it is not sent (today's behaviour)", () => {
+        expect(parse({ query: 'pasta' }).scope).toBeUndefined();
+    });
+
+    it('reads a blank scope as absent, as every other blank parameter is', () => {
+        expect(parse({ scope: '' }).scope).toBeUndefined();
+    });
+
+    it.each(['mine', 'all', 'COMMUNITY', 'public'])(
+        'rejects the unknown scope %s with a field-level error',
+        (scope) => {
+            expect(rejectionBody({ scope }).statusCode).toBe(400);
+        },
+    );
+});

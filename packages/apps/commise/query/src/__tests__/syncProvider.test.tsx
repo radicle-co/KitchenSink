@@ -792,4 +792,38 @@ describe('SyncProvider — the editor`s exclusive submit, replies and withdrawal
 
         await waitFor(() => expect(current().resolutionOf('local:recipe:a')).toBe('srv-9'));
     });
+
+    /** Finding 1 of the 2026-10-10 review: a second create of a ref that already synced is refused, with the id. */
+    it('⛔ refuses a second create of a ref already resolved, answering the server id, and sends nothing more', async () => {
+        const send = vi.fn(async (): Promise<SendResult> => ({ outcome: 'ok', serverId: 'srv-9' }));
+        const { current, Capture } = captureQueue();
+        const create = {
+            entity: 'recipe',
+            intentKind: 'create',
+            localId: 'local:recipe:a',
+            produces: 'local:recipe:a',
+            dependsOn: [],
+            payload: {},
+        } as const;
+
+        render(
+            <SyncProvider subject="user_a" send={send as never}>
+                <Capture />
+            </SyncProvider>,
+        );
+
+        await act(async () => {
+            await current().submitExclusive(create);
+        });
+        await waitFor(() => expect(current().resolutionOf('local:recipe:a')).toBe('srv-9'));
+
+        let again: unknown;
+        await act(async () => {
+            again = await current().submitExclusive(create);
+        });
+
+        expect(again).toStrictEqual({ kind: 'resolved', serverId: 'srv-9' });
+        expect(screen.getByText('pending:0')).toBeTruthy();
+        expect(send).toHaveBeenCalledTimes(1);
+    });
 });

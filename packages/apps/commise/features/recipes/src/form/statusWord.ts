@@ -1,6 +1,8 @@
 /**
  * @module @commise/features-recipes/form — the ONE mapping from a line's resolution status to the message key of its
- * word. `resolutionStatusLabel` (`./props.ts`) reads it to produce the copy; the editor row policy
+ * word. The words are the glossary's (`buildSpec.md` §2.1, `evaluateFinal.md` F19): a status the editor row names reads the
+ * row's own `rowState*` key, so the recipe page, the editor and the lookup announcement say the same thing and the
+ * retired words ("Needs a pick", "Not resolved", "Resolution failed", "Resolving…") exist nowhere. `resolutionStatusLabel` (`./props.ts`) reads it to produce the copy; the editor row policy
  * (`./ingredientRowPolicy.ts`) reads it to name the word a row shows, deciding only WHETHER a row shows one.
  *
  * A leaf module on purpose: the pure row policy depends on this and nothing heavier, so it never imports the form's
@@ -15,16 +17,15 @@ import type { RecipeFormMessages } from './messages.js';
 /** The message key of each resolution status's word. */
 export type ResolutionStatusWordKey = keyof Pick<
     RecipeFormMessages,
-    | 'statusPending'
-    | 'statusUnresolved'
+    | 'rowStateLookingUp'
+    | 'rowStateChooseMatch'
+    | 'rowStateNoMatch'
+    | 'rowStateLookupFailed'
+    | 'rowStateFoodRemoved'
     | 'statusResolved'
-    | 'statusNotFound'
-    | 'statusFailed'
     | 'statusNeedsReview'
     | 'statusPendingVerification'
-    | 'statusAmbiguous'
     | 'statusResolvedUnavailable'
-    | 'statusFoodRemoved'
     | 'statusFoodUnreachable'
 >;
 
@@ -39,15 +40,15 @@ export type ResolutionStatusWordKey = keyof Pick<
 export const resolutionStatusWordKey = (status: FoodResolutionStatus): ResolutionStatusWordKey => {
     switch (status) {
         case 'PENDING':
-            return 'statusPending';
+            return 'rowStateLookingUp';
         case 'UNRESOLVED':
-            return 'statusUnresolved';
+            return 'rowStateChooseMatch';
         case 'RESOLVED':
             return 'statusResolved';
         case 'NOT_FOUND':
-            return 'statusNotFound';
+            return 'rowStateNoMatch';
         case 'FAILED':
-            return 'statusFailed';
+            return 'rowStateLookupFailed';
         case 'NEEDS_REVIEW':
             // U14 — OUR OWN verdict, not food-service's. The gate read the line's raw source text against the
             // food we resolved it to and disagreed, so this line's nutrition is withheld until a human picks.
@@ -59,7 +60,7 @@ export const resolutionStatusWordKey = (status: FoodResolutionStatus): Resolutio
         case 'AMBIGUOUS':
             // U13 (D7/R9) — the gate abstained over materially-different candidates. Author-actionable:
             // the batched review surface and the inline pick affordance both key off this member.
-            return 'statusAmbiguous';
+            return 'rowStateChooseMatch';
         case 'RESOLVED_UNAVAILABLE':
             // U13 (R20) — bound, but the food is another author's private one. Name-only for this viewer:
             // directionally "details unavailable", never an error, and no pick affordance.
@@ -69,7 +70,7 @@ export const resolutionStatusWordKey = (status: FoodResolutionStatus): Resolutio
             // one case up: that says "exists, not served to you" and nothing is wrong, while this says the
             // food is gone for everyone. The line keeps its amount and unit — those are the recipe's, never
             // the food's — so there is nothing broken to fix, only nutrition that no longer counts.
-            return 'statusFoodRemoved';
+            return 'rowStateFoodRemoved';
         case 'FOOD_UNREACHABLE':
             // Plan 002 R2 — the line is bound, but food could not be asked on this read. Transient, so NOT the
             // removed copy one case up: an outage must never read as a permanent fact about the recipe.

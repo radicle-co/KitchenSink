@@ -11,9 +11,13 @@
  * - **Published** — only the cook's own Save changes writes (owner ruling D1). Every save of a published recipe makes
  *   a version, so a change waits on the device until the cook says it is done.
  *
- * ⚠️ The lifecycle is read from `status`. The server keys versioning on `first_published_at` instead, because a
- * published recipe can be set back to draft through the API; no client does that (`useRecipeEditor`'s Save Draft never
- * downgrades a published recipe), so on every recipe a client can produce the two agree. ADR-0058 records this.
+ * ⛔ The lifecycle is keyed on the FIRST PUBLISH (`firstPublishedAt`), the fact the server versions by (ADR-0058 rule 1),
+ * never on `status`: the API takes `PATCH { status: 'draft' }` on a published recipe, and every save of that recipe
+ * still makes a version. A read without the field falls back to `status = published`, which the service's own CHECK
+ * makes imply a first publish.
+ *
+ * The same lifecycle gates Paste a list (owner D10: offered until the first publish) and decides whether a pasted line
+ * may carry its source (blueprint A5: only into the create).
  *
  * @pattern Strategy keyed on the lifecycle, expressed as a Policy — one pure decision over plain inputs
  */
@@ -69,6 +73,11 @@ export interface CheckpointInput {
     readonly draftFloorMet: boolean;
     /** Whether the draft differs from what the server was last sent. */
     readonly changedSinceServerWrite: boolean;
+    /**
+     * Whether a pasted list is still joining the draft. It holds the CREATE: a line that joined after the create was
+     * sent would keep its source in the draft and lose it in the next update, which strips it (`form/wire.ts`).
+     */
+    readonly pastePending: boolean;
 }
 
 /** The triggers at which a recipe that is not yet published reaches the server. */
@@ -90,7 +99,7 @@ const NONE: ServerWrite = { kind: 'none' };
  * @returns What to ask the server for. Pure.
  */
 export function serverWriteFor(input: CheckpointInput): ServerWrite {
-    const { trigger, lifecycle, draftFloorMet, changedSinceServerWrite } = input;
+    const { trigger, lifecycle, draftFloorMet, changedSinceServerWrite, pastePending } = input;
 
     if (!draftFloorMet) {
         return NONE;
@@ -98,6 +107,12 @@ export function serverWriteFor(input: CheckpointInput): ServerWrite {
 
     switch (lifecycle) {
         case 'unsaved':
+            // A paste still joining holds the create, except on the way out: the paste ends with the editor, and a titled
+            // recipe is still created when the cook leaves.
+            if (pastePending && trigger !== 'editorExit') {
+                return NONE;
+            }
+
             return DRAFT_CHECKPOINTS.has(trigger) ? { kind: 'create', publish: trigger === 'publish' } : NONE;
 
         case 'neverPublished':
@@ -123,16 +138,53 @@ export function serverWriteFor(input: CheckpointInput): ServerWrite {
     }
 }
 
+/** What the lifecycle is read from: the server's recipe. */
+export interface LifecycleFacts {
+    readonly status: RecipeStatus;
+    /** When the recipe was first published, ISO 8601; absent until then, and on a read that predates the field. */
+    readonly firstPublishedAt?: string;
+}
+
 /**
  * The lifecycle of the recipe the editor holds.
  *
  * @param recipe - The server's recipe, or `undefined` before the server create.
- * @returns Its lifecycle. Pure.
+ * @returns Its lifecycle: published once it was EVER published, whatever its status is now. Pure.
  */
-export function lifecycleOf(recipe: { readonly status: RecipeStatus } | undefined): RecipeLifecycle {
+export function lifecycleOf(recipe: LifecycleFacts | undefined): RecipeLifecycle {
     if (recipe === undefined) {
         return 'unsaved';
     }
 
-    return recipe.status === 'published' ? 'published' : 'neverPublished';
+    return recipe.firstPublishedAt !== undefined || recipe.status === 'published' ? 'published' : 'neverPublished';
+}
+
+/**
+ * Whether Paste a list is offered: while the recipe is being created, which lasts until its first publish (owner D10,
+ * 2026-10-09). Autosave stores a draft as soon as it has a title, so the gate is the first publish, not the first save.
+ *
+ * @param lifecycle - The recipe's lifecycle.
+ * @returns Whether the editor offers paste. Pure.
+ */
+export function pasteOffered(lifecycle: RecipeLifecycle): boolean {
+    return lifecycle !== 'published';
+}
+
+/** What decides whether a pasted line keeps its source. */
+export interface PastedLineSourceInput {
+    readonly lifecycle: RecipeLifecycle;
+    /** Whether the create has been submitted: it carries the draft as it was then, and every later write is an update. */
+    readonly createSubmitted: boolean;
+}
+
+/**
+ * Whether a pasted line joining now may carry what it was read from (`sourceLine`, `sourcePhrase`). Only the create
+ * carries them; a PATCH cannot (blueprint A5, ADR-0023's shape), so a line that joins once the create is SUBMITTED — not
+ * once it answers — is stored as an authored line, which D10 accepts.
+ *
+ * @param input - The lifecycle, and whether the create is submitted.
+ * @returns Whether the line keeps its source. Pure.
+ */
+export function pastedLineKeepsSource(input: PastedLineSourceInput): boolean {
+    return input.lifecycle === 'unsaved' && !input.createSubmitted;
 }

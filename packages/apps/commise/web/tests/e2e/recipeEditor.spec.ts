@@ -187,6 +187,37 @@ for (const colorScheme of SCHEMES) {
             await expect(page.getByLabel('Description')).toHaveValue('Kept through a reload.');
         });
 
+        /**
+         * Finding 2 of the 2026-10-09 review: the outbox journal lives in the tab's session storage beside the draft
+         * (ADR-0057 §1). A create on the wire when the tab reloads has an UNKNOWN outcome; the reloaded page finds the
+         * record, parks it, and tells the cook — it never sends the create a second time.
+         */
+        test('⛔ a reload while the create is on the wire never sends it twice: the cook is told instead', async ({
+            page,
+        }) => {
+            const viewerId = await readViewerAppId(page);
+            await mockRecipeApi(page, { viewerId, tier: 'premium' });
+            const writes = recipeWrites(page);
+            // The create never answers: it is on the wire when the tab reloads.
+            await page.route('**/api/v1/recipes', async (request) => {
+                if (request.request().method() !== 'POST') {
+                    await request.fallback();
+                }
+            });
+
+            await page.goto(route('/recipes/new'));
+            await page.getByLabel('Title').fill('E2E Reload Soup');
+            await jumpTo(page, 'Ingredients');
+            await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST']);
+
+            await page.reload();
+
+            await expect(page.getByLabel('Title')).toHaveValue('E2E Reload Soup');
+            await expect(page.getByText("Couldn't confirm your save").first()).toBeVisible();
+            await jumpTo(page, 'Steps');
+            expect(writes.map((write) => write.method)).toEqual(['POST']);
+        });
+
         test('a published recipe keeps its changes in this tab, and Save changes is ONE write', async ({ page }) => {
             const viewerId = await readViewerAppId(page);
             const seed = makeRecipeDetail({

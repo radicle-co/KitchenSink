@@ -104,7 +104,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     type="button"
                                     aria-label={fillTemplate(m.removeLabel, { index: index + 1 })}
                                     {...busyControlProps({ busy: removing, onClick: () => onRemovePhoto(photo.id) })}
-                                    className={`absolute right-2 top-2 rounded-full bg-scrim px-3 py-1 text-caption font-medium text-on-action transition hover:bg-danger ${BUSY_CONTROL_CLASS}`}
+                                    className={`absolute right-2 top-2 rounded-full bg-photo-chip px-3 py-1 text-caption font-medium text-ink transition hover:bg-danger hover:text-on-action ${BUSY_CONTROL_CLASS}`}
                                 >
                                     {removing ? m.removing : m.remove}
                                 </button>
@@ -117,14 +117,14 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                             the checked state derives from `isCoverPhoto`, so after the container's
                                             reorder + refetch reprojects `photos[0]`, the check follows. */}
                                         {onSetCover !== undefined ? (
-                                            <span className="rounded-full bg-scrim p-1.5">
+                                            <span className="rounded-full bg-photo-chip p-1.5">
                                                 {/* Accessible name via `aria-label` (the indexed setCoverLabel); the
                                                     visible "Cover" state is the badge above + the checked circle, so no
                                                     duplicate "Cover" text here. */}
                                                 <input
                                                     type="radio"
                                                     name="recipe-cover-photo"
-                                                    className="block accent-seafoam"
+                                                    className="block accent-selected-edge"
                                                     aria-label={fillTemplate(m.setCoverLabel, { index: index + 1 })}
                                                     checked={isCover}
                                                     onChange={() => onSetCover(photo.id)}
@@ -172,9 +172,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     role={item.status === 'failed' ? 'alert' : 'status'}
                                     aria-label={statusWord}
                                     className={`relative rounded-full px-2 py-1 text-caption font-medium ${
-                                        item.status === 'failed'
-                                            ? 'bg-danger text-on-action'
-                                            : 'bg-scrim text-on-action'
+                                        item.status === 'failed' ? 'bg-danger text-on-action' : 'bg-photo-chip text-ink'
                                     }`}
                                 >
                                     {statusWord}

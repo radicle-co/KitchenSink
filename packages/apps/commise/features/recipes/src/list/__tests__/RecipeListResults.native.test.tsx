@@ -208,7 +208,13 @@ describe('RecipeListResults (native) — states', () => {
 
 /** A scroll host's bind that records what its scroller does with it. */
 function recordingBind() {
-    return { ref: vi.fn(), onScroll: vi.fn(), onScrollBeginDrag: vi.fn(), scrollEventThrottle: 16 as const };
+    return {
+        ref: vi.fn(),
+        onScroll: vi.fn(),
+        onScrollBeginDrag: vi.fn(),
+        onMomentumScrollEnd: vi.fn(),
+        scrollEventThrottle: 16 as const,
+    };
 }
 
 /** The node the bind's ref was last handed. */

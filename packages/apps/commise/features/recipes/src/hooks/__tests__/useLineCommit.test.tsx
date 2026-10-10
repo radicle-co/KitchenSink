@@ -77,16 +77,20 @@ const bindingOf = (ingredient: Ingredient) => ({
 });
 
 /** A command port double: stores `STORED_KEY` at position 1, and answers each run with `outcome`. */
-function commandPort(outcome: LineCommandOutcome = { kind: 'committed', binding: bindingOf(CHICKPEAS) }) {
+function commandPort(
+    outcome: LineCommandOutcome = { kind: 'committed', binding: bindingOf(CHICKPEAS) },
+    holdsRebinds = false,
+) {
     const sends: LineCommandSend[] = [];
     const run = vi.fn(async (_key: unknown, send: LineCommandSend): Promise<LineCommandOutcome> => {
         sends.push(send);
 
         return outcome;
     });
-    const port: LineCommandPort = { persistedKeys: [seedLineKey(3, 0), STORED_KEY], run };
+    const hold = vi.fn<LineCommandPort['hold']>();
+    const port: LineCommandPort = { persistedKeys: [seedLineKey(3, 0), STORED_KEY], holdsRebinds, run, hold };
 
-    return { port, run, sends };
+    return { port, run, hold, sends };
 }
 
 /** The tag a caller names its commits with; the hook carries it through to `settled` and reads nothing of it. */
@@ -396,6 +400,50 @@ describe('useLineCommit — the command strategy (a STORED line on the edit form
     });
 });
 
+/**
+ * A stored line on a PUBLISHED recipe (owner D1, blueprint A3; finding 6 of the 2026-10-09 review). Its rebind would
+ * make a version before Save changes, so the editor holds it: the pick's food is admitted (a catalog write, no recipe
+ * version) and handed to the editor with the rebind's target, and no rebind request is made here.
+ */
+describe('useLineCommit — the command held until Save changes (a published recipe)', () => {
+    it.each([
+        {
+            case: 'a catalog food',
+            pick: { kind: 'catalogFood', foodId: 'food_chickpea', name: 'Chickpeas' },
+            admit: mocks.byFood,
+            target: { kind: 'catalogFood', foodId: 'food_chickpea' },
+        },
+        {
+            case: 'a typed name',
+            pick: { kind: 'name', text: 'chickpeas' },
+            admit: mocks.byName,
+            target: { kind: 'name', name: 'chickpeas' },
+        },
+    ] as const)('$case: admitted, then held with its target — never sent', async ({ pick, admit, target }) => {
+        admit.mockResolvedValue(CHICKPEAS);
+        const command = commandPort(undefined, true);
+        const { result } = render({ kind: 'editForm', dispatch: vi.fn(), command: command.port });
+
+        const outcome = await commitThrough(result, pick, STORED);
+
+        expect(command.hold).toHaveBeenCalledWith({ lineKey: STORED_KEY, target }, bindingOf(CHICKPEAS));
+        expect(command.run).not.toHaveBeenCalled();
+        expect(mocks.rebind).not.toHaveBeenCalled();
+        expect(outcome).toEqual({ kind: 'committed', key: STORED_KEY, binding: bindingOf(CHICKPEAS) });
+    });
+
+    it('a refused admission holds nothing', async () => {
+        mocks.byFood.mockRejectedValue(new Error('refused'));
+        const command = commandPort(undefined, true);
+        const { result } = render({ kind: 'editForm', dispatch: vi.fn(), command: command.port });
+
+        const outcome = await commitThrough(result, { kind: 'catalogFood', foodId: 'f', name: 'F' }, STORED);
+
+        expect(outcome).toEqual({ kind: 'failed' });
+        expect(command.hold).not.toHaveBeenCalled();
+    });
+});
+
 describe('useLineCommit — one commit per target', () => {
     it('refuses a second commit on a target whose first is in flight, knows the pick in flight, and lets another target proceed', async () => {
         let answer: ((ingredient: Ingredient) => void) | undefined;
@@ -453,7 +501,12 @@ describe('useLineCommit — one commit per target', () => {
 describe('useLineCommit — a commit that cannot run now', () => {
     it('a commit whose request throws ends `failed`, and the field no longer reads busy', async () => {
         const dispatch = vi.fn<(action: DraftAction) => void>();
-        const command: LineCommandPort = { persistedKeys: [STORED_KEY], run: () => Promise.reject(new Error('lost')) };
+        const command: LineCommandPort = {
+            persistedKeys: [STORED_KEY],
+            holdsRebinds: false,
+            run: () => Promise.reject(new Error('lost')),
+            hold: vi.fn(),
+        };
         const { result } = render({ kind: 'editForm', dispatch, command });
 
         const outcome = await commitThrough(result, { kind: 'catalogVariant', foodVariantId: 'var_flat' }, STORED);

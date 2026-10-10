@@ -495,3 +495,51 @@ describe('section presence', () => {
         expect(screen.getByText('steps: away')).toBeTruthy();
     });
 });
+
+/**
+ * The browser's own unsaved-changes prompt (finding 1 of the 2026-10-09 review). On web the draft and the outbox journal
+ * live in the tab's session storage (D7), so closing the tab loses whatever the server does not hold — for a recipe
+ * never published as much as for a published one. REWRITTEN from the guard's old rule, armed only for a published
+ * recipe's changes awaiting Save changes.
+ */
+describe('the unload prompt (web, D7)', () => {
+    /** Whether a `beforeunload` now would ask: the listener cancels the event. */
+    function asks(): boolean {
+        const event = new Event('beforeunload', { cancelable: true });
+
+        window.dispatchEvent(event);
+
+        return event.defaultPrevented;
+    }
+
+    it('asks for a never-published draft whose checkpoint has not reached the server', () => {
+        render(
+            view(
+                makeEditorResult({
+                    lifecycle: 'neverPublished',
+                    values: makeFilledRecipeFormValues(),
+                    saveStatus: { kind: 'keptOnDevice', store: 'tabSession', awaiting: 'checkpoint' },
+                }),
+            ),
+        );
+
+        expect(asks()).toBe(true);
+    });
+
+    it('asks while a write is still on its way', () => {
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues(), saveStatus: { kind: 'syncing' } })));
+
+        expect(asks()).toBe(true);
+    });
+
+    it('does not ask once the server holds the draft, nor for a new recipe nobody typed in', () => {
+        const { rerender } = render(
+            view(makeEditorResult({ values: makeFilledRecipeFormValues(), saveStatus: { kind: 'saved' } })),
+        );
+
+        expect(asks()).toBe(false);
+
+        rerender(view(makeEditorResult()));
+        expect(asks()).toBe(false);
+    });
+});

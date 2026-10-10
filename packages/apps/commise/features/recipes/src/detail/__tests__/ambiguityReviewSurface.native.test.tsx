@@ -24,7 +24,8 @@ import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import type { ProgressiveFrame } from '@kitchensink/food-service-client';
 
 import { offlineNoticeMessages } from '@commise/features-core/offline';
-import { palette, tint } from '@commise/ui';
+import { tint } from '@commise/ui';
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
@@ -49,8 +50,12 @@ vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
 // react-native-web does not implement `sendAccessibilityEvent`; a cursor hand-off is asserted as the call it makes.
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+    return withSystemScheme({
+        ...actual,
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+    });
 });
 
 import { AmbiguityReview } from '../AmbiguityReview.native.js';
@@ -228,6 +233,7 @@ afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    systemScheme.current = null;
 });
 
 describe('AmbiguityReview (native) — every state', () => {
@@ -544,32 +550,37 @@ describe('AmbiguityReview (native) — every state', () => {
     });
 
     // The spec's native target floor (WCAG 2.5.8 at 48 × 48 dp), on ours and a source's chips alike.
-    it('every chip on a row is a 48 dp target, filled with the seafoam tint token', async () => {
-        useIngredientSuggestionSourceMock.mockReturnValue(
-            searched(
-                ended(
-                    databaseFrame({ authored: [MINE], catalog: [PICK] }),
-                    sourceAnswered('usda', remoteItem(STEWED)),
-                    COMPLETE_FRAME,
+    // D15: the chip is the web leaf's `bg-action/10`, read from the theme, so it follows the device's scheme.
+    it.each(['light', 'dark'] as const)(
+        'every chip on a row is a 48 dp target, filled with action at 10%, in the %s scheme',
+        async (scheme) => {
+            systemScheme.current = scheme;
+            useIngredientSuggestionSourceMock.mockReturnValue(
+                searched(
+                    ended(
+                        databaseFrame({ authored: [MINE], catalog: [PICK] }),
+                        sourceAnswered('usda', remoteItem(STEWED)),
+                        COMPLETE_FRAME,
+                    ),
                 ),
-            ),
-        );
-        renderReview(recipeOf([CUP]));
-        open();
-        await within(row(CUP_ROW)).findByRole('button', { name: STEWED_CHIP });
+            );
+            renderReview(recipeOf([CUP]));
+            open();
+            await within(row(CUP_ROW)).findByRole('button', { name: STEWED_CHIP });
 
-        const chips = within(row(CUP_ROW)).getAllByRole('button');
+            const chips = within(row(CUP_ROW)).getAllByRole('button');
 
-        expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([MINE.name, PICK.name, STEWED_CHIP]);
+            expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([MINE.name, PICK.name, STEWED_CHIP]);
 
-        for (const chip of chips) {
-            const style = window.getComputedStyle(chip);
-            const name = chip.getAttribute('aria-label') ?? '';
+            for (const chip of chips) {
+                const style = window.getComputedStyle(chip);
+                const name = chip.getAttribute('aria-label') ?? '';
 
-            expect(Number.parseFloat(style.minHeight), name).toBeGreaterThanOrEqual(48);
-            expect(style.backgroundColor, name).toBe(tint(palette.seafoam, 0.1));
-        }
-    });
+                expect(Number.parseFloat(style.minHeight), name).toBeGreaterThanOrEqual(48);
+                expect(style.backgroundColor, name).toBe(tint(rolesFor(scheme).action, 0.1));
+            }
+        },
+    );
 
     // P8: "The cached answer for this text is dropped, so the list asks again."
     it('a remote food that food refused is said on its row in P8’s words, and the row asks its search again', async () => {
@@ -777,5 +788,35 @@ describe('AmbiguityReview (native) — N1: each name is said once', () => {
         for (const header of groupHeaders) {
             expect(screen.queryAllByLabelText(header.textContent ?? ''), header.textContent ?? '').toEqual([]);
         }
+    });
+});
+
+/**
+ * D15: the review paints from colour roles at render. The entry is a level-1 card (`paper` inside a `lineDivider`
+ * edge, `darkTheme.md` §4) under an `ink` notice, with an `actionText` badge on the `action` 10% tint, as on web.
+ */
+describe.each(['light', 'dark'] as const)('AmbiguityReview (native) — the %s scheme', (scheme) => {
+    const colours = rolesFor(scheme);
+
+    it('draws the entry as a paper card in a lineDivider edge, its badge actionText on the action tint', () => {
+        systemScheme.current = scheme;
+        renderReview(recipeOf([CUP]));
+        const entry = screen.getByRole('button', { name: en.ambiguousReviewToggle });
+        const badge = within(entry).getByText(en.ambiguousReviewToggle);
+        const card = window.getComputedStyle(entry);
+
+        expect(card.backgroundColor).toBe(rgb(colours.paper));
+        expect(card.borderTopColor).toBe(rgb(colours.lineDivider));
+        expect(window.getComputedStyle(badge).color).toBe(rgb(colours.actionText));
+        expect(window.getComputedStyle(badge.parentElement as Element).backgroundColor).toBe(tint(colours.action, 0.1));
+    });
+
+    it('draws an open row as a paper card', () => {
+        systemScheme.current = scheme;
+        renderReview(recipeOf([CUP]));
+        open();
+        const group = row(CUP_ROW);
+
+        expect(window.getComputedStyle(group).backgroundColor).toBe(rgb(colours.paper));
     });
 });

@@ -24,10 +24,10 @@
  *     the web leaf, expressed with platform primitives; the open slide is local view state.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { carouselBox } from '@commise/ui/layout';
 import { Modal } from '@commise/ui/modal';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import { Image } from 'expo-image';
 import { useState, type FC } from 'react';
@@ -47,6 +47,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
     const { detail } = useMessages(recipeMessages);
     const { height: windowHeight } = useWindowDimensions();
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
     const [stripWidth, setStripWidth] = useState<number | null>(null);
     const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
@@ -101,7 +102,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                             accessible
                             key={photo.id}
                             accessibilityLabel={fillTemplate(detail.photoDot, { title, index: index + 1 })}
-                            style={styles.dot}
+                            style={[styles.dot, { backgroundColor: colors.lineDivider }]}
                         />
                     ))}
                 </View>
@@ -116,7 +117,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                     navigationBarTranslucent
                     onRequestClose={() => setActiveIndex(null)}
                 >
-                    <View style={styles.lightbox}>
+                    <View style={[styles.lightbox, { backgroundColor: colors.scrim }]}>
                         {/* The photo inside the safe area: a side navigation bar or a cutout never covers it. */}
                         <View
                             style={[
@@ -143,13 +144,14 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                             onPress={() => setActiveIndex(null)}
                             style={[
                                 styles.close,
+                                { backgroundColor: colors.paper },
                                 {
                                     top: insets.top + nativeTokens.spacing[2],
                                     right: insets.right + nativeTokens.spacing[2],
                                 },
                             ]}
                         >
-                            <Text aria-hidden style={styles.closeLabel}>
+                            <Text aria-hidden style={[styles.closeLabel, { color: colors.ink }]}>
                                 ×
                             </Text>
                         </Pressable>
@@ -166,8 +168,8 @@ const styles = StyleSheet.create({
     slide: { borderRadius: 16, overflow: 'hidden' },
     image: { width: '100%', height: '100%' },
     dots: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
-    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.mist },
-    lightbox: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)' },
+    dot: { width: 8, height: 8, borderRadius: 4 },
+    lightbox: { flex: 1 },
     lightboxPhotoBox: { flex: 1 },
     lightboxImage: { width: '100%', height: '100%' },
     // 48 dp: Material's floor, the stricter of it and Apple's 44 pt, and the Sheet's Close.
@@ -178,7 +180,6 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: palette.white,
     },
-    closeLabel: { fontSize: 24, lineHeight: 24, color: palette.charcoal },
+    closeLabel: { fontSize: 24, lineHeight: 24 },
 });

@@ -7,4 +7,5 @@ export { ScrollHost } from './ScrollHost.js';
 export { useScrollHost } from './scrollHostContext.js';
 export { currentSectionOf } from './currentSection.js';
 export type { SectionTop } from './currentSection.js';
+export type { CurrentChangeListener } from './currentChange.js';
 export type { LayoutReport, ScrollBind, ScrollHostApi, ScrollHostProps, ScrollReport, ScrollTarget } from './props.js';

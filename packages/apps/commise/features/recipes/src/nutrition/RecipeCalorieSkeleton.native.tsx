@@ -9,7 +9,7 @@
  * native recipe-list and discovery skeletons already make, and it is deliberate: an animated placeholder per
  * card in a virtualized list is a per-frame cost on the exact surface that must scroll smoothly.
  */
-import { palette } from '@commise/ui';
+import { useTheme } from '@commise/ui/theme';
 import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -26,11 +26,15 @@ export interface RecipeCalorieSkeletonProps {
  * @param props - The localized loading label.
  * @returns A named, inert placeholder shaped like the chip it stands in for.
  */
-export const RecipeCalorieSkeleton: FC<RecipeCalorieSkeletonProps> = ({ label }) => (
-    <View accessible accessibilityLabel={label} style={styles.container}>
-        <View aria-hidden style={styles.bar} />
-    </View>
-);
+export const RecipeCalorieSkeleton: FC<RecipeCalorieSkeletonProps> = ({ label }) => {
+    const { colors } = useTheme();
+
+    return (
+        <View accessible accessibilityLabel={label} style={styles.container}>
+            <View aria-hidden style={[styles.bar, { backgroundColor: colors.surfaceMuted }]} />
+        </View>
+    );
+};
 
 const styles = StyleSheet.create({
     container: { justifyContent: 'center' },
@@ -39,6 +43,5 @@ const styles = StyleSheet.create({
         width: 52,
         height: 12,
         borderRadius: nativeTokens.radius.sm,
-        backgroundColor: palette.pearl,
     },
 });

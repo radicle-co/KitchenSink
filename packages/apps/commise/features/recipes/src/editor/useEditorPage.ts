@@ -93,25 +93,16 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         jumpToDeepLink();
     }, []);
 
-    // A section change is a checkpoint (blueprint A3). The first section the spy reports is where the page opened, so
-    // only a change from one reported section to another counts. Derived during render; the checkpoint is the effect.
-    const [lastSection, setLastSection] = useState(host.current);
-    const [sectionChanges, setSectionChanges] = useState(0);
-
-    if (host.current !== lastSection) {
-        setLastSection(host.current);
-
-        if (lastSection !== undefined && host.current !== undefined) {
-            setSectionChanges((count) => count + 1);
+    // A section change is a checkpoint (blueprint A3). The host raises the change from its scroll handler; the first
+    // section the spy reports is where the page opened, so only a change from one reported section to another counts.
+    const onSectionChange = useEffectEvent((current: string | undefined, previous: string | undefined): void => {
+        if (previous !== undefined && current !== undefined) {
+            checkpoint('sectionChange');
         }
-    }
-
-    const checkpointSectionChange = useEffectEvent((): void => checkpoint('sectionChange'));
-    useEffect(() => {
-        if (sectionChanges > 0) {
-            checkpointSectionChange();
-        }
-    }, [sectionChanges]);
+    });
+    const { onCurrentChange } = host;
+    // @sideEffect Subscribes to the host's section changes for the page's life.
+    useEffect(() => onCurrentChange((current, previous) => onSectionChange(current, previous)), [onCurrentChange]);
 
     // The app going to the background, or the tab hiding, is a checkpoint: the cook may not come back. It runs once, when
     // focus is lost: `checkpoint` is new every render and a checkpoint causes renders, so as a dependency it looped.

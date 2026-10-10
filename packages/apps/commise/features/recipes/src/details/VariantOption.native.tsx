@@ -7,8 +7,8 @@
  * at the end, which wrap under the parts below 12rem of room, scaled by the text size. A tap commits.
  */
 import { Icon } from '@commise/ui/icon';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -43,34 +43,39 @@ export const VariantOption: FC<VariantOptionProps> = ({
     hasCheckColumn,
     fontScale,
     onPick,
-}) => (
-    <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={name}
-        // React Native maps `aria-selected` to `accessibilityState.selected`; react-native-web renders it as is.
-        aria-selected={isCurrent}
-        onPress={onPick}
-        style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
-    >
-        {hasCheckColumn && (
-            <View style={styles.check} aria-hidden>
-                {isCurrent && <Icon name="check" size={16} tone="actionText" />}
+}) => {
+    // Colour from the theme at render (D15): the press wash is `ink` at 6% (the web twin's `hover:bg-ink/6`).
+    const { colors, wash } = useTheme();
+
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={name}
+            // React Native maps `aria-selected` to `accessibilityState.selected`; react-native-web renders it as is.
+            aria-selected={isCurrent}
+            onPress={onPick}
+            style={({ pressed }) => [styles.row, pressed ? { backgroundColor: wash } : null]}
+        >
+            {hasCheckColumn && (
+                <View style={styles.check} aria-hidden>
+                    {isCurrent && <Icon name="check" size={16} tone="actionText" />}
+                </View>
+            )}
+            <View style={styles.body}>
+                <View
+                    style={[
+                        styles.parts,
+                        { flexBasis: PARTS_BASIS_IN_BODY_SIZES * nativeTokens.fontSize.bodyMd * fontScale },
+                    ]}
+                >
+                    <VariantPartsLine parts={parts} tone="primary" />
+                    {isCurrent && <Text style={[styles.currentTag, { color: colors.actionText }]}>{currentTag}</Text>}
+                </View>
+                <Text style={[styles.calories, { color: colors.inkMuted }]}>{calories}</Text>
             </View>
-        )}
-        <View style={styles.body}>
-            <View
-                style={[
-                    styles.parts,
-                    { flexBasis: PARTS_BASIS_IN_BODY_SIZES * nativeTokens.fontSize.bodyMd * fontScale },
-                ]}
-            >
-                <VariantPartsLine parts={parts} tone="primary" />
-                {isCurrent && <Text style={styles.currentTag}>{currentTag}</Text>}
-            </View>
-            <Text style={styles.calories}>{calories}</Text>
-        </View>
-    </Pressable>
-);
+        </Pressable>
+    );
+};
 
 const styles = StyleSheet.create({
     row: {
@@ -81,7 +86,6 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[3],
         paddingHorizontal: nativeTokens.spacing[4],
     },
-    pressed: { backgroundColor: palette.pearl },
     check: { width: 16, paddingTop: nativeTokens.spacing[1] },
     body: {
         flex: 1,
@@ -91,11 +95,10 @@ const styles = StyleSheet.create({
         columnGap: nativeTokens.spacing[3],
     },
     parts: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    currentTag: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600', color: palette['ocean-dark'] },
+    currentTag: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600' },
     calories: {
         marginStart: 'auto',
         fontSize: nativeTokens.fontSize.bodySm,
-        color: palette.slate,
         fontVariant: ['tabular-nums'],
     },
 });

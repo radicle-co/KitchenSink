@@ -82,6 +82,7 @@ function fakeHost(scrollToSection: (id: string) => void): ScrollHostApi {
         scrollingDown: false,
         atTop: true,
         current: undefined,
+        onCurrentChange: () => () => undefined,
         viewportsDown: 0,
         pageViewports: 1,
         scrollToTop: () => undefined,

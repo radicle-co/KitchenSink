@@ -27,10 +27,10 @@ export interface StarShapeProps {
 export const StarShape: FC<StarShapeProps> = ({ filled, size = 'h-5 w-5' }) => (
     <svg
         aria-hidden="true"
-        // An EMPTY pip states the readout's SCALE, so it is `slate`, not `mist` — see the palette JSDoc in
-        // `@commise/ui`'s `tokens/colors.ts`, which is the one authoritative statement of that rule. The native
-        // sibling (`RecipeCard.native.tsx`) already carries it.
-        className={`${size} ${filled ? 'fill-warning text-warning' : 'text-slate'}`}
+        // A FILLED pip is the `rating` role (the spec's star tone, a graphic and never text). An EMPTY pip states the
+        // readout's SCALE, so it is `inkMuted`, not the divider tone — see the palette JSDoc in `@commise/ui`'s
+        // `tokens/colors.ts`, which is the one authoritative statement of that rule.
+        className={`${size} ${filled ? 'text-rating' : 'text-ink-muted'}`}
         fill={filled ? 'currentColor' : 'none'}
         stroke="currentColor"
         viewBox="0 0 20 20"

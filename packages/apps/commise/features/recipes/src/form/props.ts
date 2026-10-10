@@ -123,8 +123,11 @@ export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
 export interface PasteReadingRow {
     readonly key: string;
     readonly sourceLine: string;
-    /** Its lookup failed: the row says so and offers Try again. */
-    readonly failed: boolean;
+    /**
+     * `reading` while it is read and joined; `waiting` while that work is paused for a connection (it resumes on
+     * reconnect); `failed` once its lookup failed, which offers Try again.
+     */
+    readonly state: 'reading' | 'waiting' | 'failed';
 }
 
 /** What the field group draws of a paste (build spec §7.5.1 "Reading", §7.5.4). */

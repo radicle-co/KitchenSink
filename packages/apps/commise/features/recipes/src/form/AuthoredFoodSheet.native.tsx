@@ -10,15 +10,19 @@
  * Progress is said on a polite live region and a failure on an assertive one, both mounted empty so Android's
  * regions exist before their text is written.
  *
+ * Colour comes from the theme at render (D15): a field is the design system's `fieldPaint`, a field locked while the
+ * food saves sits on `surfaceMuted`, the label and hints are `inkMuted`, an error is `dangerText`.
+ *
  * @pattern Adapter over the design-system `Sheet` — the form's states mapped to the sheet's slots
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
+import { fieldPaint } from '@commise/ui/input';
 import { LiveRegion } from '@commise/ui/live-region';
 import { useScreenReaderFocusOnMount } from '@commise/ui/screen-reader-focus';
 import { Sheet } from '@commise/ui/sheet';
 import { TextInput } from '@commise/ui/text-input';
+import { useTheme } from '@commise/ui/theme';
 import type { FC, JSX } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -44,6 +48,11 @@ const FormBody: FC<{
     const { statusAuthorFailed } = useMessages(recipeFormMessages);
     const submitting = state.kind === 'submitting';
     const fieldErrors = state.kind === 'open' ? state.fieldErrors : {};
+    const theme = useTheme();
+    const { colors } = theme;
+    const muted = [styles.muted, { color: colors.inkMuted }];
+    const danger = [styles.error, { color: colors.dangerText }];
+    const fieldLabel = [formStyles.fieldLabel, { color: colors.inkMuted }];
 
     const field = (name: keyof AuthoredFoodDraft, label: string, numeric: boolean): JSX.Element => {
         const error = fieldErrors[name];
@@ -51,7 +60,7 @@ const FormBody: FC<{
         return (
             <View key={name} style={[formStyles.field, numeric && styles.macro]}>
                 {/* Visual only: the input carries the label as its own name, so this text is not read twice. */}
-                <Text accessibilityElementsHidden importantForAccessibility="no" style={formStyles.fieldLabel}>
+                <Text accessibilityElementsHidden importantForAccessibility="no" style={fieldLabel}>
                     {label}
                 </Text>
                 <TextInput
@@ -63,11 +72,11 @@ const FormBody: FC<{
                     aria-invalid={error !== undefined}
                     style={[
                         formStyles.input,
-                        submitting && formStyles.inputReadOnly,
-                        error !== undefined && styles.invalid,
+                        fieldPaint(theme, error !== undefined),
+                        submitting && { backgroundColor: colors.surfaceMuted },
                     ]}
                 />
-                {error !== undefined && <Text style={styles.error}>{authoredFieldErrorText(copy, error)}</Text>}
+                {error !== undefined && <Text style={danger}>{authoredFieldErrorText(copy, error)}</Text>}
             </View>
         );
     };
@@ -75,16 +84,16 @@ const FormBody: FC<{
     return (
         <View style={styles.body}>
             {field('name', copy.nameLabel, false)}
-            <Text style={formStyles.fieldLabel}>{copy.per100gHint}</Text>
+            <Text style={fieldLabel}>{copy.per100gHint}</Text>
             <View style={styles.macros}>
                 {authoredMacroFields(copy).map(({ field: name, label }) => field(name, label, true))}
             </View>
             {/* The one line telling the cook this is theirs alone until promotion (D9a/U11). */}
-            <Text style={styles.muted}>{copy.privateHint}</Text>
-            <LiveRegion politeness="polite" style={styles.muted}>
+            <Text style={muted}>{copy.privateHint}</Text>
+            <LiveRegion politeness="polite" style={muted}>
                 {submitting ? copy.submitting : ''}
             </LiveRegion>
-            <LiveRegion politeness="assertive" style={styles.error}>
+            <LiveRegion politeness="assertive" style={danger}>
                 {state.kind === 'open' && state.submitFailed ? statusAuthorFailed : ''}
             </LiveRegion>
             <View style={styles.actions}>
@@ -106,13 +115,14 @@ const DuplicateBody: FC<{
 }> = ({ state, props }) => {
     const { ingredientCreateFood: copy } = useMessages(recipeMessages);
     const notice = useScreenReaderFocusOnMount<Text>();
+    const { colors } = useTheme();
 
     return (
         <View style={styles.body}>
-            <Text ref={notice} style={styles.notice}>
+            <Text ref={notice} style={[styles.notice, { color: colors.ink }]}>
                 {fillTemplate(copy.duplicateNotice, { name: state.draft.name })}
             </Text>
-            <LiveRegion politeness="assertive" style={styles.error}>
+            <LiveRegion politeness="assertive" style={[styles.error, { color: colors.dangerText }]}>
                 {state.reuseFailed ? copy.duplicateReuseFailed : ''}
             </LiveRegion>
             <View style={styles.actions}>
@@ -159,9 +169,8 @@ const styles = StyleSheet.create({
     body: { gap: 12 },
     macros: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     macro: { flexGrow: 1, minWidth: '45%' },
-    invalid: { borderColor: palette['error-dark'] },
-    error: { fontSize: 13, color: palette['error-dark'] },
-    muted: { fontSize: 13, color: palette.slate },
-    notice: { fontSize: 14, color: palette.charcoal },
+    error: { fontSize: 13 },
+    muted: { fontSize: 13 },
+    notice: { fontSize: 14 },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

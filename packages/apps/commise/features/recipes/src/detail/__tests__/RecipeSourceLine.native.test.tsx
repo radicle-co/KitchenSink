@@ -10,13 +10,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Linking } from 'react-native';
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeSourceLine } from '../RecipeSourceLine.native.js';
 
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
 afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    systemScheme.current = null;
 });
 
 describe('RecipeSourceLine (native) — absent source', () => {
@@ -111,5 +119,18 @@ describe('RecipeSourceLine (native) — N1: the line is named once, by its "Sour
 
         expect(screen.getAllByRole('heading', { name: 'Source' })).toHaveLength(1);
         expect(screen.queryAllByLabelText('Source')).toEqual([]);
+    });
+});
+
+/** D15: the line paints from colour roles at render — label `inkMuted`, attribution `ink`, link `actionText`. */
+describe.each(['light', 'dark'] as const)('RecipeSourceLine (native) — the %s scheme', (scheme) => {
+    it('paints the label, the attribution and the link from the roles', () => {
+        systemScheme.current = scheme;
+        const colours = rolesFor(scheme);
+        render(<RecipeSourceLine sourceUrl="https://example.com/pie" sourceAttribution="Grandma’s cookbook" />);
+
+        expect(getComputedStyle(screen.getByText('Source')).color).toBe(rgb(colours.inkMuted));
+        expect(getComputedStyle(screen.getByText('Grandma’s cookbook')).color).toBe(rgb(colours.ink));
+        expect(getComputedStyle(screen.getByText('example.com')).color).toBe(rgb(colours.actionText));
     });
 });

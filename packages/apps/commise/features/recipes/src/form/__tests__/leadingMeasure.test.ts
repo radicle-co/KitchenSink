@@ -206,6 +206,73 @@ const CASES: readonly Case[] = [
     },
 ];
 
+/**
+ * The comma's two meanings inside an amount, as a fixture table over SHAPES (finding 10 of the 2026-10-09 review: `1,5 kg
+ * flour` read as 15 kg). A comma followed by one or two digits is a decimal point; only `\d{1,3}(,\d{3})+` groups
+ * thousands. Every other comma inside digits is ambiguous, and an ambiguous amount is not read at all: a wrong number is
+ * the one thing the reader must never produce (owner, "cooking is an art"), while an unread one leaves the cook's text in
+ * the search where they can see it.
+ */
+const COMMA_SHAPES: readonly Case[] = [
+    {
+        typed: '1,5 kg flour',
+        reading: { quantity: exact(1.5), unit: 'kg', search: 'flour', preparation: '', measureText: '1,5 kg' },
+        why: 'one digit after the comma: a decimal point',
+    },
+    {
+        typed: '12,5 g salt',
+        reading: { quantity: exact(12.5), unit: 'g', search: 'salt', preparation: '', measureText: '12,5 g' },
+        why: 'one digit after the comma, two before: a decimal point',
+    },
+    {
+        typed: '1,50 kg flour',
+        reading: { quantity: exact(1.5), unit: 'kg', search: 'flour', preparation: '', measureText: '1,50 kg' },
+        why: 'two digits after the comma: a decimal point',
+    },
+    {
+        typed: '1,000 g flour',
+        reading: { quantity: exact(1000), unit: 'g', search: 'flour', preparation: '', measureText: '1,000 g' },
+        why: 'three digits after the comma: thousands',
+    },
+    {
+        typed: '12,345 g flour',
+        reading: { quantity: exact(12345), unit: 'g', search: 'flour', preparation: '', measureText: '12,345 g' },
+        why: 'two digits, then a group of three: thousands',
+    },
+    {
+        typed: '1,000,000 g flour',
+        reading: {
+            quantity: exact(1000000),
+            unit: 'g',
+            search: 'flour',
+            preparation: '',
+            measureText: '1,000,000 g',
+        },
+        why: 'every group of three: thousands',
+    },
+    {
+        typed: '1,5000 g flour',
+        reading: { quantity: ABSENT_QUANTITY, unit: '', search: '1,5000 g flour', preparation: '', measureText: '' },
+        why: 'four digits after the comma is neither shape: ambiguous, so no amount is read',
+    },
+    {
+        typed: '1,5 kg flour, sifted',
+        reading: { quantity: exact(1.5), unit: 'kg', search: 'flour', preparation: 'sifted', measureText: '1,5 kg' },
+        why: 'the decimal comma is inside the number; the preparation starts at the second comma',
+    },
+    {
+        typed: '2, 3 eggs',
+        reading: { quantity: exact(2), unit: '', search: '', preparation: '3 eggs', measureText: '2' },
+        why: 'a comma followed by a space is the preparation’s separator, never part of the number',
+    },
+];
+
+describe('readLeadingMeasure — the comma inside an amount', () => {
+    it.each(COMMA_SHAPES)('reads "$typed" — $why', ({ typed, reading }) => {
+        expect(readLeadingMeasure(typed)).toEqual(reading);
+    });
+});
+
 describe('readLeadingMeasure', () => {
     it.each(CASES)('reads "$typed" — $why', ({ typed, reading }) => {
         expect(readLeadingMeasure(typed)).toEqual(reading);

@@ -6,9 +6,9 @@
  * (`accessibilityRole="alert"` alone is silent on iOS).
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -17,10 +17,11 @@ import type { RecipeBrowseRailLoadErrorProps } from './model.js';
 
 export const RecipeBrowseRailLoadError: FC<RecipeBrowseRailLoadErrorProps> = ({ onRetry }) => {
     const discovery = useMessages(discoveryMessages);
+    const { colors } = useTheme();
 
     return (
         <View style={styles.row}>
-            <LiveRegion politeness="assertive" style={styles.note}>
+            <LiveRegion politeness="assertive" style={[styles.note, { color: colors.inkMuted }]}>
                 {discovery.railError}
             </LiveRegion>
             <Pressable
@@ -29,7 +30,7 @@ export const RecipeBrowseRailLoadError: FC<RecipeBrowseRailLoadErrorProps> = ({ 
                 onPress={onRetry}
                 style={styles.retry}
             >
-                <Text style={styles.retryLabel}>{discovery.retry}</Text>
+                <Text style={[styles.retryLabel, { color: colors.actionText }]}>{discovery.retry}</Text>
             </Pressable>
         </View>
     );
@@ -37,7 +38,7 @@ export const RecipeBrowseRailLoadError: FC<RecipeBrowseRailLoadErrorProps> = ({ 
 
 const styles = StyleSheet.create({
     row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    note: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+    note: { fontSize: nativeTokens.fontSize.bodySm },
     retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
-    retryLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette['ocean-dark'] },
+    retryLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
 });

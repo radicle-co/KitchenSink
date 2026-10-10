@@ -150,7 +150,7 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
     },
     'designSystem/scrollHost/ScrollHost': {
         verdict: 'sanctioned-adjacent',
-        why: "`lastY` is a previous-value latch, read and advanced ONLY inside the scroll handler — never during render — so a discarded render cannot consume or advance it; it is what tells the scroll direction (an `IntersectionObserver` cannot, and there is no declarative scroll-direction API). The scroller's own imperative handle is NOT a ref: it arrives through a callback ref into STATE (`bind.ref`), the shape the web app shell's tab bar uses. The module is the screen's one `ScrollHost` (blueprint A7), and its docblock names the pattern.",
+        why: "`last` is a previous-value latch (the last y and the scroll spy's last section), read and advanced ONLY inside the scroll handler — never during render — so a discarded render cannot consume or advance it; it is what tells the scroll direction (an `IntersectionObserver` cannot, and there is no declarative scroll-direction API) and what lets the handler raise a section change as an event, once per change. The scroller's own imperative handle is NOT a ref: it arrives through a callback ref into STATE (`bind.ref`), the shape the web app shell's tab bar uses. The module is the screen's one `ScrollHost` (blueprint A7), and its docblock names the pattern.",
     },
     'designSystem/button/Button': {
         verdict: 'sanctioned',
@@ -350,8 +350,11 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * the settings link and the `/account` and `/settings` containers, and every component it added states its layer in its
  * docblock. `AccountEditForm` also leaves `DECLARED_ORCHESTRATION` below: it was deleted, not reclassified — the
  * display-name sheet replaced its form.
+ *
+ * ⚠️ It went 96 → 95 with the D15 colour-role move: `features/recipes/src/form/Field.native.tsx` had no importer and was
+ * deleted, not reclassified.
  */
-const LAYER_UNSTATED_CENSUS = 96;
+const LAYER_UNSTATED_CENSUS = 95;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

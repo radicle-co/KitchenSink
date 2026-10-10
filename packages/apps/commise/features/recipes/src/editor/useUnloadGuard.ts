@@ -2,12 +2,12 @@
 
 /**
  * @module @commise/features-recipes/editor — the WEB editor's one warning before work is lost: the browser's own
- * unsaved-changes prompt, armed only while a published recipe holds changes that live in this tab alone.
+ * unsaved-changes prompt, armed while the tab holds work the server does not.
  *
  * The editor never asks on × (build spec Settled 24): a draft saves itself, and a published recipe's changes stay in
- * the device draft. On web that device draft is `sessionStorage` (owner D7), which a closed tab takes with it — so the
- * one state where closing the tab loses work is a published recipe's "Changes kept in this tab", and that is the only
- * state this is armed in (`staff-ux-engineer`, slice 7). The browser supplies the words, so there is no copy to key.
+ * the device draft. On web that device draft and the outbox journal are `sessionStorage` (owner D7), which a closed tab
+ * takes with it — so closing the tab loses whatever has not reached the server, for every recipe. When that is, is
+ * `closingTabLosesWork` (`saveStatus.ts`). The browser supplies the words, so there is no copy to key.
  *
  * ⚠️ `beforeunload` does not fire for a client-side route change, and nothing is lost by one: the device draft
  * outlives the editor within the tab.
@@ -24,7 +24,7 @@ import { useEffect } from 'react';
  * No message is supplied, and none can be: browsers have ignored page-supplied text since 2016 and show their
  * own copy — which is also why this needs no localization key.
  *
- * @param isDirty - Whether closing the tab would lose work: a published recipe's changes kept in this tab.
+ * @param isDirty - Whether closing the tab would lose work (`closingTabLosesWork`).
  * @sideEffect Adds and removes a `window` `beforeunload` listener.
  */
 export function useUnloadGuard(isDirty: boolean): void {

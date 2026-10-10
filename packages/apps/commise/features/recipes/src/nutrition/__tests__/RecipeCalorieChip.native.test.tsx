@@ -3,16 +3,26 @@
  * leaf's coverage state for state — the two leaves share one model and must never drift on WHAT they say,
  * only on the primitives they say it with.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import { LocaleProvider } from '@commise/i18n/react';
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCalorieChip } from '../RecipeCalorieChip.native.js';
 import type { RecipeCalorieReading, RecipeCalorieState } from '../model.js';
 
-afterEach(cleanup);
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
+afterEach(() => {
+    cleanup();
+    systemScheme.current = null;
+});
 
 const reading = (over: Partial<RecipeCalorieReading> = {}): RecipeCalorieReading => ({
     state: 'known',
@@ -111,4 +121,14 @@ describe('RecipeCalorieChip (native) — unaccounted', () => {
             expect(screen.queryByText(/cal/)).toBeNull();
         },
     );
+});
+
+/** D15: the chip is meta text, `inkMuted` in both schemes' values, fresh or stale. */
+describe.each(['light', 'dark'] as const)('RecipeCalorieChip (native) — the %s scheme', (scheme) => {
+    it.each([false, true])('paints the figure in inkMuted (stale: %s)', (stale) => {
+        systemScheme.current = scheme;
+        renderChip(reading(stale ? { freshness: 'stale' } : {}));
+
+        expect(getComputedStyle(screen.getByRole('img')).color).toBe(rgb(rolesFor(scheme).inkMuted));
+    });
 });

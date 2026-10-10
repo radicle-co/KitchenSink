@@ -4,151 +4,18 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 128,
-        "implementations": 231,
-        "props": 1088,
-        "documentedComponents": 128,
-        "implementationsWithModuleDoc": 231,
-        "implementationsWithComponentDoc": 132,
-        "documentedProps": 835,
-        "classifiedComponents": 109,
-        "componentsWithPatternTag": 54,
-        "crossPlatformComponents": 103
+        "components": 123,
+        "implementations": 223,
+        "props": 1066,
+        "documentedComponents": 123,
+        "implementationsWithModuleDoc": 223,
+        "implementationsWithComponentDoc": 128,
+        "documentedProps": 814,
+        "classifiedComponents": 107,
+        "componentsWithPatternTag": 53,
+        "crossPlatformComponents": 100
     },
     "components": [
-        {
-            "id": "featuresRecipes/actions/MoreActionsMenu",
-            "name": "MoreActionsMenu",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/actions",
-            "kind": "unclassified",
-            "patterns": [
-                "Composite — the panel lays out the caller's actions and owns where the destructive one goes"
-            ],
-            "platforms": [
-                "web",
-                "native"
-            ],
-            "crossPlatform": true,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "MoreActionsMenu",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/MoreActionsMenu.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — the web \"More actions\" overflow on the recipe detail (C4 wireframe parity).\n\nThe owner's SECONDARY actions (version history, visibility, delete) behind one `⋯` trigger named for the recipe;\nEdit stays the always-visible primary outside it. The panel is the design system's Popover — portaled, and\ncollision-aware against the page's chrome, so at a phone width it opens clear of the shell's bottom tab bar\ninstead of under it (finding D2) — and the destructive action is a structural slot drawn last, after a divider.\n\n⚠️ The panel is a non-modal `dialog`, not a `menu`: its content is links, buttons and the visibility radio group,\nand `role=\"menu\"` around that content (what this leaf used to claim) promised a roving-focus model it did not and\ncould not provide. Ordinary Tab order reaches every action. Turning visibility into menu items is the detail\nredesign of slice 6, which needs a ruling on what a cook without the premium plan is offered.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes — the web \"More actions\" overflow on the recipe detail (C4 wireframe parity)."
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Composite — the panel lays out the caller's actions and owns where the destructive one goes"
-                        }
-                    ],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "children",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The secondary actions rendered inside the panel while it is open.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "destructive",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The one destructive action, if any: drawn last, after a divider (spec §1.11).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "recipeTitle",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The recipe the actions act on, which names the trigger.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "MoreActionsMenu",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/MoreActionsMenu.native.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — the native \"More actions\" overflow on the recipe detail (C4 wireframe parity).\n\nThe React Native leaf of `MoreActionsMenu`: a `⋯` trigger named for the recipe (44 pt on iOS, 48 dp on Android)\nthat reveals its actions in an INLINE panel below it, and announces collapsed and expanded. The destructive action\nis a structural slot drawn last, after a divider. There is no pointer \"outside\" on device, so the panel closes when\nthe trigger is pressed again. Open/close is local, ephemeral UI state, so it stays here.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes — the native \"More actions\" overflow on the recipe detail (C4 wireframe parity)."
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Composite — the panel lays out the caller's actions and owns where the destructive one goes"
-                        }
-                    ],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "children",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The secondary actions rendered inside the panel while it is open.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "destructive",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The one destructive action, if any: drawn last, after a divider (spec §1.11).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "recipeTitle",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The recipe the actions act on, which names the trigger.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
         {
             "id": "featuresRecipes/actions/RecipeDeleteDialog",
             "name": "RecipeDeleteDialog",
@@ -247,171 +114,6 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/actions/RecipeVisibilityToggle",
-            "name": "RecipeVisibilityToggle",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/actions",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web",
-                "native"
-            ],
-            "crossPlatform": true,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeVisibilityToggle",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeVisibilityToggle.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — web recipe visibility toggle (T074 building block).\n\nControlled, presentational public/private radio group. The current `visibility` is the checked option and\nevery selection is reported upward via `onChange`. Tier-gated per C-004: when `canGoPrivate` is false the\nprivate option is disabled and the (already-localized) `disabledReason` is shown and associated with it.\nState is conveyed by the radio's checked/disabled semantics and its text label — never by colour alone.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes — web recipe visibility toggle (T074 building block)."
-                        }
-                    ],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "canGoPrivate",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the viewer's tier permits a private recipe (C-004).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "disabledReason",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Localized explanation shown when the private option is gated off (rendered only when `!canGoPrivate`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "error",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "false",
-                            "description": "When true, a localized \"couldn't change visibility\" alert is shown — the last change failed (B17).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "onChange",
-                            "type": "(next: RecipeVisibility) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked with the requested next visibility when the user selects an enabled option.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "visibility",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"public\"",
-                                "\"private\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The recipe's current visibility — the checked option.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "RecipeVisibilityToggle",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeVisibilityToggle.native.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — native recipe visibility toggle (T074 building block).\n\nThe React Native leaf of `RecipeVisibilityToggle` — same\ncontrolled radio-group contract: the current `visibility` is the checked option, selections report upward\nvia `onChange`, and the private option is disabled with its (localized) `disabledReason` shown when the\ntier cannot go private (C-004). State rides on the radio's checked/disabled semantics and text, not colour.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes — native recipe visibility toggle (T074 building block)."
-                        }
-                    ],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "canGoPrivate",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the viewer's tier permits a private recipe (C-004).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "disabledReason",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Localized explanation shown when the private option is gated off (rendered only when `!canGoPrivate`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "error",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "false",
-                            "description": "When true, a localized \"couldn't change visibility\" alert is shown — the last change failed (B17).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "onChange",
-                            "type": "(next: RecipeVisibility) => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Invoked with the requested next visibility when the user selects an enabled option.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        },
-                        {
-                            "name": "visibility",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"public\"",
-                                "\"private\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The recipe's current visibility — the checked option.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -2071,7 +1773,7 @@
                         },
                         {
                             "name": "member",
-                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 20 more ...; deletedAt?: string | undefined; }>",
+                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2158,7 +1860,7 @@
                         },
                         {
                             "name": "member",
-                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 20 more ...; deletedAt?: string | undefined; }>",
+                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2269,7 +1971,7 @@
                         },
                         {
                             "name": "members",
-                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 20 more ...; deletedAt?: string | undefined; }>[]",
+                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; }>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2400,7 +2102,7 @@
                         },
                         {
                             "name": "members",
-                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 20 more ...; deletedAt?: string | undefined; }>[]",
+                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; }>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -10801,7 +10503,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/editor/RecipeEditorView.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/editor",
-                    "moduleDoc": "@commise/features-recipes/editor — the web one-page recipe editor (build spec §7; owner decisions D1, D2, D3,\nD12): the header, the section index, the four sections, the action bar and the notices, over the editor's lifecycle\n(`useRecipeEditor`). Create and edit are this one page.\n\nORCHESTRATION of the page: it owns the page's one `ScrollHost`, and draws what `useEditorPage` decides (the statuses\nfrom the one validator, the chrome, the checkpoints, the announcements, the commands). The web adds only what the\nbrowser alone has: a published recipe's changes kept in this tab arm the browser's own unload prompt (D7), the\npopups keep clear of the sticky chrome (the header and the index box stuck under it), and when the header and the\naction bar together are taller than half the viewport (`compactHeightLayout.md` A1) the bar scrolls with the page and\nthe section bar hides (build spec §7.1). The sections' bodies are the container's, which owns their data.\n\nNo back-to-top control (D3). The editor's glass is its action bar only (D12). × never asks (Settled 24).",
+                    "moduleDoc": "@commise/features-recipes/editor — the web one-page recipe editor (build spec §7; owner decisions D1, D2, D3,\nD12): the header, the section index, the four sections, the action bar and the notices, over the editor's lifecycle\n(`useRecipeEditor`). Create and edit are this one page.\n\nORCHESTRATION of the page: it owns the page's one `ScrollHost`, and draws what `useEditorPage` decides (the statuses\nfrom the one validator, the chrome, the checkpoints, the announcements, the commands). The web adds only what the\nbrowser alone has: work the server does not hold yet arms the browser's own unload prompt (D7), the\npopups keep clear of the sticky chrome (the header and the index box stuck under it), and when the header and the\naction bar together are taller than half the viewport (`compactHeightLayout.md` A1) the bar scrolls with the page and\nthe section bar hides (build spec §7.1). The sections' bodies are the container's, which owns their data.\n\nNo back-to-top control (D3). The editor's glass is its action bar only (D12). × never asks (Settled 24).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -12205,7 +11907,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/AuthoredFoodSheet.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — the create-my-own-food form on the design-system `Sheet`, native: a bottom\nsheet (`docs/design/rowEditorOpenDecisions.md` item 1, \"moved\"; `docs/design/rowEditorBlueprint.md` decision 2).\n\nA presentational leaf with the web leaf's contract (`./authoredFoodSheet.model.ts`): it renders `useAuthoredFoodCreate`'s\nstate and reports every action. Native has no DOM focus: the Sheet puts the reading cursor on its title when it\nshows, and the duplicate notice takes the cursor as it replaces the form, because the control that was pressed is\ngone. One ref, for that move: `sendAccessibilityEvent` has no declarative form.\n\nProgress is said on a polite live region and a failure on an assertive one, both mounted empty so Android's\nregions exist before their text is written.",
+                    "moduleDoc": "@commise/features-recipes/form — the create-my-own-food form on the design-system `Sheet`, native: a bottom\nsheet (`docs/design/rowEditorOpenDecisions.md` item 1, \"moved\"; `docs/design/rowEditorBlueprint.md` decision 2).\n\nA presentational leaf with the web leaf's contract (`./authoredFoodSheet.model.ts`): it renders `useAuthoredFoodCreate`'s\nstate and reports every action. Native has no DOM focus: the Sheet puts the reading cursor on its title when it\nshows, and the duplicate notice takes the cursor as it replaces the form, because the control that was pressed is\ngone. One ref, for that move: `sendAccessibilityEvent` has no declarative form.\n\nProgress is said on a polite live region and a failure on an assertive one, both mounted empty so Android's\nregions exist before their text is written.\n\nColour comes from the theme at render (D15): a field is the design system's `fieldPaint`, a field locked while the\nfood saves sits on `surfaceMuted`, the label and hints are `inkMuted`, an error is `dangerText`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -12678,58 +12380,6 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/form/Field",
-            "name": "Field",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/form",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "native"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "Field",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/form/Field.native.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `Field` (native): the labeled field wrapper (a visible label above\nits control) the native recipe-form field groups build their Basics inputs from. There is no web\ncounterpart — the web leaves use a `<label>` element directly.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/form — `Field` (native): the labeled field wrapper (a visible label above"
-                        }
-                    ],
-                    "description": "A labeled field wrapper (visible label above its control) for the Basics section.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -14185,7 +13835,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/NutritionPanelBody.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `NutritionPanelBody` (native): the web leaf's job in the row's bottom\nsheet. The same sub-states, the same figure rows (`nutritionFigureRows`), the same copy. Presentational, like the web\nleaf.\n\nEach figure row is ONE accessible element named \"label value\", so a screen reader reads a pair, not two orphans.",
+                    "moduleDoc": "@commise/features-recipes/form — `NutritionPanelBody` (native): the web leaf's job in the row's bottom\nsheet. The same sub-states, the same figure rows (`nutritionFigureRows`), the same copy. Presentational, like the web\nleaf. Colour comes from the theme at render (D15): body copy in `ink`, a figure's label in `inkMuted`.\n\nEach figure row is ONE accessible element named \"label value\", so a screen reader reads a pair, not two orphans.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -14251,7 +13901,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedReadingRow.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PastedReadingRow` (web): a pasted line not in the recipe yet, as a row of\nthe Ingredients list (build spec §7.5.1 \"Reading\", §7.5.4). Its own text, then \"Reading…\", or, when its lookup\nfailed, ⚠ \"Couldn't look up\" in `attention` with Try again named for the line.\n\nPresentational: props in, markup out. The native leaf is `./PastedReadingRow.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedReadingRow` (web): a pasted line not in the recipe yet, as a row of\nthe Ingredients list (build spec §7.5.1 \"Reading\", §7.5.4). Its own text, then \"Reading…\" (or, while its work waits\nfor a connection, that it finishes once back online), or, when its lookup failed, ⚠ \"Couldn't look up\" in\n`attention` with Try again named for the line.\n\nPresentational: props in, markup out. The native leaf is `./PastedReadingRow.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -16400,190 +16050,6 @@
             ]
         },
         {
-            "id": "featuresRecipes/list/RecipeSourceTab",
-            "name": "RecipeSourceTab",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
-            "patterns": [],
-            "platforms": [
-                "native"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeSourceTab",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeSourceTab.native.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — ONE recipe-source tab (L5), native leaf.\n\nThe affordance itself, defined ONCE for native and composed by every native surface that offers a source\nswitcher: the two-source strip (`RecipeSourceTabs.native.tsx`) and mobile's recipe shell (`RecipesScreen`'s\ntab bar), which carries a third destination (Collections) that has no web peer and therefore cannot render\nthe strip wholesale. Transcribing the affordance into the shell instead would drift the moment either side\nis touched.\n\n## Semantics — `accessibilityRole=\"tab\"` here, `<a>` on web, and that IS the same model\n\nThe web leaf's module JSDoc carries the full argument. In short: web sources are URLs, so web must use\nlinks; React Native has no URL, no address bar and no \"open in new tab\", and the shell swaps screens in\nplace — so the platform's own trait for a top-level destination switcher is the tab trait, which is what\nmobile's `HomeTabBar` and the recipes shell already announce. Parity is on the model and behaviour, not on\nthe element name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes — ONE recipe-source tab (L5), native leaf."
-                        }
-                    ],
-                    "description": "ONE source tab. The native half of the affordance fix: an unselected tab rests as a visible folder — a\n`pearl` fill under a `slate` hairline — instead of bare text. Touch has no hover, so a hover-only signal (the\nweb defect this mirrors) means no signal at all on a phone; the resting fill + hairline are what a thumb can\nsee. `slate` is the lightest palette token whose boundary clears the 3:1 SC 1.4.11 floor against the fill\n(`mist` is 1.74:1), and the label clears the 4.5:1 text floor on it at 4.81:1 — both measured in the tests.\n\nThe selected tab keeps the seafoam UNDERLINE with an `ocean-dark` LABEL: the palette rule (see the palette\nJSDoc in `@commise/ui`'s `tokens/colors.ts`), mirroring the web leaf exactly.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The label, selected state, and activation callback."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "One pressable source tab."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The visible + accessible label.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/RecipeSourceTab.native.tsx"
-                        },
-                        {
-                            "name": "onPress",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Activate this source.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/RecipeSourceTab.native.tsx"
-                        },
-                        {
-                            "name": "selected",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether this is the source currently showing.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/RecipeSourceTab.native.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/list/RecipeSourceTabs",
-            "name": "RecipeSourceTabs",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web",
-                "native"
-            ],
-            "crossPlatform": true,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeSourceTabs",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeSourceTabs.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — the My Recipes / Community source switcher (L5), web leaf.\n\nONE strip, rendered by BOTH recipe-source surfaces — the personal library (`RecipeListFrame`) and the community\nsurface (`RecipeDiscoveryFrame`). It exists as its own component precisely because the two surfaces DID\ndrift: `/recipes` drew the strip while `/discover` drew nothing, so choosing \"Community\" was a one-way trip\nwith no way back. A single shared switcher makes that asymmetry unrepresentable — a surface either mounts\nthis and gets both destinations, or mounts no switcher at all.\n\n## Pattern: style recipe + a pure `props → JSX` presentational component\n\nNo state, no data, no effects. The surface is three module-level class recipes (`BASE` / `SELECTED` /\n`UNSELECTED`) so the resting affordance and the palette rule live in one readable place, in the spirit of\n`@commise/ui`'s `buttonSurfaceClass`.\n\n## Semantics: these are LINKS on web, and `tab`s on native — deliberately, not by accident\n\nEach source is a distinct URL (`/{locale}/recipes`, `/{locale}/discover`), so on web this is NAVIGATION,\nand navigation belongs to an `<a>`. `@commise/ui`'s `surfaceClass.ts` already states the rule this repo\nfollows: *\"a navigation control must stay an `<a>` / `next/link`, or it loses link semantics — the `link`\nrole, middle-click / ⌘-click, the status-bar target preview, and 'open in new tab'. Turning a navigation\ninto a `<button onClick={router.push}>` … is an accessibility regression.\"* That is exactly what this\nstrip used to be. `role=\"tab\"` was the second half of the same mistake: the ARIA tab pattern describes a set\nof layered PANELS inside one document (`aria-selected`, an owned `tabpanel`), which is not what a control\nthat replaces the document is doing — so the active source is marked with `aria-current=\"page\"`, the\nstandard for \"this is the destination you are on\", inside a `<nav>`.\n\nThe native leaf (`RecipeSourceTabs.native.tsx`) keeps `accessibilityRole=\"tab\"`, and that is the SAME model\nexpressed in the platform that has it: React Native has no URLs, no address bar and no new tab, and its\nshell switches screens in place — so the platform's own trait for a top-level destination switcher IS the\ntab trait. The repo already resolved this split identically for app-level navigation: the web `HomeTabBar`\nis `<nav>` + `next/link` + `aria-current`, while the mobile `HomeTabBar` is `tablist`/`tab`. Parity is on\nthe MODEL and the behaviour (both platforms show both sources on both surfaces, mark the active one, and\nland you on the other when chosen), not on the element name.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes — the My Recipes / Community source switcher (L5), web leaf."
-                        }
-                    ],
-                    "description": "The recipe-source switcher.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The active source + its destinations."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "A `nav` of one link per source, the active one marked `aria-current=\"page\"`."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "tab",
-                            "type": "RecipeListTabControl",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Which source is showing, and where each source lives.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/RecipeSourceTabs.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "RecipeSourceTabs",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeSourceTabs.native.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — the My Recipes / Community source switcher (L5), native leaf.\n\nThe React Native rendering of `RecipeSourceTabs`: the same switcher, the same two sources, the same resting\naffordance, rendered with RN primitives. One strip serves both recipe-source surfaces (`RecipeListFrame`,\n`RecipeDiscoveryFrame`) so they cannot drift into the asymmetry the web pair had, where the community\nsurface offered no way back.\n\nThe tab affordance itself lives in {@link RecipeSourceTab} (its own leaf), because mobile's recipe shell\ncomposes a single tab alongside a third destination that has no web peer — see that module's JSDoc.\nActivation goes through `tab.onChange` (native's only navigation seam); `href` is web's half of the shared\ncontrol and is deliberately ignored here.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes — the My Recipes / Community source switcher (L5), native leaf."
-                        }
-                    ],
-                    "description": "The recipe-source switcher.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The active source + its activation callback."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "A tablist of one tab per source."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "tab",
-                            "type": "RecipeListTabControl",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Which source is showing, and how to activate the other.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/RecipeSourceTabs.native.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "featuresRecipes/nutrition/NutritionBoundaryShell",
             "name": "NutritionBoundaryShell",
             "group": "featuresRecipes",
@@ -18045,7 +17511,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeConflictView.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — native concurrent-edit conflict view (T070 / C-005 / W7 building\nblock).\n\nThe React Native leaf of `RecipeConflictView` — same FULLY\ncontrolled, presentational contract for FR-007c. Mirrors the web leaf's W7 rebuild of the DEFAULT (options)\nview (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and the\nchanged-only diff panel (W7 Task 4 / X1) driven by the precomputed `ConflictDiff` (W7 Task 1) — one row\nper changed-or-conflicting field/element, each with an accessible marker (text/role, never colour alone)\nand Server-then-Yours values (X7), plus a legend.\n\nMerge mode (Option C, W7 Task 5) renders ONLY `diff.rows`, Server FIRST then Yours (X7), gated (X5) on at\nleast one EXPLICIT selection and — when the base is evicted or more than 10 versions behind (X6) — an\nexplicit stale-base confirm shared with Overwrite. Both the merge-panel toggle and the stale-confirm\ncheckbox are local UI state that resets whenever `server.versionNumber` changes (a NEW conflict on this\nSAME instance), held by `useConflictView`, which the web leaf shares. See the web leaf's own module doc for\nthe full rationale.",
+                    "moduleDoc": "@commise/features-recipes — native concurrent-edit conflict view (T070 / C-005 / W7 building\nblock).\n\nThe React Native leaf of `RecipeConflictView` — same FULLY\ncontrolled, presentational contract for FR-007c. Mirrors the web leaf's W7 rebuild of the DEFAULT (options)\nview (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and the\nchanged-only diff panel (W7 Task 4 / X1) driven by the precomputed `ConflictDiff` (W7 Task 1) — one row\nper changed-or-conflicting field/element, each with an accessible marker (text/role, never colour alone)\nand Server-then-Yours values (X7), plus a legend.\n\nMerge mode (Option C, W7 Task 5) renders ONLY `diff.rows`, Server FIRST then Yours (X7), gated (X5) on at\nleast one EXPLICIT selection and — when the base is evicted or more than 10 versions behind (X6) — an\nexplicit stale-base confirm shared with Overwrite. Both the merge-panel toggle and the stale-confirm\ncheckbox are local UI state that resets whenever `server.versionNumber` changes (a NEW conflict on this\nSAME instance), held by `useConflictView`, which the web leaf shares. See the web leaf's own module doc for\nthe full rationale.\n\nColour comes from the theme's roles at render (D15); the `StyleSheet` holds layout only. A card is level 1, `paper`\ninside a `lineDivider` edge (`darkTheme.md` §4); the stale-base warning is the design system's caution surface\n(`StandIn`: an `attention` edge on the `attentionTint` fill under `ink`).",
                     "moduleTags": [
                         {
                             "name": "module",

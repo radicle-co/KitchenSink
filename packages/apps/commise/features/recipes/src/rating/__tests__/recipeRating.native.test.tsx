@@ -16,13 +16,23 @@ import { fireEvent } from '@testing-library/dom';
 import { LocaleProvider } from '@commise/i18n/react';
 import { computedContrast } from '@commise/test-utils';
 import { palette } from '@commise/ui';
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeRatingDisplay } from '../RecipeRatingDisplay.native.js';
 import { RecipeRatingInput } from '../RecipeRatingInput.native.js';
 import type { RecipeRatingDisplayProps, RecipeRatingInputProps } from '../model.js';
 
-afterEach(cleanup);
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
+afterEach(() => {
+    cleanup();
+    systemScheme.current = null;
+});
 
 const noop = () => undefined;
 
@@ -243,5 +253,38 @@ describe('recipe rating (native) — text contrast (WCAG 2.1 AA)', () => {
                 `empty rate-input pip ${index + 3} of 5 on the sand screen background`,
             ).toBeGreaterThanOrEqual(4.5);
         }
+    });
+});
+
+/**
+ * D15: the rating paints from colour roles at render. A filled pip is `rating` (the spec's star tone, never text), an
+ * empty one `inkMuted`; the heading and the rate heading are `ink`, notes `inkMuted`, Remove and errors `dangerText`.
+ */
+describe.each(['light', 'dark'] as const)('recipe rating (native) — the %s scheme', (scheme) => {
+    const colours = rolesFor(scheme);
+
+    it('fills the score pips with rating and the scale pips with inkMuted, under an ink heading', () => {
+        systemScheme.current = scheme;
+        renderDisplay({ average: 2, ratingCount: 3 });
+        const pips = screen.getAllByText('★');
+
+        expect(getComputedStyle(pips[0] as Element).color).toBe(rgb(colours.rating));
+        expect(getComputedStyle(pips[4] as Element).color).toBe(rgb(colours.inkMuted));
+        expect(getComputedStyle(screen.getByRole('heading')).color).toBe(rgb(colours.ink));
+    });
+
+    it('says an unrated recipe in inkMuted', () => {
+        systemScheme.current = scheme;
+        renderDisplay();
+
+        expect(getComputedStyle(screen.getByText('Not yet rated')).color).toBe(rgb(colours.inkMuted));
+    });
+
+    it('draws Remove and an error in dangerText', () => {
+        systemScheme.current = scheme;
+        renderInput({ selectedStars: 3, error: 'generic' });
+
+        expect(getComputedStyle(screen.getByText('Remove my rating')).color).toBe(rgb(colours.dangerText));
+        expect(getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(colours.dangerText));
     });
 });

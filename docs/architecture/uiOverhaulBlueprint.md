@@ -902,8 +902,11 @@ component. The sidebar cookie name is trivial.
 - **Slice 7 (editor frame).** Prerequisites first, each with its own tests:
     1. the serialized outbox mutator (`syncProvider.tsx:153`);
     2. jittered backoff in `drainer.ts` (honouring `Retry-After`);
-    3. the `features/recipes → @commise/query` package edge (check for a cycle; `@commise/query` must not import
-       features).
+    3. the write port. The `features/recipes → @commise/query` package edge planned here was not added.
+       `useRecipeEditor` takes the outbox as an injected port (`EditorWritePort`,
+       `features/recipes/src/hooks/useRecipeEditor.ts`), and each platform's editor container adapts the app's
+       `SyncQueue` (`@commise/query/sync`) to it. `features/recipes/package.json` still has no `@commise/query`
+       dependency, so no cycle can form, and a test drives the editor with a fake port.
 
     Then:
     - `features/recipes/src/editor/{sections.ts, draftStore.ts, checkpointPolicy.ts, sectionStatus.ts,

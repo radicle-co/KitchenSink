@@ -188,19 +188,56 @@ export type LineCommandOutcome =
     /** Nothing changed. */
     | { readonly kind: 'failed' };
 
+/** The rebind command's target, derived from the published request so it cannot drift (ADR-0014). */
+export type RebindTarget = RebindIngredientLineRequest['target'];
+
+/** A rebind held until the cook's Save changes (blueprint A3's `pendingRebinds`): the line, by its draft key, and where to. */
+export interface PendingRebind {
+    readonly lineKey: IngredientLineKey;
+    readonly target: RebindTarget;
+}
+
+/**
+ * Sends one rebind command, addressed and aimed, and answers with the recipe it produced: the editor's port to
+ * `useRebindIngredientLine`, used to drain the held rebinds, whose pick (and its send) is long gone.
+ */
+export type RebindLineSend = (address: LineCommandAddress, target: RebindTarget) => Promise<RecipeDetail>;
+
+/**
+ * The rebind request for one address and target: `useRebindIngredientLine`'s variables, the one mapping both a pick's
+ * command and a held rebind's drain send. Pure.
+ *
+ * @param address - Where the command goes, read when it is sent.
+ * @param target - What the line moves to.
+ * @returns The mutation's variables.
+ */
+export const rebindRequestOf = (
+    address: LineCommandAddress,
+    target: RebindTarget,
+): { readonly id: string; readonly position: number; readonly body: RebindIngredientLineRequest } => ({
+    id: address.recipeId,
+    position: address.position,
+    body: { expectedVersion: address.expectedVersion, target },
+});
+
 /**
  * A surface's half of the rebind command: which lines it stores, and how it runs one command and adopts the version it
  * returns (ADR-0045). The editor implements it on the edit form.
+ *
+ * On a PUBLISHED recipe the command is HELD (`holdsRebinds`): every write of it makes a version, and a change waits for
+ * the cook's Save changes (owner D1). The pick's food is admitted and shown on the line at once, and the rebind is sent
+ * when the cook saves, before the Save changes update, so it still teaches (blueprint A3).
  */
 export interface LineCommandPort {
     /** The stored lines' keys, in stored order (`persistedLineKeysOf`). */
     readonly persistedKeys: readonly IngredientLineKey[];
+    /** Whether a rebind is held until Save changes ({@link hold}) rather than run at once ({@link run}). */
+    readonly holdsRebinds: boolean;
     /** Run the command for the line with `key` through `send`, and adopt what it returns. */
     readonly run: (key: IngredientLineKey, send: LineCommandSend) => Promise<LineCommandOutcome>;
+    /** Hold `rebind` until Save changes, and show the line on `binding`, its admitted food, meanwhile. */
+    readonly hold: (rebind: PendingRebind, binding: LineBinding) => void;
 }
-
-/** The rebind command's target, derived from the published request so it cannot drift (ADR-0014). */
-type RebindTarget = RebindIngredientLineRequest['target'];
 
 /** The decision: the command at a stored position, or the draft. */
 export type CommitRoute =
@@ -337,6 +374,8 @@ export interface QueuedLineCommand {
     readonly claim: () => boolean;
     /** Answers the caller's promise. */
     readonly settle: (outcome: LineCommandOutcome) => void;
+    /** The held rebind this command drains at Save changes; absent for a command run at once. */
+    readonly held?: PendingRebind;
 }
 
 /**

@@ -358,6 +358,18 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
                         vs `engine.schema.ts` "NORMALISED"), which is why the promotion adapters take `raw` as a PARAMETER rather
                         than trusting either.
 
+- **ADR-0058 — a never-published draft records NO version; versions start at the first publish (D9).** The fact is
+  `recipes.first_published_at` (a trigger sets it, nothing clears it), never `status`: a published recipe set back to
+  draft keeps versioning. The wire carries it as `firstPublishedAt`, and the editor's lifecycle keys on it. Do not key
+  the skip on `status = 'draft'`, and do not add a caller flag to skip a version.
+- **ADR-0057 — the editor keeps a DEVICE draft, promotes it at checkpoints, and the outbox has one writer and a fixed
+  v1 format.** Both persisted formats are one-way doors. Never re-send a parked or interrupted record blindly: an unknown
+  create is a duplicate recipe. On web the draft AND the outbox journal live in the tab's `sessionStorage` (D7), so a
+  reload keeps both and closing the tab ends both. A published recipe's food re-picks wait for Save changes.
+- **ADR-0056 — native navigation is React Navigation 7, one native stack per tab, under OUR tab bar.** Our back provider
+  sits OUTSIDE the `NavigationContainer` on purpose (React Native answers the last-registered back listener first). Do
+  not swap in the library's tab bar or native system tabs (D14).
+
 - **ADR-0032 — an END-TO-END TEST TARGETS A DEPLOYED ENVIRONMENT, and SKIPS when the PR's sandbox is not
   running (owner ruling 2026-09-05, superseding the 2026-09-04 two-tier answer).** Verbatim: _"all end to end
   tests (playwright, e2e, maestro, etc) - which should be hitting remote services - should be skipped if the

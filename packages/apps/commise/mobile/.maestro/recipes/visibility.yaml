@@ -17,7 +17,7 @@ appId: io.commise.mobile
 #   Its docblock also named what was owed: "Covering the successful public->private transition needs a PREMIUM
 #   e2e identity; until one exists that transition is verified only by the component tests". That identity
 #   exists, so the transition is now covered here. The FREE-tier gate stays covered by
-#   `RecipeVisibilityToggle.native.test.tsx`, `RecipeDetailScreen.native.test.tsx` and the web Playwright suite.
+#   `RecipeVisibilityField.native.test.tsx`, `RecipeDetailScreen.native.test.tsx` and the web Playwright suite.
 #   It no longer has an on-device check, because that would take a second, free-tier device sign-in the fixture
 #   contract does not provide.
 #

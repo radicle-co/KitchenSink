@@ -219,4 +219,25 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         expect(createSnapshot).toHaveBeenCalledTimes(1);
         expect(createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ versionNumber: 1 }), { __tx: true });
     });
+
+    /**
+     * The fact on the wire (ADR-0058 rule 1; finding 5 of the 2026-10-09 review): every write's answer states the first
+     * publish, so a client keys "ever published" on it and not on `status` — which a recipe set back to draft changes
+     * while its saves still version.
+     */
+    it('every answer states the first publish: absent on a draft, kept after the recipe is set back to draft', async () => {
+        const created = recipeDetailSchema.parse(await (await call('POST', '/api/v1/recipes', DRAFT_BODY)).json());
+        const published = recipeDetailSchema.parse(
+            await (
+                await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, status: 'published' })
+            ).json(),
+        );
+        const redrafted = recipeDetailSchema.parse(
+            await (await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 2, status: 'draft' })).json(),
+        );
+
+        expect(created).not.toHaveProperty('firstPublishedAt');
+        expect(published.firstPublishedAt).toBe(PUBLISHED_AT.toISOString());
+        expect(redrafted).toMatchObject({ status: 'draft', firstPublishedAt: PUBLISHED_AT.toISOString() });
+    });
 });

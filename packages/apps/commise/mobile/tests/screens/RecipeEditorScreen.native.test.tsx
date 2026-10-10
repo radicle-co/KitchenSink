@@ -257,7 +257,19 @@ describe('RecipeEditorScreen (native) — Paste a list', () => {
         expect(screen.getByRole('textbox', { name: 'Ingredient lines' })).toBeTruthy();
     });
 
-    it('⛔ a stored recipe offers no paste (D10)', async () => {
+    it('a stored draft never published still offers it: paste lasts until the first publish (D10, 2026-10-09)', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ id: 'rec_1', title: 'Draft Stew', status: RecipeStatus.DRAFT }),
+        );
+
+        renderScreen(client, { recipeId: 'rec_1' });
+        await screen.findByText('Edit recipe');
+
+        expect(screen.getByRole('button', { name: 'Paste a list' })).toBeTruthy();
+    });
+
+    it('⛔ a published recipe offers no paste (D10)', async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ id: 'rec_1', title: 'Stored Stew' }));
 

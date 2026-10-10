@@ -10,24 +10,29 @@
  * not store goes through an admission and a draft transition, and nothing else.
  *
  * Slice 7: the editor's saves go through the outbox now, so the composition carries a REAL outbox (`./outboxPort.ts`,
- * the domain package's mutator and drain) in front of the same client. A save is Save changes on a published recipe.
+ * the domain package's mutator and drain) in front of the same client.
+ *
+ * REWRITTEN (2026-10-09 review, finding 6; owner D1, blueprint A3). The command runs AT ONCE only on a never-published
+ * draft, whose writes make no version (ADR-0058), so the immediate-command cases now use a draft, and "the next save"
+ * is its next checkpoint. On a PUBLISHED recipe the re-pick is HELD: only the admission crosses the wire, and Save
+ * changes sends the rebind and then its one update, in that order — the last describe block.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { useState, type ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { RecipeDetail } from '@kitchensink/recipe-core';
+import { RecipeStatus, type RecipeDetail } from '@kitchensink/recipe-core';
 import { makeRecipeDetail } from '@kitchensink/recipe-core/testing';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
-import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
+import { RecipeServiceProvider, useRebindIngredientLine } from '@kitchensink/recipe-service-client/hooks';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 
 import type { DraftAction } from '../../src/form/draftAction.js';
 import { applyDraftAction } from '../../src/form/props.js';
 import { toRecipeFormValues } from '../../src/form/wire.js';
-import type { LineCommitOutcome, LineCommitPort } from '../../src/hooks/lineCommit.js';
+import { rebindRequestOf, type LineCommitOutcome, type LineCommitPort } from '../../src/hooks/lineCommit.js';
 import { useLineCommit, type LineCommit } from '../../src/hooks/useLineCommit.js';
 import { useRecipeEditor } from '../../src/hooks/useRecipeEditor.js';
 import { useSourceLimit } from '../../src/hooks/useSourceLimit.js';
@@ -51,16 +56,21 @@ const line = (ingredientId: string, name: string, extra: Record<string, unknown>
     ...extra,
 });
 
-/** The recipe at `version`, its second line on `second`. */
-const recipeAt = (version: number, second = line(BRISKET, 'Brisket', { foodId: 'food_brisket' })): RecipeDetail =>
+/** The recipe at `version`, its second line on `second`: a never-published draft unless `status` says otherwise. */
+const recipeAt = (
+    version: number,
+    second = line(BRISKET, 'Brisket', { foodId: 'food_brisket' }),
+    status: RecipeStatus = RecipeStatus.DRAFT,
+): RecipeDetail =>
     makeRecipeDetail({
         id: RECIPE_ID,
         currentVersion: version,
+        status,
         ingredients: [line(OIL, 'Olive oil'), second],
     });
 
-const flatAt = (version: number) =>
-    recipeAt(version, line(BRISKET_FLAT, 'Brisket', { foodId: 'food_brisket', variant: FLAT }));
+const flatAt = (version: number, status: RecipeStatus = RecipeStatus.DRAFT) =>
+    recipeAt(version, line(BRISKET_FLAT, 'Brisket', { foodId: 'food_brisket', variant: FLAT }), status);
 
 interface Recorded {
     readonly method: string;
@@ -152,9 +162,18 @@ const NO_DRAFTS: DraftStore = {
 
 /** The edit form's composition: the editor (over a real outbox) and the commit hook on its two ports. */
 function useEditForm(recipe: RecipeDetail, port: ReturnType<typeof makeOutboxPort>['port']) {
+    const rebind = useRebindIngredientLine();
     const editor = useRecipeEditor(
         { recipe },
-        { locale: 'en', port, drafts: NO_DRAFTS, keep: 'disk', onExit: () => undefined },
+        {
+            locale: 'en',
+            port,
+            drafts: NO_DRAFTS,
+            keep: 'disk',
+            onExit: () => undefined,
+            rebindLine: (address, target) => rebind.mutateAsync(rebindRequestOf(address, target)),
+            pastePending: false,
+        },
     );
     const lineCommit = oneSurface(
         useLineCommit<'row'>(
@@ -259,7 +278,7 @@ describe('useLineCommit on the edit form (integration)', () => {
             result.current.editor.setField('description', 'Edited.');
         });
         act(() => {
-            result.current.editor.saveChanges('');
+            result.current.editor.checkpoint('sectionChange');
         });
         await waitFor(() => expect(requests).toHaveLength(2));
         expect(requests[1]).toMatchObject({ method: 'PATCH', body: { expectedVersion: 4 } });
@@ -285,7 +304,7 @@ describe('useLineCommit on the edit form (integration)', () => {
             result.current.editor.setField('description', 'Edited.');
         });
         act(() => {
-            result.current.editor.saveChanges('');
+            result.current.editor.checkpoint('sectionChange');
         });
         await waitFor(() => expect(requests.map((r) => r.method)).toEqual(['PATCH']));
         await act(async () => {
@@ -387,6 +406,91 @@ describe('useLineCommit on the edit form (integration)', () => {
             ingredientId: BRISKET_FLAT,
             variant: FLAT,
         });
+    });
+});
+
+describe('a re-pick on a PUBLISHED recipe waits for Save changes (integration)', () => {
+    const published = (version: number) => recipeAt(version, undefined, RecipeStatus.PUBLISHED);
+    const admitted = {
+        id: BRISKET_FLAT,
+        name: 'Brisket',
+        foodId: 'food_brisket',
+        variant: FLAT,
+        foodResolutionStatus: 'RESOLVED',
+        isUserEntered: false,
+        createdAt: '2026-10-02T09:00:00.000Z',
+    };
+
+    /** The admission, the rebind and the save, each answered as the server would. */
+    function server() {
+        return stubbedRecipes(async (method, path) => {
+            if (path === '/api/v1/ingredients/by-food-variant') {
+                return json(admitted);
+            }
+
+            if (method === 'POST' && path === REBIND_PATH) {
+                return json(flatAt(4, RecipeStatus.PUBLISHED));
+            }
+
+            return json({ ...flatAt(5, RecipeStatus.PUBLISHED), description: 'Edited.' });
+        });
+    }
+
+    it('only the admission crosses the wire at the pick; Save changes sends the rebind, then ONE update, in order', async () => {
+        const { client, requests } = server();
+        const { port } = makeOutboxPort(client);
+        const { result } = renderHook(() => useEditForm(published(3), port), { wrapper: providers(client) });
+        const key = result.current.editor.values.ingredients[1]!.key;
+
+        const outcome = await commitAndWait(() =>
+            result.current.lineCommit.commit(
+                { kind: 'catalogVariant', foodVariantId: 'var_flat' },
+                { kind: 'line', key },
+            ),
+        );
+
+        expect(outcome).toMatchObject({ kind: 'committed', key });
+        expect(requests.map((r) => [r.method, r.path])).toEqual([['POST', '/api/v1/ingredients/by-food-variant']]);
+        expect(result.current.editor.values.ingredients[1]).toMatchObject({ key, ingredientId: BRISKET_FLAT });
+
+        act(() => {
+            result.current.editor.setField('description', 'Edited.');
+        });
+        act(() => {
+            result.current.editor.saveChanges('');
+        });
+        await waitFor(() => expect(requests).toHaveLength(3));
+
+        expect(requests.slice(1).map((r) => [r.method, r.path, r.body])).toEqual([
+            [
+                'POST',
+                REBIND_PATH,
+                { expectedVersion: 3, target: { kind: 'catalogVariant', foodVariantId: 'var_flat' } },
+            ],
+            ['PATCH', `/api/v1/recipes/${RECIPE_ID}`, expect.objectContaining({ expectedVersion: 4 })],
+        ]);
+    });
+
+    it('Discard after a held re-pick sends nothing to the recipe', async () => {
+        const { client, requests } = server();
+        const { port } = makeOutboxPort(client);
+        const { result } = renderHook(() => useEditForm(published(3), port), { wrapper: providers(client) });
+        const key = result.current.editor.values.ingredients[1]!.key;
+
+        await commitAndWait(() =>
+            result.current.lineCommit.commit(
+                { kind: 'catalogVariant', foodVariantId: 'var_flat' },
+                { kind: 'line', key },
+            ),
+        );
+        act(() => {
+            result.current.editor.discard();
+        });
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+
+        expect(requests.map((r) => [r.method, r.path])).toEqual([['POST', '/api/v1/ingredients/by-food-variant']]);
     });
 });
 

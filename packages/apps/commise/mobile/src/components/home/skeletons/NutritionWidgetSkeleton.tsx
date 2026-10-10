@@ -7,7 +7,7 @@
  * intake, the specific harm CR-001 forbids. Feature 007 replaces it by registering a live `nutrition` widget.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -21,6 +21,8 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
  */
 export function NutritionWidgetSkeleton(): JSX.Element {
     const { home } = useMessages(mobileMessages);
+    const { colors } = useTheme();
+    const shape = { backgroundColor: colors.surfaceMuted };
 
     return (
         <PlaceholderWidgetCard title={home.roadmap.titles.nutrition} comingSoonLabel={home.roadmap.comingSoon}>
@@ -29,11 +31,11 @@ export function NutritionWidgetSkeleton(): JSX.Element {
                 anyway) because that is the only spelling react-native-web projects to the DOM — see the shell. */}
             <View aria-hidden style={styles.row}>
                 {/* The 64px ring: an unfilled track, since a filled arc would assert a real percentage. */}
-                <View style={styles.ring} />
+                <View style={[styles.ring, { borderColor: colors.surfaceMuted }]} />
                 <View style={styles.textBlock}>
-                    <View style={[styles.bar, styles.barOverline]} />
-                    <View style={[styles.bar, styles.barFigure]} />
-                    <View style={[styles.bar, styles.barCaption]} />
+                    <View style={[styles.bar, shape, styles.barOverline]} />
+                    <View style={[styles.bar, shape, styles.barFigure]} />
+                    <View style={[styles.bar, shape, styles.barCaption]} />
                 </View>
             </View>
         </PlaceholderWidgetCard>
@@ -42,9 +44,9 @@ export function NutritionWidgetSkeleton(): JSX.Element {
 
 const styles = StyleSheet.create({
     row: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-    ring: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: palette.pearl },
+    ring: { width: 64, height: 64, borderRadius: 32, borderWidth: 4 },
     textBlock: { flex: 1, gap: 8 },
-    bar: { borderRadius: 4, backgroundColor: palette.pearl },
+    bar: { borderRadius: 4 },
     barOverline: { height: 12, width: 80 },
     barFigure: { height: 28, width: 112 },
     barCaption: { height: 12, width: 96 },

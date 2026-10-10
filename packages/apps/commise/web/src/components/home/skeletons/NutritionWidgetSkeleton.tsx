@@ -30,7 +30,7 @@ export function NutritionWidgetSkeleton(): JSX.Element {
         <PlaceholderWidgetCard title={home.roadmap.titles.nutrition}>
             <div aria-hidden="true" className="flex items-center gap-5">
                 {/* The 64px ring: an unfilled track, since a filled arc would assert a real percentage. */}
-                <div className="size-16 shrink-0 rounded-full border-4 border-pearl" />
+                <div className="size-16 shrink-0 rounded-full border-4 border-surface-muted" />
                 <div className="flex flex-1 flex-col gap-2">
                     {/* "CALORIES" overline, the figure, and the "of N cal" caption — as blocks, not values. */}
                     <div className="h-3 w-20 rounded bg-surface-muted" />

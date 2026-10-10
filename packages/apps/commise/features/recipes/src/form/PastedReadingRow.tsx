@@ -2,8 +2,9 @@
 
 /**
  * @module @commise/features-recipes/form — `PastedReadingRow` (web): a pasted line not in the recipe yet, as a row of
- * the Ingredients list (build spec §7.5.1 "Reading", §7.5.4). Its own text, then "Reading…", or, when its lookup
- * failed, ⚠ "Couldn't look up" in `attention` with Try again named for the line.
+ * the Ingredients list (build spec §7.5.1 "Reading", §7.5.4). Its own text, then "Reading…" (or, while its work waits
+ * for a connection, that it finishes once back online), or, when its lookup failed, ⚠ "Couldn't look up" in
+ * `attention` with Try again named for the line.
  *
  * Presentational: props in, markup out. The native leaf is `./PastedReadingRow.native.tsx`.
  */
@@ -23,7 +24,7 @@ export const PastedReadingRow: FC<PastedReadingRowProps> = ({ row, onRetry }) =>
     return (
         <li className="flex min-h-12 flex-col justify-center gap-1">
             <span className="line-clamp-2 break-words text-body-md text-ink">{row.sourceLine}</span>
-            {row.failed ? (
+            {row.state === 'failed' ? (
                 <span className="flex flex-wrap items-center gap-2 text-attention">
                     <Icon name="triangleAlert" size={16} />
                     <span className="text-caption">{m.rowStateLookupFailed}</span>
@@ -39,7 +40,9 @@ export const PastedReadingRow: FC<PastedReadingRowProps> = ({ row, onRetry }) =>
                     )}
                 </span>
             ) : (
-                <span className="text-caption text-ink-muted">{m.rowStateReading}</span>
+                <span className="text-caption text-ink-muted">
+                    {row.state === 'waiting' ? m.rowStateWaitingForConnection : m.rowStateReading}
+                </span>
             )}
         </li>
     );

@@ -151,6 +151,11 @@ export interface RecipeFormMessages {
     readonly rowStateReading: string;
     /** A row's second line when its lookup failed (build spec §7.5.1, `rowState.lookupFailed`). */
     readonly rowStateLookupFailed: string;
+    /**
+     * A pasted row's second line while its lookup waits for a connection: it resumes by itself on reconnect (finding 11
+     * of the 2026-10-09 review). ⚠️ Copy written in implementation, owed a `staff-ux-engineer` review.
+     */
+    readonly rowStateWaitingForConnection: string;
     /** A row's second line when the cook must pick among foods (build spec §7.5.1, `rowState.chooseMatch`). */
     readonly rowStateChooseMatch: string;
     /** A row's second line when nothing matched, or the line names no food (`rowState.noMatch`). */
@@ -563,6 +568,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         pasteRefusalTooManyLines: 'That’s more than {max} lines. Paste them in smaller batches.',
         rowStateReading: 'Reading…',
         rowStateLookupFailed: 'Couldn’t look up',
+        rowStateWaitingForConnection: 'Finishes when you’re back online',
         rowStateChooseMatch: 'Choose a match',
         rowStateNoMatch: 'No match found',
         rowStateFoodRemoved: 'Food no longer listed',

@@ -8,10 +8,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MAX_SCALED_SERVINGS, MIN_SCALED_SERVINGS } from '@kitchensink/recipe-core/scaling';
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { ServingScaleControl } from '../ServingScaleControl.native.js';
 
-afterEach(cleanup);
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
+afterEach(() => {
+    cleanup();
+    systemScheme.current = null;
+});
 
 describe('ServingScaleControl (native)', () => {
     it('shows the serving count it was given', () => {
@@ -116,5 +126,19 @@ describe('ServingScaleControl (native)', () => {
             expect(Number.parseFloat(style.minWidth)).toBeGreaterThanOrEqual(44);
             expect(Number.parseFloat(style.minHeight)).toBeGreaterThanOrEqual(44);
         }
+    });
+});
+
+/** D15: the stepper paints from colour roles at render — `ink` figures inside a `lineControl` control edge, as on web. */
+describe.each(['light', 'dark'] as const)('ServingScaleControl (native) — the %s scheme', (scheme) => {
+    it('draws each step in ink inside a lineControl edge, and the count in ink', () => {
+        systemScheme.current = scheme;
+        const colours = rolesFor(scheme);
+        render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
+        const more = screen.getByRole('button', { name: 'More servings' });
+
+        expect(getComputedStyle(more).borderTopColor).toBe(rgb(colours.lineControl));
+        expect(getComputedStyle(screen.getByText('+')).color).toBe(rgb(colours.ink));
+        expect(getComputedStyle(screen.getByText('4')).color).toBe(rgb(colours.ink));
     });
 });

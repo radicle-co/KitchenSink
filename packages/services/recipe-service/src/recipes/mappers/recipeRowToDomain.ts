@@ -58,6 +58,8 @@ export interface RecipeRowInput {
     mealType: string | null;
     visibility: string;
     status: string;
+    /** `recipes.first_published_at`, which the 0053 trigger sets on the first publish and never clears (ADR-0058). */
+    firstPublishedAt: Date | string | null;
     sourceType: string;
     sourceUrl: string | null;
     sourceAttribution: string | null;
@@ -147,5 +149,7 @@ export function recipeRowToDomain(row: RecipeRowInput): Recipe {
         ...(row.clonedFromId !== null ? { clonedFromId: row.clonedFromId } : {}),
         ...(row.cuisine !== null ? { cuisine: row.cuisine } : {}),
         ...(row.deletedAt !== null ? { deletedAt: toIsoString(row.deletedAt) } : {}),
+        // OMITTED until the first publish, never `null` (ADR-0058 rule 1): the fact a client keys "ever published" on.
+        ...(row.firstPublishedAt !== null ? { firstPublishedAt: toIsoString(row.firstPublishedAt) } : {}),
     };
 }

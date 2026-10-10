@@ -28,7 +28,7 @@
  *   - `android-behaviour` — the flow's SUBJECT is Android system-back behaviour (a hardware back key consumed
  *     by a modal before any `BackHandler`). There is no iOS equivalent to test; excluding it loses nothing.
  *   - `coverage-gap` — the flow's subject is cross-platform, and it only uses the system back key INCIDENTALLY
- *     (the shared `common/raiseDiscardGuard.yaml` raises the discard dialog with it). Excluding it is a real
+ *     (a shared sub-flow that raises a dialog with it). Excluding it is a real
  *     iOS coverage gap, and the class says so in the log rather than dressing it up as "Android only".
  *
  * ## How it is asserted
@@ -322,11 +322,11 @@ describe('the exclusion table holds to the flows, in both directions', () => {
      * REWRITTEN for UI overhaul slice 7: the editor stopped asking before it leaves, so the ingredient flows no longer
      * raise the discard guard, and no planned flow reaches the back key ONLY through a sub-flow any more. The walk's
      * transitivity is proved where it always was first, by the fixture table's `viaSubFlow` and `viaSubFlowFile`; on
-     * the real tree the guard proves it finds the direct case, and that the shared sub-flow still reaches the key.
+     * the real tree the guard proves it finds the direct case. (The shared `common/raiseDiscardGuard.yaml` was deleted
+     * on 2026-10-09 with its last caller, `systemBackGuard`'s retired paste-screen legs.)
      */
     it('is not vacuous: the detector finds the direct case on the real tree', () => {
         expect(ANDROID_ONLY).toContain('recipes/systemBackGuard');
-        expect(flowReachesAndroidOnly('recipes/common/raiseDiscardGuard', readCommittedFlow)).toBe(true);
     });
 
     it('excludes NOTHING on android — the plan is the Android plan', () => {

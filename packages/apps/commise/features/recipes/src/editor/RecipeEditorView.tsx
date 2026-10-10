@@ -7,7 +7,7 @@
  *
  * ORCHESTRATION of the page: it owns the page's one `ScrollHost`, and draws what `useEditorPage` decides (the statuses
  * from the one validator, the chrome, the checkpoints, the announcements, the commands). The web adds only what the
- * browser alone has: a published recipe's changes kept in this tab arm the browser's own unload prompt (D7), the
+ * browser alone has: work the server does not hold yet arms the browser's own unload prompt (D7), the
  * popups keep clear of the sticky chrome (the header and the index box stuck under it), and when the header and the
  * action bar together are taller than half the viewport (`compactHeightLayout.md` A1) the bar scrolls with the page and
  * the section bar hides (build spec §7.1). The sections' bodies are the container's, which owns their data.
@@ -38,6 +38,7 @@ import {
     type RecipeEditorViewProps,
 } from './frameProps.js';
 import { EDITOR_SECTIONS } from './sections.js';
+import { closingTabLosesWork } from './saveStatus.js';
 import { useEditorPage } from './useEditorPage.js';
 import { useUnloadGuard } from './useUnloadGuard.js';
 
@@ -88,11 +89,9 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
     // A1: the header is stuck to the viewport's top, so the viewport is the frame.
     const pinning = usePinnedFooter({ frame: 'viewport' });
 
-    // The one state where closing the tab loses work (D7): a published recipe's changes kept in this tab.
+    // Closing the tab loses whatever the server does not hold yet: the draft and the outbox live in the tab (D7).
     useUnloadGuard(
-        keep === 'tabSession' &&
-            editor.saveStatus.kind === 'keptOnDevice' &&
-            editor.saveStatus.awaiting === 'saveChanges',
+        closingTabLosesWork({ keep, status: editor.saveStatus, lifecycle: editor.lifecycle, values: editor.values }),
     );
 
     const readInsets = useCallback(() => readChromeInsets(EDITOR_TOP_CHROME_IDS, EDITOR_ACTION_BAR_ID), []);

@@ -36,6 +36,7 @@ import { appendToQuarantine, createSerialQueue, type OutboxStore } from '@kitche
 
 import { isIngredientLineKey, type IngredientLineKey } from '../form/lineKey.js';
 import type { RecipeFormValues } from '../form/values.js';
+import type { PendingRebind } from '../hooks/lineCommit.js';
 
 /** The format this release writes. Hand-bumped: a bump is a decision, recorded in ADR-0057. */
 export const DRAFT_FORMAT_VERSION = 1;
@@ -66,14 +67,6 @@ export function draftQuarantineKeyFor(subject: string): string {
 /** The form's values as the draft keeps them: everything but the photo picks, whose bytes are not in the form. */
 export type DraftValues = Omit<RecipeFormValues, 'photos'>;
 
-/** A food re-pick on a published recipe, waiting for Save changes (blueprint A3; ADR-0045's command). */
-export interface PendingRebind {
-    /** The line it re-points, by its draft key. */
-    readonly lineKey: IngredientLineKey;
-    /** What the line moves to — the rebind command's own target. */
-    readonly target: z.infer<typeof rebindTargetSchema>;
-}
-
 /** One recipe's device draft. */
 export interface DraftMemento {
     /** The recipe: its local ref (`local:recipe:…`) before the server create, its server id after. */
@@ -81,6 +74,7 @@ export interface DraftMemento {
     /** The server version the draft was edited from; `null` before the server create. */
     readonly baseVersion: number | null;
     readonly values: DraftValues;
+    /** The food re-picks on a published recipe that wait for Save changes (`PendingRebind`, blueprint A3). */
     readonly pendingRebinds: readonly PendingRebind[];
     /** When the draft was written, ISO 8601. */
     readonly savedAt: string;

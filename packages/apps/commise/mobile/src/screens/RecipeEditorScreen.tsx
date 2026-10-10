@@ -1,11 +1,12 @@
 /**
  * The native one-page recipe editor screen (UI overhaul slice 7; owner decisions D1, D10): one screen for a new recipe
- * and an existing one. It reads what the editor is seeded from — the recipe (a suspense read under `QueryBoundary`)
- * and the device draft from AsyncStorage — then mounts one editor session keyed on the recipe.
+ * and an existing one. It reads what the editor is seeded from — the recipe and the device draft from AsyncStorage,
+ * both suspense reads under `QueryBoundary` — then mounts one editor session keyed on the recipe.
  *
- * The session binds the platform to the editor's lifecycle (`useRecipeEditor`): the outbox (`useSyncQueue`) as its
- * write port, the draft store, the row editor and its pollers, the nutrition read, the photos, visibility, and the
- * hand-offs the navigator wires. What the screen draws is `RecipeEditorView`'s (its native leaf).
+ * The session (`useRecipeEditorSession`, shared with the web container) binds the editor's lifecycle to its ports; this
+ * screen adds what only the app has: the navigator behind the session's navigation port (the hand-offs the route wires,
+ * and a leave by system Back or the swipe), and the native leaves (the status poller, the photo uploader). What the
+ * screen draws is `RecipeEditorView`'s (its native leaf).
  *
  * ⚠️ A new recipe's draft is found again only within the session that made it, or once the server created it (then by
  * its id, from My recipes). A cook who types only ingredients and leaves keeps them on the device but has nothing to
@@ -14,38 +15,29 @@
  * ⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload takes
  * a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).
  *
- * @pattern Mediator — the screen wires the editor's ports (outbox, drafts, row editor, photos) and its hand-offs
+ * @pattern Mediator — the screen wires the session's ports (outbox, drafts, navigation) and the native leaves
+ * @pattern Adapter — the route's hand-offs behind the session's `EditorNavigation` port
  */
 import {
     pendingIngredientIds,
     IngredientsNutritionFoot,
+    nextEditorOpening,
     RecipeBasicsFields,
     PasteListSheet,
     PasteStepsControl,
     editorMessages,
-    useIngredientsPaste,
     RecipeEditorView,
     RecipePreviewSheet,
-    previewRecipeOf,
     RecipeIngredientsFields,
     RecipeInstructionsFields,
     RecipeVisibilityField,
-    visibilityFollowUp,
-    type DraftMemento,
+    useDeviceDraft,
+    useRecipeEditorSession,
     type DraftStore,
+    type EditorNavigation,
     type EditorSectionId,
-    type ObservedIngredientStatus,
-    type SettledAnswer,
 } from '@commise/features-recipes';
-import {
-    useIngredientRowEditor,
-    useLibraryEmpty,
-    useLineNutrition,
-    useLookupRetry,
-    useRecipeEditor,
-    type EditorExit,
-    type EditorSeed,
-} from '@commise/features-recipes/hooks';
+import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useSyncQueue } from '@commise/query/sync';
@@ -53,9 +45,9 @@ import { Button } from '@commise/ui/button';
 import { useAuth } from '@clerk/expo';
 import { canGoPrivate, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
-import { useRecipeServiceClient, useSetRecipeVisibility } from '@kitchensink/recipe-service-client/hooks';
+import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useEffectEvent, useState, type JSX, type ReactNode } from 'react';
+import { useState, type JSX, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { IngredientStatusPoller } from '../components/IngredientStatusPoller.js';
@@ -87,46 +79,12 @@ export interface RecipeEditorScreenProps {
     readonly subscribeToLeave?: (listener: () => void) => () => void;
 }
 
-/** The device draft for a ref, read once. */
-type DraftSeedState = { readonly status: 'loading' } | { readonly status: 'ready'; readonly memento?: DraftMemento };
+/** The signed-in cook and their draft store, or `undefined` while nobody is signed in. */
+function useCookDrafts(): { readonly subject: string; readonly drafts: DraftStore } | undefined {
+    const { userId } = useAuth();
+    const drafts = editorDraftsFor(userId ?? undefined);
 
-/**
- * Read a recipe's device draft once.
- *
- * @param drafts - The cook's draft store, once signed in.
- * @param ref - The recipe's ref, or `undefined` for a blank new recipe.
- * @returns The read's state. @sideEffect Reads AsyncStorage.
- */
-function useDraftSeed(drafts: DraftStore | undefined, ref: string | undefined): DraftSeedState {
-    const [state, setState] = useState<DraftSeedState>(ref === undefined ? { status: 'ready' } : { status: 'loading' });
-
-    useEffect(() => {
-        if (ref === undefined || drafts === undefined) {
-            return undefined;
-        }
-
-        let live = true;
-
-        void drafts.load(ref).then(
-            (memento) => {
-                if (live) {
-                    setState(memento === undefined ? { status: 'ready' } : { status: 'ready', memento });
-                }
-            },
-            // An unreadable draft opens the editor from the server's copy; the store has quarantined the bytes.
-            () => {
-                if (live) {
-                    setState({ status: 'ready' });
-                }
-            },
-        );
-
-        return () => {
-            live = false;
-        };
-    }, [drafts, ref]);
-
-    return state;
+    return userId === null || userId === undefined || drafts === undefined ? undefined : { subject: userId, drafts };
 }
 
 /**
@@ -138,6 +96,8 @@ function useDraftSeed(drafts: DraftStore | undefined, ref: string | undefined): 
 export function RecipeEditorScreen(props: RecipeEditorScreenProps): JSX.Element {
     const { recipeId } = props;
     const { recipes: t } = useMessages(mobileMessages);
+    // This opening of the editor, minted OUTSIDE the read boundary: its device-draft read is its own (`useDeviceDraft`).
+    const [opening] = useState(nextEditorOpening);
 
     if (recipeId === undefined) {
         return <NewRecipeEditor {...props} />;
@@ -158,40 +118,52 @@ export function RecipeEditorScreen(props: RecipeEditorScreenProps): JSX.Element 
             )}
             resetKeys={[recipeId]}
         >
-            <StoredRecipeEditor key={recipeId} {...props} recipeId={recipeId} />
+            <StoredRecipeEditor key={recipeId} {...props} recipeId={recipeId} opening={opening} />
         </QueryBoundary>
     );
 }
 
 /** A new recipe: blank. */
 function NewRecipeEditor(props: RecipeEditorScreenProps): JSX.Element | null {
-    const { userId } = useAuth();
-    const drafts = editorDraftsFor(userId ?? undefined);
+    const cook = useCookDrafts();
 
-    if (drafts === undefined) {
+    if (cook === undefined) {
         return null;
     }
 
-    return <RecipeEditorSession {...props} mode="create" drafts={drafts} seed={{}} />;
+    return <RecipeEditorSession {...props} mode="create" drafts={cook.drafts} seed={{}} />;
 }
 
 /** An existing recipe, once read, with its device draft. */
-function StoredRecipeEditor(props: RecipeEditorScreenProps & { readonly recipeId: string }): JSX.Element | null {
-    const { userId } = useAuth();
-    const drafts = editorDraftsFor(userId ?? undefined);
+function StoredRecipeEditor(
+    props: RecipeEditorScreenProps & { readonly recipeId: string; readonly opening: number },
+): JSX.Element | null {
+    const cook = useCookDrafts();
     const { data: recipe } = useSuspenseQuery(recipeQueries(useRecipeServiceClient()).detail(props.recipeId));
-    const seed = useDraftSeed(drafts, props.recipeId);
 
-    if (seed.status === 'loading' || drafts === undefined) {
-        return null;
-    }
+    return cook === undefined ? null : <SeededEditor {...props} cook={cook} recipe={recipe} />;
+}
+
+/** The device draft, read (a suspense read under the same boundary), then the session over it. */
+function SeededEditor({
+    cook,
+    recipe,
+    opening,
+    ...props
+}: RecipeEditorScreenProps & {
+    readonly recipeId: string;
+    readonly opening: number;
+    readonly cook: { readonly subject: string; readonly drafts: DraftStore };
+    readonly recipe: RecipeDetail;
+}): JSX.Element {
+    const memento = useDeviceDraft({ drafts: cook.drafts, subject: cook.subject, ref: recipe.id, opening });
 
     return (
         <RecipeEditorSession
             {...props}
             mode="edit"
-            drafts={drafts}
-            seed={seed.memento === undefined ? { recipe } : { recipe, memento: seed.memento }}
+            drafts={cook.drafts}
+            seed={memento === undefined ? { recipe } : { recipe, memento }}
         />
     );
 }
@@ -213,93 +185,27 @@ function RecipeEditorSession({
     readonly seed: EditorSeed;
 }): JSX.Element {
     const locale = useLocale();
-    const client = useRecipeServiceClient();
     const queue = useSyncQueue();
     const profile = useUserProfile();
-    const setVisibility = useSetRecipeVisibility();
-    const guided = useLibraryEmpty(recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey);
     const viewer = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier });
-    const [previewing, setPreviewing] = useState(false);
-
-    /** Published, or its changes saved: visibility follows (`visibilityFollowUp`), then the recipe shows. @sideEffect */
-    const finished = (stored: RecipeDetail): void => {
-        const visibility = visibilityFollowUp(editor.values.visibility, stored);
-
-        if (visibility !== undefined) {
-            setVisibility.mutate({ id: stored.id, visibility });
-        }
-
-        onFinished(stored.id);
+    // The session's navigation port, on the route's hand-offs: leaving for the recipe goes back where it was opened.
+    const navigation: EditorNavigation = {
+        finished: onFinished,
+        leftForRecipe: () => onClose(),
+        discarded: onDiscarded,
+        ...(subscribeToLeave === undefined ? {} : { subscribeToLeave }),
     };
-
-    const onExit = (exit: EditorExit): void => {
-        switch (exit.kind) {
-            case 'published':
-            case 'changesSaved':
-                finished(exit.recipe);
-
-                return;
-
-            case 'leftForRecipe':
-                onClose();
-
-                return;
-
-            case 'discarded':
-                onDiscarded();
-
-                return;
-
-            default: {
-                const unreachable: never = exit;
-
-                return unreachable;
-            }
-        }
-    };
-
-    const editor = useRecipeEditor(seed, { locale, port: queue, drafts, keep: 'disk', onExit });
-
-    // System Back and the swipe do what × does (build spec §3.5): the exit checkpoint. × runs its own first, and the
-    // second is refused while that write is on the wire, or finds nothing changed.
-    const onLeave = useEffectEvent((): void => editor.checkpoint('editorExit'));
-    useEffect(() => subscribeToLeave?.(() => onLeave()), [subscribeToLeave]);
-
-    // Poll and retry answers land after a network call, so both go through `editor.dispatch`, which meets the draft as
-    // it is then.
-    const { dispatch } = editor;
-    const applyLineStatus = useCallback(
-        (polledId: string, observed: ObservedIngredientStatus): void => {
-            dispatch({ kind: 'settleIngredientLines', answers: [{ polledId, observed }] });
-        },
-        [dispatch],
-    );
-    const applyLineStatuses = useCallback(
-        (answers: readonly SettledAnswer[]): void => {
-            dispatch({ kind: 'settleIngredientLines', answers });
-        },
-        [dispatch],
-    );
-    const lookupRetry = useLookupRetry(applyLineStatuses);
-    const nutrition = useLineNutrition(editor.values);
-    // A stored line moves through the editor's rebind command (ADR-0045); any other is a draft transition. Before the
-    // server create nothing is stored, so the surface is the create form's.
-    const rowEditor = useIngredientRowEditor({
-        surface:
-            editor.recipeId === undefined
-                ? { kind: 'createForm', dispatch: editor.dispatch }
-                : { kind: 'editForm', dispatch: editor.dispatch, command: editor.lineCommand },
-        lines: editor.values.ingredients,
+    const session = useRecipeEditorSession({
+        seed,
+        locale,
+        keep: 'disk',
+        port: queue,
+        drafts,
+        navigation,
+        openPaste,
     });
-    const blur = (): void => editor.checkpoint('fieldBlur');
+    const { editor, paste } = session;
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
-    // Paste a list (§7.5.4): offered only while the recipe has no server row (D10).
-    const paste = useIngredientsPaste({
-        stored: editor.recipeId !== undefined,
-        dispatch: editor.dispatch,
-        lineCount: editor.values.ingredients.length,
-        initiallyOpen: openPaste,
-    });
 
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
         details: (
@@ -307,21 +213,21 @@ function RecipeEditorSession({
                 values={editor.values}
                 errors={editor.errors}
                 onChange={editor.setValues}
-                onFieldBlur={blur}
+                onFieldBlur={session.blur}
             />
         ),
         ingredients: (
             <>
                 {pendingIngredientIds(editor.values).map((id) => (
-                    <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
+                    <IngredientStatusPoller key={id} ingredientId={id} onStatus={session.applyLineStatus} />
                 ))}
                 <RecipeIngredientsFields
                     values={editor.values}
                     errors={editor.errors}
                     onChange={editor.setValues}
-                    nutrition={nutrition}
-                    lookupRetry={lookupRetry}
-                    rowEditor={rowEditor}
+                    nutrition={session.nutrition}
+                    lookupRetry={session.lookupRetry}
+                    rowEditor={session.rowEditor}
                     paste={paste.view}
                 />
                 <PasteListSheet sheet={paste.sheet} submitting={paste.submitting} failed={paste.failed} />
@@ -332,7 +238,7 @@ function RecipeEditorSession({
                 values={editor.values}
                 errors={editor.errors}
                 onChange={editor.setValues}
-                onFieldBlur={blur}
+                onFieldBlur={session.blur}
             />
         ),
         photos: (
@@ -353,12 +259,12 @@ function RecipeEditorSession({
                 editor={editor}
                 mode={mode}
                 keep="disk"
-                guided={guided}
-                pendingEntryText={rowEditor.entry.pendingEntryText}
+                guided={session.guided}
+                pendingEntryText={session.rowEditor.entry.pendingEntryText}
                 pastePending={paste.pending}
                 sections={sections}
                 // §7.2 and §7.5.6: a wide tablet's rail foot shows the Ingredients total too, from the same draft and read.
-                railFooter={<IngredientsNutritionFoot values={editor.values} nutrition={nutrition} />}
+                railFooter={<IngredientsNutritionFoot values={editor.values} nutrition={session.nutrition} />}
                 headingActions={{
                     ...(paste.inHeading
                         ? {
@@ -369,22 +275,18 @@ function RecipeEditorSession({
                               ),
                           }
                         : {}),
-                    steps: (
-                        <PasteStepsControl
-                            onAdd={(instructions) => editor.dispatch({ kind: 'appendSteps', instructions })}
-                        />
-                    ),
+                    steps: <PasteStepsControl onAdd={session.appendSteps} />,
                 }}
                 {...(section === undefined ? {} : { initialSection: section })}
                 onClose={onClose}
-                onPreview={() => setPreviewing(true)}
-                onRefused={rowEditor.refused}
+                onPreview={session.preview.show}
+                onRefused={session.rowEditor.refused}
                 onOpenMyRecipes={onDiscarded}
             />
             <RecipePreviewSheet
-                open={previewing}
-                recipe={previewRecipeOf({ values: editor.values, recipe: seed.recipe, now: new Date().toISOString() })}
-                onClose={() => setPreviewing(false)}
+                open={session.preview.open}
+                recipe={session.preview.recipe}
+                onClose={session.preview.hide}
             />
         </>
     );

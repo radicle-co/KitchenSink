@@ -9,7 +9,8 @@
  */
 import { weekdayLabels } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { tint } from '@commise/ui/colors';
+import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -24,6 +25,9 @@ import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
 export function MealPlanWidgetSkeleton(): JSX.Element {
     const { home } = useMessages(mobileMessages);
     const locale = useLocale();
+    const { colors } = useTheme();
+    // The day tile is `paper` at the alphas it always had, so it re-themes with the card under it.
+    const tile = [styles.tile, { borderColor: tint(colors.paper, 0.3), backgroundColor: tint(colors.paper, 0.5) }];
 
     return (
         <PlaceholderWidgetCard title={home.roadmap.titles['meal-plan']} comingSoonLabel={home.roadmap.comingSoon}>
@@ -35,12 +39,12 @@ export function MealPlanWidgetSkeleton(): JSX.Element {
                 contentContainerStyle={styles.strip}
             >
                 {weekdayLabels(locale).map((day) => (
-                    <View key={day} style={styles.tile}>
+                    <View key={day} style={tile}>
                         {/* The weekday name is REAL data — exposed, not hidden. The shell used to wrap every
                             child in one hidden subtree, which silenced all seven of these on device. */}
-                        <Text style={styles.day}>{day}</Text>
+                        <Text style={[styles.day, { color: colors.inkMuted }]}>{day}</Text>
                         {/* The meal thumbnail — the only unknown on this tile, so the only thing hidden. */}
-                        <View aria-hidden style={styles.meal} />
+                        <View aria-hidden style={[styles.meal, { backgroundColor: colors.surfaceMuted }]} />
                     </View>
                 ))}
             </ScrollView>
@@ -56,10 +60,8 @@ const styles = StyleSheet.create({
         gap: 8,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.3)',
-        backgroundColor: 'rgba(255, 255, 255, 0.5)',
         padding: 12,
     },
-    day: { fontSize: 12, fontWeight: '500', color: palette.slate, letterSpacing: 1, textTransform: 'uppercase' },
-    meal: { width: 48, height: 48, borderRadius: 12, backgroundColor: palette.pearl },
+    day: { fontSize: 12, fontWeight: '500', letterSpacing: 1, textTransform: 'uppercase' },
+    meal: { width: 48, height: 48, borderRadius: 12 },
 });

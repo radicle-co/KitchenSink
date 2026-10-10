@@ -1,10 +1,11 @@
 /**
  * @module @kitchensink/sync — a Web Storage adapter for the key/value port.
  *
- * Built for ONE use: the web editor's draft in `sessionStorage` (owner ruling D7, ADR-0057). It survives a reload in
- * the same tab and ends when the tab closes. ⛔ It is NOT the outbox's web adapter — the outbox stays volatile in the
- * browser (`createMemoryOutboxStore`, owner ruling 2026-09-17), and D7 is a narrow exception for the editor draft
- * alone.
+ * Built for the web editor's work in `sessionStorage` (owner ruling D7, ADR-0057): its draft, and the outbox journal of
+ * its pending writes, which must live exactly as long as the draft (a journal that died with a reload while its draft
+ * survived let the editor send a create twice). Both survive a reload in the same tab and end when the tab closes. ⛔
+ * D7 is a narrow exception to the owner's ruling of 2026-09-17 that the browser keeps no durable app data: ids and form
+ * values only, and the editor is the outbox's only writer.
  *
  * ⛔ STORAGE IS RESOLVED ON EVERY CALL, AND EVERY THROW BECOMES A REJECTION. Web Storage is synchronous and throws: a
  * full quota on `setItem`, a browser that blocks storage on the `sessionStorage` getter itself, and no `window` at all

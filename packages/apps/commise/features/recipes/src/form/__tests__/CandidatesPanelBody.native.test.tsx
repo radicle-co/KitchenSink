@@ -22,6 +22,8 @@ import {
 } from '../../__fixtures__/progressiveFrames.js';
 import { entrySearchViewOf, type EntrySearchView } from '../../hooks/foodSuggestions.model.js';
 import { recipeMessages } from '../../messages.js';
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { CandidatesPanelBody } from '../CandidatesPanelBody.native.js';
 import { recipeFormMessages } from '../messages.js';
 import { shortlistPanelOf, type ShortlistPanelInput } from '../shortlistPanel.model.js';
@@ -31,20 +33,22 @@ import { shortlistPanelOf, type ShortlistPanelInput } from '../shortlistPanel.mo
 const views = vi.hoisted(() => ({ rendered: [] as ViewProps[] }));
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-    return {
+    return withSystemScheme({
         ...actual,
         View: (props: ViewProps) => {
             views.rendered.push(props);
 
             return createElement(actual.View, props);
         },
-    };
+    });
 });
 
 afterEach(() => {
     cleanup();
     views.rendered.length = 0;
+    systemScheme.current = null;
 });
 
 const en = recipeFormMessages.en;
@@ -260,5 +264,19 @@ describe('CandidatesPanelBody (native) — N1: each group’s name is said once'
 
         expect(screen.getAllByRole('heading', { name: 'From USDA' })).toHaveLength(1);
         expect(screen.queryAllByLabelText('From USDA')).toEqual([]);
+    });
+});
+
+// D15: the body paints from roles at render: the explanation and each food in ink, a food's hint in inkMuted, and a
+// refused pick in dangerText (the web twin's `text-danger-text`).
+describe.each(['light', 'dark'] as const)('CandidatesPanelBody (native) — the %s scheme', (scheme) => {
+    const colours = scheme === 'dark' ? roleDark : role;
+
+    it('paints the explanation and a food in ink', () => {
+        systemScheme.current = scheme;
+        renderBody(LISTED);
+
+        expect(getComputedStyle(screen.getByText(en.statusExplainUnresolved)).color).toBe(rgb(colours.ink));
+        expect(getComputedStyle(screen.getByText('Kale, raw')).color).toBe(rgb(colours.ink));
     });
 });

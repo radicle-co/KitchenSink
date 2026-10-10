@@ -38,6 +38,7 @@ import {
 } from '@commise/features-recipes';
 import { useRecipePhotoUpload, useRecipePhotoUploadQueue, type DraftPhotoPick } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
+import { useTheme } from '@commise/ui/theme';
 import {
     useDeleteRecipePhoto,
     useRecipePhotos,
@@ -107,6 +108,7 @@ export function RecipePhotoUploader({
     onRemoveDraft,
 }: RecipePhotoUploaderProps): JSX.Element {
     const { recipePhotos: t } = useMessages(mobileMessages);
+    const { colors } = useTheme();
     // `''` disables the query (`enabled: id.length > 0`) — a create has no photos to list yet.
     const photosQuery = useRecipePhotos(recipeId ?? '');
     const deletePhoto = useDeleteRecipePhoto();
@@ -296,7 +298,8 @@ export function RecipePhotoUploader({
             disabled={picking}
             onPress={() => void addPhoto()}
         >
-            <Text>{t.addLabel}</Text>
+            {/* Painted from `ink` (D15): unpainted, it drew React Native's default black on the dark canvas. */}
+            <Text style={{ color: colors.ink }}>{t.addLabel}</Text>
         </Pressable>
     );
 

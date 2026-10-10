@@ -34,6 +34,9 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import * as ImagePicker from 'expo-image-picker';
 
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+
 import { RecipePhotoUploader } from '../../src/components/RecipePhotoUploader.js';
 
 const { queueVerdict } = vi.hoisted(() => ({
@@ -59,6 +62,13 @@ vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
                 : { ...queue, enqueue: () => ({ status: 'overCap' as const, remaining: refuseWith }) };
         },
     };
+});
+
+// The device's scheme, for the D15 case below; every other case leaves it unset and reads the light roles.
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
 });
 
 vi.mock('expo-image-picker', () => ({
@@ -135,6 +145,7 @@ const fetchMock = vi.fn();
 afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    systemScheme.current = null;
 });
 
 beforeEach(() => {
@@ -153,6 +164,22 @@ beforeEach(() => {
     useDeleteRecipePhotoMock.mockReturnValue(deleteMutation());
     // Default: a real pick of the fixed asset.
     launchImageLibraryAsyncMock.mockResolvedValue({ canceled: false, assets: [pickedAsset] } as never);
+});
+
+/**
+ * D15: the add control's label paints from the `ink` role in both schemes. Measured on the emulator in dark mode
+ * (2026-10-09): an unpainted label drew React Native's default black on the dark canvas, so "Add photo" could not be
+ * seen and the photos flow could not find it.
+ */
+describe.each(['light', 'dark'] as const)('RecipePhotoUploader — the %s scheme', (scheme) => {
+    it('labels Add photo in ink', () => {
+        systemScheme.current = scheme;
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+
+        expect(getComputedStyle(screen.getByText('Add photo')).color).toBe(
+            rgb((scheme === 'dark' ? roleDark : role).ink),
+        );
+    });
 });
 
 describe('RecipePhotoUploader — rendering', () => {

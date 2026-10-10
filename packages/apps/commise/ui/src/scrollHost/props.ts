@@ -15,6 +15,8 @@
  */
 import type { ReactNode, RefObject } from 'react';
 
+import type { CurrentChangeListener } from './currentChange.js';
+
 /** A scroller this host can move: a `ScrollView`, or a `FlatList`/`FlashList`. */
 export type ScrollTarget =
     | { scrollTo(options: { x?: number; y?: number; animated?: boolean }): void }
@@ -40,6 +42,11 @@ export interface ScrollBind {
     readonly onScroll: (event: ScrollReport) => void;
     /** The cook began a drag: it releases a section a jump is holding (a programmatic scroll never drags). */
     readonly onScrollBeginDrag: () => void;
+    /**
+     * A scroll's momentum ended. It never releases a held section by itself (Android reports one for the jump's own
+     * `scrollTo`); it arms the release, which the next scroll performs.
+     */
+    readonly onMomentumScrollEnd: () => void;
     readonly scrollEventThrottle: 16;
 }
 
@@ -53,6 +60,13 @@ export interface ScrollHostApi {
     readonly atTop: boolean;
     /** The section the reader is in, if the screen has sections. */
     readonly current: string | undefined;
+    /**
+     * Subscribes to the scroll spy's section changes, raised from the scroll handler. For a consumer that ACTS on a
+     * change; one that draws the section reads {@link current}. The function is stable for the host's life.
+     *
+     * @returns The unsubscribe.
+     */
+    readonly onCurrentChange: (listener: CurrentChangeListener) => () => void;
     /** How many viewports down the reader is, to the quarter: "Back to top" waits for four. */
     readonly viewportsDown: number;
     /** How many viewports tall the page is, to the quarter. */

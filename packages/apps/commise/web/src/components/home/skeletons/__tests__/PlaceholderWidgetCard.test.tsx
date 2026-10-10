@@ -127,7 +127,7 @@ describe.each(Object.entries(SKELETONS))('%s skeleton (web)', (_id, { Component,
     it('hides EVERY grey shape from assistive tech (a picture of a layout is not content)', () => {
         const { container } = renderWithProviders(<Component />);
 
-        const shapes = [...container.querySelectorAll('[class*="bg-surface-muted"], [class*="border-pearl"]')];
+        const shapes = [...container.querySelectorAll('[class*="surface-muted"]')];
 
         expect(shapes.length, 'the skeleton paints no shapes at all').toBeGreaterThan(0);
 

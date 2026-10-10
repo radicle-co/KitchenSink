@@ -8,9 +8,12 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentProps } from 'react';
 import { AccessibilityInfo, Text, type Modal as ModalType } from 'react-native';
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { DataSourcesPage } from '../DataSourcesPage.native.js';
+import { dataSourcesMessages } from '../messages.js';
 
 const state = vi.hoisted(() => ({ modal: undefined as ComponentProps<typeof ModalType> | undefined }));
 
@@ -18,8 +21,9 @@ const state = vi.hoisted(() => ({ modal: undefined as ComponentProps<typeof Moda
 // without it came from somewhere else.
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-    return {
+    return withSystemScheme({
         ...actual,
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
         Modal: (props: ComponentProps<typeof ModalType>) => {
@@ -27,11 +31,12 @@ vi.mock('react-native', async (importOriginal) => {
 
             return createElement(actual.Modal, { ...props, onShow: undefined });
         },
-    };
+    });
 });
 
 afterEach(() => {
     cleanup();
+    systemScheme.current = null;
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
 
@@ -123,5 +128,22 @@ describe('DataSourcesPage (native)', () => {
         const state = screen.getByText('the read’s state');
 
         expect(intro.compareDocumentPosition(state) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+});
+
+describe.each(['light', 'dark'] as const)('DataSourcesPage (native) — the %s scheme', (scheme) => {
+    it('titles and introduces the page in ink, and the close-match note in inkMuted (D15)', () => {
+        systemScheme.current = scheme;
+        const colours = scheme === 'dark' ? roleDark : role;
+        render(
+            <DataSourcesPage onRequestClose={() => undefined} headingFocusSignal={0}>
+                {null}
+            </DataSourcesPage>,
+        );
+        const m = dataSourcesMessages.en;
+
+        expect(getComputedStyle(screen.getByRole('heading', { name: m.title })).color).toBe(rgb(colours.ink));
+        expect(getComputedStyle(screen.getByText(m.intro)).color).toBe(rgb(colours.ink));
+        expect(getComputedStyle(screen.getByText(m.closeMatchNote)).color).toBe(rgb(colours.inkMuted));
     });
 });

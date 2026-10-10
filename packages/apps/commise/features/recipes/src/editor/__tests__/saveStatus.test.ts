@@ -14,7 +14,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { saveStatusOf, type SaveStatus, type SaveStatusInput } from '../saveStatus.js';
+import { defaultRecipeFormValues } from '../../form/values.js';
+import { closingTabLosesWork, saveStatusOf, type SaveStatus, type SaveStatusInput } from '../saveStatus.js';
 
 const BASE: SaveStatusInput = {
     lifecycle: 'neverPublished',
@@ -72,5 +73,75 @@ describe('saveStatusOf', () => {
             store: 'disk',
             awaiting: 'checkpoint',
         });
+    });
+});
+
+/**
+ * When closing the tab loses work (finding 1 of the 2026-10-09 review). The web keeps its outbox journal and its draft in
+ * the tab's session storage (D7), so whatever the server does not hold yet ends with the tab — for EVERY recipe, not
+ * only a published one awaiting Save changes. The one state that loses nothing besides `saved` is a new recipe nobody
+ * typed in; a typed draft whose device copy is not written yet (`unsaved`, the first second) does.
+ */
+describe('closingTabLosesWork', () => {
+    const blank = defaultRecipeFormValues();
+    const typed = { ...blank, title: 'Soup' };
+    const ALL: readonly SaveStatus[] = [
+        { kind: 'saved' },
+        { kind: 'syncing' },
+        { kind: 'syncFailed', failure: 'unknown' },
+        { kind: 'keptOnDevice', store: 'tabSession', awaiting: 'checkpoint' },
+        { kind: 'keptOnDevice', store: 'tabSession', awaiting: 'saveChanges' },
+        { kind: 'savingOnDevice' },
+        { kind: 'deviceFailed' },
+        { kind: 'unsaved' },
+    ];
+
+    it.each(ALL.map((status) => [status, status.kind !== 'saved'] as const))(
+        'a typed never-published draft in a tab, %o → %s',
+        (status, expected) => {
+            expect(
+                closingTabLosesWork({ keep: 'tabSession', status, lifecycle: 'neverPublished', values: typed }),
+            ).toBe(expected);
+        },
+    );
+
+    it.each<[string, Parameters<typeof closingTabLosesWork>[0], boolean]>([
+        [
+            'a new recipe nobody typed in loses nothing',
+            { keep: 'tabSession', status: { kind: 'unsaved' }, lifecycle: 'unsaved', values: blank },
+            false,
+        ],
+        [
+            '⛔ a new recipe typed in the last second, before its device copy is written, loses it',
+            { keep: 'tabSession', status: { kind: 'unsaved' }, lifecycle: 'unsaved', values: typed },
+            true,
+        ],
+        [
+            'a new recipe kept in the tab, waiting for its checkpoint',
+            {
+                keep: 'tabSession',
+                status: { kind: 'keptOnDevice', store: 'tabSession', awaiting: 'checkpoint' },
+                lifecycle: 'unsaved',
+                values: typed,
+            },
+            true,
+        ],
+        [
+            'a published recipe`s changes kept in the tab',
+            {
+                keep: 'tabSession',
+                status: { kind: 'keptOnDevice', store: 'tabSession', awaiting: 'saveChanges' },
+                lifecycle: 'published',
+                values: typed,
+            },
+            true,
+        ],
+        [
+            'on disk (mobile) nothing ends with a tab',
+            { keep: 'disk', status: { kind: 'syncing' }, lifecycle: 'neverPublished', values: typed },
+            false,
+        ],
+    ])('%s', (_label, input, expected) => {
+        expect(closingTabLosesWork(input)).toBe(expected);
     });
 });

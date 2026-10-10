@@ -555,8 +555,8 @@ describe('RecipeProviders (web) — no render-mutated ref remains', () => {
         // defect named in this test's title is a ref MUTATED DURING RENDER, which cannot exist without
         // `useRef(` — an unused import creates no `.current` to write. The semantic check is `react-hooks/refs`,
         // which refused the ref-based draft on its own; this is the cheap source-level backstop for it.
-        // ⚠️ `[<(]`, NOT `\(` — `useRef<T>(…)` is the DOMINANT spelling in this repo (`useRecipeEditor`,
-        // `MoreActionsMenu` …), and a `\(`-only guard misses every one of them. The
+        // ⚠️ `[<(]`, NOT `\(` — `useRef<T>(…)` is the DOMINANT spelling in this repo (`useRecipeEditor`
+        // …), and a `\(`-only guard misses every one of them. The
         // first mutation run here injected the UNTYPED `useRef(client)`, i.e. the one form that regex did
         // catch — a red run that proved less than it appeared to. Mutate the least-covered spelling.
         expect(source).not.toMatch(/\buseRef\s*[<(]/);

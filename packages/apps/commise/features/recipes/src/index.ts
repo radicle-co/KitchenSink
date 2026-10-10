@@ -96,7 +96,6 @@ export {
 export type { LibraryFacet, LibraryState } from './list/libraryTypes.js';
 export { VIEW_MODE_KEY, viewModeCookieFor, viewModeFrom, viewModeOf } from './list/viewModePreference.js';
 export { useMainContainerClass } from './layout/useMainContainerClass.js';
-export { RecipeSourceTabs } from './list/RecipeSourceTabs.js';
 export {
     QUICK_TIME_FACET,
     QUICK_TIME_THRESHOLD_MINUTES,
@@ -112,7 +111,6 @@ export {
     sourceTabLabel,
     toRecipeListItem,
 } from './list/model.js';
-export type { RecipeSourceTabsProps } from './list/RecipeSourceTabs.js';
 export type {
     RecipeCountLabels,
     RecipeFacetSource,
@@ -205,9 +203,7 @@ export type {
 } from './form/props.js';
 export type { RecipeFormErrors } from './form/validate.js';
 export type { RecipeFormIngredient, RecipeFormPhoto, RecipeFormStep, RecipeFormValues } from './form/values.js';
-export { MoreActionsMenu } from './actions/MoreActionsMenu.js';
 export { RecipeDeleteDialog } from './actions/RecipeDeleteDialog.js';
-export { RecipeVisibilityToggle } from './actions/RecipeVisibilityToggle.js';
 export { recipeActionMessages } from './actions/messages.js';
 export type {
     RecipeActionMessages,
@@ -215,7 +211,7 @@ export type {
     RecipeMoreMenuMessages,
     RecipeVisibilityToggleMessages,
 } from './actions/messages.js';
-export type { MoreActionsMenuProps, RecipeDeleteDialogProps, RecipeVisibilityToggleProps } from './actions/model.js';
+export type { RecipeDeleteDialogProps } from './actions/model.js';
 export { RecipeConflictView } from './versions/RecipeConflictView.js';
 export { RecipeVersionList } from './versions/RecipeVersionList.js';
 export { VersionCompareView } from './versions/VersionCompareView.js';
@@ -457,5 +453,15 @@ export { PasteListSheet } from './form/PasteListSheet.js';
 export type { PasteListSheetProps } from './form/pasteListSheetProps.js';
 export { useIngredientsPaste } from './editor/useIngredientsPaste.js';
 export type { IngredientsPaste, UseIngredientsPasteOptions } from './editor/useIngredientsPaste.js';
+// The editor session both containers mount, its navigation port, and the device draft read once per opening.
+export { useRecipeEditorSession } from './editor/useRecipeEditorSession.js';
+export type {
+    EditorNavigation,
+    EditorPreview,
+    RecipeEditorSession,
+    UseRecipeEditorSessionOptions,
+} from './editor/useRecipeEditorSession.js';
+export { nextEditorOpening, useDeviceDraft } from './editor/useDeviceDraft.js';
+export type { DeviceDraftRead } from './editor/useDeviceDraft.js';
 export { splitPastedSteps } from './form/pasteSteps.js';
 export type { RecipeEditorSectionProps, RecipeVisibilityFieldProps } from './form/props.js';

@@ -13,10 +13,13 @@
  * is in `sessionStorage` and ends with the tab (owner ruling D7). "Saved on this device" is true on one and false on
  * the other, so the copy is per platform, and it is the UX engineer's to write.
  *
+ * {@link closingTabLosesWork} reads the same status for the web's unload prompt.
+ *
  * @pattern Policy — a pure projection of three sources into one discriminated union
  */
 import type { FailureClass } from '@kitchensink/sync';
 
+import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import type { RecipeLifecycle } from './checkpointPolicy.js';
 
 /** Where the device draft is kept: on disk (mobile), or for this browser tab only (web). */
@@ -96,4 +99,32 @@ export function saveStatusOf(input: SaveStatusInput): SaveStatus {
             return unreachable;
         }
     }
+}
+
+/** What decides whether closing the tab loses the cook's work. */
+export interface TabCloseInput {
+    readonly keep: DraftKeep;
+    readonly status: SaveStatus;
+    readonly lifecycle: RecipeLifecycle;
+    readonly values: RecipeFormValues;
+}
+
+/**
+ * Whether closing the browser tab now would lose work: the web's unload prompt arms on it (D7).
+ *
+ * The web keeps the draft and the outbox journal in the tab's session storage, so everything the server does not hold
+ * yet ends with the tab — whatever the recipe's lifecycle. Only `saved` loses nothing, and a new recipe nobody has typed
+ * in; an `unsaved` status with typed values is the second before the device copy is written, and loses that typing.
+ *
+ * @param input - Where the draft is kept, the status, the lifecycle and the draft.
+ * @returns Whether to ask before the tab closes. Pure.
+ */
+export function closingTabLosesWork(input: TabCloseInput): boolean {
+    const { keep, status, lifecycle, values } = input;
+
+    if (keep !== 'tabSession' || status.kind === 'saved') {
+        return false;
+    }
+
+    return !(lifecycle === 'unsaved' && recipeFormValuesEqual(values, defaultRecipeFormValues()));
 }

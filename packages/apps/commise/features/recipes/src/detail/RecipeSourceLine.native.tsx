@@ -16,7 +16,7 @@
  * thing you tap with a site it does not actually point at.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { useTheme } from '@commise/ui/theme';
 import { nativeTokens } from '@commise/ui/native';
 import { safeHttpUrl } from '@kitchensink/recipe-core/external-url';
 import type { FC } from 'react';
@@ -32,6 +32,7 @@ export const RecipeSourceLine: FC<RecipeSourceLineNativeProps> = ({
     onOpen = openExternalUrl,
 }) => {
     const { detail } = useMessages(recipeMessages);
+    const { colors } = useTheme();
     const safe = sourceUrl === undefined ? null : safeHttpUrl(sourceUrl);
     const attribution = sourceAttribution !== undefined && sourceAttribution.length > 0 ? sourceAttribution : undefined;
 
@@ -41,10 +42,12 @@ export const RecipeSourceLine: FC<RecipeSourceLineNativeProps> = ({
 
     return (
         <View style={styles.row}>
-            <Text accessibilityRole="header" style={styles.label}>
+            <Text accessibilityRole="header" style={[styles.label, { color: colors.inkMuted }]}>
                 {detail.sourceHeading}
             </Text>
-            {attribution !== undefined && <Text style={styles.attribution}>{attribution}</Text>}
+            {attribution !== undefined && (
+                <Text style={[styles.attribution, { color: colors.ink }]}>{attribution}</Text>
+            )}
             {safe !== null && (
                 <Pressable
                     accessibilityRole="link"
@@ -53,7 +56,7 @@ export const RecipeSourceLine: FC<RecipeSourceLineNativeProps> = ({
                     style={styles.linkTouch}
                     onPress={() => onOpen(safe.href)}
                 >
-                    <Text style={styles.link}>{safe.host}</Text>
+                    <Text style={[styles.link, { color: colors.actionText }]}>{safe.host}</Text>
                 </Pressable>
             )}
         </View>
@@ -72,20 +75,18 @@ const styles = StyleSheet.create({
         fontSize: nativeTokens.fontSize.overline,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
-        color: palette.slate,
     },
     // RN defaults `flexShrink` to 0, so unbounded user text (`sourceAttribution` has a `min`, no `max`)
     // would take its full intrinsic width and push the link past the screen edge — the same failure the
     // detail's ingredient row already documents.
-    attribution: { flexShrink: 1, fontSize: nativeTokens.fontSize.bodySm, color: palette.charcoal },
+    attribution: { flexShrink: 1, fontSize: nativeTokens.fontSize.bodySm },
     linkTouch: { flexShrink: 1, minHeight: 44, justifyContent: 'center' },
-    // Contrast (WCAG AA): `ocean-dark` is 6.20:1 on the page surface. Underlined so the affordance does not
+    // Contrast (WCAG AA): `actionText` is 6.20:1 on the light page, 9.61:1 on the dark one (`darkTheme.md` §3.1). Underlined so the affordance does not
     // ride on colour alone (SC 1.4.1).
     link: {
         flexShrink: 1,
         fontSize: nativeTokens.fontSize.bodySm,
         fontWeight: '500',
-        color: palette['ocean-dark'],
         textDecorationLine: 'underline',
     },
 });

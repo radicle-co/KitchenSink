@@ -10,7 +10,7 @@
  * placement inside the scaffold is precisely what the two variants must not be able to disagree about.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { useTheme } from '@commise/ui/theme';
 import type { FC, ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -25,9 +25,10 @@ const CommunityAggregate: FC<{ average?: number; ratingCount: number; rating: Re
     rating,
 }) => {
     const locale = useLocale();
+    const { colors } = useTheme();
 
     if (average === undefined || ratingCount === 0) {
-        return <Text style={styles.unrated}>{rating.unrated}</Text>;
+        return <Text style={[styles.unrated, { color: colors.inkMuted }]}>{rating.unrated}</Text>;
     }
 
     const ratings = formatRatingCount(
@@ -67,10 +68,11 @@ export interface RatingSectionProps {
  */
 export const RatingSection: FC<RatingSectionProps> = ({ average, ratingCount, children }) => {
     const { rating } = useMessages(recipeRatingMessages);
+    const { colors } = useTheme();
 
     return (
         <View collapsable={false} accessibilityLabel={rating.regionLabel} style={styles.container}>
-            <Text accessibilityRole="header" style={styles.heading}>
+            <Text accessibilityRole="header" style={[styles.heading, { color: colors.ink }]}>
                 {rating.communityHeading}
             </Text>
             <CommunityAggregate average={average} ratingCount={ratingCount} rating={rating} />
@@ -81,7 +83,7 @@ export const RatingSection: FC<RatingSectionProps> = ({ average, ratingCount, ch
 
 const styles = StyleSheet.create({
     container: { gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
-    heading: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
+    heading: { fontSize: 18, fontWeight: '600' },
     stars: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    unrated: { fontSize: 13, color: palette.slate },
+    unrated: { fontSize: 13 },
 });

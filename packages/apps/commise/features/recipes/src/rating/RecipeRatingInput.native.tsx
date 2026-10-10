@@ -13,7 +13,7 @@
  * remove is revealed on load; the stars in the aggregate remain the COMMUNITY `average`.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -42,12 +42,14 @@ export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
 }) => {
     const { rating } = useMessages(recipeRatingMessages);
     const locale = useLocale();
+    const { colors } = useTheme();
+    const danger = { color: colors.dangerText };
     const starLabels = { one: rating.rateStarOne, other: rating.rateStarOther };
 
     return (
         <RatingSection average={average} ratingCount={ratingCount}>
             <View style={styles.rateBlock}>
-                <Text style={styles.rateHeading}>{rating.rateHeading}</Text>
+                <Text style={[styles.rateHeading, { color: colors.ink }]}>{rating.rateHeading}</Text>
                 <View
                     collapsable={false}
                     accessibilityRole="radiogroup"
@@ -82,14 +84,14 @@ export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
                         onPress={onRemove}
                         style={pending ? styles.optionDisabled : undefined}
                     >
-                        <Text style={styles.removeLabel}>{rating.removeLabel}</Text>
+                        <Text style={[styles.removeLabel, danger]}>{rating.removeLabel}</Text>
                     </Pressable>
                 )}
 
-                {pending && <Text style={styles.status}>{rating.submittingLabel}</Text>}
+                {pending && <Text style={[styles.status, { color: colors.inkMuted }]}>{rating.submittingLabel}</Text>}
 
                 {error !== undefined && (
-                    <Text accessibilityRole="alert" style={styles.error}>
+                    <Text accessibilityRole="alert" style={[styles.error, danger]}>
                         {error === 'notAvailable' ? rating.errorNotAvailable : rating.errorGeneric}
                     </Text>
                 )}
@@ -101,11 +103,11 @@ export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
 const styles = StyleSheet.create({
     stars: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     rateBlock: { gap: 10 },
-    rateHeading: { fontSize: 14, fontWeight: '500', color: palette.charcoal },
+    rateHeading: { fontSize: 14, fontWeight: '500' },
     // B10 — a ≥44×44 touch target around the 30px glyph (WCAG 2.5.5 / Apple + Android minimums).
     starOption: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     optionDisabled: { opacity: 0.6 },
-    removeLabel: { fontSize: 14, fontWeight: '600', color: palette['error-dark'] },
-    status: { fontSize: 13, color: palette.slate },
-    error: { fontSize: 13, color: palette['error-dark'] },
+    removeLabel: { fontSize: 14, fontWeight: '600' },
+    status: { fontSize: 13 },
+    error: { fontSize: 13 },
 });

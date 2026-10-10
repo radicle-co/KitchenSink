@@ -177,6 +177,103 @@ describe('ScrollHost (native)', () => {
         expect(api().current).toBe('ingredients');
     });
 
+    // A section change is an EVENT, fired from the scroll handler (staff-code-quality REACT-04): a consumer that must
+    // act on it (the editor's section-change checkpoint) subscribes, instead of relaying `current` through state and an
+    // effect. It reports the scroll spy's section and the one before it.
+    it('reports each change of the spy’s section to a subscriber, from the scroll handler, once per change', () => {
+        const { bind, api } = renderHost(['details', 'ingredients']);
+        const changes: (readonly [string | undefined, string | undefined])[] = [];
+        let unsubscribe: () => void = () => undefined;
+        act(() => {
+            unsubscribe = api().onCurrentChange((current, previous) => changes.push([current, previous]));
+        });
+        act(() => api().sectionLayout('details')({ nativeEvent: { layout: { y: 0, height: 500 } } }));
+        act(() => api().sectionLayout('ingredients')({ nativeEvent: { layout: { y: 500, height: 900 } } }));
+
+        act(() => bind().onScroll(report(10)));
+        act(() => bind().onScroll(report(20)));
+        act(() => bind().onScroll(report(600)));
+        act(() => bind().onScroll(report(700)));
+
+        expect(changes).toEqual([
+            ['details', undefined],
+            ['ingredients', 'details'],
+        ]);
+
+        unsubscribe();
+        act(() => bind().onScroll(report(10)));
+        expect(changes).toHaveLength(2);
+    });
+
+    it('keeps one subscription function across renders, so a subscriber does not resubscribe on every scroll', () => {
+        const { bind, api } = renderHost(['details']);
+        const first = api().onCurrentChange;
+        expect(typeof first).toBe('function');
+
+        act(() => bind().onScroll(report(300)));
+
+        expect(api().onCurrentChange).toBe(first);
+    });
+
+    /** Three sections; the page ends at 1600, so steps (at 1400) never reaches the line. */
+    function heldOnSteps(): { bind: () => ScrollBind; api: () => ScrollHostApi } {
+        const host = renderHost(['details', 'ingredients', 'steps']);
+        act(() => host.bind().ref({ scrollTo: vi.fn() }));
+        act(() => host.api().sectionLayout('details')({ nativeEvent: { layout: { y: 0, height: 500 } } }));
+        act(() => host.api().sectionLayout('ingredients')({ nativeEvent: { layout: { y: 500, height: 900 } } }));
+        act(() => host.api().sectionLayout('steps')({ nativeEvent: { layout: { y: 1400, height: 200 } } }));
+        act(() => host.bind().onScroll(report(600, 800, 1600)));
+        act(() => host.api().scrollToSection('steps'));
+        act(() => host.bind().onScroll(report(800, 800, 1600)));
+
+        return host;
+    }
+
+    // A tab re-tap or "Back to top" is the cook leaving the section: the index must not stay stuck on the jump.
+    it('scrollToTop releases a held section', () => {
+        const { bind, api } = heldOnSteps();
+        expect(api().current).toBe('steps');
+
+        act(() => api().scrollToTop());
+        act(() => bind().onScroll(report(0, 800, 1600)));
+
+        expect(api().current).toBe('details');
+    });
+
+    // The jump's own scroll ends with a momentum end (Android fires one for a programmatic `scrollTo`), so the momentum
+    // end must NOT release: on a short page that would undo the hold at once. It arms the release; the next scroll — a
+    // screen reader's, which begins no drag — releases.
+    it('the jump’s own momentum end keeps the hold, and the next scroll after it releases (a screen-reader scroll)', () => {
+        const { bind, api } = heldOnSteps();
+
+        act(() => bind().onMomentumScrollEnd());
+        expect(api().current).toBe('steps');
+
+        act(() => bind().onScroll(report(600, 800, 1600)));
+        expect(api().current).toBe('ingredients');
+    });
+
+    // A jump that moves nothing (reduced motion, or the section is already in place) reports no momentum end, so the
+    // hold settles on a timer, as the web host's does.
+    it('a jump with no momentum end settles after a second, and the next scroll then releases', () => {
+        vi.useFakeTimers();
+
+        try {
+            const { bind, api } = heldOnSteps();
+
+            act(() => bind().onScroll(report(700, 800, 1600)));
+            expect(api().current).toBe('steps');
+
+            act(() => {
+                vi.advanceTimersByTime(1_000);
+            });
+            act(() => bind().onScroll(report(600, 800, 1600)));
+            expect(api().current).toBe('ingredients');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     // A deep link jumps on mount, before any section has reported its layout (Home's Paste ingredients opens the
     // editor at Ingredients): the jump waits for that section's layout, then lands once.
     it('a jump asked for before its section is laid out lands when the section reports its layout', () => {

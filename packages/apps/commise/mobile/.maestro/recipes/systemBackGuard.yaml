@@ -7,8 +7,8 @@ appId: io.commise.mobile
 # once, because nothing is ever unsaved", §7.3). So the editor legs now prove the opposite of what they used to: Back
 # raises NO dialog, a titled new recipe is created as a draft on the way out (the exit checkpoint, which the screen
 # runs for a leave that is not ×), and a published recipe's edit stays on the device, offered back on the next open,
-# without reaching the server (owner decision D1). The sheet and paste-screen legs (5-8) still guard, and still
-# prove the guard.
+# without reaching the server (owner decision D1). The collection sheet's legs (5-6) still guard, and still prove the
+# guard; the paste legs (7-8) prove Paste a list's sheet keeps its text, so Back closes it without asking.
 #
 # The original defect, kept as the record: `RecipesScreen`'s hardware-back handler called `nav.back()`
 # unconditionally, so the wizard's header arrow asked before discarding and the phone's back button did not.
@@ -179,40 +179,62 @@ appId: io.commise.mobile
 - assertNotVisible: 'Discard this collection\?'
 - assertNotVisible: 'Description \(optional\)'
 
-# ── LEG 7: the INGREDIENT PASTE screen. The largest loss of the three — a whole pasted list. ──
+# ── LEG 7: PASTE A LIST, typed into. REWRITTEN (2026-10-09): the paste SCREEN retired with slice 8, and paste is a sheet
+# in the editor's Ingredients section now. The sheet keeps what was typed when it closes, so Back has nothing to guard:
+# it closes the sheet at once, with no dialog, and the text is there when the sheet opens again. ──
 - tapOn: 'My recipes'
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
-- tapOn: 'Paste an Ingredient List'
-- assertVisible: 'Paste your ingredients'
+- assertVisible: 'Close editor'
+- tapOn:
+      text: 'Sections\. Current: .*'
+- extendedWaitUntil:
+      visible: 'Close sections'
+      timeout: 20000
+- tapOn: 'Ingredients'
+- extendedWaitUntil:
+      visible: 'Paste a list'
+      timeout: 20000
+- tapOn: 'Paste a list'
+- assertVisible: 'Ingredient lines'
 - tapOn: 'Ingredient lines'
 - inputText: '2 cups flour'
 
-# ⛔ NO `hideKeyboard`: on Android it is itself a BACK event, so it would raise the dialog and the press in the
-# sub-flow would then dismiss it.
-- runFlow: common/raiseDiscardGuard.yaml
-- tapOn: 'Keep editing'
+# ⛔ NO `hideKeyboard` — see leg 1. The first press may only close the keyboard, so a second follows while the sheet shows.
+- pressKey: Back
+- waitForAnimationToEnd:
+      timeout: 2000
+- runFlow:
+      when:
+          visible: 'Ingredient lines'
+      commands:
+          - pressKey: Back
 - assertNotVisible: 'Discard unsaved changes?'
+- assertNotVisible: 'Ingredient lines'
+# Back closed the SHEET, one level: the editor is still open beneath it.
+- assertVisible: 'Close editor'
+
+# ⛔ AND NOT LOST: the sheet opens again on what was typed.
+- tapOn: 'Paste a list'
 - assertVisible: '2 cups flour'
 
-# ⛔ THE SCREEN'S OWN EXIT ROUTES THROUGH THE SAME GUARD. Its control is 'Back to recipes', never a bare
-# 'Back', so it is safe to tap by name under three-button navigation — the trap this file's header records.
-- tapOn: 'Back to recipes'
-- assertVisible: 'Discard unsaved changes?'
-- tapOn: 'Discard changes'
-- assertVisible: 'Recipes'
-
-# ── LEG 8: an EMPTY paste box has nothing to lose, and leaves on one press. ──
-- tapOn: 'New recipe'
-- tapOn: 'Paste an Ingredient List'
-- assertVisible: 'Paste your ingredients'
+# ── LEG 8: closing the sheet, then leaving the untitled editor: nothing was titled, so it leaves and creates nothing. ──
 - pressKey: Back
-- assertNotVisible: 'Discard unsaved changes?'
+- waitForAnimationToEnd:
+      timeout: 2000
+- runFlow:
+      when:
+          visible: 'Ingredient lines'
+      commands:
+          - pressKey: Back
+- assertNotVisible: 'Ingredient lines'
+- pressKey: Back
+- assertNotVisible: 'Close editor'
 - assertVisible: 'Recipes'
 
 # ── LEG 9: Back at the Recipes ROOT goes Home; it no longer leaves the app (M1). ──
 # `docs/design/uiOverhaul/evaluateShellAndLists.md` M1: Recipes declined a back press at its root, so the OS took
-# it and left the app. The app root now answers it. The paste box above was left empty, so this is the list root.
+# it and left the app. The app root now answers it. Leg 8 left the editor, so this is the list root.
 - assertVisible: 'My recipes'
 - pressKey: Back
 - assertNotVisible: 'My recipes'

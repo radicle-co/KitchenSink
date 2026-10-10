@@ -22,6 +22,7 @@ function recordingHost(): { readonly api: ScrollHostApi; readonly jumps: string[
         scrollingDown: false,
         atTop: true,
         current: undefined,
+        onCurrentChange: () => () => undefined,
         viewportsDown: 0,
         pageViewports: 1,
         scrollToTop: () => undefined,

@@ -665,8 +665,8 @@ describe('RecipeIngredientsFields (native) — ⛔ no control can create an unre
 describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", §7.5.4)', () => {
     const PASTE: IngredientsPasteView = {
         reading: [
-            { key: 'j:0', sourceLine: '2 cups flour', failed: false },
-            { key: 'j:1', sourceLine: '1 tsp salt', failed: true },
+            { key: 'j:0', sourceLine: '2 cups flour', state: 'reading' },
+            { key: 'j:1', sourceLine: '1 tsp salt', state: 'failed' },
         ],
         onRetry: noop,
         added: undefined,
@@ -679,6 +679,16 @@ describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", 
         expect(screen.getByText('2 cups flour')).toBeTruthy();
         expect(screen.getByText(en.rowStateReading)).toBeTruthy();
         expect(screen.queryByText(en.noIngredients)).toBeNull();
+    });
+
+    it('a line waiting for a connection says it finishes once the device is back online (finding 11)', () => {
+        renderLeaf({
+            values: valuesWith([]),
+            paste: { ...PASTE, reading: [{ key: 'j:0', sourceLine: '2 cups flour', state: 'waiting' }] },
+        });
+
+        expect(screen.getByText(en.rowStateWaitingForConnection)).toBeTruthy();
+        expect(screen.queryByText(en.rowStateReading)).toBeNull();
     });
 
     it('the empty section offers Paste a list; a section with lines does not', () => {

@@ -16,6 +16,8 @@ import {
     DEVICE_SAVE_IDLE_MS,
     SERVER_CHECKPOINT_IDLE_MS,
     lifecycleOf,
+    pasteOffered,
+    pastedLineKeepsSource,
     serverWriteFor,
     type CheckpointTrigger,
     type RecipeLifecycle,
@@ -27,13 +29,18 @@ const NONE: ServerWrite = { kind: 'none' };
 function decide(
     lifecycle: RecipeLifecycle,
     trigger: CheckpointTrigger,
-    over: { readonly draftFloorMet?: boolean; readonly changedSinceServerWrite?: boolean } = {},
+    over: {
+        readonly draftFloorMet?: boolean;
+        readonly changedSinceServerWrite?: boolean;
+        readonly pastePending?: boolean;
+    } = {},
 ): ServerWrite {
     return serverWriteFor({
         lifecycle,
         trigger,
         draftFloorMet: over.draftFloorMet ?? true,
         changedSinceServerWrite: over.changedSinceServerWrite ?? true,
+        pastePending: over.pastePending ?? false,
     });
 }
 
@@ -118,12 +125,67 @@ describe('serverWriteFor — a published recipe (owner ruling D1)', () => {
 });
 
 describe('lifecycleOf', () => {
+    const FIRST = '2026-10-01T09:00:00.000Z';
+
     it.each([
         ['no server record', undefined, 'unsaved'],
         ['a draft', { status: 'draft' } as const, 'neverPublished'],
-        ['a published recipe', { status: 'published' } as const, 'published'],
+        ['a published recipe', { status: 'published', firstPublishedAt: FIRST } as const, 'published'],
+        /**
+         * ⛔ ADR-0058 rule 1: the fact is the FIRST PUBLISH, never `status`. The API takes `PATCH { status: 'draft' }` on a
+         * published recipe, and every save of it still makes a version — so its changes wait for Save changes (D1) and
+         * it is never offered paste (D10), whatever its status says.
+         */
+        ['a published recipe set back to draft', { status: 'draft', firstPublishedAt: FIRST } as const, 'published'],
+        /** A reader that predates the field: `status = published` implies a first publish (the service's own CHECK). */
+        ['a published recipe read without the field', { status: 'published' } as const, 'published'],
     ] as const)('%s → %s', (_label, recipe, expected) => {
         expect(lifecycleOf(recipe)).toBe(expected);
+    });
+});
+
+describe('pasteOffered — paste is offered until the first publish (owner D10, 2026-10-09)', () => {
+    it.each<[RecipeLifecycle, boolean]>([
+        ['unsaved', true],
+        ['neverPublished', true],
+        ['published', false],
+    ])('%s → %s', (lifecycle, expected) => {
+        expect(pasteOffered(lifecycle)).toBe(expected);
+    });
+});
+
+describe('pastedLineKeepsSource — a pasted line carries its source only into the create (blueprint A5)', () => {
+    it.each<[RecipeLifecycle, boolean, boolean, string]>([
+        ['unsaved', false, true, 'no create sent yet: the create will carry it'],
+        ['unsaved', true, false, '⛔ the create is already submitted: the line lands in an update, which strips it'],
+        ['neverPublished', false, false, 'stored: a PATCH cannot carry it'],
+        ['published', false, false, 'stored: a PATCH cannot carry it'],
+    ])('%s, create submitted %s → %s (%s)', (lifecycle, createSubmitted, expected) => {
+        expect(pastedLineKeepsSource({ lifecycle, createSubmitted })).toBe(expected);
+    });
+});
+
+/**
+ * A paste still joining holds the CREATE (finding 8): a line that joined after the create was sent would keep its source
+ * in the draft and lose it in the next update. Publish is held by the bar; the other checkpoints are held here. Leaving
+ * the editor is not held: the paste ends with the editor, and a titled recipe must still be created on the way out.
+ */
+describe('serverWriteFor — a paste still joining', () => {
+    it.each<[CheckpointTrigger, ServerWrite]>([
+        ['sectionChange', NONE],
+        ['appHidden', NONE],
+        ['checkpointIdle', NONE],
+        ['publish', NONE],
+        ['editorExit', { kind: 'create', publish: false }],
+    ])('an unsaved recipe: %s → %o', (trigger, expected) => {
+        expect(decide('unsaved', trigger, { pastePending: true })).toStrictEqual(expected);
+    });
+
+    it('a stored draft keeps checkpointing: its pasted lines are stored without their source either way', () => {
+        expect(decide('neverPublished', 'sectionChange', { pastePending: true })).toStrictEqual({
+            kind: 'update',
+            publish: false,
+        });
     });
 });
 

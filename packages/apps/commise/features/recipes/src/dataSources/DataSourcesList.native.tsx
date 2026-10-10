@@ -6,8 +6,8 @@
  * catalog cites at most the register's handful of sources.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -24,9 +24,10 @@ import type { DataSourcesListNativeProps } from './model.js';
  */
 export const DataSourcesList: FC<DataSourcesListNativeProps> = ({ sources, onOpen }) => {
     const messages = useMessages(dataSourcesMessages);
+    const { colors } = useTheme();
 
     if (sources.length === 0) {
-        return <Text style={styles.empty}>{messages.empty}</Text>;
+        return <Text style={[styles.empty, { color: colors.inkMuted }]}>{messages.empty}</Text>;
     }
 
     return (
@@ -40,5 +41,5 @@ export const DataSourcesList: FC<DataSourcesListNativeProps> = ({ sources, onOpe
 
 const styles = StyleSheet.create({
     column: { gap: nativeTokens.spacing[3] },
-    empty: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.slate },
+    empty: { fontSize: nativeTokens.fontSize.bodyMd },
 });

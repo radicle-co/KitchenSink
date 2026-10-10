@@ -16,10 +16,10 @@
  */
 import { Icon } from '@commise/ui/icon';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
 import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
+import { useTheme } from '@commise/ui/theme';
 import { useState, type FC } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -34,6 +34,7 @@ import type { DataSourcesPageNativeProps } from './model.js';
  */
 export const DataSourcesPage: FC<DataSourcesPageNativeProps> = ({ onRequestClose, children, headingFocusSignal }) => {
     const messages = useMessages(dataSourcesMessages);
+    const { colors } = useTheme();
     const [shown, setShown] = useState(0);
     // Either moment moves the cursor, so the two counters are one signal.
     const titleRef = useScreenReaderFocusOnSignal<Text>(shown + headingFocusSignal);
@@ -45,7 +46,7 @@ export const DataSourcesPage: FC<DataSourcesPageNativeProps> = ({ onRequestClose
             onShow={() => setShown((count) => count + 1)}
         >
             <View style={styles.header}>
-                <Text ref={titleRef} accessibilityRole="header" style={styles.title}>
+                <Text ref={titleRef} accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
                     {messages.title}
                 </Text>
                 <Pressable
@@ -58,8 +59,8 @@ export const DataSourcesPage: FC<DataSourcesPageNativeProps> = ({ onRequestClose
                 </Pressable>
             </View>
             <ScrollView contentContainerStyle={styles.body}>
-                <Text style={styles.intro}>{messages.intro}</Text>
-                <Text style={styles.note}>{messages.closeMatchNote}</Text>
+                <Text style={[styles.intro, { color: colors.ink }]}>{messages.intro}</Text>
+                <Text style={[styles.note, { color: colors.inkMuted }]}>{messages.closeMatchNote}</Text>
                 {children}
             </ScrollView>
         </FullScreenSheet>
@@ -72,11 +73,10 @@ const styles = StyleSheet.create({
         flex: 1,
         fontFamily: nativeTokens.fontFace.display.semibold,
         fontSize: nativeTokens.fontSize.headingMd,
-        color: palette.charcoal,
     },
     // 48 × 48 dp: the sheet's only visible exit must be easy to hit (§S16).
     close: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
     body: { gap: nativeTokens.spacing[3], paddingBottom: nativeTokens.spacing[4] },
-    intro: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.charcoal },
-    note: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.slate },
+    intro: { fontSize: nativeTokens.fontSize.bodyMd },
+    note: { fontSize: nativeTokens.fontSize.bodyMd },
 });

@@ -16,10 +16,10 @@ import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 
 import { mobileMessages } from '../i18n/messages.js';
 
@@ -32,16 +32,17 @@ export interface RootErrorFallbackProps extends FallbackProps {
 /** Localized "the app hit a snag" state: announced, with Try again and — off Home — Back to Home. */
 export const RootErrorFallback: FC<RootErrorFallbackProps> = ({ resetErrorBoundary, onBackToHome }) => {
     const { common } = useMessages(mobileMessages);
+    const { colors } = useTheme();
 
     return (
         <View style={styles.screen}>
             <View style={styles.message}>
                 {/* The title is ANNOUNCED through `LiveRegion` (iOS has no live region; an `alert` role on a View
                     is silent there) and is also the screen's header. */}
-                <LiveRegion politeness="assertive" style={styles.title}>
+                <LiveRegion politeness="assertive" style={[styles.title, { color: colors.ink }]}>
                     {common.somethingWentWrong}
                 </LiveRegion>
-                <Text style={styles.body}>
+                <Text style={[styles.body, { color: colors.inkMuted }]}>
                     {onBackToHome === undefined ? common.rootErrorBodyHome : common.rootErrorBody}
                 </Text>
             </View>
@@ -65,9 +66,8 @@ const styles = StyleSheet.create({
     title: {
         fontSize: nativeTokens.fontSize.headingSm,
         fontWeight: '600',
-        color: palette.charcoal,
         textAlign: 'center',
     },
-    body: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center', color: palette.slate },
+    body: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center' },
     actions: { flex: 1, justifyContent: 'flex-end', gap: 12, alignSelf: 'stretch', maxWidth: 480, width: '100%' },
 });

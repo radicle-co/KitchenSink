@@ -7,7 +7,8 @@
  *
  * - **The command**, for a line the server STORES: the rebind request, run through the editor's command port
  *   (`useRecipeEditor`'s `lineCommand`), which sends it after the editor's earlier writes and adopts the version it
- *   returns (ADR-0045, lines 265-269).
+ *   returns (ADR-0045, lines 265-269). On a published recipe the port HOLDS it until Save changes (owner D1): the pick
+ *   is admitted here, so the line shows its food at once, and the editor sends the rebind when the cook saves.
  * - **The draft**, for every other line: the pick is admitted (the draft's wire sends only `ingredientId`, so a food
  *   needs a binding first), then the line is re-pointed by key, or appended under a newly minted key. An `UNRESOLVED`
  *   admission is committed as it is; its row offers the choice.
@@ -40,6 +41,7 @@ import {
     adoptRefusalOf,
     commitRouteFor,
     lineBindingOf,
+    rebindRequestOf,
     toIngredientLine,
     withLineMeasure,
     type BoundPick,
@@ -48,6 +50,7 @@ import {
     type LineCommandPort,
     type LineCommitOutcome,
     type LineCommitTarget,
+    type RebindTarget,
 } from './lineCommit.js';
 import { isSourceLimited } from './sourceLimit.model.js';
 import type { SourceLimit } from './useSourceLimit.js';
@@ -166,20 +169,43 @@ export function useLineCommit<Origin>(surface: LineCommitSurface, sourceLimit: S
         return { kind: 'committed', key: target.key, binding };
     };
 
+    /**
+     * The command, held until Save changes: the pick is admitted so the line can show it, and the editor keeps the
+     * rebind's target to send when the cook saves.
+     *
+     * @sideEffect Admits the food (a POST, which makes no recipe version), then hands the rebind to the editor.
+     */
+    const holdCommand = async (
+        pick: BoundPick,
+        target: LineCommitTarget & { kind: 'line' },
+        command: LineCommandPort,
+        rebindTarget: RebindTarget,
+    ): Promise<LineCommitOutcome> => {
+        const line = await admit(pick).then(toIngredientLine, () => undefined);
+
+        if (line === undefined) {
+            return { kind: 'failed' };
+        }
+
+        const binding = lineBindingOf(line);
+
+        command.hold({ lineKey: target.key, target: rebindTarget }, binding);
+
+        return { kind: 'committed', key: target.key, binding };
+    };
+
     /** Run the route `commitRouteFor` chooses. */
     const route = (pick: BoundPick, target: LineCommitTarget): Promise<LineCommitOutcome> => {
         const command = surface.kind === 'editForm' ? surface.command : undefined;
         const route = commitRouteFor(pick, target, command?.persistedKeys ?? []);
 
         if (route.route === 'command' && command !== undefined && target.kind === 'line') {
+            if (command.holdsRebinds) {
+                return holdCommand(pick, target, command, route.target);
+            }
+
             return command
-                .run(target.key, (address) =>
-                    rebind.mutateAsync({
-                        id: address.recipeId,
-                        position: address.position,
-                        body: { expectedVersion: address.expectedVersion, target: route.target },
-                    }),
-                )
+                .run(target.key, (address) => rebind.mutateAsync(rebindRequestOf(address, route.target)))
                 .then((outcome) => commitOutcomeOf(outcome, target));
         }
 

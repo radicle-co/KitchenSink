@@ -7,20 +7,28 @@ import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CIQUAL_SOURCE, makeDataSource } from '../__fixtures__/makeDataSource.js';
 import { DataSourcesScreen } from '../DataSourcesScreen.native.js';
+import { dataSourcesMessages } from '../messages.js';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the cursor moves are asserted as the calls they make.
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+    return withSystemScheme({
+        ...actual,
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+    });
 });
 
 afterEach(() => {
     cleanup();
+    systemScheme.current = null;
     vi.restoreAllMocks();
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
     onlineManager.setOnline(true);
@@ -176,5 +184,21 @@ describe('DataSourcesScreen (native)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Close data sources' }));
 
         expect(onRequestClose).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe.each(['light', 'dark'] as const)('DataSourcesScreen (native) — the %s scheme', (scheme) => {
+    it('says a failed read in ink (D15)', async () => {
+        systemScheme.current = scheme;
+        const client = guardedFoodClient();
+
+        vi.spyOn(client, 'listSources').mockRejectedValueOnce(new NotFoundError('sources'));
+        renderWithFoodClient(<DataSourcesScreen onRequestClose={() => undefined} />, client);
+        await screen.findByRole('alert');
+        const words = await screen.findAllByText(dataSourcesMessages.en.loadFailed);
+
+        for (const element of words) {
+            expect(getComputedStyle(element).color).toBe(rgb((scheme === 'dark' ? roleDark : role).ink));
+        }
     });
 });

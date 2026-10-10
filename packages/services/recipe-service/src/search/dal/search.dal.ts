@@ -77,7 +77,8 @@ export const MAX_FACET_SAMPLE_SIZE = 10_000;
 const RECIPE_COLUMNS = sql`
     recipes.id, recipes.owner_id, recipes.title, recipes.description, recipes.prep_time_minutes,
     recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty, recipes.meal_type,
-    recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.status, recipes.source_type,
+    recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.status, recipes.first_published_at,
+    recipes.source_type,
     recipes.source_url, recipes.source_attribution, recipes.cloned_from_id, recipes.has_substantive_edit,
     recipes.cuisine, recipes.dietary_flags, recipes.tags,
     -- ⛔ NO has_partial_nutrition / lead_calories_per_serving (U10, migration 0019). Selecting a dropped
@@ -146,6 +147,7 @@ interface RawRecipeSearchRow {
     rating_count: number;
     visibility: string;
     status: string;
+    first_published_at: Date | string | null;
     source_type: string;
     source_url: string | null;
     source_attribution: string | null;
@@ -197,6 +199,7 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
         mealType: row.meal_type,
         visibility: row.visibility,
         status: row.status,
+        firstPublishedAt: row.first_published_at,
         sourceType: row.source_type,
         sourceUrl: row.source_url,
         sourceAttribution: row.source_attribution,

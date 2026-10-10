@@ -6,13 +6,23 @@
  * assert because the native placeholder is INERT — the same choice the native recipe-list skeletons already
  * make, so no reduced-motion gate is needed.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCalorieSkeleton } from '../RecipeCalorieSkeleton.native.js';
 
-afterEach(cleanup);
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
+afterEach(() => {
+    cleanup();
+    systemScheme.current = null;
+});
 
 describe('RecipeCalorieSkeleton (native)', () => {
     it('names the placeholder with its localized label', () => {
@@ -34,5 +44,20 @@ describe('RecipeCalorieSkeleton (native)', () => {
 
         expect(style?.width).not.toBe('');
         expect(style?.height).not.toBe('');
+    });
+});
+
+/** D15: the placeholder bar is a quiet fill, `surfaceMuted`, in both schemes. */
+describe.each(['light', 'dark'] as const)('RecipeCalorieSkeleton (native) — the %s scheme', (scheme) => {
+    it('fills the bar with surfaceMuted', () => {
+        systemScheme.current = scheme;
+        render(<RecipeCalorieSkeleton label="Loading calories" />);
+        const bar = screen.getByLabelText('Loading calories').firstElementChild;
+
+        if (bar === null) {
+            throw new Error('no bar');
+        }
+
+        expect(getComputedStyle(bar).backgroundColor).toBe(rgb(rolesFor(scheme).surfaceMuted));
     });
 });

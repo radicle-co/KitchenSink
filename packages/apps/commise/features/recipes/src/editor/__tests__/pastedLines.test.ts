@@ -118,11 +118,84 @@ describe('pastedLinesOf', () => {
         ]);
     });
 
-    it('a fallback line that reads as a measure alone keeps its whole text as the name', () => {
+    /**
+     * REWRITTEN (2026-10-09 review, finding 9): a fallback line that reads as a measure alone used to keep its whole text
+     * as the food's name, so `2 cups` became a food named "2 cups" and a write to the catalog. A line with no words left
+     * for the food search names no food, so it adds no row.
+     */
+    it('a fallback line that reads as a measure alone names no food, so it adds no row', () => {
         const job = makeParseJob({ lines: [makeParseJobLine({ sourceLine: '2 cups', status: 'unparseable' })] });
-        const [line] = pastedLinesOf(input({ job }));
 
-        expect(line?.kind === 'settled' ? line.rows.map((row) => row.name) : []).toEqual(['2 cups']);
+        expect(pastedLinesOf(input({ job }))).toEqual([
+            { kind: 'settled', lineIndex: 0, sourceLine: '2 cups', rows: [] },
+        ]);
+    });
+
+    /**
+     * Every path that settles a line through the reader, against the shapes of line that name no food. A heading ending
+     * in a colon used to be dropped only when the parse answered; on every other path it became a food named after it.
+     */
+    describe('a line the reader settles adds no food when it names none (finding 9)', () => {
+        const OLD = NOW - PASTE_STALL_BOUND_MS - 1;
+        const PATHS = [
+            {
+                path: 'past the stall bound',
+                at: (sourceLine: string) =>
+                    input({ job: makeParseJob({ lines: [makeParseJobLine({ sourceLine })] }), runningSince: OLD }),
+            },
+            {
+                path: 'an unparseable line',
+                at: (sourceLine: string) =>
+                    input({
+                        job: makeParseJob({
+                            status: 'complete',
+                            lines: [makeParseJobLine({ sourceLine, status: 'unparseable' })],
+                        }),
+                    }),
+            },
+            {
+                path: 'an expired job',
+                at: (sourceLine: string) =>
+                    input({ job: makeParseJob({ status: 'expired', lines: [makeParseJobLine({ sourceLine })] }) }),
+            },
+            {
+                path: 'a parsed line with no proposal',
+                at: (sourceLine: string) =>
+                    input({
+                        job: makeParseJob({
+                            lines: [makeParseJobLine({ sourceLine, status: 'parsed', proposal: null })],
+                        }),
+                    }),
+            },
+            {
+                path: 'a job that cannot be read',
+                at: (sourceLine: string) =>
+                    input({ job: makeParseJob({ lines: [makeParseJobLine({ sourceLine })] }), jobFailed: true }),
+            },
+        ];
+        const SHAPES = [
+            { sourceLine: '2 cups', names: [] as string[], why: 'a measure with no food' },
+            { sourceLine: '2 cups:', names: [], why: 'a measure ending in a colon' },
+            { sourceLine: 'For the dough:', names: [], why: 'a heading' },
+            { sourceLine: 'For the dough :', names: [], why: 'a heading with a space before its colon' },
+            { sourceLine: '  For the filling:  ', names: [], why: 'a heading with whitespace around it' },
+            {
+                sourceLine: 'Salt: to taste',
+                names: ['Salt: to taste'],
+                why: 'a colon inside the line is not a heading',
+            },
+            { sourceLine: '2 cups flour', names: ['flour'], why: 'a measure and a food' },
+        ];
+
+        it.each(PATHS.flatMap(({ path, at }) => SHAPES.map((shape) => ({ path, at, ...shape }))))(
+            '$path: "$sourceLine" ($why)',
+            ({ at, sourceLine, names }) => {
+                const [line] = pastedLinesOf(at(sourceLine));
+
+                expect(line?.kind).toBe('settled');
+                expect(line?.kind === 'settled' ? line.rows.map((row) => row.name) : undefined).toEqual(names);
+            },
+        );
     });
 
     it('⛔ a partial job keeps reading its retryable lines: they may still land on their own', () => {

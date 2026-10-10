@@ -843,8 +843,8 @@ describe('RecipeIngredientsFields (web) — ⛔ no control can create an unresol
 describe('RecipeIngredientsFields (web) — pasted lines (build spec §7.5.1 "Reading", §7.5.4)', () => {
     const PASTE: IngredientsPasteView = {
         reading: [
-            { key: 'j:0', sourceLine: '2 cups flour', failed: false },
-            { key: 'j:1', sourceLine: '1 tsp salt', failed: true },
+            { key: 'j:0', sourceLine: '2 cups flour', state: 'reading' },
+            { key: 'j:1', sourceLine: '1 tsp salt', state: 'failed' },
         ],
         onRetry: noop,
         added: undefined,
@@ -859,6 +859,15 @@ describe('RecipeIngredientsFields (web) — pasted lines (build spec §7.5.1 "Re
             '1 tsp salt' + en.rowStateLookupFailed + en.statusActionRetry,
         ]);
         expect(screen.queryByText(en.noIngredients)).toBeNull();
+    });
+
+    it('a line waiting for a connection says it finishes once the device is back online (finding 11)', () => {
+        renderLeaf({
+            values: valuesWith([]),
+            paste: { ...PASTE, reading: [{ key: 'j:0', sourceLine: '2 cups flour', state: 'waiting' }] },
+        });
+
+        expect(rowItems().map((row) => row.textContent)).toEqual(['2 cups flour' + en.rowStateWaitingForConnection]);
     });
 
     it('pasted lines follow the list’s own rows', () => {

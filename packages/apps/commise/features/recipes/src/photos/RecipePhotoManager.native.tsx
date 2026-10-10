@@ -20,7 +20,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
-import { palette } from '@commise/ui';
+import { useTheme } from '@commise/ui/theme';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -49,12 +49,17 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     addControl,
 }) => {
     const m = useMessages(photoMessages);
+    const { colors } = useTheme();
+    // Chrome on a photo is the `photoChip` disc under an `ink` label (`darkTheme.md` §1, §3.4); a control off the
+    // photo's chrome is `paper` under `ink`, as on web.
+    const chip = { backgroundColor: colors.photoChip };
+    const ink = { color: colors.ink };
     const pendingItems = visibleQueueItems(queueItems ?? []);
     const atCap = isAtPhotoCap(photos.length + pendingItems.length);
 
     return (
         <View style={styles.container}>
-            <Text accessibilityRole="header" style={styles.heading}>
+            <Text accessibilityRole="header" style={[styles.heading, ink]}>
                 {m.heading}
             </Text>
 
@@ -63,17 +68,21 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                 cannot distinguish from "wedged" (the `components/LoadingState` doctrine). */}
             {uploading === true ? (
                 <View accessible accessibilityRole="progressbar" accessibilityLabel={m.uploadingLabel}>
-                    <Text style={styles.muted}>{m.uploadingLabel}</Text>
+                    <Text style={[styles.muted, { color: colors.inkMuted }]}>{m.uploadingLabel}</Text>
                 </View>
             ) : null}
             {errorMessage !== undefined ? (
-                <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.error}>
+                <Text
+                    accessibilityRole="alert"
+                    accessibilityLiveRegion="assertive"
+                    style={[styles.error, { color: colors.dangerText }]}
+                >
                     {errorMessage}
                 </Text>
             ) : null}
 
             {photos.length === 0 && pendingItems.length === 0 ? (
-                <Text style={styles.muted}>{m.emptyBody}</Text>
+                <Text style={[styles.muted, { color: colors.inkMuted }]}>{m.emptyBody}</Text>
             ) : (
                 <View style={styles.grid}>
                     {photos.map((photo, index) => {
@@ -91,7 +100,14 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 {/* U6: cover status carried as TEXT (never colour alone); shown on the index-0 photo
                                     only, and only where the surface offers cover selection. */}
                                 {onSetCover !== undefined && isCover ? (
-                                    <Text style={styles.coverBadge}>{m.coverBadge}</Text>
+                                    <Text
+                                        style={[
+                                            styles.coverBadge,
+                                            { backgroundColor: colors.action, color: colors.onAction },
+                                        ]}
+                                    >
+                                        {m.coverBadge}
+                                    </Text>
                                 ) : null}
                                 <Pressable
                                     accessibilityRole="button"
@@ -108,9 +124,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     aria-busy={removing || undefined}
                                     disabled={removing}
                                     onPress={() => onRemovePhoto(photo.id)}
-                                    style={[styles.removeButton, removing && styles.removeButtonBusy]}
+                                    style={[styles.removeButton, chip, removing && styles.removeButtonBusy]}
                                 >
-                                    <Text style={styles.removeLabel}>{removing ? m.removing : m.remove}</Text>
+                                    <Text style={[styles.removeLabel, ink]}>{removing ? m.removing : m.remove}</Text>
                                 </Pressable>
                                 {onSetCover !== undefined || onReplacePhoto !== undefined ? (
                                     <View style={styles.photoControls}>
@@ -129,9 +145,15 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                                 accessibilityState={{ checked: isCover }}
                                                 aria-checked={isCover}
                                                 onPress={() => onSetCover(photo.id)}
-                                                style={styles.coverControl}
+                                                style={[styles.coverControl, chip]}
                                             >
-                                                <View style={[styles.radioDot, isCover && styles.radioDotChecked]} />
+                                                <View
+                                                    style={[
+                                                        styles.radioDot,
+                                                        { borderColor: colors.ink },
+                                                        isCover && { backgroundColor: colors.selectedEdge },
+                                                    ]}
+                                                />
                                             </Pressable>
                                         ) : null}
                                         {onReplacePhoto !== undefined ? (
@@ -139,9 +161,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                                 accessibilityRole="button"
                                                 accessibilityLabel={fillTemplate(m.replaceLabel, { index: index + 1 })}
                                                 onPress={() => onReplacePhoto(photo.id)}
-                                                style={styles.replaceButton}
+                                                style={[styles.replaceButton, { backgroundColor: colors.paper }]}
                                             >
-                                                <Text style={styles.replaceLabel}>{m.replace}</Text>
+                                                <Text style={[styles.replaceLabel, ink]}>{m.replace}</Text>
                                             </Pressable>
                                         ) : null}
                                     </View>
@@ -167,17 +189,24 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                         style={styles.photo}
                                     />
                                 ) : (
-                                    <View style={[styles.photo, styles.placeholder]} />
+                                    <View style={[styles.photo, { backgroundColor: colors.surfaceMuted }]} />
                                 )}
                                 <Text
                                     accessibilityRole={item.status === 'failed' ? 'alert' : 'text'}
                                     accessibilityLabel={statusWord}
-                                    style={[styles.statusBadge, item.status === 'failed' && styles.statusBadgeFailed]}
+                                    style={[
+                                        styles.statusBadge,
+                                        item.status === 'failed'
+                                            ? { backgroundColor: colors.danger, color: colors.onAction }
+                                            : [chip, ink],
+                                    ]}
                                 >
                                     {statusWord}
                                 </Text>
                                 {item.status === 'failed' && item.errorMessage !== undefined ? (
-                                    <Text style={styles.itemError}>{item.errorMessage}</Text>
+                                    <Text style={[styles.itemError, { color: colors.dangerText }]}>
+                                        {item.errorMessage}
+                                    </Text>
                                 ) : null}
                                 {/* ⛔ `queued` is offered a Remove too — see the web leaf's note. On the CREATE
                                     path every draft pick sits `queued` until the recipe exists, so without
@@ -195,9 +224,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                                     fileName: item.fileName,
                                                 })}
                                                 onPress={() => onRetryQueueItem?.(item.fileId)}
-                                                style={styles.queueControlButton}
+                                                style={[styles.queueControlButton, { backgroundColor: colors.paper }]}
                                             >
-                                                <Text style={styles.queueControlLabel}>{m.queueRetry}</Text>
+                                                <Text style={[styles.queueControlLabel, ink]}>{m.queueRetry}</Text>
                                             </Pressable>
                                         ) : null}
                                         {/* Offered only when wired: a container withholds removal by not
@@ -209,9 +238,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                                     fileName: item.fileName,
                                                 })}
                                                 onPress={() => onRemoveQueueItem(item.fileId)}
-                                                style={styles.queueControlButton}
+                                                style={[styles.queueControlButton, { backgroundColor: colors.paper }]}
                                             >
-                                                <Text style={styles.queueControlLabel}>{m.remove}</Text>
+                                                <Text style={[styles.queueControlLabel, ink]}>{m.remove}</Text>
                                             </Pressable>
                                         )}
                                     </View>
@@ -223,10 +252,12 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
             )}
 
             {atCap ? (
-                <Text style={styles.muted}>{fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}</Text>
+                <Text style={[styles.muted, { color: colors.inkMuted }]}>
+                    {fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}
+                </Text>
             ) : (
                 <>
-                    <Text style={styles.formatHint}>
+                    <Text style={[styles.formatHint, { color: colors.inkMuted }]}>
                         {fillTemplate(m.formatHint, { maxMb: MAX_RECIPE_PHOTO_UPLOAD_MB })}
                     </Text>
                     {addControl}
@@ -238,34 +269,29 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
 
 const styles = StyleSheet.create({
     container: { gap: 12 },
-    heading: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
-    muted: { fontSize: 13, color: palette.slate },
-    formatHint: { fontSize: 11, color: palette.slate },
-    error: { fontSize: 13, color: palette['error-dark'] },
+    heading: { fontSize: 18, fontWeight: '600' },
+    muted: { fontSize: 13 },
+    formatHint: { fontSize: 11 },
+    error: { fontSize: 13 },
     // Fixed 3-column grid (wireframe): each cell claims a third of the row, minus the inter-cell gap.
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     cell: { position: 'relative', width: '31%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },
     photo: { width: '100%', height: '100%' },
-    placeholder: { backgroundColor: palette.pearl },
     statusBadge: {
         position: 'absolute',
         top: 6,
         left: 6,
-        backgroundColor: 'rgba(45, 52, 54, 0.7)',
-        color: palette.white,
         fontSize: 11,
         fontWeight: '500',
         borderRadius: 999,
         paddingVertical: 2,
         paddingHorizontal: 8,
     },
-    statusBadgeFailed: { backgroundColor: palette.error },
     itemError: {
         position: 'absolute',
         top: 30,
         left: 6,
         right: 6,
-        color: palette.white,
         fontSize: 10,
         textAlign: 'center',
     },
@@ -273,29 +299,25 @@ const styles = StyleSheet.create({
     queueControlButton: {
         flex: 1,
         alignItems: 'center',
-        backgroundColor: palette.white,
         borderRadius: 999,
         paddingVertical: 4,
     },
-    queueControlLabel: { color: palette.charcoal, fontSize: 11, fontWeight: '500' },
+    queueControlLabel: { fontSize: 11, fontWeight: '500' },
     removeButton: {
         position: 'absolute',
         top: 6,
         right: 6,
-        backgroundColor: 'rgba(45, 52, 54, 0.7)',
         borderRadius: 999,
         paddingVertical: 4,
         paddingHorizontal: 10,
     },
     removeButtonBusy: { opacity: 0.6 },
-    removeLabel: { color: palette.white, fontSize: 11, fontWeight: '500' },
-    // U6 cover badge (top-left) — text on a solid seafoam pill; distinct from the top-right remove button.
+    removeLabel: { fontSize: 11, fontWeight: '500' },
+    // U6 cover badge (top-left) — text on the solid `action` pill; distinct from the top-right remove button.
     coverBadge: {
         position: 'absolute',
         top: 6,
         left: 6,
-        backgroundColor: palette.seafoam,
-        color: palette.white,
         fontSize: 11,
         fontWeight: '600',
         borderRadius: 999,
@@ -308,7 +330,6 @@ const styles = StyleSheet.create({
     coverControl: {
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(45, 52, 54, 0.7)',
         borderRadius: 999,
         padding: 6,
     },
@@ -317,15 +338,12 @@ const styles = StyleSheet.create({
         height: 12,
         borderRadius: 999,
         borderWidth: 2,
-        borderColor: palette.white,
     },
-    radioDotChecked: { backgroundColor: palette.seafoam },
     replaceButton: {
         flex: 1,
         alignItems: 'center',
-        backgroundColor: palette.white,
         borderRadius: 999,
         paddingVertical: 4,
     },
-    replaceLabel: { color: palette.charcoal, fontSize: 11, fontWeight: '500' },
+    replaceLabel: { fontSize: 11, fontWeight: '500' },
 });

@@ -36,15 +36,16 @@ Those are history needs.
 1. **Use React Navigation 7.** The packages are `@react-navigation/native`, `@react-navigation/native-stack` and
    `@react-navigation/bottom-tabs`, with `react-native-screens` (`~4.26`, installed with `npx expo install`). The code
    is in `packages/apps/commise/mobile/src/navigation/`.
-2. **The root native stack holds `Tabs` and the focused tasks.** The tasks are the interim create and edit wizard, the
-   paste flow, and the collection form and picker. Slices 5, 7 and 8 replace them. A task sits above the tabs, so the
-   tab bar hides by construction.
+2. **The root native stack holds `Tabs` and the focused tasks.** The one task is the one-page editor, registered as
+   `RecipeCreate` and `RecipeEdit` (`tasks.tsx`). A task sits above the tabs, so the tab bar hides by construction.
     - Tasks use `presentation: 'card'` with the edge swipe on.
-    - The interim wizard is the exception. Only its own back control and Android Back guard its unsaved changes. So
-      its swipe stays off until the slice 7 editor, which saves all the time.
+    - The editor saves all the time, so the edge swipe, Android Back and × all leave it at once and lose nothing
+      (build spec §3.5, §7.12). Its exit checkpoint runs from React Navigation's `beforeRemove`.
+    - The collection form and the add-recipes picker are sheets, and Paste a list is a sheet inside the editor's
+      Ingredients section. None of them is a route.
 3. **Each tab is a native stack.** Each one registers its root and the same pushed screens: recipe detail, versions,
-   collection detail, Profile, and the account hub until slice 9. So the three stacks share one param list
-   (`routes.ts`). That list replaces both `useState` unions.
+   collection detail and Profile. So the three stacks share one param list (`routes.ts`). That list replaces both
+   `useState` unions.
 4. **The app keeps its own tab bar.** `tabBar` renders `AppTabBar`. It is an Adapter from `BottomTabBarProps` to the
    presentational `HomeTabBar`.
     - It emits `tabPress` with `canPreventDefault`, and it moves to the tab unless a listener prevents it. The library's
@@ -56,7 +57,7 @@ Those are history needs.
    order: the last one registered answers first. React runs the effects of a child before those of its parent.
     - Inside `NavigationContainer`, a `BackInterceptProvider` subscribes first and answers last. Then the container
       pops the screen under an open sheet before the sheet sees the press.
-    - Outside, it subscribes last and answers first. A sheet or a guarded editor gets the first refusal. A press that
+    - Outside, it subscribes last and answers first. An open sheet or dialog gets the first refusal. A press that
       nothing claims is declined (`onUnhandled` returns `false`), so React Navigation's handler takes it.
     - The blueprint drew this the other way round. The subscription order decides it.
 6. **Each routed screen has its own crash boundary** (`ScreenBoundary`, through each navigator's `screenLayout`). The
@@ -83,8 +84,8 @@ Those are history needs.
 - Each routed screen is now a route component. The screens keep their callback props. Route adapters in `stacks.tsx`
   and `tasks.tsx` translate params and navigator intents, so no screen knows it is routed.
 - The rules of the old `RecipesScreen` stack moved with it:
-    - the review REPLACES a spent paste.
     - a new recipe opens on the Recipes tab with the list under it.
+    - a discarded recipe returns to My recipes by popping, never by pushing over the list.
     - a delete returns to the root of the tab.
 - Under Vitest, React Navigation renders its web build through react-native-web. Four test changes support this:
     - the native config inlines `@react-navigation/*` and `react-native-screens`.
@@ -92,9 +93,9 @@ Those are history needs.
     - the setup supplies a `ResizeObserver` that does nothing.
     - `tests/navigation/RootNavigator.native.test.tsx` pins that a sheet answers before our provider declines.
 - React Navigation's own `hardwareBackPress` subscription exists only on a device, so jsdom cannot see the order
-  between it and our provider. A device proves that order. On it, `recipes/systemBackGuard.yaml` shows the wizard's
-  discard guard answering Android Back before the stack pops, and `shell/tabBar.yaml` shows Back from the Recipes
-  root going Home.
+  between it and our provider. A device proves that order. On it, `recipes/systemBackGuard.yaml` shows Android Back
+  leaving the editor at once with the work kept, and the new-collection sheet's discard guard answering Back before
+  the stack pops. `shell/tabBar.yaml` shows Back from the Recipes root going Home.
 - React Navigation CALLS `screenLayout` as a function inside its own render. So a hook in a layout function becomes a
   hook of the navigator, and the hook order breaks as screens push. Each `screenLayout` therefore renders a component.
   jsdom did not show this. A device did, as a React warning over the tab bar.

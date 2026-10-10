@@ -72,6 +72,8 @@ appId: io.commise.mobile
 - scrollUntilVisible:
       element: 'Add photo'
       direction: DOWN
-      timeout: 20000
+      # ⚠️ 60 s, not 20: the one-page editor puts Photos below every step, and at speed 40 the lamb's four steps
+      # outlast 20 s on the swiftshader AVD (measured 2026-10-09: two runs stopped at Step 4).
+      timeout: 60000
 - assertVisible: 'No photos yet.'
 - assertVisible: 'Add photo'

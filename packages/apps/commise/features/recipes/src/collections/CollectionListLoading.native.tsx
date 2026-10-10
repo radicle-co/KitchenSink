@@ -7,6 +7,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -17,11 +18,12 @@ const SKELETON_COUNT = 4;
 
 export const CollectionListLoading: FC = () => {
     const { list } = useMessages(collectionMessages);
+    const { colors } = useTheme();
 
     return (
         <View collapsable={false} accessibilityLabel={list.loadingLabel} style={styles.cards}>
             {Array.from({ length: SKELETON_COUNT }, (_value, index) => (
-                <View key={index} aria-hidden style={styles.skeletonCard} />
+                <View key={index} aria-hidden style={[styles.skeletonCard, { backgroundColor: colors.surfaceMuted }]} />
             ))}
         </View>
     );
@@ -29,12 +31,12 @@ export const CollectionListLoading: FC = () => {
 
 const styles = StyleSheet.create({
     cards: { paddingBottom: nativeTokens.spacing[5] },
-    // Inert loading placeholder shaped like a collection row; borderSubtle fill, no motion. Its bottom margin is the
+    // Inert loading placeholder shaped like a collection row; its `surfaceMuted` fill is painted at render (the web
+    // twin's `bg-surface-muted`), no motion. Its bottom margin is the
     // results' inter-card gap, so the skeleton and the rows it gives way to share one rhythm.
     skeletonCard: {
         height: 76,
         borderRadius: nativeTokens.radius.lg,
-        backgroundColor: nativeTokens.borderSubtle,
         marginBottom: nativeTokens.spacing[3],
     },
 });

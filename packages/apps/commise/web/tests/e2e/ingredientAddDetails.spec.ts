@@ -111,12 +111,17 @@ async function recordVariantAdmissions(page: Page): Promise<readonly unknown[]> 
     return admissions;
 }
 
-/** A saved recipe whose SECOND stored line is the root, so the command's position is not the default 0. */
-const savedRecipe = (viewerId: string): RecipeDetail =>
+/**
+ * A saved recipe whose SECOND stored line is the root, so the command's position is not the default 0. A never-published
+ * draft unless `status` says otherwise: its rebinds run at once (ADR-0058, no version), where a published recipe's wait
+ * for Save changes (owner D1, the last describe block).
+ */
+const savedRecipe = (viewerId: string, status: RecipeDetail['status'] = 'draft'): RecipeDetail =>
     makeRecipeDetail({
         id: RECIPE_ID,
         ownerId: viewerId,
         title: 'Chicken supper',
+        status,
         currentVersion: 1,
         ingredients: [
             {
@@ -255,6 +260,67 @@ test.describe('Add details from the row’s ⋮ (curated U15, F1, AE1)', () => {
         expect(rebinds).toEqual([]);
         expect(variantAdmissions).toEqual([]);
         expect(store.get(RECIPE_ID)?.currentVersion).toBe(1);
+    });
+});
+
+/**
+ * A published recipe (owner D1; blueprint A3; finding 6 of the 2026-10-09 review): its rebind would make a version
+ * before Save changes, so the pick is HELD — admitted and shown on the row, no rebind sent — and Save changes sends it.
+ */
+test.describe('Add details on a PUBLISHED recipe waits for Save changes', () => {
+    test('the pick shows on the row and sends no rebind; Save changes sends it at the stored position', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const store = await mockRecipeApi(page, {
+            viewerId,
+            recipes: [savedRecipe(viewerId, 'published')],
+            foodNutrition: ROOT_HAS_VARIANTS,
+        });
+
+        await mockRootRead(page);
+        const rebinds = await mockRebind(page, store, REBIND_CATALOG);
+        await page.route('**/api/v1/ingredients/by-food-variant', async (intercepted) => {
+            const body = addIngredientByFoodVariantRequestSchema.parse(intercepted.request().postDataJSON());
+
+            await intercepted.fulfill({
+                json: {
+                    id: '88888888-8888-4888-8888-000000000101',
+                    name: ROOT_NAME,
+                    foodId: ROOT_ID,
+                    variant: { id: body.foodVariantId, parts: variantOf(body.foodVariantId).parts },
+                    foodResolutionStatus: 'RESOLVED',
+                    isUserEntered: false,
+                    createdAt: '2026-10-02T09:00:00.000Z',
+                },
+            });
+        });
+        await openIngredientsSection(page);
+        const ingredients = page.getByRole('region', { name: 'Ingredients' });
+
+        await ingredients.getByRole('button', { name: `Actions for ${ROOT_NAME}` }).click();
+        await page.getByRole('menuitem', { name: 'Add details' }).click();
+        const adding = page.getByRole('dialog', { name: /Add details/ });
+
+        await adding.getByRole('option', { name: /^fried, 187 cal/ }).click();
+
+        await expect(adding).toBeHidden();
+        await expect(ingredients.getByRole('listitem').nth(1)).toContainText('fried');
+        expect(rebinds).toEqual([]);
+        expect(store.get(RECIPE_ID)?.currentVersion).toBe(1);
+
+        await page.getByRole('button', { name: 'Save changes' }).click();
+
+        await expect
+            .poll(() => rebinds.map((each) => [each.path, each.body]))
+            .toEqual([
+                [
+                    `/api/v1/recipes/${RECIPE_ID}/ingredients/1/rebind`,
+                    { expectedVersion: 1, target: { kind: 'catalogVariant', foodVariantId: FRIED } },
+                ],
+            ]);
+        await expect(page).toHaveURL(new RegExp(`/recipes/${RECIPE_ID}$`, 'u'));
     });
 });
 

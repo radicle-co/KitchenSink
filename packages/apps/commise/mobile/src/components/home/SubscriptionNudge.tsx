@@ -19,10 +19,10 @@
  * @pattern Adapter over `@commise/ui/sheet` — the platform expression of the web leaf's Radix dialog.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
+import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -49,6 +49,7 @@ export interface SubscriptionNudgeProps {
  */
 export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): JSX.Element {
     const { home } = useMessages(mobileMessages);
+    const { colors } = useTheme();
 
     return (
         <Sheet
@@ -77,13 +78,13 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                 </View>
             }
         >
-            <Text style={styles.body}>{home.nudge.body}</Text>
+            <Text style={[styles.body, { color: colors.inkMuted }]}>{home.nudge.body}</Text>
         </Sheet>
     );
 }
 
 const styles = StyleSheet.create({
-    body: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+    body: { fontSize: nativeTokens.fontSize.bodySm },
     // `flexWrap`: at a large font scale the two actions take a line each, full width, before a label wraps.
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[3] },
     action: { flexGrow: 1 },

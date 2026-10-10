@@ -10,10 +10,11 @@
  *     same recipe version
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette, tint } from '@commise/ui';
+import { tint } from '@commise/ui';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
+import { useTheme, type Theme } from '@commise/ui/theme';
 import { useState, type FC, type JSX } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -33,21 +34,22 @@ const ClonePrivateFoodsBanner: FC<{ readonly text: string }> = ({ text }): JSX.E
     const { detail } = useMessages(recipeMessages);
     // One-time: dismissal is local and final for this view.
     const [dismissed, setDismissed] = useState(false);
+    const paint = paintOf(useTheme());
 
     if (dismissed) {
         return null;
     }
 
     return (
-        <View style={styles.banner}>
-            <Text style={styles.bannerText}>{text}</Text>
+        <View style={[styles.banner, paint.banner]}>
+            <Text style={[styles.bannerText, paint.ink]}>{text}</Text>
             <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={detail.clonePrivateFoodsDismiss}
                 onPress={() => setDismissed(true)}
-                style={styles.candidate}
+                style={[styles.candidate, paint.chip]}
             >
-                <Text style={styles.candidateLabel}>{detail.clonePrivateFoodsDismiss}</Text>
+                <Text style={[styles.candidateLabel, paint.chipLabel]}>{detail.clonePrivateFoodsDismiss}</Text>
             </Pressable>
         </View>
     );
@@ -60,18 +62,19 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
 }): JSX.Element => {
     const { detail } = useMessages(recipeMessages);
     const row = useAmbiguityReviewRow(review, picker);
+    const paint = paintOf(useTheme());
 
     return (
         // Named by the line's summary, its header (`AmbiguityReviewRowModel.summary`; `nativeContainerNames.md` N1).
-        <View style={styles.row}>
-            <Text accessibilityRole="header" style={styles.rowPhrase}>
+        <View style={[styles.row, paint.card]}>
+            <Text accessibilityRole="header" style={[styles.rowPhrase, paint.ink]}>
                 {row.summary}
             </Text>
 
             {row.groups.map((group) => (
                 <View key={group.key}>
                     {group.label !== undefined && (
-                        <Text accessibilityRole="header" style={styles.muted}>
+                        <Text accessibilityRole="header" style={[styles.muted, paint.muted]}>
                             {group.label}
                         </Text>
                     )}
@@ -83,9 +86,9 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
                                 accessibilityLabel={candidate.accessibleName ?? candidate.name}
                                 disabled={picker.picking}
                                 onPress={() => row.onPick(candidate.pick)}
-                                style={[styles.candidate, picker.picking && styles.disabled]}
+                                style={[styles.candidate, paint.chip, picker.picking && styles.disabled]}
                             >
-                                <Text style={styles.candidateLabel}>{candidate.name}</Text>
+                                <Text style={[styles.candidateLabel, paint.chipLabel]}>{candidate.name}</Text>
                             </Pressable>
                         ))}
                     </View>
@@ -93,17 +96,17 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
             ))}
 
             {/* Shown, not live: the busy chips say it to the screen reader (V3-9). */}
-            {row.adding !== undefined && <Text style={styles.muted}>{row.adding}</Text>}
+            {row.adding !== undefined && <Text style={[styles.muted, paint.muted]}>{row.adding}</Text>}
 
             {/* Mounted while empty, so each change of the sentence is spoken (`LiveRegion`, WCAG 4.1.3); after the
                 chips, so a sentence that empties at the end moves none of them (P12). */}
-            <LiveRegion politeness="polite" style={styles.muted}>
+            <LiveRegion politeness="polite" style={[styles.muted, paint.muted]}>
                 {row.status}
             </LiveRegion>
-            {row.refreshed && <Text style={styles.muted}>{detail.ambiguousReviewRefreshed}</Text>}
+            {row.refreshed && <Text style={[styles.muted, paint.muted]}>{detail.ambiguousReviewRefreshed}</Text>}
 
             {/* ⛔ Row-scoped: a refused pick disturbs THIS row alone. Said again at each press the limit refuses (R8). */}
-            <LiveRegion politeness="assertive" occurrence={picker.limitRefusals} style={styles.error}>
+            <LiveRegion politeness="assertive" occurrence={picker.limitRefusals} style={[styles.error, paint.danger]}>
                 {row.alert}
             </LiveRegion>
 
@@ -113,9 +116,9 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
                         accessibilityRole="button"
                         accessibilityLabel={row.retryLabel}
                         onPress={row.onRetry}
-                        style={styles.candidate}
+                        style={[styles.candidate, paint.chip]}
                     >
-                        <Text style={styles.candidateLabel}>{detail.ambiguousReviewRetry}</Text>
+                        <Text style={[styles.candidateLabel, paint.chipLabel]}>{detail.ambiguousReviewRetry}</Text>
                     </Pressable>
                 </View>
             )}
@@ -127,6 +130,7 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
 const OwnerAmbiguityReview: FC<Pick<AmbiguityReviewProps, 'recipe'>> = ({ recipe }): JSX.Element | null => {
     const { detail } = useMessages(recipeMessages);
     const picker = useAmbiguityPick(recipe);
+    const paint = paintOf(useTheme());
     const [open, setOpen] = useState(false);
     const lines = ambiguityReviewLines(recipe.ingredients);
     // Every taken pick sends the reading cursor to the saved sentence: React Native cannot tell whether the cursor was
@@ -153,11 +157,13 @@ const OwnerAmbiguityReview: FC<Pick<AmbiguityReviewProps, 'recipe'>> = ({ recipe
                         accessibilityState={{ expanded: open }}
                         aria-expanded={open}
                         onPress={() => setOpen((value) => !value)}
-                        style={styles.entry}
+                        style={[styles.entry, paint.card]}
                     >
-                        <Text style={styles.entryText}>{notice}</Text>
-                        <View style={styles.entryBadge}>
-                            <Text style={styles.entryBadgeLabel}>{detail.ambiguousReviewToggle}</Text>
+                        <Text style={[styles.entryText, paint.ink]}>{notice}</Text>
+                        <View style={[styles.entryBadge, paint.chip]}>
+                            <Text style={[styles.entryBadgeLabel, paint.chipLabel]}>
+                                {detail.ambiguousReviewToggle}
+                            </Text>
                         </View>
                     </Pressable>
 
@@ -171,7 +177,7 @@ const OwnerAmbiguityReview: FC<Pick<AmbiguityReviewProps, 'recipe'>> = ({ recipe
             {/* The reading cursor is sent here each time a pick is taken, which reads it; a live region as well would
                 say it twice. */}
             {picker.takenAt !== undefined && (
-                <Text ref={savedRef} style={styles.saved}>
+                <Text ref={savedRef} style={[styles.saved, paint.chipLabel]}>
                     {detail.ambiguousReviewSaved}
                 </Text>
             )}
@@ -196,60 +202,57 @@ export function AmbiguityReview({ recipe, viewerIsOwner }: AmbiguityReviewProps)
     );
 }
 
-const border = 'rgba(178, 190, 195, 0.3)';
+/**
+ * The review's paint in a theme (D15), the web leaf's roles: a card is `paper` inside a `lineDivider` edge
+ * (`darkTheme.md` §4), a chip is `actionText` on the `action` 10% tint (the web leaf's `bg-action/10`), the clone banner
+ * the caution fill under `ink`. Pure.
+ *
+ * @param theme - The current theme.
+ * @returns The colour half of each style.
+ */
+function paintOf({ colors }: Theme) {
+    return {
+        banner: { backgroundColor: colors.attentionTint },
+        card: { backgroundColor: colors.paper, borderColor: colors.lineDivider },
+        chip: { backgroundColor: tint(colors.action, 0.1) },
+        chipLabel: { color: colors.actionText },
+        ink: { color: colors.ink },
+        muted: { color: colors.inkMuted },
+        danger: { color: colors.dangerText },
+    };
+}
 
 /** The native target floor the spec sets (2.5.8: 48 × 48 dp), as `@commise/ui`'s own controls take it. */
 const TARGET_DP = 48;
 
 const styles = StyleSheet.create({
     section: { gap: 10 },
-    banner: {
-        backgroundColor: 'rgba(245, 176, 65, 0.15)',
-        borderRadius: 12,
-        flexDirection: 'row',
-        gap: 10,
-        padding: 12,
-    },
-    bannerText: { color: palette.charcoal, flex: 1, fontSize: 13 },
+    banner: { borderRadius: 12, flexDirection: 'row', gap: 10, padding: 12 },
+    bannerText: { flex: 1, fontSize: 13 },
     entry: {
         alignItems: 'center',
-        backgroundColor: palette.white,
-        borderColor: border,
         borderRadius: 12,
         borderWidth: 1,
         flexDirection: 'row',
         gap: 8,
         padding: 12,
     },
-    entryText: { color: palette.charcoal, flex: 1, fontSize: 13, fontWeight: '500' },
-    entryBadge: {
-        backgroundColor: tint(palette.seafoam, 0.1),
-        borderRadius: 999,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-    },
-    entryBadgeLabel: { color: palette['ocean-dark'], fontSize: 12, fontWeight: '600' },
-    row: {
-        backgroundColor: palette.white,
-        borderColor: border,
-        borderRadius: 10,
-        borderWidth: 1,
-        gap: 8,
-        padding: 10,
-    },
-    rowPhrase: { color: palette.charcoal, fontSize: 13, fontWeight: '600' },
+    entryText: { flex: 1, fontSize: 13, fontWeight: '500' },
+    entryBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+    entryBadgeLabel: { fontSize: 12, fontWeight: '600' },
+    row: { borderRadius: 10, borderWidth: 1, gap: 8, padding: 10 },
+    rowPhrase: { fontSize: 13, fontWeight: '600' },
     candidates: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     candidate: {
-        backgroundColor: tint(palette.seafoam, 0.1),
         borderRadius: nativeTokens.radius.full,
         justifyContent: 'center',
         minHeight: TARGET_DP,
         paddingHorizontal: nativeTokens.spacing[3],
     },
-    candidateLabel: { color: palette['ocean-dark'], fontSize: nativeTokens.fontSize.bodySm },
+    candidateLabel: { fontSize: nativeTokens.fontSize.bodySm },
     disabled: { opacity: 0.6 },
     failedRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-    muted: { color: palette.slate, fontSize: 12 },
-    saved: { color: palette['ocean-dark'], fontSize: 13 },
-    error: { color: palette['error-dark'], fontSize: 13 },
+    muted: { fontSize: 12 },
+    saved: { fontSize: 13 },
+    error: { fontSize: 13 },
 });

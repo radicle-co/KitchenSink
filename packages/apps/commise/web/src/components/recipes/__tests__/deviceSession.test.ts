@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { EMPTY_OUTBOX, appendIntent, loadOutbox, saveOutbox } from '@kitchensink/sync';
+import { EMPTY_OUTBOX, appendIntent, loadOutbox, saveOutbox, storeKeyFor } from '@kitchensink/sync';
 
 import { endDeviceSession, webOutboxStore } from '@/components/recipes/deviceSession';
 import { editorDraftsFor } from '@/components/recipes/editorDrafts';
@@ -65,5 +65,29 @@ describe('endDeviceSession', () => {
 
         expect(await editorDraftsFor('user_a')?.load('local:recipe:a')).toBeDefined();
         expect(window.sessionStorage.getItem('cook.v1..0a6c2f4e-8b1d-4c3a-9e2f-1d2c3b4a5f60')).toBeNull();
+    });
+});
+
+/**
+ * The web outbox journal lives as long as the draft it carries (finding 2 of the 2026-10-09 review; ADR-0057 §1). In
+ * memory, a create on the wire died with a reload while its draft survived it, and the reopened editor sent the create
+ * again: a second recipe. In the tab's session storage, a reload finds the record and the outbox's first read parks it
+ * as an unknown outcome, so the cook decides; closing the tab ends both together.
+ */
+describe('the web outbox journal', () => {
+    it('is kept in the tab`s session storage, beside the draft', async () => {
+        const queued = appendIntent(EMPTY_OUTBOX, {
+            entity: 'recipe',
+            intentKind: 'create',
+            localId: 'local:recipe:a',
+            produces: 'local:recipe:a',
+            dependsOn: [],
+            payload: { input: { title: 'Soup' } },
+        });
+
+        await saveOutbox(webOutboxStore, 'user_a', queued);
+
+        expect(Object.keys(window.sessionStorage)).toContain(storeKeyFor('user_a'));
+        expect((await loadOutbox(webOutboxStore, 'user_a')).records).toHaveLength(1);
     });
 });

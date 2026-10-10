@@ -32,7 +32,9 @@ const paste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients =
 const render = (over: Partial<PasteIntoIngredients>, lines: number, initiallyOpen = false) => {
     double.current = paste(over);
 
-    return renderHook(() => useIngredientsPaste({ stored: false, dispatch: vi.fn(), lineCount: lines, initiallyOpen }));
+    return renderHook(() =>
+        useIngredientsPaste({ offered: true, keepsSource: true, dispatch: vi.fn(), lineCount: lines, initiallyOpen }),
+    );
 };
 
 describe('useIngredientsPaste', () => {
@@ -50,7 +52,7 @@ describe('useIngredientsPaste', () => {
         expect(result.current.view.onOpen).toBeUndefined();
     });
 
-    it('⛔ once the recipe is stored (D10), nothing offers it', () => {
+    it('⛔ once paste is not offered (D10: after the first publish), nothing offers it', () => {
         const { result } = render({ available: false }, 2);
 
         expect(result.current.inHeading).toBe(false);
@@ -72,14 +74,15 @@ describe('useIngredientsPaste', () => {
     it('Publish waits while pasted lines are still joining the recipe', () => {
         expect(render({}, 0).result.current.pending).toBe(false);
         expect(
-            render({ reading: [{ key: 'j:0', sourceLine: '2 cups flour', failed: false }] }, 0).result.current.pending,
+            render({ reading: [{ key: 'j:0', sourceLine: '2 cups flour', state: 'reading' }] }, 0).result.current
+                .pending,
         ).toBe(true);
         expect(render({ submitting: true }, 0).result.current.pending).toBe(true);
     });
 
     it('hands the field group the rows still reading, Try again, and the count said once a paste ends', () => {
         const retry = vi.fn();
-        const reading = [{ key: 'j:0', sourceLine: '2 cups flour', failed: true }];
+        const reading = [{ key: 'j:0', sourceLine: '2 cups flour', state: 'failed' as const }];
         const { result } = render({ reading, retry, added: { count: 3, occurrence: 2 } }, 1);
 
         expect(result.current.view).toMatchObject({ reading, onRetry: retry, added: { count: 3, occurrence: 2 } });

@@ -12,7 +12,9 @@
  *   recipe-core's `classifyUnit` knows it, and stored as `normalizeUnit` spells it. "Known" has ONE authority:
  *   `parse-ingredient`'s second vocabulary is refused here (A1 rejection 2; `recipe-import-core`'s `ingredientLine.ts`
  *   records the `T.`/`t.` disagreement two vocabularies produced).
- * - **The preparation** is what follows the first comma that is not inside a number (`1,000 g`).
+ * - **A comma inside an amount** is a decimal point when one or two digits follow it (`1,5 kg`), and groups thousands
+ *   only in the `1,000` / `12,345` / `1,000,000` shape. Any other comma inside digits is ambiguous, and no amount is read.
+ * - **The preparation** is what follows the first comma that is not inside a number (`1,000 g`, `1,5 kg`).
  * - **The search** is the rest; with no leading amount it is the whole text before the comma.
  *
  * The amount goes through recipe-core's `statedQuantity`, so this cannot produce a quantity the wire refuses.
@@ -83,9 +85,37 @@ function preparationCommaOf(text: string): number {
     return -1;
 }
 
+/** A run of digits that holds a comma (`1,5`, `1,000`), and the one shape each comma reading allows. */
+const COMMA_RUN = /[\p{Nd}.]*,[\p{Nd},.]*/gu;
+const THOUSANDS = /^\p{Nd}{1,3}(?:,\p{Nd}{3})+$/u;
+const DECIMAL_COMMA = /^\p{Nd}+,\p{Nd}{1,2}$/u;
+
+/**
+ * Which character the amount in `text` uses as its decimal point, or `undefined` when a comma in it is ambiguous.
+ *
+ * A comma followed by one or two digits is a decimal point (`1,5`, `12,50`); only `\d{1,3}(,\d{3})+` groups thousands
+ * (`1,000`, `12,345`). Any other comma inside digits (`1,5000`), or decimal and grouping commas in one text, is
+ * ambiguous: no amount is read rather than a wrong one. Pure.
+ */
+function decimalSeparatorOf(text: string): ',' | '.' | undefined {
+    const runs = text.match(COMMA_RUN) ?? [];
+
+    if (runs.every((run) => THOUSANDS.test(run))) {
+        return '.';
+    }
+
+    return runs.every((run) => DECIMAL_COMMA.test(run)) ? ',' : undefined;
+}
+
 /** A positive, finite amount `numeric-quantity` reads from the whole of `text`, or `undefined`. Pure. */
 function amountOf(text: string): number | undefined {
-    const value = numericQuantity(text);
+    const decimalSeparator = decimalSeparatorOf(text);
+
+    if (decimalSeparator === undefined) {
+        return undefined;
+    }
+
+    const value = numericQuantity(text, { decimalSeparator });
 
     return Number.isFinite(value) && value > 0 ? value : undefined;
 }

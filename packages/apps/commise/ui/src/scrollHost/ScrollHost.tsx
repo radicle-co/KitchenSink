@@ -12,8 +12,10 @@
  * - Jumps call `scrollIntoView` and `history.replaceState`, instant under `prefers-reduced-motion`.
  * - A jump HOLDS `current` on the section it named until the cook scrolls again, even when the page is too short for
  *   that section to reach the activation line. The jump's own scroll never releases it; the cook's own input does (a
- *   wheel, a touch, a scroll key outside a field), and so does any scroll once the jump's scroll has ended
- *   (`scrollend`, or {@link JUMP_SETTLE_MS} for a jump that did not move), which is how a scrollbar drag reads.
+ *   wheel, a touch, a scroll key outside a field, `scrollToTop`), and so does any scroll once the jump's scroll has
+ *   ended (`scrollend`, or {@link JUMP_SETTLE_MS} for a jump that did not move), which is how a scrollbar drag reads.
+ * - A change of the scroll spy's section is raised from the same scroll listener (`onCurrentChange`), so a consumer
+ *   that acts on it subscribes rather than watching `current` through an effect.
  *
  * ORCHESTRATION of the screen's scroll: it holds the state its chrome reads and moves the scroller.
  *
@@ -23,6 +25,8 @@
 import { useEffect, useMemo, useState, type FC } from 'react';
 
 import type { ScrollBind, ScrollHostApi, ScrollHostProps, ScrollTarget } from './props.js';
+import { createCurrentChangeSubject } from './currentChange.js';
+import { currentSectionOf } from './currentSection.js';
 import { ScrollHostContext } from './scrollHostContext.js';
 import { INITIAL_SCROLL_STATE, nextScrollState } from './scrollState.js';
 
@@ -51,6 +55,7 @@ const INERT_BIND: ScrollBind = {
     ref: () => undefined,
     onScroll: () => undefined,
     onScrollBeginDrag: () => undefined,
+    onMomentumScrollEnd: () => undefined,
     scrollEventThrottle: 16,
 };
 
@@ -66,6 +71,7 @@ function jumpBehavior(): ScrollBehavior {
 /** The web design-system scroll host. */
 export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activationOffset = 0, children }) => {
     const [state, setState] = useState(INITIAL_SCROLL_STATE);
+    const [changes] = useState(createCurrentChangeSubject);
     const [headingGone, setHeadingGone] = useState(false);
     // The section a jump named, held as current until the cook scrolls again.
     const [held, setHeld] = useState<string | undefined>(undefined);
@@ -94,6 +100,9 @@ export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activatio
     useEffect(() => {
         const ids = sectionKey === '' ? [] : sectionKey.split('\n');
         let previousY = window.scrollY;
+        // The spy's section at the last sample. A fresh subscription starts with none, so its first change reports
+        // `previous: undefined`, the "first report" a consumer already discounts.
+        let previousSection: string | undefined;
         let frame: number | undefined;
 
         const sample = (): void => {
@@ -119,6 +128,13 @@ export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activatio
             };
             previousY = y;
             setState((previous) => nextScrollState(previous, sampleOf, tops, activationOffset));
+
+            const section = currentSectionOf(tops, y, activationOffset, atEnd);
+
+            if (section !== previousSection) {
+                changes.notify(section, previousSection);
+                previousSection = section;
+            }
         };
 
         const onScroll = (): void => {
@@ -136,7 +152,7 @@ export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activatio
                 window.cancelAnimationFrame(frame);
             }
         };
-    }, [activationOffset, sectionKey]);
+    }, [activationOffset, changes, sectionKey]);
 
     // @sideEffect While a jump holds, listens for the cook's own scroll, which releases it.
     useEffect(() => {
@@ -186,7 +202,11 @@ export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activatio
             ...state,
             current: held ?? state.current,
             condensed: headingGone,
-            scrollToTop: () => window.scrollTo({ top: 0, behavior: jumpBehavior() }),
+            onCurrentChange: changes.subscribe,
+            scrollToTop: () => {
+                setHeld(undefined);
+                window.scrollTo({ top: 0, behavior: jumpBehavior() });
+            },
             scrollToSection: (id) => {
                 const target = document.getElementById(id);
 
@@ -205,7 +225,7 @@ export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activatio
             sectionLayout: () => () => undefined,
             handle: NO_HANDLE,
         }),
-        [headingGone, held, state],
+        [changes, headingGone, held, state],
     );
 
     return (

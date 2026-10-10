@@ -3164,7 +3164,8 @@
             "dir": "packages/apps/commise/mobile/src/screens",
             "kind": "unclassified",
             "patterns": [
-                "Mediator — the screen wires the editor's ports (outbox, drafts, row editor, photos) and its hand-offs"
+                "Adapter — the route's hand-offs behind the session's `EditorNavigation` port",
+                "Mediator — the screen wires the session's ports (outbox, drafts, navigation) and the native leaves"
             ],
             "platforms": [
                 "web"
@@ -3178,11 +3179,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "The native one-page recipe editor screen (UI overhaul slice 7; owner decisions D1, D10): one screen for a new recipe\nand an existing one. It reads what the editor is seeded from — the recipe (a suspense read under `QueryBoundary`)\nand the device draft from AsyncStorage — then mounts one editor session keyed on the recipe.\n\nThe session binds the platform to the editor's lifecycle (`useRecipeEditor`): the outbox (`useSyncQueue`) as its\nwrite port, the draft store, the row editor and its pollers, the nutrition read, the photos, visibility, and the\nhand-offs the navigator wires. What the screen draws is `RecipeEditorView`'s (its native leaf).\n\n⚠️ A new recipe's draft is found again only within the session that made it, or once the server created it (then by\nits id, from My recipes). A cook who types only ingredients and leaves keeps them on the device but has nothing to\nreopen them from (blueprint A4, accepted).\n\n⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload takes\na recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
+                    "moduleDoc": "The native one-page recipe editor screen (UI overhaul slice 7; owner decisions D1, D10): one screen for a new recipe\nand an existing one. It reads what the editor is seeded from — the recipe and the device draft from AsyncStorage,\nboth suspense reads under `QueryBoundary` — then mounts one editor session keyed on the recipe.\n\nThe session (`useRecipeEditorSession`, shared with the web container) binds the editor's lifecycle to its ports; this\nscreen adds what only the app has: the navigator behind the session's navigation port (the hand-offs the route wires,\nand a leave by system Back or the swipe), and the native leaves (the status poller, the photo uploader). What the\nscreen draws is `RecipeEditorView`'s (its native leaf).\n\n⚠️ A new recipe's draft is found again only within the session that made it, or once the server created it (then by\nits id, from My recipes). A cook who types only ingredients and leaves keeps them on the device but has nothing to\nreopen them from (blueprint A4, accepted).\n\n⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload takes\na recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
                     "moduleTags": [
                         {
                             "name": "pattern",
-                            "text": "Mediator — the screen wires the editor's ports (outbox, drafts, row editor, photos) and its hand-offs"
+                            "text": "Mediator — the screen wires the session's ports (outbox, drafts, navigation) and the native leaves"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — the route's hand-offs behind the session's `EditorNavigation` port"
                         }
                     ],
                     "description": "The recipe editor screen.",

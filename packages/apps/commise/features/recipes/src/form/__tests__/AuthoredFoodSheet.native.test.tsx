@@ -11,6 +11,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled } from '@commise/test-utils';
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import type { AuthoredFoodCreateState } from '../../hooks/authoredFoodCreate.model.js';
 import { recipeMessages } from '../../messages.js';
@@ -18,15 +20,21 @@ import { AuthoredFoodSheet } from '../AuthoredFoodSheet.native.js';
 import { recipeFormMessages } from '../messages.js';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the duplicate case reads the calls.
+// The device's scheme is the shared test double, so the paint can be read in both schemes.
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+    return withSystemScheme({
+        ...actual,
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+    });
 });
 
 afterEach(() => {
     cleanup();
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
+    systemScheme.current = null;
 });
 
 const copy = recipeMessages.en.ingredientCreateFood;
@@ -155,5 +163,49 @@ describe('AuthoredFoodSheet (native)', () => {
         rerender(<AuthoredFoodSheet state={{ kind: 'closed' }} {...on} />);
 
         expect(on.onDismissed).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * D15: the sheet paints from colour roles at render. A field is the design system's field paint (`fieldPaint`: `ink`
+ * on `paper` inside a `lineControl` edge, a `danger` edge when invalid), a field the form has locked while it submits
+ * sits on `surfaceMuted`, a label and the hints are `inkMuted`, and an error is `dangerText`.
+ */
+describe.each(['light', 'dark'] as const)('AuthoredFoodSheet (native) — the %s scheme', (scheme) => {
+    const colours = scheme === 'dark' ? roleDark : role;
+    const style = (element: Element): CSSStyleDeclaration => getComputedStyle(element);
+
+    it('paints a field ink on paper inside a lineControl edge, its hints in inkMuted', () => {
+        systemScheme.current = scheme;
+        renderSheet(OPEN);
+        const name = field(copy.nameLabel);
+
+        expect(style(name).backgroundColor).toBe(rgb(colours.paper));
+        expect(style(name).color).toBe(rgb(colours.ink));
+        expect(style(name).borderTopColor).toBe(rgb(colours.lineControl));
+        expect(style(screen.getByText(copy.privateHint)).color).toBe(rgb(colours.inkMuted));
+        expect(style(screen.getByText(copy.per100gHint)).color).toBe(rgb(colours.inkMuted));
+    });
+
+    it('edges an invalid field in danger and says why in dangerText', () => {
+        systemScheme.current = scheme;
+        renderSheet({ ...OPEN, fieldErrors: { name: 'required' } });
+
+        expect(style(field(copy.nameLabel)).borderTopColor).toBe(rgb(colours.danger));
+        expect(style(screen.getByText(copy.errorRequired)).color).toBe(rgb(colours.dangerText));
+    });
+
+    it('sits a locked field on surfaceMuted while the food is being saved', () => {
+        systemScheme.current = scheme;
+        renderSheet({ kind: 'submitting', draft: DRAFT });
+
+        expect(style(field(copy.nameLabel)).backgroundColor).toBe(rgb(colours.surfaceMuted));
+    });
+
+    it('says the duplicate in ink', () => {
+        systemScheme.current = scheme;
+        renderSheet({ kind: 'duplicate', draft: DRAFT, existingFoodId: 'f', reusePending: false, reuseFailed: false });
+
+        expect(style(screen.getByText('You already have a food named “saffron”.')).color).toBe(rgb(colours.ink));
     });
 });

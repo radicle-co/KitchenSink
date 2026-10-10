@@ -24,7 +24,7 @@ export const PastedReadingRow: FC<PastedReadingRowProps> = ({ row, onRetry }) =>
             <Text style={[styles.name, { color: colors.ink }]} numberOfLines={2}>
                 {row.sourceLine}
             </Text>
-            {row.failed ? (
+            {row.state === 'failed' ? (
                 <View style={styles.failed}>
                     <Icon name="triangleAlert" size={16} tone="attention" />
                     <Text style={[styles.state, { color: colors.attention }]}>{m.rowStateLookupFailed}</Text>
@@ -40,7 +40,9 @@ export const PastedReadingRow: FC<PastedReadingRowProps> = ({ row, onRetry }) =>
                     )}
                 </View>
             ) : (
-                <Text style={[styles.state, { color: colors.inkMuted }]}>{m.rowStateReading}</Text>
+                <Text style={[styles.state, { color: colors.inkMuted }]}>
+                    {row.state === 'waiting' ? m.rowStateWaitingForConnection : m.rowStateReading}
+                </Text>
             )}
         </View>
     );

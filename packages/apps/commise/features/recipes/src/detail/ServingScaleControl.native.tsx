@@ -17,7 +17,7 @@
  * native control does not strand the screen-reader cursor.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { useTheme } from '@commise/ui/theme';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { clampServings, servingsRange } from '@kitchensink/recipe-core/scaling';
@@ -30,6 +30,9 @@ import { servingsAnnouncement, type ServingScaleControlProps } from './model.js'
 export const ServingScaleControl: FC<ServingScaleControlProps> = ({ servings, baseServings, onServingsChange }) => {
     const { detail } = useMessages(recipeMessages);
     const locale = useLocale();
+    const { colors } = useTheme();
+    const step = [styles.step, { borderColor: colors.lineControl }];
+    const stepLabel = [styles.stepLabel, { color: colors.ink }];
     const { min, max } = servingsRange(baseServings);
     // Whether the cook has stepped yet: the spoken count stays empty until then, because the iOS announcement fires
     // on mount for non-empty text and every recipe would otherwise open by reading out its serving count.
@@ -52,14 +55,14 @@ export const ServingScaleControl: FC<ServingScaleControlProps> = ({ servings, ba
                 disabled={servings <= min}
                 onPress={() => change(servings - 1)}
                 style={({ pressed }) => [
-                    styles.step,
+                    step,
                     servings <= min && styles.stepDisabled,
-                    pressed && styles.pressed,
+                    pressed && { backgroundColor: colors.surfaceMuted },
                 ]}
             >
-                <Text style={styles.stepLabel}>−</Text>
+                <Text style={stepLabel}>−</Text>
             </Pressable>
-            <Text style={styles.value}>{String(servings)}</Text>
+            <Text style={[styles.value, { color: colors.ink }]}>{String(servings)}</Text>
             <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={detail.servingsIncrease}
@@ -67,12 +70,12 @@ export const ServingScaleControl: FC<ServingScaleControlProps> = ({ servings, ba
                 disabled={servings >= max}
                 onPress={() => change(servings + 1)}
                 style={({ pressed }) => [
-                    styles.step,
+                    step,
                     servings >= max && styles.stepDisabled,
-                    pressed && styles.pressed,
+                    pressed && { backgroundColor: colors.surfaceMuted },
                 ]}
             >
-                <Text style={styles.stepLabel}>+</Text>
+                <Text style={stepLabel}>+</Text>
             </Pressable>
             {/* What a step SAYS — ALWAYS MOUNTED, because Android speaks a change to a region it already holds. */}
             <LiveRegion politeness="polite" visuallyHidden>
@@ -107,20 +110,16 @@ const styles = StyleSheet.create({
         minHeight: STEP_TARGET_DP,
         borderRadius: nativeTokens.radius.full,
         borderWidth: 1,
-        // Contrast: a control boundary owes 3:1 under SC 1.4.11 — slate clears it, the mist hairline did not.
-        borderColor: palette.slate,
         alignItems: 'center',
         justifyContent: 'center',
     },
     // Unavailable reads as unavailable, rather than as a live control that silently does nothing.
     stepDisabled: { opacity: 0.4 },
-    pressed: { backgroundColor: palette.pearl },
-    stepLabel: { fontSize: nativeTokens.fontSize.bodyLg, fontWeight: '600', color: palette.charcoal },
+    stepLabel: { fontSize: nativeTokens.fontSize.bodyLg, fontWeight: '600' },
     value: {
         minWidth: VALUE_WIDTH_DP,
         textAlign: 'center',
         fontSize: nativeTokens.fontSize.bodyLg,
         fontWeight: '700',
-        color: palette.charcoal,
     },
 });

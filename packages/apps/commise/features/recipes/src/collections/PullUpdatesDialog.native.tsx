@@ -26,9 +26,9 @@
  *     padding — the same controlled `props → JSX` contract as the web leaf.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -48,6 +48,8 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     onConfirm,
 }) => {
     const { pull } = useMessages(collectionMessages);
+    const { colors } = useTheme();
+    const muted = { color: colors.inkMuted };
 
     if (!open) {
         return null;
@@ -69,35 +71,41 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
         <FullScreenSheet label={pull.title} onRequestClose={onCancel}>
             <>
                 <View style={styles.header}>
-                    <Text accessibilityRole="header" style={styles.title}>
+                    <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
                         {pull.title}
                     </Text>
-                    {attribution !== undefined && <Text style={styles.attribution}>{attribution}</Text>}
+                    {attribution !== undefined && <Text style={[styles.attribution, muted]}>{attribution}</Text>}
                 </View>
 
                 {showLoading && (
-                    <Text accessibilityRole="progressbar" accessibilityLabel={pull.loadingLabel} style={styles.body}>
+                    <Text
+                        accessibilityRole="progressbar"
+                        accessibilityLabel={pull.loadingLabel}
+                        style={[styles.body, muted]}
+                    >
                         {pull.loadingLabel}
                     </Text>
                 )}
 
                 {!showLoading && error !== undefined && (
-                    <Text accessibilityRole="alert" style={styles.error}>
+                    <Text accessibilityRole="alert" style={[styles.error, { color: colors.dangerText }]}>
                         {error === 'drift' ? pull.driftMessage : pull.genericErrorMessage}
                     </Text>
                 )}
 
                 {showDiff && diff !== undefined && (
                     <View style={styles.counts}>
-                        <Text style={styles.body}>{fillTemplate(pull.addedCount, { count: diff.added.length })}</Text>
-                        <Text style={styles.body}>
+                        <Text style={[styles.body, muted]}>
+                            {fillTemplate(pull.addedCount, { count: diff.added.length })}
+                        </Text>
+                        <Text style={[styles.body, muted]}>
                             {fillTemplate(pull.removedCount, { count: diff.removed.length })}
                         </Text>
-                        <Text style={styles.body}>
+                        <Text style={[styles.body, muted]}>
                             {fillTemplate(pull.unchangedCount, { count: diff.unchanged.length })}
                         </Text>
-                        <Text style={styles.note}>{pull.ownMembersNote}</Text>
-                        {diff.added.length === 0 && <Text style={styles.body}>{pull.upToDate}</Text>}
+                        <Text style={[styles.note, muted]}>{pull.ownMembersNote}</Text>
+                        {diff.added.length === 0 && <Text style={[styles.body, muted]}>{pull.upToDate}</Text>}
                     </View>
                 )}
 
@@ -118,11 +126,11 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
 
 const styles = StyleSheet.create({
     header: { gap: 4 },
-    title: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
-    attribution: { fontSize: 14, color: palette.slate },
-    body: { fontSize: 15, lineHeight: 22, color: palette.slate },
+    title: { fontSize: 20, fontWeight: '600' },
+    attribution: { fontSize: 14 },
+    body: { fontSize: 15, lineHeight: 22 },
     counts: { gap: 8 },
-    note: { fontSize: 13, fontStyle: 'italic', color: palette.slate },
-    error: { fontSize: 15, color: palette['error-dark'] },
+    note: { fontSize: 13, fontStyle: 'italic' },
+    error: { fontSize: 15 },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
 });

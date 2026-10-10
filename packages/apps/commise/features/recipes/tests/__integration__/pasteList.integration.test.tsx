@@ -58,8 +58,8 @@ const COMPLETE_JOB = {
     ],
 };
 
-/** The wire double: records each request, answers the parse job and the by-name lookup. */
-function wire() {
+/** The wire double: records each request, answers the parse job and the by-name lookup; `beforeJob` holds the job. */
+function wire(beforeJob: () => Promise<void> = async () => undefined) {
     const requests: { readonly route: string; readonly body: unknown }[] = [];
 
     const fetchDouble = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -78,6 +78,8 @@ function wire() {
 
         switch (route) {
             case 'POST /api/v1/recipe-parse-jobs':
+                await beforeJob();
+
                 return json(
                     {
                         ...COMPLETE_JOB,
@@ -115,7 +117,8 @@ function wire() {
 const Editor: FC<{ readonly onValues: (values: RecipeFormValues) => void }> = ({ onValues }) => {
     const [values, setValues] = useState(() => ({ ...defaultRecipeFormValues(), title: 'Pasted Bread' }));
     const paste = useIngredientsPaste({
-        stored: false,
+        offered: true,
+        keepsSource: true,
         dispatch: (action) =>
             setValues((current) => {
                 const next = applyDraftAction(current, action);
@@ -131,7 +134,7 @@ const Editor: FC<{ readonly onValues: (values: RecipeFormValues) => void }> = ({
         <>
             <ul aria-label="Reading">
                 {paste.view.reading.map((row) => (
-                    <li key={row.key}>{row.sourceLine}</li>
+                    <li key={row.key}>{`${row.sourceLine}: ${row.state}`}</li>
                 ))}
             </ul>
             <PasteListSheet sheet={paste.sheet} submitting={paste.submitting} failed={paste.failed} />
@@ -209,5 +212,53 @@ describe('Paste a list — on the wire', () => {
             'value',
             '2 cups flour',
         );
+    });
+
+    /**
+     * Finding 11: a paste whose job was accepted just before the connection dropped. Its poll and its by-name lookup
+     * pause rather than fail, the rows say they are waiting, and on reconnect they finish by themselves.
+     */
+    it('a paste that loses its connection waits, says so, and finishes on reconnect', async () => {
+        const user = userEvent.setup();
+        let releaseJob: (() => void) | undefined;
+        const { client, requests } = wire(
+            () =>
+                new Promise((resolve) => {
+                    releaseJob = resolve;
+                }),
+        );
+        let latest: RecipeFormValues | undefined;
+        renderEditor(client, (values) => {
+            latest = values;
+        });
+
+        const sheet = screen.getByRole('dialog', { name: 'Paste a list' });
+        await user.type(within(sheet).getByRole('textbox', { name: 'Ingredient lines' }), '2 cups flour, sifted');
+        await user.click(within(sheet).getByRole('button', { name: 'Add 1 ingredient' }));
+        await waitFor(() => expect(releaseJob).toBeDefined());
+
+        act(() => onlineManager.setOnline(false));
+        await act(async () => {
+            releaseJob?.();
+        });
+
+        const reading = screen.getByRole('list', { name: 'Reading' });
+        await waitFor(() =>
+            expect(
+                within(reading)
+                    .getAllByRole('listitem')
+                    .map((item) => item.textContent),
+            ).toEqual(['2 cups flour, sifted: waiting']),
+        );
+        expect(requests.map((request) => request.route)).toEqual(['POST /api/v1/recipe-parse-jobs']);
+
+        act(() => onlineManager.setOnline(true));
+
+        await waitFor(() => expect(latest?.ingredients).toHaveLength(1));
+        expect(requests.map((request) => request.route)).toEqual([
+            'POST /api/v1/recipe-parse-jobs',
+            `GET /api/v1/recipe-parse-jobs/${JOB_ID}`,
+            'POST /api/v1/ingredients/by-name',
+        ]);
     });
 });

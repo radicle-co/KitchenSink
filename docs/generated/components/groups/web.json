@@ -3998,7 +3998,8 @@
             "dir": "packages/apps/commise/web/src/components/recipes",
             "kind": "orchestration",
             "patterns": [
-                "Mediator — the container wires the editor's ports (outbox, drafts, row editor, photos) and its hand-offs"
+                "Adapter — the Next router behind the session's `EditorNavigation` port",
+                "Mediator — the container wires the session's ports (outbox, drafts, navigation) and the web leaves"
             ],
             "platforms": [
                 "web"
@@ -4012,11 +4013,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeEditorContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Orchestration container for the web one-page recipe editor (UI overhaul slice 7; owner decisions D1, D7, D10): one\ncontainer for `/recipes/new` and `/recipes/{id}/edit`. It reads what the editor is seeded from — the recipe (edit, a\nsuspense read under `ClientQueryBoundary`) and the device draft from the tab's session storage — then mounts one\neditor session keyed on the recipe, so editing another recipe is a fresh editor.\n\nThe session binds the platform to the editor's lifecycle (`useRecipeEditor`): the outbox (`useSyncQueue`) as its\nwrite port, the draft store, the row editor and its pollers, the nutrition read, the photos, visibility, and the\nhand-offs (Publish → the recipe, Save changes → the recipe, Discard → My recipes). What the page draws is\n`RecipeEditorView`'s.\n\n⛔ The URL follows the recipe without a navigation: a new recipe's local ref is kept in `?draft=` so a reload in the\nsame tab reopens its draft (D7), and once the server has created it the URL becomes its edit address — both through\n`history.replaceState`, because a router navigation would remount the page and reseed the editor mid-typing.\n\n⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload\nendpoint takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
+                    "moduleDoc": "Orchestration container for the web one-page recipe editor (UI overhaul slice 7; owner decisions D1, D7, D10): one\ncontainer for `/recipes/new` and `/recipes/{id}/edit`. It reads what the editor is seeded from — the recipe (edit) and\nthe device draft from the tab's session storage, both suspense reads under `ClientQueryBoundary` — then mounts one\neditor session keyed on the recipe, so editing another recipe is a fresh editor.\n\nThe session (`useRecipeEditorSession`, shared with the native screen) binds the editor's lifecycle to its ports; this\ncontainer adds what only the web has: the router behind the session's navigation port (Publish and Save changes → the\nrecipe, Discard → My recipes), the URL that follows the recipe, and the web leaves (the status poller, the photo\nuploader). What the page draws is `RecipeEditorView`'s.\n\n⛔ The URL follows the recipe without a navigation: a new recipe's local ref is kept in `?draft=` so a reload in the\nsame tab reopens its draft (D7), and once the server has created it the URL becomes its edit address — both through\n`history.replaceState`, because a router navigation would remount the page and reseed the editor mid-typing.\n\n⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload\nendpoint takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
                     "moduleTags": [
                         {
                             "name": "pattern",
-                            "text": "Mediator — the container wires the editor's ports (outbox, drafts, row editor, photos) and its hand-offs"
+                            "text": "Mediator — the container wires the session's ports (outbox, drafts, navigation) and the web leaves"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — the Next router behind the session's `EditorNavigation` port"
                         }
                     ],
                     "description": "The web recipe editor: new or edit.",

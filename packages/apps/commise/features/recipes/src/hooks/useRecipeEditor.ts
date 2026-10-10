@@ -29,10 +29,16 @@
  * withdraws the parked record first: a parked record leaves the outbox only that way.
  *
  * **The rebind command** (ADR-0045; `docs/design/rowEditorBlueprint.md` decision 7) re-points a stored line and
- * teaches a correction. It is a direct, non-deferrable write (like paste, blueprint A5): it runs only while the lane is
- * empty, holds the lane while it runs, and adopts the version it returns. ⚠️ On a published recipe it still writes at
- * once rather than waiting for Save changes (blueprint A3's `pendingRebinds`), so such a recipe gains one version per
- * re-pick (the build spec's Q5); the device draft carries no pending rebinds yet.
+ * teaches a correction. It is a direct write, not an outbox intent: it runs only while the lane is empty, holds the lane
+ * while it runs, and adopts the version it returns. On a never-published draft it runs at once (it makes no version,
+ * ADR-0058). ⛔ On a PUBLISHED recipe it is HELD (blueprint A3's `pendingRebinds`, owner D1): the line shows its new food
+ * at once, the device draft keeps the rebind, and Save changes drains the held rebinds through the same queue BEFORE its
+ * one update, so Discard takes a re-pick back and nothing reaches the server before the cook says so. A held rebind
+ * whose line the cook removed is dropped; one that fails stops the save and keeps the rest for Retry.
+ *
+ * ⛔ **A deferred Publish or Save changes is visible and checked again.** One pressed while a write is on the wire waits
+ * for its answer: the bar reads finishing meanwhile, and the draft is validated again when the Publish runs, because
+ * the cook may have changed it. A write that parks ends the wait; the cook decides.
  *
  * Refs: none. Answers arrive through a subscription read by an Effect Event, and timers are effects keyed on the draft.
  *
@@ -69,6 +75,8 @@ import {
     DEVICE_SAVE_IDLE_MS,
     SERVER_CHECKPOINT_IDLE_MS,
     lifecycleOf,
+    pasteOffered,
+    pastedLineKeepsSource,
     serverWriteFor,
     type CheckpointTrigger,
     type RecipeLifecycle,
@@ -102,7 +110,9 @@ import {
     onceLineCommand,
     type LineCommandAddress,
     type LineCommandPort,
+    type PendingRebind,
     type QueuedLineCommand,
+    type RebindLineSend,
 } from './lineCommit.js';
 
 /** A recipe write's answer, as the outbox's sender reports it (the app's `SyncAnswer`, structurally). */
@@ -199,6 +209,10 @@ export interface UseRecipeEditorOptions {
     readonly onExit: (exit: EditorExit) => void;
     /** Called with a new recipe's local ref once minted, and with its server id once created (the web's URL keeps it). */
     readonly onRecipeRef?: (ref: string) => void;
+    /** Sends one rebind command: how Save changes drains a published recipe's held re-picks (`useRebindIngredientLine`). */
+    readonly rebindLine: RebindLineSend;
+    /** Whether a pasted list is still joining the draft: it holds the server create (`serverWriteFor`). */
+    readonly pastePending: boolean;
     /** The clock, for the draft's `savedAt`. */
     readonly now?: () => Date;
 }
@@ -230,11 +244,10 @@ export interface UseRecipeEditorResult {
     readonly hasUnsavedChanges: boolean;
     /** The resume notice, while a published recipe's device changes from an earlier visit stand. */
     readonly resume: ResumeNotice | undefined;
-    /**
-     * Whether a list may be pasted into Ingredients: only while creating, before the recipe is stored (owner D10). The
-     * paste control is slice 8's; this is its seam.
-     */
+    /** Whether a list may be pasted into Ingredients: until the recipe's first publish (owner D10, `pasteOffered`). */
     readonly pasteAvailable: boolean;
+    /** Whether a pasted line joining now keeps its source: only until the create is submitted (`pastedLineKeepsSource`). */
+    readonly pasteKeepsSource: boolean;
     readonly setValues: (values: RecipeFormValues) => void;
     readonly setField: <K extends keyof RecipeFormValues>(field: K, value: RecipeFormValues[K]) => void;
     /** Apply one draft transition to the draft as it is when it lands. Stable. */
@@ -284,6 +297,8 @@ interface ServerFacts {
     readonly serverValues: RecipeFormValues | undefined;
     readonly lifecycle: RecipeLifecycle;
     readonly recipeRef: string | undefined;
+    /** The recipe the server last answered with, when the caller has it: a Save changes with nothing left hands off to it. */
+    readonly recipe?: RecipeDetail;
 }
 
 /** What a checkpoint is built from, beyond this render's draft and facts. */
@@ -300,6 +315,18 @@ function finishingTrigger(lifecycle: RecipeLifecycle): CheckpointTrigger {
     return lifecycle === 'published' ? 'saveChanges' : 'publish';
 }
 
+/** Whether a trigger finishes the edit: its answer takes the cook to the recipe. */
+function isFinishing(trigger: CheckpointTrigger | undefined): boolean {
+    return trigger === 'publish' || trigger === 'saveChanges';
+}
+
+/** The held rebinds with one per line, the later of two for the same line winning, in the order first held. Pure. */
+function coalesceRebinds(rebinds: readonly PendingRebind[]): readonly PendingRebind[] {
+    const latest = new Map(rebinds.map((rebind) => [rebind.lineKey, rebind]));
+
+    return [...latest.values()];
+}
+
 /**
  * The one-page editor's lifecycle.
  *
@@ -309,7 +336,7 @@ function finishingTrigger(lifecycle: RecipeLifecycle): CheckpointTrigger {
  */
 export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions): UseRecipeEditorResult {
     const { ingredientLineName } = useMessages(recipeMessages);
-    const { port, drafts, onExit, onRecipeRef } = opts;
+    const { port, drafts, onExit, onRecipeRef, rebindLine, pastePending } = opts;
     const now = opts.now ?? (() => new Date());
 
     // ── The seed, captured once ──────────────────────────────────────────────────────────────────────────────────────
@@ -329,7 +356,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
             server: seed.recipe,
             serverValues: stored,
             resume:
-                deviceChanges && seed.recipe?.status === RecipeStatus.PUBLISHED && seed.memento !== undefined
+                deviceChanges && lifecycleOf(seed.recipe) === 'published' && seed.memento !== undefined
                     ? { savedAt: seed.memento.savedAt }
                     : undefined,
         };
@@ -351,6 +378,14 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         persistedLineKeysOf((initial.serverValues ?? initial.values).ingredients),
     );
     const [queuedCommands, setQueuedCommands] = useState<readonly QueuedLineCommand[]>([]);
+    // A published recipe's re-picks, held until Save changes (blueprint A3), restored from the device draft.
+    const [pendingRebinds, setPendingRebinds] = useState<readonly PendingRebind[]>(
+        () => seed.memento?.pendingRebinds ?? [],
+    );
+    // A held rebind failed while Save changes drained it: the save stopped, and Retry runs it again.
+    const [rebindFailed, setRebindFailed] = useState(false);
+    // What the ingredient entry held when Publish or Save changes was pressed: a deferred one is validated with it.
+    const [finishEntryText, setFinishEntryText] = useState('');
     const [conflict, setConflict] = useState<ConflictInfo | null>(null);
     const [resolving, setResolving] = useState(false);
     // Whether the draft has changed since the editor opened: the idle timers arm only then.
@@ -370,6 +405,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     const step = laneStore.dispatch;
     // Closed in the lane, which a same-tick trigger reads synchronously (`LaneState.closed`).
     const done = lane.closed === true;
+    // A Publish or Save changes waits behind a write on the wire, or behind the held rebinds it drains: the bar finishes.
+    const deferredFinishing = isFinishing(lane.deferred);
     const changedFromServer = serverValues === undefined || !recipeFormValuesEqual(values, serverValues);
     // What this render knows of the server; a write answered since passes its own (`runCheckpoint`'s `facts`).
     const factsNow: ServerFacts = { serverId, baseVersion, serverValues, lifecycle, recipeRef };
@@ -433,7 +470,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
                 recipeRef: ref,
                 baseVersion: facts.baseVersion,
                 values: toDraftValues(draft),
-                pendingRebinds: [],
+                pendingRebinds,
                 savedAt: now().toISOString(),
             })
             .then(
@@ -478,15 +515,64 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
             return;
         }
 
+        // A published recipe's held re-picks go first, through the command queue; the Save changes runs once they drain.
+        // ⛔ Each stays in `pendingRebinds` (so in the device draft) until its own rebind answers: a leave or a dead process
+        // mid-drain must not lose a re-pick whose teaching never reached the server.
+        if (trigger === 'saveChanges' && facts.lifecycle === 'published' && pendingRebinds.length > 0) {
+            // Dropped: one whose line the cook removed (it would teach a correction for a line the update deletes), and
+            // one back to the food the server already holds — which is also how one that just answered is recognised,
+            // before React has rendered its removal.
+            const storedBinding = (key: IngredientLineKey): string | null | undefined =>
+                facts.serverValues?.ingredients.find((line) => line.key === key)?.ingredientId;
+            const live = pendingRebinds.filter((rebind) =>
+                draft.ingredients.some(
+                    (line) => line.key === rebind.lineKey && line.ingredientId !== storedBinding(rebind.lineKey),
+                ),
+            );
+            const queued = (rebind: PendingRebind): boolean =>
+                queuedCommands.some((command) => command.held === rebind);
+
+            if (live.length < pendingRebinds.length) {
+                const dropped = pendingRebinds.filter((rebind) => !live.includes(rebind));
+
+                setPendingRebinds((current) => current.filter((rebind) => !dropped.includes(rebind)));
+            }
+
+            if (live.length > 0) {
+                setQueuedCommands((queue) => [
+                    ...queue,
+                    ...live
+                        .filter((rebind) => !queued(rebind))
+                        .map((rebind): QueuedLineCommand => ({
+                            ...onceLineCommand(
+                                rebind.lineKey,
+                                (address) => rebindLine(address, rebind.target),
+                                () => undefined,
+                            ),
+                            held: rebind,
+                        })),
+                ]);
+                step({ type: 'refusedInFlight', trigger });
+
+                return;
+            }
+        }
+
         const write = serverWriteFor({
             trigger,
             lifecycle: facts.lifecycle,
             draftFloorMet: Object.keys(draftFloorErrors(draft)).length === 0,
             changedSinceServerWrite:
                 facts.serverValues === undefined || !recipeFormValuesEqual(draft, facts.serverValues),
+            pastePending,
         });
 
         if (write.kind === 'none') {
+            // Save changes whose held re-picks were all it had: the rebinds made the save, so the editor hands off.
+            if (trigger === 'saveChanges' && facts.recipe !== undefined) {
+                handOffSaved(facts.recipe);
+            }
+
             return;
         }
 
@@ -538,14 +624,35 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         );
     };
 
-    /** Run the trigger a write on the wire deferred, against what the server is now known to hold. @sideEffect */
-    const runDeferred = (facts: ServerFacts): void => {
+    /**
+     * Run the trigger a write on the wire deferred, against what the server is now known to hold. A deferred Publish or
+     * Save changes is validated again first, with the entry text it was pressed with: the cook may have changed the
+     * draft while it waited, and a refusal then is a refused Publish like any other.
+     *
+     * @sideEffect Moves the lane, and may set the gate's errors or submit to the outbox.
+     */
+    const runDeferred = (facts: ServerFacts, draft: RecipeFormValues = values): void => {
         const { deferred } = laneStore.get();
 
-        if (deferred !== undefined && laneStore.get().outstanding === undefined) {
-            step({ type: 'deferredTaken' });
-            runCheckpoint(deferred, { facts, fresh: true });
+        if (deferred === undefined || laneStore.get().outstanding !== undefined) {
+            return;
         }
+
+        step({ type: 'deferredTaken' });
+
+        if (isFinishing(deferred)) {
+            const found = validateRecipeForm(draft, finishEntryText);
+
+            setErrors(found);
+
+            if (gateOutcomeOf(found).kind === 'refused') {
+                setPublishAttempted(true);
+
+                return;
+            }
+        }
+
+        runCheckpoint(deferred, { draft, facts, fresh: true });
     };
 
     // A conflict view for `draft` against a 409's sides, or `null` when the two already agree.
@@ -626,6 +733,13 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         return facts;
     };
 
+    /** A Save changes the held rebinds completed on their own: the device draft is done, and the editor hands off. */
+    function handOffSaved(detail: RecipeDetail): void {
+        void drafts.discard(detail.id);
+        step({ type: 'closed' });
+        onExit({ kind: 'changesSaved', recipe: detail });
+    }
+
     // ⛔ An Effect Event, so the subscription is made once and every answer is read against the editor as it is now. The
     // lane is read from its store, which a `queued` step updates at once: an answer that lands before React has rendered
     // the lane is still recognised as this write's.
@@ -658,11 +772,18 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         step({ type: 'parked', seq: event.seq });
 
         if (event.answer?.kind !== 'recipeConflict') {
+            // A parked write waits for the cook, and so does whatever waited behind it: nothing publishes past them.
+            step({ type: 'deferredTaken' });
+
             return;
         }
 
         const trigger = pending.finishing ? finishingTrigger(lifecycle) : 'sectionChange';
         const info = conflictOf(event.answer.server, event.answer.base, values, { parkedSeq: event.seq, trigger });
+
+        if (info !== null) {
+            step({ type: 'deferredTaken' });
+        }
 
         if (info === null) {
             // A phantom: the server already holds the draft's content. Withdraw and resend at its version.
@@ -720,7 +841,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
 
     // ── Publish and Save changes ─────────────────────────────────────────────────────────────────────────────────────
     const finish = (pendingEntryText: string, trigger: CheckpointTrigger): GateOutcome => {
-        if (commandBusy || (outstanding?.finishing ?? false)) {
+        if (commandBusy || (outstanding?.finishing ?? false) || deferredFinishing) {
             return { kind: 'busy' };
         }
 
@@ -728,6 +849,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         const outcome = gateOutcomeOf(found);
 
         setErrors(found);
+        setFinishEntryText(pendingEntryText);
+        setRebindFailed(false);
 
         if (outcome.kind === 'refused') {
             setPublishAttempted(true);
@@ -747,10 +870,37 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
             return;
         }
 
-        setQueuedCommands((queue) => (queue[0] === command ? queue.slice(1) : queue));
+        const rest = queuedCommands.filter((queued) => queued !== command);
+
+        setQueuedCommands((queue) => queue.filter((queued) => queued !== command));
+
+        /**
+         * A held rebind that did not land stops the Save changes it was drained for: nothing more is sent. It and the held
+         * rebinds queued behind it never left `pendingRebinds`, so only their commands go. @sideEffect
+         */
+        const stopDrain = (failed: boolean): void => {
+            if (command.held === undefined) {
+                return;
+            }
+
+            setQueuedCommands((queue) => queue.filter((queued) => queued.held === undefined));
+            step({ type: 'deferredTaken' });
+
+            if (failed) {
+                setRebindFailed(true);
+            }
+        };
+
+        /** The queue is empty: what waited for it runs, against `draft` (this answer's state has not rendered). @sideEffect */
+        const afterLast = (facts: ServerFacts, draft: RecipeFormValues = values): void => {
+            if (rest.length === 0) {
+                runDeferred(facts, draft);
+            }
+        };
 
         if (answer.kind === 'overtaken') {
             command.settle({ kind: 'conflict' });
+            stopDrain(false);
 
             return;
         }
@@ -758,7 +908,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         if (answer.kind === 'refused') {
             const info = conflictOf(answer.server, answer.base, values, {
                 parkedSeq: undefined,
-                trigger: 'sectionChange',
+                trigger: command.held === undefined ? 'sectionChange' : 'saveChanges',
             });
 
             if (info === null) {
@@ -766,18 +916,33 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
                 // ⛔ Never the phantom resend: that would turn a Change food into a save, which teaches nothing.
                 setBaseVersion(answer.server.versionNumber);
                 command.settle({ kind: 'failed' });
+                stopDrain(true);
 
                 return;
             }
 
             setConflict(info);
             command.settle({ kind: 'conflict' });
+            stopDrain(false);
+
+            return;
+        }
+
+        if (answer.kind === 'notStored') {
+            // Nothing to re-point on the server; a held one's line goes in the update as drafted.
+            command.settle({ kind: 'failed' });
+            afterLast(factsNow);
 
             return;
         }
 
         if (answer.kind !== 'recipe') {
             command.settle({ kind: 'failed' });
+            stopDrain(true);
+
+            if (command.held === undefined) {
+                afterLast(factsNow);
+            }
 
             return;
         }
@@ -791,18 +956,36 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
 
         if (!adoptable || line === undefined || !isStoredLine(line)) {
             command.settle({ kind: 'failed' });
+            stopDrain(true);
+
+            if (command.held === undefined) {
+                afterLast(factsNow);
+            }
 
             return;
         }
 
         const binding = lineBindingOf(line);
         const rebind: DraftAction = { kind: 'rebindIngredient', key: command.key, binding };
+        const nextServerValues = serverValues === undefined ? undefined : applyDraftAction(serverValues, rebind);
 
         setBaseVersion(detail.currentVersion);
         setServer(detail);
-        setServerValues((current) => (current === undefined ? current : applyDraftAction(current, rebind)));
+        setServerValues(nextServerValues);
         setValuesState((current) => applyDraftAction(current, rebind));
+
+        if (command.held !== undefined) {
+            const { held } = command;
+
+            // Answered: it leaves the device draft now, and not before. A newer re-pick of the same line stays.
+            setPendingRebinds((current) => current.filter((pending) => pending !== held));
+        }
+
         command.settle({ kind: 'committed', binding });
+        afterLast(
+            { ...factsNow, baseVersion: detail.currentVersion, serverValues: nextServerValues, recipe: detail },
+            applyDraftAction(values, rebind),
+        );
     });
 
     // Where the first command goes, read when it is SENT: the write it waited for may have moved the version.
@@ -843,6 +1026,14 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
 
     const lineCommand: LineCommandPort = {
         persistedKeys,
+        holdsRebinds: lifecycle === 'published',
+        hold: (rebind, binding) => {
+            setTouched(true);
+            setPendingRebinds((current) => coalesceRebinds([...current, rebind]));
+            setValuesState((current) =>
+                applyDraftAction(current, { kind: 'rebindIngredient', key: rebind.lineKey, binding }),
+            );
+        },
         run: (key, send) => {
             // The conflict view replaces the form, so nothing picks while it is open.
             if (conflict !== null) {
@@ -943,6 +1134,12 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
 
     // ── Retry and discard ────────────────────────────────────────────────────────────────────────────────────────────
     const retry = (): void => {
+        if (rebindFailed) {
+            finish(finishEntryText, 'saveChanges');
+
+            return;
+        }
+
         const parked = outstanding;
 
         if (parked === undefined || !parked.parked) {
@@ -982,8 +1179,16 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         if (ref !== undefined && (serverId !== undefined || outstanding !== undefined)) {
             const id = serverId ?? ref;
 
+            // ⛔ While the create is on its way the delete names its local ref as a dependency, so it drains after the
+            // create and is sent with the id the create returns. A server id is never a dependency (`appendIntent`).
             void cleared.then(() =>
-                port.submit({ entity: 'recipe', intentKind: 'delete', localId: id, dependsOn: [], payload: { id } }),
+                port.submit({
+                    entity: 'recipe',
+                    intentKind: 'delete',
+                    localId: id,
+                    dependsOn: isLocalRef(id) ? [id] : [],
+                    payload: { id },
+                }),
             );
         }
 
@@ -993,13 +1198,15 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     // ── What the containers read ─────────────────────────────────────────────────────────────────────────────────────
     const parkedFailure =
         outstanding?.parked === true ? port.failures.find((failure) => failure.seq === outstanding.seq) : undefined;
-    const parked =
+    const parked: UseRecipeEditorResult['parked'] =
         outstanding?.parked === true
             ? {
-                  failure: parkedFailure === undefined ? ('unknown' as const) : classifyFailure(parkedFailure),
+                  failure: parkedFailure === undefined ? 'unknown' : classifyFailure(parkedFailure),
                   kind: outstanding.kind,
               }
-            : undefined;
+            : rebindFailed
+              ? { failure: 'transient', kind: 'update' }
+              : undefined;
     const outboxSlot: OutboxSlot =
         parked !== undefined
             ? { kind: 'parked', failure: parked.failure }
@@ -1018,7 +1225,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         ? { status: 'done' }
         : conflict !== null
           ? (({ parkedSeq: _seq, trigger: _trigger, ...view }) => ({ ...view, isResolving: resolving }))(conflict)
-          : outstanding?.finishing === true && !outstanding.parked
+          : (outstanding?.finishing === true && !outstanding.parked) ||
+              (deferredFinishing && outstanding?.parked !== true)
             ? { status: 'finishing' }
             : { status: 'editing' };
 
@@ -1033,7 +1241,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         parked,
         hasUnsavedChanges: changedFromServer,
         resume,
-        pasteAvailable: lifecycle === 'unsaved',
+        pasteAvailable: pasteOffered(lifecycle),
+        pasteKeepsSource: pastedLineKeepsSource({ lifecycle, createSubmitted: outstanding?.kind === 'create' }),
         setValues,
         setField,
         dispatch,

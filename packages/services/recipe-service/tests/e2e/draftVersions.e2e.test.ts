@@ -34,6 +34,7 @@ interface RecipeBody {
     readonly id: string;
     readonly status: string;
     readonly currentVersion: number;
+    readonly firstPublishedAt?: string;
 }
 
 interface VersionRow {
@@ -181,6 +182,13 @@ describe('a never-published draft records no version (ADR-0058, e2e)', () => {
         expect(savedAsDraft.status).toBe('draft');
         expect((await versionsOf(published.id)).map((row) => row.version_number)).toStrictEqual([2, 3, 4]);
         expect(await firstPublishedAt(published.id)).toStrictEqual(publishedAt);
+        // The trigger's instant reaches the wire (2026-10-09 review, finding 5): the editor keys "ever published" on
+        // it, and the re-drafted recipe's answers still carry it, as does the search read's raw column list.
+        expect(published.firstPublishedAt).toBe(publishedAt?.toISOString());
+        expect(savedAsDraft.firstPublishedAt).toBe(publishedAt?.toISOString());
+        expect(
+            (await json<{ firstPublishedAt?: string }>('GET', `/api/v1/recipes/${published.id}`, 200)).firstPublishedAt,
+        ).toBe(publishedAt?.toISOString());
     });
 
     it('a published create records its first version, as before', async () => {

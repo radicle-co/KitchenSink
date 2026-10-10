@@ -244,6 +244,15 @@ describe('ScrollHost (web) — a jump holds the current section until the cook s
         await waitFor(() => expect(api().current).toBe('a'));
     });
 
+    it('scrollToTop releases it: the cook asked to leave the section', async () => {
+        const api = await jumped();
+
+        act(() => api().scrollToTop());
+        act(() => scrollTo(150));
+
+        await waitFor(() => expect(api().current).toBe('a'));
+    });
+
     it('typing in a field is not scrolling: it keeps the jump', async () => {
         const api = await jumped();
         const field = document.createElement('input');
@@ -257,5 +266,69 @@ describe('ScrollHost (web) — a jump holds the current section until the cook s
 
         expect(api().current).toBe('b');
         field.remove();
+    });
+});
+
+/**
+ * A section change is an EVENT, fired from the scroll listener (staff-code-quality REACT-04): a consumer that must act
+ * on it (the editor's section-change checkpoint) subscribes, rather than relaying `current` through state and an effect.
+ * It reports the scroll spy's section and the one before it.
+ */
+describe('ScrollHost (web) — section-change events', () => {
+    function layOut(): void {
+        for (const [id, top] of [
+            ['a', 0],
+            ['b', 900],
+        ] as const) {
+            const node = document.getElementById(id);
+
+            if (node === null) {
+                throw new Error(`no section ${id}`);
+            }
+
+            node.getBoundingClientRect = () => ({ top: top - window.scrollY }) as DOMRect;
+        }
+
+        Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 });
+        Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, value: 3000 });
+    }
+
+    const frame = (): Promise<unknown> => new Promise((resolve) => requestAnimationFrame(resolve));
+
+    it('reports each change of the spy’s section to a subscriber, once per change, until it unsubscribes', async () => {
+        const api = renderHost();
+        layOut();
+        const changes: (readonly [string | undefined, string | undefined])[] = [];
+        let unsubscribe: () => void = () => undefined;
+        act(() => {
+            unsubscribe = api().onCurrentChange((current, previous) => changes.push([current, previous]));
+        });
+
+        for (const y of [10, 20, 1000, 1100]) {
+            act(() => scrollTo(y));
+            await act(frame);
+        }
+
+        expect(changes).toEqual([
+            ['a', undefined],
+            ['b', 'a'],
+        ]);
+
+        unsubscribe();
+        act(() => scrollTo(10));
+        await act(frame);
+        expect(changes).toHaveLength(2);
+    });
+
+    it('keeps one subscription function across renders', async () => {
+        const api = renderHost();
+        layOut();
+        const first = api().onCurrentChange;
+        expect(typeof first).toBe('function');
+
+        act(() => scrollTo(1000));
+        await waitFor(() => expect(api().current).toBe('b'));
+
+        expect(api().onCurrentChange).toBe(first);
     });
 });

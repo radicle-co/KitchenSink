@@ -15,10 +15,10 @@
  * @pattern Visitor — an exhaustive switch over the view's body union
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { Button } from '@commise/ui/button';
 import { LiveRegion } from '@commise/ui/live-region';
+import { useTheme } from '@commise/ui/theme';
 import type { FC, ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -28,6 +28,11 @@ import { recipeFormMessages } from './messages.js';
 /** Rows 6 and 7's panel body: the candidates, a pick per candidate, and None of these. */
 export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick, onRetryRead, onNoneOfThese }) => {
     const m = useMessages(recipeFormMessages);
+    // Colour from the theme at render (D15): copy in `ink`, a hint in `inkMuted`, a refused pick in `dangerText` (the
+    // web twin's `text-danger-text`), the press wash `ink` at 6% (its `hover:bg-ink/6`).
+    const { colors, wash } = useTheme();
+    const text = [styles.text, { color: colors.ink }];
+    const hint = [styles.hint, { color: colors.inkMuted }];
 
     const optionOf = (option: CandidateOption): ReactElement => (
         <Pressable
@@ -38,10 +43,10 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
             // React Native's busy control is `disabled`: it keeps its place and the reading cursor.
             disabled={option.busy || option.blocked}
             onPress={() => onPick(option.candidateId)}
-            style={({ pressed }) => [styles.option, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.option, pressed && { backgroundColor: wash }]}
         >
-            <Text style={styles.text}>{option.name}</Text>
-            {option.summary !== undefined && <Text style={styles.hint}>{option.summary}</Text>}
+            <Text style={text}>{option.name}</Text>
+            {option.summary !== undefined && <Text style={hint}>{option.summary}</Text>}
         </Pressable>
     );
 
@@ -57,7 +62,10 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                             group.heading ? (
                                 // Named by its header (`docs/design/nativeContainerNames.md` N1).
                                 <View key={group.key}>
-                                    <Text accessibilityRole="header" style={styles.heading}>
+                                    <Text
+                                        accessibilityRole="header"
+                                        style={[styles.heading, { color: colors.inkMuted }]}
+                                    >
                                         {group.label}
                                     </Text>
                                     {group.options.map(optionOf)}
@@ -69,7 +77,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                                 </View>
                             ),
                         )}
-                        <LiveRegion politeness="polite" style={styles.hint}>
+                        <LiveRegion politeness="polite" style={hint}>
                             {line}
                         </LiveRegion>
                     </>
@@ -79,7 +87,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
             case 'failed':
                 return (
                     <>
-                        <LiveRegion politeness="assertive" style={styles.text}>
+                        <LiveRegion politeness="assertive" style={text}>
                             {body.text}
                         </LiveRegion>
                         <Button variant="secondary" icon="refreshCw" onPress={onRetryRead}>
@@ -90,20 +98,24 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
             case 'loading':
             case 'offline':
                 return (
-                    <LiveRegion politeness="polite" style={styles.hint}>
+                    <LiveRegion politeness="polite" style={hint}>
                         {body.text}
                     </LiveRegion>
                 );
             case 'empty':
-                return <Text style={styles.hint}>{body.text}</Text>;
+                return <Text style={hint}>{body.text}</Text>;
         }
     };
 
     return (
         <View style={styles.panel}>
-            <Text style={styles.text}>{view.explanation}</Text>
+            <Text style={text}>{view.explanation}</Text>
             {contentOf(view.body)}
-            <LiveRegion politeness="assertive" occurrence={view.alertOccurrence} style={styles.text}>
+            <LiveRegion
+                politeness="assertive"
+                occurrence={view.alertOccurrence}
+                style={[styles.text, { color: colors.dangerText }]}
+            >
                 {view.alert}
             </LiveRegion>
             <Button variant="secondary" icon="search" onPress={onNoneOfThese}>
@@ -115,10 +127,9 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
 
 const styles = StyleSheet.create({
     panel: { gap: nativeTokens.spacing[2] },
-    text: { color: palette.charcoal, fontSize: nativeTokens.fontSize.bodySm },
-    hint: { color: palette.slate, fontSize: nativeTokens.fontSize.caption },
+    text: { fontSize: nativeTokens.fontSize.bodySm },
+    hint: { fontSize: nativeTokens.fontSize.caption },
     heading: {
-        color: palette.slate,
         fontSize: nativeTokens.fontSize.caption,
         fontWeight: '600',
         paddingHorizontal: nativeTokens.spacing[3],
@@ -131,5 +142,4 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[2],
         borderRadius: nativeTokens.radius.md,
     },
-    pressed: { backgroundColor: palette.pearl },
 });

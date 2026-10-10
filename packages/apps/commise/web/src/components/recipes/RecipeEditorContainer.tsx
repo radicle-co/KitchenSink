@@ -2,14 +2,14 @@
 
 /**
  * Orchestration container for the web one-page recipe editor (UI overhaul slice 7; owner decisions D1, D7, D10): one
- * container for `/recipes/new` and `/recipes/{id}/edit`. It reads what the editor is seeded from — the recipe (edit, a
- * suspense read under `ClientQueryBoundary`) and the device draft from the tab's session storage — then mounts one
+ * container for `/recipes/new` and `/recipes/{id}/edit`. It reads what the editor is seeded from — the recipe (edit) and
+ * the device draft from the tab's session storage, both suspense reads under `ClientQueryBoundary` — then mounts one
  * editor session keyed on the recipe, so editing another recipe is a fresh editor.
  *
- * The session binds the platform to the editor's lifecycle (`useRecipeEditor`): the outbox (`useSyncQueue`) as its
- * write port, the draft store, the row editor and its pollers, the nutrition read, the photos, visibility, and the
- * hand-offs (Publish → the recipe, Save changes → the recipe, Discard → My recipes). What the page draws is
- * `RecipeEditorView`'s.
+ * The session (`useRecipeEditorSession`, shared with the native screen) binds the editor's lifecycle to its ports; this
+ * container adds what only the web has: the router behind the session's navigation port (Publish and Save changes → the
+ * recipe, Discard → My recipes), the URL that follows the recipe, and the web leaves (the status poller, the photo
+ * uploader). What the page draws is `RecipeEditorView`'s.
  *
  * ⛔ The URL follows the recipe without a navigation: a new recipe's local ref is kept in `?draft=` so a reload in the
  * same tab reopens its draft (D7), and once the server has created it the URL becomes its edit address — both through
@@ -18,50 +18,41 @@
  * ⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload
  * endpoint takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).
  *
- * @pattern Mediator — the container wires the editor's ports (outbox, drafts, row editor, photos) and its hand-offs
+ * @pattern Mediator — the container wires the session's ports (outbox, drafts, navigation) and the web leaves
+ * @pattern Adapter — the Next router behind the session's `EditorNavigation` port
  */
 import {
     editorMessages,
     IngredientsNutritionFoot,
+    nextEditorOpening,
     pendingIngredientIds,
     PasteListSheet,
     RecipeBasicsFields,
     PasteStepsControl,
-    useIngredientsPaste,
     RecipeEditorView,
     RecipePreviewSheet,
-    previewRecipeOf,
     RecipeIngredientsFields,
     RecipeInstructionsFields,
     RecipeVisibilityField,
     sectionFromHash,
-    visibilityFollowUp,
-    type DraftMemento,
+    useDeviceDraft,
+    useRecipeEditorSession,
     type DraftStore,
+    type EditorNavigation,
     type EditorSectionId,
-    type ObservedIngredientStatus,
-    type SettledAnswer,
 } from '@commise/features-recipes';
-import {
-    useIngredientRowEditor,
-    useLibraryEmpty,
-    useLineNutrition,
-    useLookupRetry,
-    useRecipeEditor,
-    type EditorExit,
-    type EditorSeed,
-} from '@commise/features-recipes/hooks';
+import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { useSyncQueue } from '@commise/query/sync';
 import { useAuth } from '@clerk/nextjs';
-import { canGoPrivate, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
+import { canGoPrivate, makeViewer } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
-import { useRecipeServiceClient, useSetRecipeVisibility } from '@kitchensink/recipe-service-client/hooks';
+import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState, type FC, type ReactNode } from 'react';
+import { useState, type FC, type ReactNode } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { editorDraftsFor } from '@/components/recipes/editorDrafts';
@@ -79,70 +70,49 @@ export interface RecipeEditorContainerProps {
     readonly recipeId?: string;
 }
 
-/** The device draft for a ref, read once: `undefined` while it loads. */
-type DraftSeedState = { readonly status: 'loading' } | { readonly status: 'ready'; readonly memento?: DraftMemento };
+/** The signed-in cook and their draft store, or `undefined` while nobody is signed in. */
+function useCookDrafts(): { readonly subject: string; readonly drafts: DraftStore } | undefined {
+    const { userId } = useAuth();
+    const drafts = editorDraftsFor(userId ?? undefined);
 
-/**
- * Read a recipe's device draft once.
- *
- * @param drafts - The cook's draft store, once signed in.
- * @param ref - The recipe's ref, or `undefined` for a blank new recipe.
- * @returns The read's state. @sideEffect Reads the tab's session storage.
- */
-function useDraftSeed(drafts: DraftStore | undefined, ref: string | undefined): DraftSeedState {
-    const [state, setState] = useState<DraftSeedState>(ref === undefined ? { status: 'ready' } : { status: 'loading' });
-
-    useEffect(() => {
-        if (ref === undefined || drafts === undefined) {
-            return undefined;
-        }
-
-        let live = true;
-
-        void drafts.load(ref).then(
-            (memento) => {
-                if (live) {
-                    setState(memento === undefined ? { status: 'ready' } : { status: 'ready', memento });
-                }
-            },
-            // An unreadable draft opens the editor from the server's copy; the store has quarantined the bytes.
-            () => {
-                if (live) {
-                    setState({ status: 'ready' });
-                }
-            },
-        );
-
-        return () => {
-            live = false;
-        };
-    }, [drafts, ref]);
-
-    return state;
+    return userId === null || userId === undefined || drafts === undefined ? undefined : { subject: userId, drafts };
 }
 
 /** The web recipe editor: new or edit. */
 export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, recipeId }) => {
     const { recipes } = useMessages(webMessages);
     const client = useRecipeServiceClient();
+    // This opening of the editor, minted OUTSIDE the read boundary: its device-draft read is its own (`useDeviceDraft`).
+    const [opening] = useState(nextEditorOpening);
+    const loading = (
+        <p role="status" aria-label={recipes.detail.loadingLabel} className="px-4 py-8 text-body-md text-ink-muted">
+            {recipes.detail.loadingLabel}
+        </p>
+    );
 
     if (recipeId === undefined) {
-        return <NewRecipeEditor locale={locale} />;
+        return (
+            <ClientQueryBoundary
+                loading={null}
+                renderError={({ resetErrorBoundary }) => (
+                    <div role="alert">
+                        <p>{recipes.detail.errorTitle}</p>
+                        <button type="button" onClick={resetErrorBoundary}>
+                            {recipes.detail.retry}
+                        </button>
+                    </div>
+                )}
+            >
+                <NewRecipeEditor locale={locale} opening={opening} />
+            </ClientQueryBoundary>
+        );
     }
 
     const detail = recipeQueries(client).detail(recipeId);
 
     return (
         <ClientQueryBoundary
-            loading={
-                <p
-                    role="status"
-                    aria-label={recipes.detail.loadingLabel}
-                    className="px-4 py-8 text-body-md text-ink-muted"
-                >
-                    {recipes.detail.loadingLabel}
-                </p>
-            }
+            loading={loading}
             renderError={({ error, resetErrorBoundary }) => {
                 // A 404 is final, so it offers no retry; anything else is the generic failure, whose retry refetches.
                 const notFound = isNotFoundError(error);
@@ -160,34 +130,33 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
             }}
             resetKeys={[recipeId]}
         >
-            <StoredRecipeEditor key={recipeId} locale={locale} recipeId={recipeId} detail={detail} />
+            <StoredRecipeEditor key={recipeId} locale={locale} detail={detail} opening={opening} />
         </ClientQueryBoundary>
     );
 };
 
 /** A new recipe: blank, or its device draft when the URL names one (a reload in the same tab). */
-const NewRecipeEditor: FC<{ readonly locale: string }> = ({ locale }) => {
-    const { userId } = useAuth();
-    const drafts = editorDraftsFor(userId ?? undefined);
+const NewRecipeEditor: FC<{ readonly locale: string; readonly opening: number }> = ({ locale, opening }) => {
+    const cook = useCookDrafts();
     const searchParams = useSearchParams();
     // ⛔ Read ONCE: the editor keeps the URL on its recipe through `history.replaceState`, which Next syncs into
     // `useSearchParams`, and a reactive read would re-key the session and reseed the editor mid-typing.
     const [draftRef] = useState(() => searchParams.get('draft') ?? undefined);
     // Home's first-run Paste ingredients opens the new editor at Ingredients with the paste sheet open (§7.5.4).
     const [openPaste] = useState(() => opensPasteSheet(searchParams));
-    const seed = useDraftSeed(drafts, draftRef);
 
-    if (seed.status === 'loading' || drafts === undefined) {
+    if (cook === undefined) {
         return null;
     }
 
     return (
-        <RecipeEditorSession
+        <SeededEditor
             key={draftRef ?? 'new'}
             locale={locale}
             mode="create"
-            drafts={drafts}
-            seed={seed.memento === undefined ? {} : { memento: seed.memento }}
+            cook={cook}
+            draftRef={draftRef}
+            opening={opening}
             openPaste={openPaste}
         />
     );
@@ -196,26 +165,51 @@ const NewRecipeEditor: FC<{ readonly locale: string }> = ({ locale }) => {
 /** An existing recipe, once read, with its device draft. */
 const StoredRecipeEditor: FC<{
     readonly locale: string;
-    readonly recipeId: string;
     readonly detail: ReturnType<ReturnType<typeof recipeQueries>['detail']>;
-}> = ({ locale, recipeId, detail }) => {
-    const { userId } = useAuth();
-    const drafts = editorDraftsFor(userId ?? undefined);
+    readonly opening: number;
+}> = ({ locale, detail, opening }) => {
+    const cook = useCookDrafts();
     const { data: recipe } = useSuspenseQuery(detail);
-    const seed = useDraftSeed(drafts, recipeId);
 
-    if (seed.status === 'loading' || drafts === undefined) {
+    if (cook === undefined) {
         return null;
     }
 
     return (
-        <RecipeEditorSession
+        <SeededEditor
             locale={locale}
             mode="edit"
-            drafts={drafts}
-            seed={seed.memento === undefined ? { recipe } : { recipe, memento: seed.memento }}
+            cook={cook}
+            recipe={recipe}
+            draftRef={recipe.id}
+            opening={opening}
+            openPaste={false}
         />
     );
+};
+
+/** Props for {@link SeededEditor}. */
+interface SeededEditorProps {
+    readonly locale: string;
+    readonly mode: 'create' | 'edit';
+    readonly cook: { readonly subject: string; readonly drafts: DraftStore };
+    /** The settled recipe (edit); absent for a new recipe. */
+    readonly recipe?: EditorSeed['recipe'];
+    /** The ref the device draft is kept under, or `undefined` for a blank new recipe. */
+    readonly draftRef: string | undefined;
+    readonly opening: number;
+    readonly openPaste: boolean;
+}
+
+/** The device draft, read (a suspense read under the same boundary), then the session over it. */
+const SeededEditor: FC<SeededEditorProps> = ({ recipe, draftRef, opening, cook, ...session }) => {
+    const memento = useDeviceDraft({ drafts: cook.drafts, subject: cook.subject, ref: draftRef, opening });
+    const seed: EditorSeed = {
+        ...(recipe === undefined ? {} : { recipe }),
+        ...(memento === undefined ? {} : { memento }),
+    };
+
+    return <RecipeEditorSession {...session} drafts={cook.drafts} seed={seed} />;
 };
 
 /** Props for {@link RecipeEditorSession}. */
@@ -225,7 +219,7 @@ interface RecipeEditorSessionProps {
     readonly drafts: DraftStore;
     readonly seed: EditorSeed;
     /** Open Paste a list at once (Home's first-run Paste ingredients). */
-    readonly openPaste?: boolean;
+    readonly openPaste: boolean;
 }
 
 /** Keep the URL on the recipe the editor holds, without a navigation. @sideEffect Replaces the history entry. */
@@ -237,100 +231,31 @@ function replaceUrlFor(locale: string, ref: string): void {
 }
 
 /** The editor over its seed. */
-const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, drafts, seed, openPaste = false }) => {
+const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, drafts, seed, openPaste }) => {
     const router = useRouter();
-    const client = useRecipeServiceClient();
     const queue = useSyncQueue();
     const profile = useUserProfile();
-    const setVisibility = useSetRecipeVisibility();
     const { userId } = useAuth();
     const [initialSection] = useState<EditorSectionId | undefined>(() => sectionFromHash(window.location.hash));
-    const [previewing, setPreviewing] = useState(false);
-    const guided = useLibraryEmpty(recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey);
     const viewer = makeViewer({ id: userId ?? undefined, subscriptionTier: profile.data?.account.subscriptionTier });
-
-    /** Published, or its changes saved: visibility follows (`visibilityFollowUp`), then the recipe opens. @sideEffect */
-    const finished = (stored: RecipeDetail): void => {
-        const visibility = visibilityFollowUp(editor.values.visibility, stored);
-
-        if (visibility !== undefined) {
-            setVisibility.mutate({ id: stored.id, visibility });
-        }
-
-        router.push(`/${locale}/recipes/${stored.id}` as Route);
+    // The session's navigation port, on the Next router.
+    const navigation: EditorNavigation = {
+        finished: (recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route),
+        leftForRecipe: (recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route),
+        discarded: () => router.push(`/${locale}/recipes` as Route),
     };
-
-    const onExit = (exit: EditorExit): void => {
-        switch (exit.kind) {
-            case 'published':
-            case 'changesSaved':
-                finished(exit.recipe);
-
-                return;
-
-            case 'leftForRecipe':
-                router.push(`/${locale}/recipes/${exit.recipeId}` as Route);
-
-                return;
-
-            case 'discarded':
-                router.push(`/${locale}/recipes` as Route);
-
-                return;
-
-            default: {
-                const unreachable: never = exit;
-
-                return unreachable;
-            }
-        }
-    };
-
-    const editor = useRecipeEditor(seed, {
+    const session = useRecipeEditorSession({
+        seed,
         locale,
+        keep: 'tabSession',
         port: queue,
         drafts,
-        keep: 'tabSession',
-        onExit,
+        navigation,
         onRecipeRef: (ref) => replaceUrlFor(locale, ref),
+        openPaste,
     });
-
-    // Poll and retry answers land after a network call, so both go through `editor.dispatch`, which meets the draft as
-    // it is then.
-    const { dispatch } = editor;
-    const applyLineStatus = useCallback(
-        (polledId: string, observed: ObservedIngredientStatus): void => {
-            dispatch({ kind: 'settleIngredientLines', answers: [{ polledId, observed }] });
-        },
-        [dispatch],
-    );
-    const applyLineStatuses = useCallback(
-        (answers: readonly SettledAnswer[]): void => {
-            dispatch({ kind: 'settleIngredientLines', answers });
-        },
-        [dispatch],
-    );
-    const lookupRetry = useLookupRetry(applyLineStatuses);
-    const nutrition = useLineNutrition(editor.values);
-    // A stored line moves through the editor's rebind command (ADR-0045); any other is a draft transition. Before the
-    // server create nothing is stored, so the surface is the create form's.
-    const rowEditor = useIngredientRowEditor({
-        surface:
-            editor.recipeId === undefined
-                ? { kind: 'createForm', dispatch: editor.dispatch }
-                : { kind: 'editForm', dispatch: editor.dispatch, command: editor.lineCommand },
-        lines: editor.values.ingredients,
-    });
-    const { pendingEntryText } = rowEditor.entry;
+    const { editor, paste } = session;
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
-    // Paste a list (§7.5.4): offered only while the recipe has no server row (D10).
-    const paste = useIngredientsPaste({
-        stored: editor.recipeId !== undefined,
-        dispatch: editor.dispatch,
-        lineCount: editor.values.ingredients.length,
-        initiallyOpen: openPaste,
-    });
-    const blur = (): void => editor.checkpoint('fieldBlur');
 
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
         details: (
@@ -338,21 +263,21 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
                 values={editor.values}
                 errors={editor.errors}
                 onChange={editor.setValues}
-                onFieldBlur={blur}
+                onFieldBlur={session.blur}
             />
         ),
         ingredients: (
             <>
                 {pendingIngredientIds(editor.values).map((id) => (
-                    <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
+                    <IngredientStatusPoller key={id} ingredientId={id} onStatus={session.applyLineStatus} />
                 ))}
                 <RecipeIngredientsFields
                     values={editor.values}
                     errors={editor.errors}
                     onChange={editor.setValues}
-                    nutrition={nutrition}
-                    lookupRetry={lookupRetry}
-                    rowEditor={rowEditor}
+                    nutrition={session.nutrition}
+                    lookupRetry={session.lookupRetry}
+                    rowEditor={session.rowEditor}
                     paste={paste.view}
                 />
                 <PasteListSheet sheet={paste.sheet} submitting={paste.submitting} failed={paste.failed} />
@@ -363,7 +288,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
                 values={editor.values}
                 errors={editor.errors}
                 onChange={editor.setValues}
-                onFieldBlur={blur}
+                onFieldBlur={session.blur}
             />
         ),
         photos: (
@@ -384,11 +309,11 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
                 editor={editor}
                 mode={mode}
                 keep="tabSession"
-                guided={guided}
-                pendingEntryText={pendingEntryText}
+                guided={session.guided}
+                pendingEntryText={session.rowEditor.entry.pendingEntryText}
                 sections={sections}
                 // §7.2 and §7.5.6: the rail's foot shows the Ingredients total too, from the same draft and read.
-                railFooter={<IngredientsNutritionFoot values={editor.values} nutrition={nutrition} />}
+                railFooter={<IngredientsNutritionFoot values={editor.values} nutrition={session.nutrition} />}
                 pastePending={paste.pending}
                 headingActions={{
                     ...(paste.inHeading
@@ -400,11 +325,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
                               ),
                           }
                         : {}),
-                    steps: (
-                        <PasteStepsControl
-                            onAdd={(instructions) => editor.dispatch({ kind: 'appendSteps', instructions })}
-                        />
-                    ),
+                    steps: <PasteStepsControl onAdd={session.appendSteps} />,
                 }}
                 {...(initialSection === undefined ? {} : { initialSection })}
                 onClose={() => {
@@ -412,14 +333,14 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
 
                     router.push((id === undefined ? `/${locale}/recipes` : `/${locale}/recipes/${id}`) as Route);
                 }}
-                onPreview={() => setPreviewing(true)}
-                onRefused={rowEditor.refused}
+                onPreview={session.preview.show}
+                onRefused={session.rowEditor.refused}
                 onOpenMyRecipes={() => router.push(`/${locale}/recipes` as Route)}
             />
             <RecipePreviewSheet
-                open={previewing}
-                recipe={previewRecipeOf({ values: editor.values, recipe: seed.recipe, now: new Date().toISOString() })}
-                onClose={() => setPreviewing(false)}
+                open={session.preview.open}
+                recipe={session.preview.recipe}
+                onClose={session.preview.hide}
             />
         </>
     );

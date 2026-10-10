@@ -59,6 +59,21 @@ describe('recipeRowToDomain', () => {
         expect(recipeRowToDomain(row({ difficulty: null }))).not.toHaveProperty('difficulty');
     });
 
+    /**
+     * ADR-0058 rule 1 on the wire: the fact a client keys "was this recipe ever published" on, which `status` is not —
+     * a published recipe can be set back to draft and keeps versioning. Stated once set, OMITTED (never null) before.
+     */
+    it('states when the recipe was first published as ISO 8601, and OMITS it before the first publish', () => {
+        const first = new Date('2026-10-01T09:30:00.000Z');
+
+        expect(recipeRowToDomain(row({ status: 'draft', firstPublishedAt: first })).firstPublishedAt).toBe(
+            '2026-10-01T09:30:00.000Z',
+        );
+        expect(recipeRowToDomain(row({ status: 'draft', firstPublishedAt: null }))).not.toHaveProperty(
+            'firstPublishedAt',
+        );
+    });
+
     it('coerces the trigger-maintained averageRating (numeric string) to a number when rated', () => {
         expect(recipeRowToDomain(row({ averageRating: '4.50', ratingCount: 12 })).averageRating).toBe(4.5);
     });

@@ -165,7 +165,7 @@ const SideValue: FC<SideValueProps> = ({ children, parts }) => (
  * on wording or behavior. `role="alert"` (mirrors `RecipeDeleteDialog`'s own alert-role warning surfaces).
  */
 const StaleBaseWarning: FC<StaleBaseWarningProps> = ({ warning, confirmLabel, confirmed, onConfirmedChange }) => (
-    <div role="alert" className="flex flex-col gap-2 rounded-2xl bg-attention-tint p-4 ring-1 ring-warning">
+    <div role="alert" className="flex flex-col gap-2 rounded-2xl bg-attention-tint p-4 ring-1 ring-attention">
         <p className="text-body-sm text-ink">{warning}</p>
         <label className="flex items-center gap-2 text-body-sm font-medium text-ink">
             <input

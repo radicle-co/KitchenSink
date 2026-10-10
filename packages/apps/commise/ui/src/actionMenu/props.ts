@@ -4,8 +4,7 @@
  * Radix DropdownMenu, which carries the full APG Menu Button keyboard model; the native leaf
  * (`ActionMenu.native.tsx`) is a bottom sheet of `menuitem` rows, which cannot obscure the row it acts on.
  *
- * ⛔ Distinct from `MoreActionsMenu` (`@commise/features-recipes` actions): that menu mixes menu items with a radio
- * group and so declined roving focus; this one holds uniform menu items and OWES the full APG model (§3a).
+ * It holds uniform menu items and so OWES the full APG model (§3a), roving focus included.
  *
  * Every string is a caller-supplied, already-localised prop; the caller orders the items (remedy first).
  *

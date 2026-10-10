@@ -21,6 +21,8 @@ import { createElement, type ComponentProps } from 'react';
 import type { Modal as ModalType } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
+
 import { makePhoto } from '../../__fixtures__/index.js';
 import { PhotoCarousel } from '../PhotoCarousel.native.js';
 
@@ -53,15 +55,16 @@ const state = vi.hoisted(() => ({ modal: undefined as ComponentProps<typeof Moda
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-    return {
+    return withSystemScheme({
         ...actual,
         Modal: (props: ComponentProps<typeof ModalType>) => {
             state.modal = props;
 
             return createElement(actual.Modal, props);
         },
-    };
+    });
 });
 vi.mock('react-native-safe-area-context', () => ({
     useSafeAreaInsets: () => ({ top: 0, right: 48, bottom: 21, left: 0 }),
@@ -75,6 +78,7 @@ afterEach(() => {
     cleanup();
     vi.useRealTimers();
     state.modal = undefined;
+    systemScheme.current = null;
     Reflect.deleteProperty(document.documentElement, 'clientHeight');
     act(() => {
         window.dispatchEvent(new Event('resize'));
@@ -222,6 +226,26 @@ describe('PhotoCarousel (native)', () => {
 
             return user;
         }
+
+        // D15: the lightbox dims with the `scrim` role (the web leaf's `bg-scrim`), and its Close is a `paper` disc
+        // under an `ink` glyph; the dots are `lineDivider`. Each follows the device's scheme.
+        it.each(['light', 'dark'] as const)(
+            'paints its scrim, Close and the dots from the roles (%s)',
+            async (scheme) => {
+                systemScheme.current = scheme;
+                const colours = rolesFor(scheme);
+                await openLightbox();
+                const close = screen.getByLabelText('Close photo');
+
+                expect(getComputedStyle(close).backgroundColor).toBe(rgb(colours.paper));
+                expect(getComputedStyle(close.parentElement as Element).backgroundColor).toBe(colours.scrim);
+                expect(getComputedStyle(screen.getByText('×')).color).toBe(rgb(colours.ink));
+
+                for (const dot of screen.getAllByLabelText(/^Go to Grilled Lamb photo/)) {
+                    expect(getComputedStyle(dot).backgroundColor).toBe(rgb(colours.lineDivider));
+                }
+            },
+        );
 
         it('opens on a slide, and closes on its Close control', async () => {
             const user = await openLightbox();

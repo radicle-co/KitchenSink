@@ -47,8 +47,8 @@ port, with one adapter per platform, and the app chooses the adapter:
 
 - **Mobile:** AsyncStorage, through the existing `createNativeOutboxStore`.
 - **Web:** `sessionStorage`, through `createWebStorageStore(() => window.sessionStorage)`. The draft survives a
-  reload in the same tab, and closing the tab ends it (D7). This exception covers the editor draft and nothing else.
-  The web outbox stays in memory.
+  reload in the same tab, and closing the tab ends it (D7). The web outbox journal is kept there too, for the same
+  lifetime (§3). This exception covers the editor's draft and the editor's pending writes, and nothing else.
 
 The persisted format is a one-way door, and version 1 is this:
 
@@ -97,15 +97,27 @@ Publish. Every way out of the editor is its exit: ×, and on native the system B
 §3.5). The native screen hears those through React Navigation's `beforeRemove`. Ten seconds of idle typing (`SERVER_CHECKPOINT_IDLE_MS`) is a checkpoint too. Typing and blur never reach the server. A write that fails the
 draft floor is never asked for, because the server refuses it with a `400` at every trigger.
 
-The policy reads the lifecycle from `status`. The server reads `first_published_at` (ADR-0058). The two agree on
-every recipe a client can produce, because no client sets a published recipe back to draft. A client that adds that
-control needs the fact on the wire first.
+The policy reads the lifecycle from the first publish, the same fact the server versions by (ADR-0058 rule 1). The
+recipe read and every write's answer carry it as `firstPublishedAt`, absent until the first publish. A recipe set back
+to draft through the API therefore stays `published` to the editor: its changes wait for Save changes, and it offers
+no paste. A read without the field falls back to `status = published`, which the service's own CHECK makes imply a
+first publish. The same lifecycle gates Paste a list (`pasteOffered`, D10: until the first publish) and decides whether
+a pasted line keeps its source (`pastedLineKeepsSource`: only until the create is submitted). A paste still joining
+holds the create, except on the editor's exit.
 
 The rebind command (ADR-0045) is a direct write, not an outbox intent: each rebind needs the version the previous
-answer returned, which an intent cannot carry without the outbox rewriting payloads. Like paste (blueprint A5) it is
-non-deferrable. It runs only while the editor has no server write outstanding, holds the editor's lane while it runs,
-and adopts the version it returns. On a published recipe it still writes at once; the memento's `pendingRebinds`,
-which would hold re-picks until Save changes, is in the format and stays empty until that is built.
+answer returned, which an intent cannot carry without the outbox rewriting payloads. It runs only while the editor has
+no server write outstanding, holds the editor's lane while it runs, and adopts the version it returns. On a
+never-published draft it runs at once, because it makes no version (ADR-0058). On a published recipe it is held until
+Save changes, because every write of that recipe makes a version (D1):
+
+- The pick's food is admitted, which writes the catalog and makes no recipe version, and the line shows it at once.
+- The rebind waits in the memento's `pendingRebinds`, one per line, the later re-pick winning. Discard drops it, with
+  the rest of the device draft.
+- Save changes drains the held rebinds through the same command queue, each at the version the previous answer
+  returned, and only then sends its one update. A held rebind whose line the cook removed is dropped. A rebind that
+  fails stops the save and goes back to waiting, with the ones behind it; Retry runs the save again.
+- So a published recipe still gains one version per re-pick at Save changes, plus the update (blueprint A3's N + 1).
 
 ### 3. The outbox has one writer, and its format is fixed
 
@@ -120,6 +132,12 @@ which would hold re-picks until Save changes, is in the format and stays empty u
     - Each record is the intent plus `seq` and `state`. A parked record also has `lastStatus`. The states are
       `pending`, `sending`, `blocked` and `parked`.
 - **Quarantine:** `sync.outbox.quarantine.{subject}`, the same list format as the draft's.
+- **Where it is kept:** AsyncStorage on mobile, and the tab's `sessionStorage` on web. The journal must live at least
+  as long as the draft its records came from. The no-blind-retry rule below parks an unknown outcome for the cook, and
+  that only prevents a second write while the parked record exists. An in-memory web journal under a draft that
+  survives a reload forgets a create that was on the wire, and the reopened editor sends it again: a second recipe.
+  Kept beside the draft, the reload finds the record, the first read parks it, and the cook decides. Closing the tab
+  ends both. The editor is the journal's only writer, so it holds ids and form values only (D7).
 - **Compatibility** keys on the hand-bumped `LOCAL_SCHEMA_VERSION`, never on `CONTRACT_HASH`. That hash moves on a
   comment-only edit.
 
@@ -175,8 +193,14 @@ per platform. The UX engineer writes it.
 
 - **The web draft is at rest in the browser profile while its tab is open.** D7 accepts this for ids and form values,
   and nothing else of the app is kept there.
-- **On web, closing the tab loses changes to a published recipe that wait for Save changes.** D7 accepts this. The
-  status names `tabSession`, so the copy can say it.
+- **On web, closing the tab loses whatever the server does not hold yet**: a published recipe's changes that wait for
+  Save changes, and a draft's last checkpoint that has not reached the server. D7 accepts this. The status names
+  `tabSession`, so the copy can say it, and the browser's own unload prompt is armed in every such state
+  (`closingTabLosesWork`).
+- **Duplicating a tab copies its `sessionStorage`**, the outbox journal included. Two tabs can then each send the same
+  pending record, so a create still waiting to be sent can reach the server twice. This is the one case where a
+  journal with the draft's lifetime is weaker than an idempotency key on create, which would be a wire-contract change.
+  It is accepted: it needs a pending create and a Duplicate Tab in the seconds before the drain sends it.
 - **The session-end clear reaches both stores.** `signOutAndVerify` (ADR-0009, ADR-0054) takes the app's
   `endDeviceSession` and runs it only once the session is proven ended: it clears the cook's draft store and removes
   their outbox key and its quarantine. A failed sign-out keeps both.
@@ -211,7 +235,10 @@ per platform. The UX engineer writes it.
 - **One key per recipe draft.** The port cannot list keys, so the session-end clear cannot find them, and a rekey
   becomes two writes that can tear.
 - **IndexedDB on web.** The owner's ruling of 2026-09-17 keeps durable app data out of the browser. D7 relaxes that
-  for the editor draft in `sessionStorage` only.
+  for the editor's draft and its pending writes in `sessionStorage` only.
+- **An idempotency key on create, with the web journal left in memory.** It would close the reload duplicate too, and
+  the Duplicate Tab one as well. But it changes the create's wire contract and every server path that creates a
+  recipe, a one-way door, to fix what giving the journal the draft's lifetime already fixes.
 - **Hold the mutator's queue across the whole drain.** Simpler, but every `submit` then waits for the network, which
   the offline model forbids.
 - **`p-retry` for the backoff.** It retries a function that throws, and this sender never throws by contract. It also
@@ -227,8 +254,10 @@ per platform. The UX engineer writes it.
   relaunch, and the scheduled re-drain after a long `Retry-After`.
 - `packages/apps/commise/query/tests/__integration__/offlineWritePath.integration.test.tsx`: the provider, the
   mutator, the drainer, `recipeSender` and the real client together, with `fetch` mocked.
-- `packages/apps/commise/features/recipes/src/editor/__tests__/`: `draftStore`, `checkpointPolicy` and `saveStatus`
-  tables.
+- `packages/apps/commise/features/recipes/src/editor/__tests__/`: `draftStore`, `checkpointPolicy` (the lifecycle of a
+  recipe set back to draft, the paste gate and the paste hold) and `saveStatus` (`closingTabLosesWork`) tables.
+- `recipe-service`'s `recipeRowToDomain.test.ts` and `draftVersioning.integration.test.ts`: `firstPublishedAt` on the
+  wire, absent on a draft and kept after the recipe is set back to draft.
 - `packages/apps/commise/features/recipes/tests/__integration__/editorDraftStore.integration.test.ts`: the draft
   store over jsdom's real `sessionStorage`, with values seeded by the real wire mapping.
 - `packages/shared/sync/src/__tests__/outboxLog.test.ts` (`appendExclusive`, `withdraw`, a parked record never
@@ -242,7 +271,10 @@ per platform. The UX engineer writes it.
 - `mobile/tests/screens/RecipeEditorScreen.native.test.tsx`: a leave that is not × still creates a titled new recipe.
   It and `web/tests/components/recipes/RecipeEditorContainer.test.tsx` send the visibility the answer lacks.
 - `packages/apps/commise/features/recipes/tests/__integration__/lineCommit.integration.test.tsx`: the rebind command
-  and Save changes in order, over a real outbox and the real client.
+  at once on a draft, and on a published recipe held until Save changes, then sent before its update, over a real
+  outbox and the real client. `useRecipeEditor.test.tsx` covers the held rebinds' drain, Discard and Retry.
+- `web/src/components/recipes/__tests__/deviceSession.test.ts`: the web outbox journal is kept in the tab's session
+  storage.
 - `features-account`'s `signOutAndVerify.test.ts` and both apps' sign-out adapters: the session-end clear runs after
   the proof, never before it, and `web/src/components/recipes/__tests__/deviceSession.test.ts` clears one cook's
   stores and not another's.

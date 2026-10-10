@@ -8,11 +8,22 @@ import { fireEvent } from '@testing-library/dom';
 
 import { computedContrast } from '@commise/test-utils';
 import { palette } from '@commise/ui';
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeBrowseRailLoadError } from '../RecipeBrowseRailLoadError.native.js';
 
-afterEach(cleanup);
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
+afterEach(() => {
+    cleanup();
+    systemScheme.current = null;
+});
 
 describe('RecipeBrowseRailLoadError (native)', () => {
     it('says the rail could not load, and retries it from Try again', () => {
@@ -38,5 +49,19 @@ describe('RecipeBrowseRailLoadError (native)', () => {
         expect(
             computedContrast(within(retry).getByText('Try again'), { surface: palette.sand }),
         ).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+// D15: the note is `inkMuted` and Try again is a text button in `actionText`, as the web twin, in both schemes.
+describe.each(['light', 'dark'] as const)('RecipeBrowseRailLoadError (native) — the %s scheme', (scheme) => {
+    it('paints the note in inkMuted and Try again in actionText', () => {
+        systemScheme.current = scheme;
+        const colours = scheme === 'dark' ? roleDark : role;
+        render(<RecipeBrowseRailLoadError onRetry={() => undefined} />);
+
+        expect(getComputedStyle(screen.getByText('Couldn’t load this row.')).color).toBe(rgb(colours.inkMuted));
+        expect(
+            getComputedStyle(within(screen.getByRole('button', { name: 'Try again' })).getByText('Try again')).color,
+        ).toBe(rgb(colours.actionText));
     });
 });

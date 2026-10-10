@@ -4,15 +4,17 @@
  * @module @commise/features-recipes/editor — Paste a list in the Ingredients section (blueprint A5, owner decision D10,
  * build spec §7.5.4). The flow ends inside the recipe, so no paste is ever left without a recipe to land in.
  *
- * - **Offered only while creating** (D10): once the recipe has a server row, nothing offers it.
+ * - **Offered while creating** (D10): until the recipe's first publish, as the editor says (`pasteOffered`).
  * - **The paste creates a parse job**, a write that cannot wait: offline it fails at once with the ordinary error
  *   (`useCreateParseJob`'s `networkMode`), never queued, because a paste that ran later would land in a recipe the cook
  *   has left.
  * - **Each line reads at once** as a row, and each settled line joins the recipe IN PASTE ORDER: its foods are looked up
  *   by NAME (`useAddIngredientByName`, the existing cascade, ADR-0045; R19: the parse binds nothing) and appended with
- *   the measure the parse read. A line pasted while the recipe has no server row carries what it was read from
- *   (`sourceLine`, `sourcePhrase`) for the create; once the recipe is stored, a PATCH cannot carry them, so it lands as an
- *   authored line (A5, Q3).
+ *   the measure the parse read. A line that joins before the create is submitted carries what it was read from
+ *   (`sourceLine`, `sourcePhrase`) for the create; once it is (`pastedLineKeepsSource`, read when the line JOINS), a
+ *   PATCH cannot carry them, so it lands as an authored line (A5, Q3; D10 accepts it).
+ * - **Offline the lookups pause** (TanStack's `networkMode: 'online'`) and resume on reconnect; the rows then say so
+ *   (`waiting`), from the mutations' own `isPaused`, never from a connectivity read.
  * - **No row reads for good** (`pastedLines.ts`): past the stall bound, or once the job cannot be read, a line joins
  *   through the add field's own reader.
  * - **A lookup that fails** holds its line, and the lines after it, so the order holds; Try again asks again.
@@ -40,15 +42,17 @@ type SettledPastedLine = Extract<PastedLine, { readonly kind: 'settled' }>;
 
 /** Options for {@link usePasteIntoIngredients}. */
 export interface UsePasteIntoIngredientsOptions {
-    /** The recipe has a server row: nothing offers paste (D10), and a line joins without its source (A5). */
-    readonly stored: boolean;
+    /** The editor offers paste (`pasteOffered`, D10). */
+    readonly offered: boolean;
+    /** A line joining now keeps its source for the create (`pastedLineKeepsSource`, A5). */
+    readonly keepsSource: boolean;
     /** The editor's draft transition, which meets the draft as it is when a line joins. */
     readonly dispatch: (action: DraftAction) => void;
 }
 
 /** What the Ingredients section draws and calls. */
 export interface PasteIntoIngredients {
-    /** Whether Paste a list is offered: no server row (D10), and no paste still reading. */
+    /** Whether Paste a list is offered: the editor offers it (D10), and no paste is still reading. */
     readonly available: boolean;
     readonly submit: (text: string) => void;
     /** The job is being created: the sheet's primary reads busy. */
@@ -85,11 +89,11 @@ function draftLineOf(
     admitted: ResolvedRecipeFormIngredient,
     row: PastedRow,
     sourceLine: string,
-    stored: boolean,
+    keepsSource: boolean,
 ): ResolvedRecipeFormIngredient {
     const line = withLineMeasure(admitted, row.measure);
 
-    if (stored) {
+    if (!keepsSource) {
         return line;
     }
 
@@ -104,7 +108,7 @@ function draftLineOf(
  * @sideEffect Creates a parse job, polls it, looks each line's foods up by name, and appends them to the draft.
  */
 export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions): PasteIntoIngredients {
-    const { stored } = options;
+    const { offered, keepsSource } = options;
     const [session, setSession] = useState<PasteSession | undefined>(undefined);
     const [acceptedCount, setAcceptedCount] = useState(0);
     // The sessions whose next line is being joined. A session object names one line of one paste (it is replaced as each
@@ -178,7 +182,7 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
         claimed.add(session);
         const from = session;
         const total = lines.length;
-        const storedNow = stored;
+        const keepsSourceNow = keepsSource;
 
         join.mutate(next, {
             onSuccess: (admitted, line) => {
@@ -186,7 +190,7 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
                     options.dispatch({
                         kind: 'appendResolvedIngredient',
                         key: mintLineKey(),
-                        line: draftLineOf(ingredient, row, line.sourceLine, storedNow),
+                        line: draftLineOf(ingredient, row, line.sourceLine, keepsSourceNow),
                     });
                 }
 
@@ -213,8 +217,11 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
         }
     }, [nextSettledIndex, session]);
 
+    // The work waits for a connection: the join (a mutation) paused, a lookup inside it paused, or the poll paused.
+    const waiting = join.isPaused || byName.isPaused || poll.fetchStatus === 'paused';
+
     return {
-        available: !stored && session === undefined && !create.isPending,
+        available: offered && session === undefined && !create.isPending,
         submit: (text) => create.mutate({ text }),
         submitting: create.isPending,
         failed: create.isError,
@@ -226,7 +233,7 @@ export function usePasteIntoIngredients(options: UsePasteIntoIngredientsOptions)
                 : lines.slice(session.done).map((line) => ({
                       key: `${session.jobId}:${String(line.lineIndex)}`,
                       sourceLine: line.sourceLine,
-                      failed: session.failedAt === line.lineIndex,
+                      state: session.failedAt === line.lineIndex ? 'failed' : waiting ? 'waiting' : 'reading',
                   })),
         retry: () => setSession((current) => (current === undefined ? current : { ...current, failedAt: undefined })),
         added,

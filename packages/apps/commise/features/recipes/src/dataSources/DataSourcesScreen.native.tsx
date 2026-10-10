@@ -10,10 +10,10 @@
  */
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { OfflineReadSlot } from '@commise/ui/offline-notice';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet } from 'react-native';
 
@@ -30,13 +30,14 @@ export const DataSourcesScreen: FC<DataSourcesScreenNativeProps> = ({ onRequestC
     const { view, failures, recoveries, onRetry } = useDataSourcesView();
     const { readOffline } = useMessages(offlineNoticeMessages);
     const { loadFailed } = useMessages(dataSourcesMessages);
+    const { colors } = useTheme();
 
     return (
         <DataSourcesPage onRequestClose={onRequestClose} headingFocusSignal={recoveries}>
             {/* The failure's words, mounted from the first render, empty until a read fails: Android speaks a change
                 to a region it already holds. Each failure moves the words to the other region (`occurrence`), so a
                 second failure is spoken too, while the reading cursor stays on Try again (§S16 "States"). */}
-            <LiveRegion politeness="assertive" occurrence={failures} style={styles.failure}>
+            <LiveRegion politeness="assertive" occurrence={failures} style={[styles.failure, { color: colors.ink }]}>
                 {view.kind === 'error' ? loadFailed : ''}
             </LiveRegion>
             {view.kind === 'loading' && <DataSourcesSkeleton />}
@@ -48,5 +49,5 @@ export const DataSourcesScreen: FC<DataSourcesScreenNativeProps> = ({ onRequestC
 };
 
 const styles = StyleSheet.create({
-    failure: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.charcoal },
+    failure: { fontSize: nativeTokens.fontSize.bodyMd },
 });

@@ -23,6 +23,8 @@ export function makeRawRecipeSearchRow(overrides: Partial<Record<string, unknown
         rating_count: 0,
         visibility: 'public',
         status: 'published',
+        // A published row has a first publish (the service's own CHECK, ADR-0058).
+        first_published_at: '2026-07-01T00:00:00.000Z',
         source_type: 'user_created',
         source_url: null,
         source_attribution: null,

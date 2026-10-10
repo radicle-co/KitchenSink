@@ -138,7 +138,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                 <h3 className="font-display text-body-md font-semibold text-ink">
                                     {fillTemplate(preview.ingredientsHeading, { version: version.versionNumber })}
                                 </h3>
-                                <ul className="flex flex-col divide-y divide-border rounded-2xl bg-surface-muted p-2">
+                                <ul className="flex flex-col divide-y divide-line-divider rounded-2xl bg-surface-muted p-2">
                                     {toVersionPreviewIngredientLines(
                                         version.snapshot.ingredients,
                                         preview,

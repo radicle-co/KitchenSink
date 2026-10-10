@@ -9,6 +9,8 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState } from 'react';
 
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { spokenVariantParts } from '@commise/ui/variant-parts-line';
 import type { IngredientVariantPart } from '@kitchensink/recipe-core';
 
@@ -17,13 +19,21 @@ import { conflictSideParts, type ConflictDiff } from '../conflictDiff.js';
 import { makeVersionConflictSide } from '../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeConflictView } from '../RecipeConflictView.native.js';
+import { recipeVersionMessages } from '../messages.js';
 import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { RecipeConflictViewProps } from '../conflictView.js';
 import type { RecipeMergeSelections } from '../merge.js';
 
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
 afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    systemScheme.current = null;
 });
 
 const noop = () => undefined;
@@ -1206,5 +1216,71 @@ describe('RecipeConflictView (native) — a never-published draft', () => {
         expect(
             screen.getByRole('button', { name: 'Overwrite with your version' }).getAttribute('aria-disabled'),
         ).not.toBe('true');
+    });
+});
+
+/**
+ * D15: the view paints from colour roles at render, so it follows the device's scheme. Each surface is asserted in BOTH
+ * schemes: a level-1 card is `paper` inside a `lineDivider` edge (`darkTheme.md` §4), the stale-base warning is the
+ * design system's caution surface (`StandIn`: an `attention` edge on the `attentionTint` fill under `ink`), and a
+ * chosen merge radio fills with `selectedEdge`.
+ */
+describe.each(['light', 'dark'] as const)('RecipeConflictView (native) — the %s scheme', (scheme) => {
+    const colours = scheme === 'dark' ? roleDark : role;
+    const copy = recipeVersionMessages.en.conflict;
+    const style = (element: Element): CSSStyleDeclaration => getComputedStyle(element);
+
+    it('paints the heading in ink and the explanation in inkMuted', () => {
+        systemScheme.current = scheme;
+        freezeClock();
+        renderConflict();
+
+        expect(style(screen.getByRole('heading', { name: copy.heading })).color).toBe(rgb(colours.ink));
+        expect(style(screen.getByText(copy.explanation)).color).toBe(rgb(colours.inkMuted));
+    });
+
+    it('draws each option card on paper inside a lineDivider edge, its title in ink', () => {
+        systemScheme.current = scheme;
+        freezeClock();
+        renderConflict();
+        const card = screen.getByRole('button', { name: copy.optionServerTitle });
+
+        expect(style(card).backgroundColor).toBe(rgb(colours.paper));
+        expect(style(card).borderTopColor).toBe(rgb(colours.lineDivider));
+        expect(style(within(card).getByText(copy.optionServerTitle)).color).toBe(rgb(colours.ink));
+    });
+
+    it('draws the stale-base warning as the caution surface: attentionTint inside an attention edge, ink text', () => {
+        systemScheme.current = scheme;
+        freezeClock();
+        renderConflict({ versionsBehind: 11 });
+        const warning = screen.getByRole('alert');
+
+        expect(style(warning).backgroundColor).toBe(colours.attentionTint);
+        expect(style(warning).borderTopColor).toBe(rgb(colours.attention));
+    });
+
+    it('fills a chosen merge radio with selectedEdge, and rings an open one in inkMuted', () => {
+        systemScheme.current = scheme;
+        freezeClock();
+        renderControlledConflict();
+        fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
+        const group = screen.getByRole('radiogroup', { name: 'Title' });
+        const chosen = within(group).getByRole('radio', { name: 'Your version: My Draft Title' });
+        fireEvent.click(chosen);
+        const open = within(group).getByRole('radio', { name: 'Latest saved version: Latest Saved Title' });
+
+        const dot = (radio: HTMLElement): Element => {
+            const first = radio.firstElementChild;
+
+            if (first === null) {
+                throw new Error('no radio dot');
+            }
+
+            return first;
+        };
+
+        expect(style(dot(chosen)).backgroundColor).toBe(rgb(colours.selectedEdge));
+        expect(style(dot(open)).borderTopColor).toBe(rgb(colours.inkMuted));
     });
 });

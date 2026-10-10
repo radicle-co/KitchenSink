@@ -10,9 +10,12 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { createElement, type ComponentProps } from 'react';
 import type { KeyboardAvoidingView as KeyboardAvoidingViewType, ScrollView as ScrollViewType } from 'react-native';
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { AccountEraseDialog } from '../AccountEraseDialog.native.js';
+import { accountDangerMessages } from '../messages.js';
 import type { AccountEraseDialogProps } from '../model.js';
 import { makeDonatableRecipe } from '../__fixtures__/index.js';
 
@@ -23,8 +26,9 @@ const PHRASE = 'ERASE MY DATA';
 // region whose first tap reaches a control".
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-    return {
+    return withSystemScheme({
         ...actual,
         ScrollView: (props: ComponentProps<typeof ScrollViewType>) =>
             createElement(
@@ -34,10 +38,13 @@ vi.mock('react-native', async (importOriginal) => {
             ),
         KeyboardAvoidingView: (props: ComponentProps<typeof KeyboardAvoidingViewType>) =>
             createElement('div', { 'data-keyboard-avoider': true }, createElement(actual.KeyboardAvoidingView, props)),
-    };
+    });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    systemScheme.current = null;
+});
 
 const noop = () => undefined;
 
@@ -217,5 +224,48 @@ describe('AccountEraseDialog (native) — the keyboard', () => {
 
         expect(within(dialog).getByRole('heading', { name: 'Erase my data' })).toBeTruthy();
         expect(dialog.getAttribute('aria-label')).toBeNull();
+    });
+});
+
+/**
+ * D15: the dialog paints from colour roles at render, as the web twin does. The warning and a failure are `dangerText`,
+ * body copy `inkMuted`, a heading and a recipe `ink`, the phrase field `ink` inside a `lineControl` edge, and Erase the
+ * `danger` fill under its `onAction` label (4.66:1 in both themes).
+ */
+describe.each(['light', 'dark'] as const)('AccountEraseDialog (native) — the %s scheme', (scheme) => {
+    const colours = scheme === 'dark' ? roleDark : role;
+    const e = accountDangerMessages.en.erase;
+    const style = (element: Element): CSSStyleDeclaration => getComputedStyle(element);
+
+    it('paints the warning in dangerText, the body in inkMuted and the donate heading in ink', () => {
+        systemScheme.current = scheme;
+        renderDialog();
+
+        expect(style(screen.getByText(e.warning)).color).toBe(rgb(colours.dangerText));
+        expect(style(screen.getByText(e.distinction)).color).toBe(rgb(colours.inkMuted));
+        expect(style(screen.getByRole('heading', { name: e.donateHeading })).color).toBe(rgb(colours.ink));
+    });
+
+    it('draws the phrase field ink inside a lineControl edge, and Erase on the danger fill', () => {
+        systemScheme.current = scheme;
+        renderDialog({ phrase: PHRASE });
+        const field = screen.getByLabelText(e.phraseLabel);
+        const erase = screen.getByRole('button', { name: e.confirm });
+
+        expect(style(field).color).toBe(rgb(colours.ink));
+        expect(style(field).borderTopColor).toBe(rgb(colours.lineControl));
+        expect(style(erase).backgroundColor).toBe(rgb(colours.danger));
+        expect(style(within(erase).getByText(e.confirm)).color).toBe(rgb(colours.onAction));
+        expect(style(within(screen.getByRole('button', { name: e.cancel })).getByText(e.cancel)).color).toBe(
+            rgb(colours.inkMuted),
+        );
+    });
+
+    it('lists a donatable recipe in ink, and a failed erase in dangerText', () => {
+        systemScheme.current = scheme;
+        renderDialog({ donatableRecipes: [makeDonatableRecipe({ id: 'r1', title: 'Soup' })], submitError: true });
+
+        expect(style(screen.getByText('Soup')).color).toBe(rgb(colours.ink));
+        expect(style(screen.getByText(e.error)).color).toBe(rgb(colours.dangerText));
     });
 });

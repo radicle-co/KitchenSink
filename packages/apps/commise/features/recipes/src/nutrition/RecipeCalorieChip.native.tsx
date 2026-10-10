@@ -6,7 +6,7 @@
  * a `known` reading of 0 renders "0 cal". Only the primitives differ.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
@@ -29,6 +29,7 @@ export interface RecipeCalorieChipProps {
 export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => {
     const messages = useMessages(recipeNutritionMessages);
     const locale = useLocale();
+    const { colors } = useTheme();
 
     switch (nutrition.state) {
         case 'known': {
@@ -43,7 +44,7 @@ export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => 
                 <Text
                     accessibilityRole="image"
                     accessibilityLabel={chip.label}
-                    style={chip.isStale ? styles.stale : styles.figure}
+                    style={[chip.isStale ? styles.stale : styles.figure, { color: colors.inkMuted }]}
                 >
                     {chip.text}
                 </Text>
@@ -56,10 +57,10 @@ export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => 
 };
 
 const styles = StyleSheet.create({
-    // Matches the card meta row's own `metaText` (13pt slate) so the chip sits in the row rather than on it.
-    figure: { fontSize: 13, color: palette.slate },
+    // Matches the card meta row's own `metaText` (13pt `inkMuted`) so the chip sits in the row rather than on it.
+    figure: { fontSize: 13 },
     // The sighted reader's half of "serve stale, MARKED" — the italic is the cue, the accessible name carries
     // the caveat itself. The colour is deliberately UNCHANGED: dimming it further would trade a contrast
     // ratio the meta row was tuned to for a signal the accessible name already delivers.
-    stale: { fontSize: 13, color: palette.slate, fontStyle: 'italic' },
+    stale: { fontSize: 13, fontStyle: 'italic' },
 });

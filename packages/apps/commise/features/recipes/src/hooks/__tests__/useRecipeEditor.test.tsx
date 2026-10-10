@@ -16,155 +16,24 @@ import {
     type VersionConflictSide,
 } from '@kitchensink/recipe-core';
 import { makeRecipeVersion } from '@kitchensink/recipe-core/testing';
-import type { Intent, SettlementEvent } from '@kitchensink/sync';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { makeFakeEditorWritePort as fakePort } from '../../__fixtures__/editorWritePort.js';
 import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { DEVICE_SAVE_IDLE_MS, SERVER_CHECKPOINT_IDLE_MS } from '../../editor/checkpointPolicy.js';
 import type { DraftMemento, DraftStore } from '../../editor/draftStore.js';
+import type { IngredientLineKey } from '../../form/lineKey.js';
 import { toDraftValues } from '../../editor/draftStore.js';
 import { toRecipeFormValues } from '../../form/wire.js';
 import { draftToSnapshot } from '../../versions/merge.js';
+import type { RebindLineSend } from '../lineCommit.js';
 import {
     useRecipeEditor,
     type EditorExit,
     type EditorSeed,
-    type EditorWriteAnswer,
     type EditorWritePort,
     type UseRecipeEditorResult,
 } from '../useRecipeEditor.js';
-
-type Settlement = SettlementEvent<EditorWriteAnswer>;
-
-/** A fake outbox: records each submit, lets the test put a record on the wire, park it or answer it. */
-function fakePort() {
-    const listeners = new Set<(event: Settlement) => void>();
-    const records = new Map<
-        number,
-        { readonly intent: Intent; state: 'pending' | 'sending' | 'parked'; status?: number }
-    >();
-    let nextSeq = 1;
-    const failures: {
-        seq: number;
-        entity: 'recipe';
-        intentKind: Intent['intentKind'];
-        localId: string;
-        status?: number;
-    }[] = [];
-
-    const port = {
-        submitted: [] as Intent[],
-        withdrawn: [] as number[],
-        failures,
-        submit: vi.fn(async (intent: Intent) => {
-            port.submitted.push(intent);
-
-            return { queued: true as const };
-        }),
-        submitExclusive: vi.fn(async (intent: Intent) => {
-            const same = [...records.entries()].find(
-                ([, record]) => record.intent.entity === intent.entity && record.intent.localId === intent.localId,
-            );
-
-            if (same !== undefined && same[1].state === 'sending') {
-                return { kind: 'inFlight' as const, seq: same[0] };
-            }
-
-            if (same !== undefined && same[1].state === 'parked') {
-                return {
-                    kind: 'parked' as const,
-                    seq: same[0],
-                    ...(same[1].status === undefined ? {} : { status: same[1].status }),
-                };
-            }
-
-            if (same !== undefined) {
-                records.delete(same[0]);
-            }
-
-            const seq = nextSeq;
-            nextSeq += 1;
-            records.set(seq, { intent, state: 'pending' });
-            port.submitted.push(intent);
-
-            return { kind: 'queued' as const, seq };
-        }),
-        withdraw: vi.fn(async (seq: number) => {
-            port.withdrawn.push(seq);
-            records.delete(seq);
-            failures.splice(
-                failures.findIndex((failure) => failure.seq === seq),
-                1,
-            );
-        }),
-        subscribe: (listener: (event: Settlement) => void) => {
-            listeners.add(listener);
-
-            return () => listeners.delete(listener);
-        },
-        /** The drain claimed the newest record. */
-        claim: (seq: number) => {
-            const record = records.get(seq);
-
-            if (record !== undefined) {
-                record.state = 'sending';
-            }
-        },
-        /** The newest record's sequence number. */
-        lastSeq: () => nextSeq - 1,
-        /** The drain answered: synced. */
-        sync: (seq: number, detail: RecipeDetail) => {
-            const record = records.get(seq);
-            records.delete(seq);
-            const event: Settlement = {
-                seq,
-                entity: 'recipe',
-                localId: record?.intent.localId ?? '',
-                intentKind: record?.intent.intentKind ?? 'update',
-                outcome: 'synced',
-                serverId: detail.id,
-                answer: { kind: 'recipeWritten', detail },
-            };
-
-            for (const listener of [...listeners]) {
-                listener(event);
-            }
-        },
-        /** The drain answered: parked. */
-        park: (seq: number, status?: number, answer?: EditorWriteAnswer) => {
-            const record = records.get(seq);
-
-            if (record === undefined) {
-                throw new Error(`no record ${String(seq)}`);
-            }
-
-            record.state = 'parked';
-            record.status = status;
-            failures.push({
-                seq,
-                entity: 'recipe',
-                intentKind: record.intent.intentKind,
-                localId: record.intent.localId,
-                ...(status === undefined ? {} : { status }),
-            });
-            const event: Settlement = {
-                seq,
-                entity: 'recipe',
-                localId: record.intent.localId,
-                intentKind: record.intent.intentKind,
-                outcome: 'parked',
-                ...(status === undefined ? {} : { status }),
-                ...(answer === undefined ? {} : { answer }),
-            };
-
-            for (const listener of [...listeners]) {
-                listener(event);
-            }
-        },
-    };
-
-    return port;
-}
 
 /** A device draft store that records what it was asked. */
 function fakeDrafts(): DraftStore & {
@@ -210,8 +79,11 @@ function mount(seed: EditorSeed = {}) {
     const drafts = fakeDrafts();
     const onExit = vi.fn<(exit: EditorExit) => void>();
     const onRecipeRef = vi.fn<(ref: string) => void>();
+    const rebindLine = vi.fn<RebindLineSend>(async () => {
+        throw new Error('rebindLine: not expected in this test');
+    });
     const view = renderHook(
-        (props: { readonly seed: EditorSeed }) =>
+        (props: { readonly seed: EditorSeed; readonly pastePending?: boolean }) =>
             useRecipeEditor(props.seed, {
                 locale: 'en',
                 port: port as unknown as EditorWritePort,
@@ -219,12 +91,14 @@ function mount(seed: EditorSeed = {}) {
                 keep: 'disk',
                 onExit,
                 onRecipeRef,
+                rebindLine,
+                pastePending: props.pastePending ?? false,
                 now: () => new Date('2026-10-09T12:00:00.000Z'),
             }),
-        { initialProps: { seed } },
+        { initialProps: { seed } as { readonly seed: EditorSeed; readonly pastePending?: boolean } },
     );
 
-    return { ...view, port, drafts, onExit, onRecipeRef };
+    return { ...view, port, drafts, onExit, onRecipeRef, rebindLine };
 }
 
 /** Type a title (the draft floor's one requirement). */
@@ -347,7 +221,7 @@ describe('a new recipe', () => {
         expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
     });
 
-    it('adopts the create`s answer: the server id, its version, the draft moved to the id; paste is gone (D10)', async () => {
+    it('adopts the create`s answer: the server id, its version, the draft moved to the id; paste stays (D10)', async () => {
         const { result, port, drafts, onRecipeRef } = mount();
 
         typeTitle(result);
@@ -371,7 +245,8 @@ describe('a new recipe', () => {
 
         expect(result.current.recipeId).toBe('rec_new');
         expect(result.current.lifecycle).toBe('neverPublished');
-        expect(result.current.pasteAvailable).toBe(false);
+        // REWRITTEN (owner D10, 2026-10-09): paste lasts until the first PUBLISH, not the first server save.
+        expect(result.current.pasteAvailable).toBe(true);
         expect(drafts.adopt).toHaveBeenCalledWith(localRef, { serverId: 'rec_new', version: 1 });
         expect(onRecipeRef).toHaveBeenLastCalledWith('rec_new');
 
@@ -586,6 +461,24 @@ describe('a published recipe (D1: changes stay on the device until Save changes)
 
         const same = { ...memento, values: toDraftValues(toRecipeFormValues(PUBLISHED)) };
         expect(mount({ recipe: PUBLISHED, memento: same }).result.current.resume).toBeUndefined();
+    });
+
+    /** ADR-0058 rule 1: a recipe set back to draft through the API was published, so its device changes resume too. */
+    it('a published recipe set back to draft is still published to the editor: its changes wait, and resume', () => {
+        const redrafted = { ...PUBLISHED, status: RecipeStatus.DRAFT, firstPublishedAt: '2026-10-01T09:00:00.000Z' };
+        const memento: DraftMemento = {
+            recipeRef: 'rec_1',
+            baseVersion: 3,
+            values: toDraftValues({ ...toRecipeFormValues(redrafted), description: 'Creamier.' }),
+            pendingRebinds: [],
+            savedAt: '2026-10-08T09:00:00.000Z',
+        };
+
+        expect(mount({ recipe: redrafted, memento }).result.current).toMatchObject({
+            lifecycle: 'published',
+            pasteAvailable: false,
+            resume: { savedAt: '2026-10-08T09:00:00.000Z' },
+        });
     });
 
     it('⛔ a draft edited from an older version names THAT version, so another device`s save meets a 409', async () => {
@@ -935,5 +828,460 @@ describe('the rebind command (ADR-0045), in the lane', () => {
         expect(outcome).toEqual({ kind: 'conflict' });
         expect(result.current.state.status).toBe('conflict');
         expect(port.submitExclusive).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * Discard while the create is on the wire (finding 4): the delete names the create's local ref as its dependency, so it
+ * drains after the create and is sent with the id the create returns. The editor states it itself rather than relying
+ * on the outbox's supersession to add it, and names it only while the ref is local (`appendIntent` refuses a server id).
+ */
+describe('discard while the create is on the wire', () => {
+    it('submits a delete that depends on the create`s local ref', async () => {
+        const { result, port } = mount();
+
+        typeTitle(result);
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        const localRef = port.submitted[0]?.localId ?? '';
+        port.claim(port.lastSeq());
+
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+
+        expect(localRef).toMatch(/^local:recipe:/u);
+        expect(port.submitted.at(-1)).toEqual({
+            entity: 'recipe',
+            intentKind: 'delete',
+            localId: localRef,
+            dependsOn: [localRef],
+            payload: { id: localRef },
+        });
+    });
+});
+
+/** A complete recipe's values, so Publish passes the gate. */
+function complete(): ReturnType<typeof toRecipeFormValues> {
+    return { ...toRecipeFormValues(makeRecipeDetail({ id: 'rec_c', status: RecipeStatus.DRAFT })), photos: [] };
+}
+
+/**
+ * Publish pressed while a checkpoint's write is on the wire (finding 3). The editor keeps one write in flight, so the
+ * Publish waits for the answer. It must not wait INVISIBLY — the bar reads finishing — and it must not publish a draft
+ * the cook changed in the meantime without checking it again.
+ */
+describe('Publish while a checkpoint is on the wire', () => {
+    async function publishBehindTheCreate() {
+        const view = mount();
+
+        act(() => {
+            view.result.current.setValues(complete());
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        const createSeq = view.port.lastSeq();
+        view.port.claim(createSeq);
+
+        let outcome: unknown;
+        act(() => {
+            outcome = view.result.current.publish('');
+        });
+        await settle();
+
+        return { ...view, createSeq, outcome };
+    }
+
+    const created = (): RecipeDetail =>
+        makeRecipeDetail({ id: 'rec_c', currentVersion: 1, status: RecipeStatus.DRAFT });
+
+    it('shows the bar as finishing while the Publish waits, and a second press is busy', async () => {
+        const { result, port } = await publishBehindTheCreate();
+
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+        expect(result.current.state.status).toBe('finishing');
+
+        let again: unknown;
+        act(() => {
+            again = result.current.publish('');
+        });
+
+        expect(again).toEqual({ kind: 'busy' });
+    });
+
+    it('publishes once the create answers, with an update that names the create`s version', async () => {
+        const { result, port, createSeq } = await publishBehindTheCreate();
+
+        act(() => {
+            port.sync(createSeq, created());
+        });
+        await settle();
+        await settle();
+
+        expect(port.submitted.at(-1)).toMatchObject({
+            intentKind: 'update',
+            payload: { input: { status: 'published', expectedVersion: 1 } },
+        });
+        expect(result.current.state.status).toBe('finishing');
+    });
+
+    it('⛔ checks the draft again when it runs: a draft emptied meanwhile is refused like any Publish', async () => {
+        const { result, port, createSeq } = await publishBehindTheCreate();
+
+        act(() => {
+            result.current.setField('steps', []);
+        });
+        act(() => {
+            port.sync(createSeq, created());
+        });
+        await settle();
+        await settle();
+
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+        expect(result.current.errors).toMatchObject({ steps: 'stepsRequired' });
+        expect(result.current.publishAttempted).toBe(true);
+        expect(result.current.state.status).toBe('editing');
+    });
+
+    it('stops finishing when the write it waits for parks: the cook decides, and nothing publishes behind them', async () => {
+        const { result, port, createSeq } = await publishBehindTheCreate();
+
+        act(() => {
+            port.park(createSeq);
+        });
+        await settle();
+
+        expect(result.current.state.status).toBe('editing');
+        expect(result.current.parked).toEqual({ failure: 'unknown', kind: 'create' });
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+
+        // The cook's Retry sends the draft again; the Publish that waited behind the parked write does not come back.
+        act(() => {
+            result.current.retry();
+        });
+        await settle();
+        await settle();
+        act(() => {
+            port.sync(port.lastSeq(), created());
+        });
+        await settle();
+        await settle();
+
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create', 'create']);
+        expect(result.current.state.status).toBe('editing');
+    });
+});
+
+/**
+ * Paste and the create (findings 7 and 8; owner D10 as amended 2026-10-09). Paste is offered until the first publish.
+ * A pasted line keeps its source only while the create has not been SUBMITTED, and a paste still joining holds the
+ * create, so no line joins a draft whose create already went out.
+ */
+describe('paste and the create', () => {
+    it('a pasted line keeps its source until the create is submitted, not until it answers', async () => {
+        const { result, port } = mount();
+
+        typeTitle(result);
+        expect(result.current.pasteKeepsSource).toBe(true);
+
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        port.claim(port.lastSeq());
+
+        expect(result.current.recipeId).toBeUndefined();
+        expect(result.current.pasteKeepsSource).toBe(false);
+        expect(result.current.pasteAvailable).toBe(true);
+    });
+
+    it('holds the create while a paste is joining, and sends it at the next checkpoint once the paste is done', async () => {
+        const { result, port, rerender } = mount();
+
+        rerender({ seed: {}, pastePending: true });
+        typeTitle(result);
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+
+        rerender({ seed: {}, pastePending: false });
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+    });
+
+    it('a published recipe offers no paste', () => {
+        const { result } = mount({ recipe: PUBLISHED });
+
+        expect(result.current.pasteAvailable).toBe(false);
+    });
+});
+
+/**
+ * A food re-picked on a PUBLISHED recipe waits for Save changes (owner D1; blueprint A3's `pendingRebinds`; finding 6).
+ * Sending it at once made a version before the cook said they were done, and Discard could not take it back. Held, it
+ * is shown on the line at once, kept in the device draft, drained through the rebind command (which teaches, ADR-0045)
+ * when the cook presses Save changes — and only then is the Save changes update sent.
+ */
+describe('a re-pick on a published recipe waits for Save changes', () => {
+    beforeEach(() => {
+        vi.useRealTimers();
+    });
+
+    const IDS = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002'] as const;
+    const REBOUND = '00000000-0000-4000-8000-00000000000f';
+    const TARGET = { kind: 'catalogFood', foodId: '00000000-0000-4000-8000-0000000000aa' } as const;
+    const BINDING = {
+        ingredientId: REBOUND,
+        name: 'Chickpeas',
+        isUserEntered: false,
+        resolutionStatus: 'RESOLVED',
+    } as const;
+    const published = (version: number, second: string = IDS[1]): RecipeDetail =>
+        makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: version,
+            status: RecipeStatus.PUBLISHED,
+            ingredients: [
+                makeIngredientView({ ingredientId: IDS[0], name: 'Olive oil' }),
+                makeIngredientView({ ingredientId: second, name: second === REBOUND ? 'Chickpeas' : 'chick' }),
+            ],
+        });
+
+    function holdOnSecondLine(view: ReturnType<typeof mount>): IngredientLineKey {
+        const key = view.result.current.values.ingredients[1]!.key;
+
+        act(() => {
+            view.result.current.lineCommand.hold({ lineKey: key, target: TARGET }, BINDING);
+        });
+
+        return key;
+    }
+
+    it('holds it: the line shows the new food, nothing is sent, and the device draft keeps it', async () => {
+        const view = mount({ recipe: published(3) });
+
+        expect(view.result.current.lineCommand.holdsRebinds).toBe(true);
+        const key = holdOnSecondLine(view);
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, DEVICE_SAVE_IDLE_MS + 20));
+        });
+
+        expect(view.result.current.values.ingredients[1]).toMatchObject({ key, ingredientId: REBOUND });
+        expect(view.rebindLine).not.toHaveBeenCalled();
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.drafts.saved.at(-1)?.pendingRebinds).toEqual([{ lineKey: key, target: TARGET }]);
+        expect(view.result.current.hasUnsavedChanges).toBe(true);
+    });
+
+    it('a second re-pick of the same line replaces the first', async () => {
+        const view = mount({ recipe: published(3) });
+        const key = holdOnSecondLine(view);
+        const other = { kind: 'name', name: 'garbanzo beans' } as const;
+
+        act(() => {
+            view.result.current.lineCommand.hold({ lineKey: key, target: other }, BINDING);
+        });
+        act(() => {
+            view.result.current.checkpoint('fieldBlur');
+        });
+        await settle();
+
+        expect(view.drafts.saved.at(-1)?.pendingRebinds).toEqual([{ lineKey: key, target: other }]);
+    });
+
+    it('Discard takes it back: no rebind, no recipe write', async () => {
+        const view = mount({ recipe: published(3) });
+        holdOnSecondLine(view);
+
+        act(() => {
+            view.result.current.discard();
+        });
+        await settle();
+
+        expect(view.rebindLine).not.toHaveBeenCalled();
+        expect(view.port.submit).not.toHaveBeenCalled();
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_1' });
+    });
+
+    it('Save changes drains it through the rebind command, then sends ONE update at the version it returned', async () => {
+        const view = mount({ recipe: published(3) });
+        const key = holdOnSecondLine(view);
+        view.rebindLine.mockImplementation(async () => published(4, REBOUND));
+        act(() => {
+            view.result.current.setField('description', 'Smokier.');
+        });
+
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.rebindLine).toHaveBeenCalledTimes(1);
+        expect(view.rebindLine).toHaveBeenCalledWith({ recipeId: 'rec_1', position: 1, expectedVersion: 3 }, TARGET);
+        expect(view.port.submitted).toHaveLength(1);
+        expect(view.port.submitted[0]).toMatchObject({
+            intentKind: 'update',
+            payload: { input: { description: 'Smokier.', expectedVersion: 4 } },
+        });
+        expect(view.result.current.state.status).toBe('finishing');
+        expect(view.result.current.values.ingredients[1]).toMatchObject({ key, ingredientId: REBOUND });
+
+        const saved = { ...published(5, REBOUND), description: 'Smokier.' };
+        act(() => {
+            view.port.sync(view.port.lastSeq(), saved);
+        });
+        await settle();
+
+        expect(view.onExit).toHaveBeenCalledWith({ kind: 'changesSaved', recipe: saved });
+    });
+
+    it('Save changes with only a re-pick sends the rebind and no update, then hands off', async () => {
+        const view = mount({ recipe: published(3) });
+        holdOnSecondLine(view);
+        view.rebindLine.mockImplementation(async () => published(4, REBOUND));
+
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.rebindLine).toHaveBeenCalledTimes(1);
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.onExit).toHaveBeenCalledWith({ kind: 'changesSaved', recipe: published(4, REBOUND) });
+    });
+
+    it('a held re-pick whose line the cook removed is never sent', async () => {
+        const view = mount({ recipe: published(3) });
+        const key = holdOnSecondLine(view);
+        act(() => {
+            view.result.current.setValues({
+                ...view.result.current.values,
+                ingredients: view.result.current.values.ingredients.filter((line) => line.key !== key),
+            });
+        });
+
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.rebindLine).not.toHaveBeenCalled();
+        expect(view.port.submitted).toHaveLength(1);
+    });
+
+    it('⛔ a re-pick stays in the device draft until its rebind answers: a leave mid-drain keeps it', async () => {
+        const view = mount({ recipe: published(3) });
+        const key = holdOnSecondLine(view);
+        view.rebindLine.mockReturnValue(new Promise(() => undefined));
+
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        expect(view.rebindLine).toHaveBeenCalledTimes(1);
+
+        act(() => {
+            view.result.current.checkpoint('editorExit');
+        });
+        await settle();
+
+        expect(view.drafts.saved.at(-1)?.pendingRebinds).toEqual([{ lineKey: key, target: TARGET }]);
+    });
+
+    it('a re-pick back to the food the server holds is dropped: it would make a version that changes nothing', async () => {
+        const view = mount({ recipe: published(3) });
+        const key = holdOnSecondLine(view);
+        const original = view.result.current.values.ingredients[1];
+        act(() => {
+            view.result.current.lineCommand.hold(
+                { lineKey: key, target: { kind: 'name', name: 'chick' } },
+                { ingredientId: IDS[1], name: 'chick', isUserEntered: false },
+            );
+        });
+        act(() => {
+            view.result.current.setField('description', 'Other change.');
+        });
+
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        await settle();
+
+        expect(original).toBeDefined();
+        expect(view.rebindLine).not.toHaveBeenCalled();
+        expect(view.port.submitted).toHaveLength(1);
+    });
+
+    it('a rebind that fails stops the save: no update is sent, the re-pick is kept, and Retry runs the save again', async () => {
+        const view = mount({ recipe: published(3) });
+        holdOnSecondLine(view);
+        view.rebindLine.mockRejectedValueOnce(new Error('offline'));
+
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+        expect(view.result.current.state.status).toBe('editing');
+        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'update' });
+
+        view.rebindLine.mockImplementation(async () => published(4, REBOUND));
+        act(() => {
+            view.result.current.retry();
+        });
+        await settle();
+        await settle();
+
+        expect(view.rebindLine).toHaveBeenCalledTimes(2);
+        expect(view.onExit).toHaveBeenCalledWith({ kind: 'changesSaved', recipe: published(4, REBOUND) });
+    });
+
+    it('reopens with the re-picks the device draft kept, and Save changes sends them', async () => {
+        const recipe = published(3);
+        const values = toRecipeFormValues(recipe);
+        const key = values.ingredients[1]!.key;
+        const memento: DraftMemento = {
+            recipeRef: 'rec_1',
+            baseVersion: 3,
+            values: toDraftValues({
+                ...values,
+                ingredients: values.ingredients.map((line) => (line.key === key ? { ...line, ...BINDING } : line)),
+            }),
+            pendingRebinds: [{ lineKey: key, target: TARGET }],
+            savedAt: '2026-10-09T11:00:00.000Z',
+        };
+        const view = mount({ recipe, memento });
+        view.rebindLine.mockImplementation(async () => published(4, REBOUND));
+
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.rebindLine).toHaveBeenCalledWith({ recipeId: 'rec_1', position: 1, expectedVersion: 3 }, TARGET);
+    });
+
+    it('a never-published draft does not hold: its re-pick runs at once (it makes no version, ADR-0058)', () => {
+        const { result } = mount({ recipe: { ...published(3), status: RecipeStatus.DRAFT } });
+
+        expect(result.current.lineCommand.holdsRebinds).toBe(false);
     });
 });

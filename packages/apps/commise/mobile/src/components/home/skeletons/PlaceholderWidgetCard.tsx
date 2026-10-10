@@ -40,9 +40,9 @@
  * an English-shaped sentence. An explicit `accessibilityLabel` would also SUPPRESS the badge, dropping half the
  * information this module exists to expose.
  */
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { GlassCard } from '@commise/ui/surface';
+import { useTheme } from '@commise/ui/theme';
 import type { JSX, ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -68,15 +68,17 @@ export interface PlaceholderWidgetCardProps {
  * @returns A card presenting the coming widget without inventing any of its data.
  */
 export function PlaceholderWidgetCard({ title, comingSoonLabel, children }: PlaceholderWidgetCardProps): JSX.Element {
+    const { colors } = useTheme();
+
     // U8 — the frosted-glass treatment is the shared `GlassCard` primitive (single-sourced with web), so the
     // translucent-over-blur surface (and its no-blur solid fallback) can never drift from the design system.
     // `styles.card` carries only the box (gap/radius/border/pad + `overflow: 'hidden'` so the blur clips to
     // the rounded corners); the surface fill comes from the primitive, so it no longer sets its own colour.
     return (
-        <GlassCard tier="card" style={styles.card}>
+        <GlassCard tier="card" style={[styles.card, { borderColor: colors.lineDivider }]}>
             <View accessible accessibilityRole="header" style={styles.header}>
-                <Text style={styles.title}>{title}</Text>
-                <Text style={styles.badge}>{comingSoonLabel}</Text>
+                <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
+                <Text style={[styles.badge, { color: colors.inkMuted }]}>{comingSoonLabel}</Text>
             </View>
 
             {children}
@@ -89,7 +91,6 @@ const styles = StyleSheet.create({
         gap: nativeTokens.spacing[4],
         borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
-        borderColor: nativeTokens.borderSubtle,
         overflow: 'hidden',
         padding: 20,
     },
@@ -99,6 +100,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: nativeTokens.spacing[3],
     },
-    title: { fontSize: nativeTokens.fontSize.bodyMd, fontWeight: '600', color: palette.charcoal },
-    badge: { fontSize: nativeTokens.fontSize.caption, fontWeight: '500', color: palette.slate },
+    title: { fontSize: nativeTokens.fontSize.bodyMd, fontWeight: '600' },
+    badge: { fontSize: nativeTokens.fontSize.caption, fontWeight: '500' },
 });

@@ -35,7 +35,7 @@ export function MealPlanWidgetSkeleton(): JSX.Element {
                 {weekdayLabels(locale).map((day) => (
                     <li
                         key={day}
-                        className="flex w-24 shrink-0 flex-col items-center gap-2 rounded-[var(--radius-lg)] border border-white/30 bg-paper/50 p-3"
+                        className="flex w-24 shrink-0 flex-col items-center gap-2 rounded-[var(--radius-lg)] border border-paper/30 bg-paper/50 p-3"
                     >
                         <span className="text-xs font-medium uppercase tracking-wider text-ink-muted">{day}</span>
                         {/* The meal thumbnail — the only unknown on this tile. */}

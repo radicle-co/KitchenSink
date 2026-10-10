@@ -4,7 +4,7 @@
  * @module @commise/features-recipes/editor — Paste a list, composed ONCE for both editor containers (build spec
  * §7.5.4; owner decision D10): the paste (`usePasteIntoIngredients`), its sheet (`usePasteListSheet`), and where the
  * section offers it — in the heading row once the section has lines, beside the add field while it is empty, and
- * nowhere once the recipe is stored on the server.
+ * nowhere once the editor stops offering it (the first publish, D10).
  *
  * While a paste's lines are still joining the recipe, `pending` holds Publish: a recipe published then would lose
  * them, and the rows themselves say "Reading…".
@@ -21,8 +21,10 @@ import { usePasteListSheet, type PasteListSheet } from './usePasteListSheet.js';
 
 /** Options for {@link useIngredientsPaste}. */
 export interface UseIngredientsPasteOptions {
-    /** The recipe has a server row (D10: nothing offers paste then). */
-    readonly stored: boolean;
+    /** The editor offers paste (`pasteOffered`, D10: until the first publish). */
+    readonly offered: boolean;
+    /** A line joining now keeps its source for the create (`pastedLineKeepsSource`). */
+    readonly keepsSource: boolean;
     readonly dispatch: (action: DraftAction) => void;
     /** The draft's ingredient lines: an empty section offers paste beside its add field rather than in its heading. */
     readonly lineCount: number;
@@ -49,13 +51,18 @@ export interface IngredientsPaste {
 /**
  * Paste a list, for one editor.
  *
- * @param options - Whether the recipe is stored, the draft's transition, its line count, and whether to open at once.
+ * @param options - Whether paste is offered and keeps its source, the draft's transition, its line count, and whether
+ *     to open at once.
  * @returns What the container wires.
  * @sideEffect Through `usePasteIntoIngredients`: creates and polls the parse job, and appends the lines it settles.
  */
 export function useIngredientsPaste(options: UseIngredientsPasteOptions): IngredientsPaste {
     const m = useMessages(recipeFormMessages);
-    const paste = usePasteIntoIngredients({ stored: options.stored, dispatch: options.dispatch });
+    const paste = usePasteIntoIngredients({
+        offered: options.offered,
+        keepsSource: options.keepsSource,
+        dispatch: options.dispatch,
+    });
     const sheet = usePasteListSheet(paste, {
         initiallyOpen: options.initiallyOpen,
         copy: { lineTooLong: m.pasteRefusalLineTooLong, tooManyLines: m.pasteRefusalTooManyLines },

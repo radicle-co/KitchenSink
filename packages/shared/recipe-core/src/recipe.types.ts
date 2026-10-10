@@ -280,6 +280,12 @@ export interface Recipe {
      * badge (never "Public" on a draft, which would mislead).
      */
     status: RecipeStatus;
+    /**
+     * When the recipe was FIRST published, ISO 8601: ABSENT until then, and set for good once it is (ADR-0058 rule 1,
+     * a database trigger owns it). It is the fact a client keys "ever published" on, never `status`: a published recipe
+     * set back to draft (`PATCH { status: 'draft' }`) keeps it, and every save of that recipe still makes a version.
+     */
+    firstPublishedAt?: IsoDateTimeString;
     sourceType: RecipeSourceType;
     sourceUrl?: string;
     sourceAttribution?: string;
@@ -394,6 +400,8 @@ export const recipeSchema = z.object({
     visibility: recipeVisibilitySchema,
     // Publication status (W8-a.3) — NOT NULL, default 'published'; a draft is owner-only (security boundary).
     status: recipeStatusSchema,
+    // Absent until the first publish, kept after (ADR-0058 rule 1) — see the `Recipe` interface above.
+    firstPublishedAt: isoDateTimeStringSchema.optional(),
     sourceType: recipeSourceTypeSchema,
     sourceUrl: z.string().url().optional(),
     sourceAttribution: z.string().min(1).optional(),

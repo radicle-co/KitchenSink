@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { diffSnapshots, type SnapshotDiff } from '../diff.js';
@@ -20,7 +22,16 @@ import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSyst
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { BRISKET_FLAT_HALF_PARTS, BRISKET_FLAT_HALF_SPOKEN } from '../../detail/__fixtures__/variantLines.js';
 
-afterEach(cleanup);
+vi.mock('react-native', async (importOriginal) => {
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+
+    return withSystemScheme(await importOriginal<typeof import('react-native')>());
+});
+
+afterEach(() => {
+    cleanup();
+    systemScheme.current = null;
+});
 
 const noop = () => undefined;
 
@@ -555,5 +566,29 @@ describe('VersionPreviewModal (native) — the design-system Button (UI overhaul
             'rotate-ccw',
         );
         expectNativeDesignSystemButton(screen.getByRole('button', { name: 'Keep current version' }), 'secondary', 'x');
+    });
+});
+
+// D15: the preview paints from roles at render: the title, headings and field values in ink, labels and lines in
+// inkMuted, an error in dangerText.
+describe.each(['light', 'dark'] as const)('VersionPreviewModal (native) — the %s scheme', (scheme) => {
+    const colours = scheme === 'dark' ? roleDark : role;
+    const { conflict } = recipeVersionMessages.en;
+
+    it('paints a field label in inkMuted and its value in ink', () => {
+        systemScheme.current = scheme;
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        expect(getComputedStyle(screen.getByText(conflict.titleLabel)).color).toBe(rgb(colours.inkMuted));
+        expect(getComputedStyle(screen.getByText('A family recipe passed down through three generations.')).color).toBe(
+            rgb(colours.ink),
+        );
+    });
+
+    it('says a failed load in dangerText', () => {
+        systemScheme.current = scheme;
+        render(<VersionPreviewModal {...baseProps({ error: true })} />);
+
+        expect(getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(colours.dangerText));
     });
 });

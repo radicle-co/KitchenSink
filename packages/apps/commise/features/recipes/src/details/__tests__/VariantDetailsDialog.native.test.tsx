@@ -5,6 +5,8 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { role, roleDark } from '@commise/ui/colors';
+import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { BEEF_BRISKET, BONELESS_SKINLESS_CHICKEN_THIGHS } from '../__fixtures__/seedVariants.js';
 import { editEntry, loadedRead, makeDetailsModel } from '../__fixtures__/detailsModel.js';
@@ -18,8 +20,9 @@ const device = vi.hoisted(() => ({ os: 'web' as 'web' | 'ios' | 'android', fontS
 // react-native-web implements neither `sendAccessibilityEvent` (the error case reads the calls) nor iOS's announce.
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
-    return {
+    return withSystemScheme({
         ...actual,
         Platform: {
             ...actual.Platform,
@@ -33,7 +36,7 @@ vi.mock('react-native', async (importOriginal) => {
             announceForAccessibilityWithOptions: vi.fn(),
         },
         useWindowDimensions: () => ({ ...actual.useWindowDimensions(), fontScale: device.fontScale }),
-    };
+    });
 });
 
 afterEach(() => {
@@ -41,6 +44,7 @@ afterEach(() => {
     vi.clearAllMocks();
     device.os = 'web';
     device.fontScale = 1;
+    systemScheme.current = null;
 });
 
 const ADD: DetailsDialogEntry = { mode: 'add' };
@@ -348,5 +352,40 @@ describe('the host’s moment to move on', () => {
         );
 
         expect(onDismissed).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * D15: the dialog and its rows paint from roles at render. The food name and the body in ink, the intro in inkMuted,
+ * the search field inside a lineControl edge (the web twin's `border-line-control`), a loading row on surfaceMuted, and
+ * a current row's word in actionText with its calories in inkMuted.
+ */
+describe.each(['light', 'dark'] as const)('the %s scheme', (scheme) => {
+    const colours = scheme === 'dark' ? roleDark : role;
+    const style = (element: Element): CSSStyleDeclaration => getComputedStyle(element);
+
+    it('paints the head in ink and inkMuted, and a loading row on surfaceMuted', () => {
+        systemScheme.current = scheme;
+        renderDialog(makeDetailsModel({ read: { kind: 'loading' }, entry: ADD }));
+
+        expect(style(screen.getByText('Beef brisket')).color).toBe(rgb(colours.ink));
+        const skeleton = Array.from(document.querySelectorAll('[aria-hidden="true"]')).find(
+            (node) => style(node).height === '48px' && node.childElementCount === 0,
+        );
+
+        if (skeleton === undefined) {
+            throw new Error('no loading row');
+        }
+
+        expect(style(skeleton).backgroundColor).toBe(rgb(colours.surfaceMuted));
+    });
+
+    it('marks the current row’s word in actionText and its calories in inkMuted', () => {
+        systemScheme.current = scheme;
+        renderDialog(makeDetailsModel({ read: loadedRead(BONELESS_SKINLESS_CHICKEN_THIGHS), entry: editEntry(THIGH) }));
+        const current = screen.getByRole('button', { name: /, Current, /u });
+
+        expect(style(within(current).getByText('Current')).color).toBe(rgb(colours.actionText));
+        expect(style(within(current).getByText(/cal/u)).color).toBe(rgb(colours.inkMuted));
     });
 });

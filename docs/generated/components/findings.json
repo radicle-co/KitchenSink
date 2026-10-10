@@ -4,12 +4,12 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 7,
         "cross-platform-props-diverge": 13,
-        "missing-component-doc": 140,
+        "missing-component-doc": 136,
         "missing-module-doc": 20,
-        "platform-singleton": 42,
+        "platform-singleton": 40,
         "ref-api": 11,
-        "unclassified-layer": 96,
-        "undocumented-prop": 167
+        "unclassified-layer": 93,
+        "undocumented-prop": 166
     },
     "findings": [
         {
@@ -676,30 +676,6 @@
         {
             "rule": "missing-component-doc",
             "severity": "gap",
-            "component": "featuresRecipes/actions/MoreActionsMenu",
-            "sourcePath": "packages/apps/commise/features/recipes/src/actions/MoreActionsMenu.native.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
-        },
-        {
-            "rule": "missing-component-doc",
-            "severity": "gap",
-            "component": "featuresRecipes/actions/MoreActionsMenu",
-            "sourcePath": "packages/apps/commise/features/recipes/src/actions/MoreActionsMenu.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/actions/MoreActionsMenu",
-            "sourcePath": "packages/apps/commise/features/recipes/src/actions/MoreActionsMenu.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "missing-component-doc",
-            "severity": "gap",
             "component": "featuresRecipes/actions/RecipeDeleteDialog",
             "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeDeleteDialog.tsx",
             "message": "the component declaration has no JSDoc summary",
@@ -714,22 +690,6 @@
             "evidence": [
                 "web"
             ]
-        },
-        {
-            "rule": "missing-component-doc",
-            "severity": "gap",
-            "component": "featuresRecipes/actions/RecipeVisibilityToggle",
-            "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeVisibilityToggle.native.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
-        },
-        {
-            "rule": "missing-component-doc",
-            "severity": "gap",
-            "component": "featuresRecipes/actions/RecipeVisibilityToggle",
-            "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeVisibilityToggle.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
         },
         {
             "rule": "undocumented-prop",
@@ -2577,34 +2537,6 @@
             ]
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/form/Field",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/Field.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "native"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/form/Field",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/Field.native.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/form/Field",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/Field.native.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "label"
-            ]
-        },
-        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "featuresRecipes/form/FoodDetailsSheet",
@@ -3115,24 +3047,6 @@
                 "sort",
                 "view"
             ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/list/RecipeSourceTab",
-            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeSourceTab.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "native"
-            ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresRecipes/list/RecipeSourceTab",
-            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeSourceTab.native.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
         },
         {
             "rule": "platform-singleton",

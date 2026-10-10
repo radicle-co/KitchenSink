@@ -17,7 +17,8 @@
  *
  * So past {@link PASTE_STALL_BOUND_MS}, on an expired job, for an `unparseable` line, and for a job that cannot be read
  * at all, the line settles through the add field's own reader (`readLeadingMeasure`) on the cook's own text. Such a row
- * claims no `sourcePhrase`: only a client that parsed the line may name the memo's key (`recipes.schema.ts`).
+ * claims no `sourcePhrase`: only a client that parsed the line may name the memo's key (`recipes.schema.ts`). A line
+ * the reader finds no food in — a heading ending in a colon, or a measure alone — settles into no row.
  *
  * Pure and platform-agnostic: `now` is a parameter.
  *
@@ -82,11 +83,22 @@ function proposedRowsOf(proposal: ParseProposal): readonly PastedRow[] {
     }));
 }
 
-/** The one row the add field's reader makes of the cook's own text. Pure. */
-function readerRowOf(sourceLine: string): PastedRow {
+/** A heading the cook pasted with the list (`For the dough:`): it names no food. */
+const HEADING = /:\s*$/u;
+
+/**
+ * The rows the add field's reader makes of the cook's own text: one, or none when the line names no food — a heading
+ * (`For the dough:`), or a measure with nothing after it (`2 cups`), which would otherwise become a food named "2 cups"
+ * and a write to the catalog. Pure.
+ */
+function readerRowsOf(sourceLine: string): readonly PastedRow[] {
+    if (HEADING.test(sourceLine)) {
+        return [];
+    }
+
     const { quantity, unit, preparation, search } = readLeadingMeasure(sourceLine);
 
-    return { name: search === '' ? sourceLine.trim() : search, measure: { quantity, unit, preparation } };
+    return search === '' ? [] : [{ name: search, measure: { quantity, unit, preparation } }];
 }
 
 /** One job line, given whether the job has stopped moving for it. Pure. */
@@ -96,12 +108,12 @@ function pastedLineOf(line: ParseJobLineView, stopped: boolean): PastedLine {
 
     switch (line.status) {
         case 'parsed':
-            return line.proposal === null ? settled([readerRowOf(sourceLine)]) : settled(proposedRowsOf(line.proposal));
+            return line.proposal === null ? settled(readerRowsOf(sourceLine)) : settled(proposedRowsOf(line.proposal));
         case 'unparseable':
-            return settled([readerRowOf(sourceLine)]);
+            return settled(readerRowsOf(sourceLine));
         case 'pending':
         case 'failed_retryable':
-            return stopped ? settled([readerRowOf(sourceLine)]) : { kind: 'reading', lineIndex, sourceLine };
+            return stopped ? settled(readerRowsOf(sourceLine)) : { kind: 'reading', lineIndex, sourceLine };
     }
 }
 

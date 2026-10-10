@@ -59,6 +59,7 @@ import { useFakeRowEditor } from '../../__fixtures__/useFakeRowEditor.js';
 import type { LookupRetry } from '../ingredientStatus.js';
 import type { IngredientNutrition, LookupEntry } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
+import { applyDraftAction } from '../props.js';
 import type { IngredientsPasteView } from '../props.js';
 import type { IngredientRowEditor } from '../../hooks/useIngredientRowEditor.js';
 
@@ -141,12 +142,16 @@ const StatefulLeaf: FC<{
 
     const rowEditor = useFakeRowEditor(values.ingredients, {
         editor: {
+            // The editor's own transition, applied to the draft as it is when it runs, as `useRecipeEditor` applies it.
             dispatch: (action) => {
                 dispatched?.push(action);
+                setValues((current) => {
+                    const next = applyDraftAction(current, action);
 
-                if (action.kind === 'removeIngredient') {
-                    change({ ...values, ingredients: values.ingredients.filter((line) => line.key !== action.key) });
-                }
+                    seen?.push(next);
+
+                    return next;
+                });
             },
         },
     });
@@ -234,6 +239,24 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
             '300 gArborio rice · rinsed',
         );
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
+    });
+
+    it('D21: a count of one reads in the singular, and the stored name stays plural', () => {
+        renderLeaf({
+            values: valuesWith(
+                withLineKeys([
+                    { ...RICE, name: 'onions', quantity: 1, unit: 'large', preparation: 'diced' },
+                    { ...RICE, ingredientId: 'ing_2', name: 'onions', quantity: 2, unit: '' },
+                ]),
+            ),
+        });
+
+        const [one, two] = rowItems();
+
+        expect(within(one!).getByRole('button', { name: 'Edit 1 large onion' }).textContent).toBe(
+            '1 largeonion · diced',
+        );
+        expect(within(two!).getByRole('button', { name: 'Edit 2 onions' })).toBeTruthy();
     });
 
     it('a healthy row is QUIET: its open control and its ⋯, nothing else', () => {
@@ -413,6 +436,43 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
 
         fireEvent.click(within(sheet).getByRole('button', { name: en.rowDone }));
         expect(queryDialogTitled('Arborio rice')).toBeNull();
+    });
+
+    /** 2026-10-09 review, High 3: "1/2" stored no amount and the field emptied when it lost focus. */
+    it.each([
+        { typed: '1/2', quantity: 0.5 },
+        { typed: '½', quantity: 0.5 },
+        { typed: '1,5', quantity: 1.5 },
+    ])('the amount reads "$typed" as $quantity, and keeps the text after it loses focus', ({ typed, quantity }) => {
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[RICE]} seen={seen} />);
+
+        press('Edit 300 g Arborio rice');
+        const amount = within(dialogTitled('Arborio rice')).getByLabelText(en.rowAmountLabel) as HTMLInputElement;
+
+        type(amount, typed);
+        fireEvent.blur(amount);
+
+        expect(seen.at(-1)?.ingredients[0]?.quantity).toBe(quantity);
+        expect(amount.value).toBe(typed);
+        expect(amount.getAttribute('aria-invalid')).not.toBe('true');
+    });
+
+    it('an amount it cannot read stays in the field, marked invalid with its note; the draft keeps its amount', () => {
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[RICE]} seen={seen} />);
+
+        press('Edit 300 g Arborio rice');
+        const sheet = dialogTitled('Arborio rice');
+        const amount = within(sheet).getByLabelText(en.rowAmountLabel) as HTMLInputElement;
+
+        type(amount, 'a few');
+        fireEvent.blur(amount);
+
+        expect(amount.value).toBe('a few');
+        expect(amount.getAttribute('aria-invalid')).toBe('true');
+        expect(within(sheet).getByText(en.rowAmountInvalid)).toBeTruthy();
+        expect(seen.filter((next) => next.ingredients[0]?.quantity !== 300)).toEqual([]);
     });
 
     it('the amount keeps the text being typed, so "1." can become "1.5"', () => {

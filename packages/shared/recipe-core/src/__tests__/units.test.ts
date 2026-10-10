@@ -5,7 +5,9 @@ import { describe, it, expect } from 'vitest';
 
 import {
     classifyUnit,
+    isSizeWord,
     normalizeUnit,
+    SIZE_WORDS,
     unitSpellingDependsOnCase,
     unitToGrams,
     CASE_SENSITIVE_UNIT_ALIASES,
@@ -620,5 +622,25 @@ describe('Rec 20 codes and dotted spellings name units this vocabulary already h
         for (const code of ['onz', 'oza', 'grm', 'mlt', 'fl. oz']) {
             expect(UNIT_VOCABULARY).not.toContain(code);
         }
+    });
+});
+
+describe('isSizeWord — the one size-word vocabulary', () => {
+    it.each(['small', 'medium', 'large', 'extra large', 'extra-large', 'jumbo'])('%s is a size word', (word) => {
+        expect(isSizeWord(word)).toBe(true);
+        expect(SIZE_WORDS.has(word)).toBe(true);
+    });
+
+    it('ignores case and surrounding space', () => {
+        expect(isSizeWord('Large')).toBe(true);
+        expect(isSizeWord('  EXTRA LARGE ')).toBe(true);
+    });
+
+    it.each(['cup', 'red', 'tbsp', 'handful', 'larger', 'extra', ''])('%s is not a size word', (word) => {
+        expect(isSizeWord(word)).toBe(false);
+    });
+
+    it('does not change the unit classification (a size word is still unknown to classifyUnit)', () => {
+        expect(classifyUnit('large')).toBe('unknown');
     });
 });

@@ -225,9 +225,9 @@ test.describe('control labels at 320 px in en-XA', () => {
         // Slice 4: the `/collections/new` page is deleted; the form is the new-collection sheet over the list.
         await page.goto(pseudoRoute('/collections'));
         await page.getByRole('button', { name: pseudoString('New collection') }).click();
+        // Below 840 the sheet has no Cancel (its × closes it, `buildSpec.md` §5.1, F11): only the full-width primary.
         await expectOneLine({
             'Create collection': page.getByRole('button', { name: pseudoString('Create collection'), exact: true }),
-            Cancel: page.getByRole('button', { name: pseudoString('Cancel'), exact: true }),
         });
         await expectNoSidewaysScroll(page);
     });

@@ -434,34 +434,6 @@ export const ingredientSections = (values: RecipeFormValues): readonly RecipeIng
     }, []);
 
 /**
- * Parse one QUANTITY bound's raw input text (U9). Pure.
- *
- * ⛔ NOT {@link parseNumericInput}, and reusing that one here is the single most tempting mistake in this
- * unit. `Number('')` is `0`, so the shared parser turns an emptied quantity field into a stated amount of
- * zero — which R40 spent a whole migration removing as a second spelling of "the source stated no amount".
- * The two parsers answer different questions: servings and times must always hold a number, a quantity
- * bound may legitimately hold nothing.
- *
- * A typed `0` or a negative is returned AS the number the user typed, not folded into `undefined`.
- * "That is not an amount" and "you stated no amount" are different things to tell someone, and
- * `draftQuantityVerdict` (`./model.ts`) can only distinguish them if this parser preserves the difference.
- *
- * @param text - The raw input text.
- * @returns The stated number, or `undefined` when the field is blank or holds nothing numeric.
- */
-export const parseQuantityBound = (text: string): number | undefined => {
-    const trimmed = text.trim();
-
-    if (trimmed === '') {
-        return undefined;
-    }
-
-    const value = Number(trimmed);
-
-    return Number.isFinite(value) ? value : undefined;
-};
-
-/**
  * The text a quantity input DISPLAYS for one bound (U9). Pure — the single formatter both platform leaves
  * use, so an absent amount cannot render as an empty field on one platform and as something else on the other.
  *

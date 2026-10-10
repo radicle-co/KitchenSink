@@ -11,7 +11,8 @@
  */
 import { ABSENT_QUANTITY } from '@kitchensink/recipe-core';
 
-import { readLeadingMeasure } from '../form/leadingMeasure.js';
+import { groupLabelOf } from '../form/ingredientGroups.js';
+import { readLeadingMeasure, statedUnitOf } from '../form/leadingMeasure.js';
 import type { IngredientLineKey } from '../form/lineKey.js';
 import { hasEntryText } from '../form/validate.js';
 import type { LineCommitTarget, LineMeasure, NewLinePlacement } from './lineCommit.js';
@@ -19,10 +20,20 @@ import type { LineCommitTarget, LineMeasure, NewLinePlacement } from './lineComm
 /** A target's identity in the entry's maps. A line key never spells `newLine` (`isIngredientLineKey`). */
 type EntryTargetId = IngredientLineKey | 'newLine';
 
-/** The two fields of a draft line the entry reads. */
+/** The fields of a draft line the entry reads. */
 export interface EntryLine {
     readonly key: IngredientLineKey;
     readonly name?: string;
+    /** The line's group, for where the trailing field adds ({@link placementOf}). */
+    readonly groupLabel?: string;
+}
+
+/**
+ * Where the cook put the trailing field: a group, or No group (`group: undefined`). `madeByCook` says the group is one
+ * the cook made in the editor (§7.5.5), which holds the field before any line is in it.
+ */
+export interface FieldPlacement extends NewLinePlacement {
+    readonly madeByCook: boolean;
 }
 
 /** One field's text, and the text the field started from (what its line held when the cook began). */
@@ -41,7 +52,7 @@ export interface EntryState {
      * The group the trailing field sits in (build spec §7.5.5), or `undefined` while it follows the group being built.
      * The field's own state, like its text: a commit keeps it, so the cook keeps adding to the same group.
      */
-    readonly placement?: NewLinePlacement;
+    readonly placement?: FieldPlacement;
 }
 
 /** No field has been touched. */
@@ -54,10 +65,33 @@ export const EMPTY_ENTRY: EntryState = { texts: new Map(), changing: new Set(), 
  * @param placement - The group, or `undefined`.
  * @returns The next state.
  */
-export const withPlacement = (state: EntryState, placement: NewLinePlacement | undefined): EntryState => {
+export const withPlacement = (state: EntryState, placement: FieldPlacement | undefined): EntryState => {
     const { placement: _previous, ...rest } = state;
 
     return placement === undefined ? rest : { ...rest, placement };
+};
+
+/**
+ * Where the trailing field adds: the group the cook put it in while that group can hold it, else `undefined` (it follows
+ * the group being built, the last line's). The ONE answer the field's label and every pick on it read. A group holds
+ * the field while a line is in it, or while it is one the cook made; No group holds it while an ungrouped line exists.
+ * Pure.
+ *
+ * @param state - The entry's state.
+ * @param lines - The draft's lines.
+ * @returns The placement a pick commits.
+ */
+export const placementOf = (state: EntryState, lines: readonly EntryLine[]): NewLinePlacement | undefined => {
+    const placed = state.placement;
+
+    if (placed === undefined) {
+        return undefined;
+    }
+
+    const holds =
+        lines.some((line) => groupLabelOf(line) === placed.group) || (placed.group !== undefined && placed.madeByCook);
+
+    return holds ? { group: placed.group } : undefined;
 };
 
 const idOf = (target: LineCommitTarget): EntryTargetId => (target.kind === 'line' ? target.key : 'newLine');
@@ -251,7 +285,7 @@ export const searchTextOf = (target: LineCommitTarget | undefined, text: string)
  *
  * @param target - The field the pick was made on.
  * @param text - Its text at the pick.
- * @param placement - The trailing field's group (`EntryState.placement`). Required, so no caller drops it by default.
+ * @param placement - Where the trailing field adds ({@link placementOf}). Required, so no caller drops it by default.
  * @returns The commit target.
  */
 export const commitTargetOf = (
@@ -263,7 +297,10 @@ export const commitTargetOf = (
         return target;
     }
 
-    const { quantity, unit, preparation } = readLeadingMeasure(text);
+    const reading = readLeadingMeasure(text);
+    const { quantity, preparation } = reading;
+    // The cook's own unit (spec §7.5.3), as a pasted line keeps it.
+    const unit = statedUnitOf(reading);
     const measure: LineMeasure = { quantity, unit, preparation };
     const stated = quantity !== ABSENT_QUANTITY || unit !== '' || preparation !== '';
 

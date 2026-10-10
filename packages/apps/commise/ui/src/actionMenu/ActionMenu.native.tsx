@@ -17,7 +17,7 @@
  * @pattern Adapter over `@commise/ui/sheet`, with the trigger owned so its state cannot drift from the sheet
  * @pattern Command — the chosen item is held and executed after the sheet's dismissal
  */
-import { useEffect, useEffectEvent, useState, type FC } from 'react';
+import { useState, type FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
@@ -27,6 +27,7 @@ import { Sheet } from '../sheet/Sheet.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
 /** The native target floor the spec sets (§3a, 2.5.8: 48 × 48 dp). */
 const TARGET_DP = 48;
@@ -72,17 +73,7 @@ export const ActionMenu: FC<ActionMenuProps> = ({
     // The dismissals with nothing chosen: each one returns the cursor to the trigger.
     const [returns, setReturns] = useState(0);
     const triggerFocus = useScreenReaderFocusOnSignal<View>(returns);
-    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
-    const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
-
-    useEffect(() => {
-        if (!focusRequested) {
-            return;
-        }
-
-        moveScreenReaderFocus(triggerFocus.current);
-        acknowledgeFocusRequest();
-    }, [focusRequested, triggerFocus]);
+    useFocusRequest(focusRequested, () => moveScreenReaderFocus(triggerFocus.current), onFocusRequestHandled);
 
     const onDismissed = (): void => {
         if (heldKey === undefined) {

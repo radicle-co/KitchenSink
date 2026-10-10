@@ -12,7 +12,7 @@
  *     at-most-once delivery, not a coalescing map.
  */
 import { LOCAL_REF_PREFIX, resolveRef, type ResolutionMap } from './references.js';
-import type { Intent, LocalRef, OutboxRecord } from './record.js';
+import type { Intent, IntentKind, LocalRef, OutboxRecord } from './record.js';
 
 /** A user's outbox: the queued intents in append order, the record counter, and the ids drains have resolved. */
 export interface OutboxLog {
@@ -152,7 +152,8 @@ export function appendExclusive(log: OutboxLog, incoming: Intent): ExclusiveAppe
 
 /**
  * Remove a PARKED record: the cook (or the editor acting on the cook's choice in a conflict) has decided what happens
- * to it. The only way a parked record leaves the log.
+ * to it. The only way a parked record leaves the log. A delete of the same entity queued behind it, waiting on the id
+ * it would have produced, leaves with it: that delete can never be sent.
  *
  * @param log - The current log.
  * @param seq - The parked record's number.
@@ -170,7 +171,23 @@ export function withdraw(log: OutboxLog, seq: number): OutboxLog {
         throw new Error(`outbox: refusing to withdraw record ${String(seq)}, which is ${record.state}, not parked`);
     }
 
-    return { ...log, records: log.records.filter((candidate) => candidate.seq !== seq) };
+    // ⛔ The delete that waited on it goes with it. Discard while a create is on the wire queues the delete behind it,
+    // depending on the ref the create produces (`supersede`); withdrawn, that create will never produce an id for this
+    // entity, so the delete could never be sent and sat pending forever. ONLY that delete: anything else waiting on the
+    // ref is the cook's work, and the editor's Retry resubmits a withdrawn create under the same ref. A ref already
+    // resolved names a server row, so a delete waiting on it can still be sent and stays.
+    const produced = record.produces;
+    const strands = (candidate: OutboxRecord): boolean =>
+        produced !== undefined &&
+        log.resolutions[produced] === undefined &&
+        candidate.intentKind === 'delete' &&
+        candidate.entity === record.entity &&
+        candidate.localId === record.localId &&
+        candidate.state === 'pending' &&
+        candidate.dependsOn.includes(produced);
+    const gone = new Set<number>([seq, ...log.records.filter(strands).map((candidate) => candidate.seq)]);
+
+    return { ...log, records: log.records.filter((candidate) => !gone.has(candidate.seq)) };
 }
 
 /**
@@ -349,20 +366,46 @@ export function settle(log: OutboxLog, settlement: Settlement): OutboxLog {
     }
 }
 
+/** What the first read knows about the log it recovers. */
+export interface RecoveryOptions {
+    /**
+     * The log is a COPY that another live owner also holds: a duplicated browser tab copies `sessionStorage`, the web
+     * journal included (ADR-0057 §3). Both owners would send the same queued record.
+     */
+    readonly copied?: boolean;
+}
+
 /**
- * Park every record a previous process left on the wire, as an UNKNOWN outcome.
+ * The kinds whose second copy makes a second server row. A create carries no version token, so the server cannot
+ * tell a copy from a new write; an update names its version, so its copy meets a 409 instead.
+ */
+const MINTS_A_ROW: ReadonlySet<IntentKind> = new Set<IntentKind>(['create', 'createFreeform', 'upload']);
+
+/**
+ * Park what the first read of a process must not send blind, as an UNKNOWN outcome (no status).
  *
- * ⛔ RUN ONCE, ON THE FIRST READ OF A PROCESS. The server may hold such a record, so re-sending it would be the blind
- * retry the drainer forbids. A record THIS process marked `sending` is a live request and is never touched.
+ * ⛔ RUN ONCE, ON THE FIRST READ OF A PROCESS.
+ *
+ * - A record a previous process left `sending`: the server may hold it, so re-sending it would be the blind retry the
+ *   drainer forbids. A record THIS process marked `sending` is a live request and is never touched.
+ * - In a copied log, also every queued record of a kind that {@link MINTS_A_ROW}: the other owner of the log may send
+ *   it too, which is a second recipe. The cook decides. Records of other kinds stay queued.
  *
  * @param log - The log as storage holds it.
+ * @param options - Whether the log is a copy.
  * @returns A new log. Pure.
  */
-export function recoverInterrupted(log: OutboxLog): OutboxLog {
+export function recoverInterrupted(log: OutboxLog, options: RecoveryOptions = {}): OutboxLog {
+    const parks = (record: OutboxRecord): boolean =>
+        record.state === 'sending' ||
+        (options.copied === true &&
+            (record.state === 'pending' || record.state === 'blocked') &&
+            MINTS_A_ROW.has(record.intentKind));
+
     return {
         ...log,
         records: log.records.map((record) => {
-            if (record.state !== 'sending') {
+            if (!parks(record)) {
                 return record;
             }
 

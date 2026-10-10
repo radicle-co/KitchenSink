@@ -24,7 +24,7 @@ import { useTheme } from '@commise/ui/theme';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { photoMessages } from './messages.js';
 import {
     isAtPhotoCap,

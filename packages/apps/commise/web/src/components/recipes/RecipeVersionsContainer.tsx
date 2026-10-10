@@ -95,7 +95,7 @@ const VersionsLoading: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
     const { recipes } = useMessages(webMessages);
 
     return (
-        <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
+        <div className="flex max-w-list flex-col gap-3 py-8">
             <BackToRecipeLink onBack={onBack} />
             <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-ink-muted">
                 {recipes.versions.loadingLabel}
@@ -109,7 +109,7 @@ const VersionsError: FC<{ readonly onBack: () => void; readonly onRetry: () => v
     const { recipes } = useMessages(webMessages);
 
     return (
-        <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
+        <div className="flex max-w-list flex-col gap-3 py-8">
             <BackToRecipeLink onBack={onBack} />
             <div role="alert">
                 <p>{recipes.versions.errorTitle}</p>

@@ -16,7 +16,7 @@ import type { FC } from 'react';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeFormMessages } from './messages.js';
 import { addChips, removeChipAt, splitAtCommas } from './props.js';
 

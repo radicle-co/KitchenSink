@@ -47,8 +47,12 @@ export interface MobileMessages {
          * widget headings from the mockup — the placeholder shows what is coming, never invented data.
          */
         readonly roadmap: {
-            /** Visible "coming soon" badge on every placeholder. */
-            readonly comingSoon: string;
+            /** The H2 above the placeholder group (`buildSpec.md` §4.2). */
+            readonly comingSoonHeading: string;
+            /** The one body line under the "Coming soon" heading. */
+            readonly comingSoonBody: string;
+            /** Visible "Soon" badge on every placeholder. */
+            readonly soon: string;
             /** The real heading of each roadmap widget, keyed by the shared roadmap registry's id. */
             readonly titles: Readonly<Record<RoadmapWidgetId, string>>;
         };
@@ -305,11 +309,13 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
                 },
             },
             roadmap: {
-                comingSoon: 'Coming soon',
+                comingSoonHeading: 'Coming soon',
+                comingSoonBody: 'Meal plans, a grocery list and daily nutrition are on the way.',
+                soon: 'Soon',
                 titles: {
-                    nutrition: "Today's Nutrition",
+                    nutrition: 'Today’s nutrition',
                     'resume-cooking': 'Resume cooking',
-                    'meal-plan': "This Week's Meals",
+                    'meal-plan': 'This week’s meals',
                 },
             },
             nudge: {
@@ -373,7 +379,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
         recipes: {
             detailLoading: 'Loading recipe…',
             detailError: 'We couldn’t load this recipe.',
-            detailNotFound: 'We couldn’t find that recipe.',
+            detailNotFound: 'This recipe isn’t available.',
             detailRetry: 'Try again',
             back: 'Back',
             createError: 'We couldn’t create your recipe. Please try again.',

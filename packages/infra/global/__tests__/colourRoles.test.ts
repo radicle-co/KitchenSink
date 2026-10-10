@@ -116,16 +116,7 @@ const DESIGN_SYSTEM = 'packages/apps/commise/ui/src/';
  * Named design-system exemptions, each with its count, its reason and the slice that discharges it. The count is held
  * exactly, so an exempt file cannot grow; the entry is deleted when its file reaches zero.
  */
-const DESIGN_SYSTEM_EXEMPTIONS: Readonly<Record<string, { readonly count: number; readonly reason: string }>> = {
-    'packages/apps/commise/ui/src/surface/GlassCard.tsx': {
-        count: 1,
-        reason: 'D12 takes glass off content cards; slices 3 and 4 rebuild the cards and retire this tier from them.',
-    },
-    'packages/apps/commise/ui/src/surface/GlassCard.native.tsx': {
-        count: 1,
-        reason: 'D12 takes glass off content cards; slices 3 and 4 rebuild the cards and retire this tier from them.',
-    },
-};
+const DESIGN_SYSTEM_EXEMPTIONS: Readonly<Record<string, { readonly count: number; readonly reason: string }>> = {};
 
 const BASELINE_FILE = path.join(import.meta.dirname, 'colourRolesBaseline.json');
 

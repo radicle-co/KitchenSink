@@ -59,17 +59,20 @@ test.describe('Home widget surface (T104)', () => {
         await expect(page.getByRole('heading', { name: 'Recent recipes' })).toBeVisible();
         await expect(page.getByText('Weeknight Pasta')).toBeVisible();
 
-        // The unshipped 005–009 widgets render as SKELETON PLACEHOLDERS — present (not absent), each a
-        // labelled region announcing what is coming, with a visible "Coming soon".
-        for (const title of ["Today's Nutrition", 'Resume cooking', "This Week's Meals"]) {
-            const placeholder = page.getByRole('region', { name: title });
+        // The unshipped 005–009 widgets render as SKELETON PLACEHOLDERS — present (not absent), grouped AFTER the
+        // recent recipes under one "Coming soon" heading (owner ruling, buildSpec §4.2), each a labelled region with
+        // a visible "Soon".
+        const comingSoon = page.getByRole('region', { name: 'Coming soon' });
+        await expect(comingSoon.getByRole('heading', { level: 2, name: 'Coming soon' })).toBeVisible();
+        for (const title of ['Today’s nutrition', 'Resume cooking', 'This week’s meals']) {
+            const placeholder = comingSoon.getByRole('region', { name: title });
             await expect(placeholder).toBeVisible();
-            await expect(placeholder.getByText('Coming soon')).toBeVisible();
+            await expect(placeholder.getByText('Soon', { exact: true })).toBeVisible();
         }
 
         // The CR-001 red line: a placeholder must NEVER show fabricated data. The nutrition placeholder shows
         // no calorie figures, percentage, or "cal" the mockup renders from real data.
-        const nutrition = page.getByRole('region', { name: "Today's Nutrition" });
+        const nutrition = page.getByRole('region', { name: 'Today’s nutrition' });
         await expect(nutrition.getByText(/\d/u)).toHaveCount(0);
         await expect(nutrition.getByText(/cal/iu)).toHaveCount(0);
 

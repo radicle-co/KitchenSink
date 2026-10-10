@@ -1,7 +1,7 @@
 /**
  * @module @commise/ui/create-fab — the floating create button's presentation rules (`docs/design/uiOverhaul/buildSpec.md`
- * §3.4), once for both platforms. Every screen that floats "New recipe" or "New collection" — and the interim create
- * dial, until slice 8 retires it — takes its presentation from here, so the rules live once.
+ * §3.4), once for both platforms. Every screen that floats "New recipe" or "New collection" takes its presentation
+ * from here, so the rules live once.
  *
  * @pattern Policy — a pure decision over the screen's state, read by the button's leaves
  */

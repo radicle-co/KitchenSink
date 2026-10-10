@@ -28,6 +28,7 @@ import { requireEnv } from '../common/config.js';
 import { getRecipePool } from '../common/db.js';
 import { initObservability, withObservability } from '../common/observability.js';
 import { logger } from '../common/logger.js';
+import { standsDownForTheNight } from '../common/nightlyWindow.js';
 import { isSpendGated } from '../common/verificationSpend.js';
 import { emitMetric, type EmfMetric } from '../common/metrics.js';
 import { expireParseJobs, oldestRunningParseJobAgeSeconds, type ExpiryQueryable } from '../parsing/parseJobExpiry.js';
@@ -386,6 +387,10 @@ export async function publishParseStallGauge(deps: {
  * @sideEffect Everything {@link drainRevokedBands} does.
  */
 const rawHandler = async (): Promise<void> => {
+    if (standsDownForTheNight('band-drain')) {
+        return;
+    }
+
     const stage = requireEnv('STAGE');
     const region = requireEnv('AWS_REGION');
     const queueUrl = requireEnv('INGREDIENT_VERIFICATION_QUEUE_URL');

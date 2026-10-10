@@ -187,6 +187,57 @@ describe('renameIngredientGroup (group ⋯ Rename group)', () => {
         expect(shape(merged)).toEqual(['salt/-', 'oil/Sauce', 'garlic/Sauce', 'lamb/Sauce']);
         expect(hasSplitGroup(merged)).toBe(false);
     });
+
+    /**
+     * 2026-10-09 review, Medium 2: a rename gathered EVERY group's runs, so renaming one group reordered lines of groups
+     * nobody renamed. A rename relabels in place; only a merge moves lines, and only the two groups' own.
+     */
+    it.each([
+        {
+            why: 'renaming the middle of a split group leaves the split group alone',
+            lines: [line('a', 'Dry'), line('b', 'Wet'), line('c', 'Dry')],
+            from: 'Wet',
+            to: 'Liquid',
+            after: ['a/Dry', 'b/Liquid', 'c/Dry'],
+        },
+        {
+            why: 'renaming one run of a split group relabels both runs where they stand',
+            lines: [line('a', 'Dry'), line('b', 'Wet'), line('c', 'Dry')],
+            from: 'Dry',
+            to: 'Flour',
+            after: ['a/Flour', 'b/Wet', 'c/Flour'],
+        },
+        {
+            why: 'a merge gathers only the two groups, and a third group keeps its order',
+            lines: [line('a', 'Dry'), line('b', 'Wet'), line('c', 'Other'), line('d', 'Dry')],
+            from: 'Wet',
+            to: 'Dry',
+            after: ['a/Dry', 'b/Dry', 'd/Dry', 'c/Other'],
+        },
+        {
+            why: 'a merge leaves a split group it does not touch split',
+            lines: [line('a', 'Dry'), line('b', 'Wet'), line('c', 'Dry'), line('d', 'Herbs'), line('e', 'Spice')],
+            from: 'Spice',
+            to: 'Herbs',
+            after: ['a/Dry', 'b/Wet', 'c/Dry', 'd/Herbs', 'e/Herbs'],
+        },
+        {
+            why: 'a merge leaves ungrouped lines where they stand',
+            lines: [line('a', 'Wet'), line('s'), line('b', 'Dry'), line('t')],
+            from: 'Dry',
+            to: 'Wet',
+            after: ['a/Wet', 'b/Wet', 's/-', 't/-'],
+        },
+        {
+            why: 'a merge into a later group lands where the first of the two stood',
+            lines: [line('s'), line('a', 'Wet'), line('c', 'Other'), line('b', 'Dry')],
+            from: 'Dry',
+            to: 'Wet',
+            after: ['s/-', 'a/Wet', 'b/Wet', 'c/Other'],
+        },
+    ])('$why', ({ lines, from, to, after }) => {
+        expect(shape(renameIngredientGroup(draft(...lines), from, to))).toEqual(after);
+    });
 });
 
 describe('removeIngredientGroup (group ⋯ Remove group, keep its ingredients)', () => {

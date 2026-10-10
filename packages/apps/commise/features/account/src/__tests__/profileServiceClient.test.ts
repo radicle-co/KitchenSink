@@ -15,7 +15,7 @@ import {
 } from '../errors.js';
 import { makeUserProfile, makeUserProfileUser } from '../__fixtures__/index.js';
 import { isInvalidRequestError } from '../errors.js';
-import { AVATAR_PRESIGN_PATH, PROFILE_ME_PATH, ProfileServiceClient } from '../profileServiceClient.js';
+import { AVATAR_PRESIGN_PATH, PROFILE_ME_PATH, ProfileServiceClient, SETTINGS_PATH } from '../profileServiceClient.js';
 
 const BASE = 'https://identity.example.test';
 
@@ -497,5 +497,73 @@ describe('ProfileServiceClient — avatar presign', () => {
         });
 
         await expect(client.presignAvatar({ type: 'image/png', size: 2048 })).rejects.toThrow(/publicUrl/iu);
+    });
+});
+
+describe('ProfileServiceClient — settings (ADR-0059)', () => {
+    /** The api call, identified out of the skew probe's `/health` traffic. */
+    const apiCall = (fetchMock: Mock) =>
+        fetchMock.mock.calls.find(([called]) => !String(called).endsWith('/health')) as [
+            string,
+            RequestInit & { headers: Record<string, string> },
+        ];
+
+    it('serves settings under the viewer resource, the path the identity controller declares', () => {
+        expect(SETTINGS_PATH).toBe('/api/v1/users/me/settings');
+    });
+
+    it('getSettings() sends GET with the bearer and returns the parsed, resolved settings', async () => {
+        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: false } });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        await expect(client.getSettings()).resolves.toEqual({ searchShortcut: false });
+
+        const [url, init] = apiCall(fetchMock);
+        expect(url).toBe(`${BASE}/api/v1/users/me/settings`);
+        expect(init.method).toBe('GET');
+        expect(init.headers['authorization']).toBe('Bearer tok_123');
+    });
+
+    it('patchSettings() PATCHes only the keys given, as JSON, and returns the resolved settings', async () => {
+        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: false } });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        await expect(client.patchSettings({ searchShortcut: false })).resolves.toEqual({ searchShortcut: false });
+
+        const [url, init] = apiCall(fetchMock);
+        expect(url).toBe(`${BASE}/api/v1/users/me/settings`);
+        expect(init.method).toBe('PATCH');
+        expect(init.body).toBe(JSON.stringify({ searchShortcut: false }));
+        expect(init.headers['content-type']).toBe('application/json');
+    });
+
+    it('patchSettings() fails at the call site, with NO request, for a key the contract does not have', async () => {
+        const fetchMock = stubFetch({ status: 200, body: { searchShortcut: true } });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        const error = await client
+            .patchSettings({ searchShortcut: true, theme: 'dark' } as never)
+            .catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('REJECTS a settings response that is not the published shape instead of casting it', async () => {
+        const client = new ProfileServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch({ status: 200, body: { searchShortcut: 'yes' } }),
+        });
+
+        await expect(client.getSettings()).rejects.toThrow(/searchShortcut/iu);
+    });
+
+    it('maps the closed-account 403 to ForbiddenError', async () => {
+        const client = new ProfileServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch({ status: 403, body: { code: 'FORBIDDEN', message: 'Account is closed' } }),
+        });
+
+        await expect(client.patchSettings({ searchShortcut: true })).rejects.toBeInstanceOf(ForbiddenError);
     });
 });

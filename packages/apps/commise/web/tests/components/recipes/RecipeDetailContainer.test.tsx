@@ -405,7 +405,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="missing" />), client);
 
-            expect(await screen.findByText(/couldn.t find that recipe/i)).toBeInTheDocument();
+            expect(await screen.findByText('This recipe isn’t available.')).toBeInTheDocument();
             expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
         });
 
@@ -514,7 +514,7 @@ describe('RecipeDetailContainer', () => {
 
                 renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id={EMPTY_ROUTE_RECIPE_ID} />), client);
 
-                expect(screen.queryByText(/couldn.t find that recipe/i)).not.toBeInTheDocument();
+                expect(screen.queryByText('This recipe isn’t available.')).not.toBeInTheDocument();
             });
         });
     });

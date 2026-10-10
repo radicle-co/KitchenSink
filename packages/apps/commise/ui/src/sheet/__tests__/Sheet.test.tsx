@@ -254,6 +254,42 @@ describe('Sheet (web)', () => {
         expect(heights()).toStrictEqual(['sm:h-auto']);
     });
 
+    /**
+     * F11 (`evaluateFinal.md`): every web sheet filled a phone, short tasks included. Native was right. A `content` sheet
+     * below sm is a bottom sheet: anchored to the foot of the VISIBLE box (so a keyboard lifts it), as tall as its
+     * content up to the visible height less a gap, with rounded top corners. `full` keeps the whole visible box.
+     */
+    it('draws a content sheet below sm as a bottom sheet, as tall as its content', async () => {
+        await openHost(<Host />);
+
+        const classes = screen.getByRole('dialog').className.split(/\s+/u);
+
+        expect(classes).toContain('bottom-[calc(100%-var(--sheet-visible-top,0px)-var(--sheet-visible-height,100%))]');
+        expect(classes).toContain('max-h-[calc(var(--sheet-visible-height,100dvh)-2rem)]');
+        expect(classes).toContain('rounded-t-xl');
+        expect(classes).toContain('sm:bottom-auto');
+        expect(classes.filter((utility) => /^(?:h|top)-/u.test(utility))).toStrictEqual([]);
+    });
+
+    it('keeps a full sheet below sm on the whole visible box', async () => {
+        await openHost(<Host overrides={{ size: 'full' }} />);
+
+        const classes = screen.getByRole('dialog').className.split(/\s+/u);
+
+        expect(classes).toContain('h-[var(--sheet-visible-height,100dvh)]');
+        expect(classes.some((utility) => utility.startsWith('bottom-'))).toBe(false);
+    });
+
+    // F8: a sheet title is `barTitle`, Inter 17/600 (`buildSpec.md` §1.5). Playfair sets names only.
+    it('sets the title in the barTitle role, never the display face', async () => {
+        await openHost(<Host />);
+
+        const title = screen.getByRole('heading', { name: 'Add details' });
+
+        expect(title.className).toContain('text-bar-title');
+        expect(title.className).not.toContain('font-display');
+    });
+
     it('draws a hairline above the footer', async () => {
         await openHost(<Host />);
 
@@ -373,7 +409,7 @@ describe('Sheet (web)', () => {
         });
 
         it('pins the top to the visible box below sm, and centres inside the visible box from sm', async () => {
-            await openHost(<Host />);
+            await openHost(<Host overrides={{ size: 'full' }} />);
 
             const classes = screen.getByRole('dialog').className.split(/\s+/u);
 

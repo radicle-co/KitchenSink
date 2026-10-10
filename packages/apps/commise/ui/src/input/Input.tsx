@@ -11,10 +11,11 @@
  * @pattern Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken. It is the one
  *     reason this leaf holds a ref: `.focus()` has no declarative form.
  */
-import { useEffect, useEffectEvent, useRef, type FC } from 'react';
+import { useRef, type FC } from 'react';
 
 import { FIELD_CLASS } from './fieldClass.js';
 import type { InputProps } from './props.js';
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
 /** The web design-system one-line text field. */
 export const Input: FC<InputProps> = ({
@@ -36,17 +37,7 @@ export const Input: FC<InputProps> = ({
     onFocusRequestHandled,
 }) => {
     const node = useRef<HTMLInputElement>(null);
-    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
-    const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
-
-    useEffect(() => {
-        if (!focusRequested) {
-            return;
-        }
-
-        node.current?.focus();
-        acknowledgeFocusRequest();
-    }, [focusRequested]);
+    useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
 
     return (
         <input

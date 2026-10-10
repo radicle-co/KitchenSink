@@ -25,7 +25,7 @@ export function NutritionWidgetSkeleton(): JSX.Element {
     const shape = { backgroundColor: colors.surfaceMuted };
 
     return (
-        <PlaceholderWidgetCard title={home.roadmap.titles.nutrition} comingSoonLabel={home.roadmap.comingSoon}>
+        <PlaceholderWidgetCard title={home.roadmap.titles.nutrition} soonLabel={home.roadmap.soon}>
             {/* Pure shape, so the whole row is hidden from assistive tech. `aria-hidden` (not RN's
                 `accessibilityElementsHidden`/`importantForAccessibility` pair, which RN reverse-maps from it
                 anyway) because that is the only spelling react-native-web projects to the DOM — see the shell. */}

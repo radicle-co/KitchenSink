@@ -8,9 +8,14 @@
  * record lives at least as long as whatever could send the same write again: a journal that dies while the draft it
  * came from survives (an in-memory outbox under a reloaded page with a kept draft) forgets the record, and the draft's
  * next checkpoint sends it a second time. So every store an app gives the outbox lasts as long as its drafts do
- * (ADR-0057 §1: AsyncStorage on mobile, the tab's session storage on web). Under that condition at-least-once delivery
- * never happens behind the cook's back, and nothing needs to be idempotent that is not already: no client-minted recipe
- * id, no `ON CONFLICT` upsert, no unique index on a photo key.
+ * (ADR-0057 §1: AsyncStorage on mobile, the tab's session storage on web). And the journal must have ONE owner: a
+ * duplicated browser tab copies its session storage, journal included, and both tabs would send the same pending create.
+ * The web store therefore tells the outbox when its journal may be a copy (`OutboxStore.isCopy`, a Web Lock per live
+ * tab), and the copy's first read parks its pending creates for the cook (`recoverInterrupted`). Under those conditions
+ * at-least-once delivery never happens behind the cook's back, and nothing needs to be idempotent that is not already:
+ * no client-minted recipe id, no `ON CONFLICT` upsert, no unique index on a photo key. ⚠️ Two limits: without Web Locks
+ * every first read on web parks pending creates, a reload included; and a copy's pending UPDATES stay queued in both
+ * tabs, where the second to land meets a 409 (it names its version) and the conflict view, never a second write.
  *
  * ⛔ AND A TRANSIENT REFUSAL IS RE-SENT AFTER A WAIT, never immediately: full-jitter backoff under a doubling ceiling,
  * floored at the server's `Retry-After`. A wait too long to sleep through ends the drain and is handed back to the

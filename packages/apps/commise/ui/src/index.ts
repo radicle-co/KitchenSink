@@ -8,26 +8,8 @@ export { shadows } from './tokens/shadows.js';
 export type { Shadows } from './tokens/shadows.js';
 export { fontSizes, fontWeights, fonts, lineHeights } from './tokens/typography.js';
 export type { FontSizes, FontWeights, Fonts, LineHeights } from './tokens/typography.js';
-export {
-    glass,
-    glassBackdropCss,
-    gradient,
-    gradientCss,
-    supportsNativeBlur,
-    toNativeGlass,
-    toNativeGradient,
-    toWebGlass,
-} from './tokens/gradients.js';
-export type {
-    GlassName,
-    GlassSpec,
-    GradientName,
-    GradientSpec,
-    GradientStop,
-    NativeGlass,
-    NativeGradient,
-    WebGlass,
-} from './tokens/gradients.js';
+export { gradient, gradientCss, toNativeGradient } from './tokens/gradients.js';
+export type { GradientName, GradientSpec, GradientStop, NativeGradient } from './tokens/gradients.js';
 export { nativeTokens } from './tokens/native.js';
 export type { NativeShadow, NativeTokens } from './tokens/native.js';
 export { CLERK_CSS_LAYER, clerkAppearanceFor } from './clerk.js';

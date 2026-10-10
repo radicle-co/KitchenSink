@@ -29,4 +29,17 @@ describe('RouteNotFoundState', () => {
         const backLink = screen.getByRole('link');
         expect(backLink).toHaveAttribute('href', '/en');
     });
+
+    // F18 (`evaluateFinal.md`): the 404 was plain text with an unstyled link. It is a terminal moment, so its block is
+    // centred (`buildSpec.md` §1.3), its title is the page's large title, and the way home is the primary button.
+    it('draws the branded 404: a centred block, the large title, and Back to Home as the primary button', () => {
+        renderWithProviders(<RouteNotFoundState />);
+
+        const heading = screen.getByRole('heading', { level: 1 });
+        const block = heading.parentElement as HTMLElement;
+
+        expect(heading.className.split(' ')).toEqual(expect.arrayContaining(['font-display', 'text-large-title']));
+        expect(block.className.split(' ')).toEqual(expect.arrayContaining(['items-center', 'text-center']));
+        expect(screen.getByRole('link', { name: 'Back to Home' }).className).toContain('bg-action');
+    });
 });

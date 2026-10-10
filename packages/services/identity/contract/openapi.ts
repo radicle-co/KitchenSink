@@ -41,6 +41,7 @@ import {
     impersonationStopResponseSchema,
 } from '../src/admin/admin.schema.js';
 import { healthStatusSchema } from '../src/health/health.schema.js';
+import { patchUserSettingsRequestSchema, userSettingsSchema } from '../src/settings/settings.schema.js';
 
 /** The named component schemas, keyed by the name the document publishes them under. */
 const components = {
@@ -50,6 +51,8 @@ const components = {
     UserProfile: userProfileSchema,
     PatchUserMeRequest: patchUserMeRequestSchema,
     DeleteUserMeResponse: deleteUserMeResponseSchema,
+    UserSettings: userSettingsSchema,
+    PatchUserSettingsRequest: patchUserSettingsRequestSchema,
     AvatarPresignResponse: avatarPresignResponseSchema,
     AdminUserListItem: adminUserListItemSchema,
     AdminListUsersResponse: adminListUsersResponseSchema,
@@ -211,6 +214,43 @@ export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument(
                         schema: 'ApiError',
                     },
                     '404': userNotFound,
+                },
+            },
+        },
+        '/api/v1/users/me/settings': {
+            get: {
+                operationId: 'getUserSettings',
+                summary: "Read the signed-in viewer's settings",
+                description:
+                    'Always fully resolved: a setting the viewer never chose is answered as its default (the ' +
+                    'published `SETTINGS_DEFAULTS`), and the read writes nothing. Served only under `/api/v1/` — ' +
+                    'there is no deprecated bare alias for this path (ADR-0059).',
+                responses: {
+                    '200': { description: "The viewer's settings.", schema: 'UserSettings' },
+                    '401': unauthorized,
+                },
+            },
+            patch: {
+                operationId: 'patchUserSettings',
+                summary: "Change the signed-in viewer's settings",
+                description:
+                    'Changes only the settings named in the body; last write wins, per setting. An UNKNOWN FIELD ' +
+                    'IS A `400` — the body schema is strict — and `{}` is an accepted no-op that writes nothing. ' +
+                    'A request with NO BODY AT ALL is a `400`.',
+                requestBody: { description: 'The settings to change.', schema: 'PatchUserSettingsRequest' },
+                responses: {
+                    '200': { description: 'The resolved settings after the change.', schema: 'UserSettings' },
+                    '400': {
+                        description: 'A non-boolean value, an unknown field, or an absent body.',
+                        schema: 'ApiError',
+                    },
+                    '401': unauthorized,
+                    '403': {
+                        description:
+                            'The account is closed (`Account is closed`). Nothing was written, so personal data ' +
+                            'is never recreated after an erasure.',
+                        schema: 'ApiError',
+                    },
                 },
             },
         },

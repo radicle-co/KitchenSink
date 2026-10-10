@@ -35,7 +35,7 @@ appId: io.commise.mobile
       element: 'Choose a match: apple sauce'
       direction: DOWN
       timeout: 20000
-- assertNotVisible: 'None of these — search for a different food'
+- assertNotVisible: 'Search for another food'
 - tapOn:
       text: 'Choose a match: apple sauce'
       index: 0
@@ -47,7 +47,7 @@ appId: io.commise.mobile
       timeout: 30000
       label: 'the recipe carries an AMBIGUOUS "apple sauce" line, and its shortlist answered'
 - assertVisible: 'Two or more foods match closely and their nutrition differs, so we’d rather you chose\.'
-- assertVisible: 'None of these — search for a different food'
+- assertVisible: 'Search for another food'
 
 # The source's foods flow into the same shortlist with no press (plan 002 S7.8, ADR-0055 point 9).
 - extendedWaitUntil:
@@ -65,7 +65,7 @@ appId: io.commise.mobile
       text: '.*, from USDA'
       index: 0
 - extendedWaitUntil:
-      notVisible: 'None of these — search for a different food'
+      notVisible: 'Search for another food'
       timeout: 30000
 
 # Leave with ×. The pick was the write; nothing else was typed, so × has nothing more to save. ⛔ NOT the header's

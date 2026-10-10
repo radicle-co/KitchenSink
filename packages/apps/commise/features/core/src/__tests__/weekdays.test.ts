@@ -36,4 +36,20 @@ describe('weekdayLabels', () => {
     it('is pure — repeated calls yield equal labels', () => {
         expect(weekdayLabels('en')).toEqual(weekdayLabels('en'));
     });
+
+    it('gives the narrow names the Home week strip shows below the regular container (buildSpec §4.2)', () => {
+        expect(weekdayLabels('en', 'narrow')).toEqual(['M', 'T', 'W', 'T', 'F', 'S', 'S']);
+    });
+
+    it('gives the full names a tile is announced by', () => {
+        expect(weekdayLabels('en', 'long')).toEqual([
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday',
+            'Sunday',
+        ]);
+    });
 });

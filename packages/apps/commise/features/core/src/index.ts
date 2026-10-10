@@ -26,7 +26,8 @@ export type {
     LiveHomeWidgetDescriptor,
     PlaceholderHomeWidgetDescriptor,
 } from './contract.js';
-export { HOME_WIDGET_TIER_ORDER, curateHomeWidgets } from './curateHomeWidgets.js';
+export { HOME_WIDGET_TIER_ORDER, curateHomeWidgets, splitComingSoon } from './curateHomeWidgets.js';
+export type { HomeWidgetGroups } from './curateHomeWidgets.js';
 export {
     analyticsToken,
     clockToken,
@@ -61,6 +62,7 @@ export { initialsFor } from './utils/initials.js';
 export { GREETING_BUCKETS, greetingBucketForHour } from './utils/timeOfDay.js';
 export type { GreetingBucket } from './utils/timeOfDay.js';
 export { DAYS_PER_WEEK, weekdayLabels } from './utils/weekdays.js';
+export type { WeekdayWidth } from './utils/weekdays.js';
 
 // === Roadmap scaffolding (temporary; shrinks as 005–009 ship) ===
 

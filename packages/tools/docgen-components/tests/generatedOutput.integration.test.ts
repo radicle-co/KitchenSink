@@ -30,6 +30,7 @@ import { describe, expect, it } from 'vitest';
 
 import { COMPONENTS_OUT_DIR, COMPONENT_GROUPS, DESIGN_OUT_DIR, REPO_ROOT } from '../src/config.js';
 import { discoverComponentFiles } from '../src/discovery.js';
+import { exportsAComponentName } from '../src/extract.js';
 import { buildArtifacts, readCommittedArtifacts, readGroup } from '../src/generate.js';
 import { buildDesignTokens } from '../src/tokens.js';
 
@@ -103,9 +104,12 @@ describe('the catalogue covers the component surface', () => {
     // The failure this catches is SILENT: a component shape the extractor stops recognising simply vanishes,
     // and every coverage number stays green because it is computed over what survived. Asserting per FILE is
     // what makes the loss visible — the fixtures cannot, because they only contain shapes already handled.
+    // A file that exports no component-named binding and no default export is an element factory
+    // (`exportsAComponentName`), and is not asked for a component it does not claim to have.
     it.each(COMPONENT_GROUPS)('documents at least one component from every .tsx file in $id', (group) => {
         const files = group.sourceRoots
             .flatMap((root) => discoverComponentFiles(resolve(REPO_ROOT, root)))
+            .filter((file) => exportsAComponentName(file))
             .map((file) => file.slice(REPO_ROOT.length + 1));
         const documented = new Set(
             readGroup(group, REPO_ROOT).flatMap((entry) => entry.implementations.map((leaf) => leaf.sourcePath)),

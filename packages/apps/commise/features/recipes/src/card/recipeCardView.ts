@@ -21,7 +21,7 @@ import type { Locale } from '@commise/i18n';
 import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeMessages } from '../messages.js';
 import {
     formatAverageRating,
@@ -49,11 +49,11 @@ export interface RecipeCardView {
         readonly pro: { readonly text: string; readonly label: string } | undefined;
         /** The status chip: a draft or a private recipe only. */
         readonly status: { readonly status: Exclude<RecipeCardStatus, 'public'>; readonly text: string } | undefined;
-        /** The total-time chip, in hours and minutes, with its spoken name. */
-        readonly time: { readonly text: string; readonly label: string };
+        /** The total-time chip, in hours and minutes, with its spoken name. Absent when the recipe states no time. */
+        readonly time?: { readonly text: string; readonly label: string };
     };
     readonly meta: {
-        readonly duration: string;
+        readonly duration?: string;
         readonly timeLabel: string;
         readonly servingsLabel: string;
         /** The servings as a phrase for a meta line ("Serves 8"). */
@@ -144,10 +144,8 @@ export function recipeCardViewOf(
             : undefined;
     const status = statusOf(recipe);
     const timeLabel = card.timeLabel.replace('{minutes}', String(recipe.totalTimeMinutes));
-    // A total time of 0 says "0 min" rather than nothing: the card always reserves its time chip.
-    const duration =
-        formatDuration(recipe.totalTimeMinutes * 60, copy.duration) ??
-        fillTemplate(copy.duration.minutes, { minutes: recipe.totalTimeMinutes });
+    // 0 or absent shows nothing (`buildSpec.md` §1.11): a draft with no times showed "⏱ 0 min" (F17).
+    const duration = formatDuration(recipe.totalTimeMinutes * 60, copy.duration);
 
     return {
         recipe,
@@ -155,10 +153,10 @@ export function recipeCardViewOf(
             noPhotoLabel: card.noPhotoLabel,
             pro: recipe.usesPremiumCapability ? { text: card.proBadge, label: card.proBadgeLabel } : undefined,
             status: status === 'public' ? undefined : { status, text: statusText[status] },
-            time: { text: duration, label: timeLabel },
+            ...(duration === undefined ? {} : { time: { text: duration, label: timeLabel } }),
         },
         meta: {
-            duration,
+            ...(duration === undefined ? {} : { duration }),
             timeLabel,
             servingsLabel: card.servingsLabel.replace('{count}', String(recipe.servings)),
             servingsText: card.servingsLabel.replace('{count}', String(recipe.servings)),

@@ -25,7 +25,12 @@ import {
 import type { IngredientEntry } from '../../hooks/useIngredientEntry.js';
 import type { IngredientRowEditor } from '../../hooks/useIngredientRowEditor.js';
 import { recipeMessages } from '../../messages.js';
-import { ingredientNoFoodNoteId, ingredientsErrorId, ingredientUnitNoteId } from '../fieldErrorIds.js';
+import {
+    ingredientAmountNoteId,
+    ingredientNoFoodNoteId,
+    ingredientsErrorId,
+    ingredientUnitNoteId,
+} from '../fieldErrorIds.js';
 import { ingredientRowViewOf, type IngredientRowContext, type IngredientRowView } from '../ingredientRowView.js';
 import type { IngredientLineKey } from '../lineKey.js';
 import type { LookupEntry } from '../nutritionLookup.js';
@@ -98,17 +103,20 @@ interface Setup {
     readonly openKey?: IngredientLineKey;
     /** How many named groups the list has (its own and the cook's new, empty ones). */
     readonly groupCount?: number;
+    /** The text the cook typed in each amount bound while the editor is open (`LineEditorState.amountText`). */
+    readonly typed?: { readonly low?: string; readonly high?: string };
 }
 
 /** Every row of a draft, with the spies a test reads. */
 const rowsOf = (setup: Setup) => {
     const values = makeRecipeFormValues({ ingredients: withLineKeys(setup.lines) });
     const focus = makeFocus();
-    const onChange = vi.fn<(next: typeof values) => void>();
     const retry = vi.fn<(ingredientId: string, key: string) => void>();
     const moveOn = vi.fn<() => void>();
     const entry = makeIngredientEntry(setup.entry);
-    const rowEditor = makeIngredientRowEditor({ ...setup.editor, entry });
+    // A spy that calls through to a test's own dispatch, when it gives one.
+    const dispatch = vi.fn<IngredientRowEditor['dispatch']>(setup.editor?.dispatch);
+    const rowEditor = makeIngredientRowEditor({ ...setup.editor, dispatch, entry });
     const answer = setup.lookup;
     const lineEditor = {
         openKey: setup.openKey,
@@ -119,13 +127,14 @@ const rowsOf = (setup: Setup) => {
         hideRange: vi.fn<(key: IngredientLineKey) => void>(),
         detailsOpen: false,
         toggleDetails: vi.fn<() => void>(),
+        amountText: (_key: IngredientLineKey, bound: 'low' | 'high') => setup.typed?.[bound],
+        setAmountText: vi.fn<(key: IngredientLineKey, bound: 'low' | 'high', text: string) => void>(),
     };
     const openFoodDetails = vi.fn<(key: IngredientLineKey) => void>();
     const openMoveToGroup = vi.fn<(key: IngredientLineKey) => void>();
     const ctx: IngredientRowContext = {
         values,
         errors: setup.errors,
-        onChange,
         nutrition: makeIngredientNutrition(answer === undefined ? {} : { lookup: () => answer }),
         lookupRetry: makeLookupRetry({ retry, retrying: setup.retrying ?? new Set() }),
         rowEditor,
@@ -151,7 +160,7 @@ const rowsOf = (setup: Setup) => {
         ingredientRowViewOf(line, index, ctx),
     );
 
-    return { rows, values, focus, onChange, retry, entry, rowEditor, lineEditor, openFoodDetails, openMoveToGroup };
+    return { rows, values, focus, dispatch, retry, entry, rowEditor, lineEditor, openFoodDetails, openMoveToGroup };
 };
 
 /** The one row of a single-line draft. */
@@ -622,14 +631,16 @@ describe('ingredientRowViewOf — Try again for a failed lookup (V1 sign-off ite
 describe('ingredientRowViewOf — the row’s field edits', () => {
     // §7.5.2: no group field in the row editor; groups are set at the section level (`ingredientGroups.test.ts`).
     it('each edit changes that line’s own field and nothing else (U26)', () => {
-        const { rows, onChange, values } = rowsOf({ lines: [bound({ name: 'flour' }), bound({ name: 'sugar' })] });
+        const { rows, dispatch, values } = rowsOf({ lines: [bound({ name: 'flour' }), bound({ name: 'sugar' })] });
         const second = rows[1];
 
         second?.edit.unit('cup');
         second?.edit.preparation('sifted');
         second?.edit.quantityLow('3');
 
-        const [unit, preparation, quantity] = onChange.mock.calls.map(([next]) => next.ingredients);
+        const [unit, preparation, quantity] = dispatch.mock.calls.map(
+            ([action]) => applyDraftAction(values, action).ingredients,
+        );
 
         expect(unit?.[1]).toEqual({ ...values.ingredients[1], unit: 'cup' });
         expect(preparation?.[1]).toEqual({ ...values.ingredients[1], preparation: 'sifted' });
@@ -657,6 +668,11 @@ describe('ingredientRowViewOf — a quantity pair the submit refused (U9)', () =
     });
 });
 
+/**
+ * REWRITTEN (2026-10-09 review, Medium 4): an edit used to call `onChange(applyDraftAction(values, …))` with the values
+ * of the render that built the handler, so a settle or a held rebind that landed before the click was overwritten. Each
+ * edit is now the editor's own transition (`rowEditor.dispatch`), which meets the draft as it is when it runs.
+ */
 describe('ingredientRowViewOf — each field edit is one draft transition', () => {
     it.each([
         ['quantityLow', '2.5', { kind: 'setIngredientQuantityLow', index: 1, value: 2.5 }],
@@ -664,11 +680,102 @@ describe('ingredientRowViewOf — each field edit is one draft transition', () =
         ['unit', 'tbsp', { kind: 'updateIngredientAt', index: 1, patch: { unit: 'tbsp' } }],
         ['preparation', 'sliced', { kind: 'updateIngredientAt', index: 1, patch: { preparation: 'sliced' } }],
     ] as const)('the %s field edits its own line', (field, text, action) => {
-        const { rows, onChange, values } = rowsOf({ lines: [bound({ name: 'flour' }), bound({ name: 'sugar' })] });
+        const { rows, dispatch } = rowsOf({ lines: [bound({ name: 'flour' }), bound({ name: 'sugar' })] });
 
         rows[1]?.edit[field](text);
 
-        expect(onChange).toHaveBeenCalledExactlyOnceWith(applyDraftAction(values, action));
+        expect(dispatch).toHaveBeenCalledExactlyOnceWith(action);
+    });
+
+    it('an edit pressed after a settle landed keeps the settle, because it meets the draft as it is then', () => {
+        // A store the way `useRecipeEditor` holds the draft: each transition applies to the CURRENT value.
+        let draft = makeRecipeFormValues({
+            ingredients: withLineKeys([bound({ name: 'flour' }), bound({ name: 'sugar' })]),
+        });
+
+        const dispatch = (action: Parameters<IngredientRowEditor['dispatch']>[0]): void => {
+            draft = applyDraftAction(draft, action);
+        };
+
+        const { rows } = rowsOf({ lines: [bound({ name: 'flour' }), bound({ name: 'sugar' })], editor: { dispatch } });
+
+        dispatch({ kind: 'updateIngredientAt', index: 0, patch: { preparation: 'sifted' } });
+        rows[1]?.edit.unit('cup');
+        actionOf(rows[1] as IngredientRowView, 'moveUp').onSelect();
+
+        expect(draft.ingredients.map((line) => [line.name, line.unit, line.preparation])).toEqual([
+            ['sugar', 'cup', undefined],
+            ['flour', 'lb', 'sifted'],
+        ]);
+    });
+});
+
+/**
+ * 2026-10-09 review, High 3: the Amount field parsed with `Number(text)`, so "1/2", "½" and "1,5" stored no amount and
+ * the field emptied. It reads with the add field's own amount rules, and text it cannot read stays in the field, marked
+ * invalid with its note, while the draft keeps the last amount it could read.
+ */
+describe('ingredientRowViewOf — the row editor’s Amount field reads like the add field', () => {
+    it.each([
+        { typed: '1/2', value: 0.5 },
+        { typed: '½', value: 0.5 },
+        { typed: '1,5', value: 1.5 },
+        { typed: '1 1/2', value: 1.5 },
+        { typed: '٣', value: 3 },
+        { typed: '', value: undefined },
+    ])('"$typed" states $value', ({ typed, value }) => {
+        const { row, dispatch, lineEditor, values } = onlyRow({ lines: [bound({ quantity: 2 })] });
+
+        row.lineEditor.onAmountLow(typed);
+        row.lineEditor.onAmountHigh(typed);
+
+        expect(dispatch.mock.calls).toEqual([
+            [{ kind: 'setIngredientQuantityLow', index: 0, value }],
+            [{ kind: 'setIngredientQuantityHigh', index: 0, value }],
+        ]);
+        expect(lineEditor.setAmountText).toHaveBeenCalledWith(keyOf(values.ingredients[0]), 'low', typed);
+        expect(lineEditor.setAmountText).toHaveBeenCalledWith(keyOf(values.ingredients[0]), 'high', typed);
+    });
+
+    it.each(['abc', '1/', '0', '2 cups'])('"%s" changes nothing in the draft', (typed) => {
+        const { row, dispatch } = onlyRow({ lines: [bound({ quantity: 2 })] });
+
+        row.lineEditor.onAmountLow(typed);
+
+        expect(dispatch).not.toHaveBeenCalled();
+    });
+
+    it('text it cannot read stays in the field, marked invalid and described by its note', () => {
+        const { row, values } = onlyRow({ lines: [bound({ quantity: 2 })], typed: { low: 'abc' } });
+        const noteId = ingredientAmountNoteId(keyOf(values.ingredients[0]));
+
+        expect(row.lineEditor).toMatchObject({
+            amountLow: 'abc',
+            amountInvalid: true,
+            amountNote: { id: noteId, text: m.rowAmountInvalid },
+        });
+        expect(row.lineEditor.describedBy.quantity?.split(' ')).toContain(noteId);
+    });
+
+    it('an unreadable upper bound marks the amount invalid and is described by the same note', () => {
+        const { row, values } = onlyRow({ lines: [bound({ quantity: 2, quantityHigh: 3 })], typed: { high: '3 ish' } });
+
+        expect(row.lineEditor).toMatchObject({ amountHigh: '3 ish', amountInvalid: true });
+        expect(row.lineEditor.describedBy.quantityHigh?.split(' ')).toContain(
+            ingredientAmountNoteId(keyOf(values.ingredients[0])),
+        );
+    });
+
+    it('keeps the text as typed while it states the draft’s amount ("1." while typing "1.5")', () => {
+        const { row } = onlyRow({ lines: [bound({ quantity: 1 })], typed: { low: '1.' } });
+
+        expect(row.lineEditor).toMatchObject({ amountLow: '1.', amountInvalid: false, amountNote: undefined });
+    });
+
+    it('typed text the draft has since moved past gives way to the draft', () => {
+        const { row } = onlyRow({ lines: [bound({ quantity: 2 })], typed: { low: '3' } });
+
+        expect(row.lineEditor.amountLow).toBe('2');
     });
 });
 
@@ -748,6 +855,43 @@ describe('ingredientRowViewOf — the read row (build spec §7.5.1)', () => {
     });
 });
 
+describe('ingredientRowViewOf — the singular name for a count of one (D21)', () => {
+    it('reads "1 large onion" for one with a size word, in the name and in the open label', () => {
+        const { row } = onlyRow({
+            lines: [bound({ name: 'onions', quantity: 1, unit: 'large', preparation: 'diced' })],
+        });
+
+        expect(row.displayName).toBe('onion');
+        expect(row.openLabel).toBe('Edit 1 large onion');
+        expect(row.line.name).toBe('onions');
+    });
+
+    it('keeps the catalog\u2019s own spelling for two, for a canonical unit and for a range', () => {
+        expect(onlyRow({ lines: [bound({ name: 'onions', quantity: 2, unit: '' })] }).row.displayName).toBe('onions');
+        expect(onlyRow({ lines: [bound({ name: 'onions', quantity: 1, unit: 'cup' })] }).row.displayName).toBe(
+            'onions',
+        );
+        expect(
+            onlyRow({ lines: [bound({ name: 'onions', quantity: 1, quantityHigh: 2, unit: '' })] }).row.displayName,
+        ).toBe('onions');
+    });
+
+    it('never singularizes a stand-in', () => {
+        const { row } = onlyRow({
+            lines: [
+                nameless({
+                    name: undefined,
+                    resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+                    quantity: 1,
+                    unit: '',
+                }),
+            ],
+        });
+
+        expect(row.displayName).toBe('Private ingredient');
+    });
+});
+
 describe('ingredientRowViewOf — the ⋯ (build spec §7.5.1)', () => {
     const SAUCE = [
         bound({ name: 'salt' }),
@@ -817,7 +961,7 @@ describe('ingredientRowViewOf — the ⋯ (build spec §7.5.1)', () => {
     });
 
     it('each item does its job on THAT row', () => {
-        const { rows, values, onChange, lineEditor, openFoodDetails, openMoveToGroup, focus } = rowsOf({
+        const { rows, values, dispatch, lineEditor, openFoodDetails, openMoveToGroup, focus } = rowsOf({
             lines: SAUCE,
             groupCount: 1,
         });
@@ -838,15 +982,11 @@ describe('ingredientRowViewOf — the ⋯ (build spec §7.5.1)', () => {
         expect(openMoveToGroup).toHaveBeenCalledWith(key);
 
         actionOf(row, 'moveUp').onSelect();
-        expect(onChange).toHaveBeenLastCalledWith(
-            applyDraftAction(values, { kind: 'moveIngredient', key, direction: 'up' }),
-        );
+        expect(dispatch).toHaveBeenLastCalledWith({ kind: 'moveIngredient', key, direction: 'up' });
         expect(focus.request).toHaveBeenLastCalledWith(key, 'actions');
 
         actionOf(row, 'moveDown').onSelect();
-        expect(onChange).toHaveBeenLastCalledWith(
-            applyDraftAction(values, { kind: 'moveIngredient', key, direction: 'down' }),
-        );
+        expect(dispatch).toHaveBeenLastCalledWith({ kind: 'moveIngredient', key, direction: 'down' });
     });
 });
 
@@ -875,14 +1015,12 @@ describe('ingredientRowViewOf — the row editor (build spec §7.5.2)', () => {
     });
 
     it('Remove range clears the upper bound and hides the field', () => {
-        const { row, onChange, values, lineEditor } = onlyRow({ lines: [bound({ quantity: 2, quantityHigh: 3 })] });
+        const { row, dispatch, values, lineEditor } = onlyRow({ lines: [bound({ quantity: 2, quantityHigh: 3 })] });
         const key = keyOf(values.ingredients[0]);
 
         row.lineEditor.onRemoveRange();
 
-        expect(onChange).toHaveBeenCalledWith(
-            applyDraftAction(values, { kind: 'setIngredientQuantityHigh', index: 0, value: undefined }),
-        );
+        expect(dispatch).toHaveBeenCalledWith({ kind: 'setIngredientQuantityHigh', index: 0, value: undefined });
         expect(lineEditor.hideRange).toHaveBeenCalledWith(key);
     });
 

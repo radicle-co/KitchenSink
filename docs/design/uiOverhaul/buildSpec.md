@@ -1253,14 +1253,14 @@ disagree (one source of truth).
 
 **Statuses** (one per section, in this precedence). Never colour alone: each has a glyph and words (SC 1.4.1).
 
-| Status                | When                                                                                                                                                        | Rail and sheet                                                                                                                                                   | Strip     | Bar                |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------ |
-| Fix before publishing | after a refused Publish, the section has a blocking error                                                                                                   | `danger` ⚠ + "Fix {n} thing(s)"                                                                                                                                  | ⚠ + count | counted in "⚠ {n}" |
-| Needs attention       | something that will block Publish, shown before the cook presses it, for example an ingredient with no food (the validator refuses an unresolved line, U28) | `attention` ⚠ + the reason ("2 need a match"), wrap:2                                                                                                            | ⚠ + count | counted            |
-| In progress           | something entered, but a field needed to publish is empty                                                                                                   | `inkMuted` + the reason ("Title needed", "Add at least one step")                                                                                                | nothing   | nothing            |
-| Not started           | the section is empty                                                                                                                                        | `inkMuted` "Not started"                                                                                                                                         | nothing   | nothing            |
-| Optional              | Photos & publish while Details, Ingredients or Steps is not complete                                                                                        | `inkMuted` "Optional"                                                                                                                                            | nothing   | nothing            |
-| Complete              | the section has what it needs. Photos & publish is complete once the other three are                                                                        | `ink` ✓, **no colour and no word** (GOV.UK task list: done is quiet, so the rows that need action stand out). Photos & publish shows "Ready to publish" in `ink` | ✓         | nothing            |
+| Status                | When                                                                                                                                             | Rail and sheet                                                                                                                                                   | Strip     | Bar                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------ |
+| Fix before publishing | after a refused Publish, the section has a blocking error                                                                                        | `danger` ⚠ + "Fix {n} thing(s)"                                                                                                                                  | ⚠ + count | counted in "⚠ {n}" |
+| Needs attention       | something the cook can already see: a blocker before Publish is pressed, or an ingredient line with no match, which does not block Publish (D20) | `attention` ⚠ + the reason ("2 need a match"), wrap:2                                                                                                            | ⚠ + count | counted            |
+| In progress           | something entered, but a field needed to publish is empty                                                                                        | `inkMuted` + the reason ("Title needed", "Add at least one step")                                                                                                | nothing   | nothing            |
+| Not started           | the section is empty                                                                                                                             | `inkMuted` "Not started"                                                                                                                                         | nothing   | nothing            |
+| Optional              | Photos & publish while Details, Ingredients or Steps is not complete                                                                             | `inkMuted` "Optional"                                                                                                                                            | nothing   | nothing            |
+| Complete              | the section has what it needs. Photos & publish is complete once the other three are                                                             | `ink` ✓, **no colour and no word** (GOV.UK task list: done is quiet, so the rows that need action stand out). Photos & publish shows "Ready to publish" in `ink` | ✓         | nothing            |
 
 What "complete" means: Details has a title within its limit. Ingredients has at least one line, and every line has a
 food. Steps has at least one step with text. These are the validator's own rules, read, not restated.
@@ -1501,7 +1501,10 @@ Add an ingredient
    `premium` "Premium" badge, and choosing it opens the upsell sheet (§6.4 pattern). Nothing is pre-selected by the
    upsell.
 3. **Ready line:** "Ready to publish." or "Fix {n} things to publish." (`meta`). The second is a link that activates
-   the first section that needs it.
+   the first section that needs it. When the recipe is ready but N ingredient lines have no match, the ready line reads
+   "Ready to publish. {n} ingredient has no match, so its nutrition is left out." (plural: "{n} ingredients have no
+   match, so their nutrition is left out."), and Photos & publish shows the same sentence as a quiet note above its
+   controls, in `attention` (D20). Publish stays enabled.
 4. **Preview** lives in the `ActionBar`. It opens the real detail page in a full-height sheet with the banner
    "Preview. This is how it looks to others." It shows ranges correctly by construction (F3).
 
@@ -1689,7 +1692,8 @@ phone 390, and 840+ in content-reading (640), left-aligned
 - **Grouped rows** (56 px, label, value truncate:1, chevron), the settings-list pattern both platforms use:
     - **Display name** opens a sheet titled "What should we call you?" with one field, prefilled from the Google given
       name when Clerk has it, and **Save** (primary). It saves only on Save, because the name can show publicly as an
-      author handle. This is the only place the app asks for it. Until it is set, the Home greeting has no name.
+      author handle. This is the only place the app asks for it. The identity service fills the name in from the
+      account at sign-up (D22), so the cook can change it here but does not have to set it.
     - **Email**: read-only value.
     - **Preferences:** "Food data sources" → `/legal/sources`. **Keyboard shortcuts** (web only): a switch, on by
       default. Off, `/` types a slash like any other key (SC 2.1.4).

@@ -24,7 +24,8 @@ import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 
-import { fillTemplate, formatRecipeCount } from '../list/model.js';
+import { formatRecipeCount } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { CollectionHeaderProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 import { formatCollectionDate } from './model.js';

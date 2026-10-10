@@ -35,6 +35,7 @@ export {
     withdraw,
     type ExclusiveAppend,
     type OutboxLog,
+    type RecoveryOptions,
     type Settlement,
 } from './outboxLog.js';
 export { createOutboxMutator, outboxMutatorFor, type OutboxMutator } from './outboxMutator.js';
@@ -50,7 +51,8 @@ export {
 } from './outboxStore.js';
 export { appendToQuarantine } from './quarantine.js';
 export { createSerialQueue, type SerialQueue } from './serialQueue.js';
-export { createWebStorageStore, type WebStorageLike } from './webStorageStore.js';
+export { createTabCopyProbe, type LockManagerLike, type TabCopyProbeSources } from './tabCopyProbe.js';
+export { createWebStorageStore, type WebStorageLike, type WebStorageStoreOptions } from './webStorageStore.js';
 export { projectOptimistic, type LocalProjection, type ServerFacts } from './projection.js';
 export {
     LOCAL_REF_PREFIX,

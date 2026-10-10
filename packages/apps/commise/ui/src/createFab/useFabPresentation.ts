@@ -2,8 +2,7 @@
 
 /**
  * @module @commise/ui/create-fab — the floating create control's presentation on web: `createFabPolicy` over the
- * page's scroll, the keyboard, the window and the control's own state. The interim create dial reads it too, so the
- * rules live once.
+ * page's scroll, the keyboard, the window and the control's own state.
  */
 import { viewportClassOf } from '../layout/containerClass.js';
 import { useContext } from 'react';

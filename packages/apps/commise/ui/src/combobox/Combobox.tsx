@@ -67,23 +67,14 @@ import {
 } from '@floating-ui/react-dom';
 import { compute } from 'compute-scroll-into-view';
 import { useCombobox, type UseComboboxState, type UseComboboxStateChangeOptions } from 'downshift';
-import {
-    Fragment,
-    useContext,
-    useEffect,
-    useEffectEvent,
-    useId,
-    useState,
-    type FC,
-    type KeyboardEvent,
-    type ReactNode,
-} from 'react';
+import { Fragment, useContext, useEffect, useId, useState, type FC, type KeyboardEvent, type ReactNode } from 'react';
 
 import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.js';
 import { PopupInsetsContext, type PopupInsetsReader } from '../popupInsets/popupInsetsContext.js';
 import { VariantPartsLine } from '../variantPartsLine/VariantPartsLine.js';
 import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
 /** The keys that move the caret: §3e gives Home and End to the field, and APG returns visual focus to it on all four. */
 const CARET_KEYS: ReadonlySet<string> = new Set(['Home', 'End', 'ArrowLeft', 'ArrowRight']);
@@ -124,8 +115,20 @@ const CHOOSE_SIDE = [
     SIZE_TO_SPACE,
 ];
 
-/** For a text whose side is chosen: that side, whatever the list grows to (`rowEditorOpenDecisions.md` P9). */
-const KEEP_SIDE = [offset(LIST_GAP_PX), SLIDE, SIZE_TO_SPACE];
+/**
+ * For a text whose side is chosen: that side, whatever the list grows to (`rowEditorOpenDecisions.md` P9) — while it can
+ * still hold its list's floor (up to three rows, `listboxFloorOf`). The popup's height is capped at its side's room, so a
+ * growing list never overflows and never flips; only the floor can overflow, which happens when the FIELD moved (a
+ * reflow under the open list, a scroll) to where its side has less room than that floor. `flip` then takes the other side, instead of leaving the options
+ * in a sliver at the viewport's foot (the ingredients typeahead trace, 2026-10-09). `autoUpdate` re-runs this on every
+ * layout, scroll and resize change.
+ */
+const KEEP_SIDE = [
+    offset(LIST_GAP_PX),
+    flip({ padding: VIEWPORT_MARGIN_PX, crossAxis: false, flipAlignment: false }),
+    SLIDE,
+    SIZE_TO_SPACE,
+];
 
 /**
  * The popup's first render for a text, at a fixed full height and invisible: the side is chosen at this height, never
@@ -367,13 +370,25 @@ export const Combobox: FC<ComboboxProps> = ({
     const fieldNode = elements.reference;
     const stamp: unknown = middlewareData[STAMP]?.text;
 
-    // The first placement computed for a text is its side. Adjusted during render, React's previous-value form.
-    if (popupShown && isPositioned && keptPlacement === undefined && stamp === value) {
+    // The first placement computed for a text is its side, and a kept side the field moved away from is replaced by the
+    // side `flip` took. Adjusted during render, React's previous-value form.
+    if (
+        popupShown &&
+        isPositioned &&
+        stamp === value &&
+        (keptPlacement === undefined || keptPlacement.split('-')[0] !== placement.split('-')[0])
+    ) {
         setChosenSide({ text: value, placement });
     }
 
+    // A kept side's popup holds at least the rows its list floors at (`listboxFloorOf`): where its side has less room
+    // than that, it overflows, and `KEEP_SIDE`'s flip takes the other side. A one-option or status-only popup floors low.
     const popupHeightClass =
-        keptPlacement === undefined ? HEIGHT_PROBE : keptPlacement.startsWith('top') ? HEIGHT_ABOVE : HEIGHT_BELOW;
+        keptPlacement === undefined
+            ? HEIGHT_PROBE
+            : `${listboxFloorOf(Math.max(1, options.length))} ${
+                  keptPlacement.startsWith('top') ? HEIGHT_ABOVE : HEIGHT_BELOW
+              }`;
 
     const floatingNode = elements.floating;
 
@@ -401,23 +416,24 @@ export const Combobox: FC<ComboboxProps> = ({
         return () => document.removeEventListener('touchmove', onTouchMove);
     }, [popupShown, floatingNode, fieldNode, closeMenu]);
 
-    // Reads the host's callback and list request as they are when the request is taken; neither re-runs a request.
-    const takeFocusRequest = useEffectEvent((node: HTMLInputElement) => {
-        node.focus();
-        node.setSelectionRange(node.value.length, node.value.length);
+    // A request is taken once the field's node exists; the hook reads the host's callback and list request as they are
+    // when it is taken, so neither re-runs a request.
+    useFocusRequest(
+        focusRequested && fieldNode !== null,
+        () => {
+            if (fieldNode === null) {
+                return;
+            }
 
-        if (listRequested) {
-            openMenu();
-        }
+            fieldNode.focus();
+            fieldNode.setSelectionRange(fieldNode.value.length, fieldNode.value.length);
 
-        onFocusRequestHandled?.();
-    });
-
-    useEffect(() => {
-        if (focusRequested && fieldNode !== null) {
-            takeFocusRequest(fieldNode);
-        }
-    }, [focusRequested, fieldNode]);
+            if (listRequested) {
+                openMenu();
+            }
+        },
+        onFocusRequestHandled,
+    );
 
     const onKeyDown = (event: FieldKeyDown): void => {
         if (event.nativeEvent.isComposing) {

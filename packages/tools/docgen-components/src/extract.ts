@@ -41,7 +41,7 @@
  *
  * @sideEffect Reads TypeScript sources and each package's `tsconfig.json` from disk.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
 import { withCompilerOptions } from 'react-docgen-typescript';
@@ -316,51 +316,24 @@ interface LocalDeclaration {
  */
 const COMPONENT_NAME = /^[A-Z][a-z0-9]/;
 
+/** A file's top-level declarations, and which of them it exports, and how. */
+interface ModuleExports {
+    readonly locals: ReadonlyMap<string, LocalDeclaration>;
+    readonly exported: ReadonlyMap<string, 'named' | 'default'>;
+    /** An `export default <expression>` that is not a bare identifier (`export default Sentry.wrap(App)`). */
+    readonly defaultExpression: boolean;
+}
+
 /**
- * WHAT IS A COMPONENT IN THIS FILE — the authoritative answer, and the reason it is not the library's.
- *
- * `react-docgen-typescript` answers a different question. Its last resort is "any export that has a JSDoc
- * description and a name", which over this tree returned `generateMetadata`, `generateStaticParams`,
- * `useHomeNudge`, `useOncePerSessionNudge`, `pressScaleClassName` and `enterTransitionClassName` as
- * components — a metadata function, two hooks and two class-name helpers. It ALSO names a default export
- * after its FILE, so every Next.js route arrived as `page`, `error` or `layout`: 26 components with no
- * usable identity, and four called `page` in one catalogue.
- *
- * So the compiler decides WHICH exports are components and WHAT they are called, and the library is used for
- * what it is genuinely better at — resolving a props type into a documented prop table.
- *
- * The name test is React's own rule (a lowercase JSX tag is a DOM element, so a component identifier is
- * capitalised). The SHAPE test is a union of three signals, and every one was added because a real component
- * in this tree was lost without it — found by the per-file coverage assertion in
- * `tests/generatedOutput.integration.test.ts`, not by any fixture, because a fixture can only contain shapes
- * somebody already thought of:
- *
- *  1. **JSX in the subtree** — the ordinary leaf.
- *  2. **The library recognised it** — `RecipeCard` and `Wizard` are Compound Components exported as
- *     `Object.assign(RecipeCardRoot, { Header, Body, … })`, and `IngredientStatusPoller` is an `FC` that
- *     returns `null` on every path. Neither has JSX in the exported declaration's own subtree.
- *  3. **The single default export of a file that contains JSX** — `App.tsx` exports
- *     `sentryInitialized ? Sentry.wrap(App) : App`, a conditional over two call results.
- *
- * ⛔ The name test is NOT loosened to `/^[A-Z]/` to make signal 3 unnecessary: that admits SCREAMING_SNAKE
- * constants, and a catalogue listing an SVG path string as a component is worse than one missing a wrapper.
- *
- * ⛔ A FOURTH signal — "the declaration is annotated `FC` / `ComponentType`" — was written, and then DELETED
- * after mutation testing: removing it changed nothing anywhere in the tree, because every component it would
- * have caught is already caught by signal 2. An untested branch that no input reaches is not robustness, it
- * is code nobody can prove is right. If a propless, undocumented `FC` that renders `null` ever lands, the
- * per-file coverage assertion fails by name and the signal comes back with a case that exercises it.
- *
- * All three export spellings are handled, because all three occur: an `export` modifier, an `export { … }`
- * clause naming a local, and `export default <identifier>`.
+ * Every top-level declaration of `source`, and the names it exports under each of the three spellings. Pure.
  *
  * @param source - The parsed source file.
- * @param libraryNames - Component names `react-docgen-typescript` reported for this file.
- * @returns Every exported component-shaped declaration, in source order.
+ * @returns The locals and the exports.
  */
-function exportedComponents(source: ts.SourceFile, libraryNames: ReadonlySet<string>): readonly ExportedComponent[] {
+function moduleExportsOf(source: ts.SourceFile): ModuleExports {
     const locals = new Map<string, LocalDeclaration>();
     const exported = new Map<string, 'named' | 'default'>();
+    let defaultExpression = false;
 
     for (const statement of source.statements) {
         const modifiers = ts.canHaveModifiers(statement) ? (ts.getModifiers(statement) ?? []) : [];
@@ -370,6 +343,16 @@ function exportedComponents(source: ts.SourceFile, libraryNames: ReadonlySet<str
         if (ts.isFunctionDeclaration(statement) && statement.name !== undefined) {
             locals.set(statement.name.text, { declaration: statement, docHost: statement });
 
+            if (hasExport) {
+                exported.set(statement.name.text, hasDefault ? 'default' : 'named');
+            }
+
+            continue;
+        }
+
+        // An exported class (an error boundary) names a component. It is not a local here: the library documents a class
+        // component through signal 2, and the compiler's JSX and conditional readings are of function bodies.
+        if (ts.isClassDeclaration(statement) && statement.name !== undefined) {
             if (hasExport) {
                 exported.set(statement.name.text, hasDefault ? 'default' : 'named');
             }
@@ -408,11 +391,77 @@ function exportedComponents(source: ts.SourceFile, libraryNames: ReadonlySet<str
         // `export default Foo` — the identifier names a local declared above.
         if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
             exported.set(statement.expression.text, 'default');
+        } else if (ts.isExportAssignment(statement)) {
+            defaultExpression = true;
         }
     }
 
+    return { locals, exported, defaultExpression };
+}
+
+/**
+ * Whether a `.tsx` file exports anything that could be a component: a component-named binding, or a default export. An
+ * element factory (a lowercase function returning JSX, like `web/src/app/appDocument.tsx`) names none, so the per-file
+ * coverage guard does not ask it for one.
+ *
+ * @param filePath - Absolute path to the file.
+ * @returns Whether it names a component.
+ * @sideEffect Reads the file.
+ */
+export function exportsAComponentName(filePath: string): boolean {
+    const source = ts.createSourceFile(filePath, readFileSync(filePath, 'utf8'), ts.ScriptTarget.Latest, true);
+    const { exported, defaultExpression } = moduleExportsOf(source);
+
+    return defaultExpression || [...exported].some(([name, kind]) => kind === 'default' || COMPONENT_NAME.test(name));
+}
+
+/**
+ * WHAT IS A COMPONENT IN THIS FILE — the authoritative answer, and the reason it is not the library's.
+ *
+ * `react-docgen-typescript` answers a different question. Its last resort is "any export that has a JSDoc
+ * description and a name", which over this tree returned `generateMetadata`, `generateStaticParams`,
+ * `useHomeNudge`, `useOncePerSessionNudge`, `pressScaleClassName` and `enterTransitionClassName` as
+ * components — a metadata function, two hooks and two class-name helpers. It ALSO names a default export
+ * after its FILE, so every Next.js route arrived as `page`, `error` or `layout`: 26 components with no
+ * usable identity, and four called `page` in one catalogue.
+ *
+ * So the compiler decides WHICH exports are components and WHAT they are called, and the library is used for
+ * what it is genuinely better at — resolving a props type into a documented prop table.
+ *
+ * The name test is React's own rule (a lowercase JSX tag is a DOM element, so a component identifier is
+ * capitalised). The SHAPE test is a union of three signals, and every one was added because a real component
+ * in this tree was lost without it — found by the per-file coverage assertion in
+ * `tests/generatedOutput.integration.test.ts`, not by any fixture, because a fixture can only contain shapes
+ * somebody already thought of:
+ *
+ *  1. **JSX in the subtree** — the ordinary leaf.
+ *  2. **The library recognised it** — `RecipeCard` and `Wizard` are Compound Components exported as
+ *     `Object.assign(RecipeCardRoot, { Header, Body, … })`, and `IngredientStatusPoller` is an `FC` that
+ *     returns `null` on every path. Neither has JSX in the exported declaration's own subtree.
+ *  3. **The single default export of a file** — `App.tsx` exports `sentryInitialized ? Sentry.wrap(App) : App`, a
+ *     conditional over two call results, and `[locale]/layout.tsx` returns `appDocument(…)`, an element factory's tree,
+ *     with no JSX in the file at all. It once also required JSX somewhere in the file; dropping that was measured
+ *     over the whole tree and documented exactly one more leaf, that layout.
+ *
+ * ⛔ The name test is NOT loosened to `/^[A-Z]/` to make signal 3 unnecessary: that admits SCREAMING_SNAKE
+ * constants, and a catalogue listing an SVG path string as a component is worse than one missing a wrapper.
+ *
+ * ⛔ A FOURTH signal — "the declaration is annotated `FC` / `ComponentType`" — was written, and then DELETED
+ * after mutation testing: removing it changed nothing anywhere in the tree, because every component it would
+ * have caught is already caught by signal 2. An untested branch that no input reaches is not robustness, it
+ * is code nobody can prove is right. If a propless, undocumented `FC` that renders `null` ever lands, the
+ * per-file coverage assertion fails by name and the signal comes back with a case that exercises it.
+ *
+ * All three export spellings are handled, because all three occur: an `export` modifier, an `export { … }`
+ * clause naming a local, and `export default <identifier>`.
+ *
+ * @param source - The parsed source file.
+ * @param libraryNames - Component names `react-docgen-typescript` reported for this file.
+ * @returns Every exported component-shaped declaration, in source order.
+ */
+function exportedComponents(source: ts.SourceFile, libraryNames: ReadonlySet<string>): readonly ExportedComponent[] {
+    const { locals, exported } = moduleExportsOf(source);
     const defaultExports = [...exported].filter(([, kind]) => kind === 'default');
-    const fileHasJsx = containsJsx(source);
 
     const found: ExportedComponent[] = [];
 
@@ -426,7 +475,7 @@ function exportedComponents(source: ts.SourceFile, libraryNames: ReadonlySet<str
         const isComponent =
             containsJsx(local.declaration) ||
             libraryNames.has(name) ||
-            (exportKind === 'default' && defaultExports.length === 1 && fileHasJsx);
+            (exportKind === 'default' && defaultExports.length === 1);
 
         if (!isComponent) {
             continue;

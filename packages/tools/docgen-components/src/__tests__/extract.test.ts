@@ -11,6 +11,8 @@
  *  - `IconGlyph` — props that EXTEND React's `SVGProps`, where an unfiltered extractor buries the one real
  *    prop under ~250 inherited DOM props.
  *  - `NoProps` — a propless, undocumented default export, which `react-docgen-typescript` drops entirely.
+ *  - `NoJsxDefault` — the single default export of a file with no JSX of its own (a route segment returning an
+ *    element factory's tree); `badgeElement` — that factory, a lowercase export that names no component.
  *  - `Orchestrator` — a ref, a boolean prop selecting between two rendered subtrees, an undocumented prop.
  *  - `Diverged` / `Orphan` — the two cross-platform failures §14 cares about: leaves whose contracts have
  *    drifted apart, and a leaf with no sibling at all.
@@ -20,7 +22,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { REPO_ROOT } from '../config.js';
-import { extractImplementations, loadCompilerOptions } from '../extract.js';
+import { exportsAComponentName, extractImplementations, loadCompilerOptions } from '../extract.js';
 import type { ComponentImplementation } from '../model.js';
 
 const PACKAGE_DIR = join(import.meta.dirname, '..', '..');
@@ -36,6 +38,8 @@ const FIXTURE_FILES = [
     fixture('Diverged.native.tsx'),
     fixture('IconGlyph.tsx'),
     fixture('NoProps.tsx'),
+    fixture('NoJsxDefault.tsx'),
+    fixture('badgeElement.tsx'),
     fixture('Orchestrator.tsx'),
     fixture('Orphan.native.tsx'),
     fixture('Undocumented.tsx'),
@@ -65,6 +69,7 @@ describe('extractImplementations', () => {
             'Diverged:native',
             'Diverged:web',
             'IconGlyph:web',
+            'NoJsxDefault:web',
             'NoProps:web',
             'Orchestrator:web',
             'Orphan:native',
@@ -150,6 +155,15 @@ describe('extractImplementations', () => {
         expect(noProps.moduleDoc).toContain('a zero-prop default export with NO JSDoc of its own');
     });
 
+    /**
+     * A route segment's default export may have no JSX of its own (it returns an element factory's tree), and the
+     * framework still renders it as a component. Measured over the tree on 2026-10-09: dropping the "the file holds
+     * JSX" condition from this signal documents exactly ONE more leaf, `[locale]/layout.tsx`'s `LocaleLayout`.
+     */
+    it('keeps the single default export of a file with no JSX of its own', () => {
+        expect(one('NoJsxDefault', 'web').exportKind).toBe('default');
+    });
+
     it('records how a component was detected, so the library gap is visible rather than silent', () => {
         expect(one('Badge', 'web').detectedBy).toBe('react-docgen-typescript');
         expect(one('Badge', 'web').exportKind).toBe('named');
@@ -169,5 +183,22 @@ describe('extractImplementations', () => {
         expect(one('Orchestrator', 'web').docSignals).toEqual({ presentational: true, orchestration: true });
         expect(one('Badge', 'web').docSignals).toEqual({ presentational: true, orchestration: false });
         expect(one('Undocumented', 'web').docSignals).toEqual({ presentational: false, orchestration: false });
+    });
+});
+
+/**
+ * Which `.tsx` files the per-file coverage guard asks for a component (`tests/generatedOutput.integration.test.ts`): a
+ * file that exports a component-named binding, or a default export. An element factory (`badgeElement`,
+ * `web/src/app/appDocument.tsx`, `mobile/src/navigation/tasks.tsx`) names none, so it is not asked for one.
+ */
+describe('exportsAComponentName', () => {
+    it.each([
+        { file: 'Badge.tsx', names: true, why: 'a named component' },
+        { file: 'NoProps.tsx', names: true, why: 'a default export' },
+        { file: 'NoJsxDefault.tsx', names: true, why: 'a default export with no JSX of its own' },
+        { file: 'ClassBoundary.tsx', names: true, why: 'an exported class component' },
+        { file: 'badgeElement.tsx', names: false, why: 'an element factory names no component' },
+    ])('$file: $names ($why)', ({ file, names }) => {
+        expect(exportsAComponentName(fixture(file))).toBe(names);
     });
 });

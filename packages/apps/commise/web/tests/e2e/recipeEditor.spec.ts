@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { E2E_INGREDIENT_IDS, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -166,8 +166,9 @@ for (const colorScheme of SCHEMES) {
 
             await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST']);
             await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-            // Once created, the URL is its edit address, without a navigation.
-            await expect(page).toHaveURL(/\/recipes\/[^/]+\/edit/u);
+            // Once created, the URL names it, without a navigation: it stays on the new route, `?draft=` moving from
+            // the local ref to the server id (Next's own shallow update; a reload or Back then opens its edit route).
+            await expect(page).toHaveURL(/\/recipes\/new\?draft=(?!local)[^&#]+/u);
         });
 
         test('a reload in the same tab keeps a new recipe`s draft (D7)', async ({ page }) => {
@@ -268,6 +269,53 @@ for (const colorScheme of SCHEMES) {
             expect(store.get('ec000000-0000-4000-8000-000000000011')?.status).toBe('draft');
         });
 
+        test('a recipe with a line that has no match says so, and still publishes (owner D20)', async ({ page }) => {
+            const viewerId = await readViewerAppId(page);
+            const id = 'ec000000-0000-4000-8000-000000000012';
+            const seed = makeRecipeDetail({
+                id,
+                ownerId: viewerId,
+                title: 'Saffron Rice',
+                status: 'draft',
+                currentVersion: 1,
+                ingredients: [
+                    {
+                        ingredientId: E2E_INGREDIENT_IDS.salt,
+                        name: 'Salt',
+                        foodId: 'food_salt',
+                        quantity: { kind: 'exact', value: 1 },
+                        unit: 'tsp',
+                        isUserEntered: false,
+                        resolutionStatus: 'RESOLVED',
+                    },
+                    {
+                        ingredientId: '00000000-0000-4000-8000-0000000000e1',
+                        name: 'Saffron',
+                        quantity: { kind: 'exact', value: 1 },
+                        unit: 'pinch',
+                        isUserEntered: false,
+                        resolutionStatus: 'FAILED',
+                        unresolvedReason: 'sources_errored',
+                    },
+                ],
+            });
+            const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
+
+            await page.goto(route(`/recipes/${id}/edit`));
+
+            // The sentence is in the action bar and, as a quiet note, in Photos & publish.
+            const sentence = page.getByText(
+                'Ready to publish. 1 ingredient has no match, so its nutrition is left out.',
+            );
+            await expect(sentence).toHaveCount(2);
+
+            const publish = page.getByRole('button', { name: 'Publish' });
+            await expect(publish).toBeEnabled();
+            await publish.click();
+
+            await expect.poll(() => store.get(id)?.status).toBe('published');
+        });
+
         test('× never asks, and the action bar is never covered', async ({ page }) => {
             await page.setViewportSize({ width: 390, height: 844 });
             const viewerId = await readViewerAppId(page);
@@ -291,3 +339,80 @@ for (const colorScheme of SCHEMES) {
         });
     });
 }
+
+/**
+ * Leaving the editor and coming back (2026-10-09 review). Browser Back or a shell link unmounts the web editor, which
+ * had no checkpoint for it (staff-architect, Blocking): a titled new recipe was never created. And the URL the editor
+ * kept after its first save was written with Next's own history state, so Next never learned it (code-reviewer High
+ * 4): a reload opened a blank editor, and Back restored the new-recipe page, where typing made a second recipe. One
+ * colour scheme: nothing here is drawn differently in the other.
+ */
+test.describe('leaving the one-page editor and coming back', () => {
+    test.beforeEach(async ({ page }) => {
+        await signInWithTicket(page);
+    });
+
+    test('⛔ browser Back from a titled new recipe creates it: it is in My recipes', async ({ page }) => {
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        const writes = recipeWrites(page);
+
+        await page.goto(route('/recipes'));
+        await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
+        // Into the editor by the app's own control, so Back is the router's (a client navigation that unmounts it).
+        await page.getByRole('button', { name: 'New recipe' }).click();
+        await expect(page).toHaveURL(/\/recipes\/new/u);
+        await page.getByLabel('Title').fill('E2E Back Button Soup');
+        await page.goBack();
+
+        await expect(page).toHaveURL(/\/recipes$/u);
+        await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST']);
+        await expect(page.getByRole('article', { name: 'E2E Back Button Soup' })).toBeVisible();
+    });
+
+    test('⛔ a reload after the first save opens the same recipe, never a blank one', async ({ page }) => {
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        const writes = recipeWrites(page);
+
+        await page.goto(route('/recipes/new'));
+        await page.getByLabel('Title').fill('E2E Reloaded Soup');
+        await jumpTo(page, 'Ingredients');
+        await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST']);
+        await expect(page).toHaveURL(/draft=(?!local)/u);
+
+        await page.reload();
+
+        await expect(page).toHaveURL(/\/recipes\/[0-9a-f-]{36}\/edit/u, { timeout: 30_000 });
+        await expect(page.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeVisible();
+        await expect(page.getByLabel('Title')).toHaveValue('E2E Reloaded Soup');
+        await page.getByLabel('Description').fill('Edited after the reload.');
+        await jumpTo(page, 'Steps');
+        await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST', 'PATCH']);
+    });
+
+    test('⛔ Back to the editor after the first save edits that recipe: typing never makes a second one', async ({
+        page,
+    }) => {
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        const writes = recipeWrites(page);
+
+        await page.goto(route('/recipes/new'));
+        await page.getByLabel('Title').fill('E2E Returning Soup');
+        await jumpTo(page, 'Ingredients');
+        await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST']);
+        // × leaves for the recipe; Back returns to the entry the editor kept.
+        await page.getByRole('button', { name: 'Close editor' }).click();
+        // The recipe's own page, by id (a dev server may still be compiling the route when the click returns).
+        await expect(page).toHaveURL(/\/recipes\/[0-9a-f-]{36}$/u, { timeout: 30_000 });
+        await page.goBack();
+
+        await expect(page).toHaveURL(/\/recipes\/[0-9a-f-]{36}\/edit/u, { timeout: 30_000 });
+        await expect(page.getByLabel('Title')).toHaveValue('E2E Returning Soup');
+        await page.getByLabel('Description').fill('Typed after coming back.');
+        await jumpTo(page, 'Steps');
+        await expect.poll(() => writes.filter((write) => write.method === 'POST')).toHaveLength(1);
+        await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST', 'PATCH']);
+    });
+});

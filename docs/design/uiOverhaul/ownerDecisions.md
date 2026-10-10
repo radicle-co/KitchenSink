@@ -23,7 +23,8 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
 - **D6, iPad.** The iPad keeps the bottom tab bar in both orientations (owner directive of 2026-07-18).
 - **D7, web editor draft.** On web, the editor draft (ids and form values only) is kept in `sessionStorage`. It
   survives a reload in the same tab. Closing the tab ends it. This is a narrow exception to the owner's ruling
-  of 2026-09-17 that the browser keeps no durable app data. It covers the editor draft and nothing else.
+  of 2026-09-17 that the browser keeps no durable app data. It covers the editor draft and the editor's unsent saves
+  (the outbox journal, ids and form values only), and nothing else (owner, 2026-10-09). Signing out clears both.
 - **D9, draft versions.** Saves of a never-published draft overwrite it in place and create no version. Versions
   start at the first publish. This needs a new ADR that amends ADR-0034, written with slice 7.
 - **D10, paste.** A cook can paste an ingredient list only while creating a recipe, which lasts until the recipe is
@@ -53,6 +54,15 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
 - **D18, cook marks on web.** The recipe page keeps the ticked ingredients and the current step in `sessionStorage`,
   as recipe and line ids only. They survive a reload in the same tab. Closing the tab or signing out clears them. This
   is the second narrow exception to the ruling of 2026-09-17, after D7.
+- **D19, user settings.** A user's app preferences are stored on the server, in a new identity `settings` table with
+  its own wire contract, so they follow the user across devices (owner, 2026-10-10). The web "/" search-shortcut switch
+  is the first setting. No preference is kept in browser storage.
+- **D20, publishing with unmatched lines.** A cook may publish while some ingredients have no matched food. The section
+  index and the publish step say how many lines have no match and that nutrition leaves them out (owner, 2026-10-10).
+- **D21, ingredient row name.** A row shows the cook's own amount and unit, then the curated catalog food name, then the
+  preparation ("1 large onion, finely chopped"). A count of one uses the food's singular form (owner, 2026-10-10).
+- **D22, display name.** The identity service keeps filling in a new user's display name from their account. The cook
+  can change it in Profile (owner, 2026-10-10).
 - **D16, sandbox alarms.** Sandbox alarms stay off. A failed morning start is reported by the Sentry cron monitor.
 
 ## Adopted from the joint recommendations

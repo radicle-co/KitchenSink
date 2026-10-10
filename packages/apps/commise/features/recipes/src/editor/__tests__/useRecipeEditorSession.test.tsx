@@ -14,13 +14,13 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { makeFakeEditorWritePort } from '../../__fixtures__/editorWritePort.js';
 import { makeRecipeDetail } from '../../__fixtures__/index.js';
 import { toRecipeFormValues } from '../../form/wire.js';
-import type { EditorSeed, EditorWritePort } from '../../hooks/useRecipeEditor.js';
+import type { EditorSeed } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
 import { useRecipeEditorSession, type EditorNavigation } from '../useRecipeEditorSession.js';
 
@@ -41,7 +41,11 @@ function navigation() {
     };
 }
 
-function mount(seed: EditorSeed = {}, client: RecipeServiceClient = createFakeRecipeServiceClient()) {
+function mount(
+    seed: EditorSeed = {},
+    client: RecipeServiceClient = createFakeRecipeServiceClient(),
+    options: { readonly strict?: boolean; readonly drafts?: DraftStore } = {},
+) {
     const port = makeFakeEditorWritePort();
     const nav = navigation();
     let leave: (() => void) | undefined;
@@ -51,7 +55,7 @@ function mount(seed: EditorSeed = {}, client: RecipeServiceClient = createFakeRe
         return () => undefined;
     });
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false }, queries: { retry: false } } });
-    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+    const providers = ({ children }: { readonly children: ReactNode }) => (
         <QueryClientProvider client={queryClient}>
             <RecipeServiceProvider client={client}>
                 <FoodServiceProvider client={makeQuietFoodClient()} subject="user_cook">
@@ -60,14 +64,18 @@ function mount(seed: EditorSeed = {}, client: RecipeServiceClient = createFakeRe
             </RecipeServiceProvider>
         </QueryClientProvider>
     );
+    const wrapper =
+        options.strict === true
+            ? ({ children }: { readonly children: ReactNode }) => <StrictMode>{providers({ children })}</StrictMode>
+            : providers;
     const view = renderHook(
         () =>
             useRecipeEditorSession({
                 seed,
                 locale: 'en',
                 keep: 'disk',
-                port: port as unknown as EditorWritePort,
-                drafts: NO_DRAFTS,
+                port,
+                drafts: options.drafts ?? NO_DRAFTS,
                 navigation: nav,
                 openPaste: false,
             }),
@@ -146,6 +154,69 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         await settle();
 
         expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+    });
+
+    /**
+     * ⛔ THE WEB HAS NO `beforeRemove` (staff-architect, 2026-10-09 review, Blocking). Browser Back or a shell link
+     * unmounts the editor with no checkpoint, so a titled new recipe was never created and its draft was stranded under
+     * a local ref the URL no longer named. Leaving by unmounting is a leave like any other.
+     */
+    it('⛔ an unmount is a leave: a titled new recipe is created', async () => {
+        const { result, port, unmount } = mount();
+
+        act(() => {
+            result.current.editor.setField('title', 'Soup');
+        });
+        unmount();
+        await settle();
+
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+    });
+
+    /** Native hears `beforeRemove`, then unmounts: the second exit meets the first one's write on the wire and does nothing. */
+    it('a leave and then the unmount send one write, not two', async () => {
+        const { result, port, leave, unmount } = mount();
+
+        act(() => {
+            result.current.editor.setField('title', 'Soup');
+        });
+        act(() => {
+            leave();
+        });
+        await settle();
+        port.claim(port.lastSeq());
+        unmount();
+        await settle();
+
+        expect(port.submitted).toHaveLength(1);
+    });
+
+    it('an unmount after the hand-off writes nothing: Discard closed the editor', async () => {
+        const { result, port, unmount } = mount();
+
+        act(() => {
+            result.current.editor.setField('title', 'Soup');
+        });
+        act(() => {
+            result.current.editor.discard();
+        });
+        unmount();
+        await settle();
+
+        expect(port.submitted).toEqual([]);
+    });
+
+    /**
+     * React's StrictMode replays every effect once at mount in development, so the unmount's checkpoint runs there too.
+     * It must be harmless: an untouched new editor writes nothing to the device or the server.
+     */
+    it('a StrictMode replay at mount writes nothing for an untouched new editor', async () => {
+        const save = vi.fn(async () => undefined);
+        const { port } = mount({}, createFakeRecipeServiceClient(), { strict: true, drafts: { ...NO_DRAFTS, save } });
+        await settle();
+
+        expect(port.submitted).toEqual([]);
+        expect(save).not.toHaveBeenCalled();
     });
 });
 

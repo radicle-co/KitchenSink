@@ -23,6 +23,8 @@ vi.mock('@/lib/basePath', () => ({ withBasePath: (path: string) => path }));
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({ data: { user: { displayName: 'Ada' } } }),
 }));
+// `useSearchShortcut` (in the shell) reads the viewer's settings (D19); this suite is not about the shortcut.
+vi.mock('@/hooks/useUserSettings', () => ({ useUserSettings: () => ({ data: { searchShortcut: true } }) }));
 
 const { SourcesContent } = await import('../SourcesContent');
 

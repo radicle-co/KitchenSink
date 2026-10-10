@@ -21,14 +21,14 @@
 import type { Locale } from '@commise/i18n';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
 
-import { isStandInName, lineDisplayName } from '../detail/lineName.js';
+import { isStandInName, lineAmountName } from '../detail/lineName.js';
 import { formatQuantity, lineSummary } from '../detail/model.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeMessages } from '../messages.js';
-import type { DraftAction } from './draftAction.js';
 import {
+    ingredientAmountNoteId,
     ingredientEntryDescribedBy,
     ingredientQuantityDescribedBy,
     ingredientsErrorId,
@@ -50,13 +50,8 @@ import {
 import type { RecipeFormMessages } from './messages.js';
 import { nutritionPanelOf, rowFiguresOf, rowHasVariantsOf } from './nutritionPanel.js';
 import type { IngredientNutrition } from './nutritionLookup.js';
-import {
-    applyDraftAction,
-    parseQuantityBound,
-    quantityInputValue,
-    unitClassNote,
-    unresolvedLineNote,
-} from './props.js';
+import { readAmountField } from './leadingMeasure.js';
+import { quantityInputValue, unitClassNote, unresolvedLineNote } from './props.js';
 import { draftQuantity, draftQuantityVerdict } from './quantity.js';
 import { removalFocusTarget } from './removalFocusTarget.js';
 import { rowBusyText, rowPendingSentence, type RowCommitCopy } from './rowCommitMessage.js';
@@ -73,7 +68,6 @@ import type { RecipeFormIngredient, RecipeFormValues } from './values.js';
 export interface IngredientRowContext {
     readonly values: RecipeFormValues;
     readonly errors: RecipeFormErrors | undefined;
-    readonly onChange: (next: RecipeFormValues) => void;
     readonly nutrition: IngredientNutrition;
     readonly lookupRetry: LookupRetry;
     readonly rowEditor: IngredientRowEditor;
@@ -117,7 +111,16 @@ export interface LineEditorState {
     /** The open editor shows its food's details. */
     readonly detailsOpen: boolean;
     readonly toggleDetails: () => void;
+    /**
+     * The text the cook typed in one bound of the Amount field while the editor is open; `undefined` once it closes. The
+     * field shows it while it states the draft's amount ("1." on the way to "1.5") or states none the draft could hold.
+     */
+    readonly amountText: (key: IngredientLineKey, bound: AmountBound) => string | undefined;
+    readonly setAmountText: (key: IngredientLineKey, bound: AmountBound, text: string) => void;
 }
+
+/** One bound of the Amount field. */
+export type AmountBound = 'low' | 'high';
 
 /** The names of the row's `⋯` and of the close controls of what it and the attention line open. */
 export interface IngredientRowLabels {
@@ -167,7 +170,10 @@ export interface RowLineEditorView {
     readonly amountLow: string;
     readonly amountHigh: string;
     readonly rangeShown: boolean;
+    /** The submit refused the pair, or a bound holds text that states no amount. */
     readonly amountInvalid: boolean;
+    /** "Check the amount", while a bound holds text that states no amount; each bound is described by it. */
+    readonly amountNote: { readonly id: string; readonly text: string } | undefined;
     readonly unit: string;
     readonly unitSuggestions: readonly string[];
     /** U25: the unit is not one the vocabulary knows; text that describes the field, never an invalid mark. */
@@ -324,15 +330,36 @@ const rowLabelsOf = (
     };
 };
 
-/** The row's field edits: each produces the next draft through `applyDraftAction`. Pure. */
-const rowEditsOf = (index: number, ctx: IngredientRowContext): IngredientRowEdits => {
-    const apply = (action: DraftAction): void => ctx.onChange(applyDraftAction(ctx.values, action));
+/**
+ * The row's field edits, each the editor's own draft transition (`rowEditor.dispatch`), so it meets the draft as it is
+ * when it runs rather than as this render saw it. An amount bound keeps the cook's text (`LineEditorState.amountText`)
+ * and states only what `readAmountField` reads: text it cannot read changes nothing in the draft. Pure.
+ */
+const rowEditsOf = (line: RecipeFormIngredient, index: number, ctx: IngredientRowContext): IngredientRowEdits => {
+    const { dispatch } = ctx.rowEditor;
+
+    const amount = (bound: AmountBound, text: string): void => {
+        ctx.lineEditor.setAmountText(line.key, bound, text);
+        const reading = readAmountField(text);
+
+        if (reading.kind === 'unreadable') {
+            return;
+        }
+
+        const value = reading.kind === 'amount' ? reading.value : undefined;
+
+        dispatch(
+            bound === 'low'
+                ? { kind: 'setIngredientQuantityLow', index, value }
+                : { kind: 'setIngredientQuantityHigh', index, value },
+        );
+    };
 
     return {
-        quantityLow: (text) => apply({ kind: 'setIngredientQuantityLow', index, value: parseQuantityBound(text) }),
-        quantityHigh: (text) => apply({ kind: 'setIngredientQuantityHigh', index, value: parseQuantityBound(text) }),
-        unit: (text) => apply({ kind: 'updateIngredientAt', index, patch: { unit: text } }),
-        preparation: (text) => apply({ kind: 'updateIngredientAt', index, patch: { preparation: text } }),
+        quantityLow: (text) => amount('low', text),
+        quantityHigh: (text) => amount('high', text),
+        unit: (text) => dispatch({ kind: 'updateIngredientAt', index, patch: { unit: text } }),
+        preparation: (text) => dispatch({ kind: 'updateIngredientAt', index, patch: { preparation: text } }),
     };
 };
 
@@ -366,7 +393,7 @@ const actionItemOf = (action: RowMenuAction, row: RowActionTarget, ctx: Ingredie
     const { line, target } = row;
 
     const move = (direction: 'up' | 'down'): void => {
-        ctx.onChange(applyDraftAction(ctx.values, { kind: 'moveIngredient', key: line.key, direction }));
+        ctx.rowEditor.dispatch({ kind: 'moveIngredient', key: line.key, direction });
         // The row moved under the `⋯`: focus stays on it, wherever it went (native moves its cursor explicitly).
         focus.request(line.key, 'actions');
     };
@@ -461,12 +488,50 @@ interface LineEditorInput {
     readonly onChangeFood: (() => void) | undefined;
 }
 
+/** What one bound of the Amount field shows, and whether its text states no amount. */
+interface AmountFieldView {
+    readonly text: string;
+    readonly unreadable: boolean;
+}
+
+/**
+ * One bound of the Amount field: the cook's own text while it states the draft's bound, or states no amount at all
+ * (marked, so the cook can fix it); the draft's bound once the draft has moved past the text. Pure.
+ */
+const amountFieldOf = (bound: number | undefined, typed: string | undefined): AmountFieldView => {
+    const drafted = quantityInputValue(bound);
+
+    if (typed === undefined) {
+        return { text: drafted, unreadable: false };
+    }
+
+    const reading = readAmountField(typed);
+
+    switch (reading.kind) {
+        case 'unreadable':
+            return { text: typed, unreadable: true };
+        case 'blank':
+            return { text: drafted === '' ? typed : drafted, unreadable: false };
+        case 'amount':
+            return { text: reading.value === bound ? typed : drafted, unreadable: false };
+    }
+};
+
+/** A description list with `id` added. Pure. */
+const describedWith = (ids: string | undefined, id: string | undefined): string | undefined =>
+    id === undefined ? ids : [ids, id].filter((each) => each !== undefined).join(' ');
+
 /** The row editor's view (build spec §7.5.2). Pure: its handlers run only when a control calls them. */
 const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLineEditorView => {
     const { line, index, displayName, marks } = input;
     const { m, lineEditor, focus } = ctx;
-    const edit = rowEditsOf(index, ctx);
+    const edit = rowEditsOf(line, index, ctx);
     const unit = line.unit ?? '';
+    const rangeShown = line.quantityHigh !== undefined || lineEditor.rangeShown(line.key);
+    const low = amountFieldOf(line.quantity, lineEditor.amountText(line.key, 'low'));
+    const high = amountFieldOf(line.quantityHigh, lineEditor.amountText(line.key, 'high'));
+    const unreadable = low.unreadable || (rangeShown && high.unreadable);
+    const amountNote = unreadable ? { id: ingredientAmountNoteId(line.key), text: m.rowAmountInvalid } : undefined;
 
     return {
         title: displayName,
@@ -478,15 +543,20 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
             unit: ingredientEditorFieldId(line.key, 'unit'),
             prep: ingredientEditorFieldId(line.key, 'prep'),
         },
-        amountLow: quantityInputValue(line.quantity),
-        amountHigh: quantityInputValue(line.quantityHigh),
-        rangeShown: line.quantityHigh !== undefined || lineEditor.rangeShown(line.key),
-        amountInvalid: marks.quantityInvalid,
+        amountLow: low.text,
+        amountHigh: high.text,
+        rangeShown,
+        amountInvalid: marks.quantityInvalid || unreadable,
+        amountNote,
         unit,
         unitSuggestions: unitSuggestionsOf(unit),
         unitNote: marks.unitNote,
         prep: line.preparation ?? '',
-        describedBy: marks.describedBy,
+        describedBy: {
+            ...marks.describedBy,
+            quantity: describedWith(marks.describedBy.quantity, amountNote?.id),
+            quantityHigh: describedWith(marks.describedBy.quantityHigh, amountNote?.id),
+        },
         detailsOffered: input.detailsOffered,
         detailsOpen: input.detailsOffered && lineEditor.detailsOpen,
         onAmountLow: edit.quantityLow,
@@ -567,10 +637,12 @@ export const ingredientRowViewOf = (
     const inFlight = rowEditor.pickInFlight(target);
     const busy = inFlight !== undefined;
     const retrying = line.ingredientId !== null && lookupRetry.retrying.has(line.ingredientId);
-    const displayName = lineDisplayName(line, ctx.shared.ingredientLineName);
-    const amountText = formatQuantity(draftQuantity(line), ctx.locale, line.unit);
+    const quantity = draftQuantity(line);
+    // D21: a count of one reads in the singular. DISPLAY only; `line` keeps the name as stored.
+    const displayName = lineAmountName(line, quantity, line.unit, ctx.shared.ingredientLineName);
+    const amountText = formatQuantity(quantity, ctx.locale, line.unit);
     const triggerFood = presentation.standIn
-        ? lineSummary({ ...line, quantity: draftQuantity(line) }, ctx.locale, ctx.shared.ingredientLineName)
+        ? lineSummary({ ...line, quantity }, ctx.locale, ctx.shared.ingredientLineName)
         : displayName;
     const failure = ctx.failureOf(target);
     const pendingText = rowPendingSentence(
@@ -737,6 +809,6 @@ export const ingredientRowViewOf = (
                 entry.leave(target);
             }
         },
-        edit: rowEditsOf(index, ctx),
+        edit: rowEditsOf(line, index, ctx),
     };
 };

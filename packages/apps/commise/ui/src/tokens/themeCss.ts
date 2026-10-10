@@ -38,7 +38,7 @@ import { coverTint, coverTintDark } from './covers.js';
 import { difficultyTone, difficultyToneDark, proTone, type Difficulty, type Tone } from './tones.js';
 import { kebab, pxToRemUnit } from './emit.js';
 import { barMaterial } from './barMaterial.js';
-import { glass, glassEdgeDark, gradient, gradientCss, heroDark } from './gradients.js';
+import { gradient, gradientCss, heroDark } from './gradients.js';
 import { containerThreshold, contentWidth, viewportThreshold } from './layout.js';
 import { radius } from './radius.js';
 import { shadows } from './shadows.js';
@@ -53,27 +53,10 @@ function declarations(prefix: string, tokens: TokenMap, kebabKeys = true): reado
 }
 
 /**
- * The translucent-white hairline of each frosted-glass tier, as `--color-glass-{tier}-edge`.
- *
- * This is the ONLY part of the glass language emitted as a custom property, and the asymmetry is deliberate.
- * The fill, blur and saturation already reach the web through `toWebGlass` as inline declarations, and emitting
- * them here as well would create a SECOND web representation of the same knowledge — exactly the duplication
- * this module exists to remove. The EDGE is different: it has to compose with a border-width utility and with
- * `hover:` variants, and an inline style out-specifies every class, so it can only work from class position.
- *
- * Native consumes the same `glass.{tier}.border` via `toNativeGlass(...).border`, so the two platforms' glass
- * rim now derives from one token instead of web re-spelling it as `border-white/30`.
- */
-function glassEdgeDeclarations(): readonly string[] {
-    return Object.entries(glass).map(([tier, spec]) => `    --color-glass-${tier}-edge: ${spec.border};`);
-}
-
-/**
  * The app-wide CANVAS gradient, as `--background-image-hero`.
  *
  * `gradient.hero` is the wireframes' own `--gradient-beach-glow` — the wash all nine screens paint on `body`.
- * It is emitted here for the same reason as the glass edge, and no other: the web canvas can only be painted
- * from STYLESHEET position. `<body>`'s background is not a React element's inline style, so `globals.css`
+ * It is emitted here for one reason: the web canvas can only be painted from STYLESHEET position. `<body>`'s background is not a React element's inline style, so `globals.css`
  * needs a custom property to reference; native takes the identical spec through `GradientSurface` /
  * `toNativeGradient`, so neither platform re-spells the ramp.
  *
@@ -157,8 +140,8 @@ function difficultyDeclarations(tones: Readonly<Record<Difficulty, Tone>>): read
 
 /**
  * The dark theme (`docs/design/uiOverhaul/darkTheme.md` §6): one `prefers-color-scheme: dark` override of the same
- * custom properties the `@theme` block declares — every role from `roleDark`, the cover tints, the glass edges and the
- * canvas wash — then `color-scheme: light dark` so form controls and scrollbars follow. Unlayered `:root` rules beat
+ * custom properties the `@theme` block declares — every role from `roleDark`, the cover tints and the canvas
+ * wash — then `color-scheme: light dark` so form controls and scrollbars follow. Unlayered `:root` rules beat
  * Tailwind's `@layer theme` declarations, and every role utility reads `var(--color-*)`, so this block IS the theme
  * switch; no component carries a `dark:` variant. Pure.
  */
@@ -170,7 +153,6 @@ function darkThemeLines(): readonly string[] {
         ...declarations('color', roleDark).map((line) => `    ${line}`),
         ...declarations('color-cover', coverTintDark).map((line) => `    ${line}`),
         ...difficultyDeclarations(difficultyToneDark).map((line) => `    ${line}`),
-        ...Object.keys(glass).map((tier) => `        --color-glass-${tier}-edge: ${glassEdgeDark};`),
         `        --background-image-hero: ${gradientCss(heroDark)};`,
         `        --color-bar: ${barMaterial.dark};`,
         '    }',
@@ -207,7 +189,6 @@ export function themeCss(): string {
         ...declarations('radius', radius, false),
         ...declarations('shadow', shadows, false),
         // Appended LAST so every pre-existing declaration keeps its exact position in the artifact.
-        ...glassEdgeDeclarations(),
         ...canvasGradientDeclarations(),
         // The overhaul's roles and layout (§1.2-§1.5), appended after everything above for the same reason.
         ...declarations('color', role),

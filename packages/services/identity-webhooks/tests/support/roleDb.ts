@@ -61,7 +61,7 @@ const migrationsDir = join(
  * key. `lifecycle_events` is the append-only R8 audit, so it is reset too — otherwise a spec asserting "one
  * audit row was appended" would see the previous spec's rows.
  */
-const RESETTABLE_TABLES = ['lifecycle_events', 'profiles', 'accounts', 'users'] as const;
+const RESETTABLE_TABLES = ['lifecycle_events', 'settings', 'profiles', 'accounts', 'users'] as const;
 
 /**
  * How this package's test database is built: identity's roles, identity's migrations, identity's engine.

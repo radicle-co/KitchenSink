@@ -42,7 +42,9 @@ import {
     deleteUserMeResponseSchema,
     eraseUserMeResponseSchema,
     patchUserMeRequestSchema,
+    patchUserSettingsRequestSchema,
     userProfileSchema,
+    userSettingsSchema,
 } from '@kitchensink/schema-identity';
 import type {
     ApiErrorBody,
@@ -50,7 +52,9 @@ import type {
     AvatarPresignResponse,
     DeleteUserMeResponse,
     EraseUserMeResponse,
+    PatchUserSettingsRequest,
     UserProfile,
+    UserSettings,
     UserUpdateInput,
 } from '@kitchensink/schema-identity';
 import { withBearerReplay, type TokenSource } from '@kitchensink/retry-after/bearer-replay';
@@ -103,6 +107,15 @@ export const PROFILE_ERASURE_PATH = '/api/v1/users/me/erasure';
  * cannot drift apart.
  */
 export const AVATAR_PRESIGN_PATH = `${PROFILE_ME_PATH}/avatar/presign`;
+
+/**
+ * `GET`/`PATCH /api/v1/users/me/settings` — the viewer's settings (ADR-0059).
+ *
+ * Under {@link PROFILE_ME_PATH} because the identity service serves it as a sibling resource of the viewer
+ * (`packages/services/identity/src/settings/settings.controller.ts`), and derived from that constant so the two
+ * cannot drift apart.
+ */
+export const SETTINGS_PATH = `${PROFILE_ME_PATH}/settings`;
 
 /**
  * A received response, its body already read whole, so a refused one holds no socket across a replay.
@@ -259,6 +272,41 @@ export class ProfileServiceClient {
      */
     public async eraseMe(options?: ProfileRequestOptions): Promise<EraseAccountResult> {
         return this.send('POST', PROFILE_ERASURE_PATH, eraseUserMeResponseSchema, undefined, options);
+    }
+
+    /**
+     * `GET /api/v1/users/me/settings` — read the signed-in viewer's settings, fully resolved: a setting never chosen
+     * is answered as its default, and the read writes nothing.
+     *
+     * @param options - Per-call token/refresh options.
+     * @returns The viewer's settings.
+     * @throws {UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getSettings(options?: ProfileRequestOptions): Promise<UserSettings> {
+        return this.send('GET', SETTINGS_PATH, userSettingsSchema, undefined, options);
+    }
+
+    /**
+     * `PATCH /api/v1/users/me/settings` — change the settings named in `input`; every other setting is left as it is.
+     *
+     * The body is parsed against the service's own STRICT request schema first, so a key the contract does not have
+     * fails here, at the call site that built it, instead of costing a round trip to a `400`.
+     *
+     * @param input - The settings to change.
+     * @param options - Per-call token/refresh options.
+     * @returns The viewer's settings after the change, fully resolved.
+     * @throws {InvalidRequestError} when `input` does not satisfy the published contract — no request is sent;
+     *   {@link ForbiddenError} when the account is closed; {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async patchSettings(
+        input: PatchUserSettingsRequest,
+        options?: ProfileRequestOptions,
+    ): Promise<UserSettings> {
+        const body = this.request('patchSettings', patchUserSettingsRequestSchema, input);
+
+        return this.send('PATCH', SETTINGS_PATH, userSettingsSchema, body, options);
     }
 
     /**

@@ -108,8 +108,12 @@ export interface WebMessages {
          * widget headings from the mockup — the placeholder shows what is coming, never invented data.
          */
         readonly roadmap: {
-            /** Visible badge on every placeholder. Visible (not sr-only) so it reads the same to everyone. */
-            readonly comingSoon: string;
+            /** The H2 above the placeholder group (`buildSpec.md` §4.2). */
+            readonly comingSoonHeading: string;
+            /** The one body line under the "Coming soon" heading. */
+            readonly comingSoonBody: string;
+            /** Visible "Soon" badge on every placeholder. Visible (not sr-only) so it reads the same to everyone. */
+            readonly soon: string;
             /** The real heading of each roadmap widget, keyed by the shared roadmap registry's id. */
             readonly titles: Readonly<Record<RoadmapWidgetId, string>>;
         };
@@ -156,6 +160,8 @@ export interface WebMessages {
             readonly notFoundTitle: string;
             /** Label of the retry action in the error state. */
             readonly retry: string;
+            /** The way back from a recipe that could not be shown (`buildSpec.md` §6.7). */
+            readonly backToRecipes: string;
         };
         /**
          * Web-only copy for the owner/viewer action controls composed onto the detail route (T068/T074/T075).
@@ -320,11 +326,13 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 night: 'Still up, {name}?',
             },
             roadmap: {
-                comingSoon: 'Coming soon',
+                comingSoonHeading: 'Coming soon',
+                comingSoonBody: 'Meal plans, a grocery list and daily nutrition are on the way.',
+                soon: 'Soon',
                 titles: {
-                    nutrition: "Today's Nutrition",
+                    nutrition: 'Today’s nutrition',
                     'resume-cooking': 'Resume cooking',
-                    'meal-plan': "This Week's Meals",
+                    'meal-plan': 'This week’s meals',
                 },
             },
             surface: {
@@ -343,8 +351,9 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             detail: {
                 loadingLabel: 'Loading recipe',
                 errorTitle: 'We couldn’t load this recipe.',
-                notFoundTitle: 'We couldn’t find that recipe.',
+                notFoundTitle: 'This recipe isn’t available.',
                 retry: 'Try again',
+                backToRecipes: 'Back to My recipes',
             },
             versions: {
                 loadingLabel: 'Loading version history',

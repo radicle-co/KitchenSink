@@ -12,13 +12,14 @@
  * @pattern Adapter over `TextInput.focus()` — a level-triggered focus request, acknowledged once taken. It is the one
  *     reason this leaf holds a ref: focusing a field has no declarative form.
  */
-import { useEffect, useEffectEvent, useRef, type FC } from 'react';
+import { useRef, type FC } from 'react';
 import { StyleSheet, type TextInput as NativeTextInput } from 'react-native';
 
 import { useTheme } from '../theme/useTheme.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { fieldDisabled, fieldGeometry, fieldPaint } from './fieldStyle.js';
 import { fieldLabelId, type InputProps } from './props.js';
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
 /** The native design-system one-line text field. */
 export const Input: FC<InputProps> = ({
@@ -41,17 +42,7 @@ export const Input: FC<InputProps> = ({
 }) => {
     const theme = useTheme();
     const node = useRef<NativeTextInput>(null);
-    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
-    const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
-
-    useEffect(() => {
-        if (!focusRequested) {
-            return;
-        }
-
-        node.current?.focus();
-        acknowledgeFocusRequest();
-    }, [focusRequested]);
+    useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
 
     return (
         <TextInput

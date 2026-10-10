@@ -33,8 +33,10 @@ export interface ProfileMessages {
     readonly displayNameUnset: string;
     /** The label of the email row. */
     readonly email: string;
-    /** The sheet's title and the field's label. */
+    /** The sheet's title. */
     readonly namePrompt: string;
+    /** The hint under the display-name field: where the name shows. */
+    readonly nameHint: string;
     /** The sheet's primary action. */
     readonly save: string;
     /** The primary action while the save is in flight. */
@@ -51,6 +53,8 @@ export interface ProfileMessages {
     readonly dataSources: string;
     /** Web's switch that turns the `/` shortcut off (SC 2.1.4). */
     readonly shortcuts: string;
+    /** The alert under Preferences when saving a setting failed and the switch went back (D19). */
+    readonly settingSaveFailed: string;
     /** The sign-out row. */
     readonly signOut: string;
     /** The sign-out row while the session is ending. */
@@ -74,20 +78,22 @@ export const profileMessages: LocalizedMessages<ProfileMessages> = {
         retry: 'Try again',
         account: 'Account',
         displayName: 'Display name',
-        displayNameUnset: 'Not set',
+        displayNameUnset: 'Add your name',
         email: 'Email',
         namePrompt: 'What should we call you?',
+        nameHint: 'Shown on recipes you publish.',
         save: 'Save',
         saving: 'Saving…',
         saved: 'Saved.',
-        saveFailed: 'We couldn’t save your name. Please try again.',
+        saveFailed: 'We couldn’t save your name. Try again.',
         closeNameSheet: 'Close',
         preferences: 'Preferences',
         dataSources: 'Food data sources',
         shortcuts: 'Keyboard shortcuts',
+        settingSaveFailed: 'We couldn’t save that setting. Try again.',
         signOut: 'Sign out',
         signingOut: 'Signing out…',
-        signOutFailed: 'We couldn’t sign you out. Please try again.',
+        signOutFailed: 'We couldn’t sign you out. Try again.',
         dangerZone: 'Danger zone',
     },
 };

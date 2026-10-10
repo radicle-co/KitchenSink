@@ -93,7 +93,7 @@ test.describe('row 7: an AMBIGUOUS line picks from its own re-derived shortlist'
         const { rebinds, corrections, ingredients } = await openIngredients(page);
 
         await ingredients.getByRole('button', { name: 'Choose a match: apple sauce' }).first().click();
-        await page.getByRole('button', { name: 'None of these — search for a different food' }).click();
+        await page.getByRole('button', { name: 'Search for another food' }).click();
 
         await expect(ingredients.getByRole('combobox', { name: 'Ingredient 1 name' })).toBeFocused();
         expect(rebinds).toEqual([]);

@@ -105,7 +105,7 @@ appId: io.commise.mobile
       timeout: 20000
 
 # REQ-034 — the custom-nutrition disclosure (`nutritionCustomNote`, design §S15) is GATED to recipes carrying a
-# user-entered ingredient (`hasUserEnteredIngredients`), and each such line carries a `Custom` badge. The badge is
+# user-entered ingredient (`hasUserEnteredIngredients`), and each such line carries a `Your own food` badge. The badge is
 # asserted here and the notice below: the two are the same claim seen from both ends, and neither alone shows the
 # gate agrees with the data.
 #
@@ -121,7 +121,7 @@ appId: io.commise.mobile
 # The negative case — a recipe whose lines are all food-backed — needs a resolved ingredient and belongs to a
 # flow that creates one, not to a fixture that would have to lie to produce it.
 - scrollUntilVisible:
-      element: 'Custom'
+      element: 'Your own food'
       direction: DOWN
       timeout: 20000
 

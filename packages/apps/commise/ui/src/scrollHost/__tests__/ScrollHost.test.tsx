@@ -139,6 +139,28 @@ describe('ScrollHost (web)', () => {
         expect(window.history.length).toBe(length);
     });
 
+    /**
+     * ⛔ Through Next's own shallow-update path (code-reviewer High 4, 2026-10-09). Passing `history.state` carries Next's
+     * `__NA` flag, so Next skips its router sync, never learns the hash, and its next commit rewrites the URL without it.
+     */
+    it('⛔ records the hash with a null state, so Next syncs its router to it', () => {
+        window.history.replaceState({ __NA: true }, '', '/en/recipes/new');
+        const api = renderHost();
+        const section = document.getElementById('b');
+
+        if (section === null) {
+            throw new Error('no section');
+        }
+
+        section.scrollIntoView = vi.fn();
+        const replaceState = vi.spyOn(window.history, 'replaceState');
+
+        api().scrollToSection('b');
+
+        expect(replaceState).toHaveBeenLastCalledWith(null, '', '#b');
+        replaceState.mockRestore();
+    });
+
     // The one section jump (A7): `SectionSwitch` calls this rather than keeping its own. A jump that leaves focus
     // behind leaves a keyboard or screen-reader user reading where they were (WCAG 2.4.3).
     it('moves focus to the section it jumps to, without a second scroll', () => {

@@ -24,7 +24,8 @@ import { useId, type FC } from 'react';
 import { RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { libraryGridColumnsOf } from '../card/cardGridLayout.js';
-import { fillTemplate, formatRecipeCount } from '../list/model.js';
+import { formatRecipeCount } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
 import { COLLECTION_SEARCH_FROM, type CollectionListResultsProps } from './model.js';
 

@@ -237,12 +237,16 @@ test.describe('the recipe page’s layout', () => {
         ).toBe('sticky');
         await expect(page.getByRole('navigation', { name: 'Recipe sections' })).toBeHidden();
         await expect(page.getByRole('switch', { name: 'Screen on' })).toHaveText('Screen on');
-        // The stat strip is one row of cells from a 360 px strip.
-        const tops = await page
-            .getByRole('term')
-            .filter({ hasText: /^(Total|Prep|Cook|Difficulty)$/u })
-            .evaluateAll((terms) => terms.map((term) => Math.round(term.getBoundingClientRect().top)));
-        expect(new Set(tops).size).toBe(1);
+        // Rewritten for F7 (`evaluateFinal.md`): the strip is one row of cells from a 480 px strip, 2 × 2 below it. At 1280
+        // the title column is narrower than that, so four ~100 px cells wrapped "5 h 30 / min"; now it is 2 × 2.
+        const terms = page.getByRole('term').filter({ hasText: /^(Total|Prep|Cook|Difficulty)$/u });
+        const tops = await terms.evaluateAll((nodes) =>
+            nodes.map((term) => Math.round(term.getBoundingClientRect().top)),
+        );
+        const stripWidth = await terms
+            .first()
+            .evaluate((term) => term.closest('dl')?.getBoundingClientRect().width ?? 0);
+        expect(new Set(tops).size).toBe(stripWidth >= 480 ? 1 : 2);
     });
 
     test('below a 720 px body: one column under the section switch, Screen on as its glyph', async ({ page }) => {

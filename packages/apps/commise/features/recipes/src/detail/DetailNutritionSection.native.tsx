@@ -15,7 +15,6 @@ import { hasCatalogNutrition, hasUserEnteredIngredients } from '@kitchensink/rec
 import type { FC } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { detailStyles as styles } from './detailStyles.native.js';
 import {
@@ -24,6 +23,7 @@ import {
     staleNutritionNotice,
     type RecipeDetailBodyNativeProps,
 } from './model.js';
+import { nutritionCells } from './detailFacts.js';
 import { NutritionFigure } from './NutritionFigure.native.js';
 
 /** Props for {@link DetailNutritionSection}. */
@@ -46,6 +46,8 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
     const sourcesLinkRef = useScreenReaderFocusOnSignal<View>(returnFocusSignal);
     const muted = { color: colors.inkMuted };
     const { nutrition } = recipe;
+    // "—" in each cell and one line when nothing was counted (§6.7, F17), shared with web.
+    const cells = nutritionCells(nutrition, detail);
     // Facts about the READ, from the stored figure — not the serving count on screen.
     const rangeNotice = rangeDerivedNotice(nutrition, {
         low: detail.nutritionRangeDerivedLow,
@@ -60,21 +62,15 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                 {detail.nutritionHeading}
             </Text>
             <View style={styles.figureGrid}>
-                <NutritionFigure label={detail.caloriesLabel} value={String(nutrition.calories)} />
-                <NutritionFigure
-                    label={detail.proteinLabel}
-                    value={fillTemplate(detail.gramsUnit, { grams: nutrition.proteinG })}
-                />
-                <NutritionFigure
-                    label={detail.carbsLabel}
-                    value={fillTemplate(detail.gramsUnit, { grams: nutrition.carbsG })}
-                />
-                <NutritionFigure
-                    label={detail.fatLabel}
-                    value={fillTemplate(detail.gramsUnit, { grams: nutrition.fatG })}
-                />
+                {cells.cells.map((cell) => (
+                    <NutritionFigure key={cell.label} label={cell.label} value={cell.value} />
+                ))}
             </View>
-            {!nutrition.isComplete && <Text style={[styles.caption, muted]}>{detail.nutritionPartial}</Text>}
+            {cells.noneCounted ? (
+                <Text style={[styles.caption, muted]}>{detail.nutritionNoneCounted}</Text>
+            ) : (
+                !nutrition.isComplete && <Text style={[styles.caption, muted]}>{detail.nutritionPartial}</Text>
+            )}
             {rangeNotice !== undefined && <Text style={[styles.caption, muted]}>{rangeNotice}</Text>}
             {staleNotice !== undefined && <Text style={[styles.caption, muted]}>{staleNotice}</Text>}
             {reviewNotice !== undefined && (

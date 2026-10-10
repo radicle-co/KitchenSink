@@ -17,6 +17,7 @@ import { FieldLabel, FIELD_CLASS } from '@commise/ui/input';
 import type { FC, ReactNode } from 'react';
 
 import { ingredientUnitNoteId } from './fieldErrorIds.js';
+import { errorText } from './formSectionStyles.js';
 import type { RowLineEditorView } from './ingredientRowView.js';
 import type { RecipeFormMessages } from './messages.js';
 
@@ -30,7 +31,10 @@ export interface IngredientLineEditorProps {
     readonly details: ReactNode;
 }
 
-/** A number field for one bound of the amount: empty means no amount, never "0" (R40). */
+/**
+ * A text field for one bound of the amount, so "1/2", "½" and "1,5" reach the reader (a number input would sanitise
+ * them to nothing): empty means no amount, never "0" (R40).
+ */
 const AmountField: FC<{
     readonly id: string;
     readonly value: string;
@@ -41,14 +45,15 @@ const AmountField: FC<{
 }> = ({ id, value, invalid, describedBy, onChange, accessibleName }) => (
     <input
         id={id}
-        type="number"
+        type="text"
         inputMode="decimal"
+        autoComplete="off"
         value={value}
         aria-label={accessibleName}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         onChange={(event) => onChange(event.target.value)}
-        // §7.5.2: a 64 px number field.
+        // §7.5.2: a 64 px amount field.
         className={`block w-16 text-ink tabular-nums ${FIELD_CLASS}`}
     />
 );
@@ -136,6 +141,11 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                 </Button>
             )}
         </div>
+        {view.amountNote !== undefined && (
+            <p id={view.amountNote.id} className={errorText}>
+                {view.amountNote.text}
+            </p>
+        )}
         {view.unitNote !== undefined && (
             <p id={ingredientUnitNoteId(index)} className="text-caption text-ink-muted">
                 {view.unitNote}

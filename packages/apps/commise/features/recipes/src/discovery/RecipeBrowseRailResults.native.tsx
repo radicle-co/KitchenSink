@@ -13,7 +13,7 @@ import { useContext, type FC } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { toRecipeCardModel } from '../card/model.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.native.js';
 import type { RecipeBrowseRailResultsProps } from './model.js';

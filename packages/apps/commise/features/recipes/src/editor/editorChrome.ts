@@ -43,8 +43,8 @@ export interface EditorChrome {
         readonly disabled: boolean;
         readonly busy: boolean;
     };
-    /** The ⋯ menu's one destructive item and its confirm title, when there is something to discard. */
-    readonly discard: { readonly menuLabel: string; readonly title: string } | undefined;
+    /** The ⋯ menu's one destructive item and its confirm's title and body, when there is something to discard. */
+    readonly discard: { readonly menuLabel: string; readonly title: string; readonly body: string } | undefined;
     /** The alert for a write the cook must decide on, when there is one. */
     readonly failure: { readonly body: string; readonly actions: readonly FailureActionKind[] } | undefined;
     /** "Fix {n} things to publish", after a refused Publish while anything still needs fixing. */
@@ -77,7 +77,7 @@ export function editorChromeOf(input: EditorChromeInput): EditorChrome {
             disabled: published && !editor.hasUnsavedChanges,
             busy: editor.state.status === 'finishing',
         },
-        discard: discardOf(editor, m),
+        discard: discardOf(editor, keep, m),
         failure: failureOf(editor, keep, m),
         fixLine: editor.publishAttempted && fixes > 0 ? pluralOf(m.fixCount, fixes, input.locale) : undefined,
         resumeBody:
@@ -94,17 +94,28 @@ export function editorChromeOf(input: EditorChromeInput): EditorChrome {
     };
 }
 
-/** The discard item: a draft once anything exists, a published recipe's changes once there are any. Pure. */
-function discardOf(editor: UseRecipeEditorResult, m: EditorMessages): EditorChrome['discard'] {
+/**
+ * The discard item: a draft once anything exists, a published recipe's changes once there are any. A draft whose
+ * create's outcome is unknown may already be on the server, and Discard removes only the device's copy
+ * (`discardMayLeaveServerCopy`), so its confirm says that rather than promising a deletion. Pure.
+ */
+function discardOf(editor: UseRecipeEditorResult, keep: DraftKeep, m: EditorMessages): EditorChrome['discard'] {
     if (editor.lifecycle === 'published') {
         return editor.hasUnsavedChanges
-            ? { menuLabel: m.discard.menuChanges, title: m.discard.changesTitle }
+            ? { menuLabel: m.discard.menuChanges, title: m.discard.changesTitle, body: m.discard.changesBody }
             : undefined;
     }
 
     const exists = editor.recipeId !== undefined || !recipeFormValuesEqual(editor.values, defaultRecipeFormValues());
+    const mayBeSaved = keep === 'disk' ? m.discard.mayBeSavedBody : m.discard.mayBeSavedBodyTab;
 
-    return exists ? { menuLabel: m.discard.menuDraft, title: m.discard.draftTitle } : undefined;
+    return exists
+        ? {
+              menuLabel: m.discard.menuDraft,
+              title: m.discard.draftTitle,
+              body: editor.discardMayLeaveServerCopy ? mayBeSaved : m.discard.draftBody,
+          }
+        : undefined;
 }
 
 /**

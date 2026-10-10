@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
+import { COMPACT_GRID_CLASS, LIBRARY_GRID_CLASS } from '../../card/cardGridClass.js';
 import { RecipeDiscoveryLoading } from '../RecipeDiscoveryLoading.js';
 
 afterEach(cleanup);
@@ -37,14 +38,14 @@ describe('RecipeDiscoveryLoading (web)', () => {
         }
     });
 
-    it('mirrors the populated grid column rhythm so the layout does not jump when results land', () => {
-        render(<RecipeDiscoveryLoading />);
+    // Rewritten (sev-1 in `evaluateFinal.md`): the skeleton drew one full-width card at 390 while results drew two
+    // compact cards per row. It now takes the results' own variant and sits in the grid they draw.
+    it.each([
+        ['compact', COMPACT_GRID_CLASS],
+        ['grid', LIBRARY_GRID_CLASS],
+    ] as const)('sits %s skeletons in the grid the results draw, so nothing jumps when they land', (variant, grid) => {
+        render(<RecipeDiscoveryLoading variant={variant} />);
 
-        const grid = screen.getByRole('status').querySelector('.grid');
-        expect(grid).not.toBeNull();
-
-        for (const columnClass of ['grid-cols-1', 'sm:grid-cols-2', 'lg:grid-cols-3', 'xl:grid-cols-4']) {
-            expect(grid?.classList.contains(columnClass)).toBe(true);
-        }
+        expect(screen.getByRole('status').querySelector('.grid')?.className).toBe(grid);
     });
 });

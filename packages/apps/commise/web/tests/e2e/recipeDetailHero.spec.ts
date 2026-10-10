@@ -151,14 +151,22 @@ test.describe('recipe-detail hero', () => {
 
         await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000006'));
 
-        // The title still renders (the hero box keeps its full height, so nothing is truncated or jumped).
         await expect(page.getByRole('heading', { level: 1, name: 'Weeknight Dal' })).toBeVisible();
 
-        // The fallback is a single perceivable, LABELLED thing — announced once, not a silent grey rectangle.
-        const fallback = page.getByRole('img', { name: NO_PHOTO_LABEL });
-        await expect(fallback).toBeVisible();
-        const fallbackBox = await fallback.boundingBox();
-        expect(fallbackBox?.height ?? 0).toBeGreaterThan(0);
+        // Rewritten for F10 (`evaluateFinal.md`): no photo is the 96 px monogram band (§1.8, §6.7), decorative because
+        // the H1 names the recipe — not a labelled picture glyph, which read as "the image failed".
+        await expect(page.getByRole('img', { name: NO_PHOTO_LABEL })).toHaveCount(0);
+        const band = await page.getByRole('article', { name: 'Weeknight Dal' }).evaluate((article) => {
+            const cover = Array.from(article.querySelectorAll('div')).find(
+                (node) => getComputedStyle(node).containerType === 'size',
+            );
+
+            return cover === undefined
+                ? null
+                : { height: cover.getBoundingClientRect().height, text: cover.textContent };
+        });
+        expect(band?.height).toBe(96);
+        expect(band?.text).toContain('W');
 
         // The DESIGN RULE, asserted as such: the fallback renders NO `<img>` element, because an empty `src`
         // paints a broken-image glyph. Scoped to the detail article, and read off the DOM rather than through

@@ -232,8 +232,20 @@ describe('clerkAppearanceFor — layout and behaviour', () => {
         expect(classesOf(appearance.elements.footerActionText)).toContain('whitespace-nowrap');
     });
 
-    it('keeps fields 48 px tall with the 12 px radius', () => {
-        expect(classesOf(appearance.elements.formFieldInput)).toEqual(expect.arrayContaining(['h-12', 'rounded-xl']));
+    // F20 (`evaluateFinal.md`): Clerk's own rule caps an input at `max-height: 2.25rem`, so `h-12` drew 36 px, and
+    // `rounded-xl` is the theme's 28 px, so the field was a pill. `max-h-none` lifts the cap; `rounded-md` is 12 px.
+    it('keeps fields 48 px tall with the 12 px radius, over Clerk’s own 36 px cap', () => {
+        for (const field of [appearance.elements.formFieldInput, appearance.elements.otpCodeFieldInput]) {
+            expect(classesOf(field)).toEqual(expect.arrayContaining(['h-12', 'max-h-none', 'rounded-md']));
+            expect(classesOf(field)).not.toContain('rounded-xl');
+        }
+    });
+
+    // "Show password" drew 32 × 30 on a coarse pointer; the floor in `buildSpec.md` is 44.
+    it('gives Show password a 44 px target', () => {
+        expect(classesOf(appearance.elements.formFieldInputShowPasswordButton)).toEqual(
+            expect.arrayContaining(['min-h-11', 'min-w-11']),
+        );
     });
 
     it('goes full-bleed below 480 and a 440 px card from 480, then a bare 400 px column from 1024', () => {

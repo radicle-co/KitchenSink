@@ -280,7 +280,7 @@ describe('RecipeDetailScreen — error state', () => {
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        expect(await screen.findByText('We couldn’t find that recipe.')).toBeTruthy();
+        expect(await screen.findByText('This recipe isn’t available.')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     });
 
@@ -293,7 +293,7 @@ describe('RecipeDetailScreen — error state', () => {
         expect(getRecipe).not.toHaveBeenCalled();
         expect(screen.getByRole('alert')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-        expect(screen.queryByText('We couldn’t find that recipe.')).toBeNull();
+        expect(screen.queryByText('This recipe isn’t available.')).toBeNull();
     });
 });
 
@@ -315,6 +315,10 @@ describe('RecipeDetailScreen — ready state', () => {
         const { rerender } = render(<RecipeDetailScreen recipeId="rec_1" onBack={onBack} />);
         fireEvent.click(screen.getByRole('button', { name: 'Back' }));
         expect(onBack).toHaveBeenCalledTimes(1);
+        // F22 (`buildSpec.md` §3.5): Back draws the `chevron-left` glyph beside its word.
+        expect(
+            screen.getByRole('button', { name: 'Back' }).querySelector('[data-icon-name="chevron-left"]'),
+        ).not.toBeNull();
 
         rerender(withFoodClient(<RecipeDetailScreen recipeId="rec_1" />));
         expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();

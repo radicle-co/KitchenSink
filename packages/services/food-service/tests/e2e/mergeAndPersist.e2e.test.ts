@@ -149,6 +149,44 @@ describe('MergeAndPersistService (integration)', () => {
         ).rejects.toThrow();
     });
 
+    /**
+     * KITCHENSINK-FOOD-SERVICE-2/-8: adopting a food ran a dictionary SELECT and a value upsert PER NUTRIENT — 89
+     * statements for one USDA food. The write path's statement count must not grow with the nutrient count.
+     */
+    it('persists a food in the same number of statements whether it carries two nutrients or forty', async () => {
+        const statementsToPersist = async (normalizedName: string, nutrientCount: number): Promise<number> => {
+            let statements = 0;
+            const counting = new MergeAndPersistService(
+                makeDb(pool, {
+                    logQuery: () => {
+                        statements += 1;
+                    },
+                }),
+                new GoldenRecordMergeEngine(new SourceAdapterRegistry()),
+            );
+            const { id: foodId } = await foods.createByName({ normalizedName });
+            const nutrients = Array.from({ length: nutrientCount }, (_, index) => ({
+                code: null,
+                name: `${normalizedName} nutrient ${index}`,
+                unit: 'mg',
+                amount: String(index),
+                basis: 'per_100g' as const,
+            }));
+
+            await counting.resolveAndPersist({
+                holders: [],
+                foodId,
+                candidates: [richCandidate({ externalKey: normalizedName, name: normalizedName, nutrients })],
+            });
+
+            return statements;
+        };
+
+        expect(await statementsToPersist('two nutrient food', 2)).toBe(
+            await statementsToPersist('forty nutrient food', 40),
+        );
+    });
+
     it('cites each contributing item once, with the dataset its source stated (plan U4)', async () => {
         const { id: foodId } = await foods.createByName({ normalizedName: 'broccoli, raw' });
 

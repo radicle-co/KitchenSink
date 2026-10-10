@@ -75,6 +75,8 @@ export interface EditorActionBarProps {
     readonly busy: boolean;
     /** "Fix {n} things to publish", after a refused Publish. */
     readonly fixLine?: string;
+    /** "Ready to publish. {n} ingredients have no match…" (owner D20): quiet, and Publish stays enabled. */
+    readonly readyLine?: string;
     /** An alert about a parked write, shown above the controls. */
     readonly notice?: ReactNode;
 }

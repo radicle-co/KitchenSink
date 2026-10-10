@@ -132,6 +132,16 @@ describe('Sheet (native)', () => {
         expect(screen.queryByRole('heading', { name: 'Filter recipes' })).toBeNull();
     });
 
+    // F8: a sheet title is `barTitle`, Inter 17/600 (`buildSpec.md` §1.5). Playfair sets names only.
+    it('sets the title in the barTitle role, never the display face', () => {
+        renderSheet();
+
+        const title = screen.getAllByText('Filter recipes').find((node) => node.getAttribute('role') === 'heading');
+
+        expect(appliedStyle(title as Element, 'font-family')).not.toMatch(/Playfair/u);
+        expect(appliedStyle(title as Element, 'font-size')).toBe('17px');
+    });
+
     it('is a modal dialog', () => {
         renderSheet();
 

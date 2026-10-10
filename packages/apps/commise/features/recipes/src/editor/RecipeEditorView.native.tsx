@@ -44,6 +44,7 @@ import { EditorActionBar } from './EditorActionBar.js';
 import { EditorHeader } from './EditorHeader.js';
 import { FailureAlert } from './FailureAlert.js';
 import { ResumeNotice } from './ResumeNotice.js';
+import { UnmatchedNote } from './UnmatchedNote.js';
 import { EditorSection } from './EditorSection.js';
 import type { RecipeEditorViewProps } from './frameProps.js';
 import { EDITOR_SECTIONS, isEditorSectionId, type EditorSectionId } from './sections.js';
@@ -90,7 +91,7 @@ export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
 
 /** The screen under its `ScrollHost`, with the scroller's binding. */
 const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = (props) => {
-    const { editor, sections, headingActions, railFooter, onPreview, bind } = props;
+    const { sections, headingActions, railFooter, onPreview, bind } = props;
     const page = useEditorPage(props);
     const { m, chrome, entries } = page;
     const { colors } = useTheme();
@@ -130,6 +131,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
             primaryDisabled={chrome.primary.disabled || props.pastePending === true}
             busy={chrome.primary.busy}
             {...(chrome.fixLine === undefined ? {} : { fixLine: chrome.fixLine })}
+            {...(page.publishNote === undefined ? {} : { readyLine: page.publishNote })}
             notice={
                 chrome.failure === undefined || firstAction === undefined ? undefined : (
                     <FailureAlert
@@ -233,6 +235,9 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                                 ? {}
                                                 : { action: headingActions[section] })}
                                         >
+                                            {section === 'photos' && page.publishNote !== undefined ? (
+                                                <UnmatchedNote text={page.publishNote} />
+                                            ) : null}
                                             {sections[section]}
                                         </EditorSection>
                                     </View>
@@ -250,7 +255,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                 <ConfirmDialog
                     open={page.confirming}
                     title={chrome.discard.title}
-                    body={editor.lifecycle === 'published' ? m.discard.changesBody : m.discard.draftBody}
+                    body={chrome.discard.body}
                     confirm={{ label: m.discard.confirm, icon: 'trash' }}
                     keep={{ label: m.discard.keep }}
                     onConfirm={page.confirmDiscard}

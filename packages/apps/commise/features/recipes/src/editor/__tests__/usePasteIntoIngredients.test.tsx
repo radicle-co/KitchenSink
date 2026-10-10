@@ -189,7 +189,8 @@ describe('usePasteIntoIngredients — settled lines join the recipe', () => {
             expect.objectContaining({
                 name: 'flour',
                 quantity: 2,
-                unit: 'cup',
+                // The unit as the cook stated it ("2 cups"), never rewritten to the parse's "cup" (F12).
+                unit: 'cups',
                 preparation: 'sifted',
                 sourceLine: '2 cups flour, sifted',
                 sourcePhrase: 'flour',
@@ -323,7 +324,8 @@ describe('usePasteIntoIngredients — no row reads for good', () => {
 
         expect(mocks.byName).toHaveBeenCalledWith('olive oil');
         expect(appended(dispatch)).toEqual([
-            expect.objectContaining({ quantity: 2, unit: 'tablespoon', preparation: 'for frying' }),
+            // The unit as the cook typed it ("tbsp"), the same on every path that settles a line (F12).
+            expect.objectContaining({ quantity: 2, unit: 'tbsp', preparation: 'for frying' }),
         ]);
         expect(appended(dispatch)[0]).not.toHaveProperty('sourcePhrase');
     });

@@ -41,9 +41,9 @@ const renderIn = (ui: React.ReactElement): void => {
 };
 
 const SKELETONS: Readonly<Record<RoadmapWidgetId, { readonly Component: FC; readonly title: string }>> = {
-    nutrition: { Component: NutritionWidgetSkeleton, title: "Today's Nutrition" },
+    nutrition: { Component: NutritionWidgetSkeleton, title: 'Today’s nutrition' },
     'resume-cooking': { Component: ResumeCookingWidgetSkeleton, title: 'Resume cooking' },
-    'meal-plan': { Component: MealPlanWidgetSkeleton, title: "This Week's Meals" },
+    'meal-plan': { Component: MealPlanWidgetSkeleton, title: 'This week’s meals' },
 };
 
 describe('roadmap skeletons (mobile) — parity with the shared roadmap registry', () => {
@@ -59,10 +59,11 @@ describe.each(Object.entries(SKELETONS))('%s skeleton (mobile)', (_id, { Compone
         expect(screen.getByText(title)).toBeTruthy();
     });
 
-    it('states "Coming soon" visibly — a grey shape alone reads as a stuck loading state', () => {
+    it('states "Soon" visibly — a grey shape alone reads as a stuck loading state', () => {
         renderIn(<Component />);
 
-        expect(screen.getByText('Coming soon')).toBeTruthy();
+        // Home's one "Coming soon" heading sits above the group, so each card's badge is the short "Soon" (§4.2).
+        expect(screen.getByText('Soon')).toBeTruthy();
     });
 
     it('exposes no interactive control — a placeholder must not offer an action that cannot work', () => {
@@ -76,13 +77,13 @@ describe.each(Object.entries(SKELETONS))('%s skeleton (mobile)', (_id, { Compone
     // `<section aria-labelledby>` region; native has no region landmark, so the RN equivalent is to make the
     // header row ONE accessibility element (`accessible`) that still carries the header role — so the widget is
     // announced as a unit, in one swipe, and stays reachable through the heading rotor.
-    it('announces the title and "Coming soon" as ONE unit, so neither is stranded out of context', () => {
+    it('announces the title and "Soon" as ONE unit, so neither is stranded out of context', () => {
         renderIn(<Component />);
 
         const heading = screen.getByRole('heading');
 
         expect(within(heading).getByText(title)).toBeTruthy();
-        expect(within(heading).getByText('Coming soon')).toBeTruthy();
+        expect(within(heading).getByText('Soon')).toBeTruthy();
     });
 
     it('leaves the heading unit out of the grey shapes (the shapes carry no information)', () => {
@@ -113,16 +114,13 @@ describe.each(Object.entries(SKELETONS))('%s skeleton (mobile)', (_id, { Compone
         }
     });
 
-    it('presents the placeholder on a frosted-glass card (U8 shared GlassCard surface)', () => {
+    it('presents the placeholder on the level-1 card, never glass (D12; dark mode read 1.0:1 on glass, F1)', () => {
         const { container } = renderWithProviders(<Component />);
 
-        // The GlassCard primitive renders through `expo-blur`'s `BlurView` — under jsdom that is the stub,
-        // marked `data-commise-stub="blur-view"`. The real widget heading lives INSIDE that frosted surface,
-        // so a regression that dropped the primitive back to a plain `View` fails here.
-        const card = container.querySelector('[data-commise-stub="blur-view"]');
-
-        expect(card).not.toBeNull();
-        expect(card?.textContent).toContain(title);
+        // A translucent white glass tier had no dark value and put light ink on light glass. The card is now a plain
+        // `View` filled with the `paper` role, so nothing here renders through `expo-blur`.
+        expect(container.querySelector('[data-commise-stub="blur-view"]')).toBeNull();
+        expect(screen.getByText(title)).toBeTruthy();
     });
 });
 
@@ -145,9 +143,10 @@ describe('roadmap skeletons (mobile) — no fake data (the CR-001 red line)', ()
     it('names the day tiles with real, locale-formatted weekday names but shows no meals', () => {
         renderIn(<MealPlanWidgetSkeleton />);
 
-        // The weekday names are REAL data (only the meal is unknown), so all seven must be present.
-        for (const day of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
-            expect(screen.getByText(day)).toBeTruthy();
+        // The weekday names are REAL data (only the meal is unknown), so all seven are announced by their full
+        // name. A phone draws the narrow name ("M"), so seven tiles fit the width with no sideways scroller (F16).
+        for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) {
+            expect(screen.getByLabelText(day)).toBeTruthy();
         }
     });
 
@@ -160,11 +159,22 @@ describe('roadmap skeletons (mobile) — no fake data (the CR-001 red line)', ()
         // One hidden thumbnail per day tile — the unknown, and nothing else on the strip.
         expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(7);
 
-        for (const day of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+        for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) {
             expect(
-                screen.getByText(day).closest('[aria-hidden="true"]'),
+                screen.getByLabelText(day).closest('[aria-hidden="true"]'),
                 `${day} is inside a hidden subtree — a screen-reader user cannot read the week`,
             ).toBeNull();
         }
+    });
+
+    it('lays the week out as seven tiles in one row, with no horizontal scroller (F16)', () => {
+        const { container } = renderWithProviders(<MealPlanWidgetSkeleton />);
+
+        // react-native-web renders a horizontal ScrollView with `overflow-x: auto`; the strip is a plain row now.
+        const scrollers = Array.from(container.querySelectorAll<HTMLElement>('div')).filter((node) =>
+            ['auto', 'scroll'].includes(getComputedStyle(node).overflowX),
+        );
+
+        expect(scrollers).toHaveLength(0);
     });
 });

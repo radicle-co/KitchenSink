@@ -18,7 +18,7 @@ import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
 import { useId, type FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import {
     type RecipeVersionListProps,
     changeSummaryForVersion,
@@ -80,7 +80,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
     ];
 
     return (
-        <section aria-labelledby={headingId} className="mx-auto flex w-full max-w-list flex-col gap-4 px-4 pb-10">
+        <section aria-labelledby={headingId} className="flex w-full max-w-list flex-col gap-4 pb-10">
             <LargeTitleHeader
                 headingId={headingId}
                 title={versionList.heading}

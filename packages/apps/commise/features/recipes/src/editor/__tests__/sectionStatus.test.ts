@@ -5,10 +5,20 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+
 import { makeFilledRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
+import { rowPresentationOf, type RowFacts } from '../../form/ingredientRowPolicy.js';
 import { TITLE_MAX_LENGTH } from '../../form/limits.js';
+import { validateRecipeForm } from '../../form/validate.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../../form/values.js';
-import { doneCount, newlyComplete, sectionStatusesOf, type SectionStatuses } from '../sectionStatus.js';
+import {
+    doneCount,
+    lineNeedsAttention,
+    newlyComplete,
+    sectionStatusesOf,
+    type SectionStatuses,
+} from '../sectionStatus.js';
 
 const RESOLVED = {
     isUserEntered: false,
@@ -110,6 +120,99 @@ describe('Ingredients', () => {
             kind: 'inProgress',
             reason: 'ingredientsPendingText',
         });
+    });
+});
+
+/**
+ * UX F4 (`docs/design/uiOverhaul/evaluateFinal.md`): the index said Ingredients was complete and "Ready to publish"
+ * while rows said "Choose a match" or "No match found". The recipe service publishes any line whose binding exists,
+ * whatever its food's resolution (`ingredientLine.planner.ts` refuses only an unknown binding; `recipes.service.ts`
+ * only an empty list), so Publish stays allowed — but the index must not call the section done while a row asks the
+ * cook to act (GOV.UK task list: done is only done). A row asks exactly when its glyph is `alert`
+ * (`ingredientRowPolicy.ts`), so that is the one rule the index reads.
+ */
+describe('Ingredients with a line whose food needs the cook (F4)', () => {
+    const bound = (resolutionStatus: FoodResolutionStatus) => ({ ...RESOLVED, resolutionStatus });
+    const FACTS: readonly RowFacts[] = [
+        { figures: undefined, hasVariants: undefined, changing: false },
+        { figures: 'published', hasVariants: true, changing: false },
+        { figures: 'unpublished', hasVariants: false, changing: true },
+    ];
+
+    it.each(Object.values(FoodResolutionStatus))(
+        'a %s line needs attention exactly when its row shows an alert',
+        (status) => {
+            const line = withLineKeys([bound(status)])[0]!;
+
+            for (const facts of FACTS) {
+                expect(lineNeedsAttention(line)).toBe(rowPresentationOf(line, facts).glyph === 'alert');
+            }
+        },
+    );
+
+    it('a line with no food and a declared line ("Use as written") follow their rows too', () => {
+        const [unresolved, declared] = withLineKeys([UNRESOLVED, { ...RESOLVED, isUserEntered: true }]);
+
+        expect(lineNeedsAttention(unresolved!)).toBe(true);
+        expect(lineNeedsAttention(declared!)).toBe(false);
+    });
+
+    it.each([
+        FoodResolutionStatus.UNRESOLVED,
+        FoodResolutionStatus.AMBIGUOUS,
+        FoodResolutionStatus.NOT_FOUND,
+        FoodResolutionStatus.FAILED,
+        FoodResolutionStatus.FOOD_REMOVED,
+        FoodResolutionStatus.NEEDS_REVIEW,
+    ])('a publishable recipe with a %s line: Ingredients needs attention, and Photos is not "Ready"', (status) => {
+        const values = makeFilledRecipeFormValues({ ingredients: withLineKeys([RESOLVED, bound(status)]) });
+
+        // Publish is not refused: the service accepts the line, and the validator adds no refusal of its own.
+        expect(validateRecipeForm(values, '')).toEqual({});
+        expect(statuses(values).ingredients).toEqual({ kind: 'attention', reason: 'ingredientsUnresolved', count: 1 });
+        expect(statuses(values).photos).toEqual({ kind: 'optional' });
+        expect(doneCount(statuses(values))).toBe(2);
+    });
+
+    it.each([
+        FoodResolutionStatus.RESOLVED,
+        FoodResolutionStatus.PENDING,
+        FoodResolutionStatus.PENDING_VERIFICATION,
+        FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+        FoodResolutionStatus.FOOD_UNREACHABLE,
+    ])('a %s line asks nothing of the cook: Ingredients stays complete', (status) => {
+        const values = makeFilledRecipeFormValues({ ingredients: withLineKeys([bound(status)]) });
+
+        expect(statuses(values).ingredients).toEqual({ kind: 'complete' });
+    });
+
+    it('a refused Publish does not turn a line that does not block into "Fix"', () => {
+        const values = makeFilledRecipeFormValues({
+            title: '',
+            ingredients: withLineKeys([bound(FoodResolutionStatus.NOT_FOUND)]),
+        });
+
+        expect(statuses(values, { attempted: true }).ingredients).toEqual({
+            kind: 'attention',
+            reason: 'ingredientsUnresolved',
+            count: 1,
+        });
+    });
+
+    it('counts every line that needs a match, blocking or not', () => {
+        const values = makeFilledRecipeFormValues({
+            ingredients: withLineKeys([UNRESOLVED, bound(FoodResolutionStatus.AMBIGUOUS), RESOLVED]),
+        });
+
+        expect(statuses(values).ingredients).toEqual({ kind: 'attention', reason: 'ingredientsUnresolved', count: 2 });
+    });
+
+    it('a blocking amount outranks a line that only needs a match', () => {
+        const values = makeFilledRecipeFormValues({
+            ingredients: withLineKeys([{ ...RESOLVED, quantity: 0.0001 }, bound(FoodResolutionStatus.NOT_FOUND)]),
+        });
+
+        expect(statuses(values).ingredients).toMatchObject({ reason: 'ingredientsQuantityInvalid' });
     });
 });
 

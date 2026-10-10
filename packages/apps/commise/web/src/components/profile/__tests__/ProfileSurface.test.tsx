@@ -16,10 +16,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '@commise/test-utils';
 
-import { readSearchShortcutEnabled } from '@/lib/searchShortcutPreference';
-
-const { patchMe, refetch, push, profileQuery, clerkUser } = vi.hoisted(() => ({
+const { patchMe, getSettings, patchSettings, refetch, push, profileQuery, clerkUser } = vi.hoisted(() => ({
     patchMe: vi.fn(),
+    getSettings: vi.fn(),
+    patchSettings: vi.fn(),
     refetch: vi.fn(),
     push: vi.fn(),
     profileQuery: {
@@ -31,10 +31,12 @@ const { patchMe, refetch, push, profileQuery, clerkUser } = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 vi.mock('@clerk/nextjs', () => ({
     useUser: () => ({ user: clerkUser.current }),
-    useAuth: () => ({ getToken: async () => 'tok' }),
+    useAuth: () => ({ getToken: async () => 'tok', isSignedIn: true }),
 }));
 vi.mock('@/lib/basePath', () => ({ withBasePath: (path: string) => path }));
-vi.mock('@/lib/identityServiceClient', () => ({ createProfileServiceClient: () => ({ patchMe }) }));
+vi.mock('@/lib/identityServiceClient', () => ({
+    createProfileServiceClient: () => ({ patchMe, getSettings, patchSettings }),
+}));
 vi.mock('@/hooks/useUserProfile', () => ({ useUserProfile: () => ({ ...profileQuery.current, refetch }) }));
 vi.mock('@/components/auth/LogoutButton', () => ({ LogoutButton: () => <button type="button">Sign out</button> }));
 vi.mock('@/components/auth/AccountCloseForm', () => ({
@@ -65,11 +67,12 @@ const mount = (): void => {
 
 beforeEach(() => {
     patchMe.mockReset().mockResolvedValue({});
+    getSettings.mockReset().mockResolvedValue({ searchShortcut: true });
+    patchSettings.mockReset().mockImplementation(async (body: { searchShortcut: boolean }) => body);
     refetch.mockReset();
     push.mockReset();
     profileQuery.current = ready('Eliza Moreno');
     clerkUser.current = null;
-    window.localStorage.clear();
 });
 
 afterEach(cleanup);
@@ -149,11 +152,11 @@ describe('ProfileSurface — loading and failure', () => {
 });
 
 describe('ProfileSurface — the display name', () => {
-    it('shows “Not set” until a name is saved', () => {
+    it('shows “Add your name” until a name is saved', () => {
         profileQuery.current = ready('');
         mount();
 
-        expect(screen.getByRole('button', { name: /Display name/ }).textContent).toContain('Not set');
+        expect(screen.getByRole('button', { name: /Display name/ }).textContent).toContain('Add your name');
     });
 
     it('opens the sheet with the saved name', async () => {
@@ -161,9 +164,7 @@ describe('ProfileSurface — the display name', () => {
 
         await userEvent.click(screen.getByRole('button', { name: /Display name/ }));
 
-        expect((screen.getByRole('textbox', { name: 'What should we call you?' }) as HTMLInputElement).value).toBe(
-            'Eliza Moreno',
-        );
+        expect((screen.getByRole('textbox', { name: 'Display name' }) as HTMLInputElement).value).toBe('Eliza Moreno');
     });
 
     it('prefills the Google given name when nothing is saved — and writes nothing until Save', async () => {
@@ -223,7 +224,7 @@ describe('ProfileSurface — the display name', () => {
         await userEvent.type(screen.getByRole('textbox'), 'X');
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-        expect((await screen.findByRole('alert')).textContent).toBe('We couldn’t save your name. Please try again.');
+        expect((await screen.findByRole('alert')).textContent).toBe('We couldn’t save your name. Try again.');
         expect(screen.getByRole('dialog')).toBeTruthy();
     });
 
@@ -239,32 +240,74 @@ describe('ProfileSurface — the display name', () => {
     });
 });
 
-describe('ProfileSurface — keyboard shortcuts', () => {
-    it('is a switch, on by default', () => {
+describe('ProfileSurface — keyboard shortcuts (a setting on the server, D19 / ADR-0059)', () => {
+    const toggle = () => screen.getByRole('switch', { name: 'Keyboard shortcuts' });
+
+    it('is a switch, on by default — the published default shows while the first read is in flight', () => {
         mount();
 
-        expect(screen.getByRole('switch', { name: 'Keyboard shortcuts' }).getAttribute('aria-checked')).toBe('true');
+        expect(toggle().getAttribute('aria-checked')).toBe('true');
     });
 
-    it('turns the shortcut off and on, per device', async () => {
+    it('shows the stored choice once the read answers', async () => {
+        getSettings.mockResolvedValue({ searchShortcut: false });
         mount();
-        const toggle = screen.getByRole('switch', { name: 'Keyboard shortcuts' });
 
-        await userEvent.click(toggle);
-
-        expect(toggle.getAttribute('aria-checked')).toBe('false');
-        expect(readSearchShortcutEnabled()).toBe(false);
-
-        await userEvent.click(toggle);
-
-        expect(toggle.getAttribute('aria-checked')).toBe('true');
-        expect(readSearchShortcutEnabled()).toBe(true);
+        await waitFor(() => expect(toggle().getAttribute('aria-checked')).toBe('false'));
     });
 
-    it('reads the stored “off” on mount', () => {
-        window.localStorage.setItem('prefs.v1.searchShortcut', 'off');
+    it('turns the setting off and on by saving it, and answers the tap before the server does', async () => {
+        let release: (value: { searchShortcut: boolean }) => void = () => undefined;
+        mount();
+        await waitFor(() => expect(getSettings).toHaveBeenCalled());
+        patchSettings.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+
+        await userEvent.click(toggle());
+
+        // Optimistic: the switch is already off while the PATCH is still in flight.
+        expect(toggle().getAttribute('aria-checked')).toBe('false');
+        expect(patchSettings).toHaveBeenCalledWith({ searchShortcut: false });
+
+        getSettings.mockResolvedValue({ searchShortcut: false });
+        release({ searchShortcut: false });
+        await waitFor(() => expect(toggle().getAttribute('aria-checked')).toBe('false'));
+
+        await userEvent.click(toggle());
+
+        await waitFor(() => expect(patchSettings).toHaveBeenLastCalledWith({ searchShortcut: true }));
+    });
+
+    it('keeps NOTHING in browser storage', async () => {
         mount();
 
-        expect(screen.getByRole('switch', { name: 'Keyboard shortcuts' }).getAttribute('aria-checked')).toBe('false');
+        await userEvent.click(toggle());
+
+        expect(window.localStorage.length).toBe(0);
+    });
+
+    it('puts the switch back and says so when the save fails', async () => {
+        patchSettings.mockRejectedValue(new Error('503'));
+        mount();
+        await waitFor(() => expect(getSettings).toHaveBeenCalled());
+
+        await userEvent.click(toggle());
+
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('We couldn’t save that setting. Try again.'),
+        );
+        expect(toggle().getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('shows no failure line when nothing failed, and clears it on the next try', async () => {
+        patchSettings.mockRejectedValueOnce(new Error('503'));
+        mount();
+        expect(screen.queryByRole('alert')).toBeNull();
+
+        await userEvent.click(toggle());
+        await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+
+        await userEvent.click(toggle());
+
+        await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
     });
 });

@@ -163,16 +163,8 @@ export const moveIngredientToGroup = (
 };
 
 /**
- * The lines with each group's lines gathered into one run, where that group first appears, keeping their order. Pure.
- */
-const joinRuns = (lines: readonly RecipeFormIngredient[]): RecipeFormIngredient[] => {
-    const order = [...new Set(lines.map(groupLabelOf))];
-
-    return order.flatMap((group) => lines.filter((each) => groupLabelOf(each) === group));
-};
-
-/**
- * Rename a group. A name another group already has merges the two into one run, where the first of them stood. Pure.
+ * Rename a group, relabelling its lines where they stand: no other group's line moves. A name another group already has
+ * merges the two into one run, where the first of them stood, and only those two groups' lines move. Pure.
  *
  * @param values - The draft.
  * @param from - The group's current name.
@@ -186,11 +178,22 @@ export const renameIngredientGroup = (values: RecipeFormValues, from: string, to
         return values;
     }
 
+    const merges = values.ingredients.some((each) => groupLabelOf(each) === name);
+    const relabelled = values.ingredients.map((each) => (groupLabelOf(each) === from ? withGroup(each, name) : each));
+
+    if (!merges) {
+        return { ...values, ingredients: relabelled };
+    }
+
+    // The merged group's lines, in order, take the place of the first of them; every other line keeps its order.
+    const inMerged = (each: RecipeFormIngredient): boolean => groupLabelOf(each) === name;
+    // Every line before the first merged one is another group's, so it is also where the run lands among the others.
+    const first = relabelled.findIndex(inMerged);
+    const others = relabelled.filter((each) => !inMerged(each));
+
     return {
         ...values,
-        ingredients: joinRuns(
-            values.ingredients.map((each) => (groupLabelOf(each) === from ? withGroup(each, name) : each)),
-        ),
+        ingredients: [...others.slice(0, first), ...relabelled.filter(inMerged), ...others.slice(first)],
     };
 };
 

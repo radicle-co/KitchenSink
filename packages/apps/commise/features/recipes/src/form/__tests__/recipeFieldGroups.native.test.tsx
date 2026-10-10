@@ -29,7 +29,7 @@ vi.mock('react-native', async (importOriginal) => {
 // Explicit `.native.js` — tsc and the native config's resolver both map each to its `.native.tsx` leaf.
 import { RecipeIngredientsFields } from '../RecipeIngredientsFields.native.js';
 import { type RecipeFormValues, defaultRecipeFormValues } from '../values.js';
-import type { RecipeFormSectionProps } from '../props.js';
+import { applyDraftAction, type RecipeFormSectionProps } from '../props.js';
 import type { LookupRetry } from '../ingredientStatus.js';
 import type { IngredientNutrition } from '../nutritionLookup.js';
 import type { IngredientRowEditor } from '../../hooks/useIngredientRowEditor.js';
@@ -135,16 +135,26 @@ const Stateful: FC<{ readonly initial: RecipeFormValues; readonly onValues: (val
 }) => {
     const [values, setValues] = useState(initial);
 
+    const apply = (next: RecipeFormValues): RecipeFormValues => {
+        onValues(next);
+
+        return next;
+    };
+
+    // The row's edits are the editor's own transition, applied to the draft as it is when it runs.
+    const [rowEditor] = useState(() =>
+        makeIngredientRowEditor({
+            dispatch: (action) => setValues((current) => apply(applyDraftAction(current, action))),
+        }),
+    );
+
     return (
         <FieldGroups
             values={values}
-            onChange={(next) => {
-                onValues(next);
-                setValues(next);
-            }}
+            onChange={(next) => setValues(apply(next))}
             ingredientNutrition={CATALOG_NUTRITION}
             ingredientLookupRetry={makeLookupRetry()}
-            ingredientRowEditor={ROW_EDITOR}
+            ingredientRowEditor={rowEditor}
         />
     );
 };

@@ -21,19 +21,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeFakeEditorWritePort as fakePort } from '../../__fixtures__/editorWritePort.js';
 import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { DEVICE_SAVE_IDLE_MS, SERVER_CHECKPOINT_IDLE_MS } from '../../editor/checkpointPolicy.js';
+import { createPasteHold, type PasteHold } from '../../editor/pasteHold.js';
 import type { DraftMemento, DraftStore } from '../../editor/draftStore.js';
 import type { IngredientLineKey } from '../../form/lineKey.js';
 import { toDraftValues } from '../../editor/draftStore.js';
 import { toRecipeFormValues } from '../../form/wire.js';
 import { draftToSnapshot } from '../../versions/merge.js';
 import type { RebindLineSend } from '../lineCommit.js';
-import {
-    useRecipeEditor,
-    type EditorExit,
-    type EditorSeed,
-    type EditorWritePort,
-    type UseRecipeEditorResult,
-} from '../useRecipeEditor.js';
+import { useRecipeEditor, type EditorExit, type EditorSeed, type UseRecipeEditorResult } from '../useRecipeEditor.js';
 
 /** A device draft store that records what it was asked. */
 function fakeDrafts(): DraftStore & {
@@ -74,7 +69,7 @@ function sideAt(
 const PUBLISHED = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.PUBLISHED });
 const NEVER_PUBLISHED = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT });
 
-function mount(seed: EditorSeed = {}) {
+function mount(seed: EditorSeed = {}, pasteHold?: PasteHold) {
     const port = fakePort();
     const drafts = fakeDrafts();
     const onExit = vi.fn<(exit: EditorExit) => void>();
@@ -86,13 +81,14 @@ function mount(seed: EditorSeed = {}) {
         (props: { readonly seed: EditorSeed; readonly pastePending?: boolean }) =>
             useRecipeEditor(props.seed, {
                 locale: 'en',
-                port: port as unknown as EditorWritePort,
+                port,
                 drafts,
                 keep: 'disk',
                 onExit,
                 onRecipeRef,
                 rebindLine,
                 pastePending: props.pastePending ?? false,
+                ...(pasteHold === undefined ? {} : { pasteHold }),
                 now: () => new Date('2026-10-09T12:00:00.000Z'),
             }),
         { initialProps: { seed } as { readonly seed: EditorSeed; readonly pastePending?: boolean } },
@@ -1019,6 +1015,27 @@ describe('paste and the create', () => {
         expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
     });
 
+    it('holds the create while the shared paste hold says a paste is joining, read when the checkpoint runs', async () => {
+        const hold = createPasteHold();
+        const { result, port } = mount({}, hold);
+
+        hold.set(true);
+        typeTitle(result);
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+
+        // No render in between: the hold is read when the checkpoint runs, not copied into the editor's state.
+        hold.set(false);
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+    });
+
     it('a published recipe offers no paste', () => {
         const { result } = mount({ recipe: PUBLISHED });
 
@@ -1283,5 +1300,792 @@ describe('a re-pick on a published recipe waits for Save changes', () => {
         const { result } = mount({ recipe: { ...published(3), status: RecipeStatus.DRAFT } });
 
         expect(result.current.lineCommand.holdsRebinds).toBe(false);
+    });
+});
+
+/**
+ * CHARACTERIZATION, written before the editor was split into a pure state core (staff-code-quality REACT-26/REACT-18):
+ * behaviour no test above pinned, recorded as it was so the refactor provably keeps it.
+ */
+describe('characterization: the conflict view`s other exits', () => {
+    async function conflictedOver(description: string) {
+        const view = mount({ recipe: NEVER_PUBLISHED });
+
+        act(() => {
+            view.result.current.setField('description', 'Mine.');
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+
+        act(() => {
+            view.port.park(seq, 409, {
+                kind: 'recipeConflict',
+                server: sideAt(6, { ...makeRecipeVersion({ versionNumber: 6 }).snapshot, description }),
+            });
+        });
+        await settle();
+
+        return { ...view, seq };
+    }
+
+    it('Discard and close withdraws the parked write, drops the device draft and returns to the recipe', async () => {
+        const { result, port, drafts, onExit, seq } = await conflictedOver('Theirs.');
+        const before = port.submitted.length;
+
+        act(() => {
+            result.current.discardAndClose();
+        });
+        await settle();
+
+        expect(port.withdrawn).toEqual([seq]);
+        expect(port.submitted).toHaveLength(before);
+        expect(drafts.discard).toHaveBeenCalledWith('rec_1');
+        expect(onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_1' });
+        expect(result.current.state.status).toBe('done');
+    });
+
+    it('setMergeSelections records the choice, and merge resends the composed draft at the server version', async () => {
+        const { result, port, seq } = await conflictedOver('Theirs.');
+
+        act(() => {
+            result.current.resolutions.setMergeSelections({ description: 'theirs' });
+        });
+        expect(result.current.state).toMatchObject({ status: 'conflict', mergeSelections: { description: 'theirs' } });
+
+        act(() => {
+            result.current.resolutions.merge({ description: 'theirs' });
+        });
+        await settle();
+        await settle();
+
+        expect(port.withdrawn).toEqual([seq]);
+        expect(port.submitted.at(-1)).toMatchObject({
+            payload: { input: { description: 'Theirs.', expectedVersion: 6 } },
+        });
+        expect(result.current.values.description).toBe('Theirs.');
+        expect(result.current.state.status).toBe('editing');
+    });
+
+    it('a resolution pressed while another is on its way is ignored, and the view says it is resolving', async () => {
+        const { result, port } = await conflictedOver('Theirs.');
+        port.withdraw.mockImplementationOnce(() => new Promise(() => undefined));
+
+        act(() => {
+            result.current.resolutions.overwrite();
+        });
+        expect(result.current.state).toMatchObject({ status: 'conflict', isResolving: true });
+
+        act(() => {
+            result.current.resolutions.keepServer();
+        });
+        await settle();
+
+        expect(port.withdraw).toHaveBeenCalledTimes(1);
+    });
+
+    it('a withdrawal that fails leaves the conflict open and no longer resolving', async () => {
+        const { result, port } = await conflictedOver('Theirs.');
+        port.withdraw.mockRejectedValueOnce(new Error('storage'));
+
+        act(() => {
+            result.current.resolutions.overwrite();
+        });
+        await settle();
+        await settle();
+
+        expect(result.current.state).toMatchObject({ status: 'conflict', isResolving: false });
+    });
+
+    it('a conflict from a Publish keeps publishing when the cook overwrites', async () => {
+        const view = mount({ recipe: NEVER_PUBLISHED });
+
+        act(() => {
+            view.result.current.setValues({ ...complete(), description: 'Mine.' });
+        });
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        act(() => {
+            view.port.park(view.port.lastSeq(), 409, {
+                kind: 'recipeConflict',
+                server: sideAt(6, { ...makeRecipeVersion({ versionNumber: 6 }).snapshot, description: 'Theirs.' }),
+            });
+        });
+        await settle();
+        expect(view.result.current.state.status).toBe('conflict');
+
+        act(() => {
+            view.result.current.resolutions.overwrite();
+        });
+        await settle();
+        await settle();
+
+        expect(view.port.submitted.at(-1)).toMatchObject({
+            payload: { input: { status: 'published', expectedVersion: 6 } },
+        });
+        expect(view.result.current.state.status).toBe('finishing');
+    });
+});
+
+describe('characterization: a write parked in an earlier session', () => {
+    function withEarlierParked(status?: number) {
+        const view = mount({ recipe: NEVER_PUBLISHED });
+
+        view.port.failures.push({
+            seq: 41,
+            entity: 'recipe',
+            intentKind: 'update',
+            localId: 'rec_1',
+            ...(status === undefined ? {} : { status }),
+        });
+        view.rerender({ seed: { recipe: NEVER_PUBLISHED } });
+
+        return view;
+    }
+
+    it('stands in the lane: it shows as parked, and a checkpoint writes the device draft but sends nothing', async () => {
+        const { result, port, drafts } = withEarlierParked(503);
+
+        expect(result.current.parked).toEqual({ failure: 'transient', kind: 'update' });
+
+        act(() => {
+            result.current.setField('description', 'Mine.');
+        });
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+        expect(drafts.saved.at(-1)).toMatchObject({ recipeRef: 'rec_1', values: { description: 'Mine.' } });
+        expect(result.current.saveStatus).toEqual({ kind: 'syncFailed', failure: 'transient' });
+    });
+
+    it('Retry withdraws it and sends the draft again', async () => {
+        const { result, port } = withEarlierParked(503);
+
+        act(() => {
+            result.current.setField('description', 'Mine.');
+        });
+        act(() => {
+            result.current.retry();
+        });
+        await settle();
+        await settle();
+
+        expect(port.withdrawn).toEqual([41]);
+        expect(port.submitted.at(-1)).toMatchObject({
+            intentKind: 'update',
+            payload: { input: { description: 'Mine.', expectedVersion: 3 } },
+        });
+    });
+
+    it('Retry with nothing parked does nothing', async () => {
+        const { result, port } = mount({ recipe: NEVER_PUBLISHED });
+
+        act(() => {
+            result.current.retry();
+        });
+        await settle();
+
+        expect(port.withdraw).not.toHaveBeenCalled();
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+    });
+});
+
+describe('characterization: the device draft', () => {
+    it('a device write that fails says so', async () => {
+        const { result, drafts } = mount();
+        vi.mocked(drafts.save).mockRejectedValueOnce(new Error('disk full'));
+
+        act(() => {
+            result.current.setField('description', 'Creamy.');
+        });
+        act(() => {
+            vi.advanceTimersByTime(DEVICE_SAVE_IDLE_MS);
+        });
+        await settle();
+        await settle();
+
+        expect(result.current.saveStatus).toEqual({ kind: 'deviceFailed' });
+    });
+
+    it('a submit the outbox refuses to take marks the device copy failed', async () => {
+        const { result, port } = mount();
+        port.submitExclusive.mockRejectedValueOnce(new Error('journal'));
+
+        typeTitle(result);
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        await settle();
+
+        expect(result.current.saveStatus).toEqual({ kind: 'deviceFailed' });
+    });
+
+    it('a published recipe edited back to what the server holds drops its device draft and reads saved', async () => {
+        const { result, drafts } = mount({ recipe: PUBLISHED });
+        const original = result.current.values.description;
+
+        act(() => {
+            result.current.setField('description', 'Creamier.');
+        });
+        act(() => {
+            result.current.checkpoint('fieldBlur');
+        });
+        await settle();
+        act(() => {
+            result.current.setField('description', original);
+        });
+        act(() => {
+            result.current.checkpoint('fieldBlur');
+        });
+        await settle();
+
+        expect(drafts.discard).toHaveBeenCalledWith('rec_1');
+        expect(result.current.saveStatus).toEqual({ kind: 'saved' });
+        expect(result.current.hasUnsavedChanges).toBe(false);
+    });
+
+    it('Save changes on a published recipe with nothing changed sends nothing and stays open', async () => {
+        const { result, port, onExit } = mount({ recipe: PUBLISHED });
+
+        let outcome: unknown;
+        act(() => {
+            outcome = result.current.saveChanges('');
+        });
+        await settle();
+
+        expect(outcome).toEqual({ kind: 'send' });
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+        expect(onExit).not.toHaveBeenCalled();
+        expect(result.current.state.status).toBe('editing');
+    });
+
+    it('a parked update that is not a conflict shows its class, and a Publish behind it does not run', async () => {
+        const { result, port } = mount({ recipe: NEVER_PUBLISHED });
+
+        act(() => {
+            result.current.setValues({ ...complete(), description: 'Mine.' });
+        });
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        const seq = port.lastSeq();
+        port.claim(seq);
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+        act(() => {
+            port.park(seq, 400);
+        });
+        await settle();
+
+        expect(result.current.parked).toEqual({ failure: 'terminal', kind: 'update' });
+        expect(result.current.state.status).toBe('editing');
+        expect(port.submitted).toHaveLength(1);
+    });
+});
+
+describe('characterization: the rebind command`s other answers', () => {
+    beforeEach(() => {
+        vi.useRealTimers();
+    });
+
+    const IDS = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002'] as const;
+    const twoLines = (version: number): RecipeDetail =>
+        makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: version,
+            status: RecipeStatus.DRAFT,
+            ingredients: [
+                makeIngredientView({ ingredientId: IDS[0], name: 'Olive oil' }),
+                makeIngredientView({ ingredientId: IDS[1], name: 'chick' }),
+            ],
+        });
+
+    async function run(view: ReturnType<typeof mount>, key: IngredientLineKey, send: () => Promise<RecipeDetail>) {
+        let outcome: unknown;
+
+        act(() => {
+            void view.result.current.lineCommand.run(key, send).then((answer) => {
+                outcome = answer;
+            });
+        });
+        await settle();
+        await settle();
+        await settle();
+
+        return outcome;
+    }
+
+    it('exposes the stored lines` keys, and none for a line added this session', () => {
+        const view = mount({ recipe: twoLines(3) });
+
+        expect(view.result.current.lineCommand.persistedKeys).toEqual(
+            view.result.current.values.ingredients.map((line) => line.key),
+        );
+    });
+
+    it('a line the server does not store fails without a send', async () => {
+        const view = mount({ recipe: twoLines(3) });
+        const send = vi.fn(async () => twoLines(4));
+
+        const outcome = await run(view, 'n:fresh' as IngredientLineKey, send);
+
+        expect(outcome).toEqual({ kind: 'failed' });
+        expect(send).not.toHaveBeenCalled();
+    });
+
+    it('an answer more than one version on is not adopted: the draft and the version stay', async () => {
+        const view = mount({ recipe: twoLines(3) });
+        const key = view.result.current.values.ingredients[1]!.key;
+
+        const outcome = await run(view, key, async () => ({ ...twoLines(5) }));
+
+        expect(outcome).toEqual({ kind: 'failed' });
+        act(() => {
+            view.result.current.setField('description', 'After.');
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        expect(view.port.submitted.at(-1)).toMatchObject({ payload: { input: { expectedVersion: 3 } } });
+    });
+
+    it('a refusal whose sides already agree adopts the server`s version and fails, with no conflict view', async () => {
+        const { VersionConflictError } = await import('@kitchensink/recipe-service-client');
+        const view = mount({ recipe: twoLines(3) });
+        const key = view.result.current.values.ingredients[1]!.key;
+        const agreeing = sideAt(7, draftToSnapshot(view.result.current.values, 7));
+
+        const outcome = await run(view, key, async () => {
+            throw new VersionConflictError(7, 3, 'conflict', { server: agreeing });
+        });
+
+        expect(outcome).toEqual({ kind: 'failed' });
+        expect(view.result.current.state.status).toBe('editing');
+        act(() => {
+            view.result.current.setField('description', 'After.');
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        expect(view.port.submitted.at(-1)).toMatchObject({ payload: { input: { expectedVersion: 7 } } });
+    });
+
+    it('a command that throws something else fails', async () => {
+        const view = mount({ recipe: twoLines(3) });
+        const key = view.result.current.values.ingredients[1]!.key;
+
+        expect(await run(view, key, async () => Promise.reject(new Error('offline')))).toEqual({ kind: 'failed' });
+    });
+
+    it('a command waiting behind a write that meets a conflict is not sent while the conflict stands', async () => {
+        const view = mount({ recipe: twoLines(3) });
+        const key = view.result.current.values.ingredients[1]!.key;
+        const send = vi.fn(async () => twoLines(4));
+
+        act(() => {
+            view.result.current.setField('description', 'Mine.');
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        let outcome: unknown;
+        act(() => {
+            void view.result.current.lineCommand.run(key, send).then((answer) => {
+                outcome = answer;
+            });
+        });
+        await settle();
+        act(() => {
+            view.port.park(view.port.lastSeq(), 409, {
+                kind: 'recipeConflict',
+                server: sideAt(6, { ...makeRecipeVersion({ versionNumber: 6 }).snapshot, description: 'Theirs.' }),
+            });
+        });
+        await settle();
+        await settle();
+
+        // The parked write still holds the lane, so the command waits (unanswered) until a resolution clears it.
+        expect(outcome).toBeUndefined();
+        expect(send).not.toHaveBeenCalled();
+        expect(view.result.current.state.status).toBe('conflict');
+    });
+
+    it('a pick while the conflict view is open is answered `conflict` at once', async () => {
+        const view = mount({ recipe: twoLines(3) });
+        const key = view.result.current.values.ingredients[1]!.key;
+
+        act(() => {
+            view.result.current.setField('description', 'Mine.');
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        act(() => {
+            view.port.park(view.port.lastSeq(), 409, {
+                kind: 'recipeConflict',
+                server: sideAt(6, { ...makeRecipeVersion({ versionNumber: 6 }).snapshot, description: 'Theirs.' }),
+            });
+        });
+        await settle();
+
+        await expect(view.result.current.lineCommand.run(key, vi.fn())).resolves.toEqual({ kind: 'conflict' });
+    });
+
+    it('a checkpoint while a command holds the lane runs once the command answers', async () => {
+        const view = mount({ recipe: twoLines(3) });
+        const key = view.result.current.values.ingredients[1]!.key;
+        let answer: (detail: RecipeDetail) => void = () => undefined;
+        const send = vi.fn(
+            () =>
+                new Promise<RecipeDetail>((resolve) => {
+                    answer = resolve;
+                }),
+        );
+
+        act(() => {
+            void view.result.current.lineCommand.run(key, send);
+        });
+        await settle();
+        act(() => {
+            view.result.current.setField('description', 'During.');
+        });
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        expect(view.port.submitExclusive).not.toHaveBeenCalled();
+
+        const answered = twoLines(4);
+        await act(async () => {
+            answer(answered);
+            await Promise.resolve();
+        });
+        await settle();
+        await settle();
+
+        expect(view.port.submitted.at(-1)).toMatchObject({
+            intentKind: 'update',
+            payload: { input: { description: 'During.', expectedVersion: 4 } },
+        });
+    });
+});
+
+/**
+ * code-reviewer High 1: discarding a recipe whose CREATE is parked withdrew the create and then queued a delete naming
+ * the create's local ref as its dependency. That create no longer existed, so the delete waited forever and "not
+ * synced" never cleared (persisted in AsyncStorage on mobile). The only server state was the withdrawn create, so
+ * nothing is deleted — unless the create's outcome is unknown, when it may exist, and the editor says so before the
+ * cook confirms rather than guessing.
+ */
+describe('discard while the create is parked', () => {
+    async function parkedCreate(status?: number) {
+        const view = mount();
+
+        typeTitle(view.result);
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+
+        act(() => {
+            view.port.park(seq, status);
+        });
+        await settle();
+
+        return { ...view, seq };
+    }
+
+    it.each([
+        ['refused', 400],
+        ['transient', 503],
+    ])('a %s create: withdrawn, no delete queued, and nothing is said about a server copy', async (_, status) => {
+        const { result, port, onExit, seq } = await parkedCreate(status);
+
+        expect(result.current.discardMayLeaveServerCopy).toBe(false);
+
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(port.withdrawn).toEqual([seq]);
+        expect(port.submit).not.toHaveBeenCalled();
+        expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+    });
+
+    it('a create whose outcome is unknown: the cook is told it may exist, and no delete is guessed', async () => {
+        const { result, port, onExit, seq } = await parkedCreate();
+
+        expect(result.current.discardMayLeaveServerCopy).toBe(true);
+
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(port.withdrawn).toEqual([seq]);
+        expect(port.submit).not.toHaveBeenCalled();
+        expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+    });
+
+    it('a create parked in an earlier session (read from the outbox): withdrawn, no delete queued', async () => {
+        const ref = 'local:recipe:01J0000000000000000000000A';
+        const memento: DraftMemento = {
+            recipeRef: ref,
+            baseVersion: null,
+            values: toDraftValues({ ...toRecipeFormValues(NEVER_PUBLISHED), title: 'Soup' }),
+            pendingRebinds: [],
+            savedAt: '2026-10-08T09:00:00.000Z',
+        };
+        const view = mount({ memento });
+        view.port.failures.push({ seq: 41, entity: 'recipe', intentKind: 'create', localId: ref, status: 503 });
+        view.rerender({ seed: { memento } });
+
+        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'create' });
+
+        act(() => {
+            view.result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(view.port.withdrawn).toEqual([41]);
+        expect(view.port.submit).not.toHaveBeenCalled();
+    });
+
+    it('a stored draft whose UPDATE is parked: withdrawn, and the recipe is still deleted by its id', async () => {
+        const { result, port } = mount({ recipe: NEVER_PUBLISHED });
+
+        expect(result.current.discardMayLeaveServerCopy).toBe(false);
+        act(() => {
+            result.current.setField('description', 'Mine.');
+        });
+        act(() => {
+            result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        const seq = port.lastSeq();
+        act(() => {
+            port.park(seq);
+        });
+        await settle();
+
+        expect(result.current.discardMayLeaveServerCopy).toBe(false);
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(port.withdrawn).toEqual([seq]);
+        expect(port.submitted.at(-1)).toEqual({
+            entity: 'recipe',
+            intentKind: 'delete',
+            localId: 'rec_1',
+            dependsOn: [],
+            payload: { id: 'rec_1' },
+        });
+    });
+});
+
+describe('held re-picks: what the server already holds (code-reviewer Medium 5, staff-architect)', () => {
+    beforeEach(() => {
+        vi.useRealTimers();
+    });
+
+    const IDS = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002'] as const;
+    const REBOUND = '00000000-0000-4000-8000-00000000000f';
+    const NEWER = '00000000-0000-4000-8000-00000000000e';
+    const TARGET = { kind: 'catalogFood', foodId: '00000000-0000-4000-8000-0000000000aa' } as const;
+    const NEWER_TARGET = { kind: 'catalogFood', foodId: '00000000-0000-4000-8000-0000000000bb' } as const;
+    const published = (version: number, second: string = IDS[1]): RecipeDetail =>
+        makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: version,
+            status: RecipeStatus.PUBLISHED,
+            ingredients: [
+                makeIngredientView({ ingredientId: IDS[0], name: 'Olive oil' }),
+                makeIngredientView({ ingredientId: second, name: 'chick' }),
+            ],
+        });
+
+    it('a rebind answer does not overwrite a newer pick of the same line held meanwhile, and the newer one is sent next', async () => {
+        const view = mount({ recipe: published(3) });
+        const key = view.result.current.values.ingredients[1]!.key;
+        let answerFirst: (detail: RecipeDetail) => void = () => undefined;
+        view.rebindLine
+            .mockImplementationOnce(
+                () =>
+                    new Promise<RecipeDetail>((resolve) => {
+                        answerFirst = resolve;
+                    }),
+            )
+            .mockImplementationOnce(async () => published(5, NEWER));
+
+        act(() => {
+            view.result.current.lineCommand.hold(
+                { lineKey: key, target: TARGET },
+                { ingredientId: REBOUND, name: 'Chickpeas', isUserEntered: false },
+            );
+        });
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        expect(view.rebindLine).toHaveBeenCalledTimes(1);
+
+        act(() => {
+            view.result.current.lineCommand.hold(
+                { lineKey: key, target: NEWER_TARGET },
+                { ingredientId: NEWER, name: 'Garbanzo', isUserEntered: false },
+            );
+        });
+        await act(async () => {
+            answerFirst(published(4, REBOUND));
+            await Promise.resolve();
+        });
+        await settle();
+        await settle();
+
+        expect(view.rebindLine).toHaveBeenCalledTimes(2);
+        expect(view.rebindLine).toHaveBeenLastCalledWith(
+            { recipeId: 'rec_1', position: 1, expectedVersion: 4 },
+            NEWER_TARGET,
+        );
+        expect(view.result.current.values.ingredients[1]).toMatchObject({ key, ingredientId: NEWER });
+    });
+
+    it('a reload after a rebind that landed but was never recorded sends no second rebind, and saves', async () => {
+        // The device draft was built on version 3 and still holds the re-pick; the server is at version 4 because the
+        // rebind landed before the editor could record it.
+        const base = published(3);
+        const values = toRecipeFormValues(base);
+        const key = values.ingredients[1]!.key;
+        const memento: DraftMemento = {
+            recipeRef: 'rec_1',
+            baseVersion: 3,
+            values: toDraftValues({
+                ...values,
+                description: 'Smokier.',
+                ingredients: values.ingredients.map((line) =>
+                    line.key === key
+                        ? { ...line, ingredientId: REBOUND, name: 'Chickpeas', isUserEntered: false }
+                        : line,
+                ),
+            }),
+            pendingRebinds: [{ lineKey: key, target: TARGET }],
+            savedAt: '2026-10-09T11:00:00.000Z',
+        };
+        const view = mount({ recipe: published(4, REBOUND), memento });
+
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        await settle();
+
+        expect(view.rebindLine).not.toHaveBeenCalled();
+        expect(view.port.submitted).toHaveLength(1);
+        expect(view.port.submitted[0]).toMatchObject({
+            intentKind: 'update',
+            payload: { input: { description: 'Smokier.', expectedVersion: 3 } },
+        });
+    });
+
+    it('a reload whose only change was that landed rebind reads as saved, with no resume notice', () => {
+        const base = published(3);
+        const values = toRecipeFormValues(base);
+        const key = values.ingredients[1]!.key;
+        const memento: DraftMemento = {
+            recipeRef: 'rec_1',
+            baseVersion: 3,
+            values: toDraftValues({
+                ...values,
+                ingredients: values.ingredients.map((line) =>
+                    line.key === key ? { ...line, ingredientId: REBOUND, name: 'chick', isUserEntered: false } : line,
+                ),
+            }),
+            pendingRebinds: [{ lineKey: key, target: TARGET }],
+            savedAt: '2026-10-09T11:00:00.000Z',
+        };
+        const view = mount({ recipe: published(4, REBOUND), memento });
+
+        expect(view.result.current.hasUnsavedChanges).toBe(false);
+        expect(view.result.current.resume).toBeUndefined();
+    });
+});
+
+describe('held re-picks on a line the server no longer stores', () => {
+    beforeEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('a reload whose held re-pick names a line another device removed sends no rebind and one update, once', async () => {
+        const IDS3 = [
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000002',
+            '00000000-0000-4000-8000-000000000003',
+        ] as const;
+        const REBOUND = '00000000-0000-4000-8000-00000000000f';
+        const threeLines = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            status: RecipeStatus.PUBLISHED,
+            ingredients: IDS3.map((ingredientId) => makeIngredientView({ ingredientId })),
+        });
+        // Another device removed the third line: the server is at version 4 with two.
+        const twoLines = {
+            ...threeLines,
+            currentVersion: 4,
+            ingredients: threeLines.ingredients.slice(0, 2),
+        };
+        const values = toRecipeFormValues(threeLines);
+        const key = values.ingredients[2]!.key;
+        const memento: DraftMemento = {
+            recipeRef: 'rec_1',
+            baseVersion: 3,
+            values: toDraftValues({
+                ...values,
+                ingredients: values.ingredients.map((line) =>
+                    line.key === key ? { ...line, ingredientId: REBOUND, isUserEntered: false } : line,
+                ),
+            }),
+            pendingRebinds: [{ lineKey: key, target: { kind: 'name', name: 'chickpeas' } }],
+            savedAt: '2026-10-09T11:00:00.000Z',
+        };
+        const view = mount({ recipe: twoLines, memento });
+
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        await settle();
+        await settle();
+
+        expect(view.rebindLine).not.toHaveBeenCalled();
+        expect(view.port.submitted).toHaveLength(1);
+        expect(view.port.submitted[0]).toMatchObject({
+            intentKind: 'update',
+            payload: { input: { expectedVersion: 3 } },
+        });
+        expect(vi.mocked(view.drafts.save).mock.calls.length).toBeLessThanOrEqual(1);
     });
 });

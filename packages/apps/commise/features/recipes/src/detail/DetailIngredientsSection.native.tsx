@@ -17,13 +17,14 @@ import type { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import type { FC } from 'react';
 import { Text, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { DetailEmptySection } from './DetailEmptySection.native.js';
 import { detailStyles as styles } from './detailStyles.native.js';
 import { IngredientCheckRow } from './IngredientCheckRow.native.js';
+import { ingredientGroupRuns } from './detailFacts.js';
 import { allLinesFoodRemoved, removedFoodNotice, type RecipeDetailBodyNativeProps } from './model.js';
-import { ServingScaleControl } from './ServingScaleControl.native.js';
+import { ServingScaleControl } from './ServingScaleControl.js';
 
 /** Props for {@link DetailIngredientsSection}. */
 export interface DetailIngredientsSectionProps {
@@ -84,18 +85,20 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
                     baseServings={recipe.servings}
                     onServingsChange={onServingsChange}
                 />
+                {/* The owner's Edit: a ghost link at the END of the heading row (§6.1), never a centred line of its own
+                    (F22). The row wraps on a narrow phone, so it takes the next line before it squeezes. */}
+                {onEdit !== undefined && hasIngredients && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        icon="pencilLine"
+                        accessibilityLabel={detail.editIngredientsLabel}
+                        onPress={onEdit}
+                    >
+                        {detail.editSection}
+                    </Button>
+                )}
             </View>
-            {onEdit !== undefined && hasIngredients && (
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    icon="pencilLine"
-                    accessibilityLabel={detail.editIngredientsLabel}
-                    onPress={onEdit}
-                >
-                    {detail.editSection}
-                </Button>
-            )}
             {scaled.scaling.isScaled && (
                 <View
                     accessibilityLiveRegion="polite"
@@ -126,14 +129,27 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
             )}
             {hasIngredients ? (
                 <View>
-                    {scaled.ingredients.map((ingredient) => (
-                        <IngredientCheckRow
-                            key={ingredient.ingredientId}
-                            ingredient={ingredient}
-                            checked={marks.checkedLines.has(ingredient.ingredientId)}
-                            allRemoved={allRemoved}
-                            onToggle={marks.toggleLine}
-                        />
+                    {/* A group is an overline over its run of lines (§6.1, F9); an ungrouped recipe draws one list. */}
+                    {ingredientGroupRuns(scaled.ingredients).map((run, index) => (
+                        <View key={`${run.label ?? ''}-${String(index)}`}>
+                            {run.label !== undefined && (
+                                <Text
+                                    accessibilityRole="header"
+                                    style={[styles.overline, styles.groupHeading, { color: colors.inkMuted }]}
+                                >
+                                    {run.label}
+                                </Text>
+                            )}
+                            {run.lines.map((ingredient) => (
+                                <IngredientCheckRow
+                                    key={ingredient.ingredientId}
+                                    ingredient={ingredient}
+                                    checked={marks.checkedLines.has(ingredient.ingredientId)}
+                                    allRemoved={allRemoved}
+                                    onToggle={marks.toggleLine}
+                                />
+                            ))}
+                        </View>
                     ))}
                 </View>
             ) : (

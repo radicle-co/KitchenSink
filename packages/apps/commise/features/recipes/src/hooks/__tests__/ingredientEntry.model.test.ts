@@ -14,6 +14,8 @@ import {
     changingOf,
     entryTextOf,
     pendingEntryOf,
+    placementOf,
+    searchTextOf,
     withActiveTarget,
     withChangeBegun,
     withEntryAbandoned,
@@ -179,23 +181,48 @@ describe('Change food (item 4)', () => {
  * §7.5.5: the trailing field sits in one group at a time, and an appended line joins it. The placement is the FIELD's
  * state, like its text: it survives a commit (the cook keeps adding to the same group) and never reaches a row's target.
  */
+describe('the unit a pick commits (§7.5.3)', () => {
+    it('is the unit as the cook typed it, never normalizeUnit\u2019s spelling', () => {
+        expect(commitTargetOf(TRAILING, '2 tbsp olive oil', undefined)).toMatchObject({
+            measure: { unit: 'tbsp', preparation: '' },
+        });
+        expect(commitTargetOf(TRAILING, '1 handful parsley, diced', undefined)).toMatchObject({
+            measure: { unit: 'handful', preparation: 'diced' },
+        });
+    });
+
+    it('commits a size word as the unit and searches the food alone ("1 large onion")', () => {
+        expect(commitTargetOf(TRAILING, '1 large onion', undefined)).toMatchObject({
+            measure: { quantity: { kind: 'exact', value: 1 }, unit: 'large', preparation: '' },
+        });
+        expect(searchTextOf(TRAILING, '1 large onion')).toBe('onion');
+    });
+
+    it('commits no unit when the cook typed none', () => {
+        expect(commitTargetOf(TRAILING, '3 eggs', undefined)).toMatchObject({ measure: { unit: '' } });
+    });
+});
+
 describe('the trailing field\u2019s group (§7.5.5)', () => {
+    const SAUCE_LINES: readonly EntryLine[] = [{ ...OIL, groupLabel: 'Sauce' }];
+
     it('starts with no placement: the field follows the group being built', () => {
         expect(EMPTY_ENTRY.placement).toBeUndefined();
         expect(commitTargetOf(TRAILING, 'flour', EMPTY_ENTRY.placement)).toEqual({ kind: 'newLine' });
     });
 
     it('a placed field commits into its group, with or without a measure', () => {
-        const state = withPlacement(EMPTY_ENTRY, { group: 'Sauce' });
+        const state = withPlacement(EMPTY_ENTRY, { group: 'Sauce', madeByCook: false });
 
-        expect(commitTargetOf(TRAILING, 'garlic', state.placement)).toEqual({
+        expect(commitTargetOf(TRAILING, 'garlic', placementOf(state, SAUCE_LINES))).toEqual({
             kind: 'newLine',
             placement: { group: 'Sauce' },
         });
-        expect(commitTargetOf(TRAILING, '2 tbsp oil', state.placement)).toMatchObject({
+        expect(commitTargetOf(TRAILING, '2 tbsp oil', placementOf(state, SAUCE_LINES))).toMatchObject({
             kind: 'newLine',
             placement: { group: 'Sauce' },
-            measure: { unit: 'tablespoon' },
+            // Rewritten for spec §7.5.3 (D20/D21 batch): the committed unit is the cook's own word, not `normalizeUnit`'s.
+            measure: { unit: 'tbsp' },
         });
     });
 
@@ -204,12 +231,64 @@ describe('the trailing field\u2019s group (§7.5.5)', () => {
     });
 
     it('survives a commit, so the cook keeps adding to the same group', () => {
-        const placed = withPlacement(withEntryText(EMPTY_ENTRY, TRAILING, 'garlic', LINES), { group: 'Sauce' });
+        const placed = withPlacement(withEntryText(EMPTY_ENTRY, TRAILING, 'garlic', LINES), {
+            group: 'Sauce',
+            madeByCook: false,
+        });
 
-        expect(withEntryCommitted(placed, TRAILING, 'garlic').placement).toEqual({ group: 'Sauce' });
+        expect(withEntryCommitted(placed, TRAILING, 'garlic').placement).toEqual({ group: 'Sauce', madeByCook: false });
+    });
+
+    /**
+     * 2026-10-09 review, Medium 3: the field's label came from a validated group while a pick committed the raw one, so
+     * once a group's last line moved out the field read "Add to Wet" and the line landed in a recreated "Dry". Where
+     * the field adds is ONE derivation, which the label and every commit read.
+     */
+    it.each([
+        { why: 'no placement follows the group being built', placed: undefined, lines: [OIL], answer: undefined },
+        {
+            why: 'a group a line is in holds the field',
+            placed: { group: 'Dry', madeByCook: false },
+            lines: [{ ...OIL, groupLabel: 'Dry' }],
+            answer: { group: 'Dry' },
+        },
+        {
+            why: 'a group whose last line left lets go of the field',
+            placed: { group: 'Dry', madeByCook: false },
+            lines: [{ ...OIL, groupLabel: 'Wet' }],
+            answer: undefined,
+        },
+        {
+            why: 'a group the cook made holds the field before any line is in it',
+            placed: { group: 'Herbs', madeByCook: true },
+            lines: [{ ...OIL, groupLabel: 'Wet' }],
+            answer: { group: 'Herbs' },
+        },
+        {
+            why: 'a blank label is no group',
+            placed: { group: 'Dry', madeByCook: false },
+            lines: [{ ...OIL, groupLabel: ' Dry ' }],
+            answer: { group: 'Dry' },
+        },
+        {
+            why: 'No group holds the field while an ungrouped line exists',
+            placed: { group: undefined, madeByCook: false },
+            lines: [OIL, { ...CHICK, groupLabel: 'Wet' }],
+            answer: { group: undefined },
+        },
+        {
+            why: 'No group lets go of the field once every line is grouped',
+            placed: { group: undefined, madeByCook: false },
+            lines: [{ ...CHICK, groupLabel: 'Wet' }],
+            answer: undefined,
+        },
+    ])('placementOf: $why', ({ placed, lines, answer }) => {
+        expect(placementOf(withPlacement(EMPTY_ENTRY, placed), lines)).toEqual(answer);
     });
 
     it('can be cleared back to following the group being built', () => {
-        expect(withPlacement(withPlacement(EMPTY_ENTRY, { group: 'Sauce' }), undefined).placement).toBeUndefined();
+        expect(
+            withPlacement(withPlacement(EMPTY_ENTRY, { group: 'Sauce', madeByCook: false }), undefined).placement,
+        ).toBeUndefined();
     });
 });

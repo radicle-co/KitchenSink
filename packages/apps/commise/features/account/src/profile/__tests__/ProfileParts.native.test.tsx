@@ -62,7 +62,7 @@ describe('ProfileHeader (native)', () => {
         );
 
         expect(screen.getByText('a@b.co')).toBeTruthy();
-        expect(screen.queryByText('Not set')).toBeNull();
+        expect(screen.queryByText('Add your name')).toBeNull();
     });
 
     it('reports a failed read with a Try again control that retries', async () => {
@@ -214,11 +214,19 @@ describe('DisplayNameSheet (native)', () => {
         ...overrides,
     });
 
+    // `evaluateFinal.md` §4: the field repeated the sheet's title as its label. It is "Display name", with a hint.
+    it('labels the field “Display name” and says where the name shows', () => {
+        render(<DisplayNameSheet {...sheet()} />);
+
+        expect(screen.getByText('Shown on recipes you publish.')).toBeTruthy();
+        expect(screen.getAllByText('Display name').length).toBeGreaterThan(0);
+    });
+
     it('is a dialog titled “What should we call you?” holding one labelled field with the draft', () => {
         render(<DisplayNameSheet {...sheet()} />);
 
         expect(screen.getByRole('heading', { name: 'What should we call you?' })).toBeTruthy();
-        expect((screen.getByLabelText('What should we call you?') as HTMLInputElement).value).toBe('Eliza');
+        expect((screen.getByLabelText('Display name') as HTMLInputElement).value).toBe('Eliza');
     });
 
     it('renders nothing while closed', () => {
@@ -233,7 +241,7 @@ describe('DisplayNameSheet (native)', () => {
 
         render(<DisplayNameSheet {...sheet({ draft: '', onDraftChange, onSave })} />);
 
-        await userEvent.type(screen.getByLabelText('What should we call you?'), 'E');
+        await userEvent.type(screen.getByLabelText('Display name'), 'E');
 
         expect(onDraftChange).toHaveBeenCalledWith('E');
         expect(onSave).not.toHaveBeenCalled();
@@ -248,7 +256,7 @@ describe('DisplayNameSheet (native)', () => {
 
         render(<DisplayNameSheet {...sheet({ onSave })} />);
 
-        await userEvent.type(screen.getByLabelText('What should we call you?'), '{Enter}');
+        await userEvent.type(screen.getByLabelText('Display name'), '{Enter}');
 
         expect(onSave).toHaveBeenCalledOnce();
     });
@@ -272,7 +280,7 @@ describe('DisplayNameSheet (native)', () => {
 
         render(<DisplayNameSheet {...sheet({ canSave: false, onSave })} />);
 
-        await userEvent.type(screen.getByLabelText('What should we call you?'), '{Enter}');
+        await userEvent.type(screen.getByLabelText('Display name'), '{Enter}');
 
         expect(onSave).not.toHaveBeenCalled();
     });
@@ -291,8 +299,8 @@ describe('DisplayNameSheet (native)', () => {
     it('announces a failed save and marks the field invalid', () => {
         render(<DisplayNameSheet {...sheet({ failed: true })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t save your name. Please try again.');
-        expect(screen.getByLabelText('What should we call you?').getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t save your name. Try again.');
+        expect(screen.getByLabelText('Display name').getAttribute('aria-invalid')).toBe('true');
     });
 
     it('closes through onOpenChange(false)', async () => {
@@ -325,8 +333,6 @@ describe('DisplayNameSheet (native) — the length limit', () => {
             />,
         );
 
-        expect(screen.getByLabelText('What should we call you?').getAttribute('maxlength')).toBe(
-            String(DISPLAY_NAME_MAX_LENGTH),
-        );
+        expect(screen.getByLabelText('Display name').getAttribute('maxlength')).toBe(String(DISPLAY_NAME_MAX_LENGTH));
     });
 });

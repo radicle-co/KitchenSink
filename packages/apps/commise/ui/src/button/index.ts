@@ -11,5 +11,5 @@ export type {
     RefusedPressOptions,
     RefusedPressProps,
 } from './busyControlProps.js';
-export { buttonSurfaceClass } from './surfaceClass.js';
+export { buttonSurfaceClass, GHOST_EDGE_CLASS } from './surfaceClass.js';
 export type { ButtonProps, ButtonVariant } from './props.js';

@@ -16,6 +16,7 @@ import type { RecipeListSortBy } from '@kitchensink/recipe-service-client';
 
 import type { CardVariant, ListViewMode } from '../card/cardVariant.js';
 import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeListMessages } from '../messages.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
 import type { RefreshNoticeControl } from '../refresh/model.js';
@@ -35,17 +36,6 @@ export type RecipeListItem = RecipeCardModel;
  * card renders — the single shared card projection, so the list and widget can never disagree on card fields.
  */
 export const toRecipeListItem = toRecipeCardModel;
-
-/**
- * Replace `{token}` placeholders in `template` with the matching value from `tokens`. Unknown tokens are
- * left intact rather than throwing (a missing translation variable degrades gracefully). Pure.
- *
- * @param template - A string containing zero or more `{name}` placeholders.
- * @param tokens - The values to substitute, keyed by placeholder name.
- * @returns The template with known placeholders filled.
- */
-export const fillTemplate = (template: string, tokens: Readonly<Record<string, string | number>>): string =>
-    template.replace(/\{(\w+)\}/g, (match, key: string) => (key in tokens ? String(tokens[key]) : match));
 
 /** The singular/plural templates for the recipe-count label (each may contain `{count}`). */
 export interface RecipeCountLabels {

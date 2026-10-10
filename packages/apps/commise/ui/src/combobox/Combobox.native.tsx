@@ -46,6 +46,7 @@ import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { VariantPartsLine } from '../variantPartsLine/VariantPartsLine.native.js';
 import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
 /** The native target floor the spec sets (§3, 2.5.8: 48 × 48 dp). */
 const TARGET_DP = 48;
@@ -116,13 +117,16 @@ export const Combobox: FC<ComboboxProps> = ({
     const closedByBlur = useRef(false);
     const field = useRef<NativeTextInput>(null);
     // Reads the text and the host's callback as they are when the request is taken; neither re-runs a request.
-    const takeFocusRequest = useEffectEvent(() => {
-        field.current?.focus();
-        field.current?.setSelection(value.length, value.length);
-        // `.focus()` raises the keyboard and moves nothing for VoiceOver or TalkBack (R7).
-        moveScreenReaderFocus(field.current);
-        onFocusRequestHandled?.();
-    });
+    useFocusRequest(
+        focusRequested,
+        () => {
+            field.current?.focus();
+            field.current?.setSelection(value.length, value.length);
+            // `.focus()` raises the keyboard and moves nothing for VoiceOver or TalkBack (R7).
+            moveScreenReaderFocus(field.current);
+        },
+        onFocusRequestHandled,
+    );
     // R7: a list request opens the list as the request arrives. Adjusted during render from the previous request, so
     // the effect above only moves focus.
     const listWanted = focusRequested && listRequested;
@@ -136,12 +140,6 @@ export const Combobox: FC<ComboboxProps> = ({
             setOpen(true);
         }
     }
-
-    useEffect(() => {
-        if (focusRequested) {
-            takeFocusRequest();
-        }
-    }, [focusRequested]);
 
     const optionCount = groups.reduce((count, group) => count + group.options.length, 0);
     const listShown = open && optionCount > 0;

@@ -3,7 +3,7 @@
  *
  * Every latency budget in these scripts was calibrated against a dedicated runner container with its own
  * Postgres and no rate limiter. A per-PR preview is a different machine: half a reclaimable vCPU of
- * `FARGATE_SPOT` at `desiredCount=1`, on a `db.t4g.micro` shared with every other open PR's logical
+ * `FARGATE_SPOT` at `desiredCount=1`, on a `db.t4g.small` shared with every other open PR's logical
  * database (ADR-0006), behind an ALB shared with every other service (ADR-0003). Carrying those numbers
  * across produces a gate that reddens on the NEIGHBOURS' traffic — and the predictable next step is
  * somebody switching it off, which costs more than never having had it.

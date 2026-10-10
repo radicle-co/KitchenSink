@@ -74,6 +74,16 @@ describe('recipeRowToDomain', () => {
         );
     });
 
+    /**
+     * A raw read whose column list lacks the column (search's CTE names its columns by hand) hands the mapper
+     * `undefined`, not `null`. That is "not published" too, and must never reach `toIsoString`, which throws on it.
+     */
+    it('OMITS firstPublishedAt when the row carries no such column at all', () => {
+        const { firstPublishedAt: _absent, ...withoutColumn } = row({ status: 'draft' });
+
+        expect(recipeRowToDomain(withoutColumn as RecipeRowInput)).not.toHaveProperty('firstPublishedAt');
+    });
+
     it('coerces the trigger-maintained averageRating (numeric string) to a number when rated', () => {
         expect(recipeRowToDomain(row({ averageRating: '4.50', ratingCount: 12 })).averageRating).toBe(4.5);
     });

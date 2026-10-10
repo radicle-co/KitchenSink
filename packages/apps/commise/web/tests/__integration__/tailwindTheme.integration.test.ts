@@ -213,29 +213,25 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         expect(ruleFor(css, 'text-sm')).toContain('var(--text-sm)');
     });
 
-    it('emits a real rule for every utility the source-tab affordance depends on', async () => {
-        // "The class is in the JSX" is not proof it paints anything: this repo shipped an entire DS type ramp
-        // that compiled to NOTHING. The recipe-source switcher's resting affordance is made of these four
-        // utilities, so each must resolve to a declaration that actually names its token. They come from the
-        // SHARED `@commise/features-recipes` package, which is why the `@source` glob for it is load-bearing —
-        // drop that glob and these vanish while every jsdom test still passes.
+    /**
+     * REWRITTEN (CI run 38010247909): this pinned the recipe-source tabs' utilities, and those tabs were deleted with
+     * their dead component, so it asserted classes nothing renders. What it guards is unchanged: a utility used ONLY by
+     * the SHARED `@commise/features-recipes` package compiles to a real rule, which holds only while the `@source`
+     * glob for that package is in `globals.css`. The ingredient list's amount column and its second line's offset are
+     * such utilities. They are assembled rather than spelled, because Tailwind scans this file as text too, and a
+     * literal here would generate them whatever the glob says.
+     */
+    it('emits a real rule for a utility only the shared recipes package uses (its `@source` glob is load-bearing)', async () => {
         const css = await cssPromise;
+        const cssClass = (utility: string): string =>
+            `.${utility.replace(/[^\w-]/gu, (character) => `\\${character}`)}`;
+        const amountColumn = 'w-['.concat('4.5rem]');
+        const secondLineOffset = 'pl-[calc('.concat('4.5rem+0.75rem)]');
 
-        // Role utilities since UI-overhaul slice 2 (D15), each reading its role's variable.
-        expect(ruleFor(css, 'bg-surface-muted'), 'the inactive tab’s resting fill').toContain(
-            'var(--color-surface-muted)',
+        expect(css, 'the amount column').toContain(`${cssClass(amountColumn)} {\n    width: 4.5rem;`);
+        expect(css, 'the second line’s offset').toContain(
+            `${cssClass(secondLineOffset)} {\n    padding-left: calc(4.5rem + 0.75rem);`,
         );
-        expect(ruleFor(css, 'border-line-control'), 'the inactive tab’s boundary').toContain(
-            'var(--color-line-control)',
-        );
-        expect(ruleFor(css, 'border-selected-edge'), 'the active tab’s underline').toContain(
-            'var(--color-selected-edge)',
-        );
-        expect(ruleFor(css, 'rounded-t-lg'), 'the folder-tab geometry').toContain('border-top-left-radius');
-        // Variant-scoped utilities compile to a nested/at-ruled selector, so they are matched by presence
-        // rather than by a flat `.class { … }` body — but they must be PRESENT, which is the regression risk.
-        expect(css, 'the hover fill').toContain('hover\\:bg-ink\\/6');
-        expect(css, 'the focus ring').toContain('focus-visible\\:ring-ocean-dark');
     });
 });
 

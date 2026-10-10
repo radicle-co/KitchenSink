@@ -22,7 +22,8 @@ import { SearchField } from '@commise/ui/search-field';
 import type { CollectionResponse } from '@kitchensink/schema-recipe';
 import { useId, type FC, type MouseEvent } from 'react';
 
-import { fillTemplate, formatRecipeCount } from '../list/model.js';
+import { formatRecipeCount } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
 import { COLLECTION_SEARCH_FROM, type CollectionListResultsProps } from './model.js';
 

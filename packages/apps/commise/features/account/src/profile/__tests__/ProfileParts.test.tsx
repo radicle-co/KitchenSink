@@ -158,6 +158,18 @@ describe('ProfileValueRow and ProfileGroup (web)', () => {
         expect(screen.queryByRole('button')).toBeNull();
     });
 
+    // `evaluateFinal.md` sev-2: the email broke inside the word ("examp / le"). A row value is one line, truncated
+    // (`buildSpec.md` §9.1); the header shows the whole address, and the row names it in full on hover.
+    it('keeps a long value on one line, truncated, with the whole value in its title', () => {
+        render(<ProfileValueRow label="Email" value="eliza.moreno+longaddress@example-kitchen.com" />);
+
+        const value = screen.getByText('eliza.moreno+longaddress@example-kitchen.com');
+
+        expect(value.className.split(' ')).toContain('truncate');
+        expect(value.className).not.toContain('overflow-wrap');
+        expect(value.getAttribute('title')).toBe('eliza.moreno+longaddress@example-kitchen.com');
+    });
+
     it('names a group by its H2 heading', () => {
         render(
             <ProfileGroup heading="Preferences">
@@ -194,13 +206,19 @@ describe('DisplayNameSheet (web)', () => {
         ...overrides,
     });
 
+    // `evaluateFinal.md` §4: the field repeated the sheet's title as its label. It is "Display name", with a hint.
+    it('labels the field “Display name” and says where the name shows', () => {
+        render(<DisplayNameSheet {...sheet()} />);
+
+        expect(screen.getByText('Shown on recipes you publish.')).toBeTruthy();
+        expect(screen.getAllByText('Display name').length).toBeGreaterThan(0);
+    });
+
     it('is a dialog titled “What should we call you?” holding one labelled field with the draft', () => {
         render(<DisplayNameSheet {...sheet()} />);
 
         expect(screen.getByRole('dialog', { name: 'What should we call you?' })).toBeTruthy();
-        expect((screen.getByRole('textbox', { name: 'What should we call you?' }) as HTMLInputElement).value).toBe(
-            'Eliza',
-        );
+        expect((screen.getByRole('textbox', { name: 'Display name' }) as HTMLInputElement).value).toBe('Eliza');
     });
 
     it('renders nothing while closed', () => {
@@ -269,7 +287,7 @@ describe('DisplayNameSheet (web)', () => {
     it('announces a failed save and marks the field invalid', () => {
         render(<DisplayNameSheet {...sheet({ failed: true })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t save your name. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t save your name. Try again.');
         expect(screen.getByRole('textbox').getAttribute('aria-invalid')).toBe('true');
     });
 
@@ -303,7 +321,7 @@ describe('DisplayNameSheet (web) — the length limit', () => {
             />,
         );
 
-        expect(screen.getByRole('textbox', { name: 'What should we call you?' }).getAttribute('maxlength')).toBe(
+        expect(screen.getByRole('textbox', { name: 'Display name' }).getAttribute('maxlength')).toBe(
             String(DISPLAY_NAME_MAX_LENGTH),
         );
     });

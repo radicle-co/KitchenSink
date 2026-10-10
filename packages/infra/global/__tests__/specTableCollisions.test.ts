@@ -175,6 +175,15 @@ const TABLE_EXEMPTIONS: readonly TableExemption[] = [
             'its own migrations directory.',
     },
     {
+        table: 'settings',
+        owners: ['packages/services/identity', 'packages/shared/identity-db'],
+        why:
+            'The authoritative declaration is `packages/shared/identity-db/src/schema/settings.ts`; the second ' +
+            "site is the identity service's own migration SQL that CREATES it (`0015_settings.sql`, ADR-0059). " +
+            'Migration DDL and the Drizzle schema for the same table in the same database are the intended pair, ' +
+            'the same package-vs-its-own-migrations attribution artefact recorded for `lifecycle_events` above.',
+    },
+    {
         table: 'webhook_events',
         owners: ['packages/services/identity', 'packages/shared/identity-db'],
         why:

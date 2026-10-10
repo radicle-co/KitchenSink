@@ -108,7 +108,7 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
                     <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
                 </span>
             )}
-            {chips === 'all' && (
+            {chips === 'all' && cover.time !== undefined && (
                 <span aria-label={cover.time.label} className={`absolute bottom-2 start-2 ${COVER_CHIP}`}>
                     <Icon name="clock" size={16} />
                     <span className="tabular-nums lining-nums">{cover.time.text}</span>
@@ -288,10 +288,12 @@ const RowMeta: FC = () => {
                     <span className="truncate">{recipe.cuisine}</span>
                 </span>
             )}
-            <span data-sep={sep} aria-label={meta.timeLabel} className={LINE_ITEM}>
-                <Icon name="clock" size={16} />
-                <span className="tabular-nums lining-nums">{meta.duration}</span>
-            </span>
+            {meta.duration !== undefined && (
+                <span data-sep={sep} aria-label={meta.timeLabel} className={LINE_ITEM}>
+                    <Icon name="clock" size={16} />
+                    <span className="tabular-nums lining-nums">{meta.duration}</span>
+                </span>
+            )}
             <span data-sep={sep} aria-label={meta.servingsLabel} className={LINE_ITEM}>
                 <Icon name="users" size={16} />
                 <span className="tabular-nums lining-nums">{recipe.servings}</span>

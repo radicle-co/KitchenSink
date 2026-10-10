@@ -25,7 +25,7 @@ import { Sheet } from '@commise/ui/sheet';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useCallback, useId, useState, type FC, type KeyboardEvent, type ReactNode } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { recipeNutritionMessages } from '../nutrition/messages.js';
 import { type DetailsTextMessages, caloriesLabel, dialogViewOf, variantOptionName } from './detailsText.js';

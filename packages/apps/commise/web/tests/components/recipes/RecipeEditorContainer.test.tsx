@@ -14,21 +14,25 @@ import { recipeSender } from '@commise/query/recipe-sender';
 import { SyncProvider } from '@commise/query/sync';
 import { NotFoundError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+import { focusManager } from '@tanstack/react-query';
+import { EMPTY_OUTBOX, saveOutbox, type OutboxStore } from '@kitchensink/sync';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { defaultRecipeFormValues, mintLineKey, recipeFormMessages } from '@commise/features-recipes';
 
 import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContainer';
+import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { editorDraftsFor } from '@/components/recipes/editorDrafts';
 
 import { makeRecipeDetail } from './__fixtures__/recipeFixtures';
 
-const { pushMock, profile } = vi.hoisted(() => ({
+const { pushMock, replaceMock, profile } = vi.hoisted(() => ({
     pushMock: vi.fn(),
+    replaceMock: vi.fn(),
     profile: { tier: undefined as string | undefined },
 }));
 
 vi.mock('next/navigation', () => ({
-    useRouter: () => ({ push: pushMock }),
+    useRouter: () => ({ push: pushMock, replace: replaceMock }),
     useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 vi.mock('@clerk/nextjs', () => ({ useAuth: () => ({ userId: 'user_cook' }) }));
@@ -43,16 +47,22 @@ vi.mock('@/components/recipes/RecipePhotoUploaderContainer', () => ({ RecipePhot
 afterEach(() => {
     cleanup();
     pushMock.mockReset();
+    replaceMock.mockReset();
+    vi.restoreAllMocks();
     profile.tier = undefined;
     window.sessionStorage.clear();
     window.history.replaceState(null, '', '/');
 });
 
-/** Render the container under the real outbox, sending with `client`. */
-function renderEditor(client: RecipeServiceClient, recipeId?: string): void {
+/** Render the container under the real outbox (the app's store when given), sending with `client`. */
+function renderEditor(client: RecipeServiceClient, recipeId?: string, store?: OutboxStore): void {
     renderWithRecipeClient(
         withFoodClient(
-            <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
+            <SyncProvider
+                subject="user_cook"
+                send={recipeSender(() => client)}
+                {...(store === undefined ? {} : { store })}
+            >
                 <RecipeEditorContainer locale="en" {...(recipeId === undefined ? {} : { recipeId })} />
             </SyncProvider>,
         ),
@@ -196,6 +206,101 @@ describe('RecipeEditorContainer (web)', () => {
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
         expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+});
+
+/**
+ * The URL follows a new recipe without a navigation, through Next's OWN shallow-update path (code-reviewer High 4 of the
+ * 2026-10-09 review). Passing `history.state` carried Next's `__NA` flag, so Next skipped its router sync: it never
+ * learned the new URL, its next commit rewrote it, a reload opened a blank editor, and Back restored the new-recipe tree
+ * under the edit address, where typing made a second recipe. The URL now stays on the new route, `?draft=` naming the
+ * local ref and then the server id; the new route, reopened on a recipe the server holds, goes to its edit route.
+ */
+describe('RecipeEditorContainer (web) — the URL after the first save', () => {
+    const SERVER_ID = '0b7f8a52-3c1d-4e2f-9a6b-5c4d3e2f1a0b';
+
+    it('⛔ names the server id in ?draft= through Next`s history sync, never with Next`s own state', async () => {
+        // The entry as Next leaves it: its own state, flagged `__NA`, which its patched `replaceState` passes through
+        // untouched (`next/dist/client/components/app-router.js`), skipping the router sync.
+        window.history.replaceState({ __NA: true }, '', '/en/recipes/new');
+        const replaceState = vi.spyOn(window.history, 'replaceState');
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'createRecipe').mockResolvedValue(
+            makeRecipeDetail({ id: SERVER_ID, title: 'Soup', status: RecipeStatus.DRAFT }),
+        );
+
+        renderEditor(client);
+        const title = await screen.findByRole('textbox', { name: /title/iu });
+        await userEvent.type(title, 'Soup');
+        // The tab going to the background is a checkpoint: the draft floor passes, so the create goes out.
+        act(() => {
+            focusManager.setFocused(false);
+        });
+        focusManager.setFocused(undefined);
+
+        await waitFor(() => expect(replaceState).toHaveBeenLastCalledWith(null, '', `?draft=${SERVER_ID}`));
+        expect(replaceState.mock.calls.every(([state]) => state === null)).toBe(true);
+    });
+
+    it('⛔ reopened on a ?draft= the server holds (a reload, or Back), goes to that recipe`s edit route', async () => {
+        window.history.replaceState(null, '', `/en/recipes/new?draft=${SERVER_ID}#steps`);
+
+        renderEditor(createFakeRecipeServiceClient());
+
+        await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(`/en/recipes/${SERVER_ID}/edit#steps`));
+        expect(screen.queryByRole('heading', { level: 1, name: 'New recipe' })).toBeNull();
+    });
+
+    /**
+     * The editor closed before its create answered (browser Back runs the exit checkpoint as it unmounts), so the outbox's
+     * observer moved the draft to the server id. The history entry still names the local ref: the journal's resolution
+     * of it leads to the recipe, where reading the draft under the local ref would open a blank form.
+     */
+    it('⛔ reopened on a local ref whose create the outbox resolved, goes to the recipe`s edit route', async () => {
+        await saveOutbox(webDeviceStore, 'user_cook', {
+            ...EMPTY_OUTBOX,
+            resolutions: { 'local:recipe:gone': SERVER_ID },
+        });
+        window.history.replaceState(null, '', '/en/recipes/new?draft=local:recipe:gone');
+
+        renderEditor(createFakeRecipeServiceClient(), undefined, webDeviceStore);
+
+        await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(`/en/recipes/${SERVER_ID}/edit`));
+    });
+
+    /**
+     * Browser Back or a link moves the URL first, then unmounts the editor, whose exit checkpoint mints the recipe's ref
+     * (and later adopts its server id). Following that ref then rewrote the URL of the page the cook had gone to.
+     */
+    it('⛔ never rewrites the URL of a page the cook has already gone to', async () => {
+        window.history.replaceState(null, '', '/en/recipes/new');
+        const view = renderWithRecipeClient(
+            withFoodClient(
+                <SyncProvider subject="user_cook" send={recipeSender(() => createFakeRecipeServiceClient())}>
+                    <RecipeEditorContainer locale="en" />
+                </SyncProvider>,
+            ),
+            createFakeRecipeServiceClient(),
+        );
+        await userEvent.type(await screen.findByRole('textbox', { name: /title/iu }), 'Soup');
+
+        // Back: the router has moved the URL to My recipes; then the editor unmounts.
+        window.history.replaceState(null, '', '/en/recipes');
+        view.unmount();
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        expect(window.location.pathname + window.location.search).toBe('/en/recipes');
+    });
+
+    it('a ?draft= that names neither a local ref nor a recipe id opens a blank new recipe', async () => {
+        window.history.replaceState(null, '', '/en/recipes/new?draft=..%2F..%2Fadmin');
+
+        renderEditor(createFakeRecipeServiceClient());
+
+        expect(await screen.findByRole('heading', { level: 1, name: 'New recipe' })).toBeTruthy();
+        expect(replaceMock).not.toHaveBeenCalled();
     });
 });
 

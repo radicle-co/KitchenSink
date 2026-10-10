@@ -15,7 +15,7 @@ import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import type { StepRowProps } from './cookRowProps.js';
 import { stepTimerLabel } from './model.js';

@@ -39,14 +39,14 @@ import {
 } from '../hooks/foodSuggestions.model.js';
 import type { RemoteFoodPick } from '../hooks/lineCommit.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type {
     IngredientLineNameMessages,
     IngredientRemoteSearchMessages,
     RecipeDurationMessages,
 } from '../messages.js';
 import type { RefreshNoticeControl, RetryControl } from '../refresh/model.js';
-import { lineDisplayName, snapshotLineName, variantPartTexts, type NameableLine } from './lineName.js';
+import { lineAmountName, snapshotLineAmountName, variantPartTexts, type NameableLine } from './lineName.js';
 
 /**
  * Separates the two bounds of a stated range (`2–3 cups`).
@@ -123,7 +123,8 @@ export const lineSummary = (
     line: Pick<RecipeIngredientView, 'quantity' | 'unit'> & NameableLine,
     locale: Locale,
     labels: IngredientLineNameMessages,
-): string => `${formatQuantity(line.quantity, locale, line.unit)} ${lineDisplayName(line, labels)}`.trim();
+): string =>
+    `${formatQuantity(line.quantity, locale, line.unit)} ${lineAmountName(line, line.quantity, line.unit, labels)}`.trim();
 
 /**
  * The read view's ingredient checkbox name (`docs/design/ingredientSpecialization.md` §S5): {@link lineSummary} on a
@@ -150,7 +151,7 @@ export const ingredientCheckLabel = (
 
     return fillTemplate(withDetails, {
         quantity: formatQuantity(line.quantity, locale, line.unit),
-        food: lineDisplayName(line, labels),
+        food: lineAmountName(line, line.quantity, line.unit, labels),
         parts: spokenVariantParts(parts),
     }).trim();
 };
@@ -190,7 +191,7 @@ export const formatIngredientLine = (
     locale: Locale,
     labels: IngredientLineNameMessages,
 ): string => {
-    const frozenName = snapshotLineName(ingredient, labels);
+    const frozenName = snapshotLineAmountName(ingredient, labels);
     const name = ingredient.displayText !== undefined ? `${frozenName} (${ingredient.displayText})` : frozenName;
     const described = ingredient.preparation === undefined ? name : `${name}, ${ingredient.preparation}`;
     // `.trim()`: an ABSENT quantity with no unit formats to `''` (R40), which would otherwise leave the line
@@ -812,11 +813,15 @@ export const clonePrivateFoodsBannerText = (
  * (`RecipeHero.native.tsx`) leaves so the two cannot drift on the contract (§14.4).
  */
 export interface RecipeHeroProps {
-    /** The recipe title — the photos' alt text and the carousel's names are built from it. */
+    /** The recipe's id — with no photo, it picks the monogram band's tint (`RecipeCover`). */
+    readonly recipeId: string;
+    /** The recipe title — the photos' alt text and the carousel's names are built from it; its first letter is the monogram. */
     readonly title: string;
+    /** The cuisine, the monogram band's overline. */
+    readonly cuisine?: string;
     /**
      * The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the
-     * hero is the carousel itself and shows the cover once (F2). EMPTY → the deliberate no-photo placeholder.
+     * hero is the carousel itself and shows the cover once (F2). EMPTY → the 96 px monogram band (§1.8, §6.7).
      *
      * Deliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here
      * as well is how the cover came to be painted twice.

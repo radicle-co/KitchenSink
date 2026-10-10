@@ -27,7 +27,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { accounts, eraseIdentityRow, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
+import { accounts, eraseIdentityRow, lifecycleEvents, profiles, settings, users } from '@kitchensink/identity-db';
 
 import { identityDb, openTestDb, resetIdentityRows } from '../support/roleDb.js';
 import { makeIdentityAccount, makeIdentityProfile, makeIdentityUser } from '../__fixtures__/makeIdentityUser.js';
@@ -109,6 +109,21 @@ describe('eraseIdentityRow (integration — real Postgres)', () => {
         // The load-bearing half: an unbounded companion DELETE would have taken these too.
         expect(await db.select().from(accounts).where(eq(accounts.userId, bystanderId))).toHaveLength(1);
         expect(await db.select().from(profiles).where(eq(profiles.userId, bystanderId))).toHaveLength(1);
+    });
+
+    it('deletes ONLY the target’s settings row — personal data goes, a bystander keeps theirs (ADR-0059)', async () => {
+        const targetId = await seedCompleteUser();
+        const bystanderId = await seedCompleteUser();
+
+        await db.insert(settings).values([
+            { userId: targetId, searchShortcut: false },
+            { userId: bystanderId, searchShortcut: false },
+        ]);
+
+        await eraseIdentityRow(db, { userId: targetId, triggerSource: 'admin', actor: 'clerk-webhook' }, new Date());
+
+        expect(await db.select().from(settings).where(eq(settings.userId, targetId))).toHaveLength(0);
+        expect(await db.select().from(settings).where(eq(settings.userId, bystanderId))).toHaveLength(1);
     });
 
     it('appends exactly ONE R8 audit row, carrying the caller’s trigger source and actor', async () => {

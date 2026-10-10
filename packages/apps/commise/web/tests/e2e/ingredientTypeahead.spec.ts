@@ -96,4 +96,68 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
             'Custom ingredients count only the nutrition you entered for them.',
         );
     });
+
+    /**
+     * The flake this spec used to show, made deterministic: the autosave's create answers while the cook is typing in
+     * the add field. The create is HELD until the three characters are typed and the list is open, then released, so
+     * the page changes under the open list (the photo uploader and Discard mount, the section hints go) exactly when it
+     * did by chance before. The pick must still land.
+     */
+    test('a food picked while the autosave create answers still lands on the recipe', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        await mockFoodApi(page);
+
+        let releaseCreate: () => void = () => undefined;
+        const createReleased = new Promise<void>((resolve) => {
+            releaseCreate = resolve;
+        });
+        let createHeld = false;
+
+        await page.route('**/api/v1/recipes', async (route) => {
+            if (route.request().method() !== 'POST') {
+                await route.fallback();
+
+                return;
+            }
+
+            createHeld = true;
+            await createReleased;
+            await route.fallback();
+        });
+
+        await openNewRecipe(page);
+        await page.getByLabel('Title').fill('E2E Held Create');
+        await page.getByLabel('Description').fill('A pantry-forward herb blend.');
+        await page.getByLabel('Cuisine').selectOption('French');
+        await setServings(page, 4);
+        await fillTimes(page, { prepMinutes: 5 });
+        await page.getByRole('radio', { name: 'Easy' }).click();
+
+        const search = page.getByRole('combobox', { name: 'Add an ingredient' });
+
+        await search.fill('sal');
+        const salt = page
+            .getByRole('group', { name: 'Food catalog' })
+            .getByRole('option', { name: 'Salt', exact: true });
+
+        await expect(salt).toBeVisible();
+        // The create goes out on the server checkpoint's idle timer (10 s after the last edit, `checkpointPolicy.ts`).
+        await expect.poll(() => createHeld, { timeout: 20_000 }).toBe(true);
+
+        const created = page.waitForResponse(
+            (response) => response.url().endsWith('/api/v1/recipes') && response.request().method() === 'POST',
+        );
+
+        releaseCreate();
+        await created;
+        // The page has changed under the open list: the photo uploader mounts only once the recipe is stored.
+        await expect(page.getByLabel('Add photo')).toBeAttached();
+
+        await salt.click();
+
+        await expect(page.getByRole('button', { name: /^Edit .*Salt$/ })).toBeVisible();
+        await expect(search).toHaveValue('');
+    });
 });

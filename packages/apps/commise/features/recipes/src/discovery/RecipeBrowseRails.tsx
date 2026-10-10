@@ -25,7 +25,7 @@ import { EnterTransition } from '@commise/ui/motion';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useState, type FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from './model.js';
 import { RailContext } from './railContext.js';

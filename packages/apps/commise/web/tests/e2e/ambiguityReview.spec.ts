@@ -71,7 +71,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
         await expect(page.getByRole('heading', { name: 'Ambiguity Probe' })).toBeVisible();
 
         // Both LINES badge; the entry counts lines.
-        await expect(page.getByText('Needs a pick')).toHaveCount(2);
+        await expect(page.getByText('Choose a match')).toHaveCount(2);
         await expect(
             page.getByText('2 ingredients could match more than one food. Review them to sharpen the nutrition.'),
         ).toBeVisible();
@@ -93,7 +93,7 @@ test.describe('recipe detail — the ambiguity review surface (U13)', () => {
         await expect(page.getByRole('checkbox', { name: `2 tbsp ${E2E_CATALOG_FOOD.name}` })).toBeVisible();
         await expect(spoonRow).toHaveCount(0);
         await expect(cupRow.getByRole('button', { name: E2E_CATALOG_FOOD.name })).toBeVisible();
-        await expect(page.getByText('Needs a pick')).toHaveCount(1);
+        await expect(page.getByText('Choose a match')).toHaveCount(1);
 
         // ⛔ ONE rebind, for the line the pick was made on, at the version read; no correction of its own.
         expect(rebinds.map((each) => [each.path, each.body])).toEqual([

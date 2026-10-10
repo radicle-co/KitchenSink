@@ -29,6 +29,15 @@ export const stepsErrorId = 'recipe-steps-error';
 export const ingredientUnitNoteId = (index: number): string => `recipe-ingredient-${index}-unit-note`;
 
 /**
+ * The id of one row editor's amount note ("Check the amount"), which describes both bounds while either holds text that
+ * states no amount. By the line's key, like the editor's fields (`ingredientEditorFieldId`).
+ *
+ * @param key - The line's key.
+ * @returns The element id. Pure.
+ */
+export const ingredientAmountNoteId = (key: string): string => `recipe-ingredient-${key}-amount-note`;
+
+/**
  * The id of ONE ingredient row's "no food chosen" note (plan U28).
  *
  * ⛔ PER ROW, for the same reason {@link ingredientUnitNoteId} is: a shared id would point every unresolved

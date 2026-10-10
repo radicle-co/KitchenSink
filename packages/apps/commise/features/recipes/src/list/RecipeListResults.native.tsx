@@ -28,7 +28,8 @@ import { RecipeCard } from '../card/RecipeCard.native.js';
 import { recipeMessages } from '../messages.js';
 import { LibrarySortMenu } from './LibrarySortMenu.native.js';
 import { RecipeCreateButton } from './RecipeCreateButton.native.js';
-import { fillTemplate, formatRecipeCount, shouldShowCreateButton, type RecipeListResultsProps } from './model.js';
+import { formatRecipeCount, shouldShowCreateButton, type RecipeListResultsProps } from './model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 
 /** The first run: the two ways to start. */
 const FirstRun: FC<Pick<RecipeListResultsProps, 'onCreateRecipe' | 'onPasteIngredients'>> = ({

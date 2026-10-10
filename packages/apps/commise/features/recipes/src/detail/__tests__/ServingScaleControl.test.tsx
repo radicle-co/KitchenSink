@@ -2,25 +2,46 @@
 /**
  * Component tests for the web serving-count control — the configurable yield the recipe scales to.
  *
+ * REWRITTEN for F8 (`evaluateFinal.md`): the control is the design system's `Stepper` (`[−] value [+]`, the value in
+ * Inter tabular digits, `buildSpec.md` §1.11), not a hand-built twin with a Playfair number field. The Stepper has no
+ * typed field, so the two typed-count tests are deleted: stepping is the spec's only input, and the range clamp they
+ * guarded now lives in `servingsRange` + `stepFrom`, which the step tests below still exercise at both ends.
+ *
  * Every state: at the recipe's own count, above it, below it, at both ends of the range (where the
  * corresponding control must be unavailable rather than silently no-op), and a recipe authored with more
  * servings than the display cap.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MAX_SCALED_SERVINGS, MIN_SCALED_SERVINGS } from '@kitchensink/recipe-core/scaling';
-import { useState, type FC } from 'react';
 
 import { ServingScaleControl } from '../ServingScaleControl.js';
 
 afterEach(cleanup);
 
+/** What the control's polite live region says now (the Stepper's `LiveRegion` may hold more than one node). */
+const spoken = (): string =>
+    screen
+        .getAllByRole('status')
+        .map((node) => node.textContent)
+        .join('');
+
 describe('ServingScaleControl (web)', () => {
     it('shows the serving count it was given', () => {
         render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
 
-        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '4');
+        expect(within(screen.getByRole('group', { name: 'Servings' })).getByText('4')).toBeTruthy();
+    });
+
+    // F8: Playfair never sets a number (`buildSpec.md` §1.5); the count is Inter `figure` with tabular digits.
+    it('sets the count in tabular digits, never the display face', () => {
+        render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
+
+        const count = within(screen.getByRole('group', { name: 'Servings' })).getByText('4');
+
+        expect(count.className).toContain('tabular-nums');
+        expect(count.className).not.toContain('font-display');
     });
 
     it('adds one serving when the increase control is used', async () => {
@@ -39,44 +60,6 @@ describe('ServingScaleControl (web)', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Fewer servings' }));
 
         expect(onServingsChange).toHaveBeenCalledWith(3);
-    });
-
-    it('reports a typed serving count', async () => {
-        // Driven through a real controlled owner, because a keystroke on a controlled input is only
-        // meaningful if the value actually moves — asserting against a frozen `servings` prop would be
-        // testing the harness, not the control.
-        const reported: number[] = [];
-
-        const Harness: FC = () => {
-            const [servings, setServings] = useState(4);
-
-            return (
-                <ServingScaleControl
-                    servings={servings}
-                    baseServings={4}
-                    onServingsChange={(next) => {
-                        reported.push(next);
-                        setServings(next);
-                    }}
-                />
-            );
-        };
-
-        render(<Harness />);
-        const input = screen.getByLabelText('Servings');
-        await userEvent.clear(input);
-        await userEvent.type(input, '8');
-
-        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '8');
-
-        // Clearing the field is a real intermediate state (the parsed value is NaN). Every value that
-        // leaves this control must still be a usable serving count, or NaN reaches the scaling arithmetic,
-        // which throws on it.
-        for (const value of reported) {
-            expect(Number.isInteger(value)).toBe(true);
-            expect(value).toBeGreaterThanOrEqual(MIN_SCALED_SERVINGS);
-            expect(value).toBeLessThanOrEqual(MAX_SCALED_SERVINGS);
-        }
     });
 
     /**
@@ -135,14 +118,12 @@ describe('ServingScaleControl (web)', () => {
      */
     it('⛔ is silent on open, then announces the count after a step', async () => {
         const { rerender } = render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
-        const region = screen.getByRole('status');
-        expect(region.textContent).toBe('');
+        expect(spoken()).toBe('');
 
         await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
         rerender(<ServingScaleControl servings={5} baseServings={4} onServingsChange={vi.fn()} />);
 
-        expect(screen.getByRole('status')).toBe(region);
-        expect(region.textContent).toBe('5 servings');
+        expect(spoken()).toBe('5 servings');
     });
 
     it('names the limit when a step reaches the end of the range', async () => {
@@ -153,7 +134,7 @@ describe('ServingScaleControl (web)', () => {
         await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
         rerender(<ServingScaleControl servings={MAX_SCALED_SERVINGS} baseServings={4} onServingsChange={vi.fn()} />);
 
-        expect(screen.getByRole('status').textContent).toBe(`${MAX_SCALED_SERVINGS} servings, maximum`);
+        expect(spoken()).toBe(`${MAX_SCALED_SERVINGS} servings, maximum`);
     });
 
     it('says nothing for a refused press at the limit', async () => {
@@ -161,26 +142,14 @@ describe('ServingScaleControl (web)', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
 
-        expect(screen.getByRole('status').textContent).toBe('');
-    });
-
-    it('stays silent while the cook types a count, and announces it once they leave the field', async () => {
-        render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
-        const field = screen.getByRole('spinbutton', { name: 'Servings' });
-
-        await userEvent.clear(field);
-        await userEvent.type(field, '1');
-        expect(screen.getByRole('status').textContent).toBe('');
-
-        await userEvent.tab();
-        expect(screen.getByRole('status').textContent).toBe('4 servings');
+        expect(spoken()).toBe('');
     });
 
     it('clears the 44px touch floor on every control', () => {
         render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
 
         for (const name of ['Fewer servings', 'More servings']) {
-            expect(screen.getByRole('button', { name }).className).toContain('min-h-11');
+            expect(screen.getByRole('button', { name }).className.split(' ')).toContain('size-11');
         }
     });
 });

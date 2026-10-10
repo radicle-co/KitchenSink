@@ -22,7 +22,7 @@ import { useTheme } from '@commise/ui/theme';
 import { useId, type FC } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { CollectionRecipePickerProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 import { doneLabelOf } from './pickerModel.js';

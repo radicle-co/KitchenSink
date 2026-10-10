@@ -18,7 +18,7 @@ import type { ComboboxProps } from '@commise/ui/combobox';
 import type { EditorMessages } from '../editor/messages.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientEntry } from '../hooks/useIngredientEntry.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { entryComboboxOf, type EntryComboboxCopy } from './entryCombobox.js';
 import type { RecipeFormMessages } from './messages.js';
 import type { SourceNaming } from './progressiveNotes.js';

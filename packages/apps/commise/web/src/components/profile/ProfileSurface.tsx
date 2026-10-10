@@ -5,8 +5,9 @@
  * Profile, Settings and Account used to be three routes; this is all of it: who the cook is, the one thing they can
  * change (the display name), preferences, sign out, and the danger zone.
  *
- * ORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the router and the
- * display-name editor, and hands the render leaves from `@commise/features-account/profile` their state. The read
+ * ORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the settings read and write
+ * (a preference is a setting on the server, D19 / ADR-0059, saved optimistically and put back with a message when the
+ * save fails), the router and the display-name editor, and hands the render leaves from `@commise/features-account/profile` their state. The read
  * decides one of three states — loading, failed, ready — and ONLY the account group depends on it: sign out and the
  * danger zone need no profile, so a failed read never takes them away (E15).
  *
@@ -34,6 +35,7 @@ import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
+import { SETTINGS_DEFAULTS } from '@kitchensink/schema-identity';
 import { useId, type FC } from 'react';
 
 import { AccountCloseForm } from '@/components/auth/AccountCloseForm';
@@ -41,6 +43,7 @@ import { AccountEraseForm } from '@/components/auth/AccountEraseForm';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { ShortcutSwitchRow } from '@/components/profile/ShortcutSwitchRow';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useUserSettings } from '@/hooks/useUserSettings';
 import { createProfileServiceClient } from '@/lib/identityServiceClient';
 import { withBasePath } from '@/lib/basePath';
 
@@ -61,6 +64,10 @@ export const ProfileSurface: FC = () => {
         profileMutations(createProfileServiceClient(async () => (await getToken()) ?? '')).update(),
     );
     const editor = useDisplayNameEditor({ saved, user, update });
+    const settings = useUserSettings();
+    const patchSettings = useMutation(
+        profileMutations(createProfileServiceClient(async () => (await getToken()) ?? '')).patchSettings(),
+    );
     const sourcesPath = `/${locale}/legal/sources`;
     const homePath = `/${locale}`;
 
@@ -101,8 +108,17 @@ export const ProfileSurface: FC = () => {
                     href={withBasePath(sourcesPath)}
                     onPress={() => router.push(sourcesPath as Route)}
                 />
-                <ShortcutSwitchRow />
+                <ShortcutSwitchRow
+                    checked={settings.data?.searchShortcut ?? SETTINGS_DEFAULTS.searchShortcut}
+                    // Not awaited: the cache is already updated and a paused (offline) save resumes by itself.
+                    onChange={(searchShortcut) => patchSettings.mutate({ searchShortcut })}
+                />
             </ProfileGroup>
+            {patchSettings.isError ? (
+                <p role="alert" className="text-meta text-danger-text">
+                    {t.settingSaveFailed}
+                </p>
+            ) : null}
             <ProfileGroup label={t.signOut}>
                 <LogoutButton />
             </ProfileGroup>

@@ -18,6 +18,7 @@ import userEvent from '@testing-library/user-event';
 import { useState, type FC } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { createPasteHold } from '../../src/editor/pasteHold.js';
 import { useIngredientsPaste } from '../../src/editor/useIngredientsPaste.js';
 import { PasteListSheet } from '../../src/form/PasteListSheet.js';
 import { applyDraftAction } from '../../src/form/props.js';
@@ -116,7 +117,9 @@ function wire(beforeJob: () => Promise<void> = async () => undefined) {
 /** A new recipe's Ingredients section: its draft, the paste, and the sheet. */
 const Editor: FC<{ readonly onValues: (values: RecipeFormValues) => void }> = ({ onValues }) => {
     const [values, setValues] = useState(() => ({ ...defaultRecipeFormValues(), title: 'Pasted Bread' }));
+    const [hold] = useState(createPasteHold);
     const paste = useIngredientsPaste({
+        hold,
         offered: true,
         keepsSource: true,
         dispatch: (action) =>
@@ -181,7 +184,8 @@ describe('Paste a list — on the wire', () => {
         expect(body.ingredients[0]).toMatchObject({
             ingredientId: FLOUR_ID,
             quantity: { kind: 'exact', value: 2 },
-            unit: 'cup',
+            // The unit as the cook stated it ("2 cups"), never rewritten to the parse's "cup" (F12).
+            unit: 'cups',
             preparation: 'sifted',
             sourceLine: '2 cups flour, sifted',
             sourcePhrase: 'flour',

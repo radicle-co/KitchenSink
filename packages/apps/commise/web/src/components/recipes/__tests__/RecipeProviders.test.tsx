@@ -36,8 +36,11 @@ import { useEffect, useState, type ReactElement } from 'react';
 import { useSyncQueue } from '@commise/query/sync';
 
 import { isSessionSubjectChangedError } from '@commise/features-account';
+import { appendIntent, loadOutbox, outboxMutatorFor } from '@kitchensink/sync';
 
 import { RecipeAuthNotReadyError } from '@/lib/recipeAuthNotReady';
+import { webDeviceStore } from '@/components/recipes/deviceSession';
+import { editorDraftsFor } from '@/components/recipes/editorDrafts';
 
 const { useAuthMock, clerk } = vi.hoisted(() => ({
     useAuthMock: vi.fn(),
@@ -429,6 +432,94 @@ describe('RecipeProviders (web) — the cache ends with the cook’s session', (
         view.switchTo('user_A');
 
         expect(view.reads()).toBe(1);
+    });
+});
+
+/**
+ * ADR-0057, owner D7 (as amended 2026-10-09): the cook's editor drafts and unsent saves end with their session however
+ * it ends, not only through our own sign-out command (code-reviewer High 2): another tab's sign-out, a Clerk expiry or
+ * revocation and the UserButton all reach this tab only as `useAuth().userId` changing.
+ */
+describe('RecipeProviders (web) — the cook’s editor work ends with their session', () => {
+    async function seedEditorWork(subject: string): Promise<void> {
+        await editorDraftsFor(subject)?.save({
+            recipeRef: 'local:recipe:a',
+            baseVersion: null,
+            values: {
+                title: 'Soup',
+                description: '',
+                cuisine: '',
+                tags: [],
+                dietaryFlags: [],
+                servings: 2,
+                prepTimeMinutes: 0,
+                cookTimeMinutes: 0,
+                visibility: 'public',
+                ingredients: [],
+                steps: [],
+            },
+            pendingRebinds: [],
+            savedAt: '2026-10-09T12:00:00.000Z',
+        });
+        await outboxMutatorFor(webDeviceStore, subject).mutate((log) =>
+            appendIntent(log, { entity: 'recipe', intentKind: 'update', localId: 'rec_1', dependsOn: [], payload: {} }),
+        );
+    }
+
+    /** Whether the cook's draft and queued write are still in the tab. */
+    async function kept(subject: string): Promise<readonly boolean[]> {
+        return [
+            (await editorDraftsFor(subject)?.load('local:recipe:a')) !== undefined,
+            (await loadOutbox(webDeviceStore, subject)).records.length > 0,
+        ];
+    }
+
+    afterEach(() => {
+        window.sessionStorage.clear();
+    });
+
+    function renderAs(userId: string | null | undefined) {
+        const getToken = vi.fn().mockResolvedValue('tok');
+        const tree = () => (
+            <RecipeProviders>
+                <span>app</span>
+            </RecipeProviders>
+        );
+
+        useAuthMock.mockReturnValue({ getToken, userId });
+        const view = render(tree());
+
+        return {
+            switchTo: (next: string | null | undefined) => {
+                useAuthMock.mockReturnValue({ getToken, userId: next });
+                view.rerender(tree());
+            },
+        };
+    }
+
+    it.each([
+        ['the cook signs out (here, in another tab, by expiry or revocation)', null],
+        ['another cook signs in', 'user_B'],
+    ] as const)('⛔ removes the last cook’s drafts and outbox when %s', async (_case, next) => {
+        await seedEditorWork('user_A');
+        const view = renderAs('user_A');
+
+        view.switchTo(next);
+
+        await waitFor(async () => expect(await kept('user_A')).toEqual([false, false]));
+    });
+
+    it('⛔ keeps them while Clerk is loading, which is not a sign-out', async () => {
+        await seedEditorWork('user_A');
+        const view = renderAs('user_A');
+
+        view.switchTo(undefined);
+        view.switchTo('user_A');
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        expect(await kept('user_A')).toEqual([true, true]);
     });
 });
 

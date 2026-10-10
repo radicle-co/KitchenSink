@@ -216,7 +216,9 @@ export type { UnresolvedFoodReasonCode, UnresolvedFoodStatus } from './unresolve
 // spellings; a consumer wants `normalizeUnit` or `unitSpellingDependsOnCase`, never the table itself.
 export {
     classifyUnit,
+    isSizeWord,
     normalizeUnit,
+    SIZE_WORDS,
     unitSpellingDependsOnCase,
     unitToGrams,
     MASS_UNIT_TO_GRAMS,

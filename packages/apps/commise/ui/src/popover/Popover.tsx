@@ -23,11 +23,12 @@
  * @pattern Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken
  */
 import * as RadixPopover from '@radix-ui/react-popover';
-import { useContext, useEffect, useEffectEvent, useId, useRef, useState, type FC } from 'react';
+import { useContext, useId, useRef, useState, type FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
 import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
 import type { PopoverProps } from './props.js';
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
 /**
  * The busy glyph, in the icon's own box: `currentColor`, and still under `prefers-reduced-motion` (it then shows as a
@@ -60,17 +61,7 @@ export const Popover: FC<PopoverProps> = ({
     const readInsets = useContext(PopupInsetsContext);
     const [insets, setInsets] = useState<PopupInsets>({ top: 0, bottom: 0 });
     const triggerNode = useRef<HTMLButtonElement>(null);
-    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
-    const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
-
-    useEffect(() => {
-        if (!focusRequested) {
-            return;
-        }
-
-        triggerNode.current?.focus();
-        acknowledgeFocusRequest();
-    }, [focusRequested]);
+    useFocusRequest(focusRequested, () => triggerNode.current?.focus(), onFocusRequestHandled);
 
     const close = (): void => {
         setOpen(false);

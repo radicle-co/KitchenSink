@@ -98,7 +98,7 @@ test.describe('the display name', () => {
         await page.getByRole('button', { name: /Display name/ }).click();
 
         const dialog = page.getByRole('dialog', { name: 'What should we call you?' });
-        const field = dialog.getByRole('textbox', { name: 'What should we call you?' });
+        const field = dialog.getByRole('textbox', { name: 'Display name' });
 
         await expect(field).toHaveValue('Eliza Moreno');
 
@@ -121,7 +121,7 @@ test.describe('the display name', () => {
         await page.getByRole('button', { name: /Display name/ }).click();
 
         const dialog = page.getByRole('dialog', { name: 'What should we call you?' });
-        const field = dialog.getByRole('textbox', { name: 'What should we call you?' });
+        const field = dialog.getByRole('textbox', { name: 'Display name' });
 
         await field.clear();
         await field.pressSequentially('a'.repeat(105));
@@ -135,7 +135,7 @@ test.describe('the display name', () => {
         const { patches } = await openProfile(page);
 
         await page.getByRole('button', { name: /Display name/ }).click();
-        await page.getByRole('textbox', { name: 'What should we call you?' }).fill('Never saved');
+        await page.getByRole('textbox', { name: 'Display name' }).fill('Never saved');
         await page.getByRole('button', { name: 'Close' }).click();
 
         expect(patches).toEqual([]);

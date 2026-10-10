@@ -13,13 +13,24 @@
  *
  * ⛔ No fallback of any kind: nothing here reads a line's notes or preparation to stand in for its food.
  *
+ * ⛔ D21 (owner, 2026-10-10): the catalog names countable foods in the plural ("onions"), and a count of one reads
+ * "1 large onion". {@link nameForQuantity} is that rule, DISPLAY only, applied where a surface composes an amount with
+ * a name ({@link lineAmountName}, {@link snapshotLineAmountName}); a name stored, drafted or saved is never singularized.
+ *
  * Pure and platform-agnostic.
  *
  * @pattern Special Case (Fowler) — a stand-in name returned through the same interface as a real one, so no caller
  *   branches on a missing name; `isStandInName` tells a row to draw it as the `@commise/ui/stand-in` chip
  */
-import { FoodResolutionStatus, NAMELESS_LINE_STATUSES } from '@kitchensink/recipe-core';
+import {
+    classifyUnit,
+    FoodResolutionStatus,
+    isSizeWord,
+    NAMELESS_LINE_STATUSES,
+    type IngredientQuantity,
+} from '@kitchensink/recipe-core';
 import type { IngredientVariantPart, NamelessLineStatus, RecipeIngredient } from '@kitchensink/recipe-core';
+import pluralize from 'pluralize';
 
 import type { IngredientLineNameMessages } from '../messages.js';
 
@@ -94,4 +105,85 @@ export const variantPartTexts = (
     const [first, ...rest] = parts?.map((part) => part.text) ?? [];
 
     return first === undefined ? undefined : [first, ...rest];
+};
+
+// ⚠️ `pluralize`'s global rule tables are amended ONCE, here, for the catalog names its rules get wrong (found by
+// running every curated root name through `pluralize.singular`, 833 of 2,642 change): a word that is not a plural at
+// all (`molasses`, `pancreas`), a plural kept as sold (`nopales`, `haricots verts`, `oats`), a mass noun the catalog
+// names in the plural (`grits`, `bread crumbs`), and `-ie` words it cuts to `-y` (`cookies` → `cooky`).
+pluralize.addUncountableRule(
+    /\b(?:molasses|pancreas|bordeaux|calvados|pastis|nopales|haricots verts|oats|grits|bitters|crumbs|chitterlings|trimmings|sprinkles)$/iu,
+);
+pluralize.addSingularRule(/\b(cook|brown|smok|smooth)ies$/iu, '$1ie');
+pluralize.addSingularRule(/\bpierogies$/iu, 'pierogi');
+pluralize.addSingularRule(/\bchilies$/iu, 'chili');
+
+/** A name with two foods or a qualifier after the head noun, which has no one last word to singularize. */
+const COMPOUND_NAME = /\s(?:and|with)\s/iu;
+
+/** Whether `unit` leaves the amount a COUNT of the food: no unit, a size word, or a subjective one. Pure. */
+const isCountUnit = (unit: string | undefined): boolean => {
+    const stated = unit?.trim() ?? '';
+
+    return stated === '' || isSizeWord(stated) || classifyUnit(stated) === 'subjective';
+};
+
+/**
+ * The name to show beside an amount: the singular for a count of one, else the name as stored (D21). Pure.
+ *
+ * Singular when the quantity is one exact value above 0 and at most 1 AND the unit leaves it a count (none, a size
+ * word, or a subjective one). A canonical or unknown unit measures the food ("1 cup onions"), a range or an absent
+ * amount states no one, and a name with two foods or a qualifier after the noun is left alone: each keeps the name
+ * as stored, so the rule only ever errs toward the catalog's own spelling.
+ *
+ * @param name - The real name (never a stand-in).
+ * @param quantity - The line's quantity.
+ * @param unit - The line's unit as the cook wrote it.
+ * @returns The name to show.
+ */
+export const nameForQuantity = (name: string, quantity: IngredientQuantity, unit: string | undefined): string => {
+    const oneOrLess = quantity.kind === 'exact' && quantity.value > 0 && quantity.value <= 1;
+
+    if (!oneOrLess || !isCountUnit(unit) || COMPOUND_NAME.test(name)) {
+        return name;
+    }
+
+    return pluralize.singular(name);
+};
+
+/**
+ * {@link lineDisplayName} for a line shown beside its amount: a real name in the form {@link nameForQuantity} gives it,
+ * a stand-in or an empty name untouched. Pure.
+ *
+ * @param line - The line to name.
+ * @param quantity - Its quantity (an editor line's, parsed).
+ * @param unit - Its unit.
+ * @param labels - The stand-ins for the active locale.
+ * @returns The text that names the line beside its amount.
+ */
+export const lineAmountName = (
+    line: NameableLine,
+    quantity: IngredientQuantity,
+    unit: string | undefined,
+    labels: IngredientLineNameMessages,
+): string => {
+    const name = lineDisplayName(line, labels);
+
+    return isStandInName(line) ? name : nameForQuantity(name, quantity, unit);
+};
+
+/**
+ * {@link snapshotLineName} for a version line shown beside its amount: the frozen name in the form
+ * {@link nameForQuantity} gives it, the "not saved" stand-in untouched. Pure.
+ *
+ * @param line - The snapshot line.
+ * @param labels - The stand-ins for the active locale.
+ * @returns The text that names the snapshot line beside its amount.
+ */
+export const snapshotLineAmountName = (line: RecipeIngredient, labels: IngredientLineNameMessages): string => {
+    const name = snapshotLineName(line, labels);
+
+    return line.ingredientName !== undefined && line.ingredientName.length > 0
+        ? nameForQuantity(name, line.quantity, line.unit)
+        : name;
 };

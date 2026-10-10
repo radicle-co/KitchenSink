@@ -9,7 +9,7 @@ import type { Locale } from '@commise/i18n';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail, type RecipeIngredientView } from '@kitchensink/recipe-core';
 
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type {
     IngredientLineNameMessages,
     RecipeCardMessages,
@@ -199,6 +199,89 @@ export function ingredientRowName(
     const name = ingredientCheckLabel(line, locale, labels, withDetails);
 
     return preparation === '' ? name : `${name}, ${preparation}`;
+}
+
+/** One consecutive run of ingredient lines under one group label. */
+export interface IngredientGroupRun<T> {
+    /** The group's label, trimmed; absent for an ungrouped run, which draws no heading. */
+    readonly label?: string;
+    /** The run's lines, in stored order. */
+    readonly lines: readonly T[];
+}
+
+/**
+ * Fold the lines into consecutive runs by group label (§6.1, F9): the page draws an overline over each labelled run.
+ *
+ * ⛔ By CONSECUTIVE run, never by label identity: `[A][B][A]` is three runs in that order, because grouping by label
+ * would reorder the recipe. A blank label is no group. This is the read side of the editor's fold over form values
+ * (`ingredientSections`, `form/props.ts`), which changes for editor reasons; the two read the same stored field. Pure.
+ *
+ * @param lines - The lines, in stored order.
+ * @returns The runs, in stored order; empty for no lines.
+ */
+export function ingredientGroupRuns<T extends { readonly groupLabel?: string }>(
+    lines: readonly T[],
+): readonly IngredientGroupRun<T>[] {
+    return lines.reduce<IngredientGroupRun<T>[]>((runs, line) => {
+        const trimmed = line.groupLabel?.trim() ?? '';
+        const label = trimmed === '' ? undefined : trimmed;
+        const previous = runs[runs.length - 1];
+
+        if (previous !== undefined && previous.label === label) {
+            return [...runs.slice(0, -1), { ...previous, lines: [...previous.lines, line] }];
+        }
+
+        return [...runs, { ...(label === undefined ? {} : { label }), lines: [line] }];
+    }, []);
+}
+
+/** One nutrition figure: its label and its value as shown. */
+export interface NutritionCell {
+    readonly label: string;
+    readonly value: string;
+}
+
+/** The four nutrition figures, and whether nothing was counted. */
+export interface NutritionCells {
+    readonly cells: readonly NutritionCell[];
+    /** No line was counted: every cell is a dash and the section says so in one line. */
+    readonly noneCounted: boolean;
+}
+
+/** What an uncounted figure shows (`buildSpec.md` §6.7, "Nutrition unavailable"). */
+const NO_FIGURE = '—';
+
+/**
+ * The four per-serving figures (calories, protein, carbs, fat). A partial estimate that counted NOTHING — every figure
+ * zero, not complete — shows "—" in each cell: "0 / 0 g" read as a measured zero (F17). A complete recipe keeps its
+ * zeros, which are measurements. Pure.
+ *
+ * @param nutrition - The stored per-serving figures.
+ * @param detail - The detail copy (labels and the grams template).
+ * @returns The cells, in order, and whether nothing was counted.
+ */
+export function nutritionCells(
+    nutrition: Pick<RecipeDetail['nutrition'], 'calories' | 'proteinG' | 'carbsG' | 'fatG' | 'isComplete'>,
+    detail: RecipeDetailMessages,
+): NutritionCells {
+    const noneCounted =
+        !nutrition.isComplete &&
+        nutrition.calories === 0 &&
+        nutrition.proteinG === 0 &&
+        nutrition.carbsG === 0 &&
+        nutrition.fatG === 0;
+    const grams = (value: number): string =>
+        noneCounted ? NO_FIGURE : fillTemplate(detail.gramsUnit, { grams: value });
+
+    return {
+        noneCounted,
+        cells: [
+            { label: detail.caloriesLabel, value: noneCounted ? NO_FIGURE : String(nutrition.calories) },
+            { label: detail.proteinLabel, value: grams(nutrition.proteinG) },
+            { label: detail.carbsLabel, value: grams(nutrition.carbsG) },
+            { label: detail.fatLabel, value: grams(nutrition.fatG) },
+        ],
+    };
 }
 
 /** One status badge on an ingredient row. */

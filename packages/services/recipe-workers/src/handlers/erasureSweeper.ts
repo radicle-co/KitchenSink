@@ -8,6 +8,7 @@ import { getRecipeDb } from '../common/db.js';
 import { initObservability, withObservability } from '../common/observability.js';
 import { logger } from '../common/logger.js';
 import { emitMetric } from '../common/metrics.js';
+import { standsDownForTheNight } from '../common/nightlyWindow.js';
 
 /**
  * Scheduled account-erasure sweeper (T136b / C-007 / D7) — the durability backstop behind
@@ -455,6 +456,10 @@ async function redrainStuckJobs<
  * @sideEffect Reads/updates `account_erasure_jobs` and `test_reset_jobs`, sends SQS messages, emits one EMF line.
  */
 const rawHandler = async (): Promise<void> => {
+    if (standsDownForTheNight('erasure-sweeper')) {
+        return;
+    }
+
     const queueUrl = requireEnv('ACCOUNT_ERASURE_QUEUE_URL');
     const db = getRecipeDb();
 

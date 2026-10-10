@@ -21,18 +21,21 @@
  */
 import type { FC } from 'react';
 
-import { GRID_CELL_CLASS, HOME_GRID_CLASS, LIBRARY_GRID_CLASS, LIBRARY_LIST_CLASS } from './cardGridClass.js';
+import {
+    COMPACT_GRID_CLASS,
+    GRID_CELL_CLASS,
+    HOME_GRID_CLASS,
+    LIBRARY_GRID_CLASS,
+    LIBRARY_LIST_CLASS,
+} from './cardGridClass.js';
 import type { CardVariant } from './cardVariant.js';
 import { RECIPE_CARD_SKELETON_COUNT } from './model.js';
 
 /**
  * Which grid the skeleton sits in: the library's (grid or list by variant), Home's fixed one, or Discover's results
- * (which keep their pre-overhaul column rhythm until slice 5 rebuilds Discover).
+ * (compact cards two per row, or grid cards in the library's grid — the grids `RecipeDiscoveryResults` draws).
  */
 export type SkeletonLayout = 'library' | 'home' | 'discover';
-
-/** Discover's results grid, which `RecipeDiscoveryResults` also draws. Slice 5 moves it onto `./cardGridClass.ts`. */
-const DISCOVER_GRID_CLASS = 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 
 /** Props for {@link RecipeCardGridSkeleton}. */
 export interface RecipeCardGridSkeletonProps {
@@ -110,7 +113,7 @@ function gridClassOf(variant: CardVariant, layout: SkeletonLayout): string {
     }
 
     if (layout === 'discover') {
-        return DISCOVER_GRID_CLASS;
+        return variant === 'grid' ? LIBRARY_GRID_CLASS : COMPACT_GRID_CLASS;
     }
 
     return variant === 'row' ? LIBRARY_LIST_CLASS : LIBRARY_GRID_CLASS;

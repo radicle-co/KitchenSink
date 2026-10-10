@@ -13,7 +13,7 @@ import type { DataSourceView } from '@kitchensink/food-service-client';
 import { safeHttpUrl } from '@kitchensink/recipe-core/external-url';
 import type { ReactNode } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { DataSourcesMessages } from './messages.js';
 
 /** A link the page may render: a verified http(s) href and its accessible name. */

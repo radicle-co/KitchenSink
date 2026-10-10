@@ -135,12 +135,106 @@ describe('createOutboxMutator — the first read', () => {
         expect((await loadOutbox(store, 'user_a')).records[0]?.state).toBe('parked');
     });
 
+    /**
+     * ⛔ A DUPLICATED TAB'S JOURNAL IS A COPY (ADR-0057 §3). The store says so (`isCopy`, the web adapter's tab lock);
+     * the first read then parks the pending create both tabs hold, so only the cook can send it again.
+     */
+    it('⛔ parks a pending create on the first read of a store that says it holds a copy', async () => {
+        const store = { ...createMemoryOutboxStore(), isCopy: vi.fn(async () => true) };
+        await saveOutbox(
+            store,
+            'user_a',
+            appendIntent(
+                appendIntent(EMPTY_OUTBOX, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' })),
+                update('r2'),
+            ),
+        );
+
+        const log = await createOutboxMutator(store, 'user_a').read();
+
+        expect(log.records.map((record) => [record.localId, record.state])).toStrictEqual([
+            ['r1', 'parked'],
+            ['r2', 'pending'],
+        ]);
+        expect((await loadOutbox(store, 'user_a')).records[0]?.state).toBe('parked');
+    });
+
+    it('asks the store once, and leaves a pending create alone when it is not a copy', async () => {
+        const isCopy = vi.fn(async () => false);
+        const store = { ...createMemoryOutboxStore(), isCopy };
+        const mutator = createOutboxMutator(store, 'user_a');
+        await mutator.mutate((log) =>
+            appendIntent(log, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' })),
+        );
+
+        await mutator.read();
+
+        expect((await mutator.read()).records[0]?.state).toBe('pending');
+        expect(isCopy).toHaveBeenCalledTimes(1);
+    });
+
     it('does not park a record its OWN drain marked sending', async () => {
         const mutator = createOutboxMutator(createMemoryOutboxStore(), 'user_a');
         await mutator.mutate((log) => appendIntent(log, update('r1')));
         await mutator.mutate((log) => markSending(log, 1));
 
         expect((await mutator.read()).records[0]?.state).toBe('sending');
+    });
+});
+
+/**
+ * ⛔ THE SESSION-END CLEAR GOES THROUGH THE ONE WRITER (ADR-0057, ADR-0054). A raw `removeItem` beside the mutator's
+ * queue lost to a change already queued: the change ran after it and wrote the old cook's journal back.
+ */
+describe('createOutboxMutator — clear', () => {
+    it('⛔ runs after a change queued before it, so the key is gone once both settle', async () => {
+        const store = createMemoryOutboxStore();
+        const mutator = createOutboxMutator(store, 'user_a');
+        await store.setItem(quarantineKeyFor('user_a'), JSON.stringify(['old']));
+
+        const queued = mutator.mutate((log) => appendIntent(log, update('r1')));
+        const cleared = mutator.clear();
+        await Promise.all([queued, cleared]);
+
+        expect(await store.getItem(storeKeyFor('user_a'))).toBeNull();
+        expect(await store.getItem(quarantineKeyFor('user_a'))).toBeNull();
+    });
+
+    /**
+     * ⛔ A DRAIN IN FLIGHT ANSWERS AFTER THE CLEAR. Its settle meets a log with no such record, and writing that back
+     * would bring the cleared key, and the old cook's resolutions, back to the device.
+     */
+    it('⛔ does not bring the key back for an answer that lands after the clear', async () => {
+        const store = createMemoryOutboxStore();
+        const mutator = createOutboxMutator(store, 'user_a');
+        await mutator.mutate(() =>
+            markSending(
+                appendIntent(
+                    EMPTY_OUTBOX,
+                    intent({ entity: 'recipe', intentKind: 'create', localId: 'r1', produces: 'local:recipe:r1' }),
+                ),
+                1,
+            ),
+        );
+
+        await mutator.clear();
+        await mutator.mutate((log) =>
+            settle(log, { seq: 1, outcome: 'synced', serverId: 's1', produces: 'local:recipe:r1' }),
+        );
+        await mutator.mutate((log) => settle(log, { seq: 1, outcome: 'deferred', until: 99 }));
+
+        expect(await store.getItem(storeKeyFor('user_a'))).toBeNull();
+    });
+
+    it('keeps working after a clear: the next cook session of the same subject queues as usual', async () => {
+        const store = createMemoryOutboxStore();
+        const mutator = createOutboxMutator(store, 'user_a');
+        await mutator.mutate((log) => appendIntent(log, update('old')));
+
+        await mutator.clear();
+        await mutator.mutate((log) => appendIntent(log, update('new')));
+
+        expect((await loadOutbox(store, 'user_a')).records.map((record) => record.localId)).toStrictEqual(['new']);
     });
 });
 

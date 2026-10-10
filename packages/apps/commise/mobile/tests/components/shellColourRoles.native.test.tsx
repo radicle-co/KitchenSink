@@ -8,7 +8,7 @@
  * mocks `react-native`.
  */
 import { renderWithProviders } from '@commise/test-utils';
-import { role, roleDark, tint } from '@commise/ui/colors';
+import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -101,7 +101,7 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
         const title = screen.getByText(copy.home.roadmap.titles.nutrition);
 
         expect(colourOf(title)).toBe(rgb(colours.ink));
-        expect(colourOf(screen.getByText(copy.home.roadmap.comingSoon))).toBe(rgb(colours.inkMuted));
+        expect(colourOf(screen.getByText(copy.home.roadmap.soon))).toBe(rgb(colours.inkMuted));
 
         let card: Element | null = title;
 
@@ -130,21 +130,19 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
         expect(filledWith(container, rgb(colours.surfaceMuted))).toHaveLength(4);
     });
 
-    it('the meal-plan skeleton writes each day in inkMuted on a paper tile, its meal shape in surfaceMuted', () => {
+    // Rewritten for F16 (`evaluateFinal.md`): the week is seven equal tiles edged in `lineDivider` on the card's `paper`
+    // (the old tiles were translucent `paper` on the glass card, which F1 removed).
+    it('the meal-plan skeleton edges each day tile in lineDivider, writes its day in inkMuted, its meal in surfaceMuted', () => {
         systemScheme.current = scheme;
         const { container } = renderWithProviders(<MealPlanWidgetSkeleton />);
-        const days = filledWith(container, tint(colours.paper, 0.5));
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) =>
+            screen.getByLabelText(day),
+        );
 
-        expect(days).toHaveLength(7);
         expect(days.map((tile) => getComputedStyle(tile).borderTopColor)).toEqual(
-            Array.from({ length: 7 }, () => tint(colours.paper, 0.3)),
+            Array.from({ length: 7 }, () => rgb(colours.lineDivider)),
         );
         expect(filledWith(container, rgb(colours.surfaceMuted))).toHaveLength(7);
-
-        const [firstDay] = days;
-
-        expect(
-            firstDay?.firstElementChild === null ? undefined : colourOf(firstDay?.firstElementChild as Element),
-        ).toBe(rgb(colours.inkMuted));
+        expect(colourOf(days[0]?.firstElementChild as Element)).toBe(rgb(colours.inkMuted));
     });
 });

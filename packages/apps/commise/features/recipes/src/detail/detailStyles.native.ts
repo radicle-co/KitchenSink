@@ -10,6 +10,7 @@ export const detailStyles = StyleSheet.create({
     container: { gap: nativeTokens.spacing[6], paddingBottom: nativeTokens.spacing[6] },
     top: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
     overline: { ...nativeTokens.type.overline },
+    groupHeading: { paddingTop: nativeTokens.spacing[2] },
     title: { ...nativeTokens.type.largeTitle.narrow },
     ratingLine: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
     inline: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },

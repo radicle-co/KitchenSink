@@ -10,7 +10,7 @@
  * (`initialFilters`) is the lever that puts the screen into RESULT-LIST mode; with neither a query nor a filter it
  * browses by design.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { AccessibilityInfo } from 'react-native';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
@@ -492,6 +492,19 @@ describe('RecipeDiscoveryScreen — a newer search pending behind the results on
     });
 
     it('replaces the stale results with the load error when the newer search fails, and clears it on the next term', async () => {
+        // The failing search is read under `useDeferredValue`, a concurrent render. When the scheduler yields mid-render
+        // (a loaded CI runner), React throws the read's error, retries the root synchronously, and reports the first
+        // throw as RECOVERABLE through `reportError`, which jsdom raises as an uncaught window error and fails the run.
+        // That report is React's, not the screen's: the behaviour under test is asserted below. Only that exact report
+        // is absorbed, and only for this test; any other error still fails it.
+        const absorbRecovered = (event: ErrorEvent): void => {
+            if (/React was able to recover/u.test(event.message)) {
+                event.preventDefault();
+            }
+        };
+
+        window.addEventListener('error', absorbRecovered);
+        onTestFinished(() => window.removeEventListener('error', absorbRecovered));
         const search = vi
             .spyOn(client, 'searchRecipes')
             .mockImplementation((params) =>

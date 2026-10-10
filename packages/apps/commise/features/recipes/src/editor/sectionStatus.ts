@@ -1,12 +1,22 @@
 /**
  * @module @commise/features-recipes/editor — each editor section's status, as the section index shows it.
  *
- * ⛔ DERIVED FROM THE ONE PUBLISH VALIDATOR, never a second rule set (build spec §7.2, Settled 18): a section is
- * complete exactly when `validateRecipeForm` has nothing to say about its fields, so the index and Publish cannot
- * disagree. The precedence, first true wins:
+ * ⛔ DERIVED FROM THE ONE PUBLISH VALIDATOR AND THE ONE ROW POLICY, never a third rule set (build spec §7.2, Settled
+ * 18; owner D2). Two facts decide a section, and each has one home:
+ *
+ * - **What blocks Publish** is `validateRecipeForm`'s, so the index can never say a section is ready when Publish
+ *   would refuse it.
+ * - **What asks the cook to act** on an ingredient row is `ingredientRowPolicy.ts`'s: a row whose glyph is `alert`
+ *   ({@link lineNeedsAttention}). The recipe service publishes a line whose food is unresolved, not found, failed,
+ *   removed or under review (`ingredientLine.planner.ts` refuses only a binding that does not exist), so such a line
+ *   does not block — but the section is not done while it stands (GOV.UK task list: done is only done; UX F4).
+ *
+ * A section is complete exactly when the validator has nothing to say about its fields AND no row in it asks for
+ * anything. The precedence, first true wins:
  *
  * 1. **Fix before publishing** — Publish was refused and the section holds a blocking error;
- * 2. **Needs attention** — a blocker the cook can already see, such as an ingredient with no food (U28);
+ * 2. **Needs attention** — something the cook can already see: a blocker before Publish is pressed, or a line that
+ *    needs a match (which never becomes "Fix", because it never blocks);
  * 3. **In progress** — something entered, but a field Publish needs is empty;
  * 4. **Not started** — the section is empty;
  * 5. Photos & publish has no field of its own: **Optional** until the other three are complete, then **Complete**.
@@ -16,8 +26,9 @@
  *
  * Pure and platform-agnostic. No React, no platform APIs.
  *
- * @pattern Policy — a pure projection of the validator's output into one status per section
+ * @pattern Policy — a pure projection of the validator's output and the row policy into one status per section
  */
+import { rowPresentationOf, type RowFacts, type RowPolicyLine } from '../form/ingredientRowPolicy.js';
 import { draftQuantityVerdict } from '../form/quantity.js';
 import {
     draftFloorErrors,
@@ -63,6 +74,21 @@ export interface SectionStatusInput {
 }
 
 const COMPLETE: SectionStatus = { kind: 'complete' };
+/** The row facts that refine actions only; a row's glyph never reads them. */
+const GLYPH_FACTS: RowFacts = { figures: undefined, hasVariants: undefined, changing: false };
+
+/**
+ * Whether an ingredient line asks the cook to act: its row shows the `alert` glyph (`rowPresentationOf`). A line with no
+ * food, and one whose food is unresolved, ambiguous, not found, failed, removed or under review, does; a declared line
+ * ("Use as written") and one whose food is resolved, pending or private does not. Pure.
+ *
+ * @param line - A draft line.
+ * @returns `true` when its row asks for something.
+ */
+export function lineNeedsAttention(line: RowPolicyLine): boolean {
+    return rowPresentationOf(line, GLYPH_FACTS).glyph === 'alert';
+}
+
 const NOT_STARTED: SectionStatus = { kind: 'notStarted' };
 
 /**
@@ -167,9 +193,12 @@ function detailsEntered(values: RecipeFormValues): boolean {
 
 function ingredientsStatus(input: SectionStatusInput, errors: RecipeFormErrors): SectionStatus {
     const { ingredients: lines } = input.values;
+    const needMatch = lines.filter(lineNeedsAttention).length;
+    const needsMatch: SectionStatus = { kind: 'attention', reason: 'ingredientsUnresolved', count: needMatch };
 
     if (errors.ingredients === undefined) {
-        return COMPLETE;
+        // Publishable, but not done while a row asks for a match (F4).
+        return needMatch > 0 ? needsMatch : COMPLETE;
     }
 
     const unresolved = lines.filter((line) => !isResolvedIngredientId(line.ingredientId)).length;
@@ -183,11 +212,15 @@ function ingredientsStatus(input: SectionStatusInput, errors: RecipeFormErrors):
     }
 
     if (unresolved > 0) {
-        return { kind: 'attention', reason: 'ingredientsUnresolved', count: unresolved };
+        return needsMatch;
     }
 
     if (invalid > 0) {
         return { kind: 'attention', reason: 'ingredientsQuantityInvalid', count: invalid };
+    }
+
+    if (needMatch > 0) {
+        return needsMatch;
     }
 
     // ⚠️ In progress, not attention: the cook is typing the line right now, and a warning glyph over the field they are

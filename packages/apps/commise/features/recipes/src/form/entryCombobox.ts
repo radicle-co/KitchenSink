@@ -31,7 +31,7 @@ import type {
     RemoteFoodOption,
     RemotePart,
 } from '../hooks/foodSuggestions.model.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type {
     IngredientDetailsMessages,
     IngredientPickerSearchMessages,

@@ -15,7 +15,7 @@ import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import type { FC, ReactElement } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { IngredientRowPanelBodyProps } from './IngredientRowPanelBody.js';
 import { nutritionPanelOf } from './nutritionPanel.js';
 import { NutritionPanelBody } from './NutritionPanelBody.native.js';

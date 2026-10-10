@@ -7,15 +7,18 @@
  * nowhere once the editor stops offering it (the first publish, D10).
  *
  * While a paste's lines are still joining the recipe, `pending` holds Publish: a recipe published then would lose
- * them, and the rows themselves say "Reading…".
+ * them, and the rows themselves say "Reading…". The same fact holds the server create, through the shared paste hold
+ * the editor reads when a checkpoint runs (`pasteHold.ts`): written as the paste's state commits, cleared on unmount.
  *
  * @pattern Facade — one entry point over the paste and its sheet, for the two containers
  */
 import { useMessages } from '@commise/i18n/react';
+import { useLayoutEffect } from 'react';
 
 import type { DraftAction } from '../form/draftAction.js';
 import { recipeFormMessages } from '../form/messages.js';
 import type { IngredientsPasteView } from '../form/props.js';
+import type { PasteHold } from './pasteHold.js';
 import { usePasteIntoIngredients } from './usePasteIntoIngredients.js';
 import { usePasteListSheet, type PasteListSheet } from './usePasteListSheet.js';
 
@@ -30,6 +33,8 @@ export interface UseIngredientsPasteOptions {
     readonly lineCount: number;
     /** Open the sheet at once: Home's first-run Paste ingredients (§7.5.4). */
     readonly initiallyOpen: boolean;
+    /** The hold the editor reads before its server create (`pasteHold.ts`): this paste is its one writer. */
+    readonly hold: PasteHold;
 }
 
 /** What a container wires. */
@@ -69,6 +74,16 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
     });
     const empty = options.lineCount === 0 && paste.reading.length === 0;
     const open = (): void => sheet.setOpen(true);
+    const pending = paste.submitting || paste.reading.length > 0;
+    const { hold } = options;
+
+    // A layout effect: the hold is current once this state commits, before any passive effect or event can run a
+    // checkpoint. A paste that goes away holds nothing.
+    // @sideEffect Writes the shared paste hold.
+    useLayoutEffect(() => {
+        hold.set(pending);
+    }, [hold, pending]);
+    useLayoutEffect(() => () => hold.set(false), [hold]);
 
     return {
         view: {
@@ -82,6 +97,6 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
         sheet,
         submitting: paste.submitting,
         failed: paste.failed,
-        pending: paste.submitting || paste.reading.length > 0,
+        pending,
     };
 }

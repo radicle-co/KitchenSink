@@ -150,6 +150,7 @@ export function recipeRowToDomain(row: RecipeRowInput): Recipe {
         ...(row.cuisine !== null ? { cuisine: row.cuisine } : {}),
         ...(row.deletedAt !== null ? { deletedAt: toIsoString(row.deletedAt) } : {}),
         // OMITTED until the first publish, never `null` (ADR-0058 rule 1): the fact a client keys "ever published" on.
-        ...(row.firstPublishedAt !== null ? { firstPublishedAt: toIsoString(row.firstPublishedAt) } : {}),
+        // `!= null`, not `!== null`: a raw read whose hand-named column list lacks the column passes `undefined`.
+        ...(row.firstPublishedAt != null ? { firstPublishedAt: toIsoString(row.firstPublishedAt) } : {}),
     };
 }

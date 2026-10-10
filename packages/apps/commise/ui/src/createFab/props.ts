@@ -27,7 +27,7 @@ export interface CreateFabProps {
     readonly firstRun?: boolean;
 }
 
-/** The face a floating create control draws: the `CreateFab`, and the interim create dial's trigger (slice 8 retires it). */
+/** The face the floating create control (`CreateFab`) draws. */
 export interface FabFaceProps {
     readonly label: string;
     readonly icon: IconName;

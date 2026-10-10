@@ -41,7 +41,7 @@ import { Icon } from '@commise/ui/icon';
 import * as Dialog from '@radix-ui/react-dialog';
 import { type FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
 import type { PullUpdatesDialogProps } from './model.js';
 

@@ -1086,7 +1086,7 @@
                             "text": "home/skeletons/MealPlanWidgetSkeleton — the \"This Week's Meals\" roadmap placeholder (mobile)."
                         }
                     ],
-                    "description": "The meal-plan widget's skeleton placeholder (mobile).",
+                    "description": "The meal-plan widget's skeleton placeholder (mobile): the week as seven equal tiles in one row (`buildSpec.md` §4.2).\n\nA phone draws the narrow name (\"M\") and a wider window the short one (\"Mon\"); each tile is announced by the full\nweekday. Seven equal tiles fit the narrowest phone, so there is no sideways scroller to hide days behind (F16).",
                     "tags": [
                         {
                             "name": "returns",
@@ -1180,11 +1180,11 @@
                             "text": "home/skeletons/PlaceholderWidgetCard — the shared shell of a roadmap skeleton placeholder (mobile)."
                         }
                     ],
-                    "description": "The shell of a roadmap skeleton placeholder (mobile): a card carrying the real widget's heading, a visible\n\"coming soon\" badge, and the caller's shape.",
+                    "description": "The shell of a roadmap skeleton placeholder (mobile): a level-1 card carrying the real widget's heading, a visible\n\"Soon\" badge, and the caller's shape.\n\nThe card is `paper` under a hairline `lineDivider` at the `sm` elevation (`buildSpec.md` §1.6), never glass: owner\nD12 keeps glass off cards, and the translucent white tier this used had no dark value, so dark mode drew light ink\non light glass (`evaluateFinal.md` F1). Every colour is a role read from `useTheme()`.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The widget `title`, the `comingSoonLabel`, and the skeleton `children`."
+                            "text": "props - The widget `title`, the `soonLabel`, and the skeleton `children`."
                         },
                         {
                             "name": "returns",
@@ -1204,12 +1204,12 @@
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/skeletons/PlaceholderWidgetCard.tsx"
                         },
                         {
-                            "name": "comingSoonLabel",
+                            "name": "soonLabel",
                             "type": "string",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The visible \"coming soon\" badge copy.",
+                            "description": "The visible \"Soon\" badge copy.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/skeletons/PlaceholderWidgetCard.tsx"
                         },
                         {
@@ -2742,7 +2742,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Home screen (mobile): the Home tab's root (`docs/design/uiOverhaul/buildSpec.md` §4.2). It composes the\n{@link HomeWidgetSurface} — whose scroller takes the screen's `ScrollHost` bind and whose first child is the large\ntitle — and floats two things over it: the condensed title bar, once the greeting scrolls under the top, and the\nfloating \"New recipe\" button, a sibling after the scroller so it stays put.\n\nInterim (§13, slice 3): the button opens today's two-item create menu (Write → the wizard, Paste → the paste flow)\nuntil slice 8 makes it one tap. ⚠️ Home's first run should hide it (§3.4); whether the cook has any recipe is known\nonly inside the recipe widget today, so it shows in first run too.\n\n⚠️ ORCHESTRATION of chrome, not of data: it reads the scroll host and the cook's name for the condensed title.",
+                    "moduleDoc": "Home screen (mobile): the Home tab's root (`docs/design/uiOverhaul/buildSpec.md` §4.2). It composes the\n{@link HomeWidgetSurface} — whose scroller takes the screen's `ScrollHost` bind and whose first child is the large\ntitle — and floats two things over it: the condensed title bar, once the greeting scrolls under the top, and the\nfloating \"New recipe\" button, a sibling after the scroller so it stays put.\n\nOne tap opens the empty editor (§3.4, D4). Home's first run hides the button (§3.4): the recent-recipes page the\nwidget reads, settled empty, is the first run, and the widget's own start buttons take its place.\n\n⚠️ ORCHESTRATION of chrome, not of data: it reads the scroll host and the cook's name for the condensed title.",
                     "moduleTags": [
                         {
                             "name": "pattern",

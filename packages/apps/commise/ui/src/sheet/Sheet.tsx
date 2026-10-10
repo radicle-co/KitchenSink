@@ -29,15 +29,32 @@ import { SheetPanel } from './SheetPanel.js';
 import { useVisualViewportKeyboard } from './useVisualViewportKeyboard.js';
 
 /**
- * The geometry. With no keyboard the two variables are unset and the fallbacks give the window: top `0px` below `sm`,
- * and `0px + 100% / 2`, the window's 50%, from `sm`.
+ * The geometry every size shares. From `sm` the sheet is a dialog centred in the visible box; with no keyboard the two
+ * variables are unset and the fallbacks give the window's 50%.
  */
 const CONTENT =
-    'fixed inset-x-0 top-[var(--sheet-visible-top,0px)] z-50 flex h-[var(--sheet-visible-height,100dvh)] w-full ' +
-    'flex-col bg-paper-overlay sm:inset-x-auto sm:left-1/2 ' +
+    'fixed inset-x-0 z-50 flex w-full flex-col bg-paper-overlay sm:inset-x-auto sm:left-1/2 ' +
     'sm:top-[calc(var(--sheet-visible-top,0px)+var(--sheet-visible-height,100%)/2)] ' +
     'sm:max-h-[min(85vh,var(--sheet-visible-height,85vh))] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 ' +
     'sm:rounded-2xl sm:shadow-lg';
+
+/**
+ * The geometry below `sm`, per size (`buildSpec.md` §1.6, "content by default"; F11).
+ *
+ * - `full` takes the whole visible box: its top follows an iOS pan, its height a keyboard.
+ * - `content` is a bottom sheet, as tall as its content: anchored to the foot of the visible box (`100%` of a fixed
+ *   box is the layout viewport, so the offset is what a keyboard covers), capped at the visible height less a 2 rem gap
+ *   so the page behind stays in view, with rounded top corners. `sm:bottom-auto` hands it to the centred dialog.
+ *
+ * ⛔ No shared `top-*`/`h-*` in {@link CONTENT}: Tailwind decides between two utilities of one variant by the order it
+ * emits them, not the order in the class string.
+ */
+const PHONE: Readonly<Record<SheetProps['size'], string>> = {
+    full: 'top-[var(--sheet-visible-top,0px)] h-[var(--sheet-visible-height,100dvh)]',
+    content:
+        'bottom-[calc(100%-var(--sheet-visible-top,0px)-var(--sheet-visible-height,100%))] ' +
+        'max-h-[calc(var(--sheet-visible-height,100dvh)-2rem)] rounded-t-xl shadow-lg sm:bottom-auto',
+};
 
 /**
  * The height from `sm`, ONE utility per size. ⛔ Never a shared `sm:h-*` in `CONTENT` plus another here: Tailwind
@@ -87,7 +104,7 @@ export const Sheet: FC<SheetProps> = ({
                         onDismissed?.();
                     }}
                     style={style}
-                    className={`${CONTENT} ${HEIGHT[size]}`}
+                    className={`${CONTENT} ${PHONE[size]} ${HEIGHT[size]}`}
                 >
                     <SheetPanel
                         title={title}

@@ -35,9 +35,8 @@ appId: io.commise.mobile
 # structure is unchanged; by the time it runs it can only be true.
 #
 # ⛔ AND IT MUST SCROLL TO THE CARD, not merely wait for it. Measured on a CI-matched emulator
-# (2026-09-19): the widget renders all four seeded cards in a VERTICAL list roughly 1,100 px tall EACH,
-# under three "Coming soon" placeholder widgets and the week strip, which puts the lamb's button at
-# y≈4335 on a 2109 px-tall screen — present in the hierarchy, `visible: false`, and therefore invisible to
+# (2026-09-19, when three placeholder widgets still sat above it): the widget renders all four seeded cards in a
+# VERTICAL list roughly 1,100 px tall EACH, which put the lamb's button at y≈4335 on a 2109 px-tall screen — present in the hierarchy, `visible: false`, and therefore invisible to
 # a wait that never moves the surface. A bare `extendedWaitUntil` here spent its whole 30 s timeout and
 # went red against a working screen, which reads as "the library is empty" and is the least useful way
 # this flow can fail.

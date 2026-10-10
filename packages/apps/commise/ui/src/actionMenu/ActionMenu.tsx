@@ -28,12 +28,13 @@
  * @pattern Command — the chosen item is held and executed after the menu's dismissal
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { useContext, useEffect, useEffectEvent, useRef, useState, type FC } from 'react';
+import { useContext, useRef, useState, type FC } from 'react';
 
 import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
 import { Icon } from '../icon/Icon.js';
 import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
 import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
 /** The space the menu keeps from the viewport's edge, and from the page's chrome. */
 const EDGE = 8;
@@ -72,17 +73,7 @@ export const ActionMenu: FC<ActionMenuProps> = ({
     // The chosen item's key, waiting for the menu to go.
     const [heldKey, setHeldKey] = useState<string | undefined>(undefined);
     const triggerNode = useRef<HTMLButtonElement>(null);
-    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
-    const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
-
-    useEffect(() => {
-        if (!focusRequested) {
-            return;
-        }
-
-        triggerNode.current?.focus();
-        acknowledgeFocusRequest();
-    }, [focusRequested]);
+    useFocusRequest(focusRequested, () => triggerNode.current?.focus(), onFocusRequestHandled);
 
     const onOpenChange = (next: boolean): void => {
         if (next && (unavailable || heldKey !== undefined)) {

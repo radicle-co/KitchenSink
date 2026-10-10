@@ -96,12 +96,12 @@ export {
 export type { LibraryFacet, LibraryState } from './list/libraryTypes.js';
 export { VIEW_MODE_KEY, viewModeCookieFor, viewModeFrom, viewModeOf } from './list/viewModePreference.js';
 export { useMainContainerClass } from './layout/useMainContainerClass.js';
+export { fillTemplate } from './format/fillTemplate.js';
 export {
     QUICK_TIME_FACET,
     QUICK_TIME_THRESHOLD_MINUTES,
     RECIPE_SOURCE_TABS,
     RECIPES_SEGMENTS,
-    fillTemplate,
     filterChipLabel,
     formatDurationMinutes,
     formatRecipeCount,
@@ -130,7 +130,6 @@ export { ServingScaleControl } from './detail/ServingScaleControl.js';
 export { formatQuantity, isUnreachableRecovery } from './detail/model.js';
 export { resetServingScale } from './detail/servingScale.js';
 export { CookMarksProvider } from './detail/CookMarksProvider.js';
-export { clearStoredCookMarks } from './detail/cookMarksBackend.js';
 export { detailMenuOf } from './detail/detailMenu.js';
 export { useCookMarks } from './detail/useCookMarks.js';
 export { useServingScale } from './detail/useServingScale.js';
@@ -442,6 +441,8 @@ export { draftStoreFor } from './editor/draftStore.js';
 export { visibilityFollowUp } from './editor/visibilityFollowUp.js';
 export type { DraftMemento, DraftStore } from './editor/draftStore.js';
 export { useDraftAnswers } from './editor/useDraftAnswers.js';
+// What a device keeps for one cook ends with their session, on both apps (ADR-0057, ADR-0054).
+export { endDeviceSession, useDeviceSessionScope } from './session/deviceSession.js';
 export { editorMessages } from './editor/messages.js';
 export type { GateOutcome } from './editor/gate.js';
 export { RecipePreviewSheet } from './editor/RecipePreviewSheet.js';

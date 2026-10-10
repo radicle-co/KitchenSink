@@ -11,7 +11,7 @@
  * @pattern Table Data Gateway — the dictionary's one gateway
  * @implements FR-028 FR-MRG-3 SC-008
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, or } from 'drizzle-orm';
 
 import type { FoodWriter } from '../../database/unitOfWork.js';
 import { nutrient, type NutrientRow } from '../../db/schema/index.js';
@@ -42,14 +42,49 @@ export function mappedTagOf(name: string, unit: string): string | null | undefin
     )?.tag;
 }
 
+/** One input after its tag is settled: the definition the dictionary is asked for. */
+export interface WantedNutrient {
+    readonly name: string;
+    readonly unit: string;
+    readonly infoodsTag: string | null;
+}
+
+/**
+ * Settle an input's tag against the mapping. Pure.
+ *
+ * @param input - The name, unit and optional stated tag.
+ * @returns The definition: the stated tag, else the mapped one, else none.
+ * @throws {NutrientDefinitionMismatchError} when a stated tag contradicts the pair's mapped tag.
+ */
+export function wantedOf(input: ResolveNutrientInput): WantedNutrient {
+    const mapped = mappedTagOf(input.name, input.unit);
+    const stated = input.infoodsTag ?? null;
+
+    if (stated !== null && mapped !== undefined && stated !== mapped) {
+        throw new NutrientDefinitionMismatchError(input, stated, mapped ?? 'untagged');
+    }
+
+    return { name: input.name, unit: input.unit, infoodsTag: stated ?? mapped ?? null };
+}
+
+/**
+ * The held row a definition resolves to: by tag, else by `(name, unit)`. Pure.
+ *
+ * @param rows - Dictionary rows read for the batch.
+ * @param wanted - The definition.
+ * @returns The row, or `undefined`.
+ */
+export function heldRowFor(rows: readonly NutrientRow[], wanted: WantedNutrient): NutrientRow | undefined {
+    const byTag = wanted.infoodsTag === null ? undefined : rows.find((row) => row.infoodsTag === wanted.infoodsTag);
+
+    return byTag ?? rows.find((row) => row.name === wanted.name && row.unit === wanted.unit);
+}
+
 export class NutrientDao {
     public constructor(private readonly db: FoodWriter) {}
 
     /**
      * Resolve a nutrient to its dictionary row, creating it when absent.
-     *
-     * Insert-then-read under `ON CONFLICT DO NOTHING`, so a concurrent insert of the same entry is read back rather
-     * than raising inside the caller's transaction (where a raised error would abort it).
      *
      * @param input - The name, unit and optional tag.
      * @returns The dictionary row.
@@ -57,58 +92,83 @@ export class NutrientDao {
      * @sideEffect Reads `nutrient`; may insert one row.
      */
     public async resolveOrCreate(input: ResolveNutrientInput): Promise<NutrientRow> {
-        const mapped = mappedTagOf(input.name, input.unit);
-        const stated = input.infoodsTag ?? null;
+        const [row] = await this.resolveOrCreateMany([input]);
 
-        if (stated !== null && mapped !== undefined && stated !== mapped) {
-            throw new NutrientDefinitionMismatchError(input, stated, mapped ?? 'untagged');
-        }
-
-        const infoodsTag = stated ?? mapped ?? null;
-        const existing = await this.resolve(input.name, input.unit, infoodsTag);
-
-        if (existing) {
-            return existing;
-        }
-
-        await this.db
-            .insert(nutrient)
-            .values({ id: newFoodId(), name: input.name, unit: input.unit, infoodsTag })
-            .onConflictDoNothing();
-
-        const created = await this.resolve(input.name, input.unit, infoodsTag);
-
-        if (!created) {
+        if (!row) {
             throw new Error(`nutrient (${input.name}, ${input.unit}) was neither inserted nor found`);
         }
 
-        return created;
+        return row;
     }
 
     /**
-     * The dictionary row by tag, else by `(name, unit)`.
+     * Resolve many nutrients to their dictionary rows, creating the absent ones, in at most three statements
+     * whatever the count: one read, one insert of what the read did not find, one read of what that inserted.
+     * A per-nutrient read and insert was an N+1 on every food write (KITCHENSINK-FOOD-SERVICE-2/-8).
      *
-     * @param name - The name.
-     * @param unit - The unit.
-     * @param infoodsTag - The tag, or `null`.
-     * @returns The row, or `undefined`.
-     * @sideEffect Reads `nutrient`.
+     * Insert-then-read under `ON CONFLICT DO NOTHING`, so a concurrent insert of the same entry is read back rather
+     * than raising inside the caller's transaction (where a raised error would abort it).
+     *
+     * ⚠️ Every tag is settled BEFORE any statement, so one contradicted tag refuses the whole batch and writes
+     * nothing — the same outcome the one-at-a-time form gave its caller's transaction.
+     *
+     * @param inputs - The names, units and optional tags.
+     * @returns One row per input, in input order; inputs naming one definition share its row.
+     * @throws {NutrientDefinitionMismatchError} when any stated tag contradicts its pair's mapped tag.
+     * @sideEffect Reads `nutrient`; may insert rows.
      */
-    private async resolve(name: string, unit: string, infoodsTag: string | null): Promise<NutrientRow | undefined> {
-        if (infoodsTag !== null) {
-            const byTag = await this.db.select().from(nutrient).where(eq(nutrient.infoodsTag, infoodsTag)).limit(1);
+    public async resolveOrCreateMany(inputs: readonly ResolveNutrientInput[]): Promise<NutrientRow[]> {
+        const wanted = inputs.map(wantedOf);
 
-            if (byTag[0]) {
-                return byTag[0];
-            }
+        if (wanted.length === 0) {
+            return [];
         }
 
-        const byNameUnit = await this.db
+        let held = await this.read(wanted);
+        const absent = [
+            ...new Map(
+                wanted
+                    .filter((definition) => heldRowFor(held, definition) === undefined)
+                    .map((definition) => [JSON.stringify([definition.name, definition.unit]), definition]),
+            ).values(),
+        ];
+
+        if (absent.length > 0) {
+            await this.db
+                .insert(nutrient)
+                .values(absent.map((definition) => ({ id: newFoodId(), ...definition })))
+                .onConflictDoNothing();
+
+            held = [...held, ...(await this.read(absent))];
+        }
+
+        return wanted.map((definition) => {
+            const row = heldRowFor(held, definition);
+
+            if (!row) {
+                throw new Error(`nutrient (${definition.name}, ${definition.unit}) was neither inserted nor found`);
+            }
+
+            return row;
+        });
+    }
+
+    /**
+     * Every dictionary row any of the definitions could resolve to — by tag or by `(name, unit)` — in one read.
+     *
+     * @param wanted - The definitions.
+     * @returns The candidate rows.
+     * @sideEffect Reads `nutrient`.
+     */
+    private async read(wanted: readonly WantedNutrient[]): Promise<NutrientRow[]> {
+        const tags = wanted.flatMap((definition) => (definition.infoodsTag === null ? [] : [definition.infoodsTag]));
+        const byPair = wanted.map((definition) =>
+            and(eq(nutrient.name, definition.name), eq(nutrient.unit, definition.unit)),
+        );
+
+        return this.db
             .select()
             .from(nutrient)
-            .where(and(eq(nutrient.name, name), eq(nutrient.unit, unit)))
-            .limit(1);
-
-        return byNameUnit[0];
+            .where(or(...byPair, ...(tags.length === 0 ? [] : [inArray(nutrient.infoodsTag, tags)])));
     }
 }

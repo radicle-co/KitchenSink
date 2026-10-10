@@ -115,8 +115,9 @@ describe('tombstone-sweep handler', () => {
         // Identity scrubbed to the erased state: name destroyed, email → placeholder, status erased.
         expect(userSets[0]).toMatchObject({ status: 'erased', name: null, picture: null });
         expect(userSets[0]!.email).toContain('@erased.invalid');
-        // Companion rows purged (accounts + profiles).
-        expect(deletedTables).toHaveLength(2);
+        // Companion rows purged (accounts + profiles) and the user's settings (ADR-0059). This mock cannot name the
+        // table; `eraseIdentityRow.test.ts` pins which three, and the real-database spec pins the bystander.
+        expect(deletedTables).toHaveLength(3);
         // Clerk identity DELETED (erasure deletes; closure only bans).
         expect(mockDeleteUser).toHaveBeenCalledWith('user_a');
         // R8 audit row for the automated sweep.

@@ -17,7 +17,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import type { StepRowProps } from './cookRowProps.js';
 import { stepTimerLabel } from './model.js';

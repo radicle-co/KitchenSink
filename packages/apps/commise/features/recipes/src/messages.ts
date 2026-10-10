@@ -263,6 +263,8 @@ export interface RecipeDetailMessages {
     /** Heading for the nutrition section. */
     readonly nutritionHeading: string;
     /** Notice shown when per-serving nutrition is incomplete (FR-007 partial nutrition). */
+    /** The one line under the dashes when no ingredient was counted (`buildSpec.md` §6.7, F17). */
+    readonly nutritionNoneCounted: string;
     readonly nutritionPartial: string;
     /**
      * Disclosure shown when the figure was computed from the LOWER bound of an ingredient's stated range
@@ -929,13 +931,13 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             photoDot: 'Go to {title} photo {index}',
             lightboxClose: 'Close photo',
             ingredientsHeading: 'Ingredients',
-            userEnteredBadge: 'Custom',
+            userEnteredBadge: 'Your own food',
             needsReviewBadge: 'Needs review',
             needsReviewNoticeOne:
                 'One ingredient didn’t match its original wording, so it isn’t counted here. Check it and pick the right food.',
             needsReviewNoticeMany:
                 '{count} ingredients didn’t match their original wording, so they aren’t counted here. Check them and pick the right foods.',
-            ambiguousBadge: 'Needs a pick',
+            ambiguousBadge: 'Choose a match',
             ambiguousNoticeOne: '1 ingredient could match more than one food. Review it to sharpen the nutrition.',
             ambiguousNoticeMany:
                 '{count} ingredients could match more than one food. Review them to sharpen the nutrition.',
@@ -947,7 +949,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             ambiguousReviewRetry: 'Try again',
             ambiguousReviewRetryLabel: 'Try again for “{phrase}”',
             ambiguousReviewRefreshed: 'The match list was refreshed.',
-            removedFoodBadge: 'Food removed',
+            removedFoodBadge: 'Food no longer listed',
             removedFoodNoticeOne:
                 'Nutrition only: “{name}” was removed from our food database, so it isn’t counted below. Its name and amount in this recipe are unchanged.',
             removedFoodNoticeOneUnnamed:
@@ -972,6 +974,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             stepToggleLabel: 'Mark step {step} as current',
             nutritionHeading: 'Nutrition (per serving)',
             nutritionPartial: 'Estimated — some items aren’t counted yet',
+            nutritionNoneCounted: 'Not counted yet: no ingredient has a food.',
             nutritionRangeDerivedLow: 'Estimated from the lower amount of each stated range',
             nutritionRangeDerivedHigh: 'Estimated from the upper amount of each stated range',
             nutritionStale: 'These figures include saved food data, so they may be out of date.',

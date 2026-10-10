@@ -170,6 +170,15 @@ describe('recipeCardViewOf — the cover chips', () => {
             label: `${totalTimeMinutes} minutes total time`,
         });
     });
+
+    // F17 (`evaluateFinal.md`; `buildSpec.md` §1.11 `formatDuration`): a draft with no times showed "⏱ 0 min". 0 or
+    // absent shows nothing — no chip on the cover, no duration in the meta line.
+    it('shows no time chip and no duration for a recipe with no time', () => {
+        const view = viewOf({ totalTimeMinutes: 0 });
+
+        expect(view.cover.time).toBeUndefined();
+        expect(view.meta.duration).toBeUndefined();
+    });
 });
 
 describe('recipeCardViewOf — the tags line', () => {

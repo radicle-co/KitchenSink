@@ -8,8 +8,8 @@
  * ⛔ THEY DIVERGE ON A NON-FINITE UPPER BOUND, and the divergence is characterized — not fixed — in
  * `__tests__/quantity.test.ts`. For `{quantity: 2, quantityHigh: NaN}` the verdict says `stated` while the
  * reading says ABSENT, so a save would drop the cook's stated amount with no error anywhere. The path is
- * held closed by a THIRD module neither of these can see — `parseQuantityBound` (`./props.ts`) answers
- * `undefined`, never `NaN` — and nothing asserts that invariant. Read that suite before touching either
+ * held closed by a THIRD module neither of these can see — the row editor reads each bound with
+ * `readAmountField` (`./leadingMeasure.ts`), which answers blank, an amount or unreadable, never `NaN`. Read that suite before touching either
  * function: both candidate repairs are user-visible and the choice is the owner's.
  *
  * Pure and platform-agnostic: shared unchanged by the web (`*.tsx`) and native (`*.native.tsx`) form

@@ -20,7 +20,8 @@ import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
 import { LIBRARY_SORTS, sortLabelOf } from './library.js';
-import { fillTemplate, type RecipeListSortControl } from './model.js';
+import { type RecipeListSortControl } from './model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 
 const ITEM =
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body text-ink outline-none data-[highlighted]:bg-ink/6';
@@ -43,11 +44,17 @@ function isLibrarySort(value: string): value is RecipeListSortBy {
  */
 export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) => {
     const { list } = useMessages(recipeMessages);
+    const choice = sortLabelOf(value, list);
 
+    // The visible label is the choice alone, so the result bar's controls fit a 320 px phone (F5); the name keeps
+    // "Sort: …" and contains the visible text (SC 2.5.3).
     return (
         <DropdownMenu.Root>
-            <DropdownMenu.Trigger className={buttonSurfaceClass('ghost', 'sm')}>
-                <span>{fillTemplate(list.sortButton, { choice: sortLabelOf(value, list) })}</span>
+            <DropdownMenu.Trigger
+                aria-label={fillTemplate(list.sortButton, { choice })}
+                className={buttonSurfaceClass('ghost', 'sm')}
+            >
+                <span>{choice}</span>
                 <Icon name="chevronDown" size={16} />
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>

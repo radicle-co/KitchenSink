@@ -11,5 +11,6 @@
 export * from './schemas/admin.schema.js';
 export * from './schemas/apiError.schema.js';
 export * from './schemas/health.schema.js';
+export * from './schemas/settings.schema.js';
 export * from './schemas/avatar.schema.js';
 export * from './schemas/users.schema.js';

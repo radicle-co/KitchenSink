@@ -16,7 +16,7 @@ import { useTheme } from '@commise/ui/theme';
 import { useState, type FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages } from './messages.js';
 import { DISCOVERY_SORTS, discoverySortLabel, type RecipeDiscoverySortControl } from './model.js';
 

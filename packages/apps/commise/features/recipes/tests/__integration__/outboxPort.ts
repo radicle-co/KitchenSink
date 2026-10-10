@@ -18,7 +18,11 @@ import {
     type SendResult,
     type SettlementEvent,
 } from '@kitchensink/sync';
-import { isVersionConflictError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import {
+    isRecipeServiceClientError,
+    isVersionConflictError,
+    type RecipeServiceClient,
+} from '@kitchensink/recipe-service-client';
 
 import type { EditorWriteAnswer, EditorWritePort } from '../../src/hooks/useRecipeEditor.js';
 
@@ -59,6 +63,12 @@ async function send(client: RecipeServiceClient, record: OutboxRecord): Promise<
             };
         }
 
+        // The status a refusal came with, as the app's `recipeSender` reports it: without it every refusal would read as
+        // an unknown outcome.
+        if (isRecipeServiceClientError(error) && typeof error.status === 'number') {
+            return { outcome: 'failed', status: error.status };
+        }
+
         return { outcome: 'failed' };
     }
 }
@@ -67,11 +77,13 @@ async function send(client: RecipeServiceClient, record: OutboxRecord): Promise<
  * An editor write port over a real outbox.
  *
  * @param client - The recipe client the drain sends with.
- * @returns The port, and `idle()` which resolves once every drain started so far has finished.
+ * @returns The port, `idle()` which resolves once every drain started so far has finished, and `records()`, what the
+ *   journal holds now.
  */
 export function makeOutboxPort(client: RecipeServiceClient): {
     readonly port: EditorWritePort;
     readonly idle: () => Promise<void>;
+    readonly records: () => Promise<readonly OutboxRecord[]>;
 } {
     const mutator = outboxMutatorFor(createMemoryOutboxStore(), 'user_cook');
     const listeners = new Set<(event: SettlementEvent<EditorWriteAnswer>) => void>();
@@ -156,5 +168,5 @@ export function makeOutboxPort(client: RecipeServiceClient): {
         },
     };
 
-    return { port, idle: () => draining };
+    return { port, idle: () => draining, records: async () => (await mutator.read()).records };
 }

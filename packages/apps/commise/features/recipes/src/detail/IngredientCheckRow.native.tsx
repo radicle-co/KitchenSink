@@ -22,7 +22,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { recipeMessages } from '../messages.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
-import { isStandInName, lineDisplayName, variantPartTexts } from './lineName.js';
+import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
 import { formatQuantity, isLineFoodRemoved } from './model.js';
 
 /** The native checkable ingredient row. */
@@ -67,7 +67,9 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
                                 <Text style={styles.amount}>{amount}</Text>{' '}
                             </>
                         )}
-                        <Text>{lineDisplayName(ingredient, ingredientLineName)}</Text>
+                        <Text>
+                            {lineAmountName(ingredient, ingredient.quantity, ingredient.unit, ingredientLineName)}
+                        </Text>
                     </Text>
                 )}
                 {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}

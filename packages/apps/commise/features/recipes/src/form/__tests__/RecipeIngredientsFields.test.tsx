@@ -39,6 +39,7 @@ import { useFakeRowEditor } from '../../__fixtures__/useFakeRowEditor.js';
 import type { LookupRetry } from '../ingredientStatus.js';
 import type { IngredientNutrition, LookupEntry } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
+import { applyDraftAction } from '../props.js';
 import { type IngredientsPasteView } from '../props.js';
 import type { IngredientRowEditor } from '../../hooks/useIngredientRowEditor.js';
 import type { ContainerClass } from '@commise/ui/container-class';
@@ -130,12 +131,16 @@ const StatefulLeaf: FC<{
 
     const rowEditor = useFakeRowEditor(values.ingredients, {
         editor: {
+            // The editor's own transition, applied to the draft as it is when it runs, as `useRecipeEditor` applies it.
             dispatch: (action) => {
                 dispatched?.push(action);
+                setValues((current) => {
+                    const next = applyDraftAction(current, action);
 
-                if (action.kind === 'removeIngredient') {
-                    change({ ...values, ingredients: values.ingredients.filter((line) => line.key !== action.key) });
-                }
+                    seen?.push(next);
+
+                    return next;
+                });
             },
         },
     });
@@ -198,6 +203,24 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
         );
         // No amount: the column is empty, never an invented "1" (F5).
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
+    });
+
+    it('D21: a count of one reads in the singular, and the stored name stays plural', () => {
+        renderLeaf({
+            values: valuesWith(
+                withLineKeys([
+                    { ...RICE, name: 'onions', quantity: 1, unit: 'large', preparation: 'diced' },
+                    { ...RICE, ingredientId: 'ing_2', name: 'onions', quantity: 2, unit: '' },
+                ]),
+            ),
+        });
+
+        const [one, two] = rowItems();
+
+        expect(within(one!).getByRole('button', { name: 'Edit 1 large onion' }).textContent).toBe(
+            '1 largeonion · diced',
+        );
+        expect(within(two!).getByRole('button', { name: 'Edit 2 onions' })).toBeTruthy();
     });
 
     it('a healthy row is QUIET: no glyph, no status word, no second line', () => {
@@ -501,6 +524,57 @@ describe('RecipeIngredientsFields (web) — the row editor as a phone sheet (§7
         );
     });
 
+    /** 2026-10-09 review, High 3: a number input sanitised "1/2" to nothing, so no amount was stored. */
+    it.each([
+        { typed: '1/2', quantity: 0.5 },
+        { typed: '½', quantity: 0.5 },
+        { typed: '1,5', quantity: 1.5 },
+        { typed: '1 1/2', quantity: 1.5 },
+    ])(
+        'the amount reads "$typed" as $quantity, and keeps the text after it loses focus',
+        async ({ typed, quantity }) => {
+            const user = userEvent.setup();
+            const seen: RecipeFormValues[] = [];
+            render(<StatefulLeaf initial={[RICE]} seen={seen} />);
+
+            await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
+            const sheet = screen.getByRole('dialog', { name: 'Arborio rice' });
+            const amount = within(sheet).getByRole<HTMLInputElement>('textbox', { name: en.rowAmountLabel });
+
+            await user.clear(amount);
+            await user.type(amount, typed);
+            await user.click(within(sheet).getByLabelText(en.rowPrepLabel));
+
+            expect(seen.at(-1)?.ingredients[0]?.quantity).toBe(quantity);
+            expect(amount.value).toBe(typed);
+            expect(amount.getAttribute('aria-invalid')).toBeNull();
+        },
+    );
+
+    it('an amount it cannot read stays in the field, marked invalid and described by its note', async () => {
+        const user = userEvent.setup();
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[RICE]} seen={seen} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
+        const sheet = screen.getByRole('dialog', { name: 'Arborio rice' });
+        const amount = within(sheet).getByRole<HTMLInputElement>('textbox', { name: en.rowAmountLabel });
+
+        await user.clear(amount);
+        await user.type(amount, 'a few');
+        await user.click(within(sheet).getByLabelText(en.rowPrepLabel));
+
+        expect(amount.value).toBe('a few');
+        expect(amount.getAttribute('aria-invalid')).toBe('true');
+        const described = (amount.getAttribute('aria-describedby') ?? '')
+            .split(' ')
+            .map((id) => document.getElementById(id)?.textContent);
+
+        expect(described).toContain(en.rowAmountInvalid);
+        // Cleared on the way: the draft states no amount while the field is empty (`NaN`, R40), then keeps it absent.
+        expect(seen.at(-1)?.ingredients[0]?.quantity).toBeNaN();
+    });
+
     it('+ Add a range reveals "to" and a second field; Remove range clears it', async () => {
         const user = userEvent.setup();
         const seen: RecipeFormValues[] = [];
@@ -509,16 +583,16 @@ describe('RecipeIngredientsFields (web) — the row editor as a phone sheet (§7
         await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
         const sheet = screen.getByRole('dialog', { name: 'Arborio rice' });
 
-        expect(within(sheet).queryByRole('spinbutton', { name: en.rowAmountHighLabel })).toBeNull();
+        expect(within(sheet).queryByRole('textbox', { name: en.rowAmountHighLabel })).toBeNull();
         await user.click(within(sheet).getByRole('button', { name: en.rowAddRange }));
-        await user.type(within(sheet).getByRole('spinbutton', { name: en.rowAmountHighLabel }), '400');
+        await user.type(within(sheet).getByRole('textbox', { name: en.rowAmountHighLabel }), '400');
 
         expect(seen.at(-1)?.ingredients[0]?.quantityHigh).toBe(400);
 
         await user.click(within(sheet).getByRole('button', { name: en.rowRemoveRange }));
 
         expect(seen.at(-1)?.ingredients[0]).not.toHaveProperty('quantityHigh');
-        expect(within(sheet).queryByRole('spinbutton', { name: en.rowAmountHighLabel })).toBeNull();
+        expect(within(sheet).queryByRole('textbox', { name: en.rowAmountHighLabel })).toBeNull();
     });
 
     it('the Unit field suggests known units as the cook types, and keeps whatever they write', async () => {
@@ -815,7 +889,7 @@ describe('RecipeIngredientsFields (web) — ⛔ no control can create an unresol
         for (const open of screen.getAllByRole('button', { name: /^Edit / })) {
             await user.click(open);
 
-            for (const input of [...screen.getAllByRole('textbox'), ...screen.getAllByRole('spinbutton')]) {
+            for (const input of screen.getAllByRole('textbox')) {
                 await user.click(input);
                 await user.paste('7');
                 invariant(`typing into ${input.getAttribute('aria-label') ?? input.id}`);

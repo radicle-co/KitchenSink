@@ -11,13 +11,15 @@
  * - **The hand-offs, through a navigation port** ({@link EditorNavigation}): the editor says how it handed off, and each
  *   platform says where that goes (web pushes a route, native goes back or to the recipe). A Publish or Save changes
  *   first sends the visibility the write's answer lacks (`visibilityFollowUp`).
- * - **A leave by another route than ×** (native Back and the swipe, `subscribeToLeave`): the exit checkpoint.
+ * - **A leave by another route than ×**: the exit checkpoint. Native hears Back and the swipe through `subscribeToLeave`
+ *   (`beforeRemove`); on both platforms the editor UNMOUNTING is a leave too, because the web has no such event — browser
+ *   Back or a shell link simply unmounts it.
  * - **The row editor, its line-status answers and the lookup retry**, every answer meeting the draft as it is then
  *   (`editor.dispatch`).
  * - **Paste a list**: offered while the editor says so (`pasteOffered`, D10), each line keeping its source while the
  *   editor says so (`pastedLineKeepsSource`), and a paste still joining holding the server create (`serverWriteFor`).
- *   The paste is composed after the editor, which it dispatches into, so whether it is pending reaches the editor as
- *   state adjusted DURING RENDER: React re-renders before committing, so no checkpoint ever reads a stale hold.
+ *   The paste is composed after the editor, which it dispatches into, so the hold is made BEFORE both and handed to
+ *   each (`pasteHold.ts`): the paste writes it, a checkpoint reads it.
  *
  * No JSX: the sections each container draws are page composition (`docs/CODING_STANDARDS.md` §14.2).
  *
@@ -48,6 +50,7 @@ import {
     type UseRecipeEditorResult,
 } from '../hooks/useRecipeEditor.js';
 import type { DraftStore } from './draftStore.js';
+import { createPasteHold } from './pasteHold.js';
 import { previewRecipeOf } from './previewRecipe.js';
 import type { DraftKeep } from './saveStatus.js';
 import { useIngredientsPaste, type IngredientsPaste } from './useIngredientsPaste.js';
@@ -126,8 +129,8 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     const rebind = useRebindIngredientLine();
     const guided = useLibraryEmpty(recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey);
     const [previewing, setPreviewing] = useState(false);
-    // Whether a paste is still joining, as of this render: adjusted below, during render, once the paste is composed.
-    const [pastePending, setPastePending] = useState(false);
+    // Made before the editor and the paste, which each need the other: the paste writes it, a checkpoint reads it.
+    const [pasteHold] = useState(createPasteHold);
 
     /** Published, or its changes saved: visibility follows its answer, then the recipe shows. @sideEffect */
     const finished = (stored: RecipeDetail): void => {
@@ -174,14 +177,21 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         onExit,
         ...(onRecipeRef === undefined ? {} : { onRecipeRef }),
         rebindLine: (address, target) => rebind.mutateAsync(rebindRequestOf(address, target)),
-        pastePending,
+        pasteHold,
     });
 
-    // System Back and the swipe do what × does (build spec §3.5): the exit checkpoint. × runs its own first, and the
-    // second is refused while that write is on the wire, or finds nothing changed.
+    // Every way out of the editor does what × does (build spec §3.5, ADR-0057 §2): the exit checkpoint. × runs its own
+    // first; any later one is refused while that write is on the wire, finds nothing changed, or finds the lane closed by
+    // a hand-off (Publish, Save changes, Discard), so a second exit does nothing.
     const { subscribeToLeave } = navigation;
     const onLeave = useEffectEvent((): void => editor.checkpoint('editorExit'));
     useEffect(() => subscribeToLeave?.(() => onLeave()), [subscribeToLeave]);
+    // ⛔ The unmount is a leave (browser Back, a shell link, the session ending). It runs AT the cleanup, never deferred:
+    // a session end clears the cook's stores from the provider's effect in the same commit, which runs after this
+    // cleanup, so the clear is queued behind whatever this checkpoint writes. ⚠️ StrictMode's development replay runs
+    // it once at mount as well: an untouched editor writes nothing, and a reopened draft's exit checkpoint is one it
+    // would take at its first section change anyway.
+    useEffect(() => () => onLeave(), []);
 
     // Poll and retry answers land after a network call, so both go through `editor.dispatch`, which meets the draft as
     // it is then.
@@ -215,11 +225,8 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         dispatch,
         lineCount: editor.values.ingredients.length,
         initiallyOpen: openPaste,
+        hold: pasteHold,
     });
-
-    if (paste.pending !== pastePending) {
-        setPastePending(paste.pending);
-    }
 
     return {
         editor,

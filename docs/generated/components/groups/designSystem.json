@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 63,
-        "implementations": 109,
-        "props": 601,
-        "documentedComponents": 63,
-        "implementationsWithModuleDoc": 109,
-        "implementationsWithComponentDoc": 101,
-        "documentedProps": 564,
+        "components": 62,
+        "implementations": 107,
+        "props": 591,
+        "documentedComponents": 62,
+        "implementationsWithModuleDoc": 107,
+        "implementationsWithComponentDoc": 99,
+        "documentedProps": 554,
         "classifiedComponents": 55,
-        "componentsWithPatternTag": 63,
-        "crossPlatformComponents": 46
+        "componentsWithPatternTag": 62,
+        "crossPlatformComponents": 45
     },
     "components": [
         {
@@ -4697,7 +4697,19 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The visible label, which names the group.",
+                            "description": "The label, which names the group.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "labelVisibility",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hidden\"",
+                                "\"visible\""
+                            ],
+                            "required": false,
+                            "defaultValue": "visible",
+                            "description": "Whether the label shows. Defaults to `visible`. `hidden` keeps it as the group's name but out of sight, for a\nheading row that already says what the number is (the recipe page's \"for {n}\", `buildSpec.md` §6.1).",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -4807,7 +4819,19 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The visible label, which names the group.",
+                            "description": "The label, which names the group.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "labelVisibility",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hidden\"",
+                                "\"visible\""
+                            ],
+                            "required": false,
+                            "defaultValue": "visible",
+                            "description": "Whether the label shows. Defaults to `visible`. `hidden` keeps it as the group's name but out of sight, for a\nheading row that already says what the number is (the recipe page's \"for {n}\", `buildSpec.md` §6.1).",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -10116,200 +10140,6 @@
                             "defaultValue": null,
                             "description": "The status the badge states.",
                             "declaredIn": "packages/apps/commise/ui/src/statusBadge/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "designSystem/surface/GlassCard",
-            "name": "GlassCard",
-            "group": "designSystem",
-            "packageName": "@commise/ui",
-            "layer": "design-system",
-            "dir": "packages/apps/commise/ui/src/surface",
-            "kind": "unclassified",
-            "patterns": [
-                "Strategy over one capability probe — `blurSupported` selects the translucent surface or the opaque\n    `fallback`, both projected from the single-source `glass` tokens rather than assumed.",
-                "Strategy over the same capability probe, with an Adapter projecting the single-source `glass` spec onto\n    `expo-blur`'s `intensity`/`tint` — so the two platforms cannot drift on the spec, only on the primitive."
-            ],
-            "platforms": [
-                "web",
-                "native"
-            ],
-            "crossPlatform": true,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "GlassCard",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/ui/src/surface/GlassCard.tsx",
-                    "dir": "packages/apps/commise/ui/src/surface",
-                    "moduleDoc": "@commise/ui/surface — the web {@link GlassCard} brand primitive.\n\nA frosted-glass card: a translucent white surface over a `backdrop-filter` blur (both from the\nsingle-source `glass` tokens), with an opaque solid `fallback` when the host cannot blur. The blur is\nNOT a hardcoded assumption — `blurSupported` defaults to the host capability probe ({@link isBlurSupported})\nand a caller may override it; when it is `false` the card renders the readable solid surface with no blur.\nLayout is the consumer's via `className`.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/ui/surface — the web {@link GlassCard} brand primitive."
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Strategy over one capability probe — `blurSupported` selects the translucent surface or the opaque\n    `fallback`, both projected from the single-source `glass` tokens rather than assumed."
-                        }
-                    ],
-                    "description": "The Commise frosted-glass card — translucent-over-blur when supported, opaque solid fallback when not.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "accessibilityLabel",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Optional accessible label for the card region.",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        },
-                        {
-                            "name": "blurSupported",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "isBlurSupported()",
-                            "description": "Whether the host supports backdrop blur. Defaults to the platform capability probe\n(`isBlurSupported()` — a static `Platform.OS` / baseline-CSS read, not a runtime measurement), so the\nhonest treatment is the DEFAULT rather than something each caller must remember to detect. When\n`false`, the card renders the tier's more-opaque solid `fallback` instead of the\ntranslucent-surface-over-blur treatment, so content stays readable where blur is unavailable\n(notably Android, where `expo-blur` renders a translucent UNBLURRED view) or too expensive. Pass it\nexplicitly only to override that default.",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        },
-                        {
-                            "name": "children",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The card content.",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        },
-                        {
-                            "name": "className",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Web-only layout/positioning classes for the card element. Ignored on native.",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        },
-                        {
-                            "name": "style",
-                            "type": "SurfaceStyle",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Native-only style for the card element. Ignored on web.",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        },
-                        {
-                            "name": "tier",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"card\"",
-                                "\"subtle\""
-                            ],
-                            "required": false,
-                            "defaultValue": "card",
-                            "description": "Which glass tier to render. Defaults to `card` (the standard frosted card).",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "GlassCard",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/ui/src/surface/GlassCard.native.tsx",
-                    "dir": "packages/apps/commise/ui/src/surface",
-                    "moduleDoc": "@commise/ui/surface — the native {@link GlassCard} brand primitive (React Native).\n\nMirrors the web leaf using `expo-blur`'s `BlurView`: the single-source `glass` spec is projected\n(`toNativeGlass`) to a blur `intensity` + `tint`, with the translucent surface tint layered over the\nblur. When `blurSupported` is `false` the card renders the opaque solid `fallback` in a plain `View` so the\ncontent stays readable.\n\n`blurSupported` DEFAULTS to the host capability probe ({@link isBlurSupported}) rather than to `true`. That\nmatters here specifically: `expo-blur` blurs for real on iOS, but on Android its `blurMethod` defaults to\n`'none'` and it renders a plain translucent `View` — so a `true` default would have every Android consumer\nsilently shipping a washed-out, UNBLURRED panel instead of the solid fallback designed for exactly that case.\nA caller can still override (e.g. to force the cheap surface on a low-power path).",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/ui/surface — the native {@link GlassCard} brand primitive (React Native)."
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Strategy over the same capability probe, with an Adapter projecting the single-source `glass` spec onto\n    `expo-blur`'s `intensity`/`tint` — so the two platforms cannot drift on the spec, only on the primitive."
-                        }
-                    ],
-                    "description": "The Commise frosted-glass card — translucent-over-blur when supported, opaque solid fallback when not.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "accessibilityLabel",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Optional accessible label for the card region.",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        },
-                        {
-                            "name": "blurSupported",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "isBlurSupported()",
-                            "description": "Whether the host supports backdrop blur. Defaults to the platform capability probe\n(`isBlurSupported()` — a static `Platform.OS` / baseline-CSS read, not a runtime measurement), so the\nhonest treatment is the DEFAULT rather than something each caller must remember to detect. When\n`false`, the card renders the tier's more-opaque solid `fallback` instead of the\ntranslucent-surface-over-blur treatment, so content stays readable where blur is unavailable\n(notably Android, where `expo-blur` renders a translucent UNBLURRED view) or too expensive. Pass it\nexplicitly only to override that default.",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        },
-                        {
-                            "name": "children",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The card content.",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        },
-                        {
-                            "name": "className",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Web-only layout/positioning classes for the card element. Ignored on native.",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        },
-                        {
-                            "name": "style",
-                            "type": "SurfaceStyle",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Native-only style for the card element. Ignored on web.",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
-                        },
-                        {
-                            "name": "tier",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"card\"",
-                                "\"subtle\""
-                            ],
-                            "required": false,
-                            "defaultValue": "card",
-                            "description": "Which glass tier to render. Defaults to `card` (the standard frosted card).",
-                            "declaredIn": "packages/apps/commise/ui/src/surface/props.ts"
                         }
                     ],
                     "usesRefApi": [],

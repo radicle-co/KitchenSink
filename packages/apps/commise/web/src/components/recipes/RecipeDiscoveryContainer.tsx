@@ -486,7 +486,7 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
             <ClientQueryBoundary
                 prefetchedKeys={[read.queryKey]}
                 resetKeys={[settled]}
-                loading={<RecipeDiscoveryLoading />}
+                loading={<RecipeDiscoveryLoading variant={resultsProps.cardVariant} />}
                 renderError={({ resetErrorBoundary }) => (
                     <RecipeDiscoveryLoadError
                         onRetry={resetErrorBoundary}

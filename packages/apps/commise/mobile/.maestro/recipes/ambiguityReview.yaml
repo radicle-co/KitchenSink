@@ -19,7 +19,7 @@ appId: io.commise.mobile
 
 # The badge and the entry render from the detail's own resolutionStatus.
 - scrollUntilVisible:
-      element: 'Needs a pick'
+      element: 'Choose a match'
       direction: DOWN
       timeout: 20000
 - scrollUntilVisible:

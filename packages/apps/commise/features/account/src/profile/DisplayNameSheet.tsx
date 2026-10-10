@@ -12,7 +12,7 @@
  *     field's `describedBy`
  */
 import { Button } from '@commise/ui/button';
-import { FieldLabel, Input } from '@commise/ui/input';
+import { FieldLabel, fieldHintId, Input } from '@commise/ui/input';
 import { Sheet } from '@commise/ui/sheet';
 import { useMessages } from '@commise/i18n/react';
 import { useId, type FC } from 'react';
@@ -44,13 +44,13 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
             closeLabel={t.closeNameSheet}
             size="content"
             footer={
-                <Button icon="check" busy={saving} disabled={!canSave} onPress={onSave}>
+                <Button icon="check" width="fill" busy={saving} disabled={!canSave} onPress={onSave}>
                     {saving ? t.saving : t.save}
                 </Button>
             }
         >
-            <div className="flex flex-col gap-2 px-4 py-4">
-                <FieldLabel forId={fieldId} label={t.namePrompt} />
+            <div className="flex flex-col gap-2">
+                <FieldLabel forId={fieldId} label={t.displayName} hint={t.nameHint} />
                 <Input
                     id={fieldId}
                     value={draft}
@@ -60,7 +60,7 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
                     enterKeyHint="done"
                     maxLength={DISPLAY_NAME_MAX_LENGTH}
                     invalid={failed}
-                    {...(failed ? { describedBy: errorId } : {})}
+                    describedBy={failed ? `${fieldHintId(fieldId)} ${errorId}` : fieldHintId(fieldId)}
                     onSubmit={() => {
                         if (canSave && !saving) {
                             onSave();

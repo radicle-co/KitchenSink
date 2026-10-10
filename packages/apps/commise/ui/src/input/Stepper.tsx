@@ -31,6 +31,7 @@ const STEP =
 export const Stepper: FC<StepperProps> = ({
     id,
     label,
+    labelVisibility = 'visible',
     value,
     min = 1,
     max,
@@ -69,7 +70,7 @@ export const Stepper: FC<StepperProps> = ({
 
     return (
         <div className="flex flex-col gap-1">
-            <span id={labelId} className="text-label text-ink-muted">
+            <span id={labelId} className={labelVisibility === 'hidden' ? 'sr-only' : 'text-label text-ink-muted'}>
                 {label}
             </span>
             <div role="group" aria-labelledby={labelId} className="flex items-center gap-3">

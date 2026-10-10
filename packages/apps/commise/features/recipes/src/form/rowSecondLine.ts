@@ -21,7 +21,7 @@ import type { RecipeFormMessages } from './messages.js';
 import { isResolvedIngredientId } from './validate.js';
 
 /** The second line's message key, in `RecipeFormMessages`. */
-export type RowSecondLineKey = keyof Pick<
+type RowSecondLineKey = keyof Pick<
     RecipeFormMessages,
     | 'rowStateChooseMatch'
     | 'rowStateNoMatch'

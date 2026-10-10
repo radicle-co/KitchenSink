@@ -129,8 +129,82 @@ describe('RecipeDetailView (web) — header', () => {
             />,
         );
 
-        expect(screen.getByText('Moroccan')).toBeTruthy();
+        // The no-photo band repeats the cuisine as its overline, hidden from assistive tech; the meta line says it.
+        const exposed = screen.getAllByText('Moroccan').filter((node) => node.closest('[aria-hidden="true"]') === null);
+        expect(exposed).toHaveLength(1);
         expect(screen.getByText('by @braise.club')).toBeTruthy();
+    });
+
+    // F8 (`evaluateFinal.md`): the recipe title is Playfair `largeTitle` (§1.5). `text-large-title` alone sets no face.
+    it('sets the title in the display face', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb' })}
+            />,
+        );
+
+        expect(screen.getByRole('heading', { level: 1, name: 'Lamb' }).className.split(' ')).toEqual(
+            expect.arrayContaining(['font-display', 'text-large-title']),
+        );
+    });
+
+    // F7: in a 435 px title column, four cells of about 100 px wrapped "5 h 30 / min" and cut "Medium". The strip turns
+    // 2 × 2 below a 480 px strip (the threshold `evaluateFinal.md` F7 returns to SPECIFY), one row from it.
+    it('lays the stat strip 2 × 2 below a 480 px strip and in one row from it', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb' })}
+            />,
+        );
+
+        const strip = screen.getByText('Total').closest('dl') as HTMLElement;
+
+        expect(strip.className).toContain('grid-cols-2');
+        expect(strip.className).toContain('@min-[30rem]/stats:grid-flow-col');
+        expect(strip.className).not.toContain('22.5rem');
+    });
+
+    // F9: the page draws each group of lines under an overline, as the editor does.
+    it('draws each ingredient group under its overline heading, in stored order', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({ ingredientId: 'l1', name: 'Lamb shoulder', groupLabel: 'For the lamb' }),
+                        makeIngredientView({ ingredientId: 'c1', name: 'Chickpeas', groupLabel: 'For the chickpeas' }),
+                    ],
+                })}
+            />,
+        );
+
+        const lamb = screen.getByRole('heading', { level: 3, name: 'For the lamb' });
+        const chickpeas = screen.getByRole('heading', { level: 3, name: 'For the chickpeas' });
+
+        expect(lamb.className).toContain('text-overline');
+        expect(
+            lamb.compareDocumentPosition(screen.getByText('Lamb shoulder')) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(
+            screen.getByText('Lamb shoulder').compareDocumentPosition(chickpeas) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
+    it('draws no group heading for an ungrouped recipe', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ name: 'Salt' })] })}
+            />,
+        );
+
+        expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
     });
 
     it('shows dietary flags and tags as one line of TEXT — nothing there is pressable (Settled 21)', () => {
@@ -304,7 +378,7 @@ describe('RecipeDetailView (web) — meta', () => {
         // REWRITTEN (serving scaling): the Serves cell is no longer static text — it is the labelled
         // serving-count control, opening at the recipe's own yield. The assertion below proves the SAME
         // fact (the strip reports 4 servings) against the new affordance; the coverage did not move.
-        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '4');
+        expect(within(screen.getByRole('group', { name: 'Servings' })).getByText('4')).toBeTruthy();
     });
 
     it('orders the stat strip Total, Prep, Cook, Difficulty, and hides a missing time (§6.1)', () => {
@@ -359,6 +433,23 @@ describe('RecipeDetailView (web) — ingredients', () => {
         expect(screen.getByText('butterflied')).toBeTruthy();
     });
 
+    // F17 (`evaluateFinal.md`; §6.7): nothing counted reads "—" in each cell and one line, never "0 / 0 g".
+    it('shows a dash in each nutrition cell and one line when no ingredient was counted', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    nutrition: makeNutrition({ calories: 0, proteinG: 0, carbsG: 0, fatG: 0, isComplete: false }),
+                })}
+            />,
+        );
+
+        expect(screen.getAllByText('—')).toHaveLength(4);
+        expect(screen.getByText('Not counted yet: no ingredient has a food.')).toBeTruthy();
+        expect(screen.queryByText('Estimated — some items aren’t counted yet')).toBeNull();
+    });
+
     it('marks user-entered ingredients with a badge', () => {
         render(
             <RecipeDetailView
@@ -368,7 +459,7 @@ describe('RecipeDetailView (web) — ingredients', () => {
             />,
         );
 
-        expect(screen.getByText('Custom')).toBeTruthy();
+        expect(screen.getByText('Your own food')).toBeTruthy();
     });
 
     it('does not show the custom badge for resolved ingredients', () => {
@@ -380,7 +471,7 @@ describe('RecipeDetailView (web) — ingredients', () => {
             />,
         );
 
-        expect(screen.queryByText('Custom')).toBeNull();
+        expect(screen.queryByText('Your own food')).toBeNull();
     });
 });
 
@@ -1031,7 +1122,7 @@ describe('RecipeDetailView (web) — hero cover (mockup screenRecipeDetail)', ()
         expect(hero.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('renders the deliberate no-photo hero fallback for a recipe with no cover', () => {
+    it('renders the monogram band hero for a recipe with no cover', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -1040,7 +1131,9 @@ describe('RecipeDetailView (web) — hero cover (mockup screenRecipeDetail)', ()
             />,
         );
 
-        expect(screen.getByRole('img', { name: 'No photo yet' })).toBeTruthy();
+        // The 96 px monogram band (F10): the title's first letter, decorative, and no picture glyph.
+        expect(screen.getByText('L').closest('[aria-hidden="true"]')).not.toBeNull();
+        expect(screen.queryByRole('img', { name: 'No photo yet' })).toBeNull();
         // And the title still renders — a missing cover degrades the hero, never the screen.
         expect(screen.getByRole('heading', { level: 1, name: 'Lamb' })).toBeTruthy();
     });
@@ -1319,7 +1412,7 @@ describe('RecipeDetailView (web) — serving scale', () => {
             />,
         );
 
-        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '4');
+        expect(within(screen.getByRole('group', { name: 'Servings' })).getByText('4')).toBeTruthy();
         // …and nothing is presented as adjusted.
         expect(screen.queryByText(/Amounts scaled from/)).toBeNull();
     });
@@ -1339,7 +1432,7 @@ describe('RecipeDetailView (web) — serving scale', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
 
-        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '5');
+        expect(within(screen.getByRole('group', { name: 'Servings' })).getByText('5')).toBeTruthy();
         expect(screen.getByText('2.5 tbsp')).toBeTruthy();
         expect(screen.getByText(/Amounts scaled from 4 servings/)).toBeTruthy();
     });
@@ -1363,7 +1456,7 @@ describe('RecipeDetailView (web) — serving scale', () => {
             />,
         );
 
-        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '2');
+        expect(within(screen.getByRole('group', { name: 'Servings' })).getByText('2')).toBeTruthy();
     });
 
     it('scales ingredient quantities to the chosen serving count', () => {
@@ -1444,7 +1537,7 @@ describe('RecipeDetailView (web) — serving scale', () => {
             />,
         );
 
-        expect(screen.getByLabelText('Servings')).toHaveProperty('value', '250');
+        expect(within(screen.getByRole('group', { name: 'Servings' })).getByText('250')).toBeTruthy();
     });
 });
 

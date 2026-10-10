@@ -28,7 +28,7 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { RecipeIngredientsFields } from '../RecipeIngredientsFields.js';
 import { type RecipeFormValues, defaultRecipeFormValues } from '../values.js';
-import type { RecipeFormSectionProps } from '../props.js';
+import { applyDraftAction, type RecipeFormSectionProps } from '../props.js';
 import type { LookupRetry } from '../ingredientStatus.js';
 import type { IngredientNutrition } from '../nutritionLookup.js';
 import type { IngredientRowEditor } from '../../hooks/useIngredientRowEditor.js';
@@ -145,16 +145,26 @@ const Stateful: FC<{ readonly initial: RecipeFormValues; readonly onValues: (val
 }) => {
     const [values, setValues] = useState(initial);
 
+    const apply = (next: RecipeFormValues): RecipeFormValues => {
+        onValues(next);
+
+        return next;
+    };
+
+    // The row's edits are the editor's own transition, applied to the draft as it is when it runs.
+    const [rowEditor] = useState(() =>
+        makeIngredientRowEditor({
+            dispatch: (action) => setValues((current) => apply(applyDraftAction(current, action))),
+        }),
+    );
+
     return (
         <FieldGroups
             values={values}
-            onChange={(next) => {
-                onValues(next);
-                setValues(next);
-            }}
+            onChange={(next) => setValues(apply(next))}
             ingredientNutrition={CATALOG_NUTRITION}
             ingredientLookupRetry={makeLookupRetry()}
-            ingredientRowEditor={ROW_EDITOR}
+            ingredientRowEditor={rowEditor}
         />
     );
 };
@@ -225,7 +235,7 @@ describe('the recipe field groups (web) — error wiring (WCAG 3.3.1)', () => {
 
         const sheet = await openEditor(user, 'Edit 2–100,000,000 Stock');
         const low = within(sheet).getByLabelText(en.rowAmountLabel);
-        const high = within(sheet).getByRole('spinbutton', { name: en.rowAmountHighLabel });
+        const high = within(sheet).getByRole('textbox', { name: en.rowAmountHighLabel });
 
         for (const field of [low, high]) {
             expect(field.getAttribute('aria-invalid')).toBe('true');
@@ -277,7 +287,7 @@ describe('the recipe field groups (web) — the amount in the row editor (U9/R42
         const sheet = await openEditor(user, 'Edit 2–3 cup Stock');
 
         expect((within(sheet).getByLabelText(en.rowAmountLabel) as HTMLInputElement).value).toBe('2');
-        expect((within(sheet).getByRole('spinbutton', { name: en.rowAmountHighLabel }) as HTMLInputElement).value).toBe(
+        expect((within(sheet).getByRole('textbox', { name: en.rowAmountHighLabel }) as HTMLInputElement).value).toBe(
             '3',
         );
         expect(within(sheet).getAllByRole('combobox', { name: en.rowUnitLabel })).toHaveLength(1);
@@ -310,7 +320,7 @@ describe('the recipe field groups (web) — the amount in the row editor (U9/R42
         render(<Stateful initial={ranged(2, 3)} onValues={onValues} />);
 
         const sheet = await openEditor(user, 'Edit 2–3 cup Stock');
-        const high = within(sheet).getByRole('spinbutton', { name: en.rowAmountHighLabel });
+        const high = within(sheet).getByRole('textbox', { name: en.rowAmountHighLabel });
 
         await user.clear(high);
         expect(onValues.mock.lastCall?.[0].ingredients[0]).not.toHaveProperty('quantityHigh');

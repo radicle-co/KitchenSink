@@ -2520,3 +2520,33 @@ describe('the log drain is attached only when CI resolved a forwarder ARN', () =
         template.resourceCountIs('AWS::Logs::SubscriptionFilter', expected);
     });
 });
+
+describe('⛔ frequent scheduled jobs make no async retries', () => {
+    it('a job scheduled every hour or more often has MaximumRetryAttempts 0: its next tick is the retry', () => {
+        const template = synth();
+        const perUnit: Record<string, number> = { minute: 1, minutes: 1, hour: 60, hours: 60, day: 1440, days: 1440 };
+        const rules = Object.values(template.findResources('AWS::Events::Rule')) as Array<{
+            Properties: { ScheduleExpression?: string; Targets?: Array<{ Arn?: { 'Fn::GetAtt'?: [string, string] } }> };
+        }>;
+        const frequentFunctions = rules
+            .filter((rule) => {
+                const match = /^rate\((\d+) (\w+)\)$/.exec(rule.Properties.ScheduleExpression ?? '');
+
+                return match !== null && Number(match[1]) * (perUnit[match[2] ?? ''] ?? Infinity) <= 60;
+            })
+            .flatMap((rule) =>
+                (rule.Properties.Targets ?? []).flatMap((target) => target.Arn?.['Fn::GetAtt']?.[0] ?? []),
+            );
+        const invokeConfigs = Object.values(template.findResources('AWS::Lambda::EventInvokeConfig')) as Array<{
+            Properties: { FunctionName: { Ref: string }; MaximumRetryAttempts?: number };
+        }>;
+
+        expect(frequentFunctions.length).toBeGreaterThan(0);
+
+        for (const fn of frequentFunctions) {
+            const config = invokeConfigs.find((candidate) => candidate.Properties.FunctionName.Ref === fn);
+
+            expect(config?.Properties.MaximumRetryAttempts, fn).toBe(0);
+        }
+    });
+});

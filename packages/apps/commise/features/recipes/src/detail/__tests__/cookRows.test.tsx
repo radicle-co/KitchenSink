@@ -168,3 +168,40 @@ describe('StepRow (web)', () => {
         expect(screen.queryByRole('img', { name: 'Timer' })).toBeNull();
     });
 });
+
+describe('IngredientCheckRow (web) — the singular name for a count of one (D21)', () => {
+    const onion = makeIngredientView({
+        name: 'onions',
+        quantity: { kind: 'exact', value: 1 },
+        unit: 'large',
+        preparation: 'finely chopped',
+    });
+
+    it('shows and names "1 large onion", not "onions"', () => {
+        render(
+            <ul>
+                <IngredientCheckRow ingredient={onion} checked={false} allRemoved={false} onToggle={vi.fn()} />
+            </ul>,
+        );
+
+        const row = screen.getByRole('checkbox', { name: '1 large onion, finely chopped' });
+
+        expect(row.textContent).toContain('onion');
+        expect(row.textContent).not.toContain('onions');
+    });
+
+    it('keeps the plural for two', () => {
+        render(
+            <ul>
+                <IngredientCheckRow
+                    ingredient={{ ...onion, quantity: { kind: 'exact', value: 2 }, unit: '' }}
+                    checked={false}
+                    allRemoved={false}
+                    onToggle={vi.fn()}
+                />
+            </ul>,
+        );
+
+        expect(screen.getByRole('checkbox', { name: '2 onions, finely chopped' })).toBeTruthy();
+    });
+});

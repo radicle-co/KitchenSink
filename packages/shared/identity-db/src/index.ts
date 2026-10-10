@@ -14,10 +14,12 @@
 export { accounts } from './schema/accounts.js';
 export { lifecycleEvents } from './schema/lifecycleEvents.js';
 export { profiles } from './schema/profiles.js';
+export { settings } from './schema/settings.js';
 export { userStatusEnum, users } from './schema/users.js';
 export { webhookEvents } from './schema/webhookEvents.js';
 export type { AccountRow, NewAccountRow } from './schema/accounts.js';
 export type { NewProfileRow, ProfileRow } from './schema/profiles.js';
+export type { NewSettingsRow, SettingsRow } from './schema/settings.js';
 export type { NewUserRow, UserRow } from './schema/users.js';
 export type { NewWebhookEventRow, WebhookEventRow } from './schema/webhookEvents.js';
 export type {
@@ -28,6 +30,7 @@ export type {
 } from './schema/lifecycleEvents.js';
 
 export { AccountDAO } from './dao/account.dao.js';
+export { SettingsDAO, type SettingsPatch } from './dao/settings.dao.js';
 export { UserDAO } from './dao/user.dao.js';
 export { hasProcessedWebhookEvent, recordOnce } from './dao/webhookEvents.dao.js';
 

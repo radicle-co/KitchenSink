@@ -25,6 +25,8 @@ vi.mock('next/navigation', async (importOriginal) => ({
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({ data: { user: { displayName: 'Ada' } } }),
 }));
+// `useSearchShortcut` reads the viewer's settings (D19); this suite is about the chrome, not the shortcut.
+vi.mock('@/hooks/useUserSettings', () => ({ useUserSettings: () => ({ data: { searchShortcut: true } }) }));
 
 const { AppShell } = await import('../AppShell');
 

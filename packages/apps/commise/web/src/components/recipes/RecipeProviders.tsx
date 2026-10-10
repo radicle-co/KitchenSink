@@ -27,7 +27,7 @@
  */
 import { useAuth, useClerk } from '@clerk/nextjs';
 import { subjectBoundToken } from '@commise/features-account';
-import { CookMarksProvider } from '@commise/features-recipes';
+import { CookMarksProvider, useDeviceSessionScope } from '@commise/features-recipes';
 import { createAppQueryClient } from '@commise/query';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
@@ -47,7 +47,7 @@ import { OfflineReadSlot } from '@commise/ui/offline-notice';
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
-import { webOutboxStore } from '@/components/recipes/deviceSession';
+import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { EditorDraftAnswers } from '@/components/recipes/EditorDraftAnswers';
 import { FOOD_SERVICE_BASE_URL } from '@/lib/foodServiceConfig';
 import { RecipeAuthNotReadyError } from '@/lib/recipeAuthNotReady';
@@ -75,6 +75,10 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
     // ⚠️ DELIBERATE — ADR-0054. The cache ends with the cook's session. A sign-out here also reloads the document, which
     // would hide a missing boundary, but a cook change without a reload (Clerk multi-session) would not.
     useQuerySessionScope(queryClient, userId ?? undefined);
+    // ADR-0057, owner D7: the cook's editor drafts and unsent saves end with their session, however it ends — our own
+    // sign-out, another tab's, an expiry or revocation, the UserButton, or a switch of cook. Fed Clerk's raw `userId`, so
+    // the loading `undefined` is told apart from a signed-out `null`.
+    useDeviceSessionScope(webDeviceStore, userId);
     // The one Clerk session-token resolver both clients use, so recipe and food authenticate the same way.
     const sessionToken = useCallback(
         async (forceRefresh: boolean): Promise<string> => {
@@ -156,7 +160,7 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
                     pages are readable signed out, so a signed-out visitor must still get the first half.
                     Hoisting it ABOVE the provider would hand everyone the NOT_MOUNTED default's
                     `pendingCount: 0` and silently kill the syncing body for signed-in cooks. */}
-                <SyncProvider subject={userId ?? undefined} send={send} store={webOutboxStore}>
+                <SyncProvider subject={userId ?? undefined} send={send} store={webDeviceStore}>
                     <SyncNoticeHost copy={offline} />
                     {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
                         not the editor that queued them is still open. */}

@@ -9,7 +9,7 @@
 import type { DatabasePart, RemotePart } from '../hooks/foodSuggestions.model.js';
 import type { LineCommitOutcome, RemoteFoodPick } from '../hooks/lineCommit.js';
 import { limitEndOf } from '../hooks/sourceLimit.model.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { IngredientRemoteSearchMessages } from '../messages.js';
 import type { RecipeFormMessages } from './messages.js';
 

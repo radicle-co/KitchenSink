@@ -351,10 +351,15 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * docblock. `AccountEditForm` also leaves `DECLARED_ORCHESTRATION` below: it was deleted, not reclassified — the
  * display-name sheet replaced its form.
  *
- * ⚠️ It went 96 → 95 with the D15 colour-role move: `features/recipes/src/form/Field.native.tsx` had no importer and was
- * deleted, not reclassified.
+ * ⚠️ It went 96 → 93 with the D15 colour-role move, not 96 → 95 as first recorded: three unclassified components were
+ * deleted, not reclassified — `Field.native.tsx` (no importer), and `MoreActionsMenu` and `RecipeSourceTab` with the
+ * dead source tabs. No component gained a layer statement.
+ *
+ * ⚠️ It went 93 → 94 on the shared working tree of the overhaul's review round. `GlassCard` was deleted (D12 keeps
+ * glass off cards); `ServingScaleControl` arrived without a layer statement; and `[locale]/layout.tsx`'s `LocaleLayout`
+ * entered the catalogue when the extractor stopped requiring JSX in a single-default-export file (a route segment).
  */
-const LAYER_UNSTATED_CENSUS = 95;
+const LAYER_UNSTATED_CENSUS = 94;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

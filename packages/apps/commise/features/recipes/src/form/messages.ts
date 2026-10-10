@@ -568,7 +568,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         pasteRefusalTooManyLines: 'That’s more than {max} lines. Paste them in smaller batches.',
         rowStateReading: 'Reading…',
         rowStateLookupFailed: 'Couldn’t look up',
-        rowStateWaitingForConnection: 'Finishes when you’re back online',
+        rowStateWaitingForConnection: 'Reads when you’re back online',
         rowStateChooseMatch: 'Choose a match',
         rowStateNoMatch: 'No match found',
         rowStateFoodRemoved: 'Food no longer listed',
@@ -694,7 +694,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         nutritionNoneUnavailable:
             'This is matched to someone else’s private food, so its details aren’t shown. Your recipe is fine as it is.',
         statusExplainUnresolved: 'We found more than one food this could be, and we need you to say which.',
-        statusActionNoneOfThese: 'None of these — search for a different food',
+        statusActionNoneOfThese: 'Search for another food',
         candidatesLabel: 'Which “{name}” did you mean?',
         candidatesLoading: 'Loading options…',
         candidatesLoadFailed: 'We couldn’t load options for that ingredient.',

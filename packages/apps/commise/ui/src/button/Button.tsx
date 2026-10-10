@@ -27,8 +27,9 @@
  * @pattern Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken. It is the one
  *     reason this leaf holds a ref: `.focus()` has no declarative form.
  */
-import { useEffect, useEffectEvent, useRef, type FC } from 'react';
+import { useRef, type FC } from 'react';
 
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.js';
 import { PressScale } from '../pressScale/index.js';
 import { busyControlProps } from './busyControlProps.js';
@@ -74,17 +75,7 @@ export const Button: FC<ButtonProps> = (props) => {
     const surface =
         variant === 'destructive' ? buttonSurfaceClass(variant, size, tone) : buttonSurfaceClass(variant, size);
     const node = useRef<HTMLButtonElement>(null);
-    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
-    const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
-
-    useEffect(() => {
-        if (!focusRequested) {
-            return;
-        }
-
-        node.current?.focus();
-        acknowledgeFocusRequest();
-    }, [focusRequested]);
+    useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
 
     return (
         <PressScale width={width}>

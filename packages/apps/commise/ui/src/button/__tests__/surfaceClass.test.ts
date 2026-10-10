@@ -20,7 +20,7 @@ import { palette, role } from '../../tokens/colors.js';
 import { kebab } from '../../tokens/emit.js';
 import { BUSY_CONTROL_CLASS } from '../busyControlProps.js';
 import type { ButtonSize } from '../props.js';
-import { buttonSurfaceClass } from '../surfaceClass.js';
+import { GHOST_EDGE_CLASS, buttonSurfaceClass } from '../surfaceClass.js';
 
 /** Every colour a utility can name: the palette, and the roles under their emitted kebab names (`ink-muted`). */
 const COLOURS: Readonly<Record<string, string>> = {
@@ -138,6 +138,38 @@ describe('buttonSurfaceClass — geometry', () => {
         for (const { name, className } of SURFACES) {
             expect(tokensOf(className), name).toEqual(expect.arrayContaining(['inline-flex', 'items-center']));
         }
+    });
+
+    /**
+     * F5 (`evaluateFinal.md`): a flex row squeezed "Sort: Recently edited" to three lines at every width. A button never
+     * shrinks below its label in a row, so the row wraps BETWEEN controls, never inside one; `max-w-full` keeps a label
+     * longer than its whole container (200% text, §1.1's standing exception) wrapping inside the box, never overflowing.
+     */
+    it('never shrinks below its label in a flex row, and never grows past its container', () => {
+        for (const variant of ['primary', 'secondary', 'ghost'] as const) {
+            for (const size of SIZES) {
+                const tokens = tokensOf(buttonSurfaceClass(variant, size));
+
+                expect(tokens, `${variant} ${size}`).toContain('shrink-0');
+                expect(tokens, `${variant} ${size}`).toContain('max-w-full');
+            }
+        }
+
+        expect(tokensOf(buttonSurfaceClass('destructive', 'md', 'confirm'))).toContain('shrink-0');
+    });
+
+    /**
+     * F15 (`evaluateFinal.md`): a ghost text button that starts a line in a column (the eyebrow back link, Version
+     * history) drew its box at the column edge, so its LABEL started 12-20 px inside the edge its siblings share. The edge
+     * class pulls the box out by exactly the inline padding, read from the surface itself so the two cannot drift.
+     */
+    it('pulls a ghost button out by exactly its own inline padding, at every breakpoint', () => {
+        const paddings = tokensOf(buttonSurfaceClass('ghost', 'sm')).filter((token) => /(?:^|:)px-\d+$/u.test(token));
+
+        expect(paddings.length).toBeGreaterThan(0);
+        expect([...tokensOf(GHOST_EDGE_CLASS)].sort()).toEqual(
+            paddings.map((token) => token.replace(/px-(\d+)$/u, '-ms-$1')).sort(),
+        );
     });
 
     it('sets the label in the label type role', () => {

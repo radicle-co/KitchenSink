@@ -31,7 +31,7 @@ import { SearchField } from '@commise/ui/search-field';
 import { useState } from 'react';
 import type { FC, ReactNode } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { DiscoverySortMenu } from './DiscoverySortMenu.js';
 import { discoveryMessages } from './messages.js';
 import {

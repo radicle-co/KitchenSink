@@ -137,4 +137,15 @@ describe('Stepper (native)', () => {
             }
         }
     });
+
+    // The recipe page puts the Stepper in the Ingredients heading row beside "for {n}" (`buildSpec.md` §6.1), where a
+    // visible label would say the same thing twice. Hidden from sight, the label still names the group.
+    it('can hide its label from sight while it still names the group', () => {
+        render(<Servings labelVisibility="hidden" />);
+
+        const label = screen.getByText('Servings');
+
+        expect(screen.getByRole('group', { name: 'Servings' })).toBeTruthy();
+        expect(getComputedStyle(label).position === 'absolute' && getComputedStyle(label).width === '1px').toBe(true);
+    });
 });

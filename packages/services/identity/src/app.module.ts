@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { QueueModule } from './queue/queue.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { SettingsModule } from './settings/settings.module.js';
 import { AuthMiddleware } from './auth/middleware/auth.middleware.js';
 import { ApiExceptionFilter } from './common/filters/apiException.filter.js';
 import { SentryContextMiddleware } from './observability/sentryContext.middleware.js';
@@ -23,6 +24,7 @@ import { SentryContextMiddleware } from './observability/sentryContext.middlewar
         AuthModule,
         QueueModule,
         UsersModule,
+        SettingsModule,
         AdminModule,
     ],
     controllers: [],

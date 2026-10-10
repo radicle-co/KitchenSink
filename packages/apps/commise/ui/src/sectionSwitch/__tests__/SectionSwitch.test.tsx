@@ -111,4 +111,49 @@ describe('SectionSwitch (web)', () => {
 
         expect(within(nav.parentElement as HTMLElement).getByRole('switch', { name: 'Screen on' })).not.toBeNull();
     });
+
+    /**
+     * F14 (`evaluateFinal.md`): at 320 the links shrank under the trailing toggle, which covered "Nutrition" (SC 2.5.8),
+     * and +35% strings pushed the bar 47 px past the page (SC 1.4.10). The links scroll INSIDE the bar, each at its
+     * label's width, and the trailing toggle stays pinned at the end, outside the scroller.
+     */
+    it('scrolls its links inside the bar, never squeezing them, and pins the trailing control outside the scroller', () => {
+        render(
+            <SectionSwitch
+                label="Recipe sections"
+                sections={SECTIONS}
+                trailing={
+                    <button type="button" role="switch" aria-checked={false}>
+                        Screen on
+                    </button>
+                }
+            />,
+        );
+
+        const nav = screen.getByRole('navigation', { name: 'Recipe sections' });
+        const toggle = screen.getByRole('switch', { name: 'Screen on' });
+
+        expect(nav.className.split(' ')).toEqual(expect.arrayContaining(['min-w-0', 'flex-1', 'overflow-x-auto']));
+
+        for (const link of within(nav).getAllByRole('link')) {
+            expect((link.closest('li') as HTMLElement).className.split(' ')).toContain('shrink-0');
+        }
+
+        expect(nav.contains(toggle)).toBe(false);
+        expect((toggle.parentElement as HTMLElement).className.split(' ')).toContain('shrink-0');
+    });
+
+    // A link the bar's own scroll has half hidden is scrolled whole into the bar when it takes focus; a browser only
+    // scrolls a focused element that is entirely out of view (F14).
+    it('scrolls a focused link whole into the bar', () => {
+        render(<SectionSwitch label="Recipe sections" sections={SECTIONS} />);
+        const link = screen.getByRole('link', { name: 'Nutrition' });
+        const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+        scrollIntoView.mockClear();
+
+        link.focus();
+
+        expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+        expect(scrollIntoView.mock.contexts[0]).toBe(link);
+    });
 });

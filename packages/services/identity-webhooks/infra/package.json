@@ -4,7 +4,7 @@
     "private": true,
     "type": "module",
     "//": [
-        "⛔ DELIBERATELY NOT AN npm WORKSPACE — absent from the root `workspaces` globs on purpose.",
+        "\u26d4 DELIBERATELY NOT AN npm WORKSPACE \u2014 absent from the root `workspaces` globs on purpose.",
         "",
         "CDK is not part of the workspace installs. `aws-cdk-lib` is 149 MB and is a runtime dependency of no",
         "service; while it was declared on the service it hoisted to the root tree, was pulled into",
@@ -13,11 +13,11 @@
         "This directory installs its own `node_modules`. Node resolves upward, so the CDK app finds aws-cdk-lib",
         "here and still finds the `@kitchensink/*` workspace packages at the repo root.",
         "",
-        "⚠️ `@radicle-co/infra-shared` peers on aws-cdk-lib and owns no copy, so the constructs resolve THIS",
+        "\u26a0\ufe0f `@radicle-co/infra-shared` peers on aws-cdk-lib and owns no copy, so the constructs resolve THIS",
         "directory's instance. Two instances is not a packaging nuisance: SecretValue tokens minted by one are",
         "unresolvable by a stack from the other, and tsc rejects the assignment outright.",
         "",
-        "⚠️ CI pins the exact prerelease the run published (`cdk-checks`, `_ci.yml`), so a PR that changes a",
+        "\u26a0\ufe0f CI pins the exact prerelease the run published (`cdk-checks`, `_ci.yml`), so a PR that changes a",
         "shared construct is built and deployed against ITS OWN construct rather than the last published one."
     ],
     "scripts": {
@@ -34,6 +34,7 @@
         "dotenv": "^17.4.2"
     },
     "devDependencies": {
+        "@kitchensink/queue-check": "*",
         "@types/node": "^24.13.3",
         "aws-cdk": "^2.1134.0",
         "tsx": "^4.23.12",

@@ -427,6 +427,16 @@
             },
             "type": "object"
         },
+        "patchUserSettingsRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "searchShortcut": {
+                    "type": "boolean"
+                }
+            },
+            "type": "object"
+        },
         "userProfileAccountSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -599,6 +609,19 @@
                 "status",
                 "createdAt",
                 "updatedAt"
+            ],
+            "type": "object"
+        },
+        "userSettingsSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "searchShortcut": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "searchShortcut"
             ],
             "type": "object"
         },

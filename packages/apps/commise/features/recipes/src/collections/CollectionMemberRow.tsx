@@ -20,7 +20,7 @@ import type { FC } from 'react';
 
 import { RecipeCard } from '../card/RecipeCard.js';
 import { toRecipeCardModel } from '../card/model.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { CollectionMemberRowProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 

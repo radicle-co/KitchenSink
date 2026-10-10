@@ -27,6 +27,13 @@ export interface OutboxStore {
     getItem: (key: string) => Promise<string | null>;
     setItem: (key: string, value: string) => Promise<void>;
     removeItem: (key: string) => Promise<void>;
+    /**
+     * Whether what this storage holds may be a COPY that another live owner also holds. A duplicated browser tab copies
+     * its `sessionStorage`, the outbox journal included (ADR-0057 §3), so the web adapter answers through its tab lock
+     * (`createTabCopyProbe`). Asked once, on an outbox's first read, which then parks the copy's pending creates
+     * (`recoverInterrupted`). Absent: storage no one else can hold a copy of (AsyncStorage, memory).
+     */
+    readonly isCopy?: () => Promise<boolean>;
 }
 
 /** A loaded log, plus how many records could not be read. */

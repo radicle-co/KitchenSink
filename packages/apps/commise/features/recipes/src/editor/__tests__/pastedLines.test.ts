@@ -28,9 +28,13 @@ const input = (over: Partial<PastedLinesInput> = {}): PastedLinesInput => ({
     ...over,
 });
 
+/**
+ * REWRITTEN (UX F12): a line the reader settles keeps the unit as the cook typed it ("tbsp"), as a parsed line does, so
+ * one line reads the same whichever path settles it. It was `normalizeUnit`'s "tablespoon".
+ */
 const OLIVE_OIL_FALLBACK = {
     name: 'olive oil',
-    measure: { quantity: { kind: 'exact', value: 2 }, unit: 'tablespoon', preparation: 'for frying' },
+    measure: { quantity: { kind: 'exact', value: 2 }, unit: 'tbsp', preparation: 'for frying' },
 };
 
 describe('pastedLinesOf', () => {
@@ -57,7 +61,8 @@ describe('pastedLinesOf', () => {
                 rows: [
                     {
                         name: 'flour',
-                        measure: { quantity: { kind: 'exact', value: 2 }, unit: 'cup', preparation: 'sifted' },
+                        // The unit as the cook stated it ("2 cups"), not the parse's canonical "cup" (F12).
+                        measure: { quantity: { kind: 'exact', value: 2 }, unit: 'cups', preparation: 'sifted' },
                         sourcePhrase: 'flour',
                     },
                 ],
@@ -74,6 +79,7 @@ describe('pastedLinesOf', () => {
                     proposal: makeParseProposal({
                         quantity: ABSENT_QUANTITY,
                         unit: null,
+                        statedMeasure: null,
                         foods: [makeParseProposalFood({ name: 'salt' }), makeParseProposalFood({ name: 'pepper' })],
                     }),
                 }),
@@ -106,6 +112,100 @@ describe('pastedLinesOf', () => {
             { kind: 'settled', lineIndex: 0, sourceLine: 'For the sauce:', rows: [] },
         ]);
     });
+
+    /**
+     * UX F12 (`evaluateFinal.md`): a paste rewrote what the cook typed — "2 tbsp" became "2 tablespoon", "1 large onion"
+     * lost "large", and "a handful of" vanished. Spec §7.5.3: the amount and unit the cook typed are the cook's own
+     * statement. So the measure comes from the cook's words (`statedMeasure`), read with the add field's amount rules;
+     * the parse's own reading stands only where the cook's words state no amount it can read but the parse read one.
+     */
+    it.each([
+        {
+            line: '2 tbsp olive oil',
+            proposal: { quantity: { kind: 'exact', value: 2 }, unit: 'tablespoon', statedMeasure: '2 tbsp' },
+            measure: { quantity: { kind: 'exact', value: 2 }, unit: 'tbsp' },
+        },
+        {
+            line: '1 large onion, finely chopped',
+            proposal: { quantity: { kind: 'exact', value: 1 }, unit: null, statedMeasure: '1 large' },
+            measure: { quantity: { kind: 'exact', value: 1 }, unit: 'large' },
+        },
+        {
+            line: 'a handful of coriander leaves, to serve',
+            proposal: { quantity: ABSENT_QUANTITY, unit: null, statedMeasure: 'a handful' },
+            measure: { quantity: ABSENT_QUANTITY, unit: 'a handful' },
+        },
+        {
+            line: '200g butter',
+            proposal: { quantity: { kind: 'exact', value: 200 }, unit: 'gram', statedMeasure: '200g' },
+            measure: { quantity: { kind: 'exact', value: 200 }, unit: 'g' },
+        },
+        {
+            line: '1 1/2 cups of flour',
+            proposal: { quantity: { kind: 'exact', value: 1.5 }, unit: 'cup', statedMeasure: '1 1/2 cups of' },
+            measure: { quantity: { kind: 'exact', value: 1.5 }, unit: 'cups' },
+        },
+        {
+            line: '2–3 Tbsp water',
+            proposal: { quantity: { kind: 'range', low: 2, high: 3 }, unit: 'tablespoon', statedMeasure: '2–3 Tbsp' },
+            measure: { quantity: { kind: 'range', low: 2, high: 3 }, unit: 'Tbsp' },
+        },
+        {
+            line: 'one cup sugar',
+            proposal: { quantity: { kind: 'exact', value: 1 }, unit: 'cup', statedMeasure: 'one cup' },
+            measure: { quantity: { kind: 'exact', value: 1 }, unit: 'cup' },
+        },
+        {
+            line: '2 cups flour',
+            proposal: { quantity: { kind: 'exact', value: 2 }, unit: 'cup', statedMeasure: null },
+            measure: { quantity: { kind: 'exact', value: 2 }, unit: 'cup' },
+        },
+    ] as const)('"$line" keeps the cook’s measure', ({ line: sourceLine, proposal, measure }) => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    sourceLine,
+                    status: 'parsed',
+                    proposal: makeParseProposal({ ...proposal, foods: [makeParseProposalFood({ name: 'food' })] }),
+                }),
+            ],
+        });
+        const [settled] = pastedLinesOf(input({ job }));
+
+        expect(settled?.kind === 'settled' ? settled.rows[0]?.measure : undefined).toEqual({
+            ...measure,
+            preparation: '',
+        });
+    });
+
+    /**
+     * 2026-10-09 review, Medium 1: the heading test ran only on the reader path, so a parse that proposed a food for a
+     * heading ("dough" for "For the dough:") still added a food row. The heading is tested before the status decides.
+     */
+    it.each([
+        { sourceLine: 'For the dough:', heading: true },
+        { sourceLine: 'For the dough :', heading: true },
+        { sourceLine: '  For the filling:  ', heading: true },
+        { sourceLine: 'Salt: to taste', heading: false },
+    ])(
+        'a parsed proposal for "$sourceLine" adds rows only when the line is not a heading',
+        ({ sourceLine, heading }) => {
+            const job = makeParseJob({
+                lines: [
+                    makeParseJobLine({
+                        sourceLine,
+                        status: 'parsed',
+                        proposal: makeParseProposal({ foods: [makeParseProposalFood({ name: 'dough' })] }),
+                    }),
+                ],
+            });
+            const [line] = pastedLinesOf(input({ job }));
+
+            expect(line?.kind === 'settled' ? line.rows.map((row) => row.name) : undefined).toEqual(
+                heading ? [] : ['dough'],
+            );
+        },
+    );
 
     it('an unreadable line settles through the add field’s own reader, and claims no phrase it did not parse', () => {
         const job = makeParseJob({

@@ -103,14 +103,6 @@
             ]
         },
         {
-            "id": "glass",
-            "source": "packages/apps/commise/ui/src/tokens/gradients.ts",
-            "tokenCount": 2,
-            "kinds": [
-                "glass"
-            ]
-        },
-        {
             "id": "native.spacing",
             "source": "packages/apps/commise/ui/src/tokens/native.ts",
             "tokenCount": 10,

@@ -443,6 +443,30 @@ export function classifyUnit(raw: string): UnitClass {
 }
 
 /**
+ * The size words a cook states for a countable food ("1 large onion"). A size word is a measure the cook states, NOT a
+ * canonical unit: {@link classifyUnit} still answers `unknown` for it and it carries no gram weight here (a catalog
+ * portion labelled the same way may resolve it in {@link unitToGrams}, and otherwise that returns `null`). Lower case.
+ */
+export const SIZE_WORDS: ReadonlySet<string> = new Set([
+    'small',
+    'medium',
+    'large',
+    'extra large',
+    'extra-large',
+    'jumbo',
+]);
+
+/**
+ * Whether `token` is a size word ({@link SIZE_WORDS}), ignoring case and surrounding space. Pure.
+ *
+ * @param token - One word, or the two words of "extra large".
+ * @returns `true` for a size word.
+ */
+export function isSizeWord(token: string): boolean {
+    return SIZE_WORDS.has(token.trim().toLowerCase());
+}
+
+/**
  * Convert `quantity` of `unit` to grams — via an exact mass unit, else a matching household portion. Pure.
  *
  * @returns The gram weight, or `null` when the unit is neither a mass unit nor covered by a portion.

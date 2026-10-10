@@ -3,14 +3,16 @@
  *
  * Mirrors the web leaf state for state — own count, above, below, both ends of the range, and an
  * over-cap recipe — so the two platforms cannot drift on which yields a cook can reach.
+ *
+ * REWRITTEN for F8 (`evaluateFinal.md`): the control is the design system's `Stepper`, as on web, so its steps draw
+ * the `minus`/`plus` glyphs (not "−"/"+" text) and its count is Inter in tabular digits.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MAX_SCALED_SERVINGS, MIN_SCALED_SERVINGS } from '@kitchensink/recipe-core/scaling';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
-// Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
-import { ServingScaleControl } from '../ServingScaleControl.native.js';
+import { ServingScaleControl } from '../ServingScaleControl.js';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -22,6 +24,12 @@ afterEach(() => {
     cleanup();
     systemScheme.current = null;
 });
+
+/** What the polite live region says now; the Stepper's `LiveRegion` renews its node per announcement. */
+const spokenIn = (container: HTMLElement): string =>
+    Array.from(container.querySelectorAll('[aria-live="polite"]'))
+        .map((node) => node.textContent)
+        .join('');
 
 describe('ServingScaleControl (native)', () => {
     it('shows the serving count it was given', () => {
@@ -85,14 +93,12 @@ describe('ServingScaleControl (native)', () => {
         const { container, rerender } = render(
             <ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />,
         );
-        const region = container.querySelector('[aria-live="polite"]');
-        expect(region?.textContent).toBe('');
+        expect(spokenIn(container)).toBe('');
 
         await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
         rerender(<ServingScaleControl servings={5} baseServings={4} onServingsChange={vi.fn()} />);
 
-        expect(container.querySelector('[aria-live="polite"]')).toBe(region);
-        expect(region?.textContent).toBe('5 servings');
+        expect(spokenIn(container)).toBe('5 servings');
         // The visible count is still the bare number Maestro asserts on.
         expect(screen.getByText('5')).toBeTruthy();
     });
@@ -104,9 +110,7 @@ describe('ServingScaleControl (native)', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
         rerender(<ServingScaleControl servings={MAX_SCALED_SERVINGS} baseServings={4} onServingsChange={vi.fn()} />);
-        expect(container.querySelector('[aria-live="polite"]')?.textContent).toBe(
-            `${MAX_SCALED_SERVINGS} servings, maximum`,
-        );
+        expect(spokenIn(container)).toBe(`${MAX_SCALED_SERVINGS} servings, maximum`);
 
         cleanup();
         const fresh = render(
@@ -114,7 +118,17 @@ describe('ServingScaleControl (native)', () => {
         );
         // A disabled native button blocks pointer events; skip that check so the press is really attempted.
         await userEvent.setup({ pointerEventsCheck: 0 }).click(screen.getByRole('button', { name: 'More servings' }));
-        expect(fresh.container.querySelector('[aria-live="polite"]')?.textContent).toBe('');
+        expect(spokenIn(fresh.container)).toBe('');
+    });
+
+    it('names the count by a hidden "Servings" label and sets it in Inter tabular digits (F8)', () => {
+        render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
+
+        const count = getComputedStyle(screen.getByText('4'));
+
+        expect(screen.getByRole('group', { name: 'Servings' })).toBeTruthy();
+        expect(count.fontFamily).toMatch(/Inter/u);
+        expect(count.fontVariant).toMatch(/tabular-nums/u);
     });
 
     it('clears the 44pt touch floor on every control', () => {
@@ -138,7 +152,7 @@ describe.each(['light', 'dark'] as const)('ServingScaleControl (native) — the 
         const more = screen.getByRole('button', { name: 'More servings' });
 
         expect(getComputedStyle(more).borderTopColor).toBe(rgb(colours.lineControl));
-        expect(getComputedStyle(screen.getByText('+')).color).toBe(rgb(colours.ink));
+        expect(more.querySelector('[data-commise-stub="icon"]')?.getAttribute('data-icon-name')).toBe('plus');
         expect(getComputedStyle(screen.getByText('4')).color).toBe(rgb(colours.ink));
     });
 });

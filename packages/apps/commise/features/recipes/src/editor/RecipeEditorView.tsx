@@ -30,6 +30,7 @@ import { EditorActionBar } from './EditorActionBar.js';
 import { EditorHeader } from './EditorHeader.js';
 import { FailureAlert } from './FailureAlert.js';
 import { ResumeNotice } from './ResumeNotice.js';
+import { UnmatchedNote } from './UnmatchedNote.js';
 import { EditorSection } from './EditorSection.js';
 import {
     EDITOR_ACTION_BAR_ID,
@@ -164,6 +165,9 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                                     ? {}
                                     : { action: headingActions[section] })}
                             >
+                                {section === 'photos' && page.publishNote !== undefined && (
+                                    <UnmatchedNote text={page.publishNote} />
+                                )}
                                 {sections[section]}
                             </EditorSection>
                         ))}
@@ -178,6 +182,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                             primaryDisabled={chrome.primary.disabled || props.pastePending === true}
                             busy={chrome.primary.busy}
                             {...(chrome.fixLine === undefined ? {} : { fixLine: chrome.fixLine })}
+                            {...(page.publishNote === undefined ? {} : { readyLine: page.publishNote })}
                             notice={
                                 chrome.failure === undefined || firstAction === undefined ? undefined : (
                                     <FailureAlert
@@ -197,7 +202,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                 <ConfirmDialog
                     open={page.confirming}
                     title={chrome.discard.title}
-                    body={editor.lifecycle === 'published' ? m.discard.changesBody : m.discard.draftBody}
+                    body={chrome.discard.body}
                     confirm={{ label: m.discard.confirm, icon: 'trash' }}
                     keep={{ label: m.discard.keep }}
                     onConfirm={page.confirmDiscard}

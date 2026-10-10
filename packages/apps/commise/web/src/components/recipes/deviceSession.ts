@@ -1,45 +1,46 @@
 'use client';
 
 /**
- * @module @commise/web — what the browser keeps for one cook, and its end with their session (ADR-0057, ADR-0054): the
- * editor's drafts, the outbox journal and the cook marks, all in the tab's session storage. All are removed once a
- * sign-out is PROVEN to have ended the session (`signOutAndVerify`), before the sign-out leaves the page.
+ * @module @commise/web — the ONE key/value store the browser keeps a cook's editor work in, and its end with their
+ * session (ADR-0057, ADR-0054): the editor's drafts and the outbox journal, both in the tab's session storage (owner D7,
+ * as amended 2026-10-09). The end itself — drafts, journal and the tab's cook marks — is `@commise/features-recipes`'
+ * `endDeviceSession`, shared with mobile; this module binds it to this store.
  *
- * ⛔ The outbox journal has the DRAFT'S lifetime, on purpose (ADR-0057 §1). Its only writer is the editor, and what it
- * holds are the editor's pending recipe writes — ids and form values, which D7 covers. In memory it died with a reload
- * while the draft survived it: a create on the wire was forgotten, and the reopened editor sent it again — a second
- * recipe. Kept beside the draft, a reload finds the record, the outbox's first read parks it as an unknown outcome, and
- * the cook decides; closing the tab ends both together.
+ * ⛔ ONE OBJECT for the app: `draftStoreFor` and `outboxMutatorFor` each memoize one serial writer per store object, so
+ * the editor, the outbox observer, `SyncProvider` and the session end share their writers only while they share this.
  *
- * ⛔ The outbox store is ONE object for the app, handed to `SyncProvider`, so the session end reaches the store the
- * queue actually writes.
+ * ⛔ The outbox journal has the DRAFT'S lifetime, on purpose (ADR-0057 §3). In memory it died with a reload while the
+ * draft survived it: a create on the wire was forgotten, and the reopened editor sent it again — a second recipe.
+ *
+ * ⛔ A DUPLICATED TAB COPIES IT. Both tabs would then send the same pending create. The store answers `isCopy` through a
+ * Web Lock each live tab holds (`createTabCopyProbe`), and the outbox's first read parks the copy's pending creates, so
+ * the cook decides. Where Web Locks is missing (an insecure origin), every first read treats the journal as a copy.
+ *
+ * Storage, locks and ids are resolved at first use, so a server render that imports this touches nothing.
  */
-import { clearStoredCookMarks } from '@commise/features-recipes';
-import { createWebStorageStore, quarantineKeyFor, storeKeyFor } from '@kitchensink/sync';
+import { endDeviceSession as endStoredDeviceSession } from '@commise/features-recipes';
+import { createTabCopyProbe, createWebStorageStore, type LockManagerLike } from '@kitchensink/sync';
 
-import { editorDraftsFor } from '@/components/recipes/editorDrafts';
+/** The browser's Web Locks, or `undefined` where the origin is not secure or the browser predates them. */
+function browserLocks(): LockManagerLike | undefined {
+    return typeof navigator !== 'undefined' && 'locks' in navigator ? navigator.locks : undefined;
+}
 
-/** The web outbox's store: the tab's session storage, read at each call, so a server render touches nothing. */
-export const webOutboxStore = createWebStorageStore(() => window.sessionStorage);
+/** The web's one store for the cook's editor work: the tab's session storage. */
+export const webDeviceStore = createWebStorageStore(() => window.sessionStorage, {
+    isCopy: createTabCopyProbe({
+        locksOf: browserLocks,
+        storageOf: () => window.sessionStorage,
+        mintId: () => crypto.randomUUID(),
+    }),
+});
 
 /**
- * Remove what the browser kept for a cook: every cook mark (D18 — whoever made them, as the marks store's own sign-out
- * rule does), their editor drafts (and their quarantine) and their outbox.
- *
- * ⛔ The marks are removed HERE and not only by `CookMarksProvider`'s scope: that runs from an effect, and the sign-out
- * leaves with a full document load that can unload the page before it does.
+ * End a cook's device session in this tab: their drafts, their outbox, both quarantines, and every cook mark.
  *
  * @param subject - The cook who was signed in (Clerk `userId`), or `undefined` when nobody was.
- * @sideEffect Removes keys from session storage and the outbox store.
+ * @sideEffect Removes keys from session storage, through each store's own writer.
  */
-export async function endDeviceSession(subject: string | undefined): Promise<void> {
-    clearStoredCookMarks();
-
-    if (subject === undefined) {
-        return;
-    }
-
-    await editorDraftsFor(subject)?.clear();
-    await webOutboxStore.removeItem(storeKeyFor(subject));
-    await webOutboxStore.removeItem(quarantineKeyFor(subject));
+export function endDeviceSession(subject: string | undefined): Promise<void> {
+    return endStoredDeviceSession(webDeviceStore, subject);
 }

@@ -1,6 +1,7 @@
 /**
- * ADR-0007 per-stage RDS right-sizing: prod keeps db.t4g.small (unchanged → no prod diff), every
- * non-prod stage runs db.t4g.micro.
+ * ADR-0007 RDS sizing: every stage runs db.t4g.small. Non-prod ran db.t4g.micro until the 1 GB instance was
+ * measured starving under preview load (swap ~430 MB, connections dropped while tasks idled), so the class is now
+ * one constant and prod's synthesized template is unchanged.
  *
  * ADR-0008 per-stage RDS storage type: prod stays on the default gp2 (unchanged → no prod diff),
  * every non-prod stage uses gp3 with NO provisioned IOPS/throughput (free 3,000-IOPS baseline).
@@ -39,19 +40,19 @@ describe('DataStack per-stage RDS instance class (ADR-0007)', () => {
         });
     });
 
-    it('sandbox is right-sized down to db.t4g.micro', () => {
+    it('sandbox runs db.t4g.small: the 1 GB micro starved under preview load', () => {
         dataTemplate('sandbox').hasResourceProperties('AWS::RDS::DBInstance', {
-            DBInstanceClass: 'db.t4g.micro',
+            DBInstanceClass: 'db.t4g.small',
         });
     });
 
-    it('an unspecified/dev stage also uses the smaller db.t4g.micro', () => {
+    it('an unspecified/dev stage also runs db.t4g.small', () => {
         dataTemplate('dev').hasResourceProperties('AWS::RDS::DBInstance', {
-            DBInstanceClass: 'db.t4g.micro',
+            DBInstanceClass: 'db.t4g.small',
         });
     });
 
-    it('does not downsize prod when sandbox does (independent per-stage synths)', () => {
+    it('prod keeps exactly one db.t4g.small instance', () => {
         const prodClasses = Object.values(dataTemplate('prod').findResources('AWS::RDS::DBInstance')).map(
             (resource: any) => resource.Properties.DBInstanceClass,
         );

@@ -66,13 +66,29 @@ describe('the ⋯ discard item', () => {
         expect(chrome({ values: makeFilledRecipeFormValues() }).discard).toEqual({
             menuLabel: 'Discard draft',
             title: 'Discard this draft?',
+            body: "The recipe and everything in it will be deleted. This can't be undone.",
         });
         expect(chrome({ lifecycle: 'neverPublished', recipeId: 'rec_1' }).discard?.menuLabel).toBe('Discard draft');
         expect(chrome({ lifecycle: 'published', recipeId: 'rec_1', hasUnsavedChanges: false }).discard).toBeUndefined();
         expect(chrome({ lifecycle: 'published', recipeId: 'rec_1', hasUnsavedChanges: true }).discard).toEqual({
             menuLabel: 'Discard changes',
             title: 'Discard your changes?',
+            body: 'Your recipe stays as it was when you last saved it.',
         });
+    });
+
+    /**
+     * A1's `discardMayLeaveServerCopy`: the create's outcome is unknown, so the recipe may exist on the server, and the
+     * editor never guesses a delete for it. Saying "everything in it will be deleted" would then be false: the confirm
+     * says what Discard really does, in the words of where the draft is kept.
+     */
+    it.each([
+        ['disk', 'This recipe may already be saved. Discarding removes it from this device only.'],
+        ['tabSession', 'This recipe may already be saved. Discarding removes it from this tab only.'],
+    ] as const)('⛔ says a draft whose create may have landed is removed from the %s only', (keep, body) => {
+        expect(
+            chrome({ values: makeFilledRecipeFormValues(), discardMayLeaveServerCopy: true }, { keep }).discard?.body,
+        ).toBe(body);
     });
 });
 

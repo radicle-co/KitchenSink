@@ -1,14 +1,14 @@
 /**
  * The dark half of the emitted theme (`docs/design/uiOverhaul/darkTheme.md` §6): the roles stay in `@theme` with their
  * light values, and ONE `prefers-color-scheme: dark` block, after it, overrides the same custom properties from
- * `roleDark`, the cover tints, the glass edges and the canvas wash. `color-scheme: light dark` lets native form
+ * `roleDark`, the cover tints and the canvas wash. `color-scheme: light dark` lets native form
  * controls and scrollbars follow. Nothing else switches the theme.
  */
 import { describe, expect, it } from 'vitest';
 
 import { role, roleDark } from '../colors.js';
 import { COVER_TINT_NAMES, coverTint, coverTintDark } from '../covers.js';
-import { glass, glassEdgeDark, gradientCss, heroDark } from '../gradients.js';
+import { gradientCss, heroDark } from '../gradients.js';
 import { kebab } from '../emit.js';
 import { themeCss } from '../themeCss.js';
 import { difficultyTone, difficultyToneDark, proTone } from '../tones.js';
@@ -49,11 +49,7 @@ describe('themeCss — the dark block', () => {
         }
     });
 
-    it('overrides the glass edges and the canvas wash', () => {
-        for (const tier of Object.keys(glass)) {
-            expect(darkBlock()).toContain(`--color-glass-${tier}-edge: ${glassEdgeDark};`);
-        }
-
+    it('overrides the canvas wash', () => {
         expect(darkBlock()).toContain(`--background-image-hero: ${gradientCss(heroDark)};`);
     });
 

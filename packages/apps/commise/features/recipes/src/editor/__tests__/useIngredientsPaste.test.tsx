@@ -14,6 +14,7 @@ vi.mock('../usePasteIntoIngredients.js', () => ({
     usePasteIntoIngredients: () => double.current,
 }));
 
+import { createPasteHold, type PasteHold } from '../pasteHold.js';
 import { useIngredientsPaste } from '../useIngredientsPaste.js';
 
 const paste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients => ({
@@ -29,11 +30,23 @@ const paste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients =
     ...over,
 });
 
-const render = (over: Partial<PasteIntoIngredients>, lines: number, initiallyOpen = false) => {
+const render = (
+    over: Partial<PasteIntoIngredients>,
+    lines: number,
+    initiallyOpen = false,
+    hold: PasteHold = createPasteHold(),
+) => {
     double.current = paste(over);
 
     return renderHook(() =>
-        useIngredientsPaste({ offered: true, keepsSource: true, dispatch: vi.fn(), lineCount: lines, initiallyOpen }),
+        useIngredientsPaste({
+            offered: true,
+            keepsSource: true,
+            dispatch: vi.fn(),
+            lineCount: lines,
+            initiallyOpen,
+            hold,
+        }),
     );
 };
 
@@ -86,5 +99,26 @@ describe('useIngredientsPaste', () => {
         const { result } = render({ reading, retry, added: { count: 3, occurrence: 2 } }, 1);
 
         expect(result.current.view).toMatchObject({ reading, onRetry: retry, added: { count: 3, occurrence: 2 } });
+    });
+
+    /**
+     * The hold the editor reads before its server create (A1's `pasteHold.ts`): this paste is its one writer. It holds
+     * while the paste is sent or its lines are reading, lets go when they have joined, and lets go if the paste unmounts.
+     */
+    it('⛔ holds the shared paste hold while pending, and lets go when done or unmounted', () => {
+        const hold = createPasteHold();
+        const view = render({ submitting: true }, 0, false, hold);
+        expect(hold.get()).toBe(true);
+
+        double.current = paste({ reading: [] });
+        view.rerender();
+        expect(hold.get()).toBe(false);
+
+        double.current = paste({ reading: [{ key: 'l1', sourceLine: '2 cups flour', state: 'reading' }] });
+        view.rerender();
+        expect(hold.get()).toBe(true);
+
+        view.unmount();
+        expect(hold.get()).toBe(false);
     });
 });

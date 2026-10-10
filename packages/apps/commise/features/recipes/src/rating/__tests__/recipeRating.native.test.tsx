@@ -288,3 +288,38 @@ describe.each(['light', 'dark'] as const)('recipe rating (native) — the %s sch
         expect(getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(colours.dangerText));
     });
 });
+
+/** Walk RNW's atomic classes back to a CSS property's value (inline styles first). */
+function styleOf(element: Element, property: string): string {
+    const inline = (element as HTMLElement).style.getPropertyValue(property);
+
+    if (inline !== '') {
+        return inline;
+    }
+
+    return Array.from(document.styleSheets)
+        .flatMap((sheet) => Array.from(sheet.cssRules))
+        .filter(
+            (rule): rule is CSSStyleRule =>
+                rule instanceof CSSStyleRule &&
+                element.className.split(' ').some((name) => rule.selectorText === `.${name}`),
+        )
+        .map((rule) => rule.style.getPropertyValue(property))
+        .filter((value) => value !== '')
+        .join(' ');
+}
+
+// F8 and F15 (`evaluateFinal.md`), parity with web: the heading is `sectionTitle` (Inter 600), and the section adds no
+// gutter of its own, so "Community rating" starts at the column edge its sibling headings share.
+describe('RatingSection (native) — the heading and the column edge', () => {
+    it('sets the heading in Inter and adds no side padding', () => {
+        renderInput();
+
+        const heading = screen.getByRole('heading');
+        const region = heading.parentElement as HTMLElement;
+
+        expect(styleOf(heading, 'font-family')).toMatch(/Inter/u);
+        expect(styleOf(region, 'padding-left')).toMatch(/^(?:0px)?$/u);
+        expect(styleOf(region, 'padding-inline-start')).toMatch(/^(?:0px)?$/u);
+    });
+});

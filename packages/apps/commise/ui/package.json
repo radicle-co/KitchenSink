@@ -46,6 +46,7 @@
         "./duration": "./src/durationField/duration.ts",
         "./duration-field": "./src/durationField/index.ts",
         "./field-reveal": "./src/fieldReveal/index.ts",
+        "./focus-request": "./src/focusRequest/index.ts",
         "./keep-awake": "./src/keepAwake/index.ts",
         "./icon": "./src/icon/index.ts",
         "./motion": "./src/motion/index.ts",

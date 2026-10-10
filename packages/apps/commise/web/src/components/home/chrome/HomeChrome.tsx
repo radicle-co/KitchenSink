@@ -89,11 +89,12 @@ export function HomeChrome({
             />
 
             <main
-                className={`@container/main min-w-0 flex-1 px-4 pt-6 medium:px-6 nav:px-8 nav:pb-8 ${
+                className={`@container/main min-w-0 flex-1 ${
                     focusedTask
-                        ? // The task's own bar owns the foot, so `main` clears that instead.
+                        ? // The task's frame runs edge to edge and owns its gutter: `main`'s gutter and top padding drew the
+                          // editor as an inset card (F15). Its own bar owns the foot, so `main` clears that instead.
                           'pb-[calc(6rem+env(safe-area-inset-bottom))]'
-                        : 'pb-[calc(var(--bottom-chrome)+6.5rem)]'
+                        : 'px-4 pt-6 medium:px-6 nav:px-8 nav:pb-8 pb-[calc(var(--bottom-chrome)+6.5rem)]'
                 }`}
             >
                 <PopupInsetsContext value={readInsets}>{children}</PopupInsetsContext>

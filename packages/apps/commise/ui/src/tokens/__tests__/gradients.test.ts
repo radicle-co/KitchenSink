@@ -1,22 +1,13 @@
 /**
- * Invariants for the brand gradient + frosted-glass surface language (`gradients.ts`). These lock the
- * single-source specs the two platforms derive from (web composes CSS strings; native projects
- * expo-linear-gradient / expo-blur props), and prove the pure composition/projection helpers, so the web
- * and native brand surfaces can never drift on colour, direction, or blur.
+ * Invariants for the brand gradient language (`gradients.ts`). These lock the single-source specs the two platforms
+ * derive from (web composes CSS strings; native projects expo-linear-gradient props), and prove the pure
+ * composition/projection helpers, so the web and native brand surfaces can never drift on colour or direction.
  */
 import { describe, expect, it } from 'vitest';
 
 import { palette } from '../colors.js';
-import {
-    glass,
-    glassBackdropCss,
-    gradient,
-    gradientCss,
-    supportsNativeBlur,
-    toNativeGlass,
-    toNativeGradient,
-    toWebGlass,
-} from '../gradients.js';
+import * as gradients from '../gradients.js';
+import { gradient, gradientCss, toNativeGradient } from '../gradients.js';
 
 describe('gradient specs', () => {
     it('threads the SAME brand CTA gradient the web Button carries (seafoam → ocean-dark, 135°)', () => {
@@ -113,179 +104,6 @@ describe('toNativeGradient (expo-linear-gradient projection)', () => {
 });
 
 /**
- * The blur/saturation pairs the MOCKUPS actually specify, read out of `docs/mockups/screens/*.html`.
- *
- * These are not taste — they are a transcription, and they are the reason the tier values below are what
- * they are. Across all nine screens the frosted treatments come in exactly three pairs, and each blur
- * radius binds to ONE saturation with no exception anywhere in the corpus:
- *
- *  - `backdrop-blur-[12px] saturate-[130%]` — the chrome/control glass (this is the surface the mockups'
- *    own secondary BUTTON is built on: `bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-[12px]
- *    saturate-[130%] border-2 border-coral text-coral`, screenProfile "Change Password" / "Change Plan").
- *  - `backdrop-blur-[16px] saturate-[140%]` — the standard content card (screenProfile's "Personal
- *    Information" / "Login & Security" / "Danger Zone" panels, screenRecipes' cards, and 27 more).
- *  - `backdrop-blur-[24px] saturate-[160%]` — the fixed nav rail / sticky top bar chrome.
- *
- * `saturate-[160%]` NEVER appears with a 16px blur, and a 10px blur appears NOWHERE in any mockup — which
- * is what makes the previous `card.saturate: 1.6` and `subtle: { blur: 10, saturate: 1.4 }` wrong rather
- * than merely different. The 24px/160% pair is deliberately NOT tokenised here: no Commise surface paints
- * it today, and a tier nobody consumes is exactly the speculative capability YAGNI forbids.
- */
-const MOCKUP_GLASS = {
-    control: { blur: 12, saturate: 1.3 },
-    card: { blur: 16, saturate: 1.4 },
-} as const;
-
-describe('glass specs', () => {
-    it('defines a frosted card surface with a translucent tint, a solid fallback, blur, saturation and edge', () => {
-        expect(glass.card).toEqual({
-            surface: 'rgba(255, 255, 255, 0.85)',
-            fallback: 'rgba(255, 255, 255, 0.96)',
-            blur: 16,
-            saturate: 1.4,
-            border: 'rgba(255, 255, 255, 0.3)',
-        });
-    });
-
-    it('pins the card tier to the mockups’ content-card treatment (blur 16 / saturate 140%)', () => {
-        // Derived from the transcription above, so re-reading the mockups moves the assertion — not a
-        // second literal that could agree with a wrong token by coincidence.
-        expect({ blur: glass.card.blur, saturate: glass.card.saturate }).toEqual(MOCKUP_GLASS.card);
-    });
-
-    it('pins the subtle tier to the mockups’ chrome/control treatment (blur 12 / saturate 130%)', () => {
-        expect({ blur: glass.subtle.blur, saturate: glass.subtle.saturate }).toEqual(MOCKUP_GLASS.control);
-    });
-
-    it('keeps the subtle tier LIGHTER than the card tier on both axes (that is what makes it subtle)', () => {
-        // The ordering is the tier's whole meaning: a "subtle" tier that blurred or saturated harder than
-        // the card would be misnamed, and this catches a future re-tone that swaps the two by mistake.
-        expect(glass.subtle.blur).toBeLessThan(glass.card.blur);
-        expect(glass.subtle.saturate).toBeLessThan(glass.card.saturate);
-    });
-
-    it('saturates every tier — a glass pane with no vibrancy boost is just a translucent rectangle', () => {
-        for (const spec of Object.values(glass)) {
-            expect(spec.saturate).toBeGreaterThan(1);
-            // Nothing in the mockup corpus exceeds 160%; a runaway multiplier would blow out the backdrop.
-            expect(spec.saturate).toBeLessThanOrEqual(1.6);
-        }
-    });
-
-    it('every glass fallback is more opaque than its translucent surface (readable when blur is unsupported)', () => {
-        const alpha = (rgba: string): number => Number(rgba.slice(rgba.lastIndexOf(',') + 1, -1));
-
-        for (const spec of Object.values(glass)) {
-            expect(alpha(spec.fallback)).toBeGreaterThan(alpha(spec.surface));
-        }
-    });
-
-    it('gives every tier a TRANSLUCENT edge — an opaque border frames the glass instead of edging it', () => {
-        const alpha = (rgba: string): number => Number(rgba.slice(rgba.lastIndexOf(',') + 1, -1));
-
-        for (const spec of Object.values(glass)) {
-            expect(alpha(spec.border)).toBeGreaterThan(0);
-            expect(alpha(spec.border)).toBeLessThan(1);
-        }
-    });
-});
-
-describe('supportsNativeBlur (host capability)', () => {
-    it('reports blur on iOS, where expo-blur has a real native blur view', () => {
-        expect(supportsNativeBlur('ios')).toBe(true);
-    });
-
-    it('reports NO blur on Android — expo-blur defaults blurMethod to "none" there', () => {
-        // Evidence, not guesswork: expo-blur 57's own README says "This package only supports iOS. On
-        // Android, a plain View with a translucent background will be rendered", and `_getBlurMethod()`
-        // returns `'none'` unless the caller opts into `dimezisBlurView*` AND wires a `blurTarget`. A
-        // surface that trusted `true` here would ship a translucent, UNBLURRED panel — the exact
-        // dishonest degradation the solid fallback exists to prevent.
-        expect(supportsNativeBlur('android')).toBe(false);
-    });
-
-    it('reports blur on web, where expo-blur maps to a real backdrop-filter', () => {
-        expect(supportsNativeBlur('web')).toBe(true);
-    });
-
-    it('fails CLOSED for an unrecognized host rather than assuming blur', () => {
-        expect(supportsNativeBlur('windows')).toBe(false);
-    });
-});
-
-describe('glassBackdropCss (web composition)', () => {
-    it('composes a CSS backdrop-filter with blur px and saturation', () => {
-        expect(glassBackdropCss(glass.card)).toBe('blur(16px) saturate(1.4)');
-    });
-});
-
-describe('toNativeGlass (expo-blur projection)', () => {
-    it('maps blur px to a clamped 0..100 expo-blur intensity', () => {
-        expect(toNativeGlass(glass.card).intensity).toBe(64);
-        expect(toNativeGlass({ ...glass.card, blur: 40 }).intensity).toBe(100);
-    });
-
-    it('projects the SUBTLE tier’s own blur, so the native chrome glass tracks the mockup too', () => {
-        // 12px × 4 = 48. Pinned separately from `card` because the tier's blur is the value the mockup
-        // fidelity pass corrected (10 → 12) — an assertion only on `card` would not have caught it.
-        expect(toNativeGlass(glass.subtle).intensity).toBe(48);
-    });
-
-    it('carries the solid fallback colour for hosts where blur is unsupported', () => {
-        expect(toNativeGlass(glass.card).fallback).toBe(glass.card.fallback);
-    });
-
-    it('uses a light tint for the white frosted surface', () => {
-        expect(toNativeGlass(glass.card).tint).toBe('light');
-    });
-
-    it('carries the translucent edge through, so native and web paint the same hairline', () => {
-        expect(toNativeGlass(glass.card).border).toBe(glass.card.border);
-    });
-});
-
-describe('toWebGlass (CSS surface projection)', () => {
-    it('projects the translucent-surface-over-blur treatment when the host supports blur', () => {
-        expect(toWebGlass(glass.card, true)).toEqual({
-            backgroundColor: glass.card.surface,
-            backdropFilter: 'blur(16px) saturate(1.4)',
-            WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
-        });
-    });
-
-    it('projects the OPAQUE solid fallback with NO blur property when the host cannot blur', () => {
-        const style = toWebGlass(glass.card, false);
-
-        expect(style.backgroundColor).toBe(glass.card.fallback);
-        // Absent, not an empty string — an unsupported host must not carry a backdrop-filter declaration.
-        expect(style.backdropFilter).toBeUndefined();
-        expect(style.WebkitBackdropFilter).toBeUndefined();
-    });
-
-    it('is tier-aware — the subtle tier projects its OWN surface, blur and saturation', () => {
-        expect(toWebGlass(glass.subtle, true)).toEqual({
-            backgroundColor: glass.subtle.surface,
-            backdropFilter: 'blur(12px) saturate(1.3)',
-            WebkitBackdropFilter: 'blur(12px) saturate(1.3)',
-        });
-    });
-
-    it('composes its blur through the SAME glassBackdropCss the primitive uses (one source, no drift)', () => {
-        for (const spec of Object.values(glass)) {
-            expect(toWebGlass(spec, true).backdropFilter).toBe(glassBackdropCss(spec));
-        }
-    });
-
-    it('is pure — projecting twice yields equal values and never mutates the spec', () => {
-        const spec = { ...glass.card };
-        const before = JSON.stringify(spec);
-
-        expect(toWebGlass(spec, true)).toEqual(toWebGlass(spec, true));
-        expect(JSON.stringify(spec)).toBe(before);
-    });
-});
-
-/**
  * The page-canvas ramp (`gradient.hero`) must stay a real, correctly-oriented gradient.
  *
  * `hero` IS the wireframes' own `--gradient-beach-glow` — the wash all nine screens paint on their page — and
@@ -318,5 +136,16 @@ describe('gradient specs — the canvas ramp cannot collapse to a flat fill', ()
         expect(native.start.x).toBeLessThan(native.end.x);
         expect(native.start.y).toBeLessThan(native.end.y);
         expect(native.colors).toEqual(gradient.hero.stops.map((stop) => stop.color));
+    });
+});
+
+/**
+ * Owner D12: glass goes on the navigation and control layer only, never on a card. The frosted-card tiers were the
+ * only way a card could be glass, and the one card that used them read 1.1:1 in dark mode (`evaluateFinal.md` F1).
+ * With the tiers gone the class is unrepresentable rather than merely avoided.
+ */
+describe('no card glass', () => {
+    it('exports no frosted-glass tier or projection', () => {
+        expect(Object.keys(gradients).filter((name) => /glass|blur/iu.test(name))).toEqual([]);
     });
 });

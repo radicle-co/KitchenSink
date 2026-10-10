@@ -18,7 +18,7 @@ import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { editorMessages } from '../editor/messages.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { stepsErrorId } from './fieldErrorIds.js';
 import { stepFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';

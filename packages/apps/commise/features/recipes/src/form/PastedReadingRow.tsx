@@ -13,7 +13,7 @@ import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeFormMessages } from './messages.js';
 import type { PastedReadingRowProps } from './pastedReadingRowProps.js';
 

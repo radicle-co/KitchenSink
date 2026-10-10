@@ -1,31 +1,28 @@
 /**
- * @module mobile/storage — what the device keeps for one cook, and its end with their session (ADR-0057, ADR-0054): the
- * editor's drafts and the outbox, both in AsyncStorage and namespaced by the cook. Both are removed once a sign-out is
- * PROVEN to have ended the session (`signOutAndVerify`).
+ * @module mobile/storage — the ONE key/value store the device keeps a cook's editor work in, and its end with their
+ * session (ADR-0057, ADR-0054): the editor's drafts and the outbox, both in AsyncStorage and namespaced by the cook. The
+ * end itself is `@commise/features-recipes`' `endDeviceSession`, shared with web; this module binds it to this store.
  *
- * ⛔ The outbox store is ONE object for the app, handed to `SyncProvider`, so the session end reaches the store the
- * queue actually writes.
+ * ⛔ ONE OBJECT for the app: `draftStoreFor` and `outboxMutatorFor` each memoize one serial writer per store object, so
+ * the editor, the outbox observer, `SyncProvider` and the session end share their writers only while they share this.
+ *
+ * ⚠️ Mobile ends the device session on its own sign-out only (`useSignOutAndVerify`). The web also ends it when Clerk's
+ * cook changes under it (`useDeviceSessionScope`), because a tab is signed out from other tabs; whether an expired
+ * session on a phone, possibly after days offline, should discard the cook's unsent saves is an owner decision.
  */
-import { quarantineKeyFor, storeKeyFor } from '@kitchensink/sync';
+import { endDeviceSession as endStoredDeviceSession } from '@commise/features-recipes';
 
-import { editorDraftsFor } from './editorDrafts.js';
 import { createNativeOutboxStore } from './outboxStore.js';
 
-/** The outbox's store: AsyncStorage, surviving a relaunch. */
-export const nativeOutboxStore = createNativeOutboxStore();
+/** The device's one store for the cook's editor work: AsyncStorage, surviving a relaunch. */
+export const nativeDeviceStore = createNativeOutboxStore();
 
 /**
- * Remove what the device kept for a cook: their editor drafts (and their quarantine) and their outbox.
+ * End a cook's device session: their drafts, their outbox and both quarantines.
  *
  * @param subject - The cook who was signed in (Clerk `userId`), or `undefined` when nobody was.
- * @sideEffect Removes keys from AsyncStorage.
+ * @sideEffect Removes keys from AsyncStorage, through each store's own writer.
  */
-export async function endDeviceSession(subject: string | undefined): Promise<void> {
-    if (subject === undefined) {
-        return;
-    }
-
-    await editorDraftsFor(subject)?.clear();
-    await nativeOutboxStore.removeItem(storeKeyFor(subject));
-    await nativeOutboxStore.removeItem(quarantineKeyFor(subject));
+export function endDeviceSession(subject: string | undefined): Promise<void> {
+    return endStoredDeviceSession(nativeDeviceStore, subject);
 }

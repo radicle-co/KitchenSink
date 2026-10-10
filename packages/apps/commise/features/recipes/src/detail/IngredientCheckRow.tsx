@@ -23,7 +23,7 @@ import { useId, type FC } from 'react';
 import { recipeMessages } from '../messages.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
-import { isStandInName, lineDisplayName, variantPartTexts } from './lineName.js';
+import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
 import { formatQuantity, isLineFoodRemoved } from './model.js';
 
 /** The web checkable ingredient row. */
@@ -67,7 +67,9 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
                             {lineDisplayName(ingredient, ingredientLineName)}
                         </StandIn>
                     ) : (
-                        <span>{lineDisplayName(ingredient, ingredientLineName)}</span>
+                        <span>
+                            {lineAmountName(ingredient, ingredient.quantity, ingredient.unit, ingredientLineName)}
+                        </span>
                     )}
                     {parts !== undefined && (
                         <span className="mt-1 block">

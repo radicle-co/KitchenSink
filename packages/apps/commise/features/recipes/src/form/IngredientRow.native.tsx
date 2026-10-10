@@ -1,10 +1,14 @@
 /**
  * @module @commise/features-recipes/form — `IngredientRow` (native): one ingredient row (build spec §7.5.1). The React
- * Native leaf of `./IngredientRow.tsx`: at rest it READS (the amount in a fixed column, then the name and " · " the
+ * Native leaf of `./IngredientRow.tsx`: at rest it READS (the amount in its column, then the name and " · " the
  * preparation, then its `⋯`), and the amount and name together are its open control, "Edit {amount} {food}". A row that
  * needs the cook adds an `attention` line that opens its panel in a sheet, or its food search. While its food search is
  * open, the name is the entry combobox, Android back leaves it and the keyboard closing ends it when nothing new was
  * typed (item 4). On a tablet its inline editor sits under it.
+ *
+ * PLATFORM-FORK: the amount column grows from its width to 96 pt for an amount wider than it ("2 tablespoon"), because
+ * React Native breaks a word that does not fit inside the word ("tablespo / on"); CSS on web wraps it between words. The
+ * row's second line starts where this row's name starts, so it reads the column's laid-out width.
  *
  * Presentational: `props → JSX` over the row's view.
  *
@@ -24,7 +28,7 @@ import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
-import { useEffect, useEffectEvent, useRef, type FC, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type FC, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -48,9 +52,12 @@ export interface IngredientRowProps {
     readonly panel: (close: () => void) => ReactNode;
     readonly inlineEditor: ReactNode;
     readonly expanded: boolean | undefined;
-    /** The amount column's width: 72 pt below a 600 container, 96 from 600 (§7.5.1). */
+    /** The amount column's width: 72 pt below a 600 container, 96 from 600 (§7.5.1). It grows to 96 for a wider amount. */
     readonly amountColumn: number;
 }
+
+/** The widest the amount column grows to: the spec's column from 600 (§7.5.1), where "12–14 tbsp" fits. */
+const AMOUNT_COLUMN_MAX = 96;
 
 /**
  * Native's two ways out of a row's food search (item 4). Android back cancels it; the keyboard closing ends it when
@@ -76,7 +83,8 @@ const OpenControl: FC<{
     readonly row: IngredientRowView;
     readonly expanded: boolean | undefined;
     readonly amountColumn: number;
-}> = ({ row, expanded, amountColumn }) => {
+    readonly onAmountWidth: (width: number) => void;
+}> = ({ row, expanded, amountColumn, onAmountWidth }) => {
     const { colors, wash } = useTheme();
     const node = useRef<View>(null);
     const { requested, onHandled } = row.openFocus;
@@ -102,7 +110,15 @@ const OpenControl: FC<{
             style={({ pressed }) => [styles.open, pressed && { backgroundColor: wash }]}
         >
             {/* No amount: the column stays empty, never an invented "1" (F5). */}
-            <Text style={[styles.amount, { width: amountColumn, color: colors.ink }]}>{row.amountText}</Text>
+            <Text
+                onLayout={(event) => onAmountWidth(event.nativeEvent.layout.width)}
+                style={[
+                    styles.amount,
+                    { minWidth: amountColumn, maxWidth: Math.max(amountColumn, AMOUNT_COLUMN_MAX), color: colors.ink },
+                ]}
+            >
+                {row.amountText}
+            </Text>
             <View style={styles.name}>
                 {row.standIn ? (
                     <View nativeID={ingredientStandInId(row.index)}>
@@ -135,6 +151,9 @@ export const IngredientRow: FC<IngredientRowProps> = ({
 }) => {
     const { colors } = useTheme();
     const { secondLine, line } = row;
+    // The open control's amount column as laid out; while the food search is open there is none to read.
+    const [amountWidth, setAmountWidth] = useState(amountColumn);
+    const nameStart = (row.inEntry ? amountColumn : Math.max(amountColumn, amountWidth)) + nativeTokens.spacing[3];
     const caption = [styles.caption, { color: colors.inkMuted }];
     const error = [styles.caption, { color: colors.dangerText }];
 
@@ -168,7 +187,12 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                         )}
                     </View>
                 ) : (
-                    <OpenControl row={row} expanded={expanded} amountColumn={amountColumn} />
+                    <OpenControl
+                        row={row}
+                        expanded={expanded}
+                        amountColumn={amountColumn}
+                        onAmountWidth={setAmountWidth}
+                    />
                 )}
                 <ActionMenu
                     triggerLabel={row.labels.actionsTrigger}
@@ -181,7 +205,7 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                     unavailable={row.busy}
                 />
             </View>
-            <View style={[styles.second, { paddingLeft: amountColumn + nativeTokens.spacing[3] }]}>
+            <View style={[styles.second, { paddingLeft: nameStart }]}>
                 {secondLine.kind === 'working' && (
                     <View style={styles.inline}>
                         <View aria-hidden>
@@ -246,7 +270,7 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[3],
         borderRadius: nativeTokens.radius.md,
     },
-    amount: { ...nativeTokens.type.label, fontVariant: ['tabular-nums'] },
+    amount: { ...nativeTokens.type.label, fontVariant: ['tabular-nums'], flexShrink: 0 },
     name: { flex: 1, gap: nativeTokens.spacing[1] },
     body: { ...nativeTokens.type.body },
     entry: { flex: 1, gap: nativeTokens.spacing[1], paddingVertical: nativeTokens.spacing[2] },

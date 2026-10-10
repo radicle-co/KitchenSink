@@ -10,6 +10,7 @@
  * placement inside the scaffold is precisely what the two variants must not be able to disagree about.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { FC, ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -82,8 +83,10 @@ export const RatingSection: FC<RatingSectionProps> = ({ average, ratingCount, ch
 };
 
 const styles = StyleSheet.create({
-    container: { gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
-    heading: { fontSize: 18, fontWeight: '600' },
+    // No side padding: the section sits in the page's column, so its heading starts where its siblings' do (F15).
+    container: { gap: 12, paddingVertical: 8 },
+    // `sectionTitle`, like every sibling H2 (`buildSpec.md` §1.5, F8).
+    heading: { ...nativeTokens.type.sectionTitle },
     stars: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     unrated: { fontSize: 13 },
 });

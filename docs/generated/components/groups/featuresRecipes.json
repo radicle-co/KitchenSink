@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 123,
-        "implementations": 223,
-        "props": 1066,
-        "documentedComponents": 123,
-        "implementationsWithModuleDoc": 223,
-        "implementationsWithComponentDoc": 128,
-        "documentedProps": 814,
+        "components": 124,
+        "implementations": 224,
+        "props": 1072,
+        "documentedComponents": 124,
+        "implementationsWithModuleDoc": 224,
+        "implementationsWithComponentDoc": 130,
+        "documentedProps": 820,
         "classifiedComponents": 107,
-        "componentsWithPatternTag": 53,
+        "componentsWithPatternTag": 54,
         "crossPlatformComponents": 100
     },
     "components": [
@@ -6653,8 +6653,8 @@
             "dir": "packages/apps/commise/features/recipes/src/detail",
             "kind": "orchestration",
             "patterns": [
-                "Null Object for the no-cover state — a designed, branded placeholder stands in for the missing photo,\n    rather than an empty `src`, a zero-height box or an unlabelled rectangle.",
-                "Null Object for the no-cover state — the same designed placeholder as the web leaf, derived from the\n    shared gradient and geometry tokens so the two cannot drift."
+                "Null Object for the no-cover state — the monogram band stands in for the missing photo, the same\n    `RecipeCover` the web leaf draws.",
+                "Null Object for the no-cover state — the monogram band stands in for the missing photo."
             ],
             "platforms": [
                 "web",
@@ -6669,7 +6669,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeHero.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — web recipe-detail HERO (mockup `screenRecipeDetail`).\n\nThe recipe detail opens with its photos. The hero IS the photo carousel: slide 1 is the cover, because the service\nmakes the cover `photos[0]` on every read path. It used to paint the cover as a separate image and then a second\ncarousel below repeated it as slide 1 (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`), so there is now one\nphoto surface, built from `photos` alone (`specRecipeAndWizard.md` S2.1).\n\n## The no-cover state is a designed state, not an error path\n\nMost recipes will have no photo for a while (a draft, an import, a quick capture). A missing cover must\ntherefore look DELIBERATE, and specifically must not be any of the three easy failures:\n - an `<img>` with an empty/undefined `src` → the browser paints a broken-image glyph;\n - a zero-height box → the title jumps up and the screen looks truncated;\n - an unlabelled grey rectangle → a screen-reader user perceives nothing where sighted users see a panel.\n\nSo the fallback is a branded surface at the SAME hero height, painted with the shared beach-glow\n{@link GradientSurface} (the brand's own background ramp, not an off-palette grey), carrying a photo glyph\nand the localized `card.noPhotoLabel` — the SAME copy the recipe card's placeholder uses, so \"no photo yet\"\nis stated once in the dictionary and read identically on both surfaces.\n\nThe leaf itself holds no state, fetches nothing and navigates nowhere; the carousel's open slide is the carousel's\nown view state. The mockup's overlaid back/share/save controls are NOT part of this leaf — those are navigation and\nmutations, so they belong to the orchestration layer.",
+                    "moduleDoc": "@commise/features-recipes — web recipe-detail HERO (mockup `screenRecipeDetail`).\n\nThe recipe detail opens with its photos. The hero IS the photo carousel: slide 1 is the cover, because the service\nmakes the cover `photos[0]` on every read path. It used to paint the cover as a separate image and then a second\ncarousel below repeated it as slide 1 (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`), so there is now one\nphoto surface, built from `photos` alone (`specRecipeAndWizard.md` S2.1).\n\n## No photo: the monogram band\n\nA recipe with no photo shows the 96 px `RecipeCover` band (`buildSpec.md` §1.8, §6.7): a tint chosen by the recipe\nid with the title's first letter. It renders no `<img>` (an empty `src` paints a broken-image glyph), keeps a real\nheight, and is decorative, because the H1 names the recipe. The picture glyph in a 4:3 box it replaces read as \"the\nimage failed\" (`evaluateFinal.md` F10).\n\nThe leaf itself holds no state, fetches nothing and navigates nowhere; the carousel's open slide is the carousel's\nown view state. The mockup's overlaid back/share/save controls are NOT part of this leaf — those are navigation and\nmutations, so they belong to the orchestration layer.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6677,7 +6677,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Null Object for the no-cover state — a designed, branded placeholder stands in for the missing photo,\n    rather than an empty `src`, a zero-height box or an unlabelled rectangle."
+                            "text": "Null Object for the no-cover state — the monogram band stands in for the missing photo."
                         }
                     ],
                     "description": "The recipe-detail hero: the photo carousel, or its deliberate no-photo fallback.",
@@ -6685,6 +6685,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "cuisine",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The cuisine, the monogram band's overline.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
                         {
                             "name": "overlay",
                             "type": "ReactNode",
@@ -6700,7 +6709,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the\nhero is the carousel itself and shows the cover once (F2). EMPTY → the deliberate no-photo placeholder.\n\nDeliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here\nas well is how the cover came to be painted twice.",
+                            "description": "The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the\nhero is the carousel itself and shows the cover once (F2). EMPTY → the 96 px monogram band (§1.8, §6.7).\n\nDeliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here\nas well is how the cover came to be painted twice.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "recipeId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe's id — with no photo, it picks the monogram band's tint (`RecipeCover`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -6709,7 +6727,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe title — the photos' alt text and the carousel's names are built from it.",
+                            "description": "The recipe title — the photos' alt text and the carousel's names are built from it; its first letter is the monogram.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
@@ -6725,7 +6743,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeHero.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — native recipe-detail HERO (the RN leaf of RecipeHero).\n\nSame contract and same two designed states as `RecipeHero`: the hero IS the photo carousel (slide 1 the cover, the\nservice's rule), so the cover is shown once (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`); a recipe with no\nphoto gets a DELIBERATE branded placeholder rather than nothing. The placeholder derives from the shared tokens —\nits surface from `gradient.hero`, its geometry from `nativeTokens.mediaHeight` — so the platforms cannot drift.\n\n## The no-cover state is a designed state, not an error path\n\nMost recipes will have no photo for a while (a draft, an import, a quick capture), so the fallback must not\nbe any of the three easy failures — an `<Image>` with an empty `source` (which paints a broken-image glyph\non device exactly as a browser does), a zero-height box that makes the screen look truncated, or an\nunlabelled grey rectangle that a screen-reader user perceives as nothing at all. So it renders NO image\ncomponent, keeps a real height, and carries `accessibilityRole=\"image\"` plus the localized\n`card.noPhotoLabel` — the SAME copy the recipe card's placeholder uses, so \"no photo yet\" is stated once in\nthe dictionary and read identically on both surfaces.\n\n## PLATFORM-FORK: the no-cover placeholder is COMPACT on native, full-height on web\n\nThe web fallback fills the whole hero box (`h-64`, `md:h-96` — up to 384px). That is right on a desktop\nviewport and wrong on a phone, for two compounding reasons:\n\n 1. **It costs the first screen.** A ~384dp empty gradient on a ~700dp phone viewport is over half of\n    everything the reader can see, spent on a panel that says only \"no photo yet\" — and it pushes the recipe\n    TITLE, the one thing they opened the screen for, below the fold.\n 2. **It claims the screen for nothing.** At full height the no-cover placeholder is a beach-glow slab with the\n    label floating in it, over a canvas that is already the same wash — which reads as a rendering fault rather\n    than a design.\n\nThe photos-PRESENT leg is the carousel, which sizes itself from the same window cap (`carouselBox`).\nOnly the empty state shrinks — the state where there is, by definition, nothing to show. Deliberately NOT\nomitting the hero entirely: the labelled placeholder is the only thing that tells a non-sighted reader the\nrecipe has no photo, and dropping the element would remove that signal along with the space.\n\n## The window caps the box (`docs/design/compactHeightLayout.md` §8)\n\nThe placeholder is `mediaBoxHeight(token, window height)`: at most 40% of the window's height, so on a phone held\nsideways the recipe's title stays on the first screen.\n\nThe leaf holds no state, fetches nothing and navigates nowhere; it reads only the window's height. The overlaid back and ⋯ controls are NOT\nthis leaf's: they are navigation and mutations, so the orchestration layer passes them in as `overlay`.",
+                    "moduleDoc": "@commise/features-recipes — native recipe-detail HERO (the RN leaf of RecipeHero).\n\nSame contract and same two states as `RecipeHero`: the hero IS the photo carousel (slide 1 the cover, the service's\nrule), so the cover is shown once (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`); a recipe with no photo\nshows the 96 pt `RecipeCover` monogram band (`buildSpec.md` §1.8, §6.7). The band is a tint chosen by the recipe id\nwith the title's first letter: it never renders an image component (an empty `source` paints a broken-image glyph),\nit keeps a real height, and it is decorative, because the title below names the recipe. The picture glyph it\nreplaces read as \"the image failed\" and overflowed the right edge (`evaluateFinal.md` F10).\n\nThe leaf holds no state, fetches nothing and navigates nowhere. The overlaid back and ⋯ controls are NOT this leaf's:\nthey are navigation and mutations, so the orchestration layer passes them in as `overlay`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6733,7 +6751,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Null Object for the no-cover state — the same designed placeholder as the web leaf, derived from the\n    shared gradient and geometry tokens so the two cannot drift."
+                            "text": "Null Object for the no-cover state — the monogram band stands in for the missing photo, the same\n    `RecipeCover` the web leaf draws."
                         }
                     ],
                     "description": "The recipe-detail hero (native): the photo carousel, or its deliberate compact no-photo fallback.",
@@ -6741,6 +6759,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "cuisine",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The cuisine, the monogram band's overline.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
                         {
                             "name": "overlay",
                             "type": "ReactNode",
@@ -6756,7 +6783,16 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the\nhero is the carousel itself and shows the cover once (F2). EMPTY → the deliberate no-photo placeholder.\n\nDeliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here\nas well is how the cover came to be painted twice.",
+                            "description": "The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the\nhero is the carousel itself and shows the cover once (F2). EMPTY → the 96 px monogram band (§1.8, §6.7).\n\nDeliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here\nas well is how the cover came to be painted twice.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "recipeId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe's id — with no photo, it picks the monogram band's tint (`RecipeCover`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -6765,7 +6801,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe title — the photos' alt text and the carousel's names are built from it.",
+                            "description": "The recipe title — the photos' alt text and the carousel's names are built from it; its first letter is the monogram.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
@@ -6899,13 +6935,14 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/detail",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web",
-                "native"
+            "kind": "unclassified",
+            "patterns": [
+                "Adapter — binds the `Stepper` primitive to the domain's serving range and announcement."
             ],
-            "crossPlatform": true,
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
             "propsDiverge": false,
             "documented": true,
             "implementations": [
@@ -6914,63 +6951,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/ServingScaleControl.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — WEB serving-count control.\n\nPattern: **pure presentational (render) component** in its CONTROLLED form — `props → JSX`, one\nresponsibility (offer a serving count and report the chosen one), no state, no effect, no ref.\n\nThe range is not hard-coded: it IS `servingsRange(baseServings)` from the domain, so an option can never\nexist that the scaling policy would reject — including for a recipe authored ABOVE the display cap, which\nmust still sit at, and scale down from, its own yield. Every value leaving here has been through\n`clampServings`, so a cleared field (parsed `NaN`) can never reach the arithmetic.\n\nAccessibility: a real labelled number input (a native `spinbutton`, keyboard-operable) flanked by two\nnamed buttons that read as UNAVAILABLE at the ends of the range rather than silently doing nothing. At a limit\nthey are `aria-disabled` with the press refused, never natively `disabled`: pressing + TO the maximum makes the\nbutton just pressed unavailable, and native `disabled` would drop the keyboard user's focus to <body> (WCAG 2.2\nSC 2.4.3). A pure render cannot tell \"at the limit on load\" from \"just pressed to it\", so both ends take the\nfocusable form (staff-ux-engineer). A step changes a number nobody is focused on, so a screen-reader-only status\nregion speaks the count — and \"maximum\"/\"minimum\" at the ends — via `servingsAnnouncement`.\nSelectable by role/label only, per repo policy.\n\nThe main piece of state is the input's in-progress TEXT (`draft`) — not a duplicate of the serving count,\nwhich stays owned by the caller. It exists because a fully-controlled numeric field cannot be cleared:\nthe empty string parses to `NaN`, clamps to the minimum, and the next keystroke lands AFTER it, so a cook\nclearing \"4\" to type \"12\" gets \"112\". While the field is being edited it shows what was typed; the moment\nit loses focus, or a step button is used, the draft is dropped and the authoritative value shows again. The other,\n`hasChanged`, only gates the spoken count so it starts once the cook has changed something.",
+                    "moduleDoc": "@commise/features-recipes — the serving-count control, ONE file for web and native (the Stepper resolves its own\nplatform leaf): the design system's `Stepper` bound to the recipe's\nserving range (`buildSpec.md` §1.11, §6.1). It used to be a hand-built twin with a Playfair number field; Playfair\nnever sets a number, and the control was built twice (F8, `evaluateFinal.md`).\n\nThe range IS `servingsRange(baseServings)` from the domain, so an option can never exist that the scaling policy\nwould reject — including for a recipe authored ABOVE the display cap, which must still sit at, and scale down from,\nits own yield. Every value leaving here has been through `clampServings`.\n\nAccessibility is the Stepper's: a group named \"Servings\" (its label hidden, because the heading row already says\n\"for {n}\"), two named buttons that are `aria-disabled` with the press refused at the ends (never natively `disabled`,\nwhich would drop focus, SC 2.4.3), and a polite announcement after a step — empty on open — that names the limit at\nthe ends, through `servingsAnnouncement`.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — WEB serving-count control."
-                        }
-                    ],
-                    "description": "",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "baseServings",
-                            "type": "number",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The recipe's authored serving count — the default, and what defines the selectable range.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                            "text": "@commise/features-recipes — the serving-count control, ONE file for web and native (the Stepper resolves its own"
                         },
                         {
-                            "name": "onServingsChange",
-                            "type": "((servings: number) => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Report a newly chosen serving count. Absent → the control renders inert rather than disappearing.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        },
-                        {
-                            "name": "servings",
-                            "type": "number",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The serving count currently displayed.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "ServingScaleControl",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/ServingScaleControl.native.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — NATIVE serving-count control.\n\nThe React Native leaf of `ServingScaleControl`: same contract, same range, same clamping — a `props → JSX`\nrender whose one piece of state, `hasStepped`, only gates when the count starts being spoken.\n\nPLATFORM FORK, recorded: the web leaf offers a number INPUT between the two step buttons; this one offers\na read-only count. Free-text numeric entry on a phone means an on-screen keyboard covering the recipe and\na transient empty field, for a value that moves one serving at a time in practice. Both platforms expose\nthe same capability (reach any serving count in the domain's range) — only the affordance differs, which\n§14 permits; a web-only FEATURE would not be.\n\nAccessibility: after a step, a visually hidden `LiveRegion` speaks `servingsAnnouncement` (\"5 servings\", \"12\nservings, maximum\") — the same sentence the web leaf's status region speaks. The buttons and the count stay\nSEPARATE accessible elements on purpose: one `adjustable` row would hide \"More servings\" from iOS Voice Control\nand from Maestro (staff-ux-engineer). The buttons keep native `disabled` at the limits; unlike web, a disabled\nnative control does not strand the screen-reader cursor.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes — NATIVE serving-count control."
+                            "name": "pattern",
+                            "text": "Adapter — binds the `Stepper` primitive to the domain's serving range and announcement."
                         }
                     ],
                     "description": "",
@@ -9343,7 +9332,7 @@
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -9362,7 +9351,20 @@
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "variant",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"grid\"",
+                                "\"compact\""
+                            ],
+                            "required": false,
+                            "defaultValue": "grid",
+                            "description": "The variant the results will draw (compact below 600, grid from 600), so the skeleton sits in their grid.",
+                            "declaredIn": null
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -9775,7 +9777,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/editor/EditorActionBar.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/editor",
-                    "moduleDoc": "@commise/features-recipes/editor — the web editor's action bar (build spec §7.1, §7.8): Preview, then the\nprimary at the end — Publish for a recipe not yet published, Save changes for a published one. Sticky at the foot of\nthe form column at every width; the one glass surface of the editor (owner D12), readable with the blur off. When the\nheader and the bar together are taller than half the viewport (`compactHeightLayout.md` A1) it is not sticky: it\nscrolls with the page as the column's last content, in the same place in the page, so a focused control keeps focus.\n\nAfter a refused Publish, a polite line says how many things to fix (SC 3.3.1). A finishing write shows the primary\nbusy and locks the bar.\n\nPresentational: props → JSX. Its node leaves through `placeRef`, so the page can measure it.",
+                    "moduleDoc": "@commise/features-recipes/editor — the web editor's action bar (build spec §7.1, §7.8): Preview, then the\nprimary at the end — Publish for a recipe not yet published, Save changes for a published one. Sticky at the foot of\nthe form column at every width; the one glass surface of the editor (owner D12), readable with the blur off. When the\nheader and the bar together are taller than half the viewport (`compactHeightLayout.md` A1) it is not sticky: it\nscrolls with the page as the column's last content, in the same place in the page, so a focused control keeps focus.\n\nAfter a refused Publish, a polite line says how many things to fix (SC 3.3.1). While lines have no match, a quiet\npolite line says the recipe is ready and that those lines' nutrition is left out (owner D20); Publish stays enabled. A finishing write shows the primary\nbusy and locks the bar.\n\nPresentational: props → JSX. Its node leaves through `placeRef`, so the page can measure it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -9889,6 +9891,15 @@
                             "defaultValue": null,
                             "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
+                            "name": "readyLine",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "\"Ready to publish. {n} ingredients have no match…\" (owner D20): quiet, and Publish stays enabled.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -9994,6 +10005,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
+                            "name": "readyLine",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "\"Ready to publish. {n} ingredients have no match…\" (owner D20): quiet, and Publish stays enabled.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         }
                     ],
@@ -11103,6 +11123,93 @@
                             "defaultValue": null,
                             "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/editor/UnmatchedNote",
+            "name": "UnmatchedNote",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/editor",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "UnmatchedNote",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/editor/UnmatchedNote.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/editor",
+                    "moduleDoc": "@commise/features-recipes/editor — the quiet note in Photos & publish about ingredient lines with no match\n(owner D20, build spec §7.2): \"Ready to publish. 2 ingredients have no match, so their nutrition is left out.\"\n\nThe sentence carries the meaning, so colour is never the only signal; the `attention` role colours its words (the\ndesign system's attention line, `text-attention`). Not a live region: the action bar's ready line is the one that\nannounces, and the note only sits where the cook reads on to the visibility choice.\n\nPresentational: props → JSX. The native leaf is `./UnmatchedNote.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/editor — the quiet note in Photos & publish about ingredient lines with no match"
+                        }
+                    ],
+                    "description": "The web note.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "text",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The sentence `publishNoteOf` returns.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/UnmatchedNote.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "UnmatchedNote",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/editor/UnmatchedNote.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/editor",
+                    "moduleDoc": "@commise/features-recipes/editor — the native quiet note in Photos & publish about ingredient lines with no\nmatch (owner D20); the mirror of `UnmatchedNote.tsx`. The sentence carries the meaning, and the `attention` role colours\nit, so colour is never the only signal.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/editor — the native quiet note in Photos & publish about ingredient lines with no"
+                        }
+                    ],
+                    "description": "The native note.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "text",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The sentence `publishNoteOf` returns.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/UnmatchedNote.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -12809,7 +12916,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientLineEditor.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `IngredientLineEditor` (native): the row editor's fields (build spec §7.5.2),\ndrawn inside either frame, the phone sheet or the tablet's inline panel. The React Native leaf of\n`./IngredientLineEditor.tsx`: the food with Change, Amount (with \"+ Add a range\"), Unit and Preparation, then Food\ndetails. The fields wrap by width: in the sheet Amount and Unit share line 1 and Preparation takes line 2.\n\nPLATFORM-FORK: an amount field keeps the text the cook is typing while they type it. A controlled React Native field\nwould otherwise be rewritten from the number its text parses to, so \"1.\" would snap back to \"1\" and \"1.5\" could\nnever be typed; the web's number input keeps a partial number itself.\n\nPresentational: `props → JSX` over the row editor's view (`RowLineEditorView`); every edit is the view's.",
+                    "moduleDoc": "@commise/features-recipes/form — `IngredientLineEditor` (native): the row editor's fields (build spec §7.5.2),\ndrawn inside either frame, the phone sheet or the tablet's inline panel. The React Native leaf of\n`./IngredientLineEditor.tsx`: the food with Change, Amount (with \"+ Add a range\"), Unit and Preparation, then Food\ndetails. The fields wrap by width: in the sheet Amount and Unit share line 1 and Preparation takes line 2.\n\nPresentational: `props → JSX` over the row editor's view (`RowLineEditorView`); every edit is the view's.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -13128,7 +13235,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientRow.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `IngredientRow` (native): one ingredient row (build spec §7.5.1). The React\nNative leaf of `./IngredientRow.tsx`: at rest it READS (the amount in a fixed column, then the name and \" · \" the\npreparation, then its `⋯`), and the amount and name together are its open control, \"Edit {amount} {food}\". A row that\nneeds the cook adds an `attention` line that opens its panel in a sheet, or its food search. While its food search is\nopen, the name is the entry combobox, Android back leaves it and the keyboard closing ends it when nothing new was\ntyped (item 4). On a tablet its inline editor sits under it.\n\nPresentational: `props → JSX` over the row's view.",
+                    "moduleDoc": "@commise/features-recipes/form — `IngredientRow` (native): one ingredient row (build spec §7.5.1). The React\nNative leaf of `./IngredientRow.tsx`: at rest it READS (the amount in its column, then the name and \" · \" the\npreparation, then its `⋯`), and the amount and name together are its open control, \"Edit {amount} {food}\". A row that\nneeds the cook adds an `attention` line that opens its panel in a sheet, or its food search. While its food search is\nopen, the name is the entry combobox, Android back leaves it and the keyboard closing ends it when nothing new was\ntyped (item 4). On a tablet its inline editor sits under it.\n\nPLATFORM-FORK: the amount column grows from its width to 96 pt for an amount wider than it (\"2 tablespoon\"), because\nReact Native breaks a word that does not fit inside the word (\"tablespo / on\"); CSS on web wraps it between words. The\nrow's second line starts where this row's name starts, so it reads the column's laid-out width.\n\nPresentational: `props → JSX` over the row's view.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -13154,7 +13261,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The amount column's width: 72 pt below a 600 container, 96 from 600 (§7.5.1).",
+                            "description": "The amount column's width: 72 pt below a 600 container, 96 from 600 (§7.5.1). It grows to 96 for a wider amount.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/IngredientRow.native.tsx"
                         },
                         {

@@ -29,7 +29,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
-import { displayFontFace, fontSize, radius, spacing } from '../tokens/scale.js';
+import { nativeTokens } from '../tokens/native.js';
+import { radius, spacing } from '../tokens/scale.js';
 import { isToolbarCollapsed } from './onScreenKeyboard.js';
 import type { SheetProps } from './props.js';
 import { SHEET_EDGE_PADDING_DP, sheetSideInsetPadding, sheetWidthStyle } from './sheetPresentation.js';
@@ -152,7 +153,8 @@ const styles = StyleSheet.create({
         paddingTop: spacing[1],
     },
     titleBox: { flex: 1, minWidth: 0, paddingTop: spacing[3] },
-    title: { fontFamily: displayFontFace.semibold, fontSize: fontSize.headingMd },
+    // `barTitle`, Inter 17/600 (`buildSpec.md` §1.5): Playfair sets names only, never a sheet's title (F8).
+    title: { ...nativeTokens.type.barTitle },
     close: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
     closeGlyph: { fontSize: 24, lineHeight: 24 },
     toolbar: { paddingHorizontal: SHEET_EDGE_PADDING_DP, paddingTop: spacing[2], gap: spacing[2] },

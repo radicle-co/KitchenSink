@@ -351,6 +351,56 @@ export function sqsDepthReader(client: SQSClient): QueueAttributeReader {
  */
 initObservability();
 
+/** The part of a checked-out `pg` client a {@link lazyReadSession} uses. Structural, so `pg.PoolClient` fits. */
+export interface SessionClient {
+    readonly query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }>;
+    readonly release: () => void;
+}
+
+/**
+ * ONE connection, opened by the first statement rather than up front.
+ *
+ * ⛔ LAZY because {@link runRecipeQueueCheck} must reach its nightly-window check before anything touches the
+ * database (R35). `pool.connect()` on an idle pool is NOT local: it opens a physical connection (TCP, TLS, IAM
+ * auth), so an eager acquire dialled ADR-0007's stopped database every tick of the stop window.
+ *
+ * ⚠️ The opening promise is MEMOISED, so statements that race for the first connection share one. Every
+ * statement therefore lands on the same backend, which is what the read-only transaction needs (see
+ * {@link ReadSession}).
+ *
+ * @param open - Checks one connection out of a pool.
+ * @returns The session, and `close`, which releases the connection if one was opened.
+ */
+export function lazyReadSession(open: () => Promise<SessionClient>): {
+    session: ReadSession;
+    close: () => Promise<void>;
+} {
+    let opening: Promise<SessionClient> | undefined;
+
+    const session: ReadSession = {
+        query: async (text, params) => {
+            opening ??= open();
+
+            return (await opening).query(text, params as unknown[] | undefined);
+        },
+        release: undefined,
+    };
+
+    return {
+        session,
+        close: async () => {
+            if (opening === undefined) {
+                return;
+            }
+
+            // A failed connect has nothing to release, and the read that awaited it already carries the error.
+            const client = await opening.catch(() => undefined);
+
+            client?.release();
+        },
+    };
+}
+
 /**
  * The scheduled recipe backstop.
  *
@@ -359,27 +409,13 @@ initObservability();
 async function rawHandler(): Promise<void> {
     const stage = requireEnv('STAGE');
     const sqs = new SQSClient({});
-    // ⛔ ONE CHECKED-OUT CONNECTION, held across the whole read. The pool would hand a different backend to
-    // every statement, which would leave `BEGIN TRANSACTION READ ONLY` applying to a session nothing else
-    // uses — see `ReadSession`. Taken eagerly rather than lazily because `pool.connect()` on an idle pool is
-    // a local handshake, not a database round trip, and a lazy acquire would put a second ownership question
-    // inside the nightly-window branch for no gain.
-    const client = await getRecipePool().connect();
+    const { session, close } = lazyReadSession(async () => getRecipePool().connect());
 
     try {
         await runRecipeQueueCheck({
             stage,
             service: SERVICE,
-            queues: checkedQueues(
-                {
-                    query: async (text, params) => client.query(text, params as unknown[]),
-                    release: () => {
-                        client.release();
-                    },
-                },
-                sqsDepthReader(sqs),
-                process.env,
-            ),
+            queues: checkedQueues(session, sqsDepthReader(sqs), process.env),
             escalate,
             checkIn: () => {
                 checkInQueueCheck(stage);
@@ -387,7 +423,7 @@ async function rawHandler(): Promise<void> {
             now: () => new Date(),
         });
     } finally {
-        client.release();
+        await close();
     }
 }
 

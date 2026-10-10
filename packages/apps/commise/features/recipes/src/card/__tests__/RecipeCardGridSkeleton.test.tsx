@@ -11,6 +11,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
+import { COMPACT_GRID_CLASS, LIBRARY_GRID_CLASS } from '../cardGridClass.js';
 import { RecipeCardGridSkeleton } from '../RecipeCardGridSkeleton.js';
 import { RECIPE_CARD_SKELETON_COUNT } from '../model.js';
 
@@ -86,5 +87,16 @@ describe('RecipeCardGridSkeleton (web)', () => {
         const home = render(<RecipeCardGridSkeleton label="L" variant="compact" layout="home" count={4} />).container;
         expect(home.querySelector('[aria-hidden="true"]')?.className).toContain('grid-cols-2');
         expect(home.querySelector('[aria-hidden="true"]')?.children).toHaveLength(4);
+    });
+
+    // Discover's results draw compact cards two per row below 600 and grid cards in the library's grid from 600
+    // (`RecipeDiscoveryResults`); the skeleton sits in the same grid, never the pre-overhaul one-column rhythm.
+    it.each([
+        ['compact', COMPACT_GRID_CLASS],
+        ['grid', LIBRARY_GRID_CLASS],
+    ] as const)('sits Discover’s %s skeletons in the grid its results draw', (variant, gridClass) => {
+        const { container } = render(<RecipeCardGridSkeleton label="L" layout="discover" variant={variant} />);
+
+        expect(container.querySelector('ul, div[class*="grid"]')?.className).toBe(gridClass);
     });
 });

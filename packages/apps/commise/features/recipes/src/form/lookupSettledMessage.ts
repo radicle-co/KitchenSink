@@ -4,7 +4,7 @@
  * leaves so the two cannot announce differently. Pure.
  */
 import { lineDisplayName } from '../detail/lineName.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { IngredientLineNameMessages } from '../messages.js';
 import type { LookupRetry } from './ingredientStatus.js';
 import type { RecipeFormMessages } from './messages.js';

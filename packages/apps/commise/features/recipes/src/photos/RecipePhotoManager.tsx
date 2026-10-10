@@ -28,7 +28,7 @@ import { BUSY_CONTROL_CLASS, busyControlProps } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { photoMessages } from './messages.js';
 import {
     isAtPhotoCap,

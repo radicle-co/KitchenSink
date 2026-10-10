@@ -10,7 +10,7 @@
 import type { Locale } from '@commise/i18n';
 
 import { rangeDerivedNotice } from '../detail/model.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeFormMessages } from './messages.js';
 import { nutritionCountOf, recipeNutritionTotal } from './nutrition.js';
 import type { IngredientNutrition } from './nutritionLookup.js';

@@ -29,7 +29,7 @@ import type { RecipeNutritionResponse, RecipeNutritionState } from '@kitchensink
 import type { ReactNode } from 'react';
 
 import { formatCalories } from '../card/model.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeNutritionMessages } from './messages.js';
 
 /**

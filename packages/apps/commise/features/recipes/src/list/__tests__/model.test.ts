@@ -10,7 +10,6 @@ import { toRecipeCardModel } from '../../card/model.js';
 import {
     QUICK_TIME_FACET,
     QUICK_TIME_THRESHOLD_MINUTES,
-    fillTemplate,
     filterChipLabel,
     formatDurationMinutes,
     formatRecipeCount,
@@ -20,20 +19,6 @@ import {
     shouldShowCreateButton,
     toRecipeListItem,
 } from '../model.js';
-
-describe('fillTemplate', () => {
-    it('substitutes a single named token', () => {
-        expect(fillTemplate('{count} recipes', { count: 6 })).toBe('6 recipes');
-    });
-
-    it('substitutes multiple named tokens', () => {
-        expect(fillTemplate('{a} of {b}', { a: 1, b: 2 })).toBe('1 of 2');
-    });
-
-    it('leaves an unknown token untouched (never throws)', () => {
-        expect(fillTemplate('{count} of {missing}', { count: 3 })).toBe('3 of {missing}');
-    });
-});
 
 describe('toRecipeListItem', () => {
     it('is the shared card projection (the list and widget draw the identical card)', () => {

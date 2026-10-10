@@ -74,6 +74,26 @@ describe('ConfirmDialog (native)', () => {
         expect(within(alert).getByRole('heading', { name: 'Discard unsaved changes?' })).toBeTruthy();
         expect(screen.getByText('You have unsaved changes. Leaving now will discard them.')).toBeTruthy();
     });
+    // Parity with the web dialog, whose title is `sectionTitle` (`buildSpec.md` §1.5): Playfair sets names only (F8).
+    it('sets its title in Inter, never the display face', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        const title = screen.getAllByRole('heading')[0] as HTMLElement;
+        const families = Array.from(document.styleSheets)
+            .flatMap((sheet) => Array.from(sheet.cssRules))
+            .filter(
+                (rule): rule is CSSStyleRule =>
+                    rule instanceof CSSStyleRule &&
+                    title.className.split(' ').some((name) => rule.selectorText === `.${name}`),
+            )
+            .map((rule) => rule.style.getPropertyValue('font-family'))
+            .concat(title.style.getPropertyValue('font-family'))
+            .filter((family) => family !== '');
+
+        expect(families.length).toBeGreaterThan(0);
+        expect(families.join(' ')).not.toMatch(/Playfair/u);
+    });
+
     it('confirming calls onConfirm', () => {
         const onConfirm = vi.fn();
         render(<ConfirmDialog {...baseProps({ onConfirm })} />);

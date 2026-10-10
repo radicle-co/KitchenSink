@@ -6,13 +6,13 @@
  *
  * What it pins:
  *  - the greeting sits on the app canvas, not in a gradient card (`docs/design/uiOverhaul/buildSpec.md` §1.6), and
- *  - the roadmap widget cards adopt the shared frosted-glass surface (`GlassCard` → `expo-blur` BlurView).
+ *  - the roadmap placeholders sit under one "Coming soon" heading, after the recent recipes (`buildSpec.md` §4.2).
  *
  * The heavy leaves the screen pulls in are stubbed exactly as every other native screen test does: the
  * safe-area context and `useUserProfile` (real modules import native/Clerk code that will not parse under
  * jsdom), Sentry (so importing `homeContainer` does not drag in its native module graph), and the recipe
- * service `useRecipes` hook (so the live recipe widget renders without a query client). Real gradient/blur
- * rendering is emulator-only (Maestro) — here they resolve to the marked jsdom stubs.
+ * service `useRecipes` hook (so the live recipe widget renders without a query client). Real gradient
+ * rendering is emulator-only (Maestro) — here it resolves to the marked jsdom stub.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
@@ -154,6 +154,7 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
     it('still renders the roadmap placeholders under the recent recipes', async () => {
         renderHome();
 
-        expect(await screen.findByText("Today's Nutrition")).toBeTruthy();
+        expect(await screen.findByText('Today’s nutrition')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Coming soon' })).toBeTruthy();
     });
 });

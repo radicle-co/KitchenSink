@@ -96,7 +96,12 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     return (
         <View style={styles.container}>
             {/* The hero IS the carousel, so the cover shows once (F2). */}
-            <RecipeHero title={recipe.title} photos={recipe.photos} />
+            <RecipeHero
+                recipeId={recipe.id}
+                title={recipe.title}
+                {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
+                photos={recipe.photos}
+            />
 
             <View style={styles.top}>
                 {meta.length > 0 && <Text style={[styles.overline, muted]}>{meta.join(' · ')}</Text>}

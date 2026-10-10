@@ -10,6 +10,7 @@
 import { useState, type FC } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName } from '../icon/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
@@ -24,6 +25,7 @@ const stepTarget = (): number => (Platform.OS === 'android' ? 48 : 44);
 export const Stepper: FC<StepperProps> = ({
     id,
     label,
+    labelVisibility = 'visible',
     value,
     min = 1,
     max,
@@ -68,7 +70,10 @@ export const Stepper: FC<StepperProps> = ({
 
     return (
         <View style={styles.stack}>
-            <Text nativeID={labelId} style={[styles.label, { color: colors.inkMuted }]}>
+            <Text
+                nativeID={labelId}
+                style={labelVisibility === 'hidden' ? visuallyHidden : [styles.label, { color: colors.inkMuted }]}
+            >
                 {label}
             </Text>
             <View collapsable={false} role="group" aria-labelledby={labelId} style={styles.row}>

@@ -171,4 +171,32 @@ describe('SegmentedControl (web) — view', () => {
         expect(list.querySelector('svg')).not.toBeNull();
         expect(screen.getByText('List view').className).toContain('sr-only');
     });
+
+    /**
+     * F5 and the collection-detail finding (`evaluateFinal.md`): an icon-only switch spanned the whole row (1,120 px for
+     * two glyphs at 1440) and squeezed the Sort button beside it to three lines. It takes its content's width; only a
+     * labelled switch shares the row.
+     */
+    it('sizes an icon-only switch to its glyphs, never to the whole row', () => {
+        render(
+            <SegmentedControl
+                form="view"
+                label="View"
+                labelVisibility="hidden"
+                value="list"
+                onChange={() => undefined}
+                segments={[
+                    { id: 'list', label: 'List view', icon: 'list' },
+                    { id: 'grid', label: 'Grid view', icon: 'layoutGrid' },
+                ]}
+            />,
+        );
+
+        const group = screen.getByRole('radiogroup', { name: 'View' });
+
+        expect(tokensOf(group)).not.toContain('w-full');
+        expect(tokensOf(group)).toContain('shrink-0');
+        expect(tokensOf(screen.getByRole('radio', { name: 'List view' }))).not.toContain('flex-1');
+        expect(tokensOf(screen.getByRole('radio', { name: 'List view' }))).toContain('min-w-11');
+    });
 });

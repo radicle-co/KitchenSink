@@ -4,10 +4,6 @@
  * `./IngredientLineEditor.tsx`: the food with Change, Amount (with "+ Add a range"), Unit and Preparation, then Food
  * details. The fields wrap by width: in the sheet Amount and Unit share line 1 and Preparation takes line 2.
  *
- * PLATFORM-FORK: an amount field keeps the text the cook is typing while they type it. A controlled React Native field
- * would otherwise be rewritten from the number its text parses to, so "1." would snap back to "1" and "1.5" could
- * never be typed; the web's number input keeps a partial number itself.
- *
  * Presentational: `props → JSX` over the row editor's view (`RowLineEditorView`); every edit is the view's.
  *
  * @pattern Template — one field layout, framed by `IngredientLineEditorSheet` and the row's inline panel
@@ -18,23 +14,27 @@ import { FieldLabel, Input, fieldGeometry, fieldLabelId, fieldPaint } from '@com
 import { nativeTokens } from '@commise/ui/native';
 import { TextInput } from '@commise/ui/text-input';
 import { useTheme } from '@commise/ui/theme';
-import { useState, type FC } from 'react';
+import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ingredientUnitNoteId } from './fieldErrorIds.js';
 import type { IngredientLineEditorProps } from './IngredientLineEditor.js';
 
-/** One bound of the amount: empty means no amount, never "0" (R40). */
+/**
+ * One bound of the amount: empty means no amount, never "0" (R40). Its text is the view's (`amountLow`/`amountHigh`),
+ * which keeps what the cook typed, so "1." is not rewritten to "1" on the way to "1.5".
+ *
+ * PLATFORM-FORK: native has no `aria-describedby`, so the amount note is the field's accessibility hint.
+ */
 const AmountField: FC<{
     readonly id: string;
     readonly value: string;
     readonly invalid: boolean;
+    readonly note: string | undefined;
     readonly onChange: (text: string) => void;
     readonly accessibleName?: string;
-}> = ({ id, value, invalid, onChange, accessibleName }) => {
+}> = ({ id, value, invalid, note, onChange, accessibleName }) => {
     const theme = useTheme();
-    // The text the cook is typing, while they type it; the draft's number otherwise.
-    const [typing, setTyping] = useState<string | undefined>(undefined);
 
     return (
         <TextInput
@@ -42,14 +42,11 @@ const AmountField: FC<{
             {...(accessibleName === undefined
                 ? { 'aria-labelledby': fieldLabelId(id) }
                 : { accessibilityLabel: accessibleName })}
+            {...(note === undefined ? {} : { accessibilityHint: note })}
             aria-invalid={invalid}
             inputMode="decimal"
-            value={typing ?? value}
-            onChangeText={(text) => {
-                setTyping(text);
-                onChange(text);
-            }}
-            onBlur={() => setTyping(undefined)}
+            value={value}
+            onChangeText={onChange}
             style={[styles.field, styles.amount, fieldPaint(theme, invalid)]}
         />
     );
@@ -77,6 +74,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                             id={view.ids.amount}
                             value={view.amountLow}
                             invalid={view.amountInvalid}
+                            note={view.amountNote?.text}
                             onChange={view.onAmountLow}
                         />
                         {view.rangeShown && (
@@ -88,6 +86,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                                     id={view.ids.amountHigh}
                                     value={view.amountHigh}
                                     invalid={view.amountInvalid}
+                                    note={view.amountNote?.text}
                                     onChange={view.onAmountHigh}
                                     accessibleName={m.rowAmountHighLabel}
                                 />
@@ -127,6 +126,11 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                     </Button>
                 )}
             </View>
+            {view.amountNote !== undefined && (
+                <Text nativeID={view.amountNote.id} style={[styles.caption, { color: colors.dangerText }]}>
+                    {view.amountNote.text}
+                </Text>
+            )}
             {view.unitNote !== undefined && (
                 <Text nativeID={ingredientUnitNoteId(index)} style={[styles.caption, { color: colors.inkMuted }]}>
                     {view.unitNote}

@@ -5,6 +5,7 @@
  * `user.deleted`-webhook full erasure (`triggerSource: 'admin'`). The tests pin the erased column set, the
  * companion-row purge, the audit row's trigger source/actor, and the single-transaction guarantee.
  */
+import { getTableName, type Table } from 'drizzle-orm';
 import { describe, it, expect } from 'vitest';
 
 import { eraseIdentityRow } from '../eraseIdentityRow.js';
@@ -24,8 +25,8 @@ function buildMockDb() {
                 return { where: () => Promise.resolve() };
             },
         }),
-        delete: () => {
-            deletedTables.push('table');
+        delete: (table: Table) => {
+            deletedTables.push(getTableName(table));
 
             return { where: () => Promise.resolve() };
         },
@@ -61,8 +62,8 @@ describe('eraseIdentityRow', () => {
         expect(userSets[0]).toMatchObject({ status: 'erased', name: null, picture: null });
         expect(userSets[0]!.email).toContain('@erased.invalid');
         expect(userSets[0]!.updatedAt).toBe(now);
-        // Companion rows (accounts + profiles) purged on erasure.
-        expect(deletedTables).toHaveLength(2);
+        // Companion rows (accounts, profiles) and the user's settings (ADR-0059: personal data) are purged on erasure.
+        expect([...deletedTables].sort()).toEqual(['accounts', 'profiles', 'settings']);
         // R8 audit row carries the caller's trigger source + actor.
         expect(auditRows[0]).toMatchObject({
             userId: 'usr_01',

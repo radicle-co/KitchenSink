@@ -64,6 +64,10 @@ describe('RecipeBrowseRailResults (web)', () => {
 
         for (const item of within(screen.getByRole('list')).getAllByRole('listitem')) {
             expect(item.className).toContain('w-[clamp(240px,78%,256px)]');
+            // F6 (`evaluateFinal.md`): the grid card is a six-row SUBGRID; in a flex rail it had no grid to borrow rows
+            // from and its cover collapsed to a 6 px strip on web. The item is that parent. (jsdom cannot lay out; the
+            // geometry is `overhaulLayout.spec.ts`'s.)
+            expect(item.className.split(' ')).toEqual(expect.arrayContaining(['grid', 'grid-rows-[repeat(6,auto)]']));
             expect(item.className).toContain('snap-start');
             expect(item.querySelector('[data-card-variant="grid"]')).not.toBeNull();
         }

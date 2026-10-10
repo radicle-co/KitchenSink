@@ -922,7 +922,7 @@ describe('the add field reads the amount first (build spec §7.5.3; blueprint A1
 
         expect(open).toHaveBeenCalledWith('saffron', {
             ...TRAILING,
-            measure: { quantity: { kind: 'exact', value: 2 }, unit: 'teaspoon', preparation: 'crushed' },
+            measure: { quantity: { kind: 'exact', value: 2 }, unit: 'tsp', preparation: 'crushed' },
         });
     });
 });

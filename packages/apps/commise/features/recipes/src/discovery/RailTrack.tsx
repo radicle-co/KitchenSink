@@ -21,7 +21,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { useContext, type FC, type KeyboardEvent, type ReactNode } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages } from './messages.js';
 import { RailContext } from './railContext.js';
 import { cardStepOf } from './railScroll.js';

@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AdminController } from '../src/admin/admin.controller.js';
 import { HealthController } from '../src/health/health.controller.js';
+import { SettingsController } from '../src/settings/settings.controller.js';
 import { AvatarUploadController } from '../src/users/avatarUpload.controller.js';
 import { UsersController } from '../src/users/users.controller.js';
 
@@ -48,6 +49,15 @@ describe('identity service route paths', () => {
 
         it('lists the canonical path first, so generated links/logs prefer it', () => {
             expect(controllerPaths(controller)[0]).toBe(`api/${legacyPath}`);
+        });
+    });
+
+    describe('SettingsController', () => {
+        // ADR-0059: a surface born after ADR-0011 has no shipped consumer on a bare path, so it takes no alias.
+        // Mounting it on `v1/users/me/settings` would add a deprecated path that nothing needs and that an
+        // operator would one day have to remove.
+        it('serves ONLY the canonical api/v1/users/me/settings, with no deprecated bare alias', () => {
+            expect(controllerPaths(SettingsController)).toEqual(['api/v1/users/me/settings']);
         });
     });
 

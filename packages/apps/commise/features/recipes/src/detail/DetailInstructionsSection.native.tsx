@@ -33,20 +33,23 @@ export const DetailInstructionsSection: FC<DetailInstructionsSectionProps> = ({ 
 
     return (
         <View style={styles.section}>
-            <Text accessibilityRole="header" style={[styles.sectionHeading, { color: colors.ink }]}>
-                {detail.instructionsHeading}
-            </Text>
-            {onEdit !== undefined && steps.length > 0 && (
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    icon="pencilLine"
-                    accessibilityLabel={detail.editStepsLabel}
-                    onPress={onEdit}
-                >
-                    {detail.editSection}
-                </Button>
-            )}
+            {/* The owner's Edit: a ghost link at the end of the heading row (§6.1, F22). */}
+            <View style={styles.headingRow}>
+                <Text accessibilityRole="header" style={[styles.sectionHeading, { color: colors.ink }]}>
+                    {detail.instructionsHeading}
+                </Text>
+                {onEdit !== undefined && steps.length > 0 && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        icon="pencilLine"
+                        accessibilityLabel={detail.editStepsLabel}
+                        onPress={onEdit}
+                    >
+                        {detail.editSection}
+                    </Button>
+                )}
+            </View>
             {steps.length === 0 ? (
                 <DetailEmptySection text={detail.noSteps} actionLabel={detail.addSteps} onAction={onEdit} />
             ) : (

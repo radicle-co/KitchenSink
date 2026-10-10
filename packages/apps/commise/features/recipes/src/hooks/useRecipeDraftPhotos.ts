@@ -42,7 +42,7 @@
  */
 import { useCallback, useState } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { admitPhotoBatch, type RecipePhotoAdmission } from '../photos/model.js';
 import type { RecipeFormValues } from '../form/values.js';
 

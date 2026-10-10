@@ -24,19 +24,23 @@ import {
     profileEntryOf,
     resolveErrorReporter,
     resolveHomeWidgets,
+    splitComingSoon,
     type HomeWidgetCurationContext,
+    type HomeWidgetDescriptor,
     type HomeWidgetId,
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { makeViewer, type Tier } from '@kitchensink/recipe-core';
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { nativeTokens } from '@commise/ui/native';
+import { useTheme } from '@commise/ui/theme';
 import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { Container } from 'ditox';
-import { useMemo, type ComponentType, type JSX } from 'react';
+import { useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../../i18n/messages.js';
 import { useUserProfile } from '../../hooks/useUserProfile.js';
@@ -103,6 +107,7 @@ export function HomeWidgetSurface({
     renderers,
 }: HomeWidgetSurfaceProps): JSX.Element {
     const { home } = useMessages(mobileMessages);
+    const { colors } = useTheme();
     const profile = useUserProfile();
     const nudge = useOncePerSessionNudge();
 
@@ -146,8 +151,55 @@ export function HomeWidgetSurface({
             // order/hidden personalization lives in the identity profile preferences (002); absent in v1.
         };
 
-        return curateHomeWidgets(resolveHomeWidgets(container), ctx);
+        return splitComingSoon(curateHomeWidgets(resolveHomeWidgets(container), ctx));
     }, [container, tier]);
+
+    /**
+     * One widget: a live one through its bespoke slot, a placeholder through its loader seam.
+     *
+     * @param descriptor - The curated descriptor.
+     * @returns Its boundary-wrapped render, or `null` for a live id this client cannot draw.
+     */
+    const renderWidget = (descriptor: HomeWidgetDescriptor): ReactNode => {
+        const Bespoke = activeRenderers[descriptor.id];
+
+        // A live widget with a bespoke slot. Its last-resort fallback is the localized
+        // `HomeWidgetErrorNotice`, matching web: a `null` here meant a slot-level throw
+        // (not just a widget-body one — the recipe slot's own inner boundary handles that)
+        // erased the whole slot into unexplained blank space, with nothing announced to
+        // assistive tech. Losing the content is acceptable; saying nothing about it is not.
+        if (Bespoke !== undefined) {
+            return (
+                <ErrorBoundary
+                    key={descriptor.id}
+                    fallback={<HomeWidgetErrorNotice />}
+                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+                >
+                    <Bespoke />
+                </ErrorBoundary>
+            );
+        }
+
+        // A roadmap PLACEHOLDER keeps a `null` fallback — also matching web, and deliberately
+        // NOT the notice above. A skeleton is itself a stand-in for a feature that has not
+        // shipped, so there is no content whose loss is worth announcing; a notice would report
+        // the failure of something the viewer was never promised. The throw is still reported.
+        if (isPlaceholderHomeWidget(descriptor)) {
+            return (
+                <ErrorBoundary
+                    key={descriptor.id}
+                    fallback={null}
+                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+                >
+                    <RoadmapWidgetSlot descriptor={descriptor} />
+                </ErrorBoundary>
+            );
+        }
+
+        // A live widget id with no bespoke renderer on this client — skip it rather than
+        // crash, so an older client tolerates a newer personalization list (version skew).
+        return null;
+    };
 
     return (
         <View style={styles.screen}>
@@ -165,46 +217,21 @@ export function HomeWidgetSurface({
                         {...(headerAction === undefined ? {} : { action: headerAction })}
                     />
 
-                    {curated.map((descriptor) => {
-                        const Bespoke = activeRenderers[descriptor.id];
+                    {curated.live.map(renderWidget)}
 
-                        // A live widget with a bespoke slot. Its last-resort fallback is the localized
-                        // `HomeWidgetErrorNotice`, matching web: a `null` here meant a slot-level throw
-                        // (not just a widget-body one — the recipe slot's own inner boundary handles that)
-                        // erased the whole slot into unexplained blank space, with nothing announced to
-                        // assistive tech. Losing the content is acceptable; saying nothing about it is not.
-                        if (Bespoke !== undefined) {
-                            return (
-                                <ErrorBoundary
-                                    key={descriptor.id}
-                                    fallback={<HomeWidgetErrorNotice />}
-                                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
-                                >
-                                    <Bespoke />
-                                </ErrorBoundary>
-                            );
-                        }
-
-                        // A roadmap PLACEHOLDER keeps a `null` fallback — also matching web, and deliberately
-                        // NOT the notice above. A skeleton is itself a stand-in for a feature that has not
-                        // shipped, so there is no content whose loss is worth announcing; a notice would report
-                        // the failure of something the viewer was never promised. The throw is still reported.
-                        if (isPlaceholderHomeWidget(descriptor)) {
-                            return (
-                                <ErrorBoundary
-                                    key={descriptor.id}
-                                    fallback={null}
-                                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
-                                >
-                                    <RoadmapWidgetSlot descriptor={descriptor} />
-                                </ErrorBoundary>
-                            );
-                        }
-
-                        // A live widget id with no bespoke renderer on this client — skip it rather than
-                        // crash, so an older client tolerates a newer personalization list (version skew).
-                        return null;
-                    })}
+                    {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading (owner
+                        ruling; `buildSpec.md` §4.2). Gone with the last placeholder. */}
+                    {curated.comingSoon.length > 0 && (
+                        <View style={styles.comingSoon}>
+                            <Text accessibilityRole="header" style={[styles.comingSoonHeading, { color: colors.ink }]}>
+                                {home.roadmap.comingSoonHeading}
+                            </Text>
+                            <Text style={[styles.comingSoonBody, { color: colors.inkMuted }]}>
+                                {home.roadmap.comingSoonBody}
+                            </Text>
+                            {curated.comingSoon.map(renderWidget)}
+                        </View>
+                    )}
                 </ScrollView>
             </HomeNudgeContext.Provider>
 
@@ -220,4 +247,7 @@ const styles = StyleSheet.create({
     region: { flex: 1 },
     // The foot clears the floating create button (its height + 32, `buildSpec.md` §3.4), which floats over it.
     regionContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: FAB_RESERVED_BOTTOM_PX, gap: 16 },
+    comingSoon: { gap: nativeTokens.spacing[4] },
+    comingSoonHeading: { ...nativeTokens.type.sectionTitle },
+    comingSoonBody: { ...nativeTokens.type.body, marginTop: -nativeTokens.spacing[3] },
 });

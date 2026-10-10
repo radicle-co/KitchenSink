@@ -7,7 +7,8 @@
  * header and the bar together are taller than half the viewport (`compactHeightLayout.md` A1) it is not sticky: it
  * scrolls with the page as the column's last content, in the same place in the page, so a focused control keeps focus.
  *
- * After a refused Publish, a polite line says how many things to fix (SC 3.3.1). A finishing write shows the primary
+ * After a refused Publish, a polite line says how many things to fix (SC 3.3.1). While lines have no match, a quiet
+ * polite line says the recipe is ready and that those lines' nutrition is left out (owner D20); Publish stays enabled. A finishing write shows the primary
  * busy and locks the bar.
  *
  * Presentational: props → JSX. Its node leaves through `placeRef`, so the page can measure it.
@@ -39,6 +40,7 @@ export const EditorActionBar: FC<WebEditorActionBarProps> = ({
     primaryDisabled,
     busy,
     fixLine,
+    readyLine,
     notice,
     pinned = true,
     placeRef,
@@ -52,6 +54,9 @@ export const EditorActionBar: FC<WebEditorActionBarProps> = ({
         {notice}
         <LiveRegion politeness="polite" className="text-body-sm text-danger-text">
             {fixLine ?? ''}
+        </LiveRegion>
+        <LiveRegion politeness="polite" className="text-body-sm text-ink-muted">
+            {readyLine ?? ''}
         </LiveRegion>
         <div role="group" aria-label={label} className="flex items-center justify-end gap-3">
             <Button variant="secondary" icon="eye" onPress={onPreview} disabled={busy}>

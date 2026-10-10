@@ -349,7 +349,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
         await ingredients.getByRole('button', { name: 'Choose a match: Kale' }).click();
-        await page.getByRole('button', { name: 'None of these — search for a different food' }).click();
+        await page.getByRole('button', { name: 'Search for another food' }).click();
 
         await expect(ingredients.getByRole('combobox', { name: 'Ingredient 2 name' })).toBeFocused();
         // Leaving the search reads the row again, its amount and unit kept.

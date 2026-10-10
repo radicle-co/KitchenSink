@@ -67,9 +67,8 @@ export default defineConfig({
             'react-native': 'react-native-web',
             // The Expo native modules have no jsdom/react-native-web implementation; alias them to
             // lightweight stubs so the `.native` surface leaves render (and assert) under Vitest. The real
-            // gradient/blur rendering is emulator-only (Maestro).
+            // gradient rendering is emulator-only (Maestro).
             'expo-linear-gradient': path.join(stubDir, 'expoLinearGradientStub.tsx'),
-            'expo-blur': path.join(stubDir, 'expoBlurStub.tsx'),
             // `RecipeCover` draws photos through `expo-image`, a native module with no jsdom runtime.
             'expo-image': path.join(stubDir, 'expoImageStub.tsx'),
             // The sheet pads by the device's window insets, which a native module reports; the stub serves fixed

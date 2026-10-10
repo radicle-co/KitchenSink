@@ -199,6 +199,12 @@ const TEST_RESET_STALE = Duration.minutes(15);
 const QUEUE_CHECK_INTERVAL = Duration.minutes(5);
 
 /**
+ * Async retries for a function scheduled every hour or more often: none. Lambda's default two retries would report
+ * one failed run three times, and the next scheduled run already retries the work.
+ */
+const FREQUENT_SCHEDULE_RETRIES = 0;
+
+/**
  * The longest a non-prod stage's database is deliberately unreachable: ADR-0007's nightly shutdown, 00:00 to
  * 09:00 America/New_York.
  *
@@ -955,6 +961,7 @@ export class RecipeWorkersStack extends Stack {
         // was lost, or whose worker died. STAGE is set here (and NOT in commonDbEnv) because only the
         // sweeper emits the age metric, and its EMF dimension must equal the alarm's `Stage` below.
         const erasureSweeperFn = new lambda.Function(this, 'ErasureSweeperFunction', {
+            retryAttempts: FREQUENT_SCHEDULE_RETRIES,
             runtime,
             architecture,
             handler: 'handlers/erasureSweeper.handler',
@@ -988,6 +995,7 @@ export class RecipeWorkersStack extends Stack {
         // owners; STAGE is set here (NOT commonDbEnv) because only this sweeper emits the orphans-deleted
         // metric, and its EMF `Stage` dimension must equal the alarm's below.
         const orphanSweeperFn = new lambda.Function(this, 'ErasureOrphanSweeperFunction', {
+            retryAttempts: FREQUENT_SCHEDULE_RETRIES,
             runtime,
             architecture,
             handler: 'handlers/erasureOrphanSweeper.handler',
@@ -1498,6 +1506,7 @@ export class RecipeWorkersStack extends Stack {
         );
 
         const bandDrainFn = new lambda.Function(this, 'BandDrainFunction', {
+            retryAttempts: FREQUENT_SCHEDULE_RETRIES,
             runtime,
             architecture,
             handler: 'handlers/bandDrain.handler',
@@ -2200,6 +2209,7 @@ export class RecipeWorkersStack extends Stack {
         this.handleSyncDlq.grant(queueCheckRole, 'sqs:GetQueueAttributes');
 
         const queueCheckFn = new lambda.Function(this, 'QueueCheckFunction', {
+            retryAttempts: FREQUENT_SCHEDULE_RETRIES,
             runtime,
             architecture,
             handler: 'handlers/queueCheck.handler',

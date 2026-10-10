@@ -37,6 +37,11 @@ export interface EditorMessages {
     /** The action bar's polite line after a refused Publish. */
     readonly fixCount: PluralText;
     readonly ready: string;
+    /**
+     * The action bar's ready text, and the Photos & publish note, while lines have no match (owner D20): Publish is
+     * allowed, and those lines count as zero toward nutrition.
+     */
+    readonly readyUnmatched: PluralText;
     readonly published: string;
     readonly addToCollection: string;
     readonly changesSaved: string;
@@ -110,6 +115,9 @@ export interface EditorMessages {
         readonly draftBody: string;
         readonly changesTitle: string;
         readonly changesBody: string;
+        /** A draft whose create's outcome is unknown, so the recipe may be on the server: Discard leaves it there. */
+        readonly mayBeSavedBody: string;
+        readonly mayBeSavedBodyTab: string;
         readonly confirm: string;
         readonly keep: string;
     };
@@ -205,6 +213,10 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
         saveChanges: 'Save changes',
         fixCount: { one: 'Fix {count} thing to publish', other: 'Fix {count} things to publish' },
         ready: 'Ready to publish.',
+        readyUnmatched: {
+            one: 'Ready to publish. {count} ingredient has no match, so its nutrition is left out.',
+            other: 'Ready to publish. {count} ingredients have no match, so their nutrition is left out.',
+        },
         published: 'Recipe published.',
         addToCollection: 'Add to a collection',
         changesSaved: 'Changes saved.',
@@ -288,6 +300,8 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             draftBody: "The recipe and everything in it will be deleted. This can't be undone.",
             changesTitle: 'Discard your changes?',
             changesBody: 'Your recipe stays as it was when you last saved it.',
+            mayBeSavedBody: 'This recipe may already be saved. Discarding removes it from this device only.',
+            mayBeSavedBodyTab: 'This recipe may already be saved. Discarding removes it from this tab only.',
             confirm: 'Discard',
             keep: 'Keep editing',
         },

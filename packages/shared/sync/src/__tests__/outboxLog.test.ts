@@ -368,6 +368,50 @@ describe('recoverInterrupted', () => {
             [2, 'pending', undefined],
         ]);
     });
+
+    it('leaves a pending create pending when the log is not a copy', () => {
+        const queued = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' }));
+
+        expect(recoverInterrupted(queued, { copied: false }).records[0]?.state).toBe('pending');
+    });
+
+    /**
+     * ⛔ A DUPLICATED BROWSER TAB COPIES THE JOURNAL. Both tabs then hold the same pending create, and each would send
+     * it: a second recipe. A create has no version token, so the copy parks every record whose second copy would make a
+     * second row, and the cook decides. An update names its version, so a second copy meets a 409; it stays pending.
+     */
+    it.each([
+        ['create', 'pending', 'parked'],
+        ['create', 'blocked', 'parked'],
+        ['createFreeform', 'pending', 'parked'],
+        ['upload', 'pending', 'parked'],
+        ['update', 'pending', 'pending'],
+        ['delete', 'pending', 'pending'],
+        ['setVisibility', 'pending', 'pending'],
+        ['addMember', 'pending', 'pending'],
+        ['update', 'parked', 'parked'],
+    ] as const)('⛔ in a copied log, a %s left %s becomes %s', (intentKind, state, expected) => {
+        const queued = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind, localId: 'r1' }));
+        const log: OutboxLog = {
+            ...queued,
+            records: queued.records.map((record) => ({ ...record, state, lastStatus: 409 })),
+        };
+
+        const [after] = recoverInterrupted(log, { copied: true }).records;
+
+        expect(after?.state).toBe(expected);
+        // A record the copy parks is an unknown outcome: it carries no status. One it leaves alone keeps its own.
+        expect(after?.lastStatus).toBe(expected === state ? 409 : undefined);
+    });
+
+    it('⛔ in a copied log, still parks a record a dead process left sending', () => {
+        const queued = markSending(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' })),
+            1,
+        );
+
+        expect(recoverInterrupted(queued, { copied: true }).records[0]?.state).toBe('parked');
+    });
 });
 
 describe('supersede — a record being sent', () => {
@@ -507,6 +551,59 @@ describe('appendExclusive', () => {
         );
 
         expect(appendExclusive(other, edit(1)).kind).toBe('queued');
+    });
+});
+
+/**
+ * A1's handoff (2026-10-09): Discard while the create is on the wire queues the delete BEHIND it, depending on the ref
+ * the create produces (`supersede`). If that create then parks and the cook withdraws it, no server id will ever exist
+ * for the ref, so the delete could never be sent: it sat pending forever, counted as "syncing". A transient park is
+ * re-sent by the drain and the delete must keep waiting, so the cascade belongs to the withdrawal, not the park.
+ */
+describe('withdraw — what waits on the withdrawn record', () => {
+    const REF = 'local:recipe:r1';
+
+    /** Discard while the create is on the wire, then the create parks with an unknown outcome. */
+    function discardedWhileSending(): OutboxLog {
+        const sending = markSending(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF })),
+            1,
+        );
+        const discarded = supersede(sending, intent({ entity: 'recipe', intentKind: 'delete', localId: REF }));
+
+        return settle(discarded, { seq: 1, outcome: 'parked' });
+    }
+
+    it('⛔ withdrawing the parked create also removes the delete that waited on its id', () => {
+        const log = discardedWhileSending();
+        expect(log.records.map((record) => [record.intentKind, record.state])).toStrictEqual([
+            ['create', 'parked'],
+            ['delete', 'pending'],
+        ]);
+
+        expect(withdraw(log, 1).records).toStrictEqual([]);
+    });
+
+    /**
+     * ⛔ ONLY THE DELETE OF THE SAME ENTITY. Anything else that waits on the ref is the cook's work, and the ref is not
+     * dead: the editor's Retry withdraws a parked create and resubmits it under the SAME local ref. Silently dropping a
+     * pending record breaks the outbox's never-silently-discard rule.
+     */
+    it('⛔ keeps every other record that waits on the ref: a Retry resubmits the create under the same ref', () => {
+        const queued = appendIntent(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: REF, produces: REF })),
+            intent({ entity: 'photo', intentKind: 'upload', localId: 'p1', dependsOn: [REF] }),
+        );
+        const parked = settle(queued, { seq: 1, outcome: 'parked' });
+
+        expect(withdraw(parked, 1).records.map((record) => record.localId)).toStrictEqual(['p1']);
+    });
+
+    it('keeps a record whose dependency already resolved: it can still be sent', () => {
+        const log = discardedWhileSending();
+        const resolved: OutboxLog = { ...log, resolutions: { [REF]: 'rec_1' } };
+
+        expect(withdraw(resolved, 1).records.map((record) => record.intentKind)).toStrictEqual(['delete']);
     });
 });
 

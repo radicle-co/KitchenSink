@@ -21,10 +21,12 @@ import {
     sourceBusy,
 } from '../../__fixtures__/progressiveFrames.js';
 import { recipeFormMessages } from '../../form/messages.js';
-import { makeNutrition } from '../../__fixtures__/index.js';
+import { makeIngredientView, makeNutrition } from '../../__fixtures__/index.js';
+import { makeIngredient } from '../../versions/__fixtures__/index.js';
 import { MAX_SCALED_SERVINGS, MIN_SCALED_SERVINGS } from '@kitchensink/recipe-core/scaling';
 
 import {
+    formatIngredientLine,
     formatQuantity,
     ingredientCheckLabel,
     lineSummary,
@@ -380,5 +382,39 @@ describe('reviewShortlistStatus (plan 002 S7.8)', () => {
 
     it('offline: the parked-read sentence', () => {
         expect(reviewShortlistStatus({ kind: 'offline' }, NAMING, COPY)).toBe(COPY.offline);
+    });
+});
+
+/** D21 (owner, 2026-10-10): every surface that composes an amount with a name shows the singular for a count of one. */
+describe('the singular name for a count of one (D21)', () => {
+    const names = recipeMessages.en.ingredientLineName;
+    const template = recipeMessages.en.ingredientDetails.checkLabelWithDetails;
+    const onions = (overrides: Parameters<typeof makeIngredientView>[0]) =>
+        makeIngredientView({ name: 'onions', ...overrides });
+
+    it('lineSummary reads "1 large onion" for one, and "2 onions" for two', () => {
+        expect(lineSummary(onions({ quantity: exact(1), unit: 'large' }), 'en', names)).toBe('1 large onion');
+        expect(lineSummary(onions({ quantity: exact(2), unit: '' }), 'en', names)).toBe('2 onions');
+        expect(lineSummary(onions({ quantity: exact(1), unit: 'cup' }), 'en', names)).toBe('1 cup onions');
+    });
+
+    it('ingredientCheckLabel names a variant-bound line the same way', () => {
+        const line = makeVariantBoundLine({ name: 'onions', quantity: exact(1), unit: '' });
+
+        expect(ingredientCheckLabel(line, 'en', names, template).startsWith('1 onion, ')).toBe(true);
+    });
+
+    it('formatIngredientLine reads a version\u2019s line the same way, preparation after the name', () => {
+        const line = makeIngredient({
+            ingredientName: 'onions',
+            quantity: exact(1),
+            unit: 'large',
+            preparation: 'finely chopped',
+        });
+
+        expect(formatIngredientLine(line, 'en', names)).toBe('1 large onion, finely chopped');
+        expect(formatIngredientLine({ ...line, quantity: exact(2), unit: '' }, 'en', names)).toBe(
+            '2 onions, finely chopped',
+        );
     });
 });

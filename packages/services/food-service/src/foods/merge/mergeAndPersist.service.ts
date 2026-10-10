@@ -27,6 +27,7 @@
  * @implements FR-028 FR-029 FR-031 FR-MRG-1 FR-MRG-5 FR-RES-2 SC-013 R5 R7
  */
 import type { FoodWriter } from '../../database/unitOfWork.js';
+import type { NutrientRow } from '../../db/schema/index.js';
 import type { CanonicalCandidate } from '../../sources/foodSourceAdapter.js';
 import { CandidateStore } from '../dao/foodCandidates.dao.js';
 import { FoodDao, type FoodStatus } from '../dao/food.dao.js';
@@ -246,22 +247,21 @@ async function writeGolden(
         }
     }
 
-    // One golden value per nutrient: the dictionary id, then the value citing its winning item.
-    for (const nutrient of golden.nutrients) {
-        const dictionary = await nutrientDao.resolveOrCreate({
-            name: nutrient.name,
-            unit: nutrient.unit,
-            infoodsTag: nutrient.code,
-        });
+    // One golden value per nutrient: the dictionary ids, then the values citing their winning items — each batched,
+    // so the statement count does not grow with the nutrient count (KITCHENSINK-FOOD-SERVICE-2/-8).
+    const dictionary = await nutrientDao.resolveOrCreateMany(
+        golden.nutrients.map((nutrient) => ({ name: nutrient.name, unit: nutrient.unit, infoodsTag: nutrient.code })),
+    );
 
-        await nutrition.upsertValue({
+    await nutrition.upsertValues(
+        golden.nutrients.map((nutrient, index) => ({
             nutritionId,
-            nutrientId: dictionary.id,
+            nutrientId: dictionaryIdAt(dictionary, index),
             amount: nutrient.amount,
             basis: nutrient.basis,
             citationId: contributors.citationIdFor(nutrient.source, nutrient.externalKey),
-        });
-    }
+        })),
+    );
 
     for (const portion of golden.portions) {
         await portions.insertPortion({
@@ -271,6 +271,25 @@ async function writeGolden(
             sourceId: contributors.sourceIdFor(portion.source, portion.externalKey),
         });
     }
+}
+
+/**
+ * The dictionary id resolved for the nutrient at `index`. `resolveOrCreateMany` answers one row per input, in order,
+ * so a missing row is a broken contract, not an absent nutrient. Pure.
+ *
+ * @param rows - The batch's rows.
+ * @param index - The nutrient's position in the draft.
+ * @returns The row's id.
+ * @throws {Error} when the batch answered fewer rows than it was asked for.
+ */
+function dictionaryIdAt(rows: readonly NutrientRow[], index: number): string {
+    const row = rows[index];
+
+    if (row === undefined) {
+        throw new Error(`the nutrient dictionary answered no row for draft nutrient ${String(index)}`);
+    }
+
+    return row.id;
 }
 
 /** The stored kind of a golden kind value: `branded` stays, anything else is generic. Pure. */

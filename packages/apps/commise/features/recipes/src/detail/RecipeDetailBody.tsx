@@ -21,11 +21,12 @@
  *     `RecipeDetailView.tsx`. It holds no fetch state and decides nothing.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { Button, buttonSurfaceClass } from '@commise/ui/button';
+import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button';
 import { DifficultyBadge } from '@commise/ui/difficulty-badge';
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
 import { KeepAwakeToggle } from '@commise/ui/keep-awake';
+import { LARGE_TITLE_CLASS } from '@commise/ui/large-title-header';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { SectionSwitch } from '@commise/ui/section-switch';
 import { StatusBadge } from '@commise/ui/status-badge';
@@ -34,11 +35,18 @@ import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import Link from 'next/link';
 import { useId, type ComponentProps, type FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { AmbiguityReview } from './AmbiguityReview.js';
 import { DetailEmptySection } from './DetailEmptySection.js';
-import { detailMetaItems, detailRatingLine, detailStatCells, isLongDescription } from './detailFacts.js';
+import {
+    detailMetaItems,
+    detailRatingLine,
+    detailStatCells,
+    ingredientGroupRuns,
+    isLongDescription,
+    nutritionCells,
+} from './detailFacts.js';
 import { IngredientCheckRow } from './IngredientCheckRow.js';
 import { NutritionFigure } from './NutritionFigure.js';
 import {
@@ -144,6 +152,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     const scaled = scaleRecipeForServings(recipe, servings);
     const stats = detailStatCells(scaled, recipe.difficulty, { detail, duration, card });
     const meta = detailMetaItems(recipe, owner, detail);
+    const nutrition = nutritionCells(recipe.nutrition, detail);
     const ratingLine = detailRatingLine(recipe, owner, locale, { detail, card });
     const tags = [...recipe.dietaryFlags, ...recipe.tags];
     const editSectionHref = (section: string): Href | undefined =>
@@ -152,14 +161,18 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     const stepsEdit = editSectionHref('steps');
 
     return (
-        <article
-            aria-label={recipe.title}
-            className="@container/detail mx-auto flex w-full max-w-detail flex-col gap-6 px-4 pb-10"
-        >
+        // No gutter of its own and no centring: `<main>` owns the page gutter (16 below 600, `buildSpec.md` §1.2), and
+        // content is left-aligned to it (§1.3). A second `px-4` drew a 32 px phone gutter on this page alone (F15).
+        <article aria-label={recipe.title} className="@container/detail flex w-full max-w-detail flex-col gap-6 pb-10">
             <div className="flex flex-col gap-4 @min-[60rem]/detail:grid @min-[60rem]/detail:grid-cols-12 @min-[60rem]/detail:gap-x-8">
                 {/* The hero IS the carousel, so the cover shows once (F2). From a 960 body it sits at the END, 7/12. */}
                 <div className="@min-[60rem]/detail:col-span-7 @min-[60rem]/detail:col-start-6 @min-[60rem]/detail:row-start-1">
-                    <RecipeHero title={recipe.title} photos={recipe.photos} />
+                    <RecipeHero
+                        recipeId={recipe.id}
+                        title={recipe.title}
+                        {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
+                        photos={recipe.photos}
+                    />
                 </div>
                 <header className="flex min-w-0 flex-col gap-3 @min-[60rem]/detail:col-span-5 @min-[60rem]/detail:col-start-1 @min-[60rem]/detail:row-start-1">
                     {back}
@@ -173,11 +186,12 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             ))}
                         </p>
                     )}
-                    {/* `min-w-0 break-words`: a recipe title is user-authored and unbounded. */}
+                    {/* `min-w-0`: a recipe title is user-authored and unbounded. Playfair `largeTitle`, the header primitive's
+                        class, so the title cannot lose its face again (F8). */}
                     <h1
                         ref={titleRef}
                         tabIndex={-1}
-                        className="line-clamp-3 min-w-0 break-words text-large-title text-ink focus:outline-none"
+                        className={`line-clamp-3 min-w-0 focus:outline-none ${LARGE_TITLE_CLASS}`}
                         title={recipe.title}
                     >
                         {recipe.title}
@@ -212,8 +226,9 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     {stats.length > 0 && (
                         <div className="@container/stats">
                             {/* A container query styles a container's DESCENDANTS, never the container itself, so the strip's width is
-                            read from this wrapper: 2 × 2 below a 360 px strip, one row of cells from it. */}
-                            <dl className="grid grid-cols-2 gap-x-2 gap-y-1 rounded-lg bg-paper px-1 py-1 shadow-sm @min-[22.5rem]/stats:auto-cols-fr @min-[22.5rem]/stats:grid-flow-col @min-[22.5rem]/stats:grid-cols-none">
+                            read from this wrapper: 2 × 2 below a 480 px strip, one row of cells from it. At 360 a 435 px title
+                            column gave four ~100 px cells, which wrapped "5 h 30 / min" and cut "Medium" (F7). */}
+                            <dl className="grid grid-cols-2 gap-x-2 gap-y-1 rounded-lg border border-line-divider bg-paper px-1 py-1 shadow-sm @min-[30rem]/stats:auto-cols-fr @min-[30rem]/stats:grid-flow-col @min-[30rem]/stats:grid-cols-none">
                                 {stats.map((cell) => (
                                     <div key={cell.id} className="flex flex-col-reverse gap-1 px-3 py-2">
                                         <dt className="text-caption text-ink-muted">{cell.label}</dt>
@@ -376,17 +391,25 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             actionLabel={detail.addIngredients}
                         />
                     ) : (
-                        <ul className="flex flex-col">
-                            {scaled.ingredients.map((ingredient) => (
-                                <IngredientCheckRow
-                                    key={ingredient.ingredientId}
-                                    ingredient={ingredient}
-                                    checked={marks.checkedLines.has(ingredient.ingredientId)}
-                                    allRemoved={allRemoved}
-                                    onToggle={marks.toggleLine}
-                                />
-                            ))}
-                        </ul>
+                        // A group is an overline over its run of lines (§6.1, F9); an ungrouped recipe draws one list.
+                        ingredientGroupRuns(scaled.ingredients).map((run, index) => (
+                            <div key={`${run.label ?? ''}-${String(index)}`} className="flex flex-col gap-1">
+                                {run.label !== undefined && (
+                                    <h3 className="pt-2 text-overline text-ink-muted">{run.label}</h3>
+                                )}
+                                <ul className="flex flex-col">
+                                    {run.lines.map((ingredient) => (
+                                        <IngredientCheckRow
+                                            key={ingredient.ingredientId}
+                                            ingredient={ingredient}
+                                            checked={marks.checkedLines.has(ingredient.ingredientId)}
+                                            allRemoved={allRemoved}
+                                            onToggle={marks.toggleLine}
+                                        />
+                                    ))}
+                                </ul>
+                            </div>
+                        ))
                     )}
                 </section>
 
@@ -428,22 +451,16 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             {detail.nutritionHeading}
                         </h2>
                         <dl className="grid grid-cols-2 gap-4 @min-[35rem]/nutrition:grid-cols-4">
-                            <NutritionFigure label={detail.caloriesLabel} value={String(recipe.nutrition.calories)} />
-                            <NutritionFigure
-                                label={detail.proteinLabel}
-                                value={fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.proteinG })}
-                            />
-                            <NutritionFigure
-                                label={detail.carbsLabel}
-                                value={fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.carbsG })}
-                            />
-                            <NutritionFigure
-                                label={detail.fatLabel}
-                                value={fillTemplate(detail.gramsUnit, { grams: recipe.nutrition.fatG })}
-                            />
+                            {nutrition.cells.map((cell) => (
+                                <NutritionFigure key={cell.label} label={cell.label} value={cell.value} />
+                            ))}
                         </dl>
                         <div className="flex flex-col gap-1 text-caption text-ink-muted">
-                            {!recipe.nutrition.isComplete && <p>{detail.nutritionPartial}</p>}
+                            {nutrition.noneCounted ? (
+                                <p>{detail.nutritionNoneCounted}</p>
+                            ) : (
+                                !recipe.nutrition.isComplete && <p>{detail.nutritionPartial}</p>
+                            )}
                             {/* R38 and KTD-3b: two more admissions about the figures; both can be true at once. */}
                             {rangeNotice !== undefined && <p>{rangeNotice}</p>}
                             {staleNotice !== undefined && <p>{staleNotice}</p>}
@@ -488,7 +505,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                         />
                         <p>{fillTemplate(detail.versionLabel, { version: recipe.currentVersion })}</p>
                         {versionsHref !== undefined && (
-                            <Link href={versionsHref as Href} className={EDIT_LINK}>
+                            <Link href={versionsHref as Href} className={`${EDIT_LINK} ${GHOST_EDGE_CLASS}`}>
                                 <Icon name="clock" size={16} />
                                 {detail.versionHistory}
                             </Link>

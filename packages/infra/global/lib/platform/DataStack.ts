@@ -179,10 +179,9 @@ export class DataStack extends Stack {
 
         const stageTag = props.stage ?? 'dev';
 
-        // Per-stage RDS right-sizing (ADR-0007). Prod keeps db.t4g.small (unchanged → no prod diff);
-        // every non-prod stage (sandbox, dev, per-PR base imports) runs db.t4g.micro. The instance
-        // class is the only stage-dependent RDS property, so prod's synthesized template is untouched.
-        const dbInstanceSize = stageTag === 'prod' ? ec2.InstanceSize.SMALL : ec2.InstanceSize.MICRO;
+        // RDS sizing (ADR-0007): db.t4g.small in every stage. Non-prod ran db.t4g.micro until the 1 GB
+        // instance was measured starving under preview load, so the class is one constant again.
+        const dbInstanceSize = ec2.InstanceSize.SMALL;
 
         // Per-stage RDS storage type (ADR-0008). Prod stays on the default gp2 (`undefined` here →
         // CDK's default `StorageType: gp2`, byte-identical → no prod diff); every non-prod stage uses

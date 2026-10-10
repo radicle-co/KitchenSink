@@ -135,6 +135,69 @@ paths:
         append-only audit row in the SAME transaction as the state change, and hands the durable, reversible Clerk ban
         to the deletion-worker (the only holder of the Clerk secret). RECOVERABLE by an admin via the reactivate route —
         this is closure, not GDPR erasure."
+  /api/v1/users/me/settings:
+    get:
+      operationId: getUserSettings
+      summary: Read the signed-in viewer's settings
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The viewer's settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "Always fully resolved: a setting the viewer never chose is answered as its default (the published
+        `SETTINGS_DEFAULTS`), and the read writes nothing. Served only under `/api/v1/` — there is no deprecated bare
+        alias for this path (ADR-0059)."
+    patch:
+      operationId: patchUserSettings
+      summary: Change the signed-in viewer's settings
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The resolved settings after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+        "400":
+          description: A non-boolean value, an unknown field, or an absent body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: The account is closed (`Account is closed`). Nothing was written, so personal data is never recreated after
+            an erasure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Changes only the settings named in the body; last write wins, per setting. An UNKNOWN FIELD IS A `400` —
+        the body schema is strict — and `{}` is an accepted no-op that writes nothing. A request with NO BODY AT ALL is
+        a `400`.
+      requestBody:
+        description: The settings to change.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchUserSettingsRequest"
   /api/v1/users/me/avatar/presign:
     post:
       operationId: presignAvatarUpload
@@ -629,6 +692,19 @@ components:
         - sub
         - deletedAt
         - message
+    UserSettings:
+      type: object
+      properties:
+        searchShortcut:
+          type: boolean
+      required:
+        - searchShortcut
+    PatchUserSettingsRequest:
+      type: object
+      properties:
+        searchShortcut:
+          type: boolean
+      additionalProperties: false
     AvatarPresignResponse:
       type: object
       properties:

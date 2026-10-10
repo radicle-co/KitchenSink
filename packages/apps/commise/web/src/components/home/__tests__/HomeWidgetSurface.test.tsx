@@ -44,6 +44,8 @@ vi.mock('next/navigation', async (importOriginal) => ({
     usePathname: () => '/en',
 }));
 vi.mock('@/hooks/useUserProfile', () => ({ useUserProfile: () => profileRef.current }));
+// `useSearchShortcut` (in the shell) reads the viewer's settings (D19); this suite is not about the shortcut.
+vi.mock('@/hooks/useUserSettings', () => ({ useUserSettings: () => ({ data: { searchShortcut: true } }) }));
 
 // `homeContainer` binds `errorReporterToken` to a real Sentry-backed reporter; mocked (never loaded for real)
 // so importing it here doesn't require a live Sentry client under test.
@@ -191,6 +193,50 @@ describe('HomeWidgetSurface (web) — host composition', () => {
 
         expect(await screen.findByText('fake-skeleton')).toBeTruthy();
         expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
+    });
+
+    it('leads with the recent recipes and groups the placeholders under one "Coming soon" heading (F2, §4.2)', async () => {
+        const Skeleton: FC = () => <div>fake-skeleton</div>;
+
+        renderSurface({
+            container: containerWith(
+                makePlaceholderDescriptor('nutrition', Skeleton),
+                makeLiveDescriptor(RECIPE_HOME_WIDGET_ID),
+            ),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        const recipes = await screen.findByText('fake-recipe-widget');
+        const group = screen.getByRole('region', { name: 'Coming soon' });
+
+        expect(within(group).getByRole('heading', { level: 2, name: 'Coming soon' })).toBeTruthy();
+        expect(within(group).getByText('Meal plans, a grocery list and daily nutrition are on the way.')).toBeTruthy();
+        expect(await within(group).findByText('fake-skeleton')).toBeTruthy();
+        expect(within(group).queryByText('fake-recipe-widget')).toBeNull();
+        expect(recipes.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('draws no "Coming soon" heading once no placeholder remains', async () => {
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        await screen.findByText('fake-recipe-widget');
+
+        expect(screen.queryByRole('heading', { name: 'Coming soon' })).toBeNull();
+    });
+
+    it('aligns Home to the start of the content column, never centred (F21, §1.3)', () => {
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        const column = screen.getByRole('region', { name: 'Home' }).parentElement as HTMLElement;
+
+        expect(column.className).toContain('max-w-page');
+        expect(column.className).not.toContain('mx-auto');
     });
 
     it('SKIPS a live widget whose id has no renderer instead of crashing (graceful version skew)', async () => {

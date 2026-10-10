@@ -69,7 +69,7 @@ function scratchDirectory(prefix: string): string {
 }
 
 /** Every table `@kitchensink/identity-db` declares — the set the runner validates against. */
-const DECLARED_TABLES = ['users', 'accounts', 'profiles', 'webhook_events', 'lifecycle_events'] as const;
+const DECLARED_TABLES = ['users', 'accounts', 'profiles', 'webhook_events', 'lifecycle_events', 'settings'] as const;
 
 /**
  * ⚠️ The runner runs as `identity_migrator` against a database `identity_owner` owns (the role split,

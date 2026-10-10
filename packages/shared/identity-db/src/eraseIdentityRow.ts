@@ -11,7 +11,7 @@
  *
  * It applies the erased field-scrub ({@link computeProfileScrub}('erasure') → `{id}` only: name/picture
  * destroyed, email → a ULID-keyed placeholder, `status='erased'`), purges the companion `accounts`/
- * `profiles` rows, and appends the append-only R8 `lifecycle_events` audit row — all in ONE transaction, so
+ * `profiles`/`settings` rows, and appends the append-only R8 `lifecycle_events` audit row — all in ONE transaction, so
  * a partial failure never leaves the row half-erased or the audit missing. The row itself is NEVER
  * hard-deleted (R1) and its `identityId` is left intact (so it stays resolvable).
  *
@@ -26,6 +26,7 @@ import type { IdentityWriter } from './identityWriter.js';
 import { accounts } from './schema/accounts.js';
 import { lifecycleEvents } from './schema/lifecycleEvents.js';
 import { profiles } from './schema/profiles.js';
+import { settings } from './schema/settings.js';
 import { users } from './schema/users.js';
 import type { LifecycleTriggerSource } from './schema/lifecycleEvents.js';
 import { computeProfileScrub } from '@kitchensink/identity-core';
@@ -60,7 +61,7 @@ export interface EraseIdentityInput {
  * @param db - Any Postgres Drizzle handle (`node-postgres` or `postgres-js`).
  * @param input - The target user, trigger source, and actor.
  * @param now - The transaction instant (stamped on `updatedAt` and `occurredAt`).
- * @sideEffect Updates the `users` row, deletes `accounts`/`profiles` rows, inserts a `lifecycle_events` row.
+ * @sideEffect Updates the `users` row, deletes the `accounts`/`profiles`/`settings` rows, inserts a `lifecycle_events` row.
  */
 export async function eraseIdentityRow(db: IdentityWriter, input: EraseIdentityInput, now: Date): Promise<void> {
     const directive = computeProfileScrub('erasure', input.userId);
@@ -74,6 +75,8 @@ export async function eraseIdentityRow(db: IdentityWriter, input: EraseIdentityI
         if (directive.purgeCompanionRows) {
             await tx.delete(accounts).where(eq(accounts.userId, input.userId));
             await tx.delete(profiles).where(eq(profiles.userId, input.userId));
+            // ADR-0059: a user's settings are personal data. Closure keeps the row; erasure is the only deletion.
+            await tx.delete(settings).where(eq(settings.userId, input.userId));
         }
 
         await tx.insert(lifecycleEvents).values({

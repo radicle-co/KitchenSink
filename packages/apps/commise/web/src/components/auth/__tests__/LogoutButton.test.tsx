@@ -114,10 +114,7 @@ describe('LogoutButton (U3)', () => {
 
         await user.click(screen.getByRole('button', { name: 'Sign out' }));
 
-        expect(await screen.findByRole('alert')).toHaveProperty(
-            'textContent',
-            'We couldn’t sign you out. Please try again.',
-        );
+        expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'We couldn’t sign you out. Try again.');
         // The control is usable again — a permanently-busy button is a dead end.
         expect(screen.getByRole('button', { name: 'Sign out' })).toHaveProperty('disabled', false);
         // And the viewer was NOT navigated away on a session that may still be live.
@@ -135,7 +132,7 @@ describe('LogoutButton (U3)', () => {
 
             expect(await screen.findByRole('alert')).toHaveProperty(
                 'textContent',
-                'We couldn’t sign you out. Please try again.',
+                'We couldn’t sign you out. Try again.',
             );
             expect(navigateTo).not.toHaveBeenCalled();
             // Retryable, not a dead end.
@@ -163,7 +160,7 @@ describe('LogoutButton (U3)', () => {
 
             expect(await screen.findByRole('alert')).toHaveProperty(
                 'textContent',
-                'We couldn’t sign you out. Please try again.',
+                'We couldn’t sign you out. Try again.',
             );
             expect(signOut).not.toHaveBeenCalled();
             expect(navigateTo).not.toHaveBeenCalled();

@@ -20,7 +20,10 @@ Sandbox does not need production sizing, production observability depth, or 24/7
 
 **1. Right-size sandbox (per-stage, prod unchanged → no prod diff).**
 
-- RDS instance class is stage-derived: `prod → db.t4g.small` (unchanged), **non-prod → `db.t4g.micro`**.
+- RDS instance class is `db.t4g.small` in every stage. Non-prod first ran `db.t4g.micro`, but the 1 GB instance
+  starved under ordinary preview load (about 430 MB of swap and 85 MB free, with connections dropped while the
+  services idled), because IAM database authentication needs several hundred MB of its own. Under the nightly stop the
+  larger class costs about $7 a month more, which the owner accepted on 2026-10-09.
 - **Container Insights is a CONSTANT, not stage-derived, and it is `DISABLED` everywhere.**
   `CONTAINER_INSIGHTS_TIER` (`packages/infra/security/src/containerInsights.ts`) is applied to every ECS
   cluster in every stage; there is no `containerInsightsForStage`. It reached that in two steps recorded

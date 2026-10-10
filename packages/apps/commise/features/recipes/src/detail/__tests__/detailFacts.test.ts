@@ -7,8 +7,11 @@ import { describe, expect, it } from 'vitest';
 import { FoodResolutionStatus, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
+import { recipeFormMessages } from '../../form/messages.js';
 import { recipeMessages } from '../../messages.js';
 import {
+    ingredientGroupRuns,
+    nutritionCells,
     detailMetaItems,
     detailNativeLayoutOf,
     detailRatingLine,
@@ -131,7 +134,7 @@ describe('ingredientRowStatuses', () => {
         const line = makeIngredientView({ isUserEntered: true, resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW });
 
         expect(ingredientRowStatuses(line, false, detail)).toEqual([
-            { tone: 'note', text: 'Custom' },
+            { tone: 'note', text: 'Your own food' },
             { tone: 'attention', text: 'Needs review' },
         ]);
     });
@@ -139,8 +142,25 @@ describe('ingredientRowStatuses', () => {
     it('drops the removed-food badge when every line is removed', () => {
         const line = makeIngredientView({ resolutionStatus: FoodResolutionStatus.FOOD_REMOVED, name: 'butter' });
 
-        expect(ingredientRowStatuses(line, false, detail)).toEqual([{ tone: 'attention', text: 'Food removed' }]);
+        expect(ingredientRowStatuses(line, false, detail)).toEqual([
+            { tone: 'attention', text: 'Food no longer listed' },
+        ]);
         expect(ingredientRowStatuses(line, true, detail)).toEqual([]);
+    });
+
+    // F19 (`evaluateFinal.md`): the page said "Needs a pick", a word the glossary retires (§2.1). The page and the
+    // editor's rows now say the same words, read from the editor's row-state keys.
+    it('names an unpicked line with the editor row’s glossary word', () => {
+        const line = makeIngredientView({ resolutionStatus: FoodResolutionStatus.AMBIGUOUS });
+
+        expect(ingredientRowStatuses(line, false, detail)).toEqual([{ tone: 'attention', text: 'Choose a match' }]);
+    });
+
+    // The page's two line words are the editor row's words (glossary §2.1). Two keys in two catalogues, so this pins
+    // them together: a reworded row state that left the page behind would fail here.
+    it('says exactly what the editor row says for an unpicked and a withdrawn food', () => {
+        expect(detail.ambiguousBadge).toBe(recipeFormMessages.en.rowStateChooseMatch);
+        expect(detail.removedFoodBadge).toBe(recipeFormMessages.en.rowStateFoodRemoved);
     });
 });
 
@@ -162,5 +182,73 @@ describe('detailNativeLayoutOf', () => {
         { width: 720, columns: 'two', statsPerRow: 4 },
     ])('a $width pt body → $columns column(s), $statsPerRow stats a row', ({ width, columns, statsPerRow }) => {
         expect(detailNativeLayoutOf(width)).toEqual({ columns, statsPerRow });
+    });
+});
+
+/**
+ * F9 (`evaluateFinal.md`): the recipe page dropped the ingredient groups the editor shows. The page draws a group as an
+ * overline over each CONSECUTIVE run of lines with one label (§6.1), the editor's fold: `[A][B][A]` is three runs in
+ * that order, never two, because grouping by label would reorder the recipe.
+ */
+describe('ingredientGroupRuns', () => {
+    it('folds consecutive lines with one label into one run, in stored order', () => {
+        const lines = [
+            makeIngredientView({ ingredientId: 'a', groupLabel: 'For the lamb' }),
+            makeIngredientView({ ingredientId: 'b', groupLabel: 'For the lamb' }),
+            makeIngredientView({ ingredientId: 'c', groupLabel: 'For the chickpeas' }),
+            makeIngredientView({ ingredientId: 'd', groupLabel: 'For the lamb' }),
+        ];
+
+        expect(
+            ingredientGroupRuns(lines).map((run) => [run.label, run.lines.map((line) => line.ingredientId)]),
+        ).toEqual([
+            ['For the lamb', ['a', 'b']],
+            ['For the chickpeas', ['c']],
+            ['For the lamb', ['d']],
+        ]);
+    });
+
+    it('gives an ungrouped recipe one run with no label, so it draws no heading', () => {
+        const runs = ingredientGroupRuns([
+            makeIngredientView({ ingredientId: 'a' }),
+            makeIngredientView({ ingredientId: 'b' }),
+        ]);
+
+        expect(runs).toHaveLength(1);
+        expect(runs[0]?.label).toBeUndefined();
+    });
+
+    it('reads a blank label as no group', () => {
+        expect(ingredientGroupRuns([makeIngredientView({ groupLabel: '   ' })])[0]?.label).toBeUndefined();
+    });
+
+    it('answers no runs for no lines', () => {
+        expect(ingredientGroupRuns([])).toEqual([]);
+    });
+});
+
+/**
+ * F17 (`evaluateFinal.md`; `buildSpec.md` §6.7 "Nutrition unavailable"): a recipe whose lines count nothing showed
+ * "0 / 0 g / 0 g / 0 g", which reads as a measured zero. Nothing counted shows "—" in each cell and one line.
+ */
+describe('nutritionCells', () => {
+    const zero = { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, isComplete: false };
+
+    it('shows a dash in every cell when no line was counted', () => {
+        const { cells, noneCounted } = nutritionCells(zero, detail);
+
+        expect(cells.map((cell) => cell.value)).toEqual(['—', '—', '—', '—']);
+        expect(noneCounted).toBe(true);
+    });
+
+    it('shows the figures when anything was counted, even a partial estimate', () => {
+        const { cells, noneCounted } = nutritionCells({ ...zero, calories: 120, proteinG: 4 }, detail);
+
+        expect(cells.map((cell) => cell.value)).toEqual(['120', '4 g', '0 g', '0 g']);
+        expect(noneCounted).toBe(false);
+    });
+
+    it('keeps a measured zero for a complete recipe (water is 0 calories)', () => {
+        expect(nutritionCells({ ...zero, isComplete: true }, detail).cells[0]?.value).toBe('0');
     });
 });

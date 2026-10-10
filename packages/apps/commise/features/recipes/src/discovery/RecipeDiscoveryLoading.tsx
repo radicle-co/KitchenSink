@@ -13,8 +13,11 @@ import type { FC } from 'react';
 import { RecipeCardGridSkeleton } from '../card/RecipeCardGridSkeleton.js';
 import { discoveryMessages } from './messages.js';
 
-export const RecipeDiscoveryLoading: FC = () => {
+export const RecipeDiscoveryLoading: FC<{
+    /** The variant the results will draw (compact below 600, grid from 600), so the skeleton sits in their grid. */
+    readonly variant?: 'compact' | 'grid';
+}> = ({ variant = 'grid' }) => {
     const discovery = useMessages(discoveryMessages);
 
-    return <RecipeCardGridSkeleton label={discovery.loadingLabel} layout="discover" />;
+    return <RecipeCardGridSkeleton label={discovery.loadingLabel} layout="discover" variant={variant} />;
 };

@@ -21,7 +21,7 @@
 | **`recipes.schema.ts:160-232`** (create-only `sourceLine`/`sourcePhrase`/`statedMeasure`)         | "a picker-built line has no source and never reaches the gate at all"; `sourcePhrase` "IS the cross-user memo's KEY"; all three are create-only on purpose (ADR-0023 shape). **Binds A2, A5.**                                                                                                                                                                                                                                                                                                                       |
 | **ADR-0034** (save and version row are one transaction)                                           | "Every recipe write — create, update, clone, restore — records an immutable `recipe_versions` row." The restore's opt-out "is deleted" as "an opt-out of an invariant". `VERSION_RETENTION_LIMIT = 10` (`versions/dal/versions.dal.ts:28`). **Binds A3.** I do not add a snapshot opt-out.                                                                                                                                                                                                                           |
 | **ADR-0045** ("Rebinding one line is a command")                                                  | Rebind "takes the same version check and makes a version"; "the teaching requirement … is met only through the rebind command"; "An editor that uses the command must adopt the version the command returns". **Binds A3** for published recipes.                                                                                                                                                                                                                                                                    |
-| **Offline memory, fourth round** (governs)                                                        | No client-supplied id (cancelled). The no-blind-retry rule. Zero server changes. One persisted one-way door: the outbox format. Owed before the first `submit` call site: a serialized mutator and a retry delay in `drainer.ts`. Web store is volatile (owner, 2026-09-17), so durability copy must differ by platform. **Binds A3, A4, A14, A15.**                                                                                                                                                                 |
+| **Offline memory, fourth round** (governs)                                                        | No client-supplied id (cancelled). The no-blind-retry rule. Zero server changes. One persisted one-way door: the outbox format. Owed before the first `submit` call site: a serialized mutator and a retry delay in `drainer.ts`. The web store was volatile (owner, 2026-09-17); D7, as amended 2026-10-09, keeps the editor's draft and its unsent saves in `sessionStorage` (ADR-0057), so durability copy still differs by platform (`disk` vs `tabSession`). **Binds A3, A4, A14, A15.**                        |
 | **`syncProvider.tsx:153-156`**                                                                    | "⚠️ OWED BEFORE THE FIRST `submit` CALL SITE …" (the clobber). Still present today. **Binds slice 7.**                                                                                                                                                                                                                                                                                                                                                                                                               |
 | **`AppRoot.tsx` B13 note**                                                                        | "this app deliberately does NOT depend on `@react-navigation/*`: with exactly three flat destinations and no deep-linking/history requirements, a `useState` switch is the simplest correct design … Adopting react-navigation … is a legitimate future need but is a separate, feature-sized task." `RecipesScreen.tsx:1-12` adds that each screen exposes seams "so they drop straight into a real stack navigator when one is introduced app-wide". **Binds A6.** I argue below that its premise no longer holds. |
 | **`CODING_STANDARDS.md` §14.2**                                                                   | Navigation and routing are per-app and may fork ("Next.js vs Expo Router"). The standard expects a navigation library on native.                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -180,17 +180,18 @@ Resolution and rebind write bindings only.
 
 1. **Device draft = Memento.**
     - New module `features/recipes/src/editor/draftStore.ts`, over the existing `OutboxStore` key/value **port**
-      from `@kitchensink/sync`, with the same two build-time adapters: mobile AsyncStorage through
-      `mobile/src/storage/outboxStore.ts`, web memory through `createMemoryOutboxStore`.
-    - Key: `editor.draft.v1.{subject}.{recipeRef}`. Value: `{ values: RecipeFormValues, baseVersion: number | null,
-pendingRebinds: QueuedLineCommand[], savedAt: string }`.
+      from `@kitchensink/sync`, with one build-time adapter per app, shared with the outbox: mobile AsyncStorage
+      (`nativeDeviceStore`), web the tab's `sessionStorage` (`webDeviceStore`, D7 as amended 2026-10-09).
+    - Format as ADR-0057 §1 fixed it: one key per user, `editor.draft.v1.{subject}`, holding every memento.
     - It is written 1 s after typing stops, on blur, on section change and on hide, for **every** recipe.
 2. **Promotion = Policy.**
     - A pure `checkpointPolicy.ts` decides when a memento becomes a server write.
     - **Never-published draft:** at checkpoints only: section change, editor exit, app background or
       `visibilitychange: hidden`, 10 s after typing stops, and Publish.
     - **Published recipe:** only on Save changes.
-    - The policy reads `recipe.status`. It is a Strategy keyed on status, chosen in one place.
+    - The policy reads the lifecycle from the first publish (`firstPublishedAt`, ADR-0058 rule 1), not `status`: a
+      recipe set back to draft stays published to the editor. It is a Strategy keyed on that lifecycle (unsaved,
+      never published, published), chosen in one place.
 3. **Server write = Command through the outbox.**
     - A checkpoint `submit`s one `update` intent (or a `create`, see A4). The outbox's existing
       at-most-one-pending-update-per-entity rule makes coalescing lossless, because the editor submits the whole
@@ -228,17 +229,19 @@ outbox already has unit tests.
 2. **A snapshot opt-out for draft-to-draft writes.** It is the opt-out ADR-0034 deleted. HALT, unless the owner
    amends ADR-0034 (Q2).
 3. **Storing published device changes in the outbox.** The outbox drains; these must not.
-4. **Persisting the web draft to IndexedDB or sessionStorage.** The owner's 2026-09-17 ruling forbids it.
+4. **Persisting the web draft to IndexedDB.** The owner's 2026-09-17 ruling keeps durable app data out of the browser;
+   D7 relaxes it for the editor's draft and unsent saves in `sessionStorage` only.
 
 **Risk.**
 
-- On web, the memento is in memory. A published recipe's device-only changes are lost on reload or tab close,
-  and a draft loses at most about 10 s on a crash. So the web status copy must not say "on this device" (Q1).
+- On web, the memento and the outbox journal live in the tab's `sessionStorage` (D7): they survive a reload and end
+  with the tab. A published recipe's device-only changes are lost on tab close, so the web status copy names the tab,
+  not the device (Q1). A duplicated tab copies both; its journal's first read parks its pending creates (ADR-0057 §3).
 - Each rebind on a published recipe makes a version at Save changes (N + 1), so spec §13's "Save changes makes
   exactly one version" holds only with no food re-picks (Q5).
 
-**One-way door:** the memento's persisted format on mobile. It is versioned (`v1`) and quarantined on mismatch,
-like the outbox. Record it as **ADR-0057**.
+**One-way door:** the memento's persisted format (AsyncStorage on mobile, `sessionStorage` on web). It is versioned
+(`v1`) and quarantined on mismatch, like the outbox. Recorded as **ADR-0057**.
 
 ### A4 — No stored draft before first input; idempotent create
 
@@ -269,6 +272,12 @@ like the outbox. Record it as **ADR-0057**.
 
 **Decision.**
 
+- **Paste a list is offered until the first publish** (D10, amended 2026-10-09): autosave stores a draft on the server
+  as soon as it has a title, so the gate is the first publish, not the first save (`pasteOffered`). After it, the
+  editor offers no paste control.
+- **A paste still joining holds the server create** (`serverWriteFor`'s paste hold), so no pasted line joins a draft
+  whose create already went out, except on the editor's exit. The hold is one cell made before both the editor and
+  the paste (`editor/pasteHold.ts`): the paste writes it as its state commits, a checkpoint reads it when it runs.
 - **Paste a list** creates a parse job through the existing client (`useParseJob`-family hooks). This is a
   **non-deferrable write** (offline memory): offline it fails fast with the ordinary error, on both platforms.
   That is the one honest exception to "never changes behaviour offline", because queueing it would lie.
@@ -276,8 +285,8 @@ like the outbox. Record it as **ADR-0057**.
   inserts one draft row per line in a `reading` state.
 - On settle, each line becomes an **unbound** draft row (name, quantity, unit from the job's answer), and the
   existing lookup cascade takes over (ADR-0045). R19 holds: the parse binds nothing.
-- For a recipe that has **no server row yet**, the create carries each line's `sourceLine`/`sourcePhrase`
-  (create-only on the wire). For a recipe already stored, a PATCH cannot carry them, so pasted lines are stored
+- For a recipe whose **create has not been submitted yet** (`pastedLineKeepsSource`), the create carries each line's
+  `sourceLine`/`sourcePhrase` (create-only on the wire). For a recipe already stored, a PATCH cannot carry them, so pasted lines are stored
   as authored lines and the U11 gate never judges them. This is a recorded consequence (Q3).
 - `/recipes/parse*`, `ParsePasteContainer`, `ParseJobReviewContainer`, `features/recipes/src/parse/*`, and
   native `ParseIngredientsScreen`/`ParseJobReviewScreen` retire in slice 8.

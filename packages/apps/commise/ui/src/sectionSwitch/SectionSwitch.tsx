@@ -25,16 +25,23 @@ export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, current
 
     return (
         <div className="sticky top-0 z-20 flex min-h-12 items-center gap-2 border-b border-line-divider bg-paper/90 px-2 backdrop-blur-md">
-            <nav aria-label={label} className="min-w-0 flex-1">
-                <ul className="flex items-center gap-1">
+            {/* The links scroll INSIDE the bar, each at its label's width; the trailing control stays pinned outside the
+                scroller. Squeezed, they ran under the toggle at 320 (SC 2.5.8) and past the page at +35% (SC 1.4.10, F14). */}
+            <nav aria-label={label} className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]">
+                <ul className="flex w-max items-center gap-1">
                     {sections.map((section) => {
                         const current = section.id === currentId;
 
                         return (
-                            <li key={section.id}>
+                            <li key={section.id} className="shrink-0">
                                 <a
                                     href={`#${section.id}`}
                                     aria-current={current ? 'location' : undefined}
+                                    // A browser scrolls a focused element only when it is entirely out of view; one the bar's
+                                    // scroll half hides is brought whole into the bar (F14).
+                                    onFocus={(event) => {
+                                        event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                                    }}
                                     onClick={(event) => {
                                         event.preventDefault();
                                         scrollToSection(section.id);
@@ -57,7 +64,7 @@ export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, current
                     })}
                 </ul>
             </nav>
-            {trailing}
+            {trailing === undefined ? null : <div className="shrink-0">{trailing}</div>}
         </div>
     );
 };

@@ -71,9 +71,11 @@ export const RatingSection: FC<RatingSectionProps> = ({ average, ratingCount, ch
     const { rating } = useMessages(recipeRatingMessages);
 
     return (
-        <section aria-label={rating.regionLabel} className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4">
+        // No gutter or centring of its own: the section sits in the page's column, so its heading starts where its
+        // siblings' do (F15), and it is `sectionTitle` like them (F8).
+        <section aria-label={rating.regionLabel} className="flex w-full flex-col gap-4">
             <div className="flex flex-col gap-2">
-                <h2 className="font-display text-heading-md font-semibold text-ink">{rating.communityHeading}</h2>
+                <h2 className="text-section-title text-ink">{rating.communityHeading}</h2>
                 <CommunityAggregate average={average} ratingCount={ratingCount} rating={rating} />
             </div>
             {children}

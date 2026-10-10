@@ -5,7 +5,8 @@
  *
  * A parsed line becomes one row per proposed food: the NAME the existing lookup resolves (R19: the parse binds
  * nothing), the measure, and the phrase the parse lifted out (the create's `sourcePhrase`). The first food carries the
- * line's measure; a second food on the same line states none, because the line gave one amount.
+ * line's measure, in the cook's own words (`statedMeasure`: "1 large", "a handful", "2 tbsp"); a second food on the
+ * same line states none, because the line gave one amount.
  *
  * ⛔ No row reads for good. Three facts about the service decide when a line has stopped moving:
  *
@@ -17,8 +18,9 @@
  *
  * So past {@link PASTE_STALL_BOUND_MS}, on an expired job, for an `unparseable` line, and for a job that cannot be read
  * at all, the line settles through the add field's own reader (`readLeadingMeasure`) on the cook's own text. Such a row
- * claims no `sourcePhrase`: only a client that parsed the line may name the memo's key (`recipes.schema.ts`). A line
- * the reader finds no food in — a heading ending in a colon, or a measure alone — settles into no row.
+ * claims no `sourcePhrase`: only a client that parsed the line may name the memo's key (`recipes.schema.ts`). A heading
+ * ending in a colon settles into no row on every path, whatever the parse proposed for it; a line the reader finds no
+ * food in (a measure alone) settles into none either.
  *
  * Pure and platform-agnostic: `now` is a parameter.
  *
@@ -29,7 +31,7 @@ import { ABSENT_QUANTITY } from '@kitchensink/recipe-core';
 import { parseJobIsLive } from '@kitchensink/recipe-service-client';
 import type { ParseJobLineView, ParseJobResponse, ParseProposal } from '@kitchensink/schema-recipe';
 
-import { readLeadingMeasure } from '../form/leadingMeasure.js';
+import { readLeadingMeasure, readStatedMeasure, statedUnitOf } from '../form/leadingMeasure.js';
 import type { LineMeasure } from '../hooks/lineCommit.js';
 
 /**
@@ -71,13 +73,38 @@ export interface PastedLinesInput {
 
 const NO_MEASURE: LineMeasure = { quantity: ABSENT_QUANTITY, unit: '', preparation: '' };
 
+/**
+ * The line's measure in the cook's own words (spec §7.5.3: the amount and unit the cook typed are the cook's own
+ * statement). Read from the parse's `statedMeasure` with the add field's amount rules; the parse's own reading stands
+ * only where those words state no amount the reader reads but the parse read one ("one cup"), or when the parse kept
+ * no words. Pure.
+ */
+function cookMeasureOf(proposal: ParseProposal): Pick<LineMeasure, 'quantity' | 'unit'> {
+    const parsed = { quantity: proposal.quantity, unit: proposal.unit ?? '' };
+    const phrase = proposal.statedMeasure?.trim() ?? '';
+
+    if (phrase === '') {
+        return parsed;
+    }
+
+    const stated = readStatedMeasure(phrase);
+
+    if (stated.quantity.kind !== 'absent') {
+        return { quantity: stated.quantity, unit: stated.words };
+    }
+
+    return proposal.quantity.kind === 'absent' ? { quantity: ABSENT_QUANTITY, unit: stated.words } : parsed;
+}
+
 /** The rows a parsed proposal adds: one per food, the first carrying the line's measure. Pure. */
 function proposedRowsOf(proposal: ParseProposal): readonly PastedRow[] {
+    const measure = cookMeasureOf(proposal);
+
     return proposal.foods.map((food, index) => ({
         name: food.name,
         measure:
             index === 0
-                ? { quantity: proposal.quantity, unit: proposal.unit ?? '', preparation: food.prep ?? '' }
+                ? { ...measure, preparation: food.prep ?? '' }
                 : { ...NO_MEASURE, preparation: food.prep ?? '' },
         sourcePhrase: food.name,
     }));
@@ -87,16 +114,14 @@ function proposedRowsOf(proposal: ParseProposal): readonly PastedRow[] {
 const HEADING = /:\s*$/u;
 
 /**
- * The rows the add field's reader makes of the cook's own text: one, or none when the line names no food — a heading
- * (`For the dough:`), or a measure with nothing after it (`2 cups`), which would otherwise become a food named "2 cups"
- * and a write to the catalog. Pure.
+ * The rows the add field's reader makes of the cook's own text: one, or none when the line reads as a measure with
+ * nothing after it (`2 cups`), which would otherwise become a food named "2 cups" and a write to the catalog. Pure.
  */
 function readerRowsOf(sourceLine: string): readonly PastedRow[] {
-    if (HEADING.test(sourceLine)) {
-        return [];
-    }
-
-    const { quantity, unit, preparation, search } = readLeadingMeasure(sourceLine);
+    const reading = readLeadingMeasure(sourceLine);
+    const { quantity, preparation, search } = reading;
+    // The unit as the cook typed it, as a parsed line keeps it (spec §7.5.3), never `normalizeUnit`'s spelling.
+    const unit = statedUnitOf(reading);
 
     return search === '' ? [] : [{ name: search, measure: { quantity, unit, preparation } }];
 }
@@ -105,6 +130,11 @@ function readerRowsOf(sourceLine: string): readonly PastedRow[] {
 function pastedLineOf(line: ParseJobLineView, stopped: boolean): PastedLine {
     const { lineIndex, sourceLine } = line;
     const settled = (rows: readonly PastedRow[]): PastedLine => ({ kind: 'settled', lineIndex, sourceLine, rows });
+
+    // A heading names no food on EVERY path, a parse that proposed one for it included: tested before the status.
+    if (HEADING.test(sourceLine)) {
+        return settled([]);
+    }
 
     switch (line.status) {
         case 'parsed':

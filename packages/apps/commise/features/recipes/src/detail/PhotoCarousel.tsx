@@ -25,7 +25,7 @@ import type { RecipePhoto } from '@kitchensink/recipe-core';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useState, type FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 
 /** Props for {@link PhotoCarousel} — the recipe's photos (display order) and the recipe title for alt text. */

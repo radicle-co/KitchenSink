@@ -436,16 +436,17 @@ export class WebhooksStack extends Stack {
 
         // Nightly Clerk<->DB drift repair, and the primary backfill safety net for users that slip
         // past both creation paths. handlers/reconciliation.ts is typed for ScheduledEvent; it must
-        // run on a schedule, NOT off the deletion queue. 07:00 UTC = low-traffic window.
+        // run on a schedule, NOT off the deletion queue. 03:00 UTC is a low-traffic hour that is still inside the
+        // sandbox's awake window in both winter and summer (ADR-0007), so the job meets a running database.
         new events.Rule(this, 'ReconciliationSchedule', {
-            schedule: events.Schedule.cron({ minute: '0', hour: '7' }),
+            schedule: events.Schedule.cron({ minute: '0', hour: '3' }),
             targets: [new events_targets.LambdaFunction(reconciliationFn)],
         });
 
         // CR-002 KTD-3: the 12-month tombstone → erasure sweep. Finds closed (tombstoned) accounts past the
         // retention window and erases them (identity scrub + Clerk deleteUser + audit + recipe/food erasure
         // legs). Runs daily (the handler applies the 12-month cutoff itself), on a distinct schedule from
-        // reconciliation. 03:00 UTC = low-traffic window, offset from reconciliation's 07:00.
+        // reconciliation, at 02:00 UTC.
         const tombstoneSweepFn = new lambda.Function(this, 'TombstoneSweepFunction', {
             runtime,
             architecture,
@@ -462,15 +463,15 @@ export class WebhooksStack extends Stack {
         });
 
         new events.Rule(this, 'TombstoneSweepSchedule', {
-            schedule: events.Schedule.cron({ minute: '0', hour: '3' }),
+            schedule: events.Schedule.cron({ minute: '0', hour: '2' }),
             targets: [new events_targets.LambdaFunction(tombstoneSweepFn)],
         });
 
         // CR-002 R7 — the erasure completion-contract reconciliation. DISTINCT from the provisioning
         // reconciliation above: it scans `status='erased'` identities and re-drives the idempotent recipe +
         // food erasure legs, emitting the `ErasureIncomplete` metric a lost/stuck leg trips. Runs daily at
-        // 05:00 UTC — offset from the tombstone-sweep (03:00) and the provisioning reconciliation (07:00) so
-        // the three scheduled jobs don't contend. Timeout is generous: it re-drives two HTTP legs per erased
+        // 02:30 UTC — between the tombstone-sweep (02:00) and the provisioning reconciliation (03:00) so the
+        // three scheduled jobs don't contend. Timeout is generous: it re-drives two HTTP legs per erased
         // identity.
         const erasureReconciliationFn = new lambda.Function(this, 'ErasureReconciliationFunction', {
             runtime,
@@ -489,7 +490,7 @@ export class WebhooksStack extends Stack {
         });
 
         new events.Rule(this, 'ErasureReconciliationSchedule', {
-            schedule: events.Schedule.cron({ minute: '0', hour: '5' }),
+            schedule: events.Schedule.cron({ minute: '30', hour: '2' }),
             targets: [new events_targets.LambdaFunction(erasureReconciliationFn)],
         });
 
@@ -533,6 +534,9 @@ export class WebhooksStack extends Stack {
             // ⛔ ONE AT A TIME. Two concurrent runs would read the same rows and raise the same escalation
             // twice, and a backstop that double-reports is a backstop whose counts nobody trusts.
             reservedConcurrentExecutions: 1,
+            // No async retries: the next scheduled run is the retry, and Lambda's default two would report one
+            // failed run three times.
+            retryAttempts: 0,
             environment: {
                 ...commonEnv,
                 ...sentryEnv,

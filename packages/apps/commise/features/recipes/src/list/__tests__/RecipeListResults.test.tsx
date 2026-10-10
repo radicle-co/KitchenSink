@@ -172,6 +172,16 @@ describe('RecipeListResults (web) — the result bar', () => {
 
         expect(onChange).toHaveBeenCalledWith('title');
     });
+
+    // F5 (`evaluateFinal.md`): the result bar must fit a phone. The visible label is the choice alone; the name keeps the
+    // word "Sort" (SC 2.5.3: the visible text is part of the name).
+    it('shows the choice alone on the sort button, and names it "Sort: {choice}"', () => {
+        render(results({ sort: { value: 'updatedAt', onChange: vi.fn() } }));
+
+        const trigger = screen.getByRole('button', { name: 'Sort: Recently edited' });
+
+        expect(trigger.textContent).toBe('Recently edited');
+    });
 });
 
 describe('RecipeListResults (web) — the first run', () => {

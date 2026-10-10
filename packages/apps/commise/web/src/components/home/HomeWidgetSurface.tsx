@@ -26,8 +26,11 @@ import {
     isPlaceholderHomeWidget,
     resolveErrorReporter,
     resolveHomeWidgets,
+    splitComingSoon,
     type HomeWidgetCurationContext,
+    type HomeWidgetDescriptor,
     type HomeWidgetId,
+    type RoadmapWidgetId,
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID, RecipeCreateButton } from '@commise/features-recipes';
 import { useLibraryEmpty } from '@commise/features-recipes/hooks';
@@ -37,7 +40,7 @@ import { recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import type { Container } from 'ditox';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { Suspense, useMemo, type ComponentType, type JSX } from 'react';
+import { Suspense, useId, useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
 import { AppShell, LIVE_CAPABILITIES } from '@/components/app/AppShell';
@@ -71,6 +74,27 @@ export interface HomeWidgetSurfaceProps {
     readonly container?: Container;
     /** Map of widget id → the slot component that renders it. Defaults to the v1 renderer set. */
     readonly renderers?: Readonly<Record<HomeWidgetId, ComponentType>>;
+}
+
+/**
+ * Where each placeholder sits in the Coming soon group at `@wide`: nutrition and resume side by side 1 : 2, the week
+ * strip full width under them (`buildSpec.md` §4.2). Below `@wide` the group stacks. A total `Record`, so a roadmap
+ * widget added without a place does not compile.
+ */
+const COMING_SOON_SPAN: Readonly<Record<RoadmapWidgetId, string>> = {
+    nutrition: '@wide/main:col-span-1',
+    'resume-cooking': '@wide/main:col-span-2',
+    'meal-plan': '@wide/main:col-span-3',
+};
+
+/**
+ * The `@wide` span of a placeholder, by its id. An id outside the roadmap registry spans the whole row.
+ *
+ * @param id - The placeholder's widget id.
+ * @returns Its grid-column class. Pure.
+ */
+function comingSoonSpanOf(id: string): string {
+    return Object.entries(COMING_SOON_SPAN).find(([key]) => key === id)?.[1] ?? '@wide/main:col-span-3';
 }
 
 /** The v1 render map: the recipe widget is the only one with a slot. */
@@ -113,12 +137,71 @@ export function HomeWidgetSurface({
             // widgets fall back to their `defaultWeight` order.
         };
 
-        return curateHomeWidgets(resolveHomeWidgets(container), ctx);
+        return splitComingSoon(curateHomeWidgets(resolveHomeWidgets(container), ctx));
     }, [container, tier]);
+    const comingSoonHeadingId = useId();
+
+    /**
+     * One widget: a live one through its bespoke slot, a placeholder through its loader seam.
+     *
+     * @param descriptor - The curated descriptor.
+     * @returns Its boundary-wrapped render, or `null` for a live id this client cannot draw.
+     */
+    const renderWidget = (descriptor: HomeWidgetDescriptor): ReactNode => {
+        const Bespoke = renderers[descriptor.id];
+
+        // A widget with a bespoke host slot (the live recipe widget, which needs its data
+        // prop wired) renders through that slot. B23/DA9 — a render throw / chunk-load
+        // reject is reported through the injected reporter (never swallowed) and shows the
+        // localized `HomeWidgetErrorNotice` instead of vanishing. That notice is a
+        // component, not inline JSX, because the recipe slot's inner boundary renders the
+        // SAME stand-in: one piece of knowledge ("what a broken widget looks and sounds
+        // like"), so it gets one representation — and it is ANNOUNCED (`role="status"`),
+        // matching mobile, since a failure arriving mid-session is otherwise silent to
+        // assistive tech.
+        if (Bespoke !== undefined) {
+            return (
+                <ErrorBoundary
+                    key={descriptor.id}
+                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+                    fallback={<HomeWidgetErrorNotice />}
+                >
+                    <Suspense fallback={null}>
+                        <Bespoke />
+                    </Suspense>
+                </ErrorBoundary>
+            );
+        }
+
+        // A roadmap placeholder renders through its own loader seam — no bespoke slot, no
+        // second id list in the host. Its fallback stays `null` — deliberately NOT the
+        // notice above, and matched by mobile: a skeleton is itself a stand-in for a
+        // feature that has not shipped, so a notice here would announce the failure of
+        // something the viewer was never promised. The asymmetry is pinned by a test on
+        // both platforms. A throw is still reported (B23/DA9), never silent.
+        if (isPlaceholderHomeWidget(descriptor)) {
+            return (
+                <ErrorBoundary
+                    key={descriptor.id}
+                    onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
+                    fallback={null}
+                >
+                    <Suspense fallback={null}>
+                        <RoadmapWidgetSlot descriptor={descriptor} />
+                    </Suspense>
+                </ErrorBoundary>
+            );
+        }
+
+        // A live widget id with no bespoke renderer on this client — skip it rather than
+        // crash, so an older client tolerates a newer personalization list (version skew).
+        return null;
+    };
 
     return (
         <AppShell activeId="home" titleId="home">
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+            {/* Left-aligned to the gutter at `content-page` (1440), never centred (`buildSpec.md` §1.3, F21). */}
+            <div className="flex w-full max-w-page flex-col gap-6">
                 {/* The large title: the greeting is the page's H1 (`buildSpec.md` §4.2), the avatar its action below 840,
                     and the floating create button right after it in DOM order — drawn at the bottom corner. One tap
                     opens the empty editor (§3.4, slice 8). First run hides it (§3.4): the recent-recipes page the widget
@@ -136,56 +219,29 @@ export function HomeWidgetSurface({
 
                 <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
                     <section role="region" aria-label={home.surface.regionLabel} className="flex flex-col gap-6">
-                        {curated.map((descriptor) => {
-                            const Bespoke = renderers[descriptor.id];
+                        {curated.live.map(renderWidget)}
 
-                            // A widget with a bespoke host slot (the live recipe widget, which needs its data
-                            // prop wired) renders through that slot. B23/DA9 — a render throw / chunk-load
-                            // reject is reported through the injected reporter (never swallowed) and shows the
-                            // localized `HomeWidgetErrorNotice` instead of vanishing. That notice is a
-                            // component, not inline JSX, because the recipe slot's inner boundary renders the
-                            // SAME stand-in: one piece of knowledge ("what a broken widget looks and sounds
-                            // like"), so it gets one representation — and it is ANNOUNCED (`role="status"`),
-                            // matching mobile, since a failure arriving mid-session is otherwise silent to
-                            // assistive tech.
-                            if (Bespoke !== undefined) {
-                                return (
-                                    <ErrorBoundary
-                                        key={descriptor.id}
-                                        onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
-                                        fallback={<HomeWidgetErrorNotice />}
-                                    >
-                                        <Suspense fallback={null}>
-                                            <Bespoke />
-                                        </Suspense>
-                                    </ErrorBoundary>
-                                );
-                            }
-
-                            // A roadmap placeholder renders through its own loader seam — no bespoke slot, no
-                            // second id list in the host. Its fallback stays `null` — deliberately NOT the
-                            // notice above, and matched by mobile: a skeleton is itself a stand-in for a
-                            // feature that has not shipped, so a notice here would announce the failure of
-                            // something the viewer was never promised. The asymmetry is pinned by a test on
-                            // both platforms. A throw is still reported (B23/DA9), never silent.
-                            if (isPlaceholderHomeWidget(descriptor)) {
-                                return (
-                                    <ErrorBoundary
-                                        key={descriptor.id}
-                                        onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
-                                        fallback={null}
-                                    >
-                                        <Suspense fallback={null}>
-                                            <RoadmapWidgetSlot descriptor={descriptor} />
-                                        </Suspense>
-                                    </ErrorBoundary>
-                                );
-                            }
-
-                            // A live widget id with no bespoke renderer on this client — skip it rather than
-                            // crash, so an older client tolerates a newer personalization list (version skew).
-                            return null;
-                        })}
+                        {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading
+                            (owner ruling; `buildSpec.md` §4.2). Gone with the last placeholder. */}
+                        {curated.comingSoon.length > 0 && (
+                            <section aria-labelledby={comingSoonHeadingId} className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-1">
+                                    <h2 id={comingSoonHeadingId} className="text-section-title text-ink">
+                                        {home.roadmap.comingSoonHeading}
+                                    </h2>
+                                    <p className="max-w-[62ch] text-body text-ink-muted">
+                                        {home.roadmap.comingSoonBody}
+                                    </p>
+                                </div>
+                                <div className="grid gap-4 @wide/main:grid-cols-3 @wide/main:gap-6">
+                                    {curated.comingSoon.map((descriptor) => (
+                                        <div key={descriptor.id} className={comingSoonSpanOf(descriptor.id)}>
+                                            {renderWidget(descriptor)}
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
                     </section>
                 </HomeNudgeContext.Provider>
 

@@ -23,12 +23,12 @@ import type { FC } from 'react';
 import { Icon } from '../icon/Icon.js';
 import { isModifiedClick } from '../routeLink/isModifiedClick.js';
 import type { RouteSegmentedControlProps, SegmentedControlProps } from './props.js';
-import { segmentClass, TRACK_CLASS } from './segmentClass.js';
+import { segmentClass, trackClass, type SegmentWidth } from './segmentClass.js';
 
 /** A route control: places, as links. */
 const RouteControl: FC<RouteSegmentedControlProps> = ({ label, segments, current, onSelect }) => (
     <nav aria-label={label}>
-        <div className={TRACK_CLASS}>
+        <div className={trackClass()}>
             {segments.map((segment) => {
                 const isCurrent = segment.id === current;
                 const state = { 'aria-current': isCurrent ? ('page' as const) : undefined };
@@ -71,20 +71,23 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
     switch (props.form) {
         case 'route':
             return <RouteControl {...props} />;
-        case 'view':
+        case 'view': {
+            // An icon-only switch takes its glyphs' width; a labelled one shares the row.
+            const width: SegmentWidth = props.labelVisibility === 'hidden' ? 'content' : 'share';
+
             return (
                 <RadioGroup.Root
                     aria-label={props.label}
                     orientation="horizontal"
                     value={props.value}
                     onValueChange={props.onChange}
-                    className={TRACK_CLASS}
+                    className={trackClass(width)}
                 >
                     {props.segments.map((segment) => (
                         <RadioGroup.Item
                             key={segment.id}
                             value={segment.id}
-                            className={segmentClass(segment.id === props.value)}
+                            className={segmentClass(segment.id === props.value, width)}
                         >
                             {segment.icon === undefined ? null : <Icon name={segment.icon} size={20} />}
                             {props.labelVisibility === 'hidden' ? (
@@ -96,5 +99,6 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     ))}
                 </RadioGroup.Root>
             );
+        }
     }
 };

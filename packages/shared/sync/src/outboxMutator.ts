@@ -15,7 +15,13 @@
  *
  * ⛔ THE FIRST READ OF A PROCESS DOES TWO THINGS, ONCE. It moves unreadable bytes to the quarantine key before anything
  * can overwrite them, and it parks every record a dead process left `sending` (`recoverInterrupted`), because that
- * request's outcome is unknown.
+ * request's outcome is unknown — and, when the store says its contents may be a copy another live owner holds (a
+ * duplicated browser tab, `OutboxStore.isCopy`), every queued create as well.
+ *
+ * ⛔ THE SESSION-END CLEAR IS ONE MORE CHANGE IN THE SAME QUEUE (`clear`). A raw `removeItem` beside the queue lost to a
+ * change already queued, which then wrote the old cook's journal back. And a change that leaves no records is never
+ * written over an absent key: a drain's answer that lands after the clear has nothing to keep, and writing it would
+ * bring the cleared key back.
  *
  * See ADR-0057 for the format it writes and the rules it keeps.
  *
@@ -39,6 +45,11 @@ export interface OutboxMutator {
     readonly mutate: (change: (log: OutboxLog) => OutboxLog) => Promise<OutboxLog>;
     /** Be told the log after every successful change. Returns the unsubscribe. */
     readonly subscribe: (listener: (log: OutboxLog) => void) => () => void;
+    /**
+     * Remove the outbox and its quarantine: the session-end clear (ADR-0054, ADR-0057). Runs after every change asked
+     * for before it. The mutator keeps working: the next change starts a new outbox for the subject.
+     */
+    readonly clear: () => Promise<void>;
 }
 
 /**
@@ -53,14 +64,14 @@ export function createOutboxMutator(store: OutboxStore, subject: string): Outbox
     const serialized = createSerialQueue();
     let opened = false;
 
-    /** Read the stored log; on the process's first successful read, quarantine and recover first. */
-    const load = async (): Promise<OutboxLog> => {
+    /** Read the stored log and whether the key exists; on the first successful read, quarantine and recover first. */
+    const load = async (): Promise<{ readonly log: OutboxLog; readonly stored: boolean }> => {
         const raw = await store.getItem(storeKeyFor(subject));
         const loaded = parseOutbox(raw);
         const { quarantined: _count, ...log } = loaded;
 
         if (opened) {
-            return log;
+            return { log, stored: raw !== null };
         }
 
         if (loaded.quarantined > 0 && raw !== null) {
@@ -69,7 +80,7 @@ export function createOutboxMutator(store: OutboxStore, subject: string): Outbox
             await store.removeItem(storeKeyFor(subject));
         }
 
-        const recovered = recoverInterrupted(log);
+        const recovered = recoverInterrupted(log, { copied: (await store.isCopy?.()) ?? false });
 
         if (recovered.records.some((record, at) => record !== log.records[at])) {
             await saveOutbox(store, subject, recovered);
@@ -77,16 +88,19 @@ export function createOutboxMutator(store: OutboxStore, subject: string): Outbox
 
         opened = true;
 
-        return recovered;
+        return { log: recovered, stored: raw !== null && loaded.quarantined === 0 };
     };
 
     return {
-        read: () => serialized(load),
+        read: () => serialized(async () => (await load()).log),
         mutate: (change) =>
             serialized(async () => {
-                const next = change(await load());
+                const { log, stored } = await load();
+                const next = change(log);
 
-                await saveOutbox(store, subject, next);
+                if (stored || next.records.length > 0) {
+                    await saveOutbox(store, subject, next);
+                }
 
                 for (const listener of listeners) {
                     listener(next);
@@ -101,6 +115,11 @@ export function createOutboxMutator(store: OutboxStore, subject: string): Outbox
                 listeners.delete(listener);
             };
         },
+        clear: () =>
+            serialized(async () => {
+                await store.removeItem(storeKeyFor(subject));
+                await store.removeItem(quarantineKeyFor(subject));
+            }),
     };
 }
 

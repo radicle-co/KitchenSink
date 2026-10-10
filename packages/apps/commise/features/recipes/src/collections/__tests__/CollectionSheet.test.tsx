@@ -121,6 +121,18 @@ describe('CollectionSheet (web)', () => {
         expect(screen.getByRole('button', { name: 'Create collection' }).getAttribute('aria-busy')).toBe('true');
     });
 
+    // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): below 840 the primary fills the sheet and there is no Cancel (the
+    // sheet's × closes it); at 840+ the dialog has a ghost Cancel beside a content-width primary.
+    it('fills the primary and hides Cancel below 840, and shows Cancel at 840+', () => {
+        sheet();
+
+        const create = screen.getByRole('button', { name: 'Create collection' });
+        const cancel = screen.getByRole('button', { name: 'Cancel' });
+
+        expect(create.className.split(' ')).toContain('w-full');
+        expect((cancel.closest('.hidden') as HTMLElement | null)?.className.split(' ')).toContain('nav:block');
+    });
+
     it('closes at once when nothing was typed', async () => {
         const props = sheet();
         const user = userEvent.setup();

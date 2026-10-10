@@ -9,16 +9,20 @@
  */
 import { weekdayLabels } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { tint } from '@commise/ui/colors';
+import { useContainerClass } from '@commise/ui/layout';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../../../i18n/messages.js';
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
 
 /**
- * The meal-plan widget's skeleton placeholder (mobile).
+ * The meal-plan widget's skeleton placeholder (mobile): the week as seven equal tiles in one row (`buildSpec.md` §4.2).
+ *
+ * A phone draws the narrow name ("M") and a wider window the short one ("Mon"); each tile is announced by the full
+ * weekday. Seven equal tiles fit the narrowest phone, so there is no sideways scroller to hide days behind (F16).
  *
  * @returns The week strip's shape: real weekdays, no meals.
  */
@@ -26,42 +30,41 @@ export function MealPlanWidgetSkeleton(): JSX.Element {
     const { home } = useMessages(mobileMessages);
     const locale = useLocale();
     const { colors } = useTheme();
-    // The day tile is `paper` at the alphas it always had, so it re-themes with the card under it.
-    const tile = [styles.tile, { borderColor: tint(colors.paper, 0.3), backgroundColor: tint(colors.paper, 0.5) }];
+    const shown = weekdayLabels(locale, useContainerClass() === 'narrow' ? 'narrow' : 'short');
 
     return (
-        <PlaceholderWidgetCard title={home.roadmap.titles['meal-plan']} comingSoonLabel={home.roadmap.comingSoon}>
-            <ScrollView
-                horizontal
-                // One `scrollsToTop` per screen: Home's own scroller keeps the iOS status-bar tap.
-                scrollsToTop={false}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.strip}
-            >
-                {weekdayLabels(locale).map((day) => (
-                    <View key={day} style={tile}>
-                        {/* The weekday name is REAL data — exposed, not hidden. The shell used to wrap every
-                            child in one hidden subtree, which silenced all seven of these on device. */}
-                        <Text style={[styles.day, { color: colors.inkMuted }]}>{day}</Text>
+        <PlaceholderWidgetCard title={home.roadmap.titles['meal-plan']} soonLabel={home.roadmap.soon}>
+            <View style={styles.strip}>
+                {weekdayLabels(locale, 'long').map((day, index) => (
+                    <View
+                        key={day}
+                        accessible
+                        accessibilityLabel={day}
+                        style={[styles.tile, { borderColor: colors.lineDivider }]}
+                    >
+                        {/* The weekday is REAL data — announced by its full name. Only the meal is unknown. */}
+                        <Text style={[styles.day, { color: colors.inkMuted }]}>{shown[index]}</Text>
                         {/* The meal thumbnail — the only unknown on this tile, so the only thing hidden. */}
                         <View aria-hidden style={[styles.meal, { backgroundColor: colors.surfaceMuted }]} />
                     </View>
                 ))}
-            </ScrollView>
+            </View>
         </PlaceholderWidgetCard>
     );
 }
 
 const styles = StyleSheet.create({
-    strip: { flexDirection: 'row', gap: 12, paddingBottom: 4 },
+    strip: { flexDirection: 'row', gap: 2, marginHorizontal: -nativeTokens.spacing[1] },
     tile: {
-        width: 72,
+        flex: 1,
+        minWidth: 0,
         alignItems: 'center',
-        gap: 8,
-        borderRadius: 16,
-        borderWidth: 1,
-        padding: 12,
+        gap: nativeTokens.spacing[2],
+        borderRadius: nativeTokens.radius.sm,
+        borderWidth: StyleSheet.hairlineWidth,
+        paddingVertical: nativeTokens.spacing[2],
+        paddingHorizontal: 2,
     },
-    day: { fontSize: 12, fontWeight: '500', letterSpacing: 1, textTransform: 'uppercase' },
-    meal: { width: 48, height: 48, borderRadius: 12 },
+    day: { ...nativeTokens.type.caption },
+    meal: { width: '100%', maxWidth: 48, aspectRatio: 1, borderRadius: nativeTokens.radius.sm },
 });

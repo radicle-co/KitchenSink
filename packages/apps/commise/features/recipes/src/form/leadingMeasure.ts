@@ -8,7 +8,7 @@
  *   decimal digits. Roman numerals stay off. A range is two amounts joined by `-`, `–`, `—` or `to`: these separators,
  *   a known unit glued to its amount (`200g`) and the `of` after a unit (`2 cups of flour`) are this module's only own
  *   grammar. An inverted range is swapped (the owner's rule for the draft's bounds, 2026-09-12).
- * - **The known unit** is the next one or two tokens, CASE PRESERVED (`T` is a tablespoon, `t` a teaspoon), known when
+ * - **The known unit** (or a size word, `isSizeWord`: "1 large onion") is the next one or two tokens, CASE PRESERVED (`T` is a tablespoon, `t` a teaspoon), known when
  *   recipe-core's `classifyUnit` knows it, and stored as `normalizeUnit` spells it. "Known" has ONE authority:
  *   `parse-ingredient`'s second vocabulary is refused here (A1 rejection 2; `recipe-import-core`'s `ingredientLine.ts`
  *   records the `T.`/`t.` disagreement two vocabularies produced).
@@ -17,7 +17,8 @@
  * - **The preparation** is what follows the first comma that is not inside a number (`1,000 g`, `1,5 kg`).
  * - **The search** is the rest; with no leading amount it is the whole text before the comma.
  *
- * The amount goes through recipe-core's `statedQuantity`, so this cannot produce a quantity the wire refuses.
+ * The amount goes through recipe-core's `statedQuantity`, so this cannot produce a quantity the wire refuses. The row
+ * editor's Amount field reads each bound with the same amount rules (`readAmountField`).
  *
  * ⚠️ PLATFORM PRECONDITION (A1): `numeric-quantity` compiles `/\p{Nd}/gu` at module load, and the glued-unit split
  * below uses `\p{L}`. Both need Hermes' Unicode property escapes. Proven on the RN 0.86 Hermes Android emulator by the
@@ -32,6 +33,7 @@
 import {
     ABSENT_QUANTITY,
     classifyUnit,
+    isSizeWord,
     normalizeUnit,
     statedQuantity,
     type IngredientQuantity,
@@ -51,6 +53,10 @@ export interface LeadingMeasureReading {
     /** The amount and unit as the cook typed them (the live reading's first part); `''` when none. */
     readonly measureText: string;
 }
+
+/** What the row editor's Amount field reads from one bound's text. */
+export type AmountFieldReading =
+    { readonly kind: 'blank' } | { readonly kind: 'amount'; readonly value: number } | { readonly kind: 'unreadable' };
 
 /** The tokens that join two amounts into a range, compared lower-cased. */
 const RANGE_WORDS: ReadonlySet<string> = new Set(['-', '–', '—', 'to']);
@@ -192,13 +198,16 @@ function leadingAmount(tokens: readonly string[]): AmountRead | undefined {
 /** Whether `token` is a unit recipe-core knows. Pure. */
 const isKnownUnit = (token: string): boolean => classifyUnit(token) !== 'unknown';
 
+/** Whether `token` can stand in the unit position after an amount: a known unit, or a size word ("1 large onion"). Pure. */
+const isStatedUnit = (token: string): boolean => isKnownUnit(token) || isSizeWord(token);
+
 /** A unit read from the tokens, and how many tokens it took. */
 interface UnitRead {
     readonly unit: string;
     readonly taken: number;
 }
 
-/** The known unit at `tokens[at]`: two tokens first (`fl oz`), then one. Pure. */
+/** The unit at `tokens[at]` (known, or a size word): two tokens first (`fl oz`, `extra large`), then one. Pure. */
 function unitAt(tokens: readonly string[], at: number): UnitRead | undefined {
     const first = tokens[at];
     const second = tokens[at + 1];
@@ -207,11 +216,11 @@ function unitAt(tokens: readonly string[], at: number): UnitRead | undefined {
         return undefined;
     }
 
-    if (second !== undefined && isKnownUnit(`${first} ${second}`)) {
+    if (second !== undefined && isStatedUnit(`${first} ${second}`)) {
         return { unit: normalizeUnit(`${first} ${second}`), taken: 2 };
     }
 
-    return isKnownUnit(first) ? { unit: normalizeUnit(first), taken: 1 } : undefined;
+    return isStatedUnit(first) ? { unit: normalizeUnit(first), taken: 1 } : undefined;
 }
 
 /** `200g butter` → `200 g butter`: a known unit glued to its amount is split off. Anything else is left whole. Pure. */
@@ -275,4 +284,79 @@ export function readLeadingMeasure(text: string): LeadingMeasureReading {
         preparation,
         measureText: typedMeasure,
     };
+}
+
+const BLANK_FIELD: AmountFieldReading = { kind: 'blank' };
+/** A decimal separator with nothing after it yet (`1.` on the way to `1.5`). */
+const TRAILING_SEPARATOR = /(\p{Nd})[.,]$/u;
+const UNREADABLE_FIELD: AmountFieldReading = { kind: 'unreadable' };
+
+/**
+ * Read one bound of the row editor's Amount field with this module's amount rules: the WHOLE text is one amount, or it
+ * is blank, or it is unreadable. A unit or a range inside one bound's field is not one amount, and neither is zero or a
+ * negative. A decimal separator with nothing after it yet reads as the number before it (`1.` is 1), so the field is not
+ * marked while the cook types `1.5`. Never `NaN`, so the draft can never hold one (`quantity.ts`).
+ *
+ * @param text - The field's text.
+ * @returns What the text states. Pure.
+ */
+export function readAmountField(text: string): AmountFieldReading {
+    const tokens = text
+        .trim()
+        .replace(TRAILING_SEPARATOR, '$1')
+        .split(/\s+/u)
+        .filter((token) => token !== '');
+
+    if (tokens.length === 0) {
+        return BLANK_FIELD;
+    }
+
+    const read = amountAt(tokens, 0);
+
+    return read === undefined || read.high !== undefined || read.taken !== tokens.length
+        ? UNREADABLE_FIELD
+        : { kind: 'amount', value: read.low };
+}
+
+/** A measure phrase as the cook stated it: the amount this module reads at its start, and the words after it. */
+export interface StatedMeasureReading {
+    /** The leading amount, or `ABSENT_QUANTITY` when the phrase states none this module reads ("a handful"). */
+    readonly quantity: IngredientQuantity;
+    /** The words after the amount, as the cook wrote them, a trailing `of` dropped; the whole phrase with no amount. */
+    readonly words: string;
+}
+
+/**
+ * Read a measure phrase the cook stated (a parse's `statedMeasure`: "2 tbsp", "1 large", "a handful") with this
+ * module's amount rules, keeping the rest in the cook's own words rather than as `normalizeUnit` spells it.
+ *
+ * @param phrase - The measure phrase.
+ * @returns The amount and the cook's words after it. Pure.
+ */
+export function readStatedMeasure(phrase: string): StatedMeasureReading {
+    const tokens = splitGluedUnit(
+        phrase
+            .trim()
+            .split(/\s+/u)
+            .filter((token) => token !== ''),
+    );
+    const amount = leadingAmount(tokens);
+    const rest = amount === undefined ? tokens : tokens.slice(amount.taken);
+    const words = rest.at(-1)?.toLowerCase() === 'of' ? rest.slice(0, -1) : rest;
+
+    return { quantity: amount === undefined ? ABSENT_QUANTITY : quantityOf(amount), words: words.join(' ') };
+}
+
+/**
+ * The unit of a reading as the cook typed it ("tbsp", "Tbsp.", "large"), a trailing `of` dropped; `''` when the text
+ * stated no measure. Build spec §7.5.3: the amount and unit the cook typed are the cook's own statement and nothing
+ * later overwrites them, so a line is committed with THIS, never with `reading.unit` (`normalizeUnit`'s spelling,
+ * which only the live reading's accessible text uses). The add field and a pasted line both call it, so the rule has
+ * one home. Pure.
+ *
+ * @param reading - What {@link readLeadingMeasure} read.
+ * @returns The cook's own unit words.
+ */
+export function statedUnitOf(reading: LeadingMeasureReading): string {
+    return reading.measureText === '' ? '' : readStatedMeasure(reading.measureText).words;
 }

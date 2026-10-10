@@ -43,6 +43,7 @@ import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
+import { Icon } from '@commise/ui/icon';
 import { useTheme } from '@commise/ui/theme';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
@@ -132,6 +133,8 @@ function BackAffordance({
 
     return (
         <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onBack} style={styles.backButton}>
+            {/* `chevron-left` beside the word (`buildSpec.md` §3.5, F22). */}
+            <Icon name="chevronLeft" size={20} tone="actionText" />
             <Text style={[styles.backLabel, { color: colors.actionText }]}>{label}</Text>
         </Pressable>
     );
@@ -364,7 +367,15 @@ const styles = StyleSheet.create({
     // button when it opens — clear the device's navigation bar and can be fully scrolled into view.
     content: { paddingBottom: 120 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    backButton: { alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 16 },
+    backButton: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        minHeight: 44,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+    },
     backLabel: { fontWeight: '500', fontSize: 15 },
     error: { paddingHorizontal: 16 },
 });

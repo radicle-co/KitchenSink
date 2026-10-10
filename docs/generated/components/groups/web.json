@@ -4,14 +4,14 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 77,
-        "implementations": 77,
-        "props": 97,
-        "documentedComponents": 74,
-        "implementationsWithModuleDoc": 59,
-        "implementationsWithComponentDoc": 57,
-        "documentedProps": 61,
-        "classifiedComponents": 32,
+        "components": 79,
+        "implementations": 79,
+        "props": 101,
+        "documentedComponents": 76,
+        "implementationsWithModuleDoc": 60,
+        "implementationsWithComponentDoc": 59,
+        "documentedProps": 65,
+        "classifiedComponents": 34,
         "componentsWithPatternTag": 25,
         "crossPlatformComponents": 0
     },
@@ -520,6 +520,43 @@
                             "declaredIn": null
                         }
                     ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/app/[locale]/LocaleLayout",
+            "name": "LocaleLayout",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app/[locale]",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "LocaleLayout",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/layout.tsx",
+                    "dir": "packages/apps/commise/web/src/app/[locale]",
+                    "moduleDoc": "",
+                    "moduleTags": [],
+                    "description": "Root layout for the localized app. Every route lives under `/[locale]`, so this segment IS the root layout — the\nstandard Next.js App Router i18n shape. It rejects an unsupported locale and renders the app's document,\n{@link appDocument}, which also frames the global 404 page (`global-not-found.tsx`); the provider chain, the Clerk URL\nprops and the analytics mount are documented there. It reads one cookie, the sidebar's collapse preference.",
+                    "tags": [],
+                    "detectedBy": "compiler-fallback",
+                    "exportKind": "default",
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -3138,7 +3175,7 @@
                             "text": "home/skeletons/MealPlanWidgetSkeleton — the \"This Week's Meals\" roadmap placeholder (web)."
                         }
                     ],
-                    "description": "The meal-plan widget's skeleton placeholder.",
+                    "description": "The meal-plan widget's skeleton placeholder: the week as seven equal tiles (`buildSpec.md` §4.2, `repeat(7, 1fr)`).\n\nA tile shows the narrow name (\"M\") below the regular container and the short one (\"Mon\") above it, and is announced\nby the full weekday. Seven columns fit 320 px with no sideways scroller, which a keyboard could not reach (F16). The\nstrip borrows 4 px of the card's padding at each side below `@regular`, so a tile keeps the spec's 36 px at 320.",
                     "tags": [
                         {
                             "name": "returns",
@@ -3232,7 +3269,7 @@
                             "text": "home/skeletons/PlaceholderWidgetCard — the shared shell of a roadmap skeleton placeholder (web)."
                         }
                     ],
-                    "description": "The shell of a roadmap skeleton placeholder: a glass card carrying the real widget's heading, a visible\n\"Coming soon\" badge, and the caller's shape.",
+                    "description": "The shell of a roadmap skeleton placeholder: a level-1 card carrying the real widget's heading, a visible \"Soon\"\nbadge, and the caller's shape.\n\nThe card is `paper` under a 1 px `lineDivider` with `shadow-sm` (`buildSpec.md` §1.6), never glass: owner D12 keeps\nglass off cards, and the translucent white tier this used had no dark value, so dark mode drew light ink on light\nglass at about 1.1:1 (`evaluateFinal.md` F1). Both fills are colour roles and re-theme with the dark block.",
                     "tags": [
                         {
                             "name": "param",
@@ -3411,7 +3448,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/profile/ProfileSurface.tsx",
                     "dir": "packages/apps/commise/web/src/components/profile",
-                    "moduleDoc": "components/profile/ProfileSurface — the one Profile page (web; `docs/design/uiOverhaul/buildSpec.md` §9.1).\nProfile, Settings and Account used to be three routes; this is all of it: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the router and the\ndisplay-name editor, and hands the render leaves from `@commise/features-account/profile` their state. The read\ndecides one of three states — loading, failed, ready — and ONLY the account group depends on it: sign out and the\ndanger zone need no profile, so a failed read never takes them away (E15).\n\nSign out is `LogoutButton`, which issues the one verified sign-out command (ADR-0009); close and erase keep their own\ndialogs and flows. Nothing here calls Clerk's `signOut`.",
+                    "moduleDoc": "components/profile/ProfileSurface — the one Profile page (web; `docs/design/uiOverhaul/buildSpec.md` §9.1).\nProfile, Settings and Account used to be three routes; this is all of it: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the settings read and write\n(a preference is a setting on the server, D19 / ADR-0059, saved optimistically and put back with a message when the\nsave fails), the router and the display-name editor, and hands the render leaves from `@commise/features-account/profile` their state. The read\ndecides one of three states — loading, failed, ready — and ONLY the account group depends on it: sign out and the\ndanger zone need no profile, so a failed read never takes them away (E15).\n\nSign out is `LogoutButton`, which issues the one verified sign-out command (ADR-0009); close and erase keep their own\ndialogs and flows. Nothing here calls Clerk's `signOut`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3443,7 +3480,7 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/profile",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [],
             "platforms": [
                 "web"
@@ -3457,27 +3494,42 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/profile/ShortcutSwitchRow.tsx",
                     "dir": "packages/apps/commise/web/src/components/profile",
-                    "moduleDoc": "components/profile/ShortcutSwitchRow — Profile › Keyboard shortcuts (web only): the switch that turns the `/`\nsearch shortcut off (`docs/architecture/uiOverhaulBlueprint.md` A18; WCAG 2.1.4 Character Key Shortcuts).\n\nThe whole 56 px row is one `switch`, so the target is the row, not the 40 px track. State is never colour alone: the\nthumb sits at the end when on and the start when off. It reads and writes the per-device preference through\n`useSyncExternalStore`, so a change in another tab shows here too.\n\n⚠️ The track and thumb are drawn here from role colours because the design system names no row switch\n(`KeepAwakeToggle` is a chip). It is a gap for `staff-ux-engineer` to specify and for `@commise/ui` to own.",
+                    "moduleDoc": "components/profile/ShortcutSwitchRow — Profile › Keyboard shortcuts (web only): the switch that turns the `/`\nsearch shortcut off (WCAG 2.1.4 Character Key Shortcuts).\n\nThe whole 56 px row is one `switch`, so the target is the row, not the 40 px track. State is never colour alone: the\nthumb sits at the end when on and the start when off.\n\nPURE: `checked` in, `onChange` out. The setting lives on the server (D19, ADR-0059), and the orchestration layer\n(`ProfileSurface`) reads it and saves it; this row neither knows where the value comes from nor waits for a save, so\nit never branches on connectivity.\n\n⚠️ The track and thumb are drawn here from role colours because the design system names no row switch\n(`KeepAwakeToggle` is a chip). It is a gap for `staff-ux-engineer` to specify and for `@commise/ui` to own.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "components/profile/ShortcutSwitchRow — Profile › Keyboard shortcuts (web only): the switch that turns the `/`"
-                        },
-                        {
-                            "name": "sideEffect",
-                            "text": "Writes `localStorage` through `writeSearchShortcutEnabled`."
                         }
                     ],
                     "description": "The keyboard-shortcuts switch row.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "checked",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the shortcut is on.",
+                            "declaredIn": "packages/apps/commise/web/src/components/profile/ShortcutSwitchRow.tsx"
+                        },
+                        {
+                            "name": "onChange",
+                            "type": "(next: boolean) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called with the value the cook asked for.",
+                            "declaredIn": "packages/apps/commise/web/src/components/profile/ShortcutSwitchRow.tsx"
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -4013,7 +4065,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeEditorContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Orchestration container for the web one-page recipe editor (UI overhaul slice 7; owner decisions D1, D7, D10): one\ncontainer for `/recipes/new` and `/recipes/{id}/edit`. It reads what the editor is seeded from — the recipe (edit) and\nthe device draft from the tab's session storage, both suspense reads under `ClientQueryBoundary` — then mounts one\neditor session keyed on the recipe, so editing another recipe is a fresh editor.\n\nThe session (`useRecipeEditorSession`, shared with the native screen) binds the editor's lifecycle to its ports; this\ncontainer adds what only the web has: the router behind the session's navigation port (Publish and Save changes → the\nrecipe, Discard → My recipes), the URL that follows the recipe, and the web leaves (the status poller, the photo\nuploader). What the page draws is `RecipeEditorView`'s.\n\n⛔ The URL follows the recipe without a navigation: a new recipe's local ref is kept in `?draft=` so a reload in the\nsame tab reopens its draft (D7), and once the server has created it the URL becomes its edit address — both through\n`history.replaceState`, because a router navigation would remount the page and reseed the editor mid-typing.\n\n⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload\nendpoint takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
+                    "moduleDoc": "Orchestration container for the web one-page recipe editor (UI overhaul slice 7; owner decisions D1, D7, D10): one\ncontainer for `/recipes/new` and `/recipes/{id}/edit`. It reads what the editor is seeded from — the recipe (edit) and\nthe device draft from the tab's session storage, both suspense reads under `ClientQueryBoundary` — then mounts one\neditor session keyed on the recipe, so editing another recipe is a fresh editor.\n\nThe session (`useRecipeEditorSession`, shared with the native screen) binds the editor's lifecycle to its ports; this\ncontainer adds what only the web has: the router behind the session's navigation port (Publish and Save changes → the\nrecipe, Discard → My recipes), the URL that follows the recipe, and the web leaves (the status poller, the photo\nuploader). What the page draws is `RecipeEditorView`'s.\n\n⛔ The URL follows a new recipe without a navigation, because a router navigation would remount the page and reseed\nthe editor mid-typing. It stays on the new route: `?draft=` names the recipe's local ref, and once the server has\ncreated it, its server id. The new route, reopened (a reload, Back, Forward), goes to the edit route of a recipe the\nserver holds — named by id, or by a local ref the outbox's journal resolved after the editor had closed — and opens\nthe device draft otherwise (D7). ⛔ The URL is replaced through Next's own shallow-update path\n(`history.replaceState(null, …)`): passing `history.state` carries Next's `__NA` flag, which makes Next skip its\nrouter sync, so it never learned the URL, rewrote it on its next commit, and restored the new-recipe tree under an\nedit address on Back, where typing created a second recipe. The path never changes, so the tree Next records for the\nentry is always the tree that renders it.\n\n⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload\nendpoint takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -4184,6 +4236,67 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/recipes/RecipeLoadError",
+            "name": "RecipeLoadError",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/recipes",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeLoadError",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeLoadError.tsx",
+                    "dir": "packages/apps/commise/web/src/components/recipes",
+                    "moduleDoc": "RecipeLoadError — what a recipe read's boundary renders when the read fails: the editor's (new and edit) and\nthe recipe page's. A 404 is final, so it offers no retry; any other failure — including an id that cannot name a\nrecipe, where there is no evidence the recipe is gone — is the generic one, whose retry is the boundary's reset, which\nrefetches. The control is the design system's `Button`, as on native.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "RecipeLoadError — what a recipe read's boundary renders when the read fails: the editor's (new and edit) and"
+                        }
+                    ],
+                    "description": "Presentational: a recipe read failed (`buildSpec.md` §6.7). The page's heading says what happened, a missing recipe\noffers no retry, and both states keep a way back to My recipes — the bare two lines it replaces had neither (F18).",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "error",
+                            "type": "unknown",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the read failed with.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeLoadError.tsx"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Read again: the boundary's reset.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeLoadError.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
                     }
                 }
             ]

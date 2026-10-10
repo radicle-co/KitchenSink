@@ -21,6 +21,8 @@ vi.mock('next/navigation', async (importOriginal) => ({
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({ isPending: false, isError: false, data: { user: { displayName: 'Eliza Mendes' } } }),
 }));
+// The shell's `/` shortcut reads the viewer's settings (D19); this suite composes the chrome, not the shortcut.
+vi.mock('@/hooks/useUserSettings', () => ({ useUserSettings: () => ({ data: { searchShortcut: true } }) }));
 
 describe('the web shell, composed', () => {
     it('renders the sidebar and the tab bar over the real nav model, New recipe first, no top bar, one H1', () => {

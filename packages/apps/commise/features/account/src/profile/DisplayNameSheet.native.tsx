@@ -9,7 +9,7 @@
  * @pattern Adapter over the design-system `Sheet`, `Input` and `FieldLabel`
  */
 import { Button } from '@commise/ui/button';
-import { FieldLabel, Input } from '@commise/ui/input';
+import { FieldLabel, fieldHintId, Input } from '@commise/ui/input';
 import { Sheet } from '@commise/ui/sheet';
 import { useTheme } from '@commise/ui/theme';
 import { nativeTokens } from '@commise/ui/native';
@@ -45,13 +45,13 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
             closeLabel={t.closeNameSheet}
             size="content"
             footer={
-                <Button icon="check" busy={saving} disabled={!canSave} onPress={onSave}>
+                <Button icon="check" width="fill" busy={saving} disabled={!canSave} onPress={onSave}>
                     {saving ? t.saving : t.save}
                 </Button>
             }
         >
             <View style={styles.body}>
-                <FieldLabel forId={fieldId} label={t.namePrompt} />
+                <FieldLabel forId={fieldId} label={t.displayName} hint={t.nameHint} />
                 <Input
                     id={fieldId}
                     value={draft}
@@ -61,7 +61,7 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
                     enterKeyHint="done"
                     maxLength={DISPLAY_NAME_MAX_LENGTH}
                     invalid={failed}
-                    {...(failed ? { describedBy: errorId } : {})}
+                    describedBy={failed ? `${fieldHintId(fieldId)} ${errorId}` : fieldHintId(fieldId)}
                     onSubmit={() => {
                         if (canSave && !saving) {
                             onSave();
@@ -79,10 +79,7 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
 };
 
 const styles = StyleSheet.create({
-    body: {
-        gap: nativeTokens.spacing[2],
-        paddingHorizontal: nativeTokens.spacing[4],
-        paddingVertical: nativeTokens.spacing[4],
-    },
+    // No padding of its own: the sheet already pads its content, and a second inset narrowed the field.
+    body: { gap: nativeTokens.spacing[2] },
     error: { ...nativeTokens.type.meta },
 });

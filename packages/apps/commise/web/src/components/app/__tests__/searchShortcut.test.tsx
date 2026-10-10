@@ -4,10 +4,16 @@
  * chord, an IME composition, or a key some other handler already took is NOT a shortcut — and neither is a `/` pressed
  * while a modal dialog is open, where focus must not jump behind it.
  */
-import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { writeSearchShortcutEnabled } from '@/lib/searchShortcutPreference';
+// The preference lives on the server (D19, ADR-0059); the hook reads it through the settings query. The query is the
+// seam: what it answers is what the hook obeys, so the tests set the answer and never touch browser storage.
+const { settings } = vi.hoisted(() => ({
+    settings: { current: { searchShortcut: true } as { searchShortcut: boolean } | undefined },
+}));
+
+vi.mock('@/hooks/useUserSettings', () => ({ useUserSettings: () => ({ data: settings.current }) }));
 
 import { AccountEraseDialog } from '@commise/features-account/danger';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -15,10 +21,11 @@ import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { findSearchField, hasOpenModal, isSearchShortcut, isEditableTarget } from '../searchShortcut';
 import { useSearchShortcut } from '../useSearchShortcut';
 
-afterEach(() => {
-    cleanup();
-    window.localStorage.clear();
+beforeEach(() => {
+    settings.current = { searchShortcut: true };
 });
+
+afterEach(cleanup);
 
 const key = (init: Partial<KeyboardEventInit> = {}, target: EventTarget | null = null) => {
     const event = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true, ...init });
@@ -210,7 +217,7 @@ describe('useSearchShortcut', () => {
     });
 
     it('does nothing once the cook has turned the shortcut off', () => {
-        writeSearchShortcutEnabled(false);
+        settings.current = { searchShortcut: false };
         render(<Page />);
         screen.getByRole('button', { name: 'Elsewhere' }).focus();
 
@@ -221,8 +228,34 @@ describe('useSearchShortcut', () => {
         expect(event.defaultPrevented).toBe(false);
     });
 
-    it('obeys a change made while mounted — off then on', () => {
+    it('attaches NO keydown listener while the setting is off, and attaches one when it is on', () => {
+        const add = vi.spyOn(document, 'addEventListener');
+        const keydownListeners = (): number => add.mock.calls.filter(([type]) => type === 'keydown').length;
+
+        settings.current = { searchShortcut: false };
+        const { rerender } = render(<Page />);
+        expect(keydownListeners()).toBe(0);
+
+        settings.current = { searchShortcut: true };
+        rerender(<Page />);
+        expect(keydownListeners()).toBe(1);
+
+        add.mockRestore();
+    });
+
+    it('uses the published default while the first read is in flight (no data yet)', () => {
+        settings.current = undefined;
         render(<Page />);
+        screen.getByRole('button', { name: 'Elsewhere' }).focus();
+
+        const event = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
+        screen.getByRole('button', { name: 'Elsewhere' }).dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('obeys a change made while mounted — off then on', () => {
+        const { rerender } = render(<Page />);
 
         const press = (): KeyboardEvent => {
             screen.getByRole('button', { name: 'Elsewhere' }).focus();
@@ -232,10 +265,12 @@ describe('useSearchShortcut', () => {
             return event;
         };
 
-        act(() => writeSearchShortcutEnabled(false));
+        settings.current = { searchShortcut: false };
+        rerender(<Page />);
         expect(press().defaultPrevented).toBe(false);
 
-        act(() => writeSearchShortcutEnabled(true));
+        settings.current = { searchShortcut: true };
+        rerender(<Page />);
         expect(press().defaultPrevented).toBe(true);
     });
 

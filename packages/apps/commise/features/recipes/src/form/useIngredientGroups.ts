@@ -5,7 +5,7 @@
  * empty groups, where the one add field sits and what it is named, and the Move to group… sheet.
  *
  * The draft keeps no group of its own: a group is its lines' `groupLabel`, and every edit here is one draft transition
- * (`ingredientGroups.ts`). A group the cook has just named has no line to carry its label, so it lives here, as view
+ * (`ingredientGroups.ts`), dispatched to the editor so it meets the draft as it is when it runs. A group the cook has just named has no line to carry its label, so it lives here, as view
  * state, until a line is added to it. ⚠️ So an empty group does not survive a reload or a draft restore: there is
  * nothing in the draft to restore it from.
  *
@@ -20,12 +20,12 @@ import { useState } from 'react';
 
 import type { EditorMessages } from '../editor/messages.js';
 import type { IngredientEntry } from '../hooks/useIngredientEntry.js';
-import { fillTemplate } from '../list/model.js';
+import type { DraftAction } from './draftAction.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { groupNameFieldId } from './fieldIds.js';
 import { groupLabelOf, ingredientGroupLabels } from './ingredientGroups.js';
 import type { IngredientLineKey } from './lineKey.js';
 import type { RecipeFormMessages } from './messages.js';
-import { applyDraftAction } from './props.js';
 import type { ControlFocus } from './useRowFocus.js';
 import type { RecipeFormValues } from './values.js';
 
@@ -85,7 +85,7 @@ export interface AddGroupView {
 }
 
 /** One choice in the Move to group sheet. */
-export interface MoveToGroupChoice {
+interface MoveToGroupChoice {
     readonly key: string;
     readonly label: string;
     /** The line is in this group now. */
@@ -105,7 +105,9 @@ export interface MoveToGroupView {
 /** What the groups need from the field group. */
 export interface IngredientGroupsInput {
     readonly values: RecipeFormValues;
-    readonly onChange: (next: RecipeFormValues) => void;
+    /** The editor's draft transition (`rowEditor.dispatch`), which meets the draft as it is when an edit runs. */
+    readonly dispatch: (action: DraftAction) => void;
+    /** The entry's one answer to where the add field adds (`placementOf`), and the move that changes it. */
     readonly entry: Pick<IngredientEntry, 'placement' | 'place'>;
     readonly requestTrailing: () => void;
     /** After a move, focus stays on the row's `⋯`. */
@@ -139,11 +141,11 @@ type NameForm = { readonly kind: 'add' } | { readonly kind: 'rename'; readonly f
  *
  * @param input - The draft, its setter, the add field's placement and the copy.
  * @returns The groups' views.
- * @sideEffect Edits the draft through `onChange`, and moves the add field through `entry.place`, when a control calls
+ * @sideEffect Edits the draft through `dispatch`, and moves the add field through `entry.place`, when a control calls
  *   the handlers it returns.
  */
 export function useIngredientGroups(input: IngredientGroupsInput): IngredientGroupsModel {
-    const { values, onChange, entry, m, add } = input;
+    const { values, dispatch, entry, m, add } = input;
     const [made, setMade] = useState<readonly string[]>([]);
     const [form, setForm] = useState<NameForm | undefined>(undefined);
     const [text, setText] = useState('');
@@ -156,18 +158,16 @@ export function useIngredientGroups(input: IngredientGroupsInput): IngredientGro
     const groups = [...lineGroups, ...empty];
     const runLabels = (runs: readonly { readonly label: string | undefined }[]) => runs.map((run) => run.label);
 
-    // The group the add field adds to: where the cook placed it while that group exists, else the group being built.
+    // The group the add field adds to: the entry's one answer (`placementOf`), else the group being built. A pick on the
+    // field commits the same answer, so the label cannot name one group while the line lands in another.
     const placed = entry.placement;
-    const placedValid =
-        placed !== undefined &&
-        (placed.group === undefined
-            ? values.ingredients.some((line) => groupLabelOf(line) === undefined)
-            : groups.includes(placed.group));
     const lastLine = values.ingredients[values.ingredients.length - 1];
-    const fieldGroup = placedValid ? placed.group : lastLine === undefined ? undefined : groupLabelOf(lastLine);
+    const fieldGroup =
+        placed !== undefined ? placed.group : lastLine === undefined ? undefined : groupLabelOf(lastLine);
 
-    const moveFieldTo = (group: string | undefined): void => {
-        entry.place({ group });
+    // A group the cook made holds the field before any line is in it; the entry is told which, so it can say so.
+    const moveFieldTo = (group: string | undefined, madeByCook = group !== undefined && made.includes(group)): void => {
+        entry.place({ group, madeByCook });
         input.requestTrailing();
     };
 
@@ -195,19 +195,23 @@ export function useIngredientGroups(input: IngredientGroupsInput): IngredientGro
             }
 
             closeForm();
-            moveFieldTo(name);
+            moveFieldTo(name, made.includes(name) || !groups.includes(name));
 
             return;
         }
 
-        if (empty.includes(form.from)) {
+        const madeByCook = made.includes(form.from);
+
+        if (madeByCook) {
             setMade((current) => current.map((label) => (label === form.from ? name : label)));
-        } else {
-            onChange(applyDraftAction(values, { kind: 'renameIngredientGroup', from: form.from, to: name }));
+        }
+
+        if (!empty.includes(form.from)) {
+            dispatch({ kind: 'renameIngredientGroup', from: form.from, to: name });
         }
 
         if (placed?.group === form.from) {
-            entry.place({ group: name });
+            entry.place({ group: name, madeByCook });
         }
 
         closeForm();
@@ -242,10 +246,12 @@ export function useIngredientGroups(input: IngredientGroupsInput): IngredientGro
             id: 'remove',
             label: m.groupRemove,
             onSelect: () => {
-                if (empty.includes(label)) {
+                if (made.includes(label)) {
                     setMade((current) => current.filter((each) => each !== label));
-                } else {
-                    onChange(applyDraftAction(values, { kind: 'removeIngredientGroup', label }));
+                }
+
+                if (!empty.includes(label)) {
+                    dispatch({ kind: 'removeIngredientGroup', label });
                 }
 
                 if (placed?.group === label) {
@@ -288,7 +294,7 @@ export function useIngredientGroups(input: IngredientGroupsInput): IngredientGro
 
     const moveTo = (group: string | undefined): void => {
         if (moving !== undefined) {
-            onChange(applyDraftAction(values, { kind: 'moveIngredientToGroup', key: moving, group }));
+            dispatch({ kind: 'moveIngredientToGroup', key: moving, group });
             input.requestActions(moving);
         }
 

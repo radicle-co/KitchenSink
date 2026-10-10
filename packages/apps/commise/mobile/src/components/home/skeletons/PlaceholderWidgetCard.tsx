@@ -41,7 +41,6 @@
  * information this module exists to expose.
  */
 import { nativeTokens } from '@commise/ui/native';
-import { GlassCard } from '@commise/ui/surface';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX, ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -50,8 +49,8 @@ import { StyleSheet, Text, View } from 'react-native';
 export interface PlaceholderWidgetCardProps {
     /** The REAL widget's heading (what the viewer will eventually see here). */
     readonly title: string;
-    /** The visible "coming soon" badge copy. */
-    readonly comingSoonLabel: string;
+    /** The visible "Soon" badge copy. */
+    readonly soonLabel: string;
     /**
      * The skeleton shape. Rendered as-is: the caller marks its own shape nodes `aria-hidden`, so a placeholder
      * whose children include something REAL (the meal-plan weekday names) can still expose it. Anything left
@@ -61,38 +60,40 @@ export interface PlaceholderWidgetCardProps {
 }
 
 /**
- * The shell of a roadmap skeleton placeholder (mobile): a card carrying the real widget's heading, a visible
- * "coming soon" badge, and the caller's shape.
+ * The shell of a roadmap skeleton placeholder (mobile): a level-1 card carrying the real widget's heading, a visible
+ * "Soon" badge, and the caller's shape.
  *
- * @param props - The widget `title`, the `comingSoonLabel`, and the skeleton `children`.
+ * The card is `paper` under a hairline `lineDivider` at the `sm` elevation (`buildSpec.md` §1.6), never glass: owner
+ * D12 keeps glass off cards, and the translucent white tier this used had no dark value, so dark mode drew light ink
+ * on light glass (`evaluateFinal.md` F1). Every colour is a role read from `useTheme()`.
+ *
+ * @param props - The widget `title`, the `soonLabel`, and the skeleton `children`.
  * @returns A card presenting the coming widget without inventing any of its data.
  */
-export function PlaceholderWidgetCard({ title, comingSoonLabel, children }: PlaceholderWidgetCardProps): JSX.Element {
+export function PlaceholderWidgetCard({ title, soonLabel, children }: PlaceholderWidgetCardProps): JSX.Element {
     const { colors } = useTheme();
 
-    // U8 — the frosted-glass treatment is the shared `GlassCard` primitive (single-sourced with web), so the
-    // translucent-over-blur surface (and its no-blur solid fallback) can never drift from the design system.
-    // `styles.card` carries only the box (gap/radius/border/pad + `overflow: 'hidden'` so the blur clips to
-    // the rounded corners); the surface fill comes from the primitive, so it no longer sets its own colour.
     return (
-        <GlassCard tier="card" style={[styles.card, { borderColor: colors.lineDivider }]}>
+        <View style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
             <View accessible accessibilityRole="header" style={styles.header}>
                 <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
-                <Text style={[styles.badge, { color: colors.inkMuted }]}>{comingSoonLabel}</Text>
+                <Text style={[styles.badge, { color: colors.inkMuted, borderColor: colors.lineDivider }]}>
+                    {soonLabel}
+                </Text>
             </View>
 
             {children}
-        </GlassCard>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     card: {
         gap: nativeTokens.spacing[4],
-        borderRadius: nativeTokens.radius.lg,
-        borderWidth: 1,
-        overflow: 'hidden',
-        padding: 20,
+        borderRadius: nativeTokens.radius.md,
+        borderWidth: StyleSheet.hairlineWidth,
+        padding: nativeTokens.spacing[4],
+        ...nativeTokens.elevation.sm,
     },
     header: {
         flexDirection: 'row',
@@ -100,6 +101,12 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: nativeTokens.spacing[3],
     },
-    title: { fontSize: nativeTokens.fontSize.bodyMd, fontWeight: '600' },
-    badge: { fontSize: nativeTokens.fontSize.caption, fontWeight: '500' },
+    title: { ...nativeTokens.type.cardTitle, flexShrink: 1 },
+    badge: {
+        ...nativeTokens.type.caption,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderRadius: nativeTokens.radius.sm,
+        paddingHorizontal: nativeTokens.spacing[2],
+        paddingVertical: 2,
+    },
 });

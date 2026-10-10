@@ -24,9 +24,10 @@
  * @pattern Adapter over the screen-reader focus API — a level-triggered focus request moves the cursor to the
  *     `Pressable` through `PressScale`'s handle (`AccessibilityInfo.sendAccessibilityEvent` has no declarative form).
  */
-import { useEffect, useEffectEvent, useRef, type FC, type ReactNode } from 'react';
+import { useRef, type FC, type ReactNode } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.native.js';
 import type { Role } from '../tokens/colors.js';
 import { nativeTokens } from '../tokens/native.js';
@@ -102,17 +103,7 @@ export const Button: FC<ButtonProps> = (props) => {
     const foreground = FOREGROUND[surface];
     const theme = useTheme();
     const node = useRef<View>(null);
-    // The acknowledgement is not a dependency: a host's new callback must not re-run a request already taken.
-    const acknowledgeFocusRequest = useEffectEvent(() => onFocusRequestHandled?.());
-
-    useEffect(() => {
-        if (!focusRequested) {
-            return;
-        }
-
-        moveScreenReaderFocus(node.current);
-        acknowledgeFocusRequest();
-    }, [focusRequested]);
+    useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusRequestHandled);
 
     // A busy control is also disabled so an in-flight action cannot be double-fired.
     const inactive = disabled || busy;

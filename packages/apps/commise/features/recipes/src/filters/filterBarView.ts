@@ -13,7 +13,7 @@
  *
  * @pattern Interpreter — `filterBarViewOf` reads each facet descriptor into the view its leaf draws (P9)
  */
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { FilterMessages } from './messages.js';
 import {
     TIME_BUCKETS_MINUTES,

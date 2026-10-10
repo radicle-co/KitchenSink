@@ -28,7 +28,7 @@ afterEach(cleanup);
 
 const renderCard = () =>
     renderWithProviders(
-        <PlaceholderWidgetCard title="Today's Nutrition">
+        <PlaceholderWidgetCard title="Today’s nutrition">
             <div className="h-4 w-full bg-surface-muted" />
         </PlaceholderWidgetCard>,
     );
@@ -39,9 +39,9 @@ describe('PlaceholderWidgetCard (web)', () => {
 
         // The region is what makes the placeholder addressable as one thing — a screen-reader user can jump to
         // it, and everything inside is attributable to it (native's `accessible` header row is its counterpart).
-        const region = screen.getByRole('region', { name: "Today's Nutrition" });
+        const region = screen.getByRole('region', { name: 'Today’s nutrition' });
 
-        expect(within(region).getByRole('heading', { name: "Today's Nutrition" })).toBeTruthy();
+        expect(within(region).getByRole('heading', { name: 'Today’s nutrition' })).toBeTruthy();
     });
 
     it('names the widget exactly once — the region takes its name FROM the heading', () => {
@@ -49,21 +49,21 @@ describe('PlaceholderWidgetCard (web)', () => {
 
         // `aria-labelledby` pointing at the heading, rather than a second `aria-label` copy of the title, is
         // what keeps one string in one place (and is why the region and heading are not a duplicate-name pair).
-        const region = screen.getByRole('region', { name: "Today's Nutrition" });
-        const heading = screen.getByRole('heading', { name: "Today's Nutrition" });
+        const region = screen.getByRole('region', { name: 'Today’s nutrition' });
+        const heading = screen.getByRole('heading', { name: 'Today’s nutrition' });
 
         expect(region.getAttribute('aria-labelledby')).toBe(heading.id);
         expect(region.getAttribute('aria-label')).toBeNull();
     });
 
-    it('states "Coming soon" as exposed, visible content — not a screen-reader-only string', () => {
+    it('states "Soon" as exposed, visible content — not a screen-reader-only string', () => {
         const { container } = renderCard();
 
-        const badge = screen.getByText('Coming soon');
+        const badge = screen.getByText('Soon');
 
         expect(badge.className).not.toContain('sr-only');
         expect(badge.closest('[aria-hidden="true"]')).toBeNull();
-        expect(container.textContent).toContain('Coming soon');
+        expect(container.textContent).toContain('Soon');
     });
 
     it('renders the caller’s shape as-is, without an aria-hidden wrapper of its own', () => {
@@ -100,9 +100,9 @@ describe('PlaceholderWidgetCard (web)', () => {
  * entirely. Same red line: the real heading and "Coming soon", the shapes hidden, and NEVER fabricated data.
  */
 const SKELETONS: Readonly<Record<RoadmapWidgetId, { readonly Component: FC; readonly title: string }>> = {
-    nutrition: { Component: NutritionWidgetSkeleton, title: "Today's Nutrition" },
+    nutrition: { Component: NutritionWidgetSkeleton, title: 'Today’s nutrition' },
     'resume-cooking': { Component: ResumeCookingWidgetSkeleton, title: 'Resume cooking' },
-    'meal-plan': { Component: MealPlanWidgetSkeleton, title: "This Week's Meals" },
+    'meal-plan': { Component: MealPlanWidgetSkeleton, title: 'This week’s meals' },
 };
 
 describe('roadmap skeletons (web) — parity with the shared roadmap registry', () => {
@@ -118,10 +118,10 @@ describe.each(Object.entries(SKELETONS))('%s skeleton (web)', (_id, { Component,
         expect(screen.getByRole('region', { name: title })).toBeTruthy();
     });
 
-    it('states "Coming soon" visibly — a grey shape alone reads as a stuck loading state', () => {
+    it('states "Soon" visibly — a grey shape alone reads as a stuck loading state', () => {
         renderWithProviders(<Component />);
 
-        expect(screen.getByText('Coming soon')).toBeTruthy();
+        expect(screen.getByText('Soon')).toBeTruthy();
     });
 
     it('hides EVERY grey shape from assistive tech (a picture of a layout is not content)', () => {
@@ -164,8 +164,9 @@ describe('roadmap skeletons (web) — no fake data (the CR-001 red line)', () =>
         renderWithProviders(<MealPlanWidgetSkeleton />);
 
         // The weekday names are REAL data (only the meal is unknown), so all seven stay EXPOSED — which is
-        // precisely why this shell cannot blanket-hide its children.
-        for (const day of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+        // precisely why this shell cannot blanket-hide its children. The exposed name is the full weekday; the
+        // narrow and short names drawn on the tile are presentation.
+        for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) {
             const label = screen.getByText(day);
 
             expect(label.closest('[aria-hidden="true"]'), `weekday ${day} is hidden from assistive tech`).toBeNull();

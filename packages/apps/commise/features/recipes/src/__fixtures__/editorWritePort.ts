@@ -2,12 +2,15 @@
  * @module @commise/features-recipes/__fixtures__ — a fake of the editor's write port (`EditorWritePort`, the app's
  * `SyncQueue` structurally): it records each submit, and lets a test put a record on the wire, park it or answer it.
  * The settlement bus is the only way the editor learns anything, which is the contract this fake keeps.
+ *
+ * The port half is checked against {@link EditorWritePort} with `satisfies`, so a change to the port fails here rather
+ * than hiding behind a cast in every test that mounts the editor.
  */
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 import type { Intent, SettlementEvent } from '@kitchensink/sync';
 import { vi } from 'vitest';
 
-import type { EditorWriteAnswer } from '../hooks/useRecipeEditor.js';
+import type { EditorWriteAnswer, EditorWritePort } from '../hooks/useRecipeEditor.js';
 
 type Settlement = SettlementEvent<EditorWriteAnswer>;
 
@@ -31,12 +34,13 @@ export function makeFakeEditorWritePort() {
         status?: number;
     }[] = [];
 
-    const port = {
-        submitted: [] as Intent[],
-        withdrawn: [] as number[],
+    const submitted: Intent[] = [];
+    const withdrawn: number[] = [];
+
+    const writePort = {
         failures,
         submit: vi.fn(async (intent: Intent) => {
-            port.submitted.push(intent);
+            submitted.push(intent);
 
             return { queued: true as const };
         }),
@@ -64,12 +68,12 @@ export function makeFakeEditorWritePort() {
             const seq = nextSeq;
             nextSeq += 1;
             records.set(seq, { intent, state: 'pending' });
-            port.submitted.push(intent);
+            submitted.push(intent);
 
             return { kind: 'queued' as const, seq };
         }),
         withdraw: vi.fn(async (seq: number) => {
-            port.withdrawn.push(seq);
+            withdrawn.push(seq);
             records.delete(seq);
             failures.splice(
                 failures.findIndex((failure) => failure.seq === seq),
@@ -79,8 +83,16 @@ export function makeFakeEditorWritePort() {
         subscribe: (listener: (event: Settlement) => void) => {
             listeners.add(listener);
 
-            return () => listeners.delete(listener);
+            return () => {
+                listeners.delete(listener);
+            };
         },
+    } satisfies EditorWritePort;
+
+    return {
+        ...writePort,
+        submitted,
+        withdrawn,
         /** The drain claimed the newest record. */
         claim: (seq: number) => {
             const record = records.get(seq);
@@ -141,6 +153,4 @@ export function makeFakeEditorWritePort() {
             }
         },
     };
-
-    return port;
 }

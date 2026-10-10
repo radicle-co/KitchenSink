@@ -7,6 +7,8 @@ import { App, type AppProps } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { afterAll, describe, it, expect, beforeAll } from 'vitest';
 
+import { isAwake } from '@kitchensink/queue-check';
+
 import { WebhooksStack } from '../lib/WebhooksStack.js';
 
 /** Cloud-assembly directories this file synthesized into, removed in `afterAll`. */
@@ -326,7 +328,7 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
 
     it('runs reconciliation on a nightly schedule (NOT off the deletion queue)', () => {
         // A1: reconciliation must be driven by an EventBridge schedule, not the SQS deletion queue.
-        template.hasResourceProperties('AWS::Events::Rule', { ScheduleExpression: 'cron(0 7 * * ? *)' });
+        template.hasResourceProperties('AWS::Events::Rule', { ScheduleExpression: 'cron(0 3 * * ? *)' });
 
         const [reconciliationLogicalId] = Object.entries(
             template.findResources('AWS::Lambda::Function', {
@@ -365,7 +367,7 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
         )[0]!;
 
         template.hasResourceProperties('AWS::Events::Rule', {
-            ScheduleExpression: 'cron(0 3 * * ? *)',
+            ScheduleExpression: 'cron(0 2 * * ? *)',
             Targets: [{ Arn: { 'Fn::GetAtt': [sweepLogicalId, 'Arn'] } }],
         });
     });
@@ -381,9 +383,9 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
             }),
         )[0]!;
 
-        // 05:00 UTC — distinct from provisioning reconciliation (07:00) and the tombstone-sweep (03:00).
+        // 02:30 UTC — distinct from provisioning reconciliation (03:00) and the tombstone-sweep (02:00).
         template.hasResourceProperties('AWS::Events::Rule', {
-            ScheduleExpression: 'cron(0 5 * * ? *)',
+            ScheduleExpression: 'cron(30 2 * * ? *)',
             Targets: [{ Arn: { 'Fn::GetAtt': [erasureReconLogicalId, 'Arn'] } }],
         });
     });
@@ -771,5 +773,71 @@ describe('WebhooksStack — the queue backstop holds no queue mutation (plan U12
         expect(sqsActionsGrantedTo(synthWebhooks(true), 'DeletionWorkerLambdaRole')).toEqual(
             expect.arrayContaining(['sqs:DeleteMessage', 'sqs:ReceiveMessage']),
         );
+    });
+});
+
+/** A daily `cron(M H …)` rule's UTC hour and minute, or `undefined` for a rate rule. */
+function cronHourMinute(expression: string): { readonly hour: number; readonly minute: number } | undefined {
+    const match = /^cron\((\d+) (\d+) /.exec(expression);
+
+    if (match === null) {
+        return undefined;
+    }
+
+    return { minute: Number(match[1]), hour: Number(match[2]) };
+}
+
+/** A `rate(N unit)` rule's period in minutes, or `undefined` for a cron rule. */
+function rateMinutes(expression: string): number | undefined {
+    const match = /^rate\((\d+) (minute|minutes|hour|hours|day|days)\)$/.exec(expression);
+
+    if (match === null) {
+        return undefined;
+    }
+
+    const perUnit: Record<string, number> = { minute: 1, minutes: 1, hour: 60, hours: 60, day: 1440, days: 1440 };
+
+    return Number(match[1]) * (perUnit[match[2] ?? 'minute'] ?? 1);
+}
+
+describe('⛔ scheduled jobs and the sandbox nightly stop (ADR-0007)', () => {
+    const template = synthWebhooks(false);
+    const rules = Object.values(template.findResources('AWS::Events::Rule')) as Array<{
+        Properties: { ScheduleExpression?: string; Targets?: Array<{ Arn: { 'Fn::GetAtt': [string, string] } }> };
+    }>;
+
+    it('every daily job fires while the sandbox database is awake, in winter and in summer', () => {
+        const daily = rules.flatMap((rule) => {
+            const at = cronHourMinute(rule.Properties.ScheduleExpression ?? '');
+
+            return at === undefined ? [] : [at];
+        });
+
+        expect(daily.length).toBeGreaterThan(0);
+
+        for (const { hour, minute } of daily) {
+            for (const month of [0, 6]) {
+                expect(
+                    isAwake('sandbox', new Date(Date.UTC(2026, month, 15, hour, minute))),
+                    `${hour}:${minute} UTC`,
+                ).toBe(true);
+            }
+        }
+    });
+
+    it('a job scheduled every hour or more often makes no async retries: its next tick is the retry', () => {
+        const frequentFunctions = rules
+            .filter((rule) => (rateMinutes(rule.Properties.ScheduleExpression ?? '') ?? Infinity) <= 60)
+            .flatMap((rule) => (rule.Properties.Targets ?? []).map((target) => target.Arn['Fn::GetAtt'][0]));
+        const invokeConfigs = Object.values(template.findResources('AWS::Lambda::EventInvokeConfig')) as Array<{
+            Properties: { FunctionName: { Ref: string }; MaximumRetryAttempts?: number };
+        }>;
+
+        expect(frequentFunctions.length).toBeGreaterThan(0);
+
+        for (const fn of frequentFunctions) {
+            const config = invokeConfigs.find((candidate) => candidate.Properties.FunctionName.Ref === fn);
+            expect(config?.Properties.MaximumRetryAttempts, fn).toBe(0);
+        }
     });
 });

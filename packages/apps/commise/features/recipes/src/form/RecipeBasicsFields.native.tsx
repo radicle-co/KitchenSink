@@ -25,7 +25,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { editorMessages } from '../editor/messages.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { ChipInput } from './ChipInput.native.js';
 import { CuisineSelect } from './CuisineSelect.native.js';

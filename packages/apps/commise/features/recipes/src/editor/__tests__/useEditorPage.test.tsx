@@ -6,6 +6,7 @@
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { ScrollHost } from '@commise/ui/scroll-host';
+import { focusManager } from '@tanstack/react-query';
 import { act, cleanup, render } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -114,5 +115,40 @@ describe('useEditorPage — the section-change checkpoint', () => {
         await scrollTo(2100);
         await scrollTo(100);
         expect(sectionChanges(checkpoint)).toBe(3);
+    });
+});
+
+/**
+ * The app going to the background is a checkpoint (blueprint A3): an EVENT, heard from TanStack's `focusManager`, which
+ * each platform drives (staff-code-quality, 2026-10-09: it ran from an effect on a `focused` snapshot). An editor that
+ * mounts while the app is already in the background has not been left, so it raises nothing then.
+ */
+describe('useEditorPage — the app going to the background', () => {
+    afterEach(() => {
+        focusManager.setFocused(undefined);
+    });
+
+    it('checkpoints each time the app goes to the background, and not when it comes back', () => {
+        const checkpoint = renderPage();
+
+        act(() => {
+            focusManager.setFocused(false);
+        });
+        act(() => {
+            focusManager.setFocused(true);
+        });
+        act(() => {
+            focusManager.setFocused(false);
+        });
+
+        expect(checkpoint.mock.calls.filter(([trigger]) => trigger === 'appHidden')).toHaveLength(2);
+    });
+
+    it('⛔ raises nothing for an editor that opens while the app is already in the background', () => {
+        focusManager.setFocused(false);
+
+        const checkpoint = renderPage();
+
+        expect(checkpoint).not.toHaveBeenCalledWith('appHidden');
     });
 });

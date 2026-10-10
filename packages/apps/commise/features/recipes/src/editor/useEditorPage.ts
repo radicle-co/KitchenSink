@@ -6,19 +6,20 @@
  * the discard confirm).
  *
  * The leaves draw this and add only what their platform alone has: the web's unload prompt, native's screen-reader
- * focus. The app going to the background (web: the tab hidden) is read through TanStack's `focusManager`, which each
- * platform already drives (`useAppFocused`). It reads the page's `ScrollHost`, so it is called beneath one.
+ * focus. The app going to the background (web: the tab hidden) is heard as an event from TanStack's `focusManager`,
+ * which each platform already drives. It reads the page's `ScrollHost`, so it is called beneath one.
  *
  * @pattern Headless hook — the page's Presentation Model and its commands, rendered by a web and a native leaf
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useScrollHost } from '@commise/ui/scroll-host';
+import { focusManager } from '@tanstack/react-query';
 import { useEffect, useEffectEvent, useState } from 'react';
 
-import { useAppFocused } from '../hooks/useAppFocused.js';
 import { editorChromeOf, type EditorChrome, type FailureActionKind } from './editorChrome.js';
 import type { FailureAction, RecipeEditorViewProps } from './frameProps.js';
 import { editorMessages, type EditorMessages } from './messages.js';
+import { publishNoteOf } from './publishNote.js';
 import { sectionIndexEntries, type SectionIndexEntries } from './sectionIndexEntries.js';
 import { EDITOR_SECTIONS, isEditorSectionId, type EditorSectionId } from './sections.js';
 import { newlyComplete, sectionStatusesOf, type SectionStatuses } from './sectionStatus.js';
@@ -36,6 +37,8 @@ interface Announcement {
 export interface EditorPage {
     readonly m: EditorMessages;
     readonly chrome: EditorChrome;
+    /** "Ready to publish. {n} ingredients have no match…" (owner D20), for the action bar and Photos & publish. */
+    readonly publishNote: string | undefined;
     readonly entries: SectionIndexEntries;
     /** The section the reader is in (the scroll spy's), `details` before it reports. */
     readonly current: EditorSectionId;
@@ -104,15 +107,21 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
     // @sideEffect Subscribes to the host's section changes for the page's life.
     useEffect(() => onCurrentChange((current, previous) => onSectionChange(current, previous)), [onCurrentChange]);
 
-    // The app going to the background, or the tab hiding, is a checkpoint: the cook may not come back. It runs once, when
-    // focus is lost: `checkpoint` is new every render and a checkpoint causes renders, so as a dependency it looped.
-    const focused = useAppFocused();
+    // The app going to the background, or the tab hiding, is a checkpoint: the cook may not come back. It is an EVENT —
+    // each move from focused to not — so an editor that opens in the background raises nothing until it is left.
     const onHidden = useEffectEvent((): void => checkpoint('appHidden'));
+    // @sideEffect Subscribes to TanStack's focus changes for the page's life.
     useEffect(() => {
-        if (!focused) {
-            onHidden();
-        }
-    }, [focused]);
+        let wasFocused = focusManager.isFocused();
+
+        return focusManager.subscribe((focused) => {
+            if (wasFocused && !focused) {
+                onHidden();
+            }
+
+            wasFocused = focused;
+        });
+    }, []);
 
     // A section the cook's own edit completed is announced, politely (§7.2), and never one the page opened complete.
     // Derived during render from the statuses last seen, keyed on their kinds (the object is new every render).
@@ -166,6 +175,11 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
     return {
         m,
         chrome,
+        publishNote: publishNoteOf(
+            { values: editor.values, pendingEntryText, published: editor.lifecycle === 'published' },
+            m,
+            locale,
+        ),
         entries,
         current,
         announcement: { text: announced.text, n: announced.n },

@@ -6,9 +6,9 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { EMPTY_OUTBOX, appendIntent, loadOutbox, saveOutbox, storeKeyFor } from '@kitchensink/sync';
+import { EMPTY_OUTBOX, appendIntent, loadOutbox, outboxMutatorFor, saveOutbox, storeKeyFor } from '@kitchensink/sync';
 
-import { endDeviceSession, webOutboxStore } from '@/components/recipes/deviceSession';
+import { endDeviceSession, webDeviceStore } from '@/components/recipes/deviceSession';
 import { editorDraftsFor } from '@/components/recipes/editorDrafts';
 
 afterEach(() => {
@@ -46,15 +46,15 @@ describe('endDeviceSession', () => {
             dependsOn: [],
             payload: {},
         });
-        await saveOutbox(webOutboxStore, 'user_a', queued);
-        await saveOutbox(webOutboxStore, 'user_b', queued);
+        await saveOutbox(webDeviceStore, 'user_a', queued);
+        await saveOutbox(webDeviceStore, 'user_b', queued);
 
         await endDeviceSession('user_a');
 
         expect(await editorDraftsFor('user_a')?.load('local:recipe:a')).toBeUndefined();
-        expect((await loadOutbox(webOutboxStore, 'user_a')).records).toEqual([]);
+        expect((await loadOutbox(webDeviceStore, 'user_a')).records).toEqual([]);
         expect(await editorDraftsFor('user_b')?.load('local:recipe:b')).toBeDefined();
-        expect((await loadOutbox(webOutboxStore, 'user_b')).records).toHaveLength(1);
+        expect((await loadOutbox(webDeviceStore, 'user_b')).records).toHaveLength(1);
     });
 
     it('keeps every cook`s drafts when nobody was signed in, and still removes the cook marks', async () => {
@@ -85,9 +85,33 @@ describe('the web outbox journal', () => {
             payload: { input: { title: 'Soup' } },
         });
 
-        await saveOutbox(webOutboxStore, 'user_a', queued);
+        await saveOutbox(webDeviceStore, 'user_a', queued);
 
         expect(Object.keys(window.sessionStorage)).toContain(storeKeyFor('user_a'));
-        expect((await loadOutbox(webOutboxStore, 'user_a')).records).toHaveLength(1);
+        expect((await loadOutbox(webDeviceStore, 'user_a')).records).toHaveLength(1);
+    });
+});
+
+/**
+ * Duplicate Tab copies the tab's session storage, the journal included (staff-architect Blocking, code-reviewer Medium 7
+ * of the 2026-10-09 review): both tabs would send the same pending create. The store asks the tab whether it holds a
+ * copy, and jsdom has no Web Locks, which is the case where a reload cannot be told from a duplicate.
+ */
+describe('a duplicated tab', () => {
+    it('⛔ without Web Locks, the first read of the journal parks its pending create, so the cook decides', async () => {
+        const queued = appendIntent(EMPTY_OUTBOX, {
+            entity: 'recipe',
+            intentKind: 'create',
+            localId: 'local:recipe:dup',
+            produces: 'local:recipe:dup',
+            dependsOn: [],
+            payload: { input: { title: 'Soup' } },
+        });
+        await saveOutbox(webDeviceStore, 'user_dup', queued);
+
+        const log = await outboxMutatorFor(webDeviceStore, 'user_dup').read();
+
+        expect('locks' in navigator).toBe(false);
+        expect(log.records.map((record) => record.state)).toStrictEqual(['parked']);
     });
 });

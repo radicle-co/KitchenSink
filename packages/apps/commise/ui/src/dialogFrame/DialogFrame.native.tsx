@@ -28,7 +28,6 @@ import { KeyboardAvoider } from '../keyboardAvoider/KeyboardAvoider.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import { displayFontFace } from '../tokens/scale.js';
 import { DIALOG_CARD_MAX_WIDTH_DP, dialogScrimPadding } from './dialogFrameLayout.js';
 import type { DialogFrameProps } from './props.js';
 
@@ -107,6 +106,6 @@ const styles = StyleSheet.create({
     // `flexGrow: 0`: the card is as tall as its content until the avoided box caps it, and then the content scrolls.
     scroller: { flexGrow: 0 },
     content: { padding: nativeTokens.spacing[5], gap: nativeTokens.spacing[3] },
-    // The Sheet's title face (`displayFontFace.semibold`), so the design system's dialog primitives share one.
-    title: { fontFamily: displayFontFace.semibold, fontSize: nativeTokens.fontSize.headingMd },
+    // `sectionTitle`, the web dialog's title role (`buildSpec.md` §1.5): Playfair sets names only (F8).
+    title: { ...nativeTokens.type.sectionTitle },
 });

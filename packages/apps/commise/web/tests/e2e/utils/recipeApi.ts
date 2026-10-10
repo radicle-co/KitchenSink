@@ -36,6 +36,7 @@ import {
     type CollectionWithRecipesResponse as SchemaCollectionWithRecipesResponse,
 } from '@kitchensink/schema-recipe';
 import { makeUserProfileAccount, makeUserProfileUser } from '@commise/features-account/testing';
+import { SETTINGS_DEFAULTS } from '@kitchensink/schema-identity';
 
 import type { OwnFoodLedger } from './foodApi';
 
@@ -1194,6 +1195,13 @@ export async function mockRecipeApi(
                     account: makeUserProfileAccount({ userId: viewerId, subscriptionTier: tier }),
                 },
             });
+        }
+
+        // The shell reads the viewer's settings on every page (the `/` shortcut, ADR-0059). Answered with the published
+        // defaults so no spec reaches a real identity service for it; a spec that needs state registers
+        // `mockSettingsApi` AFTER this and its route wins.
+        if (path.endsWith('/api/v1/users/me/settings') && method === 'GET') {
+            return route.fulfill({ json: SETTINGS_DEFAULTS });
         }
 
         // Plan 002 V1 — a FAILED row's Try again: the binding's status read, answered from `options.ingredientStatuses`.

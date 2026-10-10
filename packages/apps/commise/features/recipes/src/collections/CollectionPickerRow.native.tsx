@@ -20,7 +20,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toRecipeCardModel } from '../card/model.js';
 import { useRecipeCardView } from '../card/useRecipeCardView.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { CollectionPickerRowProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 

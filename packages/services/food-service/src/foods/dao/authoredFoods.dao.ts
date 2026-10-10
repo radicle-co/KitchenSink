@@ -279,14 +279,18 @@ export class AuthoredFoodsDao {
         portions: readonly AuthoredPortionRow[],
     ): Promise<void> {
         // `NutrientDao` takes `FoodWriter`, which an open transaction satisfies structurally — no cast.
-        const nutrients = new NutrientDao(tx);
-        const values: AuthoredNutritionValue[] = [];
+        const dictionary = await new NutrientDao(tx).resolveOrCreateMany(
+            MACRO_LABELS.map(({ identity }) => ({ name: identity.name, unit: identity.unit })),
+        );
+        const values: AuthoredNutritionValue[] = MACRO_LABELS.map(({ key }, index) => {
+            const row = dictionary[index];
 
-        for (const { key, identity } of MACRO_LABELS) {
-            const dictionary = await nutrients.resolveOrCreate({ name: identity.name, unit: identity.unit });
+            if (row === undefined) {
+                throw new Error(`the nutrient dictionary answered no row for macro ${key}`);
+            }
 
-            values.push({ nutrientId: dictionary.id, amount: String(macros[key]) });
-        }
+            return { nutrientId: row.id, amount: String(macros[key]) };
+        });
 
         // One header per root (KTD-19); its values are UNCITED, which the assertion trigger admits only because the
         // food is authored (ADR-0029).

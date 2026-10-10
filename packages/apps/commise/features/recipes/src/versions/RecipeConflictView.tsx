@@ -42,7 +42,7 @@ import type { ChangeEvent, FC } from 'react';
 
 import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import {
     LEGEND_MARKERS,
     type ConflictOptionCardProps,

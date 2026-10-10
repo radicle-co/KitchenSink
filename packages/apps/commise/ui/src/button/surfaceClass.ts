@@ -33,6 +33,13 @@ import type { ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
  * Tier-independent surface: the icon+label flex row, the label type role, the `focusRing` (2 px, 2 px off, §1.4), the
  * 40% disabled state (§1.10) and the busy (`aria-disabled`) treatment.
  *
+ * ## `shrink-0 max-w-full` — a row wraps between controls, never inside one (F5)
+ *
+ * A flex item's minimum is its min-content, so a crowded row squeezed "Sort: Recently edited" to three lines at every
+ * width. `shrink-0` holds a button at its label's width; the ROW must then wrap or re-lay out (§1.1, rung 1).
+ * `max-w-full` caps it at its container, so a label longer than the whole container (200% text, §1.1's standing
+ * exception) still wraps inside the box rather than overflowing the page.
+ *
  * ## `px-3 md:px-5` — horizontal room is the scarce dimension on a phone
  *
  * ⛔ Measured in Chromium on the real geometry: three actions in one row at `px-5` need 383px against 288 available at
@@ -41,9 +48,17 @@ import type { ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
  * the constraint is systemic: any row of three actions on a narrow viewport hits it.
  */
 const BASE =
-    'inline-flex items-center justify-center gap-2 px-3 md:px-5 text-label transition ' +
+    'inline-flex shrink-0 max-w-full items-center justify-center gap-2 px-3 md:px-5 text-label transition ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 ' +
     `disabled:cursor-not-allowed disabled:opacity-40 ${BUSY_CONTROL_CLASS}`;
+
+/**
+ * The edge class of a ghost text button that STARTS a line in a column — the eyebrow back link, Version history: a
+ * negative start margin equal to {@link BASE}'s inline padding, so the LABEL, not the box, sits on the column edge its
+ * sibling headings share (F15). Kept beside `BASE` because the two change together; a test derives one from the other.
+ * Only for a button that starts a line: inside a row of controls, the box is what aligns.
+ */
+export const GHOST_EDGE_CLASS = '-ms-3 md:-ms-5';
 
 /**
  * Per-size geometry (§1.6: 52, 44 and 36 visual px).

@@ -15,19 +15,25 @@ appId: io.commise.mobile
       visible: 'Recent recipes'
       timeout: 40000
 
-# The unshipped 005–009 widgets render as SKELETON PLACEHOLDERS — present (not absent), each carrying the
-# real widget heading and a visible "Coming soon". Their feature packages don't exist yet, so this is the
-# placeholder shape with no invented data (CR-001), not the live widget.
-- assertVisible: "Today's Nutrition"
+# The unshipped 005–009 widgets render as SKELETON PLACEHOLDERS — present (not absent), grouped AFTER the recent
+# recipes under one "Coming soon" heading (owner ruling, `buildSpec.md` §4.2), each carrying the real widget
+# heading and a visible "Soon". Their feature packages don't exist yet, so this is the placeholder shape with no
+# invented data (CR-001), not the live widget.
+- scrollUntilVisible:
+      element: 'Coming soon'
+      direction: DOWN
+- scrollUntilVisible:
+      element: 'This week’s meals'
+      direction: DOWN
+- assertVisible: 'Today’s nutrition'
 - assertVisible: 'Resume cooking'
-- assertVisible: "This Week's Meals"
-- assertVisible: 'Coming soon'
+- assertVisible: 'Soon'
 
-# Tapping the recipe widget's entry point navigates into the recipes surface. It sits at the bottom of the
-# Home surface (below the roadmap placeholders), so scroll it into view first.
+# Tapping the recipe widget's entry point navigates into the recipes surface. It heads the Home surface, above the
+# placeholders, so scroll back up to it.
 - scrollUntilVisible:
       element: 'See all recipes'
-      direction: DOWN
+      direction: UP
 - tapOn: 'See all recipes'
 - extendedWaitUntil:
       visible: 'Recipes'

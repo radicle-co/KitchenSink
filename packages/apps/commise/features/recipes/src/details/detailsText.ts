@@ -6,7 +6,7 @@
  */
 import { spokenVariantParts } from '@commise/ui/variant-parts-line';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { IngredientDetailsMessages } from '../messages.js';
 import type { CurrentMark, DetailsDialogOutcome, DetailsDialogState, SettledSearch } from './detailsDialogMachine.js';
 import type { VariantRow } from './groupVariants.js';

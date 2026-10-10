@@ -52,7 +52,7 @@ import {
 import { useMessages } from '@commise/i18n/react';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
-import { Button, buttonSurfaceClass } from '@commise/ui/button';
+import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { ScrollHost, useScrollHost } from '@commise/ui/scroll-host';
 import { RecipeVisibility, canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
@@ -73,6 +73,7 @@ import { useState, type ComponentProps, type FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { dataSourcesHref } from '@/components/app/dataSourcesHref';
+import { RecipeLoadError } from '@/components/recipes/RecipeLoadError';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
 
@@ -113,30 +114,13 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
         <ClientQueryBoundary
             prefetchedKeys={[detail.queryKey]}
             loading={
-                <p
-                    role="status"
-                    aria-label={recipes.detail.loadingLabel}
-                    className="px-4 py-8 text-body-md text-ink-muted"
-                >
+                <p role="status" aria-label={recipes.detail.loadingLabel} className="py-8 text-body text-ink-muted">
                     {recipes.detail.loadingLabel}
                 </p>
             }
-            renderError={({ error, resetErrorBoundary }) => {
-                // A 404 is final, so it offers no retry; anything else — including an id that cannot name a recipe,
-                // where there is no evidence the recipe is gone — is the generic failure, whose retry refetches.
-                const notFound = isNotFoundError(error);
-
-                return (
-                    <div role="alert">
-                        <p>{notFound ? recipes.detail.notFoundTitle : recipes.detail.errorTitle}</p>
-                        {!notFound && (
-                            <button type="button" onClick={resetErrorBoundary}>
-                                {recipes.detail.retry}
-                            </button>
-                        )}
-                    </div>
-                );
-            }}
+            renderError={({ error, resetErrorBoundary }) => (
+                <RecipeLoadError error={error} onRetry={resetErrorBoundary} />
+            )}
             resetKeys={[id]}
         >
             <SettledRecipeDetail key={id} id={id} detail={detail} />
@@ -343,7 +327,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                     back={
                         <Link
                             href={`/${locale}/recipes` as Route}
-                            className={`${buttonSurfaceClass('ghost', 'sm')} self-start`}
+                            className={`${buttonSurfaceClass('ghost', 'sm')} ${GHOST_EDGE_CLASS} self-start`}
                         >
                             <Icon name="chevronLeft" size={16} />
                             {detailActions.backToRecipes}
@@ -371,7 +355,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
 
             {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently. */}
             {setVisibility.error !== null && (
-                <p role="alert" className="mx-auto max-w-detail px-4 text-meta text-danger-text">
+                <p role="alert" className="max-w-detail text-meta text-danger-text">
                     {visibilityCopy.error}
                 </p>
             )}

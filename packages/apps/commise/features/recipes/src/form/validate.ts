@@ -126,6 +126,12 @@ export const hasEntryText = (text: string): boolean => text.trim().length > 0;
  *     (identical codes for every case) forbids. Only the genuinely shared "positive"/"non-negative" rule is
  *     kept, as an explicit comparison.
  *
+ * ⛔ A LINE'S FOOD RESOLUTION IS NOT A REFUSAL, and must not become one here. The recipe service publishes any line whose
+ * binding exists, whatever its food's status (`ingredientLine.planner.ts` refuses only an unknown binding;
+ * `recipes.service.ts` only an empty list), and "Use as written" exists so a line with no food data can be published on
+ * purpose. A refusal the service does not make would be this validator drifting from it. A line that still asks the cook
+ * for a match keeps its section from reading complete instead (`editor/sectionStatus.ts`, UX F4).
+ *
  * ⛔ `pendingEntryText` is REQUIRED (`docs/design/ingredientStatusExplanation.md` §4b). Text typed into an ingredient
  * entry and not yet committed lives outside `values`, so a validator that read `values` alone passed a form whose
  * cook could see a name the save would drop. It is reported ahead of every other ingredient code, because it names

@@ -27,6 +27,7 @@ export function makeEditorResult(over: Partial<UseRecipeEditorResult> = {}): Use
         resume: undefined,
         pasteAvailable: true,
         pasteKeepsSource: true,
+        discardMayLeaveServerCopy: false,
         setValues: noop,
         setField: noop,
         dispatch: noop,

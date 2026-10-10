@@ -220,8 +220,9 @@ test.describe('recipe photo upload on a NEW recipe (slice 7)', () => {
             .getByRole('link', { name: 'Photos & publish' })
             .click();
 
-        // The checkpoint created the recipe: the URL is its edit address, and the manager is there.
-        await expect(page).toHaveURL(/\/recipes\/[^/]+\/edit/u);
+        // The checkpoint created the recipe: the URL names it (the new route's `?draft=` moves from the local ref to the
+        // server id, through Next's own shallow update), and the manager is there.
+        await expect(page).toHaveURL(/\/recipes\/new\?draft=(?!local)[^&#]+/u);
         await expect(photosRegion).toBeVisible();
 
         return photosRegion;
@@ -236,7 +237,8 @@ test.describe('recipe photo upload on a NEW recipe (slice 7)', () => {
         await mockFoodApi(page);
 
         const photosRegion = await createByCheckpoint(page);
-        const createdId = new URL(page.url()).pathname.split('/recipes/')[1]?.split('/')[0] ?? '';
+        // Once created, the new route's `?draft=` names the server id.
+        const createdId = new URL(page.url()).searchParams.get('draft') ?? '';
 
         await page.getByLabel('Add photo').setInputFiles({
             name: 'handover.png',
@@ -281,6 +283,6 @@ test.describe('recipe photo upload on a NEW recipe (slice 7)', () => {
 
         await expect(page.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
         await expect(page.getByRole('button', { name: /Retry upload of handover\.png/ })).toBeVisible();
-        await expect(page).toHaveURL(/\/recipes\/[^/]+\/edit/u);
+        await expect(page).toHaveURL(/\/recipes\/new\?draft=(?!local)[^&#]+/u);
     });
 });

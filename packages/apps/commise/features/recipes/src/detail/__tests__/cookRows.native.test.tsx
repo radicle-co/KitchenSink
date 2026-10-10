@@ -97,3 +97,33 @@ describe('StepRow (native)', () => {
         expect(screen.getByText('20 min')).not.toBeNull();
     });
 });
+
+describe('IngredientCheckRow (native) — the singular name for a count of one (D21)', () => {
+    const onion = makeIngredientView({
+        name: 'onions',
+        quantity: { kind: 'exact', value: 1 },
+        unit: 'large',
+        preparation: 'finely chopped',
+    });
+
+    it('shows and names "1 large onion", not "onions"', () => {
+        render(<IngredientCheckRow ingredient={onion} checked={false} allRemoved={false} onToggle={vi.fn()} />);
+
+        expect(screen.getByRole('checkbox', { name: '1 large onion, finely chopped' })).toBeTruthy();
+        expect(screen.getByText('onion')).toBeTruthy();
+        expect(screen.queryByText('onions')).toBeNull();
+    });
+
+    it('keeps the plural for two', () => {
+        render(
+            <IngredientCheckRow
+                ingredient={{ ...onion, quantity: { kind: 'exact', value: 2 }, unit: '' }}
+                checked={false}
+                allRemoved={false}
+                onToggle={vi.fn()}
+            />,
+        );
+
+        expect(screen.getByText('onions')).toBeTruthy();
+    });
+});

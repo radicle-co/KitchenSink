@@ -65,7 +65,7 @@ appId: io.commise.mobile
       label: 'a name our database has never seen settles UNRESOLVED on this stage, so row 6 has a line to show'
 
 # The panel never opens by itself: nothing is listed until the cook presses the attention line.
-- assertNotVisible: 'None of these — search for a different food'
+- assertNotVisible: 'Search for another food'
 - tapOn: 'Choose a match: .*'
 # The panel's own sentence, not `Which “…” did you mean?`: that names the group of OUR database's foods, and a name lands
 # `UNRESOLVED` only when that same search found none (the cascade's lexical tier binds any hit), so it never shows here.
@@ -74,7 +74,7 @@ appId: io.commise.mobile
       visible:
           text: 'We found more than one food this could be, and we need you to say which.'
       timeout: 30000
-- assertVisible: 'None of these — search for a different food'
+- assertVisible: 'Search for another food'
 # The line's own words were searched, and the source's foods arrived in the same panel, with no press.
 - extendedWaitUntil:
       visible:
@@ -92,7 +92,7 @@ appId: io.commise.mobile
       index: 0
 - extendedWaitUntil:
       notVisible:
-          text: 'None of these — search for a different food'
+          text: 'Search for another food'
       timeout: 40000
 - assertNotVisible: 'Choose a match'
 

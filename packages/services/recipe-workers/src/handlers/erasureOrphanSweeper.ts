@@ -9,6 +9,7 @@ import { getRecipeDb } from '../common/db.js';
 import { initObservability, withObservability } from '../common/observability.js';
 import { logger } from '../common/logger.js';
 import { emitMetric } from '../common/metrics.js';
+import { standsDownForTheNight } from '../common/nightlyWindow.js';
 import { eraseRecipeObjects } from './accountErasureWorker.js';
 
 /**
@@ -186,6 +187,10 @@ export function emitOrphansDeletedMetric(stage: string, orphansDeleted: number):
  *   reconciled media orphans (non-blocking on failure), emits one EMF line.
  */
 const rawHandler = async (): Promise<void> => {
+    if (standsDownForTheNight('erasure-orphan-sweeper')) {
+        return;
+    }
+
     // Both buckets are required up front: an unset media bucket would silently leave every media orphan
     // in place while the tick reported clean — the exact false-erasure this sweeper exists to prevent.
     const archiveBucket = requireEnv('RECIPE_ARCHIVE_BUCKET');

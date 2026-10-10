@@ -21,7 +21,7 @@ import { FieldLabel, Input, TextArea } from '@commise/ui/input';
 import { Sheet } from '@commise/ui/sheet';
 import { useId, type FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { COLLECTION_NAME_MAX_LENGTH, showsNameCounter } from './limits.js';
 import { collectionMessages } from './messages.js';
 import type { CollectionSheetProps } from './sheetModel.js';
@@ -59,13 +59,26 @@ export const CollectionSheet: FC<CollectionSheetProps> = (props) => {
                                 {renaming ? rename.failed : sheet.createFailed}
                             </p>
                         ) : null}
-                        <div className="flex flex-col-reverse gap-3 nav:flex-row nav:justify-end">
-                            <Button variant="ghost" onPress={requestClose}>
-                                {sheet.cancel}
-                            </Button>
-                            <Button icon={renaming ? 'check' : 'plus'} size="lg" busy={submitting} onPress={submit}>
-                                {renaming ? rename.save : sheet.create}
-                            </Button>
+                        {/* Below 840 the primary fills the sheet and the × is the only way out; at 840+ a ghost Cancel sits
+                            beside a content-width primary (`buildSpec.md` §5.1, F11). The primary's wrapper is a flex item:
+                            stretched in the column below 840, its content's width in the row above. */}
+                        <div className="flex flex-col gap-3 nav:flex-row nav:justify-end">
+                            <div className="hidden nav:block">
+                                <Button variant="ghost" onPress={requestClose}>
+                                    {sheet.cancel}
+                                </Button>
+                            </div>
+                            <div>
+                                <Button
+                                    icon={renaming ? 'check' : 'plus'}
+                                    size="lg"
+                                    width="fill"
+                                    busy={submitting}
+                                    onPress={submit}
+                                >
+                                    {renaming ? rename.save : sheet.create}
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 }

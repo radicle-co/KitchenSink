@@ -53,6 +53,17 @@ export interface StoredNutritionValue {
     readonly citationId: string | null;
 }
 
+/**
+ * One value per `(header, nutrient)`, the LAST one given winning — what a run of one-at-a-time upserts leaves behind,
+ * and what one multi-row `ON CONFLICT DO UPDATE` needs, since it refuses to touch one row twice. Pure.
+ *
+ * @param inputs - The values, in write order.
+ * @returns One value per `(header, nutrient)`, in order of each pair's first appearance.
+ */
+export function lastValuePerNutrient(inputs: readonly UpsertNutritionValueInput[]): UpsertNutritionValueInput[] {
+    return [...new Map(inputs.map((input) => [JSON.stringify([input.nutritionId, input.nutrientId]), input])).values()];
+}
+
 export class FoodNutritionDao {
     public constructor(private readonly db: FoodWriter) {}
 
@@ -129,21 +140,47 @@ export class FoodNutritionDao {
      * @sideEffect Inserts or updates one `food_nutrition_value` row.
      */
     public async upsertValue(input: UpsertNutritionValueInput): Promise<void> {
-        const basis = input.basis ?? 'per_100g';
+        await this.upsertValues([input]);
+    }
+
+    /**
+     * Write many values in ONE statement, each replacing the header's value for its nutrient. A statement per value
+     * was an N+1 on every food write (KITCHENSINK-FOOD-SERVICE-2/-8).
+     *
+     * ⛔ FOLDED FIRST, LAST WINS. Two source names can resolve to one dictionary entry, so a batch may name one
+     * `(header, nutrient)` twice — and a multi-row `ON CONFLICT DO UPDATE` refuses that outright ("cannot affect row
+     * a second time"). The one-at-a-time form let the later write overwrite the earlier, so the fold keeps the later.
+     *
+     * @param inputs - The values.
+     * @sideEffect Inserts or updates `food_nutrition_value` rows; sends nothing for an empty batch.
+     */
+    public async upsertValues(inputs: readonly UpsertNutritionValueInput[]): Promise<void> {
+        const folded = lastValuePerNutrient(inputs);
+
+        if (folded.length === 0) {
+            return;
+        }
 
         await this.db
             .insert(foodNutritionValue)
-            .values({
-                nutritionId: input.nutritionId,
-                nutrientId: input.nutrientId,
-                amount: input.amount,
-                trace: false,
-                basis,
-                citationId: input.citationId,
-            })
+            .values(
+                folded.map((input): NewFoodNutritionValueRow => ({
+                    nutritionId: input.nutritionId,
+                    nutrientId: input.nutrientId,
+                    amount: input.amount,
+                    trace: false,
+                    basis: input.basis ?? 'per_100g',
+                    citationId: input.citationId,
+                })),
+            )
             .onConflictDoUpdate({
                 target: [foodNutritionValue.nutritionId, foodNutritionValue.nutrientId],
-                set: { amount: input.amount, trace: false, basis, citationId: input.citationId },
+                set: {
+                    amount: sql`excluded.amount`,
+                    trace: false,
+                    basis: sql`excluded.basis`,
+                    citationId: sql`excluded.citation_id`,
+                },
             });
     }
 

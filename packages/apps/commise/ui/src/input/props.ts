@@ -92,8 +92,13 @@ export interface FieldLabelProps {
 export interface StepperProps {
     /** The control's id; its label is named by it. */
     readonly id: string;
-    /** The visible label, which names the group. */
+    /** The label, which names the group. */
     readonly label: string;
+    /**
+     * Whether the label shows. Defaults to `visible`. `hidden` keeps it as the group's name but out of sight, for a
+     * heading row that already says what the number is (the recipe page's "for {n}", `buildSpec.md` §6.1).
+     */
+    readonly labelVisibility?: 'visible' | 'hidden';
     /** The controlled value. */
     readonly value: number;
     /** The smallest value. Defaults to 1. */

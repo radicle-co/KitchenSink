@@ -11,9 +11,15 @@
  * recipe, Discard → My recipes), the URL that follows the recipe, and the web leaves (the status poller, the photo
  * uploader). What the page draws is `RecipeEditorView`'s.
  *
- * ⛔ The URL follows the recipe without a navigation: a new recipe's local ref is kept in `?draft=` so a reload in the
- * same tab reopens its draft (D7), and once the server has created it the URL becomes its edit address — both through
- * `history.replaceState`, because a router navigation would remount the page and reseed the editor mid-typing.
+ * ⛔ The URL follows a new recipe without a navigation, because a router navigation would remount the page and reseed
+ * the editor mid-typing. It stays on the new route: `?draft=` names the recipe's local ref, and once the server has
+ * created it, its server id. The new route, reopened (a reload, Back, Forward), goes to the edit route of a recipe the
+ * server holds — named by id, or by a local ref the outbox's journal resolved after the editor had closed — and opens
+ * the device draft otherwise (D7). ⛔ The URL is replaced through Next's own shallow-update path
+ * (`history.replaceState(null, …)`): passing `history.state` carries Next's `__NA` flag, which makes Next skip its
+ * router sync, so it never learned the URL, rewrote it on its next commit, and restored the new-recipe tree under an
+ * edit address on Back, where typing created a second recipe. The path never changes, so the tree Next records for the
+ * entry is always the tree that renders it.
  *
  * ⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload
  * endpoint takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).
@@ -47,19 +53,23 @@ import { Button } from '@commise/ui/button';
 import { useSyncQueue } from '@commise/query/sync';
 import { useAuth } from '@clerk/nextjs';
 import { canGoPrivate, makeViewer } from '@kitchensink/recipe-core';
-import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
+import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
+import { isLocalRef, outboxMutatorFor } from '@kitchensink/sync';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, type FC, type ReactNode } from 'react';
+import { useEffect, useState, type FC, type ReactNode } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
+import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { editorDraftsFor } from '@/components/recipes/editorDrafts';
 import { opensPasteSheet } from '@/components/recipes/pasteIngredientsHref';
 import { IngredientStatusPoller } from '@/components/recipes/IngredientStatusPoller';
+import { RecipeLoadError } from '@/components/recipes/RecipeLoadError';
 import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { isRecipeRouteId } from '@/lib/recipeRouteId';
 import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeEditorContainer}. */
@@ -94,13 +104,8 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
         return (
             <ClientQueryBoundary
                 loading={null}
-                renderError={({ resetErrorBoundary }) => (
-                    <div role="alert">
-                        <p>{recipes.detail.errorTitle}</p>
-                        <button type="button" onClick={resetErrorBoundary}>
-                            {recipes.detail.retry}
-                        </button>
-                    </div>
+                renderError={({ error, resetErrorBoundary }) => (
+                    <RecipeLoadError error={error} onRetry={resetErrorBoundary} />
                 )}
             >
                 <NewRecipeEditor locale={locale} opening={opening} />
@@ -113,21 +118,9 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
     return (
         <ClientQueryBoundary
             loading={loading}
-            renderError={({ error, resetErrorBoundary }) => {
-                // A 404 is final, so it offers no retry; anything else is the generic failure, whose retry refetches.
-                const notFound = isNotFoundError(error);
-
-                return (
-                    <div role="alert">
-                        <p>{notFound ? recipes.detail.notFoundTitle : recipes.detail.errorTitle}</p>
-                        {!notFound && (
-                            <button type="button" onClick={resetErrorBoundary}>
-                                {recipes.detail.retry}
-                            </button>
-                        )}
-                    </div>
-                );
-            }}
+            renderError={({ error, resetErrorBoundary }) => (
+                <RecipeLoadError error={error} onRetry={resetErrorBoundary} />
+            )}
             resetKeys={[recipeId]}
         >
             <StoredRecipeEditor key={recipeId} locale={locale} detail={detail} opening={opening} />
@@ -135,7 +128,7 @@ export const RecipeEditorContainer: FC<RecipeEditorContainerProps> = ({ locale, 
     );
 };
 
-/** A new recipe: blank, or its device draft when the URL names one (a reload in the same tab). */
+/** A new recipe: blank, its device draft when the URL names one, or — when the server holds it — its edit route. */
 const NewRecipeEditor: FC<{ readonly locale: string; readonly opening: number }> = ({ locale, opening }) => {
     const cook = useCookDrafts();
     const searchParams = useSearchParams();
@@ -150,16 +143,95 @@ const NewRecipeEditor: FC<{ readonly locale: string; readonly opening: number }>
     }
 
     return (
-        <SeededEditor
+        <DraftDestination
             key={draftRef ?? 'new'}
             locale={locale}
-            mode="create"
             cook={cook}
             draftRef={draftRef}
             opening={opening}
             openPaste={openPaste}
         />
     );
+};
+
+/** Where a `?draft=` ref leads: the recipe the server holds, or the device draft (a suspense read of the journal). */
+const DraftDestination: FC<{
+    readonly locale: string;
+    readonly cook: { readonly subject: string; readonly drafts: DraftStore };
+    readonly draftRef: string | undefined;
+    readonly opening: number;
+    readonly openPaste: boolean;
+}> = ({ locale, cook, draftRef, opening, openPaste }) => {
+    const stored = useStoredRecipeOf({ subject: cook.subject, ref: draftRef, opening });
+
+    if (stored !== undefined) {
+        return <OpenStoredRecipe locale={locale} recipeId={stored} />;
+    }
+
+    return (
+        <SeededEditor
+            locale={locale}
+            mode="create"
+            cook={cook}
+            draftRef={draftRef !== undefined && isLocalRef(draftRef) ? draftRef : undefined}
+            opening={opening}
+            openPaste={openPaste}
+        />
+    );
+};
+
+/**
+ * The server id a `?draft=` ref names: the ref itself when it is a recipe id, or what the outbox's journal resolved a
+ * local ref to (the editor closed before its create answered, and the outbox's observer moved the draft to the id).
+ * Read from the journal, not `useSyncQueue().resolutionOf`, which mirrors it only once the provider's own read lands.
+ *
+ * @sideEffect Reads the outbox journal once per opening of the editor.
+ */
+function useStoredRecipeOf(read: {
+    readonly subject: string;
+    readonly ref: string | undefined;
+    readonly opening: number;
+}): string | undefined {
+    const { subject, ref, opening } = read;
+    const { data } = useSuspenseQuery({
+        queryKey: ['editor', 'draftDestination', subject, ref ?? null, opening],
+        // TanStack refuses `undefined` data, so "a new recipe" is `null` here.
+        queryFn: async (): Promise<string | null> => {
+            if (ref === undefined) {
+                return null;
+            }
+
+            if (!isLocalRef(ref)) {
+                return isRecipeRouteId(ref) ? ref : null;
+            }
+
+            const log = await outboxMutatorFor(webDeviceStore, subject)
+                .read()
+                .catch(() => undefined);
+
+            return log?.resolutions[ref] ?? null;
+        },
+        // A device read, never paused offline, read fresh for each opening.
+        networkMode: 'always',
+        staleTime: Number.POSITIVE_INFINITY,
+        gcTime: 0,
+        retry: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+    });
+
+    return data ?? undefined;
+}
+
+/** The server holds this recipe: open its edit route in place of the new-recipe entry. @sideEffect Navigates. */
+const OpenStoredRecipe: FC<{ readonly locale: string; readonly recipeId: string }> = ({ locale, recipeId }) => {
+    const router = useRouter();
+
+    useEffect(() => {
+        router.replace(`/${locale}/recipes/${recipeId}/edit${window.location.hash}` as Route);
+    }, [router, locale, recipeId]);
+
+    return null;
 };
 
 /** An existing recipe, once read, with its device draft. */
@@ -222,12 +294,24 @@ interface RecipeEditorSessionProps {
     readonly openPaste: boolean;
 }
 
-/** Keep the URL on the recipe the editor holds, without a navigation. @sideEffect Replaces the history entry. */
+/**
+ * Keep a new recipe's URL on the recipe the editor holds — its local ref, then its server id — without a navigation,
+ * through Next's own shallow-update path (`null` state, so Next syncs its router to it). Never for a stored recipe: its
+ * edit route already names it.
+ *
+ * ⛔ Only while the URL is still the new route's. Browser Back or a link moves the URL before the editor unmounts, and
+ * the exit checkpoint the unmount runs mints the ref (and its create's answer adopts the id) after that: following it
+ * then overwrote the URL of the page the cook had gone to.
+ *
+ * @sideEffect Replaces the history entry.
+ */
 function replaceUrlFor(locale: string, ref: string): void {
-    const local = ref.startsWith('local:');
-    const path = local ? `/${locale}/recipes/new?draft=${encodeURIComponent(ref)}` : `/${locale}/recipes/${ref}/edit`;
+    if (!window.location.pathname.endsWith(`/${locale}/recipes/new`)) {
+        return;
+    }
 
-    window.history.replaceState(window.history.state, '', `${path}${window.location.hash}`);
+    // Relative: only the query changes, so the path (and a preview's base path, ADR-0033) is kept as it is.
+    window.history.replaceState(null, '', `?draft=${encodeURIComponent(ref)}${window.location.hash}`);
 }
 
 /** The editor over its seed. */
@@ -251,7 +335,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
         port: queue,
         drafts,
         navigation,
-        onRecipeRef: (ref) => replaceUrlFor(locale, ref),
+        ...(mode === 'create' ? { onRecipeRef: (ref: string) => replaceUrlFor(locale, ref) } : {}),
         openPaste,
     });
     const { editor, paste } = session;

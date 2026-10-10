@@ -41,7 +41,7 @@ import { useMemo } from 'react';
 import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
 import { env } from '../config/env.js';
 import { EditorDraftAnswers } from '../components/EditorDraftAnswers.js';
-import { nativeOutboxStore } from '../storage/deviceSession.js';
+import { nativeDeviceStore } from '../storage/deviceSession.js';
 
 /**
  * Mount the recipe-service client provider for the subtree.
@@ -101,7 +101,7 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
     return (
         <RecipeServiceProvider client={clients.recipe}>
             <FoodServiceProvider client={clients.food} subject={userId ?? undefined}>
-                <SyncProvider subject={userId ?? undefined} send={send} store={nativeOutboxStore}>
+                <SyncProvider subject={userId ?? undefined} send={send} store={nativeDeviceStore}>
                     {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
                         not the editor that queued them is still open. */}
                     <RecipeWriteCacheObserver />

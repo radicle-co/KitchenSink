@@ -125,6 +125,36 @@ describe('middleware matcher config', () => {
         expect(re.test('/_vercel/speed-insights/script.js')).toBe(false);
     });
 
+    /**
+     * Next serves `public/` at the ROOT (`public/images/auth/authFood.jpg` is `/images/auth/authFood.jpg`), so a
+     * static file never carries a locale. If the matcher admits it, the handler redirects it to `/en/images/…`, a
+     * path that does not exist, and the image optimiser answers "not a valid image": the sign-in photo rendered as a
+     * broken image at 1024 px and wider (evaluateFinal F3). A file with a static extension is never an app route.
+     */
+    it('excludes static files served from public/ at the root', async () => {
+        const { config } = await import('@/middleware');
+
+        const assetMatcher = config.matcher.find((m) => m.includes('_next/static'))!;
+        const re = new RegExp(`^${assetMatcher}$`);
+
+        for (const path of [
+            '/images/auth/authFood.jpg',
+            '/images/logo.png',
+            '/images/drawing.svg',
+            '/icons/app.webp',
+            '/favicon.ico',
+            '/site.webmanifest',
+            '/fonts/inter.woff2',
+        ]) {
+            expect(re.test(path), path).toBe(false);
+        }
+
+        // Pages, including a locale-less one with no extension, still reach the locale redirect.
+        expect(re.test('/images')).toBe(true);
+        expect(re.test('/en/recipes/01JAAAAAAAAAAAAAAAAAAAAAAA')).toBe(true);
+        expect(re.test('/recipes/new')).toBe(true);
+    });
+
     it('still matches an app path that merely CONTAINS the excluded names', async () => {
         // The exclusions are anchored prefixes, not substrings: a real recipe whose slug happens to read
         // `_vercel` or `sentry-tunnel` must still be locale-redirected like any other page.

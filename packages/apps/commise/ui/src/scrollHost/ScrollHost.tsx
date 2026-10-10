@@ -218,7 +218,8 @@ export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activatio
                 // (it carries `tabIndex={-1}`), without a second scroll.
                 target.scrollIntoView({ behavior: jumpBehavior(), block: 'start' });
                 target.focus({ preventScroll: true });
-                window.history.replaceState(window.history.state, '', `#${id}`);
+                // `null` state: Next's own shallow-update path, so its router learns the hash (`__NA` would skip that).
+                window.history.replaceState(null, '', `#${id}`);
                 setHeld(id);
             },
             headingLayout: () => undefined,

@@ -69,9 +69,12 @@ interface ClerkVariables {
 /** The CSS layer Clerk's own styles are placed in; `globals.css` orders it below `utilities`. */
 export const CLERK_CSS_LAYER = 'clerk';
 
-/** A text field: 48 px, a 12 px radius, a `lineControl` edge and a `focusRing` border that is the focus indicator. */
+/**
+ * A text field: 48 px, a 12 px radius, a `lineControl` edge and a `focusRing` border that is the focus indicator.
+ * `max-h-none` lifts Clerk's own `max-height: 2.25rem`, which held `h-12` at 36 px (F20).
+ */
 const FIELD =
-    'h-12 rounded-xl border border-line-control bg-paper px-4 text-body text-ink shadow-none outline-none ' +
+    'h-12 max-h-none rounded-md border border-line-control bg-paper px-4 text-body text-ink shadow-none outline-none ' +
     'focus:border-focus-ring focus:ring-2 focus:ring-focus-ring';
 
 /**
@@ -80,7 +83,7 @@ const FIELD =
  * 8 px to sit in.
  */
 const OTP_FIELD =
-    'h-12 rounded-xl border border-line-control bg-paper text-center text-body text-ink shadow-none outline-none ' +
+    'h-12 max-h-none rounded-md border border-line-control bg-paper text-center text-body text-ink shadow-none outline-none ' +
     'focus:border-focus-ring focus:ring-2 focus:ring-focus-ring';
 
 /**
@@ -140,6 +143,8 @@ export function clerkAppearanceFor(scheme: ColorSchemeName) {
             formFieldInput: FIELD,
             // An OTP field is one 6-digit input (SC 3.3.8 favours letting the OS fill it); its focused edge is the cue.
             otpCodeFieldInput: OTP_FIELD,
+            // Inside the 48 px field: a 44 px target, the coarse-pointer floor (it drew 32 × 30).
+            formFieldInputShowPasswordButton: 'min-h-11 min-w-11 text-ink-muted',
             formFieldAction: 'text-meta font-medium text-action-text hover:text-ink',
             // The filled primary: 52 px, the `action` fill with a white label, `actionPressed` on hover.
             formButtonPrimary:

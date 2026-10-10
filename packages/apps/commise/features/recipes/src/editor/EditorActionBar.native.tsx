@@ -27,6 +27,7 @@ export const EditorActionBar: FC<EditorActionBarProps> = ({
     primaryDisabled,
     busy,
     fixLine,
+    readyLine,
     notice,
 }) => {
     const { colors } = useTheme();
@@ -38,6 +39,9 @@ export const EditorActionBar: FC<EditorActionBarProps> = ({
             {notice}
             <LiveRegion politeness="polite" style={[styles.fix, { color: colors.dangerText }]}>
                 {fixLine ?? ''}
+            </LiveRegion>
+            <LiveRegion politeness="polite" style={[styles.fix, { color: colors.inkMuted }]}>
+                {readyLine ?? ''}
             </LiveRegion>
             <View collapsable={false} role="group" aria-label={label} style={styles.controls}>
                 <Button variant="secondary" icon="eye" onPress={onPreview} disabled={busy}>

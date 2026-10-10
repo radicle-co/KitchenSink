@@ -106,9 +106,10 @@ test.describe('recipe detail — configurable serving size', () => {
         await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
         await expect(page.getByRole('heading', { level: 1, name: 'Scalable Stew' })).toBeVisible();
 
-        const servings = page.getByLabel('Servings', { exact: true });
+        // The Stepper's group (F8): the count is its text, not a field's value.
+        const servings = page.getByRole('group', { name: 'Servings' });
         // DEFAULT: the count the recipe was created with, and nothing announced as adjusted.
-        await expect(servings).toHaveValue('4');
+        await expect(servings).toContainText('4');
         await expect(page.getByText(/Amounts scaled from/)).toHaveCount(0);
         await expect(page.getByText('1 tsp')).toBeVisible();
 
@@ -117,7 +118,7 @@ test.describe('recipe detail — configurable serving size', () => {
             await page.getByRole('button', { name: 'More servings' }).click();
         }
 
-        await expect(servings).toHaveValue('8');
+        await expect(servings).toContainText('8');
         await expect(page.getByText('2 tsp')).toBeVisible();
         await expect(page.getByText(/Amounts scaled from 4 servings/)).toBeVisible();
     });
@@ -154,8 +155,9 @@ test.describe('recipe detail — configurable serving size', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [scalable(viewerId)] });
 
         await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
-        const servings = page.getByLabel('Servings', { exact: true });
-        await expect(servings).toHaveValue('4');
+        // The Stepper's group (F8): the count is its text, not a field's value.
+        const servings = page.getByRole('group', { name: 'Servings' });
+        await expect(servings).toContainText('4');
 
         await page.getByRole('button', { name: 'More servings' }).click();
         await expect(page.getByText(/Amounts scaled from 4 servings/)).toBeVisible();
@@ -164,7 +166,7 @@ test.describe('recipe detail — configurable serving size', () => {
 
         // Back at the author's yield the disclosure disappears — the page is the recipe as written again. The note's
         // own Reset does the same in one press (§6.1).
-        await expect(servings).toHaveValue('4');
+        await expect(servings).toContainText('4');
         await expect(page.getByText(/Amounts scaled from/)).toHaveCount(0);
         await expect(page.getByText('1 tsp')).toBeVisible();
     });
@@ -175,14 +177,15 @@ test.describe('recipe detail — configurable serving size', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [scalable(viewerId)] });
 
         await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
-        const servings = page.getByLabel('Servings', { exact: true });
+        // The Stepper's group (F8): the count is its text, not a field's value.
+        const servings = page.getByRole('group', { name: 'Servings' });
         await page.getByRole('button', { name: 'More servings' }).click();
         await page.getByRole('button', { name: 'More servings' }).click();
-        await expect(servings).toHaveValue('6');
+        await expect(servings).toContainText('6');
 
         await page.getByRole('button', { name: 'Reset' }).click();
 
-        await expect(servings).toHaveValue('4');
+        await expect(servings).toContainText('4');
         await expect(page.getByText(/Amounts scaled from/)).toHaveCount(0);
     });
 });

@@ -6,16 +6,12 @@
  * owner's ruling of 2026-09-17 that the browser keeps no durable app data; it covers the editor's draft and the
  * editor's pending writes in the outbox journal (`deviceSession.ts`), which hold the same ids and form values.
  *
- * ⛔ ONE adapter for the whole app. `draftStoreFor` memoizes a store per adapter and cook, so the editor and the
- * outbox observer share one serial queue over the key only while they share this one object.
- *
- * The storage is read lazily, at each call, so importing this module during a server render touches nothing.
+ * ⛔ ONE store for the whole app (`webDeviceStore`): `draftStoreFor` memoizes a store per adapter and cook, so the editor,
+ * the outbox observer and the session end share one serial queue over the key only while they share that one object.
  */
 import { draftStoreFor, type DraftStore } from '@commise/features-recipes';
-import { createWebStorageStore } from '@kitchensink/sync';
 
-/** The tab's session storage, as the draft store's port. */
-export const editorDraftStorage = createWebStorageStore(() => window.sessionStorage);
+import { webDeviceStore } from '@/components/recipes/deviceSession';
 
 /**
  * The signed-in cook's draft store, or `undefined` while nobody is signed in.
@@ -24,5 +20,5 @@ export const editorDraftStorage = createWebStorageStore(() => window.sessionStor
  * @returns The memoized store. @sideEffect Records it for the next caller.
  */
 export function editorDraftsFor(subject: string | undefined): DraftStore | undefined {
-    return subject === undefined ? undefined : draftStoreFor(editorDraftStorage, subject);
+    return subject === undefined ? undefined : draftStoreFor(webDeviceStore, subject);
 }

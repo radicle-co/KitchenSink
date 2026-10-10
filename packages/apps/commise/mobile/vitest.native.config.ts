@@ -99,10 +99,9 @@ export default defineConfig({
             // that compose the virtualized recipe/collection/discovery lists render through this stub (same
             // approach as `expo-image`; virtualization is a device/Maestro concern).
             '@shopify/flash-list': path.resolve(import.meta.dirname, 'tests/stubs/flashList.tsx'),
-            // `expo-linear-gradient` / `expo-blur` (U8 brand surfaces + the Button primary CTA gradient)
-            // bridge to native views with no jsdom runtime — stub them; real gradient/blur is emulator-only.
+            // `expo-linear-gradient` (the brand gradient surface) bridges to a native view with no jsdom runtime —
+            // stub it; real gradient rendering is emulator-only.
             'expo-linear-gradient': path.resolve(import.meta.dirname, 'tests/stubs/expoLinearGradient.tsx'),
-            'expo-blur': path.resolve(import.meta.dirname, 'tests/stubs/expoBlur.tsx'),
             // `@commise/ui/keep-awake`'s native hold (Screen on) calls a native module with no jsdom runtime.
             'expo-keep-awake': fileURLToPath(import.meta.resolve('@commise/ui/testing/expo-keep-awake')),
             // F1 — the analytics event-id minter's native leaf delegates to expo-crypto (Hermes has no

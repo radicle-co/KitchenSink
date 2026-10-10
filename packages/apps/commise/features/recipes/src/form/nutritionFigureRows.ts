@@ -4,7 +4,7 @@
  */
 import type { Locale } from '@commise/i18n';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeFormMessages } from './messages.js';
 import type { LineFigures } from './nutrition.js';
 

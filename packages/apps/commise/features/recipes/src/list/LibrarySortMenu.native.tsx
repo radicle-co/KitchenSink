@@ -16,7 +16,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import { LIBRARY_SORTS, sortLabelOf } from './library.js';
-import { fillTemplate, type RecipeListSortControl } from './model.js';
+import { type RecipeListSortControl } from './model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 
 /**
  * The sort control.

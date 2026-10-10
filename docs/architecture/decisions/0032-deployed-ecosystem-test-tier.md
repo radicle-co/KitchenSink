@@ -104,9 +104,9 @@ per-PR k6 result as a throughput or concurrency figure, and do not "fix" the har
 one.** Four independent reasons, each sufficient:
 
 - **The target is not production-shaped.** A per-PR service is one 0.5-vCPU / 1 GB task at
-  `desiredCount = 1` on `FARGATE_SPOT` (ADR-0008; ADR-0010's `FOOD_DESIRED_COUNT=1`), sharing a
-  `db.t4g.micro` (`packages/infra/global/lib/platform/DataStack.ts:113-115`) with the sandbox tier and every
-  other live preview. Prod is `db.t4g.small`, on-demand Fargate, two tasks. A number measured on the first
+  `desiredCount = 1` on `FARGATE_SPOT` (ADR-0008; ADR-0010's `FOOD_DESIRED_COUNT=1`), sharing one
+  `db.t4g.small` (ADR-0007, `DataStack.ts`) with the sandbox tier and every other live preview. Prod has its own
+  `db.t4g.small`, on-demand Fargate, two tasks. A number measured on the first
   says nothing about the second, and a **preemptible** task says nothing reproducible about either.
 - **The neighbours are not controlled.** ADR-0006 gives each PR a logical database on one shared instance.
   Two previews load-testing at once measure each other.

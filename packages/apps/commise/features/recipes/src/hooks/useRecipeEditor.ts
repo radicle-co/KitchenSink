@@ -12,10 +12,17 @@
  *   changes (D1);
  * - the **server**, which answers through the outbox's settlement bus, correlated by the record's sequence number.
  *
+ * ⛔ **The editor's state is one value moved by pure transitions** (`editor/editorCore.ts`): the draft, what the server
+ * is known to hold (a discriminated union — a recipe never stored has a ref and nothing else), the rebind commands
+ * waiting for the lane and an open conflict. It is held outside React beside the lane, so a handler that runs the next
+ * write reads what the previous answer just taught rather than what the last render saw. What the containers read is a
+ * pure projection of it (`editor/editorView.ts`); what is sent is built by `editor/editorIntents.ts`. This hook binds
+ * those to the ports and to React, and decides nothing itself.
+ *
  * ⛔ **One server write per recipe at a time** (`editor/writeLane.ts`). Each update carries the version the previous
- * answer returned — the editor owns the CAS token (ADR-0057) — so a checkpoint that meets a write on the wire is deferred
- * and runs when the answer lands. Updates start only once the create has answered; before that a checkpoint re-submits
- * the create, which the outbox coalesces.
+ * answer returned — the editor owns the CAS token (ADR-0057) — so a checkpoint that meets a write on the wire, or a
+ * rebind command in the lane, is deferred and runs when the answer lands. Updates start only once the create has
+ * answered; before that a checkpoint re-submits the create, which the outbox coalesces.
  *
  * ⛔ **No stored recipe before the first input** (A4). A local ref is minted on the first change and keys the device draft
  * only; the server create waits for the draft floor (a title within the wire's bound). The ref is never sent as an id.
@@ -40,10 +47,10 @@
  * for its answer: the bar reads finishing meanwhile, and the draft is validated again when the Publish runs, because
  * the cook may have changed it. A write that parks ends the wait; the cook decides.
  *
- * Refs: none. Answers arrive through a subscription read by an Effect Event, and timers are effects keyed on the draft.
+ * Refs: none. Answers arrive through subscriptions read by Effect Events, and timers are effects keyed on the draft.
  *
- * @pattern State machine — the edit lifecycle as a `status`-discriminated union with a closed set of branches; the
- *     platform containers bind it and decide nothing themselves
+ * @pattern State machine — the edit lifecycle as a `status`-discriminated union over a pure reducer
+ *     (`editor/editorCore.ts`); the platform containers bind it and decide nothing themselves
  * @pattern Memento — the device draft, written and restored here and opaque to everyone else
  * @pattern Strategy — the checkpoint policy, keyed on the recipe's lifecycle
  * @pattern Command processor client — every server write is an intent submitted to the outbox, its answer correlated by
@@ -53,15 +60,9 @@
  */
 import type { Locale } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
-import {
-    RecipeStatus,
-    type RecipeDetail,
-    type RecipeSnapshot,
-    type VersionConflictSide,
-} from '@kitchensink/recipe-core';
+import type { RecipeDetail, VersionConflictSide } from '@kitchensink/recipe-core';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import {
-    classifyFailure,
     isLocalRef,
     mintLocalRef,
     type FailureClass,
@@ -69,7 +70,16 @@ import {
     type SettlementEvent,
     type SyncFailure,
 } from '@kitchensink/sync';
-import { useCallback, useEffect, useEffectEvent, useState, useSyncExternalStore } from 'react';
+import {
+    useCallback,
+    useEffect,
+    useEffectEvent,
+    useMemo,
+    useState,
+    useSyncExternalStore,
+    type Dispatch,
+    type SetStateAction,
+} from 'react';
 
 import {
     DEVICE_SAVE_IDLE_MS,
@@ -82,34 +92,46 @@ import {
     type RecipeLifecycle,
 } from '../editor/checkpointPolicy.js';
 import { toDraftValues, type DraftMemento, type DraftStore } from '../editor/draftStore.js';
-import { gateOutcomeOf, type GateOutcome } from '../editor/gate.js';
 import {
-    saveStatusOf,
-    type DraftKeep,
-    type MementoWrite,
-    type OutboxSlot,
-    type SaveStatus,
-} from '../editor/saveStatus.js';
-import { createLaneStore, type OutstandingWrite } from '../editor/writeLane.js';
+    commandAddressOf,
+    createEditorCoreStore,
+    heldOf,
+    liveHeldRebinds,
+    seedEditorCore,
+    serverIdOf,
+    serverValuesOf,
+    type ConflictInfo,
+    type ConflictView,
+    type EditorCoreState,
+    type EditorCoreStore,
+} from '../editor/editorCore.js';
+import { recipeWriteIntent } from '../editor/editorIntents.js';
+import {
+    conflictInfoOf,
+    earlierParkedOf,
+    editorViewOf,
+    isFinishingTrigger,
+    liveRecipeOf,
+    outstandingOf,
+} from '../editor/editorView.js';
+import { gateOutcomeOf, type GateOutcome } from '../editor/gate.js';
+import type { PasteHold } from '../editor/pasteHold.js';
+import type { DraftKeep, MementoWrite, SaveStatus } from '../editor/saveStatus.js';
+import { createLaneStore, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
-import { isStoredLine, persistedLineKeysOf, storedPositionOf, type IngredientLineKey } from '../form/lineKey.js';
-import { applyDraftAction } from '../form/props.js';
+import { isStoredLine, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
 import { draftFloorErrors, validateRecipeForm, type RecipeFormErrors } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
-import { toCreateRecipeInput, toRecipeFormValues, toUpdateRecipeInput } from '../form/wire.js';
-import { recipeMessages } from '../messages.js';
-import { computeConflictDiff, type ConflictDiff } from '../versions/conflictDiff.js';
-import {
-    applyServerSnapshotToRecipeDetail,
-    composeConflictMerge,
-    draftToSnapshot,
-    type RecipeMergeSelections,
-} from '../versions/merge.js';
+import { toRecipeFormValues } from '../form/wire.js';
+import { recipeMessages, type IngredientLineNameMessages } from '../messages.js';
+import { composeConflictMerge, type RecipeMergeSelections } from '../versions/merge.js';
 import {
     lineBindingOf,
     onceLineCommand,
     type LineCommandAddress,
     type LineCommandPort,
+    type LineCommandSend,
+    type LineCommandOutcome,
     type PendingRebind,
     type QueuedLineCommand,
     type RebindLineSend,
@@ -158,33 +180,12 @@ export interface EditorSeed {
 export type EditorState =
     | { readonly status: 'editing' }
     | { readonly status: 'finishing' }
-    | {
+    | ({
           readonly status: 'conflict';
-          /** The winning server copy as a displayable recipe, built from the 409's own `server` side. */
-          readonly theirs: RecipeDetail;
-          /** The draft that lost the race. */
-          readonly draft: RecipeFormValues;
-          readonly mergeSelections: RecipeMergeSelections;
-          readonly server: VersionConflictSide;
-          /** The version the draft was edited from, when the server still has it. A never-published draft has none. */
-          readonly base?: VersionConflictSide;
-          readonly mineSnapshot: RecipeSnapshot;
-          readonly diff: ConflictDiff;
-          /** `server.versionNumber - (base?.versionNumber ?? 0)`. */
-          readonly versionsBehind: number;
-          /** The recipe was never published: it has no versions (ADR-0058), and the view must not speak of history. */
-          readonly neverPublished: boolean;
           /** A resolution's write is on its way. */
           readonly isResolving: boolean;
-      }
+      } & ConflictView)
     | { readonly status: 'done' };
-
-/** The conflict's data, as the editor stores it: the parked write it came from, if it came from one. */
-type ConflictInfo = Omit<Extract<EditorState, { status: 'conflict' }>, 'isResolving'> & {
-    readonly parkedSeq: number | undefined;
-    /** The trigger of the write that met the 409, so a resolution's resend keeps its intent (a Publish still publishes). */
-    readonly trigger: CheckpointTrigger;
-};
 
 /** How the editor handed off. */
 export type EditorExit =
@@ -211,8 +212,18 @@ export interface UseRecipeEditorOptions {
     readonly onRecipeRef?: (ref: string) => void;
     /** Sends one rebind command: how Save changes drains a published recipe's held re-picks (`useRebindIngredientLine`). */
     readonly rebindLine: RebindLineSend;
-    /** Whether a pasted list is still joining the draft: it holds the server create (`serverWriteFor`). */
-    readonly pastePending: boolean;
+    /**
+     * Whether a pasted list is still joining the draft: it holds the server create (`serverWriteFor`).
+     *
+     * @deprecated Pass {@link pasteHold} instead: a value passed here is copied through render, one render late.
+     */
+    readonly pastePending?: boolean;
+    /**
+     * The shared paste hold (`editor/pasteHold.ts`), made BEFORE the editor and the paste and handed to both: the paste
+     * writes it where its own state changes, and a checkpoint reads it when it runs. Either it or {@link pastePending}
+     * holding is enough to hold the create.
+     */
+    readonly pasteHold?: PasteHold;
     /** The clock, for the draft's `savedAt`. */
     readonly now?: () => Date;
 }
@@ -248,6 +259,12 @@ export interface UseRecipeEditorResult {
     readonly pasteAvailable: boolean;
     /** Whether a pasted line joining now keeps its source: only until the create is submitted (`pastedLineKeepsSource`). */
     readonly pasteKeepsSource: boolean;
+    /**
+     * Whether a Discard now may leave a copy on the server that nothing can delete: the only server state is a create
+     * whose outcome is unknown (it may have reached the server). The container tells the cook when it asks them to
+     * confirm (code-reviewer High 1); the editor never guesses a delete for it.
+     */
+    readonly discardMayLeaveServerCopy: boolean;
     readonly setValues: (values: RecipeFormValues) => void;
     readonly setField: <K extends keyof RecipeFormValues>(field: K, value: RecipeFormValues[K]) => void;
     /** Apply one draft transition to the draft as it is when it lands. Stable. */
@@ -280,6 +297,9 @@ export interface UseRecipeEditorResult {
     };
 }
 
+/** An answer on the settlement bus. */
+type Settlement = SettlementEvent<EditorWriteAnswer>;
+
 /** How a queued rebind command ended, before the editor adopts it. */
 type LineCommandAnswer =
     | { readonly kind: 'recipe'; readonly detail: RecipeDetail; readonly address: LineCommandAddress }
@@ -288,43 +308,899 @@ type LineCommandAnswer =
     | { readonly kind: 'overtaken' }
     | { readonly kind: 'failed' };
 
-/** What the editor knows of the server: what a write is built against. */
-interface ServerFacts {
-    readonly serverId: string | undefined;
-    /** The version the next update names (`expectedVersion`). */
-    readonly baseVersion: number | null;
-    /** What the server holds, as form values: a checkpoint with nothing new is not sent. */
-    readonly serverValues: RecipeFormValues | undefined;
-    readonly lifecycle: RecipeLifecycle;
-    readonly recipeRef: string | undefined;
-    /** The recipe the server last answered with, when the caller has it: a Save changes with nothing left hands off to it. */
-    readonly recipe?: RecipeDetail;
+/** What the last Publish or Save changes left: its errors, whether one was refused, and the entry text it had. */
+interface GateState {
+    readonly errors: RecipeFormErrors;
+    readonly attempted: boolean;
+    /** What the ingredient entry held when Publish or Save changes was pressed: a deferred one is validated with it. */
+    readonly entryText: string;
 }
 
-/** What a checkpoint is built from, beyond this render's draft and facts. */
+/**
+ * Everything the editor's commands work against, rebuilt each render. The stores are the same objects for the editor's
+ * life and are read with `get()`, so a command reads the current state; the rest is this render's options and setters.
+ */
+interface EditorContext {
+    readonly core: EditorCoreStore;
+    readonly lane: LaneStore<Settlement>;
+    readonly opts: UseRecipeEditorOptions;
+    /** The container's current read: a newer read of the same recipe refreshes its status (`liveRecipeOf`). */
+    readonly seedRecipe: RecipeDetail | undefined;
+    readonly now: () => Date;
+    readonly lineNames: IngredientLineNameMessages;
+    readonly memento: MementoWrite;
+    readonly setMemento: Dispatch<SetStateAction<MementoWrite>>;
+    readonly gate: GateState;
+    readonly setGate: Dispatch<SetStateAction<GateState>>;
+    readonly clearResume: () => void;
+}
+
+/** What a checkpoint knows beyond the stores. */
 interface CheckpointOptions {
-    readonly draft?: RecipeFormValues;
-    /** What the server holds when the caller knows more than this render (an answer, a withdrawal). */
-    readonly facts?: ServerFacts;
-    /** The caller has just cleared the lane: this render's conflict and command readings are stale. */
-    readonly fresh?: boolean;
+    /** A parked record the caller has just withdrawn: the outbox may still list it. */
+    readonly withdrawn?: number;
+    /** The held re-picks a Save changes drained have just landed: a save with nothing else to send hands off. */
+    readonly drained?: boolean;
 }
 
-/** The trigger a finishing write uses for a lifecycle. */
+/** The trigger a finishing write uses for a lifecycle. Pure. */
 function finishingTrigger(lifecycle: RecipeLifecycle): CheckpointTrigger {
     return lifecycle === 'published' ? 'saveChanges' : 'publish';
 }
 
-/** Whether a trigger finishes the edit: its answer takes the cook to the recipe. */
-function isFinishing(trigger: CheckpointTrigger | undefined): boolean {
-    return trigger === 'publish' || trigger === 'saveChanges';
+/** The lifecycle as of now. */
+function lifecycleNow(ctx: EditorContext): RecipeLifecycle {
+    return lifecycleOf(liveRecipeOf(ctx.core.get().server, ctx.seedRecipe));
 }
 
-/** The held rebinds with one per line, the later of two for the same line winning, in the order first held. Pure. */
-function coalesceRebinds(rebinds: readonly PendingRebind[]): readonly PendingRebind[] {
-    const latest = new Map(rebinds.map((rebind) => [rebind.lineKey, rebind]));
+/** Whether the editor has handed off: closed in the lane, which a same-tick trigger reads synchronously. */
+function isClosed(ctx: EditorContext): boolean {
+    return ctx.lane.get().closed === true;
+}
 
-    return [...latest.values()];
+/** The write the editor waits on as of now, an earlier session's parked record included. */
+function outstandingNow(ctx: EditorContext, withdrawn?: number): OutstandingWrite | undefined {
+    const lane = ctx.lane.get();
+    const { server, draft } = ctx.core.get();
+    const earlier = earlierParkedOf({ failures: ctx.opts.port.failures, lane, ref: server.ref, withdrawn });
+
+    return outstandingOf(lane, earlier, draft);
+}
+
+/** Whether a paste is still joining: it holds the create. */
+function pasteHeld(ctx: EditorContext): boolean {
+    return ctx.opts.pastePending === true || ctx.opts.pasteHold?.get() === true;
+}
+
+// ── The device draft ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The ref the draft is kept under, minted on the first input of a new recipe (A4). @sideEffect */
+function ensureRef(ctx: EditorContext): string {
+    const { server } = ctx.core.get();
+
+    if (server.ref !== undefined) {
+        return server.ref;
+    }
+
+    const minted = mintLocalRef('recipe');
+    ctx.core.dispatch({ type: 'refMinted', ref: minted });
+    ctx.opts.onRecipeRef?.(minted);
+
+    return minted;
+}
+
+/** Keep the draft on the device. @sideEffect */
+function saveDevice(ctx: EditorContext, draft: RecipeFormValues): void {
+    const ref = ensureRef(ctx);
+    const { server } = ctx.core.get();
+
+    ctx.setMemento('writing');
+    void ctx.opts.drafts
+        .save({
+            recipeRef: ref,
+            baseVersion: server.baseVersion,
+            values: toDraftValues(draft),
+            pendingRebinds: heldOf(server),
+            savedAt: ctx.now().toISOString(),
+        })
+        .then(
+            () => {
+                ctx.setMemento((current) => (current === 'writing' ? 'written' : current));
+            },
+            () => {
+                ctx.setMemento('failed');
+            },
+        );
+}
+
+/** Write the draft to the device, or remove it once the server holds exactly this draft. @sideEffect */
+function writeDevice(ctx: EditorContext): void {
+    // A timer can fire after the hand-off and before the render that clears it: the draft is gone, not to be rewritten.
+    if (isClosed(ctx)) {
+        return;
+    }
+
+    const { draft, server } = ctx.core.get();
+
+    if (server.kind === 'unsaved' && recipeFormValuesEqual(draft, defaultRecipeFormValues())) {
+        // No stored recipe before the first input: opening New recipe and leaving creates nothing.
+        return;
+    }
+
+    if (server.kind === 'unsaved' || !recipeFormValuesEqual(draft, server.values)) {
+        saveDevice(ctx, draft);
+
+        return;
+    }
+
+    if (ctx.memento !== 'none') {
+        ctx.setMemento('none');
+        void ctx.opts.drafts.discard(server.ref);
+    }
+}
+
+// ── The server write, through the outbox ─────────────────────────────────────────────────────────────────────────────
+
+/** Whether something already stands in the lane that only the cook can clear: a conflict, or a parked write. */
+function laneHeldForCook(ctx: EditorContext, withdrawn: number | undefined): boolean {
+    return (
+        ctx.core.get().conflict !== undefined ||
+        ctx.lane.get().outstanding?.parked === true ||
+        outstandingNow(ctx, withdrawn)?.parked === true
+    );
+}
+
+/** A held re-pick's rebind command, for the drain. */
+function drainCommand(ctx: EditorContext, rebind: PendingRebind): QueuedLineCommand {
+    return {
+        ...onceLineCommand(
+            rebind.lineKey,
+            (address) => ctx.opts.rebindLine(address, rebind.target),
+            () => undefined,
+        ),
+        held: rebind,
+    };
+}
+
+/**
+ * A published recipe's held re-picks go first, through the command queue; the Save changes runs once they drain.
+ * ⛔ Each stays held (so in the device draft) until its own rebind answers: a leave or a dead process mid-drain must not
+ * lose a re-pick whose teaching never reached the server.
+ *
+ * @returns Whether re-picks are draining: the Save changes waits for them. @sideEffect Queues their commands.
+ */
+function drainHeld(ctx: EditorContext): boolean {
+    const { server, draft, commands } = ctx.core.get();
+    const held = heldOf(server);
+
+    if (lifecycleNow(ctx) !== 'published' || held.length === 0) {
+        return false;
+    }
+
+    const live = liveHeldRebinds(server, draft);
+    const dropped = held.filter((rebind) => !live.includes(rebind));
+
+    if (dropped.length > 0) {
+        ctx.core.dispatch({ type: 'heldDropped', dropped });
+    }
+
+    if (live.length === 0) {
+        return false;
+    }
+
+    const unqueued = live.filter((rebind) => !commands.some((command) => command.held === rebind));
+
+    ctx.core.dispatch({ type: 'commandsQueued', commands: unqueued.map((rebind) => drainCommand(ctx, rebind)) });
+
+    return true;
+}
+
+/** Record what the outbox did with a submitted write. @sideEffect Moves the lane. */
+function recordSubmit(
+    ctx: EditorContext,
+    outcome: EditorSubmitOutcome,
+    sent: Omit<OutstandingWrite, 'seq' | 'parked'> & {
+        readonly trigger: CheckpointTrigger;
+    },
+): void {
+    if (outcome.kind === 'inFlight') {
+        ctx.lane.dispatch({ type: 'refusedInFlight', trigger: sent.trigger });
+
+        return;
+    }
+
+    ctx.lane.dispatch({
+        type: 'queued',
+        seq: outcome.seq,
+        kind: sent.kind,
+        sent: sent.sent,
+        finishing: sent.finishing,
+    });
+
+    if (outcome.kind === 'parked') {
+        // A write parked earlier stands in the way: the lane tracks it, so its failure shows and Retry can withdraw it
+        // with the cook's consent.
+        ctx.lane.dispatch({ type: 'parked', seq: outcome.seq });
+    }
+}
+
+/** A Save changes the held rebinds completed on their own: the device draft is done, and the editor hands off. */
+function handOffSaved(ctx: EditorContext, detail: RecipeDetail): void {
+    void ctx.opts.drafts.discard(detail.id);
+    ctx.lane.dispatch({ type: 'closed' });
+    ctx.opts.onExit({ kind: 'changesSaved', recipe: detail });
+}
+
+/** Submit the server write the policy asks for, if any. @sideEffect Submits to the outbox and moves the lane. */
+function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: boolean): void {
+    const { draft, server } = ctx.core.get();
+    const serverValues = serverValuesOf(server);
+    const write = serverWriteFor({
+        trigger,
+        lifecycle: lifecycleNow(ctx),
+        draftFloorMet: Object.keys(draftFloorErrors(draft)).length === 0,
+        changedSinceServerWrite: serverValues === undefined || !recipeFormValuesEqual(draft, serverValues),
+        pastePending: pasteHeld(ctx),
+    });
+
+    if (write.kind === 'none') {
+        // Save changes whose held re-picks were all it had: the rebinds made the save, so the editor hands off.
+        if (trigger === 'saveChanges' && drained && server.kind === 'stored') {
+            handOffSaved(ctx, server.recipe);
+        }
+
+        return;
+    }
+
+    const intent = recipeWriteIntent({ server, draft, ref: ensureRef(ctx), publish: write.publish });
+    const kind = intent.intentKind === 'create' ? 'create' : 'update';
+    const finishing = isFinishingTrigger(trigger);
+
+    void ctx.opts.port.submitExclusive(intent).then(
+        (outcome) => {
+            recordSubmit(ctx, outcome, { trigger, kind, sent: draft, finishing });
+        },
+        () => {
+            ctx.setMemento('failed');
+        },
+    );
+}
+
+/**
+ * Write the device draft and, when the policy says so, submit the server write for `trigger`. A write already in the
+ * lane, a rebind command, or the held re-picks a Save changes drains first, defer it.
+ *
+ * @sideEffect Writes the device draft, submits to the outbox and moves the lane.
+ */
+function runCheckpoint(ctx: EditorContext, trigger: CheckpointTrigger, options: CheckpointOptions = {}): void {
+    if (isClosed(ctx)) {
+        return;
+    }
+
+    writeDevice(ctx);
+
+    if (laneHeldForCook(ctx, options.withdrawn)) {
+        return;
+    }
+
+    if (ctx.core.get().commands.length > 0 || (trigger === 'saveChanges' && drainHeld(ctx))) {
+        ctx.lane.dispatch({ type: 'refusedInFlight', trigger });
+
+        return;
+    }
+
+    submitWrite(ctx, trigger, options.drained === true);
+}
+
+/**
+ * Validate the draft for a Publish or Save changes, recording the errors (and the refusal) for the form.
+ *
+ * @returns The gate's outcome. @sideEffect Sets the gate's state.
+ */
+function checkGate(ctx: EditorContext, entryText: string): Exclude<GateOutcome, { readonly kind: 'busy' }> {
+    const found = validateRecipeForm(ctx.core.get().draft, entryText);
+    const outcome = gateOutcomeOf(found);
+
+    ctx.setGate((gate) => ({ errors: found, attempted: gate.attempted || outcome.kind === 'refused', entryText }));
+
+    return outcome;
+}
+
+/**
+ * Run the trigger a write on the wire deferred. A deferred Publish or Save changes is validated again first, with the
+ * entry text it was pressed with: the cook may have changed the draft while it waited, and a refusal then is a refused
+ * Publish like any other.
+ *
+ * @sideEffect Moves the lane, and may set the gate's errors or submit to the outbox.
+ */
+function runDeferred(ctx: EditorContext, options: CheckpointOptions = {}): void {
+    const { deferred, outstanding } = ctx.lane.get();
+
+    if (deferred === undefined || outstanding !== undefined) {
+        return;
+    }
+
+    ctx.lane.dispatch({ type: 'deferredTaken' });
+
+    if (isFinishingTrigger(deferred) && checkGate(ctx, ctx.gate.entryText).kind === 'refused') {
+        return;
+    }
+
+    runCheckpoint(ctx, deferred, options);
+}
+
+// ── Answers ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The conflict view for the draft as it is now, or `null` when the sides already agree. */
+function conflictFor(
+    ctx: EditorContext,
+    server: VersionConflictSide,
+    base: VersionConflictSide | undefined,
+    meta: Pick<ConflictInfo, 'parkedSeq' | 'trigger'>,
+): ConflictInfo | null {
+    return conflictInfoOf({
+        server,
+        base,
+        draft: ctx.core.get().draft,
+        live: liveRecipeOf(ctx.core.get().server, ctx.seedRecipe),
+        lifecycle: lifecycleNow(ctx),
+        locale: ctx.opts.locale,
+        lineNames: ctx.lineNames,
+        ...meta,
+    });
+}
+
+/** A synced answer for the outstanding write: the server facts move, and a finishing write hands off. @sideEffect */
+function adoptWritten(ctx: EditorContext, detail: RecipeDetail, pending: OutstandingWrite): void {
+    const previousRef = ctx.core.get().server.ref;
+    const wasPublished = lifecycleNow(ctx) === 'published';
+
+    ctx.core.dispatch({ type: 'written', detail, sent: pending.sent });
+
+    if (previousRef !== undefined && isLocalRef(previousRef)) {
+        ctx.opts.onRecipeRef?.(detail.id);
+    }
+
+    if (previousRef !== undefined) {
+        void ctx.opts.drafts.adopt(previousRef, { serverId: detail.id, version: detail.currentVersion });
+    }
+
+    if (!pending.finishing) {
+        return;
+    }
+
+    // The recipe is on the server as the cook asked: the device draft has done its job.
+    void ctx.opts.drafts.discard(detail.id);
+    ctx.lane.dispatch({ type: 'closed' });
+    ctx.opts.onExit(
+        wasPublished
+            ? { kind: 'changesSaved', recipe: detail }
+            : { kind: 'published', recipe: detail, firstPublish: true },
+    );
+}
+
+/** A phantom 409: the server already holds the draft's content. Withdraw and resend at its version. @sideEffect */
+function resendPhantom(ctx: EditorContext, seq: number, version: number, trigger: CheckpointTrigger): void {
+    void ctx.opts.port.withdraw(seq).then(() => {
+        ctx.lane.dispatch({ type: 'withdrawn', seq });
+        ctx.core.dispatch({ type: 'versionAdopted', version });
+        runCheckpoint(ctx, trigger, { withdrawn: seq });
+    });
+}
+
+/** A parked answer for the outstanding write. @sideEffect */
+function onParked(ctx: EditorContext, event: Settlement, pending: OutstandingWrite): void {
+    ctx.lane.dispatch({ type: 'parked', seq: event.seq });
+
+    if (event.answer?.kind !== 'recipeConflict') {
+        // A parked write waits for the cook, and so does whatever waited behind it: nothing publishes past them.
+        ctx.lane.dispatch({ type: 'deferredTaken' });
+
+        return;
+    }
+
+    const trigger = pending.finishing ? finishingTrigger(lifecycleNow(ctx)) : 'sectionChange';
+    const info = conflictFor(ctx, event.answer.server, event.answer.base, { parkedSeq: event.seq, trigger });
+
+    if (info === null) {
+        resendPhantom(ctx, event.seq, event.answer.server.versionNumber, trigger);
+
+        return;
+    }
+
+    ctx.lane.dispatch({ type: 'deferredTaken' });
+    ctx.core.dispatch({ type: 'conflictOpened', info });
+}
+
+/** An answer on the settlement bus. @sideEffect */
+function onSettled(ctx: EditorContext, event: Settlement): void {
+    const pending = ctx.lane.get().outstanding;
+
+    if (pending === undefined || event.seq !== pending.seq) {
+        // ⛔ The outbox may answer before `submitExclusive` has told the editor this record's number.
+        if (event.entity === 'recipe') {
+            ctx.lane.keepEarly(event.seq, event);
+        }
+
+        return;
+    }
+
+    if (event.outcome !== 'synced') {
+        onParked(ctx, event, pending);
+
+        return;
+    }
+
+    ctx.lane.dispatch({ type: 'synced', seq: event.seq });
+
+    if (event.answer?.kind === 'recipeWritten') {
+        adoptWritten(ctx, event.answer.detail, pending);
+
+        if (!pending.finishing) {
+            runDeferred(ctx);
+        }
+    }
+}
+
+// ── The rebind command (ADR-0045) ────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A held rebind that did not land stops the Save changes it was drained for: nothing more is sent. It and the held
+ * rebinds queued behind it stay held, so only their commands go. @sideEffect
+ */
+function stopDrain(ctx: EditorContext, command: QueuedLineCommand, failed: boolean): void {
+    if (command.held === undefined) {
+        return;
+    }
+
+    ctx.core.dispatch({ type: 'drainCommandsCleared' });
+    ctx.lane.dispatch({ type: 'deferredTaken' });
+
+    if (failed) {
+        ctx.core.dispatch({ type: 'drainFailed' });
+    }
+}
+
+/** The queue is empty: what waited for it runs. @sideEffect */
+function afterLastCommand(ctx: EditorContext, options: CheckpointOptions = {}): void {
+    if (ctx.core.get().commands.length === 0) {
+        runDeferred(ctx, options);
+    }
+}
+
+/** A command that changed nothing. @sideEffect */
+function commandFailed(ctx: EditorContext, command: QueuedLineCommand): void {
+    command.settle({ kind: 'failed' });
+    stopDrain(ctx, command, true);
+
+    if (command.held === undefined) {
+        afterLastCommand(ctx);
+    }
+}
+
+/** A command the server refused with a 409. @sideEffect */
+function commandRefused(
+    ctx: EditorContext,
+    command: QueuedLineCommand,
+    answer: Extract<LineCommandAnswer, { kind: 'refused' }>,
+): void {
+    const info = conflictFor(ctx, answer.server, answer.base, {
+        parkedSeq: undefined,
+        trigger: command.held === undefined ? 'sectionChange' : 'saveChanges',
+    });
+
+    if (info === null) {
+        // The draft already agrees with the server: adopt its version so the next pick is not refused again.
+        // ⛔ Never the phantom resend: that would turn a Change food into a save, which teaches nothing.
+        ctx.core.dispatch({ type: 'versionAdopted', version: answer.server.versionNumber });
+        command.settle({ kind: 'failed' });
+        stopDrain(ctx, command, true);
+
+        return;
+    }
+
+    ctx.core.dispatch({ type: 'conflictOpened', info });
+    command.settle({ kind: 'conflict' });
+    stopDrain(ctx, command, false);
+}
+
+/** A command that made a version: the line and the server facts move, and what waited runs. @sideEffect */
+function commandLanded(
+    ctx: EditorContext,
+    command: QueuedLineCommand,
+    { detail, address }: Extract<LineCommandAnswer, { kind: 'recipe' }>,
+): void {
+    const line = toRecipeFormValues(detail).ingredients[address.position];
+    // A rebind makes at most one version; an answer further on means another writer's save landed in between, and
+    // adopting it would let the next write overwrite theirs. The next write meets the 409 instead.
+    const adoptable =
+        detail.currentVersion === address.expectedVersion || detail.currentVersion === address.expectedVersion + 1;
+
+    // ⚠️ `line` is an index read (`noUncheckedIndexedAccess` is off): the guard is live, whatever a linter says.
+    if (!adoptable || line === undefined || !isStoredLine(line)) {
+        commandFailed(ctx, command);
+
+        return;
+    }
+
+    const binding = lineBindingOf(line);
+
+    ctx.core.dispatch({ type: 'rebound', detail, key: command.key, binding, held: command.held });
+    command.settle({ kind: 'committed', binding });
+    afterLastCommand(ctx, { drained: true });
+}
+
+/** Adopt a command's answer, once. @sideEffect */
+function adoptCommandAnswer(ctx: EditorContext, command: QueuedLineCommand, answer: LineCommandAnswer): void {
+    if (!command.claim()) {
+        return;
+    }
+
+    ctx.core.dispatch({ type: 'commandDone', command });
+
+    switch (answer.kind) {
+        case 'overtaken':
+            command.settle({ kind: 'conflict' });
+            stopDrain(ctx, command, false);
+
+            return;
+        case 'refused':
+            commandRefused(ctx, command, answer);
+
+            return;
+        case 'notStored':
+            // Nothing to re-point on the server; a held one's line goes in the update as drafted.
+            command.settle({ kind: 'failed' });
+            afterLastCommand(ctx);
+
+            return;
+        case 'failed':
+            commandFailed(ctx, command);
+
+            return;
+        case 'recipe':
+            commandLanded(ctx, command, answer);
+
+            return;
+
+        default: {
+            const unreachable: never = answer;
+
+            return unreachable;
+        }
+    }
+}
+
+/**
+ * Send the first queued command to where it goes now, and say how it ended.
+ *
+ * @sideEffect Sends the command (once, however often this runs: `onceLineCommand`).
+ */
+function sendCommand(
+    command: QueuedLineCommand,
+    address: LineCommandAddress | undefined,
+    overtaken: boolean,
+): Promise<LineCommandAnswer> {
+    if (overtaken) {
+        return Promise.resolve({ kind: 'overtaken' });
+    }
+
+    if (address === undefined) {
+        return Promise.resolve({ kind: 'notStored' });
+    }
+
+    return command.send(address).then(
+        (detail): LineCommandAnswer => ({ kind: 'recipe', detail, address }),
+        (error: unknown): LineCommandAnswer =>
+            isVersionConflictError(error) && error.server !== undefined
+                ? { kind: 'refused', server: error.server, base: error.base }
+                : { kind: 'failed' },
+    );
+}
+
+/** Queue a rebind command run at once; the conflict view replaces the form, so nothing picks while it is open. */
+function runLineCommand(
+    core: EditorCoreStore,
+    key: IngredientLineKey,
+    send: LineCommandSend,
+): Promise<LineCommandOutcome> {
+    if (core.get().conflict !== undefined) {
+        return Promise.resolve({ kind: 'conflict' });
+    }
+
+    return new Promise((resolve) => {
+        core.dispatch({ type: 'commandsQueued', commands: [onceLineCommand(key, send, resolve)] });
+    });
+}
+
+// ── Publish, Save changes, Retry and Discard ─────────────────────────────────────────────────────────────────────────
+
+/** Publish or Save changes: the gate, then the finishing write. @sideEffect */
+function finish(ctx: EditorContext, entryText: string, trigger: CheckpointTrigger): GateOutcome {
+    const lane = ctx.lane.get();
+
+    if (
+        ctx.core.get().commands.length > 0 ||
+        lane.outstanding?.finishing === true ||
+        isFinishingTrigger(lane.deferred)
+    ) {
+        return { kind: 'busy' };
+    }
+
+    const outcome = checkGate(ctx, entryText);
+
+    ctx.core.dispatch({ type: 'drainReset' });
+
+    if (outcome.kind === 'refused') {
+        return outcome;
+    }
+
+    ctx.clearResume();
+    runCheckpoint(ctx, trigger);
+
+    return outcome;
+}
+
+/** Withdraw the parked write and send the draft again, or run a stopped Save changes again. @sideEffect */
+function retry(ctx: EditorContext): void {
+    const { server } = ctx.core.get();
+
+    if (server.kind === 'stored' && server.drainFailed) {
+        finish(ctx, ctx.gate.entryText, 'saveChanges');
+
+        return;
+    }
+
+    const parked = outstandingNow(ctx);
+
+    if (parked?.parked !== true) {
+        return;
+    }
+
+    const trigger = parked.finishing ? finishingTrigger(lifecycleNow(ctx)) : 'sectionChange';
+
+    void ctx.opts.port.withdraw(parked.seq).then(() => {
+        ctx.lane.dispatch({ type: 'withdrawn', seq: parked.seq });
+        runCheckpoint(ctx, trigger, { withdrawn: parked.seq });
+    });
+}
+
+/** Discard, as `discardPlanOf` decides it. @sideEffect */
+function discard(ctx: EditorContext): void {
+    const plan = editorViewOf({
+        core: ctx.core.get(),
+        lane: ctx.lane.get(),
+        failures: ctx.opts.port.failures,
+        seedRecipe: ctx.seedRecipe,
+        keep: ctx.opts.keep,
+        memento: ctx.memento,
+    }).discard;
+
+    ctx.lane.dispatch({ type: 'closed' });
+
+    if (plan.draftRef !== undefined) {
+        void ctx.opts.drafts.discard(plan.draftRef);
+    }
+
+    // The cook confirmed the discard, which is the consent a parked record needs before it may go.
+    const cleared = plan.withdraw === undefined ? Promise.resolve() : ctx.opts.port.withdraw(plan.withdraw);
+    const { remove } = plan;
+
+    if (remove !== undefined) {
+        void cleared.then(() => ctx.opts.port.submit(remove));
+    }
+
+    ctx.opts.onExit(plan.exit);
+}
+
+// ── Conflict resolutions ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Leave the conflict for the recipe: the device draft goes, and the editor hands off. @sideEffect */
+function handOffToRecipe(ctx: EditorContext): void {
+    const { server } = ctx.core.get();
+    const id = serverIdOf(server) ?? server.ref;
+
+    if (server.ref !== undefined) {
+        void ctx.opts.drafts.discard(server.ref);
+    }
+
+    ctx.lane.dispatch({ type: 'closed' });
+    ctx.opts.onExit(
+        id !== undefined && !isLocalRef(id) ? { kind: 'leftForRecipe', recipeId: id } : { kind: 'discarded' },
+    );
+}
+
+/** Withdraw the conflict's parked write (if it came from one), then run `then`. @sideEffect */
+function leaveConflict(ctx: EditorContext, info: ConflictInfo, then: () => void): void {
+    const { parkedSeq } = info;
+
+    ctx.core.dispatch({ type: 'conflictResolving', resolving: true });
+
+    const withdrawn = parkedSeq === undefined ? Promise.resolve() : ctx.opts.port.withdraw(parkedSeq);
+
+    void withdrawn.then(
+        () => {
+            if (parkedSeq !== undefined) {
+                ctx.lane.dispatch({ type: 'withdrawn', seq: parkedSeq });
+            }
+
+            ctx.core.dispatch({ type: 'conflictClosed' });
+            then();
+        },
+        () => {
+            ctx.core.dispatch({ type: 'conflictResolving', resolving: false });
+        },
+    );
+}
+
+/** Send `draft` at the server's version, after leaving the conflict. @sideEffect */
+function resend(ctx: EditorContext, info: ConflictInfo, draft: RecipeFormValues): void {
+    leaveConflict(ctx, info, () => {
+        ctx.core.dispatch({ type: 'versionAdopted', version: info.server.versionNumber });
+        ctx.core.dispatch({ type: 'draftRestored', draft });
+        runCheckpoint(ctx, info.trigger, { withdrawn: info.parkedSeq });
+    });
+}
+
+/** The open conflict, unless a resolution is already on its way. */
+function conflictToResolve(ctx: EditorContext): ConflictInfo | undefined {
+    const { conflict } = ctx.core.get();
+
+    return conflict === undefined || conflict.resolving ? undefined : conflict.info;
+}
+
+/** The conflict resolutions. */
+function resolutionsOf(ctx: EditorContext): UseRecipeEditorResult['resolutions'] {
+    return {
+        overwrite: () => {
+            const info = conflictToResolve(ctx);
+
+            if (info !== undefined) {
+                resend(ctx, info, info.draft);
+            }
+        },
+        keepServer: () => {
+            const info = conflictToResolve(ctx);
+
+            if (info !== undefined) {
+                leaveConflict(ctx, info, () => {
+                    handOffToRecipe(ctx);
+                });
+            }
+        },
+        merge: (selections) => {
+            const info = conflictToResolve(ctx);
+
+            if (info !== undefined) {
+                resend(ctx, info, composeConflictMerge(info.draft, toRecipeFormValues(info.theirs), selections));
+            }
+        },
+        setMergeSelections: (selections) => {
+            ctx.core.dispatch({ type: 'mergeSelected', selections });
+        },
+    };
+}
+
+/** "Discard and close": the escape hatch stays available while a resolution is on its way. @sideEffect */
+function discardAndClose(ctx: EditorContext): void {
+    const { conflict } = ctx.core.get();
+
+    if (conflict === undefined) {
+        return;
+    }
+
+    const { parkedSeq } = conflict.info;
+
+    ctx.core.dispatch({ type: 'conflictClosed' });
+
+    if (parkedSeq !== undefined) {
+        void ctx.opts.port.withdraw(parkedSeq).then(() => {
+            ctx.lane.dispatch({ type: 'withdrawn', seq: parkedSeq });
+        });
+    }
+
+    handOffToRecipe(ctx);
+}
+
+/** The edit lifecycle's state: its branch, and the open conflict's view when the branch is the conflict. Pure. */
+function editorStateOf(status: 'done' | 'finishing' | 'editing' | 'conflict', core: EditorCoreState): EditorState {
+    const { conflict } = core;
+
+    if (status !== 'conflict' || conflict === undefined) {
+        // `editorStatusOf` answers `conflict` only while one is open, so the second half never holds.
+        return { status: status === 'conflict' ? 'editing' : status };
+    }
+
+    const { parkedSeq: _seq, trigger: _trigger, ...view } = conflict.info;
+
+    return { status: 'conflict', ...view, isResolving: conflict.resolving };
+}
+
+/** The editor's stores, made once at mount from the seed. */
+function createEditorStores(seed: EditorSeed) {
+    const seeded = seedEditorCore(seed);
+
+    return {
+        core: createEditorCoreStore(seeded.core),
+        lane: createLaneStore<Settlement>(),
+        resume: seeded.resumeSavedAt === undefined ? undefined : { savedAt: seeded.resumeSavedAt },
+    };
+}
+
+/** The idle timers: the device draft after a pause, a never-published draft's server checkpoint after a longer one. */
+function useIdleTimers(ctx: EditorContext, draft: RecipeFormValues, armed: boolean): void {
+    const writeDeviceNow = useEffectEvent((): void => {
+        writeDevice(ctx);
+    });
+    const checkpointNow = useEffectEvent((): void => {
+        runCheckpoint(ctx, 'checkpointIdle');
+    });
+
+    useEffect(() => {
+        if (!armed) {
+            return undefined;
+        }
+
+        const device = setTimeout(() => {
+            writeDeviceNow();
+        }, DEVICE_SAVE_IDLE_MS);
+        const server = setTimeout(() => {
+            checkpointNow();
+        }, SERVER_CHECKPOINT_IDLE_MS);
+
+        return () => {
+            clearTimeout(device);
+            clearTimeout(server);
+        };
+    }, [draft, armed]);
+}
+
+/** The settlement subscriptions: the outbox's bus, and the answers that came before the lane recorded their record. */
+function useSettlements(ctx: EditorContext, port: EditorWritePort): void {
+    // ⛔ An Effect Event, so the subscription is made once and every answer is read against the editor as it is now.
+    const settled = useEffectEvent((event: Settlement): void => {
+        onSettled(ctx, event);
+    });
+    const { lane } = ctx;
+
+    useEffect(
+        () =>
+            port.subscribe((event) => {
+                settled(event);
+            }),
+        [port],
+    );
+    useEffect(
+        () =>
+            lane.subscribeEarly((event) => {
+                settled(event);
+            }),
+        [lane],
+    );
+}
+
+/** The command queue's runner: the first command goes once nothing else holds the lane. */
+function useCommandRunner(ctx: EditorContext, core: EditorCoreState, outstanding: OutstandingWrite | undefined): void {
+    const firstCommand = core.commands[0];
+    const settleable = firstCommand !== undefined && outstanding === undefined;
+    const overtaken = core.conflict !== undefined;
+    const adopt = useEffectEvent((command: QueuedLineCommand, answer: LineCommandAnswer): void => {
+        adoptCommandAnswer(ctx, command, answer);
+    });
+    // Where the first command goes, read when it is SENT: the write it waited for may have moved the version.
+    const addressOf = useEffectEvent((command: QueuedLineCommand): LineCommandAddress | undefined =>
+        commandAddressOf(ctx.core.get().server, command.key),
+    );
+
+    useEffect(() => {
+        if (!settleable) {
+            return;
+        }
+
+        void sendCommand(firstCommand, overtaken ? undefined : addressOf(firstCommand), overtaken).then((answer) => {
+            adopt(firstCommand, answer);
+        });
+    }, [settleable, overtaken, firstCommand]);
 }
 
 /**
@@ -336,923 +1212,104 @@ function coalesceRebinds(rebinds: readonly PendingRebind[]): readonly PendingReb
  */
 export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions): UseRecipeEditorResult {
     const { ingredientLineName } = useMessages(recipeMessages);
-    const { port, drafts, onExit, onRecipeRef, rebindLine, pastePending } = opts;
-    const now = opts.now ?? (() => new Date());
-
-    // ── The seed, captured once ──────────────────────────────────────────────────────────────────────────────────────
-    const [initial] = useState(() => {
-        const stored = seed.recipe === undefined ? undefined : toRecipeFormValues(seed.recipe);
-        const remembered = seed.memento === undefined ? undefined : { ...seed.memento.values, photos: [] };
-        const values = remembered ?? stored ?? defaultRecipeFormValues();
-        const deviceChanges =
-            remembered !== undefined && stored !== undefined && !recipeFormValuesEqual(values, stored);
-
-        return {
-            values,
-            ref: seed.memento?.recipeRef ?? seed.recipe?.id,
-            // ⛔ The device draft's version, not the server's: a draft edited from version 4 must name 4, so a write after
-            // another device's save meets the 409 that shows the cook what changed.
-            baseVersion: seed.memento?.baseVersion ?? seed.recipe?.currentVersion ?? null,
-            server: seed.recipe,
-            serverValues: stored,
-            resume:
-                deviceChanges && lifecycleOf(seed.recipe) === 'published' && seed.memento !== undefined
-                    ? { savedAt: seed.memento.savedAt }
-                    : undefined,
-        };
+    const [stores] = useState(() => createEditorStores(seed));
+    const core = useSyncExternalStore(stores.core.subscribe, stores.core.get, stores.core.get);
+    const lane = useSyncExternalStore(stores.lane.subscribe, stores.lane.get, stores.lane.get);
+    const [resume, setResume] = useState<ResumeNotice | undefined>(stores.resume);
+    const [memento, setMemento] = useState<MementoWrite>(stores.resume === undefined ? 'none' : 'written');
+    const [gate, setGate] = useState<GateState>({ errors: {}, attempted: false, entryText: '' });
+    const ctx: EditorContext = {
+        core: stores.core,
+        lane: stores.lane,
+        opts,
+        seedRecipe: seed.recipe,
+        now: opts.now ?? (() => new Date()),
+        lineNames: ingredientLineName,
+        memento,
+        setMemento,
+        gate,
+        setGate,
+        clearResume: () => {
+            setResume(undefined);
+        },
+    };
+    const view = editorViewOf({
+        core,
+        lane,
+        failures: opts.port.failures,
+        seedRecipe: seed.recipe,
+        keep: opts.keep,
+        memento,
     });
-
-    const [values, setValuesState] = useState<RecipeFormValues>(initial.values);
-    const [errors, setErrors] = useState<RecipeFormErrors>({});
-    const [publishAttempted, setPublishAttempted] = useState(false);
-    const [recipeRef, setRecipeRef] = useState<string | undefined>(initial.ref);
-    const [baseVersion, setBaseVersion] = useState<number | null>(initial.baseVersion);
-    const [server, setServer] = useState<RecipeDetail | undefined>(initial.server);
-    const [serverValues, setServerValues] = useState<RecipeFormValues | undefined>(initial.serverValues);
-    const [resume, setResume] = useState<ResumeNotice | undefined>(initial.resume);
-    // The lane lives outside React state: the outbox answers on its own schedule (`createLaneStore`).
-    const [laneStore] = useState(() => createLaneStore<SettlementEvent<EditorWriteAnswer>>());
-    const lane = useSyncExternalStore(laneStore.subscribe, laneStore.get, laneStore.get);
-    const [mementoWrite, setMementoWrite] = useState<MementoWrite>(initial.resume === undefined ? 'none' : 'written');
-    const [persistedKeys, setPersistedKeys] = useState<readonly IngredientLineKey[]>(() =>
-        persistedLineKeysOf((initial.serverValues ?? initial.values).ingredients),
-    );
-    const [queuedCommands, setQueuedCommands] = useState<readonly QueuedLineCommand[]>([]);
-    // A published recipe's re-picks, held until Save changes (blueprint A3), restored from the device draft.
-    const [pendingRebinds, setPendingRebinds] = useState<readonly PendingRebind[]>(
-        () => seed.memento?.pendingRebinds ?? [],
-    );
-    // A held rebind failed while Save changes drained it: the save stopped, and Retry runs it again.
-    const [rebindFailed, setRebindFailed] = useState(false);
-    // What the ingredient entry held when Publish or Save changes was pressed: a deferred one is validated with it.
-    const [finishEntryText, setFinishEntryText] = useState('');
-    const [conflict, setConflict] = useState<ConflictInfo | null>(null);
-    const [resolving, setResolving] = useState(false);
-    // Whether the draft has changed since the editor opened: the idle timers arm only then.
-    const [touched, setTouched] = useState(false);
-
-    // A newer read of the SAME recipe refreshes its status (published elsewhere); never its content.
-    const live =
-        seed.recipe !== undefined &&
-        server !== undefined &&
-        seed.recipe.id === server.id &&
-        seed.recipe.currentVersion > server.currentVersion
-            ? seed.recipe
-            : server;
-    const lifecycle = lifecycleOf(live);
-    const serverId = server?.id;
-    const commandBusy = queuedCommands.length > 0;
-    const step = laneStore.dispatch;
-    // Closed in the lane, which a same-tick trigger reads synchronously (`LaneState.closed`).
-    const done = lane.closed === true;
-    // A Publish or Save changes waits behind a write on the wire, or behind the held rebinds it drains: the bar finishes.
-    const deferredFinishing = isFinishing(lane.deferred);
-    const changedFromServer = serverValues === undefined || !recipeFormValuesEqual(values, serverValues);
-    // What this render knows of the server; a write answered since passes its own (`runCheckpoint`'s `facts`).
-    const factsNow: ServerFacts = { serverId, baseVersion, serverValues, lifecycle, recipeRef };
-    // A write parked in an earlier session for this recipe stands in the lane until the cook decides (ADR-0057): the
-    // outbox reports it, so it is read from there rather than copied into the lane.
-    const earlierParked =
-        lane.outstanding === undefined && recipeRef !== undefined
-            ? port.failures.find((failure) => failure.entity === 'recipe' && failure.localId === recipeRef)
-            : undefined;
-    const outstanding: OutstandingWrite | undefined =
-        lane.outstanding ??
-        (earlierParked === undefined
-            ? undefined
-            : {
-                  seq: earlierParked.seq,
-                  kind: earlierParked.intentKind === 'create' ? 'create' : 'update',
-                  sent: values,
-                  finishing: false,
-                  parked: true,
-              });
-
-    // ── The device draft ─────────────────────────────────────────────────────────────────────────────────────────────
-    /** The ref the draft is kept under, minted on the first input of a new recipe (A4). @sideEffect */
-    const ensureRef = (known: string | undefined = recipeRef): string => {
-        if (known !== undefined) {
-            return known;
-        }
-
-        const minted = mintLocalRef('recipe');
-        setRecipeRef(minted);
-        onRecipeRef?.(minted);
-
-        return minted;
-    };
-
-    /** Write the draft to the device, or remove it once the server holds exactly this draft. @sideEffect */
-    const writeDevice = (draft: RecipeFormValues, facts: ServerFacts = factsNow): void => {
-        // A timer can fire after the hand-off and before the render that clears it: the draft is gone, not to be rewritten.
-        if (laneStore.get().closed === true) {
-            return;
-        }
-
-        if (facts.serverValues === undefined && recipeFormValuesEqual(draft, defaultRecipeFormValues())) {
-            // No stored recipe before the first input: opening New recipe and leaving creates nothing.
-            return;
-        }
-
-        if (facts.serverValues !== undefined && recipeFormValuesEqual(draft, facts.serverValues)) {
-            if (facts.recipeRef !== undefined && mementoWrite !== 'none') {
-                setMementoWrite('none');
-                void drafts.discard(facts.recipeRef);
-            }
-
-            return;
-        }
-
-        const ref = ensureRef(facts.recipeRef);
-        setMementoWrite('writing');
-        drafts
-            .save({
-                recipeRef: ref,
-                baseVersion: facts.baseVersion,
-                values: toDraftValues(draft),
-                pendingRebinds,
-                savedAt: now().toISOString(),
-            })
-            .then(
-                () => setMementoWrite((current) => (current === 'writing' ? 'written' : current)),
-                () => setMementoWrite('failed'),
-            );
-    };
-
-    // ── The server write, through the outbox ─────────────────────────────────────────────────────────────────────────
-    /**
-     * Write the device draft and, when the policy says so, submit the server write for `trigger`.
-     *
-     * `facts` is what is known of the server when the caller knows more than this render (an answer just landed, a
-     * parked write was just withdrawn): its state updates have not rendered yet. Such a caller has just cleared the lane
-     * itself, so the render's conflict and command readings it would otherwise check are stale (`fresh`).
-     *
-     * @sideEffect Writes the device draft, submits to the outbox and moves the lane.
-     */
-    const runCheckpoint = (trigger: CheckpointTrigger, options: CheckpointOptions = {}): void => {
-        const draft = options.draft ?? values;
-        const facts = options.facts ?? factsNow;
-        const fresh = options.fresh === true;
-
-        if (laneStore.get().closed === true) {
-            return;
-        }
-
-        writeDevice(draft, facts);
-
-        if ((!fresh && conflict !== null) || laneStore.get().outstanding?.parked === true) {
-            return;
-        }
-
-        if (!fresh && earlierParked !== undefined) {
-            return;
-        }
-
-        // A rebind command holds the lane: the trigger runs once it settles.
-        if (!fresh && commandBusy) {
-            step({ type: 'refusedInFlight', trigger });
-
-            return;
-        }
-
-        // A published recipe's held re-picks go first, through the command queue; the Save changes runs once they drain.
-        // ⛔ Each stays in `pendingRebinds` (so in the device draft) until its own rebind answers: a leave or a dead process
-        // mid-drain must not lose a re-pick whose teaching never reached the server.
-        if (trigger === 'saveChanges' && facts.lifecycle === 'published' && pendingRebinds.length > 0) {
-            // Dropped: one whose line the cook removed (it would teach a correction for a line the update deletes), and
-            // one back to the food the server already holds — which is also how one that just answered is recognised,
-            // before React has rendered its removal.
-            const storedBinding = (key: IngredientLineKey): string | null | undefined =>
-                facts.serverValues?.ingredients.find((line) => line.key === key)?.ingredientId;
-            const live = pendingRebinds.filter((rebind) =>
-                draft.ingredients.some(
-                    (line) => line.key === rebind.lineKey && line.ingredientId !== storedBinding(rebind.lineKey),
-                ),
-            );
-            const queued = (rebind: PendingRebind): boolean =>
-                queuedCommands.some((command) => command.held === rebind);
-
-            if (live.length < pendingRebinds.length) {
-                const dropped = pendingRebinds.filter((rebind) => !live.includes(rebind));
-
-                setPendingRebinds((current) => current.filter((rebind) => !dropped.includes(rebind)));
-            }
-
-            if (live.length > 0) {
-                setQueuedCommands((queue) => [
-                    ...queue,
-                    ...live
-                        .filter((rebind) => !queued(rebind))
-                        .map((rebind): QueuedLineCommand => ({
-                            ...onceLineCommand(
-                                rebind.lineKey,
-                                (address) => rebindLine(address, rebind.target),
-                                () => undefined,
-                            ),
-                            held: rebind,
-                        })),
-                ]);
-                step({ type: 'refusedInFlight', trigger });
-
-                return;
-            }
-        }
-
-        const write = serverWriteFor({
-            trigger,
-            lifecycle: facts.lifecycle,
-            draftFloorMet: Object.keys(draftFloorErrors(draft)).length === 0,
-            changedSinceServerWrite:
-                facts.serverValues === undefined || !recipeFormValuesEqual(draft, facts.serverValues),
-            pastePending,
-        });
-
-        if (write.kind === 'none') {
-            // Save changes whose held re-picks were all it had: the rebinds made the save, so the editor hands off.
-            if (trigger === 'saveChanges' && facts.recipe !== undefined) {
-                handOffSaved(facts.recipe);
-            }
-
-            return;
-        }
-
-        const ref = ensureRef(facts.recipeRef);
-        const finishing = trigger === 'publish' || trigger === 'saveChanges';
-        const status = write.publish ? RecipeStatus.PUBLISHED : undefined;
-        // ⛔ Updates start only once the create has answered; before that the create is resent and the outbox coalesces.
-        const intent: Intent =
-            facts.serverId === undefined
-                ? {
-                      entity: 'recipe',
-                      intentKind: 'create',
-                      localId: ref,
-                      produces: ref,
-                      dependsOn: [],
-                      payload: { input: toCreateRecipeInput(draft, status ?? RecipeStatus.DRAFT) },
-                  }
-                : {
-                      entity: 'recipe',
-                      intentKind: 'update',
-                      localId: facts.serverId,
-                      dependsOn: [],
-                      payload: {
-                          id: facts.serverId,
-                          input: { ...toUpdateRecipeInput(draft, status), expectedVersion: facts.baseVersion ?? 0 },
-                      },
-                  };
-        const kind = intent.intentKind === 'create' ? 'create' : 'update';
-
-        void port.submitExclusive(intent).then(
-            (outcome) => {
-                if (outcome.kind === 'inFlight') {
-                    step({ type: 'refusedInFlight', trigger });
-
-                    return;
-                }
-
-                step({ type: 'queued', seq: outcome.seq, kind, sent: draft, finishing });
-
-                if (outcome.kind === 'parked') {
-                    // A write parked earlier stands in the way: the lane tracks it, so its failure shows and Retry can
-                    // withdraw it with the cook's consent.
-                    step({ type: 'parked', seq: outcome.seq });
-
-                    return;
-                }
-            },
-            () => setMementoWrite('failed'),
-        );
-    };
-
-    /**
-     * Run the trigger a write on the wire deferred, against what the server is now known to hold. A deferred Publish or
-     * Save changes is validated again first, with the entry text it was pressed with: the cook may have changed the
-     * draft while it waited, and a refusal then is a refused Publish like any other.
-     *
-     * @sideEffect Moves the lane, and may set the gate's errors or submit to the outbox.
-     */
-    const runDeferred = (facts: ServerFacts, draft: RecipeFormValues = values): void => {
-        const { deferred } = laneStore.get();
-
-        if (deferred === undefined || laneStore.get().outstanding !== undefined) {
-            return;
-        }
-
-        step({ type: 'deferredTaken' });
-
-        if (isFinishing(deferred)) {
-            const found = validateRecipeForm(draft, finishEntryText);
-
-            setErrors(found);
-
-            if (gateOutcomeOf(found).kind === 'refused') {
-                setPublishAttempted(true);
-
-                return;
-            }
-        }
-
-        runCheckpoint(deferred, { draft, facts, fresh: true });
-    };
-
-    // A conflict view for `draft` against a 409's sides, or `null` when the two already agree.
-    const conflictOf = (
-        server409: VersionConflictSide,
-        base: VersionConflictSide | undefined,
-        draft: RecipeFormValues,
-        meta: Pick<ConflictInfo, 'parkedSeq' | 'trigger'>,
-    ): ConflictInfo | null => {
-        const mineSnapshot = draftToSnapshot(draft, base?.versionNumber ?? server409.versionNumber);
-        const diff = computeConflictDiff(
-            base?.snapshot,
-            mineSnapshot,
-            server409.snapshot,
-            opts.locale,
-            ingredientLineName,
-        );
-
-        if (diff.isEmpty || live === undefined) {
-            return null;
-        }
-
-        return {
-            status: 'conflict',
-            theirs: applyServerSnapshotToRecipeDetail(live, server409),
-            draft,
-            mergeSelections: {},
-            server: server409,
-            ...(base === undefined ? {} : { base }),
-            mineSnapshot,
-            diff,
-            versionsBehind: server409.versionNumber - (base?.versionNumber ?? 0),
-            neverPublished: lifecycle !== 'published',
-            ...meta,
-        };
-    };
-
-    /** A synced answer for the outstanding write; answers what the server now holds. @sideEffect */
-    const adoptWritten = (detail: RecipeDetail, sent: RecipeFormValues, finishing: boolean): ServerFacts => {
-        const previousRef = recipeRef;
-        const wasPublished = lifecycle === 'published';
-
-        setServer(detail);
-        setServerValues(sent);
-        setBaseVersion(detail.currentVersion);
-        setPersistedKeys(persistedLineKeysOf(sent.ingredients));
-        setRecipeRef(detail.id);
-
-        if (previousRef !== undefined && isLocalRef(previousRef)) {
-            onRecipeRef?.(detail.id);
-        }
-
-        if (previousRef !== undefined) {
-            void drafts.adopt(previousRef, { serverId: detail.id, version: detail.currentVersion });
-        }
-
-        const facts: ServerFacts = {
-            serverId: detail.id,
-            baseVersion: detail.currentVersion,
-            serverValues: sent,
-            lifecycle: lifecycleOf(detail),
-            recipeRef: detail.id,
-        };
-
-        if (!finishing) {
-            return facts;
-        }
-
-        // The recipe is on the server as the cook asked: the device draft has done its job.
-        void drafts.discard(detail.id);
-        step({ type: 'closed' });
-        onExit(
-            wasPublished
-                ? { kind: 'changesSaved', recipe: detail }
-                : { kind: 'published', recipe: detail, firstPublish: true },
-        );
-
-        return facts;
-    };
-
-    /** A Save changes the held rebinds completed on their own: the device draft is done, and the editor hands off. */
-    function handOffSaved(detail: RecipeDetail): void {
-        void drafts.discard(detail.id);
-        step({ type: 'closed' });
-        onExit({ kind: 'changesSaved', recipe: detail });
-    }
-
-    // ⛔ An Effect Event, so the subscription is made once and every answer is read against the editor as it is now. The
-    // lane is read from its store, which a `queued` step updates at once: an answer that lands before React has rendered
-    // the lane is still recognised as this write's.
-    const onSettled = useEffectEvent((event: SettlementEvent<EditorWriteAnswer>): void => {
-        const pending = laneStore.get().outstanding;
-
-        if (pending === undefined || event.seq !== pending.seq) {
-            // ⛔ The outbox may answer before `submitExclusive` has told the editor this record's number.
-            if (event.entity === 'recipe') {
-                laneStore.keepEarly(event.seq, event);
-            }
-
-            return;
-        }
-
-        if (event.outcome === 'synced') {
-            step({ type: 'synced', seq: event.seq });
-
-            if (event.answer?.kind === 'recipeWritten') {
-                const facts = adoptWritten(event.answer.detail, pending.sent, pending.finishing);
-
-                if (!pending.finishing) {
-                    runDeferred(facts);
-                }
-            }
-
-            return;
-        }
-
-        step({ type: 'parked', seq: event.seq });
-
-        if (event.answer?.kind !== 'recipeConflict') {
-            // A parked write waits for the cook, and so does whatever waited behind it: nothing publishes past them.
-            step({ type: 'deferredTaken' });
-
-            return;
-        }
-
-        const trigger = pending.finishing ? finishingTrigger(lifecycle) : 'sectionChange';
-        const info = conflictOf(event.answer.server, event.answer.base, values, { parkedSeq: event.seq, trigger });
-
-        if (info !== null) {
-            step({ type: 'deferredTaken' });
-        }
-
-        if (info === null) {
-            // A phantom: the server already holds the draft's content. Withdraw and resend at its version.
-            const { versionNumber } = event.answer.server;
-
-            void port.withdraw(event.seq).then(() => {
-                step({ type: 'withdrawn', seq: event.seq });
-                setBaseVersion(versionNumber);
-                runCheckpoint(trigger, { facts: { ...factsNow, baseVersion: versionNumber }, fresh: true });
-            });
-
-            return;
-        }
-
-        setConflict(info);
-    });
-
-    useEffect(() => port.subscribe((event) => onSettled(event)), [port]);
-    // An answer that came before the editor knew its record's number is handed back once the lane records it.
-    useEffect(() => laneStore.subscribeEarly((event) => onSettled(event)), [laneStore]);
-
-    const writeDeviceNow = useEffectEvent((): void => writeDevice(values));
-    const checkpointNow = useEffectEvent((trigger: CheckpointTrigger): void => runCheckpoint(trigger));
-
-    // ── Timers: the device draft after a pause, a never-published draft's server checkpoint after a longer one ─────────
-    useEffect(() => {
-        if (!touched || done) {
-            return undefined;
-        }
-
-        const device = setTimeout(() => writeDeviceNow(), DEVICE_SAVE_IDLE_MS);
-        const server = setTimeout(() => checkpointNow('checkpointIdle'), SERVER_CHECKPOINT_IDLE_MS);
-
-        return () => {
-            clearTimeout(device);
-            clearTimeout(server);
-        };
-    }, [values, touched, done]);
+    const serverValues = serverValuesOf(core.server);
+    const persistedKeys = useMemo(() => persistedLineKeysOf(serverValues?.ingredients ?? []), [serverValues]);
+
+    useSettlements(ctx, opts.port);
+    useIdleTimers(ctx, core.draft, core.touched && view.status !== 'done');
+    useCommandRunner(ctx, core, view.outstanding);
 
     // ── The draft's public mutators ──────────────────────────────────────────────────────────────────────────────────
-    const setValues = useCallback((next: RecipeFormValues): void => {
-        setTouched(true);
-        setValuesState(next);
-    }, []);
-
-    const setField = useCallback(<K extends keyof RecipeFormValues>(field: K, value: RecipeFormValues[K]): void => {
-        setTouched(true);
-        setValuesState((current) => ({ ...current, [field]: value }));
-    }, []);
-
-    const dispatch = useCallback((action: DraftAction): void => {
-        setTouched(true);
-        setValuesState((current) => applyDraftAction(current, action));
-    }, []);
-
-    // ── Publish and Save changes ─────────────────────────────────────────────────────────────────────────────────────
-    const finish = (pendingEntryText: string, trigger: CheckpointTrigger): GateOutcome => {
-        if (commandBusy || (outstanding?.finishing ?? false) || deferredFinishing) {
-            return { kind: 'busy' };
-        }
-
-        const found = validateRecipeForm(values, pendingEntryText);
-        const outcome = gateOutcomeOf(found);
-
-        setErrors(found);
-        setFinishEntryText(pendingEntryText);
-        setRebindFailed(false);
-
-        if (outcome.kind === 'refused') {
-            setPublishAttempted(true);
-
-            return outcome;
-        }
-
-        setResume(undefined);
-        runCheckpoint(trigger);
-
-        return outcome;
-    };
-
-    // ── The rebind command (ADR-0045) ────────────────────────────────────────────────────────────────────────────────
-    const adoptCommandAnswer = useEffectEvent((command: QueuedLineCommand, answer: LineCommandAnswer): void => {
-        if (!command.claim()) {
-            return;
-        }
-
-        const rest = queuedCommands.filter((queued) => queued !== command);
-
-        setQueuedCommands((queue) => queue.filter((queued) => queued !== command));
-
-        /**
-         * A held rebind that did not land stops the Save changes it was drained for: nothing more is sent. It and the held
-         * rebinds queued behind it never left `pendingRebinds`, so only their commands go. @sideEffect
-         */
-        const stopDrain = (failed: boolean): void => {
-            if (command.held === undefined) {
-                return;
-            }
-
-            setQueuedCommands((queue) => queue.filter((queued) => queued.held === undefined));
-            step({ type: 'deferredTaken' });
-
-            if (failed) {
-                setRebindFailed(true);
-            }
-        };
-
-        /** The queue is empty: what waited for it runs, against `draft` (this answer's state has not rendered). @sideEffect */
-        const afterLast = (facts: ServerFacts, draft: RecipeFormValues = values): void => {
-            if (rest.length === 0) {
-                runDeferred(facts, draft);
-            }
-        };
-
-        if (answer.kind === 'overtaken') {
-            command.settle({ kind: 'conflict' });
-            stopDrain(false);
-
-            return;
-        }
-
-        if (answer.kind === 'refused') {
-            const info = conflictOf(answer.server, answer.base, values, {
-                parkedSeq: undefined,
-                trigger: command.held === undefined ? 'sectionChange' : 'saveChanges',
-            });
-
-            if (info === null) {
-                // The draft already agrees with the server: adopt its version so the next pick is not refused again.
-                // ⛔ Never the phantom resend: that would turn a Change food into a save, which teaches nothing.
-                setBaseVersion(answer.server.versionNumber);
-                command.settle({ kind: 'failed' });
-                stopDrain(true);
-
-                return;
-            }
-
-            setConflict(info);
-            command.settle({ kind: 'conflict' });
-            stopDrain(false);
-
-            return;
-        }
-
-        if (answer.kind === 'notStored') {
-            // Nothing to re-point on the server; a held one's line goes in the update as drafted.
-            command.settle({ kind: 'failed' });
-            afterLast(factsNow);
-
-            return;
-        }
-
-        if (answer.kind !== 'recipe') {
-            command.settle({ kind: 'failed' });
-            stopDrain(true);
-
-            if (command.held === undefined) {
-                afterLast(factsNow);
-            }
-
-            return;
-        }
-
-        const { detail, address } = answer;
-        const line = toRecipeFormValues(detail).ingredients[address.position];
-        // A rebind makes at most one version; an answer further on means another writer's save landed in between, and
-        // adopting it would let the next write overwrite theirs. The next write meets the 409 instead.
-        const adoptable =
-            detail.currentVersion === address.expectedVersion || detail.currentVersion === address.expectedVersion + 1;
-
-        if (!adoptable || line === undefined || !isStoredLine(line)) {
-            command.settle({ kind: 'failed' });
-            stopDrain(true);
-
-            if (command.held === undefined) {
-                afterLast(factsNow);
-            }
-
-            return;
-        }
-
-        const binding = lineBindingOf(line);
-        const rebind: DraftAction = { kind: 'rebindIngredient', key: command.key, binding };
-        const nextServerValues = serverValues === undefined ? undefined : applyDraftAction(serverValues, rebind);
-
-        setBaseVersion(detail.currentVersion);
-        setServer(detail);
-        setServerValues(nextServerValues);
-        setValuesState((current) => applyDraftAction(current, rebind));
-
-        if (command.held !== undefined) {
-            const { held } = command;
-
-            // Answered: it leaves the device draft now, and not before. A newer re-pick of the same line stays.
-            setPendingRebinds((current) => current.filter((pending) => pending !== held));
-        }
-
-        command.settle({ kind: 'committed', binding });
-        afterLast(
-            { ...factsNow, baseVersion: detail.currentVersion, serverValues: nextServerValues, recipe: detail },
-            applyDraftAction(values, rebind),
-        );
-    });
-
-    // Where the first command goes, read when it is SENT: the write it waited for may have moved the version.
-    const commandAddressOf = useEffectEvent((command: QueuedLineCommand): LineCommandAddress | undefined => {
-        const position = storedPositionOf(persistedKeys, command.key);
-
-        if (position === undefined || serverId === undefined || baseVersion === null) {
-            return undefined;
-        }
-
-        return { recipeId: serverId, position, expectedVersion: baseVersion };
-    });
-
-    const firstCommand = queuedCommands[0];
-    const commandSettleable = firstCommand !== undefined && outstanding === undefined;
-    const overtaken = conflict !== null;
-
-    useEffect(() => {
-        if (!commandSettleable) {
-            return;
-        }
-
-        const address = overtaken ? undefined : commandAddressOf(firstCommand);
-        const answered: Promise<LineCommandAnswer> = overtaken
-            ? Promise.resolve({ kind: 'overtaken' })
-            : address === undefined
-              ? Promise.resolve({ kind: 'notStored' })
-              : firstCommand.send(address).then(
-                    (detail): LineCommandAnswer => ({ kind: 'recipe', detail, address }),
-                    (error: unknown): LineCommandAnswer =>
-                        isVersionConflictError(error) && error.server !== undefined
-                            ? { kind: 'refused', server: error.server, base: error.base }
-                            : { kind: 'failed' },
-                );
-
-        void answered.then((answer) => adoptCommandAnswer(firstCommand, answer));
-    }, [commandSettleable, overtaken, firstCommand]);
-
-    const lineCommand: LineCommandPort = {
-        persistedKeys,
-        holdsRebinds: lifecycle === 'published',
-        hold: (rebind, binding) => {
-            setTouched(true);
-            setPendingRebinds((current) => coalesceRebinds([...current, rebind]));
-            setValuesState((current) =>
-                applyDraftAction(current, { kind: 'rebindIngredient', key: rebind.lineKey, binding }),
-            );
+    const setValues = useCallback(
+        (next: RecipeFormValues): void => {
+            stores.core.dispatch({ type: 'draftReplaced', draft: next });
         },
-        run: (key, send) => {
-            // The conflict view replaces the form, so nothing picks while it is open.
-            if (conflict !== null) {
-                return Promise.resolve({ kind: 'conflict' });
-            }
-
-            return new Promise((settleCommand) => {
-                const command = onceLineCommand(key, send, settleCommand);
-
-                setQueuedCommands((queue) => [...queue, command]);
-            });
+        [stores],
+    );
+    const setField = useCallback(
+        <K extends keyof RecipeFormValues>(field: K, value: RecipeFormValues[K]): void => {
+            stores.core.dispatch({ type: 'draftReplaced', draft: { ...stores.core.get().draft, [field]: value } });
         },
-    };
-
-    // ── Conflict resolutions ─────────────────────────────────────────────────────────────────────────────────────────
-    /** Withdraw the conflict's parked write (if it came from one), then run `then`. @sideEffect */
-    const leaveConflict = (info: ConflictInfo, then: () => void): void => {
-        setResolving(true);
-
-        const withdrawn = info.parkedSeq === undefined ? Promise.resolve() : port.withdraw(info.parkedSeq);
-
-        void withdrawn.then(
-            () => {
-                if (info.parkedSeq !== undefined) {
-                    step({ type: 'withdrawn', seq: info.parkedSeq });
-                }
-
-                setResolving(false);
-                setConflict(null);
-                then();
-            },
-            () => setResolving(false),
-        );
-    };
-
-    const resend = (info: ConflictInfo, draft: RecipeFormValues): void => {
-        const version = info.server.versionNumber;
-
-        leaveConflict(info, () => {
-            setBaseVersion(version);
-            setValuesState(draft);
-            runCheckpoint(info.trigger, { draft, facts: { ...factsNow, baseVersion: version }, fresh: true });
-        });
-    };
-
-    const handOffToRecipe = (): void => {
-        const id = serverId ?? recipeRef;
-
-        if (recipeRef !== undefined) {
-            void drafts.discard(recipeRef);
-        }
-
-        step({ type: 'closed' });
-
-        if (id !== undefined && !isLocalRef(id)) {
-            onExit({ kind: 'leftForRecipe', recipeId: id });
-        } else {
-            onExit({ kind: 'discarded' });
-        }
-    };
-
-    const resolutions: UseRecipeEditorResult['resolutions'] = {
-        overwrite: () => {
-            if (conflict !== null && !resolving) {
-                resend(conflict, conflict.draft);
-            }
+        [stores],
+    );
+    const dispatch = useCallback(
+        (action: DraftAction): void => {
+            stores.core.dispatch({ type: 'draftActed', action });
         },
-        keepServer: () => {
-            if (conflict !== null && !resolving) {
-                leaveConflict(conflict, handOffToRecipe);
-            }
-        },
-        merge: (selections) => {
-            if (conflict !== null && !resolving) {
-                resend(conflict, composeConflictMerge(conflict.draft, toRecipeFormValues(conflict.theirs), selections));
-            }
-        },
-        setMergeSelections: (selections) => {
-            setConflict((current) => (current === null ? current : { ...current, mergeSelections: selections }));
-        },
-    };
-
-    // The escape hatch stays available while a resolution is on its way: a hung withdrawal must not trap the cook.
-    const discardAndClose = (): void => {
-        if (conflict === null) {
-            return;
-        }
-
-        const info = conflict;
-        setConflict(null);
-
-        if (info.parkedSeq !== undefined) {
-            void port.withdraw(info.parkedSeq).then(() => step({ type: 'withdrawn', seq: info.parkedSeq as number }));
-        }
-
-        handOffToRecipe();
-    };
-
-    // ── Retry and discard ────────────────────────────────────────────────────────────────────────────────────────────
-    const retry = (): void => {
-        if (rebindFailed) {
-            finish(finishEntryText, 'saveChanges');
-
-            return;
-        }
-
-        const parked = outstanding;
-
-        if (parked === undefined || !parked.parked) {
-            return;
-        }
-
-        const trigger = parked.finishing ? finishingTrigger(lifecycle) : 'sectionChange';
-
-        void port.withdraw(parked.seq).then(() => {
-            step({ type: 'withdrawn', seq: parked.seq });
-            runCheckpoint(trigger, { fresh: true });
-        });
-    };
-
-    const discard = (): void => {
-        const ref = recipeRef;
-
-        step({ type: 'closed' });
-
-        if (lifecycle === 'published' && serverId !== undefined) {
-            void drafts.discard(serverId);
-            onExit({ kind: 'leftForRecipe', recipeId: serverId });
-
-            return;
-        }
-
-        if (ref !== undefined) {
-            void drafts.discard(ref);
-        }
-
-        const parkedSeq = outstanding?.parked === true ? outstanding.seq : undefined;
-        // The cook confirmed the discard, which is the consent a parked record needs before it may go.
-        const cleared = parkedSeq === undefined ? Promise.resolve() : port.withdraw(parkedSeq);
-
-        // A recipe that reached (or is on its way to) the server is deleted through the outbox; the delete supersedes a
-        // create still queued, so a never-sent recipe leaves no trace.
-        if (ref !== undefined && (serverId !== undefined || outstanding !== undefined)) {
-            const id = serverId ?? ref;
-
-            // ⛔ While the create is on its way the delete names its local ref as a dependency, so it drains after the
-            // create and is sent with the id the create returns. A server id is never a dependency (`appendIntent`).
-            void cleared.then(() =>
-                port.submit({
-                    entity: 'recipe',
-                    intentKind: 'delete',
-                    localId: id,
-                    dependsOn: isLocalRef(id) ? [id] : [],
-                    payload: { id },
-                }),
-            );
-        }
-
-        onExit({ kind: 'discarded' });
-    };
-
-    // ── What the containers read ─────────────────────────────────────────────────────────────────────────────────────
-    const parkedFailure =
-        outstanding?.parked === true ? port.failures.find((failure) => failure.seq === outstanding.seq) : undefined;
-    const parked: UseRecipeEditorResult['parked'] =
-        outstanding?.parked === true
-            ? {
-                  failure: parkedFailure === undefined ? 'unknown' : classifyFailure(parkedFailure),
-                  kind: outstanding.kind,
-              }
-            : rebindFailed
-              ? { failure: 'transient', kind: 'update' }
-              : undefined;
-    const outboxSlot: OutboxSlot =
-        parked !== undefined
-            ? { kind: 'parked', failure: parked.failure }
-            : outstanding === undefined
-              ? { kind: 'none' }
-              : { kind: 'pending' };
-    const saveStatus = saveStatusOf({
-        lifecycle,
-        durableDevice: opts.keep,
-        memento: mementoWrite,
-        outbox: outboxSlot,
-        serverCurrent: serverValues !== undefined && !changedFromServer && outstanding === undefined,
-    });
-
-    const state: EditorState = done
-        ? { status: 'done' }
-        : conflict !== null
-          ? (({ parkedSeq: _seq, trigger: _trigger, ...view }) => ({ ...view, isResolving: resolving }))(conflict)
-          : (outstanding?.finishing === true && !outstanding.parked) ||
-              (deferredFinishing && outstanding?.parked !== true)
-            ? { status: 'finishing' }
-            : { status: 'editing' };
+        [stores],
+    );
 
     return {
-        state,
-        values,
-        errors,
-        publishAttempted,
-        lifecycle,
-        recipeId: serverId,
-        saveStatus,
-        parked,
-        hasUnsavedChanges: changedFromServer,
+        state: editorStateOf(view.status, core),
+        values: core.draft,
+        errors: gate.errors,
+        publishAttempted: gate.attempted,
+        lifecycle: view.lifecycle,
+        recipeId: view.serverId,
+        saveStatus: view.saveStatus,
+        parked: view.parked,
+        hasUnsavedChanges: view.changedFromServer,
         resume,
-        pasteAvailable: pasteOffered(lifecycle),
-        pasteKeepsSource: pastedLineKeepsSource({ lifecycle, createSubmitted: outstanding?.kind === 'create' }),
+        pasteAvailable: pasteOffered(view.lifecycle),
+        pasteKeepsSource: pastedLineKeepsSource({
+            lifecycle: view.lifecycle,
+            createSubmitted: view.outstanding?.kind === 'create',
+        }),
+        discardMayLeaveServerCopy: view.discard.mayLeaveServerCopy,
         setValues,
         setField,
         dispatch,
-        checkpoint: (trigger) => runCheckpoint(trigger),
-        publish: (pendingEntryText) => finish(pendingEntryText, 'publish'),
-        saveChanges: (pendingEntryText) => finish(pendingEntryText, 'saveChanges'),
-        retry,
-        discard,
-        lineCommand,
-        discardAndClose,
-        resolutions,
+        checkpoint: (trigger) => {
+            runCheckpoint(ctx, trigger);
+        },
+        publish: (pendingEntryText) => finish(ctx, pendingEntryText, 'publish'),
+        saveChanges: (pendingEntryText) => finish(ctx, pendingEntryText, 'saveChanges'),
+        retry: () => {
+            retry(ctx);
+        },
+        discard: () => {
+            discard(ctx);
+        },
+        lineCommand: {
+            persistedKeys,
+            holdsRebinds: view.lifecycle === 'published',
+            hold: (rebind, binding) => {
+                stores.core.dispatch({ type: 'rebindHeld', rebind, binding });
+            },
+            run: (key, send) => runLineCommand(stores.core, key, send),
+        },
+        discardAndClose: () => {
+            discardAndClose(ctx);
+        },
+        resolutions: resolutionsOf(ctx),
     };
 }

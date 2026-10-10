@@ -31,7 +31,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { formatDurationMinutes } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { recipeVersionMessages } from './messages.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { previewRestoreErrorMessage, unrestorablePositionsFor } from './history.js';
 import { type VersionPreviewModalProps, formatChangedFromCurrent, toVersionPreviewIngredientLines } from './preview.js';
 

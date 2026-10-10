@@ -12,7 +12,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { Text, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { detailStyles as styles } from './detailStyles.native.js';
 import type { RecipeDetailBodyNativeProps } from './model.js';

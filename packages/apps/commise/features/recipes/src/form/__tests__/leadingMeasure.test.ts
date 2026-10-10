@@ -14,7 +14,13 @@
 import { ABSENT_QUANTITY, type IngredientQuantity } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
-import { readLeadingMeasure, type LeadingMeasureReading } from '../leadingMeasure.js';
+import {
+    readAmountField,
+    readLeadingMeasure,
+    statedUnitOf,
+    type AmountFieldReading,
+    type LeadingMeasureReading,
+} from '../leadingMeasure.js';
 
 const exact = (value: number): IngredientQuantity => ({ kind: 'exact', value });
 const range = (low: number, high: number): IngredientQuantity => ({ kind: 'range', low, high });
@@ -49,15 +55,36 @@ const CASES: readonly Case[] = [
         why: 'a count with no unit: `eggs` is a food, not a unit',
     },
     {
-        typed: '1 large onion, finely chopped',
+        typed: '1 large onion',
+        reading: { quantity: exact(1), unit: 'large', search: 'onion', preparation: '', measureText: '1 large' },
+        why: 'a size word after an amount is the stated unit (owner ruling 2026-08-26, D21)',
+    },
+    {
+        typed: '2 extra large eggs',
+        reading: {
+            quantity: exact(2),
+            unit: 'extra large',
+            search: 'eggs',
+            preparation: '',
+            measureText: '2 extra large',
+        },
+        why: 'a two-word size word is one unit',
+    },
+    {
+        typed: '1 medium red onion, diced',
         reading: {
             quantity: exact(1),
-            unit: '',
-            search: 'large onion',
-            preparation: 'finely chopped',
-            measureText: '1',
+            unit: 'medium',
+            search: 'red onion',
+            preparation: 'diced',
+            measureText: '1 medium',
         },
-        why: '`large` is not in recipe-core’s unit vocabulary (A1 delegates "known" to classifyUnit), so it stays in the search',
+        why: 'a size word, then the food, then the preparation; `red` is no size',
+    },
+    {
+        typed: 'large onion',
+        reading: { quantity: ABSENT_QUANTITY, unit: '', search: 'large onion', preparation: '', measureText: '' },
+        why: 'a size word only counts after an amount',
     },
     {
         typed: '1 1/2 cups flour',
@@ -291,5 +318,73 @@ describe('readLeadingMeasure', () => {
                 expect(quantity.high).toBeGreaterThan(quantity.low);
             }
         }
+    });
+});
+
+/**
+ * The row editor's Amount field reads one bound with the add field's own amount rules (2026-10-09 review, High 3): it
+ * used `Number(text)`, so "1/2", "½" and "1,5" stored no amount and the field emptied. The WHOLE text must be one amount:
+ * a unit or a range in one bound's field is not one, and neither is zero or a negative (owner ruling 2026-09-12: "not a
+ * number and not a valid amount should be treated the same"). A blank field states no amount, never zero (R40).
+ */
+describe('readAmountField', () => {
+    const amount = (value: number): AmountFieldReading => ({ kind: 'amount', value });
+    const BLANK: AmountFieldReading = { kind: 'blank' };
+    const UNREADABLE: AmountFieldReading = { kind: 'unreadable' };
+
+    it.each([
+        { typed: '', reading: BLANK, why: 'an empty field states no amount' },
+        { typed: '   ', reading: BLANK, why: 'whitespace states no amount' },
+        { typed: '2', reading: amount(2), why: 'a whole number' },
+        { typed: ' 2 ', reading: amount(2), why: 'padding is not part of the amount' },
+        { typed: '1.5', reading: amount(1.5), why: 'a decimal point' },
+        { typed: '1,5', reading: amount(1.5), why: 'a decimal comma' },
+        { typed: '1.', reading: amount(1), why: 'a trailing decimal point, on the way to "1.5"' },
+        { typed: '1,', reading: amount(1), why: 'a trailing decimal comma, on the way to "1,5"' },
+        { typed: '.', reading: UNREADABLE, why: 'a decimal point alone is not an amount' },
+        { typed: '1/2', reading: amount(0.5), why: 'an ASCII fraction' },
+        { typed: '½', reading: amount(0.5), why: 'a unicode fraction' },
+        { typed: '1 1/2', reading: amount(1.5), why: 'a mixed number' },
+        { typed: '1½', reading: amount(1.5), why: 'a mixed number with a unicode fraction' },
+        { typed: '1-1/2', reading: amount(1.5), why: 'a hyphenated mixed number' },
+        { typed: '1,000', reading: amount(1000), why: 'a thousands comma' },
+        { typed: '٣', reading: amount(3), why: 'a non-ASCII decimal digit' },
+        { typed: '1,5000', reading: UNREADABLE, why: 'an ambiguous comma reads no amount rather than a wrong one' },
+        { typed: '0', reading: UNREADABLE, why: 'zero is not an amount' },
+        { typed: '-1', reading: UNREADABLE, why: 'a negative is not an amount' },
+        { typed: 'abc', reading: UNREADABLE, why: 'words are not an amount' },
+        { typed: '1/', reading: UNREADABLE, why: 'a half-typed fraction is not an amount yet' },
+        { typed: '2 cups', reading: UNREADABLE, why: 'a unit in the amount field is not one amount' },
+        { typed: '2-3', reading: UNREADABLE, why: 'a range in one bound is not one amount' },
+        { typed: '2 to 3', reading: UNREADABLE, why: 'a worded range in one bound is not one amount' },
+    ])('reads "$typed" — $why', ({ typed, reading }) => {
+        expect(readAmountField(typed)).toEqual(reading);
+    });
+});
+
+describe('statedUnitOf', () => {
+    // Spec §7.5.3: the unit the cook typed is the cook's own statement, whatever spelling `normalizeUnit` would give it.
+    it.each([
+        { typed: '2 tbsp olive oil', unit: 'tbsp', why: 'an abbreviation stays an abbreviation' },
+        { typed: '2 Tbsp. oil', unit: 'Tbsp.', why: "case and the full stop are the cook's" },
+        { typed: '2 cups of flour', unit: 'cups', why: 'a plural stays plural, the `of` belongs to the search' },
+        { typed: '2 T salt', unit: 'T', why: 'a case-sensitive unit keeps its case' },
+        { typed: '200g butter', unit: 'g', why: 'a unit glued to its amount is split off' },
+        { typed: '1 handful parsley', unit: 'handful', why: 'a subjective unit is a stated unit' },
+        { typed: '1 large onion', unit: 'large', why: 'a size word is a stated unit' },
+        { typed: '2 Extra Large eggs', unit: 'Extra Large', why: "a two-word size word keeps the cook's case" },
+        { typed: '2 fl oz milk', unit: 'fl oz', why: 'a two-word unit is kept whole' },
+        { typed: '2 onions', unit: '', why: 'an amount with no unit states none' },
+        { typed: 'salt', unit: '', why: 'no amount, no measure' },
+        { typed: 'a handful of parsley', unit: '', why: 'no amount this reader reads, so no measure text' },
+    ])('reads "$typed" as "$unit" — $why', ({ typed, unit }) => {
+        expect(statedUnitOf(readLeadingMeasure(typed))).toBe(unit);
+    });
+
+    it("is the cook's spelling where the reading's own unit is normalized", () => {
+        const reading = readLeadingMeasure('2 tbsp olive oil');
+
+        expect(reading.unit).toBe('tablespoon');
+        expect(statedUnitOf(reading)).toBe('tbsp');
     });
 });

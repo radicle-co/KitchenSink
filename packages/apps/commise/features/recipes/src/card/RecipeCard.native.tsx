@@ -87,7 +87,7 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
                     <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
                 </View>
             )}
-            {!thumbnail && (
+            {!thumbnail && cover.time !== undefined && (
                 <View style={styles.bottomStart}>
                     <CoverChip label={cover.time.label}>
                         <Icon name="clock" size={16} tone="ink" />
@@ -235,10 +235,12 @@ const RowMeta: FC = () => {
                     {recipe.cuisine}
                 </Text>
             )}
-            <View accessible accessibilityLabel={meta.timeLabel} style={styles.iconItem}>
-                <Icon name="clock" size={16} tone="inkMuted" />
-                <Text style={[text, styles.figure]}>{meta.duration}</Text>
-            </View>
+            {meta.duration !== undefined && (
+                <View accessible accessibilityLabel={meta.timeLabel} style={styles.iconItem}>
+                    <Icon name="clock" size={16} tone="inkMuted" />
+                    <Text style={[text, styles.figure]}>{meta.duration}</Text>
+                </View>
+            )}
             <View accessible accessibilityLabel={meta.servingsLabel} style={styles.iconItem}>
                 <Icon name="users" size={16} tone="inkMuted" />
                 <Text style={[text, styles.figure]}>{recipe.servings}</Text>

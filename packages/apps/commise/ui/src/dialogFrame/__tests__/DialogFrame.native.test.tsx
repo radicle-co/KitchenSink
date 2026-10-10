@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { palette, tint } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
-import { displayFontFace } from '../../tokens/scale.js';
+import { bodyFontFace } from '../../tokens/scale.js';
 import { DialogFrame } from '../DialogFrame.native.js';
 import { DIALOG_CARD_MAX_WIDTH_DP } from '../dialogFrameLayout.js';
 import type { DialogFrameProps } from '../props.js';
@@ -136,12 +136,13 @@ describe('DialogFrame (native)', () => {
         expect(card().textContent?.startsWith('Erase your account?')).toBe(true);
     });
 
-    // One dialog-title face across the design system's dialog primitives: the Sheet's title is the display face.
-    it('sets its title in the display face, as the Sheet does', () => {
+    // Rewritten for F8 (`evaluateFinal.md`): a dialog title is `sectionTitle` (Inter 600), the web dialog's role.
+    // Playfair sets names only, so neither a dialog nor a sheet title is the display face any longer.
+    it('sets its title in the sectionTitle role, as the web dialog does', () => {
         renderFrame();
 
         expect(appliedStyle(screen.getByRole('heading', { name: 'Erase your account?' }), 'font-family')).toBe(
-            displayFontFace.semibold,
+            bodyFontFace.semibold,
         );
     });
 

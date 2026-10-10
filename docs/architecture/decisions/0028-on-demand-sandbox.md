@@ -442,7 +442,7 @@ operation, and which the ruling does not touch.
 
 ### Cost
 
-The sandbox RDS (`db.t4g.micro`) and the `t4g.nano` NAT now run 09:00–00:00 daily instead of only when
+The sandbox RDS (`db.t4g.micro` then; `db.t4g.small` since ADR-0007's resize) and the `t4g.nano` NAT now run 09:00–00:00 daily instead of only when
 someone presses the button. **+$8–9/month**, against this ADR's measured $398/month baseline — about 2%,
 and accepted by the owner as the price of a database that is up when someone reaches for it.
 

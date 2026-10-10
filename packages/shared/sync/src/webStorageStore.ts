@@ -19,13 +19,23 @@ import type { OutboxStore } from './outboxStore.js';
 /** The three `Storage` members the adapter uses. */
 export type WebStorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
+/** Options for {@link createWebStorageStore}. */
+export interface WebStorageStoreOptions {
+    /** Whether the storage may be a copy another live tab holds (`createTabCopyProbe`); see `OutboxStore.isCopy`. */
+    readonly isCopy?: () => Promise<boolean>;
+}
+
 /**
  * Adapt Web Storage to the port.
  *
  * @param storageOf - Returns the storage to use, e.g. `() => window.sessionStorage`. Called per operation.
+ * @param options - The copy probe, for storage a duplicated tab copies.
  * @returns The store. @sideEffect Its methods read and write the storage `storageOf` returns.
  */
-export function createWebStorageStore(storageOf: () => WebStorageLike): OutboxStore {
+export function createWebStorageStore(
+    storageOf: () => WebStorageLike,
+    options: WebStorageStoreOptions = {},
+): OutboxStore {
     return {
         getItem: async (key) => storageOf().getItem(key),
         setItem: async (key, value) => {
@@ -34,5 +44,6 @@ export function createWebStorageStore(storageOf: () => WebStorageLike): OutboxSt
         removeItem: async (key) => {
             storageOf().removeItem(key);
         },
+        ...(options.isCopy === undefined ? {} : { isCopy: options.isCopy }),
     };
 }

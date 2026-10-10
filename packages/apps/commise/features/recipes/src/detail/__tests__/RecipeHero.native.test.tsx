@@ -18,7 +18,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Text } from 'react-native';
 
 import { LocaleProvider } from '@commise/i18n/react';
-import { gradient, palette } from '@commise/ui';
+import { gradient } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -107,79 +107,48 @@ describe('RecipeHero (native) — photos present: the hero IS the carousel', () 
     const photos = [makePhoto({ url: 'https://cdn/p0.jpg' })];
 
     it('renders the photo carousel as the lead surface', () => {
-        renderHero(<RecipeHero title="Herb Risotto" photos={photos} />);
+        renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} />);
 
         expect(screen.getAllByLabelText('Recipe photos')).toHaveLength(1);
     });
 
     it('does NOT render the no-photo placeholder or a scrim when there are photos', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" photos={photos} />);
+        const { container } = renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} />);
 
         expect(screen.queryByLabelText('No photo yet')).toBeNull();
         expect(gradientLayers(container, SCRIM_FIRST_COLOR)).toHaveLength(0);
     });
 });
 
-describe('RecipeHero (native) — cover absent (the deliberate fallback)', () => {
-    it('renders a localized, labelled placeholder instead of an image', () => {
-        renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
+/**
+ * F10 (`evaluateFinal.md`): with no photo the hero drew a picture glyph in a box that ran past the right edge. The spec
+ * (§1.8, §6.7) is the 96 px `RecipeCover` band with the monogram, decorative because the title already names the
+ * recipe. These replace the old glyph-placeholder tests.
+ */
+describe('RecipeHero (native) — no photo: the 96 px monogram band', () => {
+    const noPhoto = <RecipeHero recipeId="rec_herb" title="Herb Risotto" cuisine="Italian" photos={[]} />;
 
-        // Labelled through the i18n seam (`card.noPhotoLabel`) — the SAME copy the card placeholder uses,
-        // so "no photo yet" is stated once in the dictionary and read identically on both surfaces.
-        expect(screen.getByLabelText('No photo yet')).toBeTruthy();
-    });
-
-    it('draws the placeholder glyph at the 48 pt empty-state size (spec §8)', () => {
-        renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
-
-        const glyph = screen.getByLabelText('No photo yet').querySelector<HTMLElement>('[data-commise-stub="icon"]');
-
-        expect(glyph?.dataset['iconName']).toBe('image');
-        expect(glyph?.dataset['iconSize']).toBe('48');
-    });
-
-    it('renders NO image element at all (an empty source paints a broken-image glyph)', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
+    it('draws the title’s first letter, with no image and no picture glyph', () => {
+        const { container } = renderHero(noPhoto);
 
         expect(container.querySelector('img')).toBeNull();
+        expect(container.querySelector('[data-icon-name="image"]')).toBeNull();
+        expect(screen.queryByLabelText('No photo yet')).toBeNull();
+        expect(screen.getByText('H')).toBeTruthy();
     });
 
-    it('paints the placeholder on the brand hero gradient rather than an empty grey box', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
+    it('occupies the 96 pt band (mediaHeight.heroPlaceholder), never the full hero height', () => {
+        const { container } = renderHero(noPhoto);
+        const band = Array.from(container.querySelectorAll('div')).find(
+            (node) => appliedStyle(node, 'height') === `${nativeTokens.mediaHeight.heroPlaceholder}px`,
+        );
 
-        expect(gradientLayers(container, palette.sand)).toHaveLength(1);
-    });
-
-    it('occupies the COMPACT placeholder band, not the full hero height', () => {
-        renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
-        const height = appliedStyle(screen.getByLabelText('No photo yet'), 'height');
-
-        // The deliberate native divergence, asserted in BOTH directions: an empty full-height hero would
-        // push the title off a phone's first screen, so the band is compact — and must NOT be the hero box.
-        expect(height).toBe(`${nativeTokens.mediaHeight.heroPlaceholder}px`);
-        expect(height).not.toBe(`${nativeTokens.mediaHeight.hero}px`);
-    });
-
-    it('still occupies a real height, so the screen never collapses to nothing', () => {
-        renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
-
-        expect(nativeTokens.mediaHeight.heroPlaceholder).toBeGreaterThan(0);
-        expect(appliedStyle(screen.getByLabelText('No photo yet'), 'height')).not.toBe('0px');
-    });
-
-    it('does not render the cover scrim when there is no cover to anchor', () => {
-        const { container } = renderHero(<RecipeHero title="Herb Risotto" photos={[]} />);
-
-        // A scrim here would darken a placeholder that has no photo to darken — and would drag the label's
-        // contrast down with it.
-        expect(gradientLayers(container, SCRIM_FIRST_COLOR)).toHaveLength(0);
+        expect(nativeTokens.mediaHeight.heroPlaceholder).toBe(96);
+        expect(band).toBeDefined();
+        expect(band?.textContent).toContain('H');
     });
 });
 
-/**
- * Slice 3's seam for slice 6 (D12): the back and ⋯ controls sit ON the photo. The native hero lays the `overlay` over
- * its top edge in either state, first in the reading order, and lets touches between the controls reach the photos.
- */
 describe('RecipeHero (native) — the overlay over the photo', () => {
     const photos = [makePhoto({ id: 'pho_0', url: 'https://cdn/p0.jpg' })];
     const overlay = (
@@ -195,7 +164,7 @@ describe('RecipeHero (native) — the overlay over the photo', () => {
     ])('draws the overlay absolutely over the top of the hero (%s)', (_state, list) => {
         render(
             <LocaleProvider locale="en">
-                <RecipeHero title="Herb Risotto" photos={list} overlay={overlay} />
+                <RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={list} overlay={overlay} />
             </LocaleProvider>,
         );
 
@@ -212,7 +181,7 @@ describe('RecipeHero (native) — the overlay over the photo', () => {
     it('puts the overlay before the photos in the reading order', () => {
         render(
             <LocaleProvider locale="en">
-                <RecipeHero title="Herb Risotto" photos={photos} overlay={overlay} />
+                <RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} overlay={overlay} />
             </LocaleProvider>,
         );
 

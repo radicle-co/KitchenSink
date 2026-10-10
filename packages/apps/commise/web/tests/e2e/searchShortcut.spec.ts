@@ -3,18 +3,20 @@ import { expect, test } from '@playwright/test';
 import { route } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { gotoAfterSettingsRead, mockSettingsApi } from './utils/settingsApi';
 
 /**
- * The `/` search shortcut (`docs/architecture/uiOverhaulBlueprint.md` A18; WCAG 2.1.4 Character Key Shortcuts): one
+ * The `/` search shortcut (WCAG 2.1.4 Character Key Shortcuts): one
  * document `keydown` listener focuses the page's search field. It is off when the cook turns it off in Profile, it never
  * fires where they are typing, and it leaves a slash alone on a page with nothing to search.
  *
- * The preference is per device (`localStorage`), so every test that changes it puts it back. Selectors are role/label
- * only (repo policy). Serial (Clerk-authed).
+ * The preference is a setting on the server (D19, ADR-0059), answered here by a stateful fake of the settings endpoint
+ * that lives in the page, so there is nothing to put back. `profileSettings.spec.ts` owns the setting's own
+ * behaviour. Selectors are role/label only (repo policy). Serial (Clerk-authed).
  */
 
 /** Sign in, mock the library and open it. */
-async function openRecipes(page: import('@playwright/test').Page): Promise<void> {
+async function openRecipes(page: import('@playwright/test').Page) {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
 
@@ -28,8 +30,11 @@ async function openRecipes(page: import('@playwright/test').Page): Promise<void>
             }),
         ],
     });
+    const settings = await mockSettingsApi(page);
     await page.goto(route('/recipes'));
     await expect(page.getByRole('searchbox').first()).toBeVisible();
+
+    return settings;
 }
 
 test.describe('the / shortcut', () => {
@@ -59,21 +64,26 @@ test.describe('the / shortcut', () => {
     test('does nothing once the cook turns it off in Profile, and works again when they turn it back on', async ({
         page,
     }) => {
-        await openRecipes(page);
+        const settings = await openRecipes(page);
 
         await page.goto(route('/profile'));
         await page.getByRole('switch', { name: 'Keyboard shortcuts' }).click();
         await expect(page.getByRole('switch', { name: 'Keyboard shortcuts' })).toHaveAttribute('aria-checked', 'false');
+        // A full page load aborts a request still in flight, so let the save land before leaving.
+        await expect.poll(() => settings.current()).toEqual({ searchShortcut: false });
 
-        await page.goto(route('/recipes'));
+        await gotoAfterSettingsRead(page, route('/recipes'));
         await expect(page.getByRole('searchbox').first()).toBeVisible();
         await page.getByRole('heading', { level: 1 }).click();
         await page.keyboard.press('/');
         await expect(page.getByRole('searchbox').first()).not.toBeFocused();
 
         await page.goto(route('/profile'));
+        // The switch shows the published default until the read lands; wait for the saved "off" before toggling it.
+        await expect(page.getByRole('switch', { name: 'Keyboard shortcuts' })).toHaveAttribute('aria-checked', 'false');
         await page.getByRole('switch', { name: 'Keyboard shortcuts' }).click();
-        await page.goto(route('/recipes'));
+        await expect.poll(() => settings.current()).toEqual({ searchShortcut: true });
+        await gotoAfterSettingsRead(page, route('/recipes'));
         await expect(page.getByRole('searchbox').first()).toBeVisible();
         await page.getByRole('heading', { level: 1 }).click();
         await page.keyboard.press('/');
@@ -83,6 +93,7 @@ test.describe('the / shortcut', () => {
     test('is a plain slash on a page with no search field', async ({ page }) => {
         await signInWithTicket(page);
         await mockRecipeApi(page);
+        await mockSettingsApi(page);
         await page.goto(route('/profile'));
         await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible();
 

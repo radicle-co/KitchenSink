@@ -155,7 +155,7 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
     const [foodDetailsKey, setFoodDetailsKey] = useState<IngredientLineKey | undefined>(undefined);
     const groups = useIngredientGroups({
         values,
-        onChange: props.onChange,
+        dispatch: rowEditor.dispatch,
         entry,
         requestTrailing: focus.requestTrailing,
         requestActions: (key) => focus.request(key, 'actions'),

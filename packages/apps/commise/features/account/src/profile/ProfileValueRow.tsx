@@ -12,6 +12,9 @@ import type { ProfileValueRowProps } from './props.js';
 export const ProfileValueRow: FC<ProfileValueRowProps> = ({ label, value }) => (
     <div className="flex min-h-14 items-center justify-between gap-4 px-4 py-2">
         <span className="shrink-0 text-body text-ink">{label}</span>
-        <span className="min-w-0 text-end text-body text-ink-muted [overflow-wrap:anywhere]">{value}</span>
+        {/* One line, truncated (§9.1): the header shows the whole address; broken anywhere it read "examp / le". */}
+        <span title={value} className="min-w-0 truncate text-end text-body text-ink-muted">
+            {value}
+        </span>
     </div>
 );

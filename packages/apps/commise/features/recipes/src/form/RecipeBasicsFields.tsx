@@ -20,7 +20,7 @@ import type { FC, FocusEvent, KeyboardEvent, ReactNode } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { ChipInput } from './ChipInput.js';
 import { readLimit, singleLine } from './fieldText.js';

@@ -25,7 +25,6 @@ import {
     difficultyOptions,
     ingredientSections,
     mealTypeOptions,
-    parseQuantityBound,
     quantityInputValue,
     removeChipAt,
     unitClassNote,
@@ -153,34 +152,6 @@ describe('removeChipAt (U6 tag/dietary chip control)', () => {
         const list = ['a', 'b'];
         removeChipAt(list, 0);
         expect(list).toEqual(['a', 'b']);
-    });
-});
-
-describe('parseQuantityBound (U9 — a quantity field states an amount or states nothing)', () => {
-    it('parses a stated amount', () => {
-        expect(parseQuantityBound('2')).toBe(2);
-    });
-
-    it('parses a fractional amount', () => {
-        expect(parseQuantityBound('0.5')).toBe(0.5);
-    });
-
-    it('reports a BLANK field as no bound at all — never as a zero (R40)', () => {
-        // ⛔ The mutation this pins: `Number('')` is `0`, so the obvious `parseNumericInput` reuse turns an
-        // emptied field into a stated amount of zero. `undefined` is what lets `absent` stay absent.
-        expect(parseQuantityBound('')).toBeUndefined();
-        expect(parseQuantityBound('   ')).toBeUndefined();
-    });
-
-    it('reports unparseable text as no bound', () => {
-        expect(parseQuantityBound('abc')).toBeUndefined();
-    });
-
-    it('keeps a zero or a negative as the STATED number, so validation can refuse it', () => {
-        // Not coerced to `undefined`: the user typed a number, and telling them it is not an amount is a
-        // different message from silently deciding they stated nothing.
-        expect(parseQuantityBound('0')).toBe(0);
-        expect(parseQuantityBound('-1')).toBe(-1);
     });
 });
 

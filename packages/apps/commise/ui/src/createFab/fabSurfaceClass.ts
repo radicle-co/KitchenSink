@@ -2,7 +2,7 @@
  * @module @commise/ui/create-fab — the web floating create control's surface, as classes: solid `action` at level 3,
  * fixed at the bottom trailing corner 16 px above the bottom chrome (`--bottom-chrome`, the tab bar's height, set by the
  * app shell), 16 px in on phones and 24 on tablets, gone from `nav` (840) where the sidebar holds it. The `CreateFab`
- * and the interim create dial's trigger both draw it.
+ * draws it.
  */
 import type { FabPresentation } from './createFabPolicy.js';
 

@@ -13,7 +13,8 @@ import { useContext, type ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeEditorResult } from '../../__fixtures__/editorResult.js';
-import { makeFilledRecipeFormValues } from '../../__fixtures__/index.js';
+import { makeFilledRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { UseRecipeEditorResult } from '../../hooks/useRecipeEditor.js';
 import { SectionPresenceContext } from '../sectionPresence.js';
 import { EDITOR_TOP_CHROME_IDS, type RecipeEditorViewProps } from '../frameProps.js';
@@ -234,6 +235,59 @@ describe('the action bar', () => {
         render(view(makeEditorResult({ state: { status: 'finishing' } })));
 
         expect(screen.getByRole('button', { name: 'Publish' }).getAttribute('aria-busy')).toBe('true');
+    });
+});
+
+describe('the note about lines with no match (owner D20)', () => {
+    const SENTENCE = 'Ready to publish. 1 ingredient has no match, so its nutrition is left out.';
+    const withUnmatched = () =>
+        makeFilledRecipeFormValues({
+            ingredients: withLineKeys([
+                {
+                    isUserEntered: false,
+                    ingredientId: '00000000-0000-4000-8000-000000000001',
+                    name: 'Oil',
+                    quantity: 2,
+                },
+                {
+                    isUserEntered: false,
+                    ingredientId: '00000000-0000-4000-8000-000000000002',
+                    name: 'Kale',
+                    quantity: 1,
+                    resolutionStatus: FoodResolutionStatus.NOT_FOUND,
+                },
+            ]),
+        });
+
+    it('says so in the action bar and, as a quiet note, in Photos & publish, with Publish still enabled', () => {
+        render(view(makeEditorResult({ values: withUnmatched() })));
+
+        // Two places, one sentence: the bar's ready text, and the note ahead of the section's own controls.
+        const [first, second] = screen.getAllByText(SENTENCE);
+
+        expect(screen.getAllByText(SENTENCE)).toHaveLength(2);
+        expect(
+            [first, second].some(
+                (note) =>
+                    note !== undefined &&
+                    (note.compareDocumentPosition(screen.getByText('photos body')) &
+                        Node.DOCUMENT_POSITION_FOLLOWING) !==
+                        0,
+            ),
+        ).toBe(true);
+        expect(screen.getByRole('button', { name: 'Publish' }).hasAttribute('disabled')).toBe(false);
+    });
+
+    it('says nothing while the recipe is not ready: the fix line speaks instead', () => {
+        render(view(makeEditorResult({ values: { ...withUnmatched(), title: '' } })));
+
+        expect(screen.queryByText(/has no match/u)).toBeNull();
+    });
+
+    it('says nothing when every line has its match', () => {
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() })));
+
+        expect(screen.queryByText(/no match/u)).toBeNull();
     });
 });
 

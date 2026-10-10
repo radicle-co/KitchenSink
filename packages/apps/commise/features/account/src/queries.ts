@@ -12,6 +12,7 @@
  * changes when a token is re-minted with a different grant. That reaches the viewer within one token lifetime
  * either way, and refetching the profile more often than that would spend requests to learn nothing.
  */
+import { SETTINGS_DEFAULTS } from '@kitchensink/schema-identity';
 import { queryOptions } from '@tanstack/react-query';
 
 import type { ProfileRequestOptions } from './profileServiceClient.js';
@@ -21,6 +22,11 @@ import type { ProfileServiceClient } from './profileServiceClient.js';
 export const profileServiceKeys = {
     /** `GET /api/v1/users/me` — the signed-in viewer's identity profile. */
     me: ['user', 'me'] as const,
+    /**
+     * `GET /api/v1/users/me/settings` — the viewer's settings (ADR-0059). Deliberately NOT under `me`: a prefix match
+     * would make every refresh of the profile refetch the settings too.
+     */
+    settings: ['user', 'settings'] as const,
 };
 
 /** Profile cache lifetime — see the module doc for why 2 minutes. */
@@ -30,7 +36,7 @@ export const PROFILE_STALE_TIME_MS = 2 * 60 * 1000;
  * `queryOptions` factories for the viewer-profile read.
  *
  * @param client - The configured {@link ProfileServiceClient} the factory's fetcher calls through.
- * @returns One `queryOptions` builder for the viewer profile.
+ * @returns The `queryOptions` builders for the viewer's profile and settings.
  */
 export function profileQueries(client: ProfileServiceClient) {
     return {
@@ -45,6 +51,19 @@ export function profileQueries(client: ProfileServiceClient) {
                 queryKey: profileServiceKeys.me,
                 queryFn: () => client.getMe(options),
                 staleTime: PROFILE_STALE_TIME_MS,
+            }),
+
+        /**
+         * `GET /api/v1/users/me/settings` — the viewer's settings. `placeholderData` is the server's published
+         * default, so a consumer reads a full, valid value while the first read is in flight and never branches on
+         * "absent". The same constant the service resolves `NULL` to, imported rather than restated.
+         */
+        settings: () =>
+            queryOptions({
+                queryKey: profileServiceKeys.settings,
+                queryFn: () => client.getSettings(),
+                staleTime: PROFILE_STALE_TIME_MS,
+                placeholderData: SETTINGS_DEFAULTS,
             }),
     };
 }

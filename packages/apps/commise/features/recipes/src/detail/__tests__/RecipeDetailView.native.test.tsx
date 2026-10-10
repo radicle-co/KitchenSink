@@ -165,6 +165,47 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByText('1.5 lbs')).toBeTruthy();
     });
 
+    // F9 (`evaluateFinal.md`), parity with web: each group of lines sits under its overline heading, in stored order.
+    it('draws each ingredient group under its overline heading, in stored order', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({ ingredientId: 'l1', name: 'Lamb shoulder', groupLabel: 'For the lamb' }),
+                        makeIngredientView({ ingredientId: 'c1', name: 'Chickpeas', groupLabel: 'For the chickpeas' }),
+                    ],
+                })}
+            />,
+        );
+
+        const lamb = screen.getByRole('heading', { name: 'For the lamb' });
+        const chickpeas = screen.getByRole('heading', { name: 'For the chickpeas' });
+
+        expect(
+            lamb.compareDocumentPosition(screen.getByText('Lamb shoulder')) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(
+            screen.getByText('Lamb shoulder').compareDocumentPosition(chickpeas) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
+    // F17 (`evaluateFinal.md`; §6.7): nothing counted reads "—" in each cell and one line, never "0 / 0 g".
+    it('shows a dash in each nutrition cell and one line when no ingredient was counted', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    nutrition: makeNutrition({ calories: 0, proteinG: 0, carbsG: 0, fatG: 0, isComplete: false }),
+                })}
+            />,
+        );
+
+        expect(screen.getAllByText('—')).toHaveLength(4);
+        expect(screen.getByText('Not counted yet: no ingredient has a food.')).toBeTruthy();
+        expect(screen.queryByText('Estimated — some items aren’t counted yet')).toBeNull();
+    });
+
     it('marks user-entered ingredients with a badge', () => {
         render(
             <RecipeDetailView
@@ -173,7 +214,7 @@ describe('RecipeDetailView (native)', () => {
             />,
         );
 
-        expect(screen.getByText('Custom')).toBeTruthy();
+        expect(screen.getByText('Your own food')).toBeTruthy();
     });
 
     it('renders a step instruction', () => {
@@ -566,6 +607,28 @@ describe('RecipeDetailView (native) — tap-to-check and the current step', () =
         fireEvent.click(screen.getByRole('button', { name: 'Add steps' }));
         expect(onEditSection).toHaveBeenCalledWith('steps');
     });
+
+    // F22 (`evaluateFinal.md`; §6.1): the owner's Edit links sat centred on their own line. Each is a ghost link at the
+    // end of its section's heading row, as on web.
+    it.each([
+        ['Ingredients', 'Edit ingredients'],
+        ['Steps', 'Edit steps'],
+    ])('puts the %s Edit link in its heading row', (heading, edit) => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                viewerIsOwner
+                onEditSection={vi.fn()}
+                recipe={makeRecipeDetail()}
+            />,
+            ownerWrapper,
+        );
+
+        const row = screen.getByRole('heading', { name: heading }).parentElement as HTMLElement;
+
+        expect(getComputedStyle(row).flexDirection).toBe('row');
+        expect(row.contains(screen.getByRole('button', { name: edit }))).toBe(true);
+    });
 });
 
 describe('RecipeDetailView (native) — touch targets (U4 / RC-3)', () => {
@@ -737,7 +800,7 @@ describe('RecipeDetailView (native) — hero cover (mockup screenRecipeDetail)',
         expect(screen.getAllByLabelText('Recipe photos')).toHaveLength(1);
     });
 
-    it('renders the deliberate no-photo hero fallback for a recipe with no cover', () => {
+    it('renders the monogram band hero for a recipe with no cover', () => {
         render(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
@@ -745,7 +808,9 @@ describe('RecipeDetailView (native) — hero cover (mockup screenRecipeDetail)',
             />,
         );
 
-        expect(screen.getByLabelText('No photo yet')).toBeTruthy();
+        // The 96 pt monogram band (F10): the title's first letter, and no picture glyph.
+        expect(screen.getByText('L')).toBeTruthy();
+        expect(screen.queryByLabelText('No photo yet')).toBeNull();
         // And the title still renders — a missing cover degrades the hero, never the screen.
         expect(screen.getByRole('heading', { name: 'Lamb' })).toBeTruthy();
     });

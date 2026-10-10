@@ -70,11 +70,9 @@ export default defineConfig({
             // F1 — the analytics event-id minter's native leaf delegates to expo-crypto (Hermes has no
             // `crypto` global); the stub answers Node's own UUIDs.
             'expo-crypto': path.resolve(import.meta.dirname, 'test-utils/expoCryptoStub.ts'),
-            // `expo-linear-gradient` / `expo-blur` back the U8 brand surfaces (`@commise/ui/surface`) the
-            // hero native leaves adopt; both bridge to native views absent under jsdom, so stub them. Real
-            // gradient/blur rendering is a device/Maestro concern.
+            // `expo-linear-gradient` backs the brand gradient surface (`@commise/ui/surface`); it bridges to a native
+            // view absent under jsdom, so stub it. Real gradient rendering is a device/Maestro concern.
             'expo-linear-gradient': path.resolve(import.meta.dirname, 'test-utils/expoLinearGradientStub.tsx'),
-            'expo-blur': path.resolve(import.meta.dirname, 'test-utils/expoBlurStub.tsx'),
             // `@commise/ui/keep-awake`'s native hold calls a native module with no jsdom runtime; the stub records holds.
             'expo-keep-awake': fileURLToPath(import.meta.resolve('@commise/ui/testing/expo-keep-awake')),
             // `react-native-safe-area-context` reports the device's window insets from a native module with

@@ -14,7 +14,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { compareRowsOf, type VersionCompareViewProps } from './compare.js';
 import { recipeVersionMessages } from './messages.js';
 

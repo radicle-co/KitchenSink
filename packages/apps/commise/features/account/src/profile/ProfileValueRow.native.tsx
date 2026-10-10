@@ -18,7 +18,9 @@ export const ProfileValueRow: FC<ProfileValueRowProps> = ({ label, value }) => {
     return (
         <View style={styles.row}>
             <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
-            <Text style={[styles.value, { color: colors.inkMuted }]}>{value}</Text>
+            <Text numberOfLines={1} style={[styles.value, { color: colors.inkMuted }]}>
+                {value}
+            </Text>
         </View>
     );
 };

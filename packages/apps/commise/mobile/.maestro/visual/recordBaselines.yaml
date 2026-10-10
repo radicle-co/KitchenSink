@@ -81,18 +81,21 @@ appId: io.commise.mobile
 # The sign-in sub-flow is idempotent, and the cleared state above guarantees its credential block runs.
 - runFlow: ../auth/signinHome.yaml
 - extendedWaitUntil:
-      visible: "Today's Nutrition"
+      visible: 'Recent recipes'
       timeout: 40000
+- scrollUntilVisible:
+      element: 'Today’s nutrition'
+      direction: DOWN
 - waitForAnimationToEnd
 # `cropOn` MUST match the assertion's crop exactly — see the lockstep warning above.
 - takeScreenshot:
       path: baselines/home-roadmap-placeholder.png
-      cropOn: "Today's Nutrition"
+      cropOn: 'Today’s nutrition'
       label: 'baseline: FR-046/CR-001 roadmap skeleton placeholder'
 
 - scrollUntilVisible:
       element: 'See all recipes'
-      direction: DOWN
+      direction: UP
 - tapOn: 'See all recipes'
 - extendedWaitUntil:
       visible: 'Recipes'

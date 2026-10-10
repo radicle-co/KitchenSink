@@ -1096,7 +1096,17 @@ describe('Combobox (web) — where the list is placed (2.4.11, §8e; `docs/desig
             return REM_20;
         }
 
-        return classes.some((name) => name.startsWith('h-[')) ? room : Math.min(content, room);
+        // The list's floor (`min-h-11/22/33`, one to three option rows) holds the popup at a usable height even where its
+        // side has less room, which is what lets it overflow there and take the other side.
+        const floor = classes.includes('min-h-33')
+            ? 132
+            : classes.includes('min-h-22')
+              ? 88
+              : classes.includes('min-h-11')
+                ? 44
+                : 0;
+
+        return Math.max(floor, classes.some((name) => name.startsWith('h-[')) ? room : Math.min(content, room));
     };
 
     const popupWidth = (node: HTMLElement, fieldWidth: number): number => {
@@ -1355,6 +1365,31 @@ describe('Combobox (web) — where the list is placed (2.4.11, §8e; `docs/desig
         await waitFor(() => {
             expect(popupBox().bottom).toBeLessThanOrEqual(560);
         });
+    });
+
+    // The ingredients agent's trace: the autosave create answered mid-typing and the page reflowed, so the field moved
+    // to the foot of the viewport. The kept side then had a few px of room and the options sat outside the viewport.
+    // A side is kept only while it can still hold three rows; a field moved where it cannot takes the other side.
+    it('takes the other side for the same text when the field moves to where its side cannot hold the list', async () => {
+        const user = userEvent.setup();
+        layOut(300);
+        render(<Host />);
+
+        await user.type(field(), 'f');
+        await waitFor(() => {
+            expect(popupBox().top).toBeGreaterThanOrEqual(300 + FIELD.height);
+        });
+
+        // The page reflows under the open list: the field is now 24 px above the viewport's foot.
+        const movedTop = VIEWPORT_HEIGHT - FIELD.height - 24;
+        layOut(movedTop);
+        window.dispatchEvent(new Event('resize'));
+
+        // Above the moved field, its foot at the 4 px gap: not where it was, and not under the viewport's foot.
+        await waitFor(() => {
+            expect(popupBox().bottom).toBe(movedTop - 4);
+        });
+        expect(popupBox().top).toBeGreaterThanOrEqual(0);
     });
 
     // P9: "A popup above its field takes its full height at once", so content that arrives fills it from the top down

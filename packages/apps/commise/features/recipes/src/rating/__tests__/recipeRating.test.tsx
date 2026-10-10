@@ -245,3 +245,20 @@ describe('recipe rating (web) — text contrast (WCAG 2.1 AA)', () => {
         }
     });
 });
+
+/**
+ * F8 and F15 (`evaluateFinal.md`): "Community rating" was the one Playfair H2 among Inter siblings, and its section
+ * carried its own gutter and centring, so it started 16 px inside the column the other headings share.
+ */
+describe('RatingSection (web) — the heading and the column edge', () => {
+    it('sets the heading in sectionTitle, like every sibling H2, and adds no gutter of its own', () => {
+        renderDisplay({ average: 4, ratingCount: 3 });
+
+        const heading = screen.getByRole('heading', { level: 2 });
+        const section = heading.closest('section') as HTMLElement;
+
+        expect(heading.className).toContain('text-section-title');
+        expect(heading.className).not.toContain('font-display');
+        expect(section.className).not.toMatch(/(?:^|\s)(?:px-\S+|mx-auto|max-w-\S+)/u);
+    });
+});

@@ -70,4 +70,13 @@ describe('createWebStorageStore', () => {
         expect(resolved).toBe(0);
         await expect(store.getItem('k')).rejects.toThrow('storage is unavailable');
     });
+
+    /** The outbox asks its store whether the journal is a copy (`isCopy`); a plain adapter does not claim to know. */
+    it('answers whether its storage is a copy only when given a probe', async () => {
+        const plain = createWebStorageStore(() => fakeStorage());
+        const probed = createWebStorageStore(() => fakeStorage(), { isCopy: async () => true });
+
+        expect(plain.isCopy).toBeUndefined();
+        expect(await probed.isCopy?.()).toBe(true);
+    });
 });

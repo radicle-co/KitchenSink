@@ -8,7 +8,7 @@
  * @pattern Specification — each rule is a pure predicate or projection over what the search returned
  */
 import { hasActiveFilters, type RecipeFilterState } from '../filters/model.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { DiscoveryMessages } from './messages.js';
 
 /** What a no-result state was caused by. */

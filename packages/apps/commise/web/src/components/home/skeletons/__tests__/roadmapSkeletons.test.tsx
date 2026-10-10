@@ -16,7 +16,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { ROADMAP_WIDGET_IDS, type RoadmapWidgetId } from '@commise/features-core';
 import { renderWithProviders } from '@commise/test-utils';
-import { glass, glassBackdropCss, toWebGlass } from '@commise/ui';
 
 import { MealPlanWidgetSkeleton } from '../MealPlanWidgetSkeleton';
 import { NutritionWidgetSkeleton } from '../NutritionWidgetSkeleton';
@@ -30,9 +29,9 @@ const renderIn = (ui: React.ReactElement): void => {
 
 /** Every roadmap skeleton, keyed by its widget id and paired with the heading the mockup shows. */
 const SKELETONS: Readonly<Record<RoadmapWidgetId, { readonly Component: React.FC; readonly title: string }>> = {
-    nutrition: { Component: NutritionWidgetSkeleton, title: "Today's Nutrition" },
+    nutrition: { Component: NutritionWidgetSkeleton, title: 'Today’s nutrition' },
     'resume-cooking': { Component: ResumeCookingWidgetSkeleton, title: 'Resume cooking' },
-    'meal-plan': { Component: MealPlanWidgetSkeleton, title: "This Week's Meals" },
+    'meal-plan': { Component: MealPlanWidgetSkeleton, title: 'This week’s meals' },
 };
 
 describe('roadmap skeletons — parity with the shared roadmap registry', () => {
@@ -54,11 +53,12 @@ describe.each(Object.entries(SKELETONS))('%s skeleton', (_id, { Component, title
         expect(screen.getByRole('region', { name: title })).toBeTruthy();
     });
 
-    it('states "Coming soon" VISIBLY — a grey shape alone reads as a stuck loading state', () => {
+    it('states "Soon" VISIBLY — a grey shape alone reads as a stuck loading state', () => {
         renderIn(<Component />);
 
-        // Not sr-only: a sighted viewer must be told this is not loading, exactly as a screen-reader user is.
-        expect(within(screen.getByRole('region', { name: title })).getByText('Coming soon')).toBeTruthy();
+        // Not sr-only: a sighted viewer must be told this is not loading, exactly as a screen-reader user is. The
+        // group's "Coming soon" heading sits above all three, so each card's badge is the short "Soon" (§4.2).
+        expect(within(screen.getByRole('region', { name: title })).getByText('Soon')).toBeTruthy();
     });
 
     it('does NOT claim to be busy — nothing is loading, so aria-busy would be a lie', () => {
@@ -95,31 +95,18 @@ describe.each(Object.entries(SKELETONS))('%s skeleton', (_id, { Component, title
         expect(container.querySelectorAll('.animate-pulse')).toHaveLength(0);
     });
 
-    it('presents the placeholder on a frosted-glass card (U8 shared GlassCard surface)', () => {
+    it('presents the placeholder on the level-1 card, never glass (D12; dark mode read 1.1:1 on glass, F1)', () => {
         renderIn(<Component />);
 
-        // The GlassCard primitive is the labelled region's nearest ancestor <div>: it carries the translucent
-        // surface + backdrop blur inline. A regression that dropped the primitive back to hand-rolled utility
-        // classes fails these assertions.
-        //
-        // Asserted against the TOKEN projection rather than the literal rgba/px it happens to produce today:
-        // the previous literals meant a deliberate re-tone of the glass BROKE this test instead of moving with
-        // it, which is the same duplication the card's border carried.
-        const card = screen.getByRole('region', { name: title }).parentElement as HTMLElement;
+        // The labelled region IS the card: `paper` under a 1 px `lineDivider` and `shadow-sm` (buildSpec §1.6). Both
+        // fills are colour roles, so the card re-themes with the dark block. A translucent white glass tier had no
+        // dark value and put light ink on light glass.
+        const card = screen.getByRole('region', { name: title });
 
-        expect(card.style.backgroundColor).toBe(toWebGlass(glass.card, true).backgroundColor);
-        expect(card.style.backdropFilter).toBe(glassBackdropCss(glass.card));
-    });
-
-    it('draws the card hairline from the glass token, not a drifted literal', () => {
-        renderIn(<Component />);
-        const className = (screen.getByRole('region', { name: title }).parentElement as HTMLElement).className;
-
-        // This surface declares `tier="card"`, so its edge IS `glass.card.border`. It previously hardcoded
-        // `border-white/20` — the card tier's edge at the WRONG alpha (the token is 0.3), i.e. the duplication
-        // had already drifted. Route it through the emitted token utility so it cannot drift again.
-        expect(className).toContain('border-glass-card-edge');
-        expect(className).not.toContain('border-white/20');
+        expect(card.className).toContain('bg-paper');
+        expect(card.className).toContain('border-line-divider');
+        expect(card.style.backdropFilter).toBe('');
+        expect(card.className).not.toMatch(/glass|backdrop-blur|bg-white/u);
     });
 });
 
@@ -127,7 +114,7 @@ describe('roadmap skeletons — no fake data (the CR-001 red line)', () => {
     it('the nutrition skeleton shows no calorie figures, percentage, or macro labels', () => {
         renderIn(<NutritionWidgetSkeleton />);
 
-        const region = screen.getByRole('region', { name: "Today's Nutrition" });
+        const region = screen.getByRole('region', { name: 'Today’s nutrition' });
 
         // Every value the mockup renders from real data must be absent.
         expect(region.textContent).not.toMatch(/\d/u);
@@ -149,7 +136,7 @@ describe('roadmap skeletons — no fake data (the CR-001 red line)', () => {
     it('the meal-plan skeleton shows day tiles but no meals, and no "See all" that goes nowhere', () => {
         renderIn(<MealPlanWidgetSkeleton />);
 
-        const region = screen.getByRole('region', { name: "This Week's Meals" });
+        const region = screen.getByRole('region', { name: 'This week’s meals' });
 
         expect(within(region).queryByRole('link', { name: /see all/iu })).toBeNull();
         expect(within(region).queryByRole('button', { name: /see all/iu })).toBeNull();
@@ -163,11 +150,39 @@ describe('roadmap skeletons — no fake data (the CR-001 red line)', () => {
         expect(screen.getAllByRole('listitem')).toHaveLength(7);
     });
 
-    it('names the day tiles with real, locale-formatted weekday names (not invented content)', () => {
+    it('names each day tile by its full weekday, the visible name being the narrow or short one', () => {
         renderIn(<MealPlanWidgetSkeleton />);
 
-        const days = screen.getAllByRole('listitem').map((item) => item.textContent);
+        const items = screen.getAllByRole('listitem');
 
-        expect(days).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+        expect(items.map((item) => within(item).getByText(/day$/u).textContent)).toEqual([
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday',
+            'Sunday',
+        ]);
+        // The two visible names are presentation: hidden from assistive tech so a tile is not read three times.
+        expect(
+            within(items[0] as HTMLElement)
+                .getByText('M')
+                .closest('[aria-hidden="true"]'),
+        ).not.toBeNull();
+        expect(
+            within(items[0] as HTMLElement)
+                .getByText('Mon')
+                .closest('[aria-hidden="true"]'),
+        ).not.toBeNull();
+    });
+
+    it('lays the week out as seven equal columns, never a sideways scroller (F16, SC 2.1.1)', () => {
+        renderIn(<MealPlanWidgetSkeleton />);
+
+        const list = screen.getByRole('list');
+
+        expect(list.className).toContain('grid-cols-7');
+        expect(list.className).not.toMatch(/overflow-x/u);
     });
 });

@@ -4,8 +4,9 @@
 - **Date**: 2026-10-08
 - **Drivers**: Owner rulings D1, D7 and D9 (`docs/design/uiOverhaul/ownerDecisions.md`). D1 makes create and edit one
   scrolling editor with autosave, where a published recipe saves to the device until the cook presses "Save
-  changes". D7 keeps the web editor's draft in `sessionStorage`. D9 stops a never-published draft from making
-  versions.
+  changes". D7, as the owner amended it on 2026-10-09, keeps the web editor's draft and its unsent saves (the outbox
+  journal, ids and form values only) in `sessionStorage`, and signing out clears both. D9 stops a never-published draft
+  from making versions.
 - **Decides**: blueprint A3 and A4 (`docs/architecture/uiOverhaulBlueprint.md`), adjusted for D7 (which answers the
   blueprint's Q1) and D9 (which answers Q2).
 - **Relates to**: [ADR-0058](0058-never-published-drafts-record-no-version.md), the server rule that makes the
@@ -46,9 +47,12 @@ Review of those two found four more defects on the same path:
 port, with one adapter per platform, and the app chooses the adapter:
 
 - **Mobile:** AsyncStorage, through the existing `createNativeOutboxStore`.
-- **Web:** `sessionStorage`, through `createWebStorageStore(() => window.sessionStorage)`. The draft survives a
-  reload in the same tab, and closing the tab ends it (D7). The web outbox journal is kept there too, for the same
-  lifetime (§3). This exception covers the editor's draft and the editor's pending writes, and nothing else.
+- **Web:** `sessionStorage`, through `createWebStorageStore(() => window.sessionStorage, { isCopy })`. The draft
+  survives a reload in the same tab, and closing the tab ends it (D7). The web outbox journal is kept there too, for the
+  same lifetime (§3). This exception covers the editor's draft and the editor's unsent saves, and nothing else (D7, as amended).
+- **One store object per app** (`webDeviceStore`, `nativeDeviceStore`). `draftStoreFor` and `outboxMutatorFor` each
+  memoize one serial writer per store OBJECT, so the editor, the outbox observer, `SyncProvider` and the session end
+  share their writers only while they share one object.
 
 The persisted format is a one-way door, and version 1 is this:
 
@@ -93,8 +97,14 @@ on exit, and on Save changes or Publish.
   waits on the device (D1).
 
 The checkpoints are these: a section change, the editor's exit, the app going to the background, Save changes and
-Publish. Every way out of the editor is its exit: ×, and on native the system Back and the edge swipe too (build spec
-§3.5). The native screen hears those through React Navigation's `beforeRemove`. Ten seconds of idle typing (`SERVER_CHECKPOINT_IDLE_MS`) is a checkpoint too. Typing and blur never reach the server. A write that fails the
+Publish. Every way out of the editor is its exit (build spec §3.5): ×; on native the system Back and the edge swipe,
+heard through React Navigation's `beforeRemove`; and on both platforms the editor unmounting, which is the only signal
+the web has for browser Back or a shell link. A second exit does nothing: it meets the first one's write on the wire,
+finds nothing changed, or finds the lane closed by a hand-off. The unmount's checkpoint runs at the cleanup itself,
+never deferred, because a session end clears the cook's stores from the provider's effect in the same commit, after
+that cleanup; deferred, the checkpoint would write the signed-out cook's draft and journal back. (React's StrictMode
+runs it once at mount in development; an untouched editor writes nothing there.) The app going to the background is
+heard as an event, each change from focused to not, so an editor opened in the background raises nothing. Ten seconds of idle typing (`SERVER_CHECKPOINT_IDLE_MS`) is a checkpoint too. Typing and blur never reach the server. A write that fails the
 draft floor is never asked for, because the server refuses it with a `400` at every trigger.
 
 The policy reads the lifecycle from the first publish, the same fact the server versions by (ADR-0058 rule 1). The
@@ -112,8 +122,10 @@ never-published draft it runs at once, because it makes no version (ADR-0058). O
 Save changes, because every write of that recipe makes a version (D1):
 
 - The pick's food is admitted, which writes the catalog and makes no recipe version, and the line shows it at once.
-- The rebind waits in the memento's `pendingRebinds`, one per line, the later re-pick winning. Discard drops it, with
-  the rest of the device draft.
+- The rebind waits in the memento's `pendingRebinds`, one per line, the later re-pick winning. Discard drops the ones
+  still waiting, with the rest of the device draft. It cannot undo one that already landed: if Save changes sent
+  rebind k and then rebind k + 1 failed, k has made its version and taught its correction, and Discard leaves it on the
+  server while dropping k + 1 onward and the update.
 - Save changes drains the held rebinds through the same command queue, each at the version the previous answer
   returned, and only then sends its one update. A held rebind whose line the cook removed is dropped. A rebind that
   fails stops the save and goes back to waiting, with the ones behind it; Retry runs the save again.
@@ -138,6 +150,11 @@ Save changes, because every write of that recipe makes a version (D1):
   survives a reload forgets a create that was on the wire, and the reopened editor sends it again: a second recipe.
   Kept beside the draft, the reload finds the record, the first read parks it, and the cook decides. Closing the tab
   ends both. The editor is the journal's only writer, so it holds ids and form values only (D7).
+- **One owner per journal.** Duplicate Tab copies `sessionStorage`, the journal included, and both tabs would send the
+  same pending create. So the web store answers `isCopy` (`createTabCopyProbe`): each live tab holds a Web Lock named
+  by an instance id kept in its session storage. A tab that finds an id another live tab's lock holds is a copy; it
+  mints its own id and lock, so a duplicate of a duplicate is caught too. Where Web Locks is missing, every first read
+  is treated as a copy. No wire change.
 - **Compatibility** keys on the hand-bumped `LOCAL_SCHEMA_VERSION`, never on `CONTRACT_HASH`. That hash moves on a
   comment-only edit.
 
@@ -157,14 +174,24 @@ The rules on top of the format:
 - **A delete supersedes.** `submit` routes a delete through `supersede`, so it removes the queued writes it makes moot.
   Supersession refuses to drop a parked record silently, and the caller then asks the cook.
 - **An interrupted send is an unknown outcome.** The first read of a process parks every record a dead process left
-  `sending`, with no status. No drain sends a record that is already `sending`.
+  `sending`, with no status. No drain sends a record that is already `sending`. When the store says its journal may be
+  a copy, the first read also parks every queued record whose second copy would make a second row (`create`,
+  `createFreeform`, `upload`); updates stay queued, because a second copy of one meets a 409.
 - **A re-send that cannot write twice is the only re-send of a parked record.** Two cases qualify: a transient
   refusal, and `401`, where the sender refused because its cook was signed out. An unknown outcome, a conflict and a
   terminal refusal wait for the cook.
 - **A record on the wire is never replaced, and neither is a parked one.** A parked record is work the cook was told
   about and has not decided on — a create parked with an unknown outcome may exist on the server, and replacing its
   body would send a second create. It leaves the log only through `withdraw(seq)`, which refuses any record that is not
-  parked. A delete of an entity whose create is on the wire waits behind that create and depends on its ref.
+  parked. A delete of an entity whose create is on the wire waits behind that create and depends on its ref. Withdrawing
+  that create also removes that delete: the delete exists only after Discard closed the editor, so nothing resubmits
+  the create, no id will ever exist for the entity, and the delete would wait forever. Only that delete: anything else waiting on the ref is the cook's work, and
+  the editor's Retry resubmits a withdrawn create under the same ref. ⚠️ The editor is `withdraw`'s only caller, so a
+  create that parks after its editor was discarded has no surface to be withdrawn from yet; its delete waits until one
+  exists.
+- **The session-end clear is one more change in the same queue.** `clear()` runs behind every change asked for before
+  it, and a change that leaves no records is never written over an absent key, so a drain's answer that lands after the
+  clear cannot bring the old cook's journal back.
 - **The editor submits exclusively.** `submitExclusive` (`appendExclusive`) queues a create or an update only while no
   record of the same entity is on the wire or parked, and answers which record stood in the way. A pending one of the
   same kind is replaced, losslessly, because the editor sends whole drafts. The check is made inside the serialized
@@ -197,13 +224,19 @@ per platform. The UX engineer writes it.
   Save changes, and a draft's last checkpoint that has not reached the server. D7 accepts this. The status names
   `tabSession`, so the copy can say it, and the browser's own unload prompt is armed in every such state
   (`closingTabLosesWork`).
-- **Duplicating a tab copies its `sessionStorage`**, the outbox journal included. Two tabs can then each send the same
-  pending record, so a create still waiting to be sent can reach the server twice. This is the one case where a
-  journal with the draft's lifetime is weaker than an idempotency key on create, which would be a wire-contract change.
-  It is accepted: it needs a pending create and a Duplicate Tab in the seconds before the drain sends it.
-- **The session-end clear reaches both stores.** `signOutAndVerify` (ADR-0009, ADR-0054) takes the app's
-  `endDeviceSession` and runs it only once the session is proven ended: it clears the cook's draft store and removes
-  their outbox key and its quarantine. A failed sign-out keeps both.
+- **Duplicating a tab copies its `sessionStorage`**, the outbox journal included. The copy's first read parks its
+  pending creates (§3, one owner per journal), so a create cannot reach the server twice; the cook decides in the copy.
+  What remains: the copy's pending updates stay queued in both tabs, and the second to land meets a 409 and the conflict
+  view rather than a second write; without Web Locks (an insecure origin) a plain reload also parks a pending create,
+  which costs the cook a decision but never a duplicate; and a reload the browser reports while the old document still
+  holds its lock would read as a copy, failing the same safe way.
+- **The session-end clear reaches both stores, and on web every way a session ends.** One `endDeviceSession(store,
+subject)` (`@commise/features-recipes`, both apps bind it to their store) clears the cook's draft store and outbox,
+  each through its own writer, and the tab's cook marks. It runs from `signOutAndVerify` (ADR-0009, ADR-0054) only once
+  the session is proven ended, so a failed sign-out keeps both. On web it also runs whenever Clerk's cook changes from a
+  cook to `null` or to another cook (`useDeviceSessionScope`): a sign-out in another tab, an expiry or revocation, the
+  UserButton. Clerk's loading `undefined` is ignored. Mobile clears on its own sign-out only; whether an expired
+  session on a phone should discard unsent saves is an open owner question.
 - **The editor owns the CAS token across consecutive updates.** Each `update` carries an `expectedVersion`, and an
   update sent while an earlier one is on the wire would name the version the earlier one started from and meet a 409
   against the cook's own write. So the editor keeps ONE server write per recipe in flight (`editor/writeLane.ts`): a
@@ -237,8 +270,8 @@ per platform. The UX engineer writes it.
 - **IndexedDB on web.** The owner's ruling of 2026-09-17 keeps durable app data out of the browser. D7 relaxes that
   for the editor's draft and its pending writes in `sessionStorage` only.
 - **An idempotency key on create, with the web journal left in memory.** It would close the reload duplicate too, and
-  the Duplicate Tab one as well. But it changes the create's wire contract and every server path that creates a
-  recipe, a one-way door, to fix what giving the journal the draft's lifetime already fixes.
+  the Duplicate Tab one as well. It is refused by the governing offline ruling — no client-supplied id, and zero server
+  changes — not by its cost: giving the journal the draft's lifetime and one owner per tab closes both without either.
 - **Hold the mutator's queue across the whole drain.** Simpler, but every `submit` then waits for the network, which
   the offline model forbids.
 - **`p-retry` for the backoff.** It retries a function that throws, and this sender never throws by contract. It also
@@ -274,7 +307,16 @@ per platform. The UX engineer writes it.
   at once on a draft, and on a published recipe held until Save changes, then sent before its update, over a real
   outbox and the real client. `useRecipeEditor.test.tsx` covers the held rebinds' drain, Discard and Retry.
 - `web/src/components/recipes/__tests__/deviceSession.test.ts`: the web outbox journal is kept in the tab's session
-  storage.
+  storage, and without Web Locks its first read parks a pending create.
+- `packages/shared/sync/src/__tests__/tabCopyProbe.test.ts` (fresh tab, reload, duplicate, a duplicate of a duplicate,
+  no Web Locks), `outboxLog.test.ts` (`recoverInterrupted` over a copy, a withdrawal taking its superseding delete) and
+  `outboxMutator.test.ts` (the copy probe on the first read, the queued `clear`, no key brought back after it).
+- `features-recipes`'s `session/__tests__/deviceSession.test.tsx` (one clear, its triggers, the loading `undefined`)
+  and `sessionEndWithEditorOpen.test.tsx` (the editor's exit checkpoint and the clear in one commit: nothing left);
+  `editor/__tests__/useRecipeEditorSession.test.tsx` (the unmount is a leave; a second exit does nothing) and
+  `useEditorPage.test.tsx` (the background as an event).
+- `web/tests/e2e/recipeEditor.spec.ts` "leaving the one-page editor and coming back": browser Back creates a titled
+  recipe; a reload and Back after the first save open that recipe, never a second.
 - `features-account`'s `signOutAndVerify.test.ts` and both apps' sign-out adapters: the session-end clear runs after
   the proof, never before it, and `web/src/components/recipes/__tests__/deviceSession.test.ts` clears one cook's
   stores and not another's.

@@ -159,6 +159,37 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
     });
 
+    it('leads with the recent recipes and groups the placeholders under one "Coming soon" heading (F2, §4.2)', async () => {
+        const Skeleton: FC = () => <Text>fake-skeleton</Text>;
+
+        renderSurface({
+            container: containerWith(
+                makePlaceholderDescriptor('nutrition', Skeleton),
+                makeLiveDescriptor(RECIPE_HOME_WIDGET_ID),
+            ),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        const recipes = await screen.findByText('fake-recipe-widget');
+        const heading = screen.getByRole('heading', { name: 'Coming soon' });
+        const skeleton = await screen.findByText('fake-skeleton');
+
+        expect(screen.getByText('Meal plans, a grocery list and daily nutrition are on the way.')).toBeTruthy();
+        expect(recipes.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(heading.compareDocumentPosition(skeleton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('draws no "Coming soon" heading once no placeholder remains', async () => {
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        await screen.findByText('fake-recipe-widget');
+
+        expect(screen.queryByRole('heading', { name: 'Coming soon' })).toBeNull();
+    });
+
     it('SKIPS a live widget whose id has no renderer instead of crashing (graceful version skew)', async () => {
         // `mystery` is a LIVE descriptor registered but absent from `renderers`, so it has no bespoke slot and
         // is not a placeholder. A host that did not guard this would render `<undefined />`; that crash would

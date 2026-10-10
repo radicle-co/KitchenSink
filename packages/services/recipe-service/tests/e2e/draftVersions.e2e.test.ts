@@ -183,12 +183,24 @@ describe('a never-published draft records no version (ADR-0058, e2e)', () => {
         expect((await versionsOf(published.id)).map((row) => row.version_number)).toStrictEqual([2, 3, 4]);
         expect(await firstPublishedAt(published.id)).toStrictEqual(publishedAt);
         // The trigger's instant reaches the wire (2026-10-09 review, finding 5): the editor keys "ever published" on
-        // it, and the re-drafted recipe's answers still carry it, as does the search read's raw column list.
+        // it, and the re-drafted recipe's answers still carry it — through the write, the detail read, and the search
+        // read, whose CTE names its columns by hand and so can drop one the other reads get from the table.
         expect(published.firstPublishedAt).toBe(publishedAt?.toISOString());
         expect(savedAsDraft.firstPublishedAt).toBe(publishedAt?.toISOString());
         expect(
             (await json<{ firstPublishedAt?: string }>('GET', `/api/v1/recipes/${published.id}`, 200)).firstPublishedAt,
         ).toBe(publishedAt?.toISOString());
+
+        const searched = await json<{ results: { recipe: { id: string; firstPublishedAt?: string } }[] }>(
+            'GET',
+            `/api/v1/search/recipes?query=${encodeURIComponent('redraft')}&pageSize=50`,
+            200,
+        );
+        const hit = searched.results.find((result) => result.recipe.id === published.id);
+
+        // The owner sees their own re-drafted recipe in search; the hit must exist for the field check to mean anything.
+        expect(hit).toBeDefined();
+        expect(hit?.recipe.firstPublishedAt).toBe(publishedAt?.toISOString());
     });
 
     it('a published create records its first version, as before', async () => {

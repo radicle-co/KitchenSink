@@ -26,7 +26,7 @@ import { useState } from 'react';
 
 import { collectionMessages } from '../collections/messages.js';
 import { canUndoVisibilityChange, visibilityChangeNeedsPremium } from '../collections/visibilityUndo.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 
 /** What one change asks for: where the collection is going and where it was. */
 interface VisibilityChange {

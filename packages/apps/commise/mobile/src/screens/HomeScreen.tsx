@@ -4,9 +4,8 @@
  * title — and floats two things over it: the condensed title bar, once the greeting scrolls under the top, and the
  * floating "New recipe" button, a sibling after the scroller so it stays put.
  *
- * Interim (§13, slice 3): the button opens today's two-item create menu (Write → the wizard, Paste → the paste flow)
- * until slice 8 makes it one tap. ⚠️ Home's first run should hide it (§3.4); whether the cook has any recipe is known
- * only inside the recipe widget today, so it shows in first run too.
+ * One tap opens the empty editor (§3.4, D4). Home's first run hides the button (§3.4): the recent-recipes page the
+ * widget reads, settled empty, is the first run, and the widget's own start buttons take its place.
  *
  * ⚠️ ORCHESTRATION of chrome, not of data: it reads the scroll host and the cook's name for the condensed title.
  *

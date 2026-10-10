@@ -19,7 +19,7 @@ import { Icon } from '@commise/ui/icon';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages } from './messages.js';
 import { DISCOVERY_SORTS, discoverySortLabel, isDiscoverySort, type RecipeDiscoverySortControl } from './model.js';
 

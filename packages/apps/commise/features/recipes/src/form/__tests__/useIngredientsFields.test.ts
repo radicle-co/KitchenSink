@@ -37,7 +37,8 @@ import { recipeNutritionTotal } from '../nutrition.js';
 import type { LookupEntry } from '../nutritionLookup.js';
 import type { IngredientRowView } from '../ingredientRowView.js';
 import type { IngredientLineKey } from '../lineKey.js';
-import type { RecipeIngredientsFieldsProps } from '../props.js';
+import type { DraftAction } from '../draftAction.js';
+import { applyDraftAction, type RecipeIngredientsFieldsProps } from '../props.js';
 import { useIngredientsFields } from '../useIngredientsFields.js';
 import type { RecipeFormErrors } from '../validate.js';
 
@@ -685,9 +686,11 @@ describe('useIngredientsFields — Move to group… (build spec §7.5.5)', () =>
         ]);
     });
 
+    // REWRITTEN (2026-10-09 review, Medium 4): the transition is the editor's own (`dispatch`), never `onChange` over
+    // the render's values, so a settle that lands before the press is kept (`useIngredientGroups.test.ts`).
     it('a choice moves the line through ONE draft transition and closes the sheet', () => {
-        const onChange = vi.fn<RecipeIngredientsFieldsProps['onChange']>();
-        const props = propsOf({ lines: GROUPED, onChange });
+        const dispatch = vi.fn<IngredientRowEditor['dispatch']>();
+        const props = propsOf({ lines: GROUPED, editor: { dispatch } });
         const { result } = renderFields(props);
 
         act(() =>
@@ -697,7 +700,8 @@ describe('useIngredientsFields — Move to group… (build spec §7.5.5)', () =>
         );
         act(() => result.current.moveToGroup.choices[0]?.onSelect());
 
-        const [[next]] = onChange.mock.calls as [[typeof props.values]];
+        const [[action]] = dispatch.mock.calls as [[DraftAction]];
+        const next = applyDraftAction(props.values, action);
 
         expect(next.ingredients.map((line) => `${line.name ?? ''}/${line.groupLabel ?? '-'}`)).toEqual([
             'salt/-',
@@ -744,7 +748,7 @@ describe('useIngredientsFields — groups (build spec §7.5.5)', () => {
 
         act(() => (sauce?.addHere.kind === 'button' ? sauce.addHere.onPress() : undefined));
 
-        expect(entryPlace).toHaveBeenCalledWith({ group: 'Sauce' });
+        expect(entryPlace).toHaveBeenCalledWith({ group: 'Sauce', madeByCook: false });
         expect(result.current.trailing.entryField.focusRequested).toBe(true);
     });
 
@@ -773,7 +777,7 @@ describe('useIngredientsFields — groups (build spec §7.5.5)', () => {
 
         expect(result.current.addGroup.field).toBeUndefined();
         expect(result.current.emptyGroups.map((group) => group.label)).toEqual(['Garnish']);
-        expect(entryPlace).toHaveBeenCalledWith({ group: 'Garnish' });
+        expect(entryPlace).toHaveBeenCalledWith({ group: 'Garnish', madeByCook: true });
         expect(result.current.trailing.entryField.focusRequested).toBe(true);
     });
 
@@ -798,13 +802,12 @@ describe('useIngredientsFields — groups (build spec §7.5.5)', () => {
     });
 
     it('Rename group renames every line of it through one draft transition', () => {
-        const onChange = vi.fn<RecipeIngredientsFieldsProps['onChange']>();
-        const { result } = renderFields(
-            propsOf({
-                lines: [bound('oil', { groupLabel: 'Sauce' }), bound('garlic', { groupLabel: 'Sauce' })],
-                onChange,
-            }),
-        );
+        const dispatch = vi.fn<IngredientRowEditor['dispatch']>();
+        const props = propsOf({
+            lines: [bound('oil', { groupLabel: 'Sauce' }), bound('garlic', { groupLabel: 'Sauce' })],
+            editor: { dispatch },
+        });
+        const { result } = renderFields(props);
 
         act(() => result.current.sections[0]?.group?.actions[0]?.onSelect());
         expect(result.current.sections[0]?.group?.renaming?.value).toBe('Sauce');
@@ -812,19 +815,22 @@ describe('useIngredientsFields — groups (build spec §7.5.5)', () => {
         act(() => result.current.sections[0]?.group?.renaming?.onChange('Dressing'));
         act(() => result.current.sections[0]?.group?.renaming?.onSubmit());
 
-        const [[next]] = onChange.mock.calls as [[RecipeIngredientsFieldsProps['values']]];
+        const [[action]] = dispatch.mock.calls as [[DraftAction]];
+        const next = applyDraftAction(props.values, action);
 
         expect(next.ingredients.map((line) => line.groupLabel)).toEqual(['Dressing', 'Dressing']);
         expect(result.current.sections[0]?.group?.renaming).toBeUndefined();
     });
 
     it('Remove group keeps the lines and drops the label', () => {
-        const onChange = vi.fn<RecipeIngredientsFieldsProps['onChange']>();
-        const { result } = renderFields(propsOf({ lines: [bound('oil', { groupLabel: 'Sauce' })], onChange }));
+        const dispatch = vi.fn<IngredientRowEditor['dispatch']>();
+        const props = propsOf({ lines: [bound('oil', { groupLabel: 'Sauce' })], editor: { dispatch } });
+        const { result } = renderFields(props);
 
         act(() => result.current.sections[0]?.group?.destructiveAction.onSelect());
 
-        const [[next]] = onChange.mock.calls as [[RecipeIngredientsFieldsProps['values']]];
+        const [[action]] = dispatch.mock.calls as [[DraftAction]];
+        const next = applyDraftAction(props.values, action);
 
         expect(next.ingredients).toHaveLength(1);
         expect(next.ingredients[0]).not.toHaveProperty('groupLabel');

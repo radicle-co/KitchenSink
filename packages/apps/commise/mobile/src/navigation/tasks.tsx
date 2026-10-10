@@ -11,13 +11,23 @@
  * @pattern Adapter — route params and navigator intents → each screen's callback props
  */
 import type { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
-import type { JSX } from 'react';
+import { useCallback, type JSX } from 'react';
 
 import { RecipeEditorScreen } from '../screens/RecipeEditorScreen.js';
 import type { RootStackParamList } from './routes.js';
 
 /** A root stack screen's props. */
 type TaskProps<Name extends keyof RootStackParamList> = NativeStackScreenProps<RootStackParamList, Name>;
+
+/**
+ * The editor's leave subscription on this route: React Navigation's `beforeRemove`. ONE function for the route's life
+ * (the screen's `navigation` object is stable), so the editor's subscription is made once, not on every render.
+ */
+function useLeaveSubscription(
+    navigation: TaskProps<'RecipeCreate'>['navigation'] | TaskProps<'RecipeEdit'>['navigation'],
+): (listener: () => void) => () => void {
+    return useCallback((listener: () => void) => navigation.addListener('beforeRemove', listener), [navigation]);
+}
 
 /**
  * Create a recipe in the one-page editor (slice 7). Once published, its detail opens on the Recipes tab with the list
@@ -28,6 +38,7 @@ function RecipeCreateRoute({ navigation, route }: TaskProps<'RecipeCreate'>): JS
     // stay in the Recipes stack, and Back from My recipes would land on a recipe that no longer exists.
     const toRecipes = (): void =>
         navigation.popTo('Tabs', { screen: 'recipes', params: { screen: 'RecipesRoot', pop: true } });
+    const subscribeToLeave = useLeaveSubscription(navigation);
 
     return (
         <RecipeEditorScreen
@@ -41,13 +52,15 @@ function RecipeCreateRoute({ navigation, route }: TaskProps<'RecipeCreate'>): JS
             }
             onClose={() => navigation.goBack()}
             onDiscarded={toRecipes}
-            subscribeToLeave={(listener) => navigation.addListener('beforeRemove', listener)}
+            subscribeToLeave={subscribeToLeave}
         />
     );
 }
 
 /** Edit a recipe in the one-page editor; publishing, saving changes or closing returns to where it was opened. */
 function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.Element {
+    const subscribeToLeave = useLeaveSubscription(navigation);
+
     return (
         <RecipeEditorScreen
             recipeId={route.params.recipeId}
@@ -57,7 +70,7 @@ function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.El
             onDiscarded={() =>
                 navigation.popTo('Tabs', { screen: 'recipes', params: { screen: 'RecipesRoot', pop: true } })
             }
-            subscribeToLeave={(listener) => navigation.addListener('beforeRemove', listener)}
+            subscribeToLeave={subscribeToLeave}
         />
     );
 }

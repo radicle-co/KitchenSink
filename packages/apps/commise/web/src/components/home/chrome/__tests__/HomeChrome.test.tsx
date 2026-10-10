@@ -95,6 +95,22 @@ describe('HomeChrome (web)', () => {
         expect(container.firstElementChild?.className).toContain('[--bottom-chrome:0px]');
     });
 
+    // F15 (`evaluateFinal.md`): `<main>`'s gutter and top padding framed the editor as an inset card. A focused task's
+    // frame runs edge to edge (its header is a bar at the top edge, `buildSpec.md` §7.1) and owns its inner gutter.
+    it('gives a focused task the whole main box: no gutter and no top padding', () => {
+        renderChrome({ focusedTask: true });
+
+        const main = screen.getByRole('main').className.split(/\s+/u);
+
+        expect(main.filter((utility) => /^(?:\S+:)?(?:px|pt)-/u.test(utility))).toStrictEqual([]);
+    });
+
+    it('keeps the page gutter and top padding on every other page', () => {
+        renderChrome();
+
+        expect(screen.getByRole('main').className.split(/\s+/u)).toEqual(expect.arrayContaining(['px-4', 'pt-6']));
+    });
+
     it('starts from the server-read preference and writes the collapse to its cookie', () => {
         renderChrome({ collapsed: true });
 

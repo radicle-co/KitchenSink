@@ -482,7 +482,7 @@ describe('useIngredientEntry — the trailing row reads the measure in front of 
             { kind: 'catalogFood', foodId: 'food_cp', name: 'Chickpeas, canned' },
             {
                 kind: 'newLine',
-                measure: { quantity: { kind: 'exact', value: 2 }, unit: 'tablespoon', preparation: 'rinsed' },
+                measure: { quantity: { kind: 'exact', value: 2 }, unit: 'tbsp', preparation: 'rinsed' },
             },
         );
     });
@@ -707,5 +707,54 @@ describe('useIngredientEntry — the cook’s limit from a source frame (system 
 
         expect(lastEnabledQuery()).toBe('chickpeas');
         expect(mocks.useIngredientSuggestionSource).toHaveBeenLastCalledWith('chickpeas', true, LIMIT.hold);
+    });
+});
+
+/**
+ * 2026-10-09 review, Medium 3: a pick committed the raw placement while the field's label read the validated one, so a
+ * group whose last line moved out was recreated by the next pick. The entry's `placement` is the validated answer, and
+ * a pick commits it.
+ */
+describe('useIngredientEntry — where a trailing pick lands', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        mocks.useIngredientSuggestionSource.mockReturnValue(bothAnswered({ catalog: [CANNED] }));
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    const DRY_OIL: EntryLine = { ...OIL, groupLabel: 'Dry' };
+    const WET_CHICK: EntryLine = { ...CHICK, groupLabel: 'Wet' };
+
+    it('a group whose last line moved out lets go of the field: the pick follows the group being built', async () => {
+        const commit = port(committed());
+        const { result, rerender } = render([DRY_OIL, WET_CHICK], commit);
+
+        act(() => result.current.place({ group: 'Dry', madeByCook: false }));
+        expect(result.current.placement).toEqual({ group: 'Dry' });
+
+        rerender({ current: [WET_CHICK, { ...DRY_OIL, groupLabel: 'Wet' }] });
+        expect(result.current.placement).toBeUndefined();
+
+        typeSettled(result, TRAILING, 'chickpeas');
+        await act(async () => result.current.selectFood(CANNED_OPTION));
+
+        expect(commit).toHaveBeenCalledExactlyOnceWith(expect.anything(), { kind: 'newLine' });
+    });
+
+    it('a group the cook made holds the field, and the pick lands in it', async () => {
+        const commit = port(committed());
+        const { result } = render([WET_CHICK], commit);
+
+        act(() => result.current.place({ group: 'Herbs', madeByCook: true }));
+        typeSettled(result, TRAILING, 'chickpeas');
+        await act(async () => result.current.selectFood(CANNED_OPTION));
+
+        expect(commit).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+            kind: 'newLine',
+            placement: { group: 'Herbs' },
+        });
     });
 });

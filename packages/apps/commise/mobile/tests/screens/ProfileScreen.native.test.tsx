@@ -195,6 +195,15 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         expect(screen.queryByText(/account settings/i)).toBeNull();
     });
 
+    // D19 / ADR-0059: the "/" shortcut is a hardware-keyboard setting and native has no equivalent yet, so the screen
+    // shows no switch of any kind and reads no settings. The gap is recorded in the ADR, not hidden.
+    it('renders no switch at all — the shortcut setting has no native control', () => {
+        renderProfile();
+
+        expect(screen.queryByRole('switch')).toBeNull();
+        expect(screen.queryByText(/shortcut/i)).toBeNull();
+    });
+
     it('opens the data sources sheet from its row and closes it back', () => {
         renderProfile();
 
@@ -248,7 +257,7 @@ describe('ProfileScreen — states', () => {
         expect(screen.getByRole('button', { name: close.trigger })).toBeTruthy();
     });
 
-    it('shows “Not set” and no name in the header while no name is saved', () => {
+    it('shows “Add your name” and no name in the header while no name is saved', () => {
         useUserProfileMock.mockReturnValue(ready({ displayName: '' }));
         renderProfile();
 
@@ -271,7 +280,7 @@ describe('ProfileScreen — states', () => {
 
 describe('ProfileScreen — the display-name sheet (A17)', () => {
     const openSheet = () => fireEvent.click(screen.getByRole('button', { name: t.displayName }));
-    const field = () => screen.getByLabelText(t.namePrompt) as HTMLInputElement;
+    const field = () => screen.getByLabelText(t.displayName, { selector: 'input' }) as HTMLInputElement;
 
     it('opens seeded from the SAVED name, not Clerk’s', () => {
         clerkUser.current = { firstName: 'Clerky', externalAccounts: [] };
@@ -308,7 +317,7 @@ describe('ProfileScreen — the display-name sheet (A17)', () => {
 
         expect(mutate).toHaveBeenCalledTimes(1);
         expect(mutate.mock.calls[0]?.[0]).toEqual({ displayName: 'Eliza M' });
-        await waitFor(() => expect(screen.queryByLabelText(t.namePrompt)).toBeNull());
+        await waitFor(() => expect(screen.queryByLabelText(t.displayName, { selector: 'input' })).toBeNull());
         expect(await screen.findByText(t.saved)).toBeTruthy();
     });
 

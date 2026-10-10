@@ -120,6 +120,125 @@ describe('the nutrient dictionary and the nutrition aggregate', () => {
         });
     });
 
+    /**
+     * The batched forms behind the merge's write path (KITCHENSINK-FOOD-SERVICE-2/-8: a SELECT and an upsert per
+     * nutrient). Each case pins a property the one-at-a-time forms already had, so batching cannot change WHAT is
+     * written — only how many round trips it takes.
+     */
+    describe('NutrientDao.resolveOrCreateMany — the dictionary in a fixed number of statements', () => {
+        it('answers in input order exactly what resolveOrCreate answers one at a time', async () => {
+            const existingKcal = await nutrients.resolveOrCreate({ name: 'Energy', unit: 'kcal' });
+            const inputs = [
+                { name: 'Vitamin C, total ascorbic acid', unit: 'mg' },
+                { name: 'Energy', unit: 'kcal', infoodsTag: 'ENERC_KCAL' },
+                { name: 'Protein', unit: 'g' },
+                { name: 'Protein', unit: 'g', infoodsTag: 'PROCNT' },
+            ];
+
+            const rows = await nutrients.resolveOrCreateMany(inputs);
+
+            expect(rows.map((row) => [row.name, row.unit, row.infoodsTag])).toStrictEqual([
+                ['Vitamin C, total ascorbic acid', 'mg', null],
+                ['Energy', 'kcal', 'ENERC_KCAL'],
+                ['Protein', 'g', 'PROCNT'],
+                ['Protein', 'g', 'PROCNT'],
+            ]);
+            expect(rows[1]?.id).toBe(existingKcal.id);
+            expect(rows[3]?.id).toBe(rows[2]?.id);
+            expect(await countOf('SELECT count(*) AS count FROM nutrient')).toBe(3);
+
+            const again = await nutrients.resolveOrCreateMany(inputs);
+            expect(again.map((row) => row.id)).toStrictEqual(rows.map((row) => row.id));
+        });
+
+        it('takes the same number of statements for forty nutrients as for two', async () => {
+            const counted = (): { db: TestDb; statements: () => number } => {
+                let statements = 0;
+
+                return {
+                    db: makeDb(pool, {
+                        logQuery: () => {
+                            statements += 1;
+                        },
+                    }),
+                    statements: () => statements,
+                };
+            };
+
+            const few = counted();
+            const many = counted();
+            const pair = (prefix: string, count: number) =>
+                Array.from({ length: count }, (_, index) => ({ name: `${prefix} nutrient ${index}`, unit: 'mg' }));
+
+            await new NutrientDao(few.db).resolveOrCreateMany(pair('few', 2));
+            await new NutrientDao(many.db).resolveOrCreateMany(pair('many', 40));
+
+            expect(many.statements()).toBe(few.statements());
+        });
+
+        it('refuses the whole batch when any stated tag disagrees with the mapping, and writes nothing', async () => {
+            const refused = await nutrients
+                .resolveOrCreateMany([
+                    { name: 'Energy', unit: 'kcal' },
+                    { name: 'Protein', unit: 'g', infoodsTag: 'FAT' },
+                ])
+                .then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
+
+            expect(isNutrientDefinitionMismatchError(refused)).toBe(true);
+            expect(await countOf('SELECT count(*) AS count FROM nutrient')).toBe(0);
+        });
+
+        it('answers an empty batch with no rows', async () => {
+            await expect(nutrients.resolveOrCreateMany([])).resolves.toStrictEqual([]);
+        });
+    });
+
+    describe('FoodNutritionDao.upsertValues — every golden value in one statement', () => {
+        it('writes each value, overwriting a held one, and lets the LAST of two values for one nutrient win', async () => {
+            const { id: foodId } = await foods.createByName({ normalizedName: 'walnuts' });
+            const header = await nutrition.headerForFood(foodId);
+            const cite = await nutrition.citeSourceItem(header, { dataset: 'usdaSrFoundation', externalKey: 'W' });
+            const [protein, fat] = await nutrients.resolveOrCreateMany([
+                { name: 'Protein', unit: 'g' },
+                { name: 'Total lipid (fat)', unit: 'g' },
+            ]);
+
+            await nutrition.upsertValue({ nutritionId: header, nutrientId: fat!.id, amount: '1', citationId: cite });
+            // Two different source names can resolve to ONE dictionary entry, so one batch may name a nutrient
+            // twice. A multi-row ON CONFLICT DO UPDATE refuses that outright (21000), so the gateway must fold it the
+            // way the old one-at-a-time loop did: the later value wins.
+            await nutrition.upsertValues([
+                { nutritionId: header, nutrientId: protein!.id, amount: '15.23', citationId: cite },
+                { nutritionId: header, nutrientId: fat!.id, amount: '65.21', citationId: cite },
+                { nutritionId: header, nutrientId: protein!.id, amount: '15.30', citationId: cite },
+            ]);
+
+            const values = await nutrition.listByFood(foodId);
+            const amountOf = (id: string) => values.find((value) => value.nutrientId === id)?.amount;
+
+            expect(values).toHaveLength(2);
+            expect([amountOf(protein!.id), amountOf(fat!.id)]).toStrictEqual(['15.30', '65.21']);
+        });
+
+        it('sends no statement for an empty batch', async () => {
+            let statements = 0;
+            const quiet = new FoodNutritionDao(
+                makeDb(pool, {
+                    logQuery: () => {
+                        statements += 1;
+                    },
+                }),
+            );
+
+            await quiet.upsertValues([]);
+
+            expect(statements).toBe(0);
+        });
+    });
+
     describe("FoodNutritionDao — a live root's header, citations and values (KTD-19)", () => {
         it('creates one header per root, and returns the same one again', async () => {
             const { id: foodId } = await foods.createByName({ normalizedName: 'almonds' });

@@ -104,8 +104,29 @@ test.describe('the sign-in surface', () => {
             expect(await photo.evaluate((image) => image.closest('[aria-hidden="true"]') !== null)).toBe(true);
             expect(((await photo.boundingBox())?.width ?? 0) >= 600).toBe(true);
             expect(((await email.boundingBox())?.width ?? Number.POSITIVE_INFINITY) <= 400).toBe(true);
+            // F3 (`evaluateFinal.md`): the photo was a broken image, its `/images/…` request locale-redirected. It
+            // decodes now: a broken image has no natural width.
+            await expect
+                .poll(() => photo.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+                .toBeGreaterThan(0);
         });
     });
+
+    // F20: the fields are 48 px tall with a 12 px radius (§8), over Clerk's own 36 px cap, in both themes.
+    for (const colorScheme of ['light', 'dark'] as const) {
+        test.describe(`the ${colorScheme} theme at 390 px`, () => {
+            test.use({ colorScheme, viewport: { width: 390, height: 844 } });
+
+            test('draws the email field 48 px tall with a 12 px radius', async ({ page }) => {
+                await page.goto(route('/sign-in'));
+                const email = page.getByRole('textbox', { name: /email/i });
+
+                await expect(email).toBeVisible();
+                expect(Math.round((await email.boundingBox())?.height ?? 0)).toBe(48);
+                expect(await email.evaluate((field) => getComputedStyle(field).borderTopLeftRadius)).toBe('12px');
+            });
+        });
+    }
 
     test.describe('at 1023 px: no photograph, a 440 px card', () => {
         test.use({ viewport: { width: 1023, height: 800 } });

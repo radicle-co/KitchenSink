@@ -67,9 +67,11 @@ export const config = {
     // script and posts its beacons under that prefix, and a locale redirect silently zeroes the dashboard.
     // The exclusions are anchored PREFIXES — an app path that merely contains the word (a recipe slugged
     // `_vercel-cake`) still matches and is still locale-redirected, which `tests/middleware.test.ts` pins.
+    // Static files are excluded by EXTENSION, Clerk's documented matcher clause: Next serves `public/` at the root
+    // (`/images/…`), never under `/public/`, so a prefix cannot name them and a locale redirect broke every image.
     matcher: [
         '/',
-        '/((?!_next/static|_next/image|_vercel/|favicon.ico|sitemap.xml|robots.txt|public/|sentry-tunnel).*)',
+        '/((?!_next/static|_next/image|_vercel/|sitemap.xml|robots.txt|sentry-tunnel|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
         '/(api|trpc)(.*)',
     ],
 };

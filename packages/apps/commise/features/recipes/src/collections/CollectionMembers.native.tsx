@@ -21,7 +21,8 @@ import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { GRID_GAP, libraryGridColumnsOf } from '../card/cardGridLayout.js';
 import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
-import { fillTemplate, formatRecipeCount } from '../list/model.js';
+import { formatRecipeCount } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { CollectionMemberRow } from './CollectionMemberRow.native.js';
 import { MEMBER_WINDOW_SIZE, type CollectionMembersProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';

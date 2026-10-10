@@ -9,7 +9,7 @@
 import type { Locale } from '@commise/i18n';
 
 import { formatQuantity } from '../detail/model.js';
-import { fillTemplate } from '../list/model.js';
+import { fillTemplate } from '../format/fillTemplate.js';
 import { readLeadingMeasure } from './leadingMeasure.js';
 
 /** The four part templates, already localised (`editorMessages.ingredients.reading`). */

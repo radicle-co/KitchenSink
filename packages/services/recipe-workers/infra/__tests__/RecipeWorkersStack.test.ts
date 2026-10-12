@@ -2415,9 +2415,11 @@ describe('RecipeWorkersStack — consumer concurrency (U8)', () => {
         for (const [id, queue] of tuned) {
             const visibility = queue.Properties?.VisibilityTimeout as number;
             const redrive = queue.Properties?.RedrivePolicy as { maxReceiveCount: number } | undefined;
+
             if (redrive === undefined) {
                 throw new Error(`${id} has no redrive policy`);
             }
+
             const maxReceives = redrive.maxReceiveCount;
 
             expect(maxReceives * visibility, id).toBeGreaterThan(9 * 60 * 60);

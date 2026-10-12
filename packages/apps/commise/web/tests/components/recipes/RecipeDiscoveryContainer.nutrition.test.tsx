@@ -312,10 +312,11 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup on the browse
  */
 describe('RecipeDiscoveryContainer — a typed search never waits on the calorie batch', () => {
     /**
-     * Search debounce (250 ms) plus generous headroom for a loaded parallel run. The in-flight batch below never
-     * settles, so a list that waited on it cannot pass inside this bound — and no timer outlives the test.
+     * Search debounce (250 ms) plus headroom for a loaded CI run, where 3 s timed out once with the code unchanged.
+     * It stays under the app client's 1 s + 2 s + 4 s retry backoff, so a list that waited on a retried batch still
+     * cannot pass, and the in-flight batch below never settles at all — and no timer outlives the test.
      */
-    const RESULTS_BOUND_MS = 3_000;
+    const RESULTS_BOUND_MS = 6_000;
 
     /** A browse-default client whose search narrows on `query`, exactly as the Playwright mock does. */
     function discoveryClient(paellaId: string, pastaId: string) {

@@ -54,7 +54,9 @@ const rdsClient = new RDSClient({});
 const ecsClient = new ECSClient({});
 const ec2Client = new EC2Client({});
 const ssmClient = new SSMClient({});
-const eventBridgeClient = new EventBridgeClient({});
+// ⚠️ Adaptive retry, because every parallel deploy in Sandbox Up runs `sync` at once and each reads one tag set per
+// rule: EventBridge's control plane throttles that burst, and the default three attempts failed a deploy on it.
+const eventBridgeClient = new EventBridgeClient({ retryMode: 'adaptive', maxAttempts: 10 });
 
 /**
  * The name prefix every rule this repository deploys carries. CloudFormation truncates a generated rule name but

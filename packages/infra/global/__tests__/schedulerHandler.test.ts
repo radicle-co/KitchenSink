@@ -17,9 +17,10 @@ import {
 } from '../lib/sandbox-scheduler/scheduler.js';
 import { isInvalidSchedulerRequestError } from '../lib/sandbox-scheduler/invalidSchedulerRequestError.js';
 
-const { runSchedulerAction, eventBridgeSend } = vi.hoisted(() => ({
+const { runSchedulerAction, eventBridgeSend, eventBridgeConfigs } = vi.hoisted(() => ({
     runSchedulerAction: vi.fn(),
     eventBridgeSend: vi.fn(),
+    eventBridgeConfigs: [] as unknown[],
 }));
 
 vi.mock('../lib/sandbox-scheduler/scheduler.js', async (importOriginal) => ({
@@ -34,6 +35,10 @@ vi.mock('@aws-sdk/client-eventbridge', async (importOriginal) => {
         ...actual,
         EventBridgeClient: class {
             public send = eventBridgeSend;
+
+            public constructor(config: unknown) {
+                eventBridgeConfigs.push(config);
+            }
         },
     };
 });
@@ -189,6 +194,13 @@ describe('the EventBridge adapter', () => {
         ]);
         // The event-pattern rule's tags are never even read: it is not the scheduler's.
         expect(sent().filter((call) => call.command === 'ListTagsForResourceCommand')).toHaveLength(2);
+    });
+
+    it('⛔ rides out EventBridge throttling instead of failing the deploy that ran the sync', () => {
+        // Sandbox Up deploys a dozen stacks at once and each one runs `sync`, which reads one tag set per rule.
+        // EventBridge's control plane answered `ThrottlingException: Rate exceeded` (run 38317348271), and the
+        // SDK's default three attempts failed the ingredient-parser deploy and skipped the recipe deploys behind it.
+        expect(eventBridgeConfigs).toEqual([{ retryMode: 'adaptive', maxAttempts: 10 }]);
     });
 
     it('enables and disables a rule by NAME, on the default bus', async () => {

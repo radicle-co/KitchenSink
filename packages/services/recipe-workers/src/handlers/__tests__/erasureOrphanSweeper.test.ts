@@ -128,18 +128,16 @@ function s3WithOrphansAt(orphanKeys: Set<string>): void {
     });
 }
 
-/** 11:00 in New York — the stage is awake. */
-const AWAKE = new Date('2026-10-09T15:00:00Z');
+/** 11:00 in New York. */
+const MIDDAY = new Date('2026-10-09T15:00:00Z');
 
-/** 01:00 in New York — inside ADR-0007's nightly stop. */
-const ASLEEP = new Date('2026-10-09T05:00:00Z');
+/** 01:00 in New York — an hour the handler used to refuse to run in on a non-prod stage. */
+const SMALL_HOURS = new Date('2026-10-09T05:00:00Z');
 
-// The handler reads the clock before anything else (the nightly window, R35), so every case runs at an awake
-// instant; the window's own cases below override it.
 beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(AWAKE);
+    vi.setSystemTime(MIDDAY);
     process.env['RECIPE_ARCHIVE_BUCKET'] = ARCHIVE;
     process.env['RECIPE_MEDIA_BUCKET'] = MEDIA;
     process.env['STAGE'] = 'sandbox';
@@ -152,18 +150,15 @@ afterEach(() => {
     delete process.env['STAGE'];
 });
 
-describe('erasure-orphan-sweeper handler — the nightly window (R35)', () => {
-    it('does not touch the database while a non-prod stage is asleep', async () => {
-        vi.setSystemTime(ASLEEP);
-
-        await expect(handler()).resolves.toBeUndefined();
-
-        expect(getRecipeDbMock).not.toHaveBeenCalled();
-    });
-
-    it('sweeps at night on prod, which never sleeps', async () => {
-        vi.setSystemTime(ASLEEP);
-        process.env['STAGE'] = 'prod';
+/**
+ * ⛔ REWRITTEN (owner ruling 2026-10-12): the handler used to stand down on a non-prod stage between 00:00 and
+ * 09:00 ET. That clock is deleted; the sweep's schedule rule is enabled only while the sandbox is up for its PR,
+ * so an invoked handler always sweeps.
+ */
+describe('erasure-orphan-sweeper handler — it sweeps whenever invoked', () => {
+    it.each(['sandbox', 'pr-91', 'prod'])('⛔ reads the database at 01:00 New York on %s', async (stage) => {
+        vi.setSystemTime(SMALL_HOURS);
+        process.env['STAGE'] = stage;
         vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners([]) as never);
 
         await handler();
@@ -171,11 +166,13 @@ describe('erasure-orphan-sweeper handler — the nightly window (R35)', () => {
         expect(getRecipeDbMock).toHaveBeenCalled();
     });
 
-    it('refuses to run without a STAGE, rather than guessing which window applies', async () => {
+    it('does not need a STAGE to decide whether to sweep', async () => {
         delete process.env['STAGE'];
+        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners([]) as never);
 
-        await expect(handler()).rejects.toThrow(/STAGE/);
-        expect(getRecipeDbMock).not.toHaveBeenCalled();
+        await handler();
+
+        expect(getRecipeDbMock).toHaveBeenCalled();
     });
 });
 

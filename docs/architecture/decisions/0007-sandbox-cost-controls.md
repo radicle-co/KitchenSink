@@ -32,13 +32,12 @@ Sandbox does not need production sizing, production observability depth, or 24/7
 
 **2. Scheduled nightly shutdown of sandbox (America/New_York).** A `SandboxSchedulerStack`
 (created by `GlobalStack` **only when `stage === 'sandbox'`**) provisions an EventBridge Scheduler
-pair — **stop at 00:00 ET, start at 09:00 ET, daily**, `timezone: America/New_York` (DST-correct) —
-targeting a small Lambda that, scoped to sandbox resources by name/tag:
+schedule — **stop at 00:00 ET, daily**, `timezone: America/New_York` (DST-correct) — targeting a small
+Lambda that, scoped to sandbox resources by name/tag:
 
-> ⚠️ The 09:00 start was DELETED by [ADR-0028](0028-on-demand-sandbox.md) §5 (2026-08-27) and **RESTORED**
-> by its Update of 2026-09-03, so this pair is again what ships. Read that Update before removing it a
-> second time: §5's premise — that a start would resurrect the whole tier — expired when ADR-0028's own
-> 2026-08-30 amendment made the ALB and identity service _deleted stacks_, which a schedule cannot recreate.
+> ⚠️ The START half of this section is superseded by [ADR-0060](0060-sandbox-starts-only-by-hand.md): there is
+> no 09:00 start. The sandbox starts only when Sandbox Up is pressed for one PR, through the same Lambda's
+> per-PR `start`.
 
 - stops / starts the sandbox RDS instance (`rds:StopDBInstance` / `StartDBInstance`);
 - scales sandbox ECS services to `0` and back to their prior desired count (`ecs:UpdateService`);
@@ -56,37 +55,37 @@ on an ON-DEMAND lifecycle, deleted and rebuilt rather than scheduled, so the "de
 objection was re-argued there and lost. An ALB still has no stop primitive; what changed is that it is no
 longer kept running.
 
-**"Idle" scope.** The nightly window is the concrete idle mechanism; the stoppable resources are
-RDS, ECS, and the NAT instance. Finer traffic-based scale-to-zero (e.g. ECS autoscaling on request
-count) is deferred — it adds cold-start latency to every first request and is not worth it for a
-preview tier the schedule already covers. **Weekends are deliberately left ON** (the team works the
-sandbox on weekends); only the nightly 00:00–09:00 ET window is shut down.
+**"Idle" scope.** The stoppable resources are RDS, ECS, and the NAT instance. Finer traffic-based
+scale-to-zero (e.g. ECS autoscaling on request count) is deferred — it adds cold-start latency to every
+first request. When the sandbox runs at all is decided by [ADR-0060](0060-sandbox-starts-only-by-hand.md):
+from a Sandbox Up press until the midnight stop.
 
 ## Consequences
 
-- **What this schedule governs, and all it governs, is the two resources that can only be STOPPED**: the
-  sandbox RDS instance and the `t4g.nano` NAT instance. Sandbox compute is no longer merely off ~9h/day —
+- **What this schedule governs, and all it governs, is stopping the resources that can only be STOPPED**: the
+  sandbox RDS instance and the `t4g.nano` NAT instance (and the ECS services, scaled to zero). Sandbox compute is no longer merely off ~9h/day —
   under [ADR-0028](0028-on-demand-sandbox.md) it is deleted when idle and rebuilt on demand. Of this ADR's
   three original savings premises only the RDS `small → micro` downsize survives unchanged; Container
   Insights is disabled everywhere rather than STANDARD in non-prod, so no cluster inherits anything.
 
-- **Cold start each morning**: the sandbox RDS takes a few minutes to become available at 09:00 ET,
-  and ECS tasks restart — sandbox is briefly unavailable before 09:00 and during startup. Acceptable
-  for a preview tier; documented so a 3am sandbox check isn't mistaken for an outage.
-- A stopped RDS instance auto-restarts after 7 days (AWS behaviour); the nightly start makes this
-  moot, and if the schedule is ever disabled, the instance self-recovers.
+- **Cold start on each Sandbox Up press** ([ADR-0060](0060-sandbox-starts-only-by-hand.md)): the sandbox RDS
+  takes a few minutes to become available, and Sandbox Up waits for it. Outside a press the sandbox is down;
+  documented so a 3am sandbox check isn't mistaken for an outage.
+- A stopped RDS instance auto-restarts after 7 days (AWS behaviour); the nightly stop catches that within
+  a day.
 - Per-stage divergence keeps the **prod synthesized template unchanged** (ADR-0002 discipline): prod
   keeps `small` + `ENHANCED` and gets no scheduler.
 - Downsizing an existing sandbox RDS to `micro` is a modify with brief downtime; applied during a
   deliberate sandbox deploy, not silently.
 
-## Amendment — the deploy-time wake gate wakes the NAT too
+## Amendment — the deploy-time gate covers the NAT too
 
 The nightly window composes with **ADR-0022** (schema migrations run INSIDE the deploy, as an in-stack
 `aws-cdk-lib/triggers` Trigger) to produce a failure neither ADR predicted: a sandbox deploy that lands
-inside the window runs against stopped infrastructure. `.github/scripts/sandboxWake.sh` closes that, and
-every sandbox deploy step is asserted to be preceded by it
-(`packages/infra/global/__tests__/sandboxWakeWiring.test.ts`).
+inside the window runs against stopped infrastructure. `.github/scripts/sandboxWake.sh` closes that
+(`packages/infra/global/__tests__/sandboxWakeWiring.test.ts`). ⚠️ [ADR-0060](0060-sandbox-starts-only-by-hand.md)
+removed the WAKE: no script starts anything, and the gate is `sandboxWake.sh check`, which only answers whether the
+database and NAT are up. The diagnosis below still holds; the cure is now "skip when down".
 
 It was written to wake only the **database**, and its own header said it "never touches ECS or the NAT
 instance". That was wrong about the NAT, and the gap took a second incident to surface, because the first
@@ -112,19 +111,18 @@ The same window also explains the web E2E failures that ran beside it: the Clerk
 `externalId` by calling `clerk.users.updateUser`, which leaves through the same NAT, so
 `waitForTestUserExternalId` timed out on every shard. One stopped instance, three red jobs.
 
-`ensure` now wakes **both**, and reports both in one run rather than failing at the first — a deploy needs
+The gate now judges **both**, and reports both in one run rather than failing at the first — a deploy needs
 the database _and_ the NAT, and stopping at the first verdict costs the operator a second round trip. The
 script is renamed `sandboxWake.sh` because "db-wake" is no longer what it does. ECS stays out of scope on
 purpose: a sandbox deploy deploys its own service, and CDK restores the desired count as part of that.
 
-Verified end to end rather than reasoned about: the gate discovered and started the sandbox NAT (and only
-it), and the identity migration runner — which had returned `TimeoutError` minutes earlier — returned
-`FunctionError: None` with 9 migrations validated on the first invocation after the instance reached
-`running`. No warm-up delay was needed, which is why the gate stops at `running` and adds no sleep.
+Verified end to end rather than reasoned about: the identity migration runner — which had returned
+`TimeoutError` minutes earlier — returned `FunctionError: None` with 9 migrations validated on the first
+invocation after the NAT reached `running`. No warm-up delay was needed, which is why the gate treats
+`running` as up and adds no sleep.
 
-**Residual risk.** The CI credentials must carry `ec2:DescribeInstances` and `ec2:StartInstances`; they
-deploy the VPC that owns the NAT, so they do today, but a future least-privilege pass on those keys must
-keep them. The failure mode is loud (an `::error::` naming the instance), not silent.
+**Residual risk.** The CI credentials must carry `ec2:DescribeInstances`; they deploy the VPC that owns the
+NAT, so they do today. The failure mode is loud (an `::error::` naming the instance), not silent.
 
 ---
 

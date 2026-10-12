@@ -104,6 +104,12 @@ ADR under `docs/architecture/decisions/` and confirm you are not reintroducing t
   There is no denylist, so safety depends entirely on never naming or tagging a global resource `pr-{N}`.
   The delimiter-aware match lives once, in `.github/scripts/prScope.sh` (so pr-1 ≠ pr-15) — do not add a
   second matcher, do not relax it to a bare prefix, and do not add an "orphaned-looking" sweep.
+- **ADR-0060 — the sandbox starts ONLY by hand, and its scheduled jobs follow its state.** The midnight stop is the
+  one scheduled job; there is no daily start and no CI wake, and a job that needs the sandbox SKIPS when it is down.
+  Sandbox Up issues the scheduler's per-PR `start` through `.github/scripts/sandboxScheduler.sh`, and nothing else
+  does. Outside prod every scheduled EventBridge rule deploys DISABLED with a `SandboxStage` tag, and the scheduler's
+  `sync` is the only writer of rule state. Don't restore a start schedule or a wake, and don't toggle a rule from
+  anywhere but `sync`. See `docs/architecture/decisions/0060-sandbox-starts-only-by-hand.md`.
 - **ADR-0008 — non-prod cost levers diverge from prod on purpose.** Non-prod RDS uses `gp3` while prod
   stays `gp2`; non-prod Fargate runs `FARGATE_SPOT` while prod runs on-demand. Don't "fix" sandbox to
   match prod, and don't flip prod without its own PR and a no-diff proof.

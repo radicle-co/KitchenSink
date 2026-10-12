@@ -1104,21 +1104,18 @@ jobs:
     # staying 200 to curl (a stale pre-CORS recipe build served pr-73 for fifteen days behind exactly that
     # green). The image-currency and dependency-wiring classifiers are deliberately NOT invoked: both compare
     # against what a DEPLOY just produced, and this workflow deploys nothing.
-    # ⛔ THE E2E BRANCH — the pipeline ASKS whether the sandbox is up, and refuses to call a silent skip a
-    # pass.
+    # ⛔ THE E2E BRANCH — the pipeline ASKS whether the sandbox is up (the database and the NAT, not just the
+    # stacks), and says so when it skips.
     #
-    # ADR-0032's ruling stands: a deployed TIER skips when there is nothing to test against. What it left
-    # open — and names itself — is the PR-level question: "a PR merged without ever raising a sandbox has
-    # had no end-to-end test of any kind … and neither is enforced by a check". The mitigation was a
-    # `sandbox-up` label, and a label a human must remember is a single point of failure whose failure mode
-    # is SILENCE: forget it, everything skips, every check is green, and the skip is indistinguishable from
-    # a pass.
-    #
-    # So the decision moved into the pipeline. Three outcomes, one of which did not exist before:
+    # The sandbox starts only by hand, through the Sandbox Up workflow (owner ruling 2026-10-12), so DOWN is its
+    # normal resting state and a job that needs it SKIPS: "A job that needs the sandbox SKIPS when it is down. It
+    # never fails for that reason." Two outcomes:
     #
     #   run   the shared tier is up → deploy this preview, migrate it, then test against it
-    #   skip  `skip-e2e` is present → a human decision, recorded where a reviewer sees it
-    #   fail  the tier is down and nobody said that was intended
+    #   skip  the tier is down, or `skip-e2e` is present, or this is not a pull request
+    #
+    # The earlier third outcome, `fail`, is deleted: it turned the resting state into a red check on every PR.
+    # The skip's reason still says DOWN and names Sandbox Up, so a skip is not mistaken for a pass.
     #
     # ⚠️ It probes the SHARED tier, not the per-PR preview — the preview is what the deploy CREATES, so
     # testing for it would refuse the first push of every PR.
@@ -1154,11 +1151,17 @@ jobs:
 
                   # ⚠️ The probe only runs for a pull request. On `main` there is nothing to probe and no
                   # credentials step above, so asking would fail for the wrong reason.
+                  # A probe that ERRORS (exit 1) is not "down": the status check could not answer, and calling that
+                  # a skip would hide an AWS outage. Its own `::error::` lines are in the output printed first.
                   up='false'
                   if [ "${EVENT}" = 'pull_request' ]; then
-                    probe=$(bash .github/scripts/sandboxStatus.sh probe "${REGION}" sandbox) || exit 2
-                    up=$(printf '%s' "$probe" | sed -n 's/^up=//p')
+                    probe_status=0
+                    probe=$(bash .github/scripts/sandboxStatus.sh probe "${REGION}" sandbox) || probe_status=$?
                     printf '%s\n' "$probe"
+                    if [ "$probe_status" -ne 0 ]; then
+                      exit 2
+                    fi
+                    up=$(printf '%s' "$probe" | sed -n 's/^up=//p')
                   fi
 
                   verdict=$(bash .github/scripts/sandboxStatus.sh verdict "${EVENT}" "${up}" "${SKIP_LABEL}") || exit 2
@@ -1172,15 +1175,7 @@ jobs:
                     echo "${reason}"
                   } >> "$GITHUB_STEP_SUMMARY"
 
-                  case "$branch" in
-                    fail)
-                      echo "::error::${reason}"
-                      exit 1
-                      ;;
-                    *)
-                      echo "::notice::${reason}"
-                      ;;
-                  esac
+                  echo "::notice::${reason}"
 
     # The preview itself — deploy, and the schema stacks + migrations inside it (ADR-0035). A REUSABLE
     # workflow, because GitHub Actions has no cross-workflow `needs`: while these jobs lived in
@@ -2027,12 +2022,9 @@ jobs:
         # these shards now skip by default, so that is the uncommon case. The shard number stays in
         # the STEP name, where a human reads it and no required-check rule matches on it.
         name: Integration (web — Playwright over a stubbed API, locally booted)
-        # 30 for the suite plus the wake gate's worst case, which `sandboxWakeWiring.test.ts` derives from the
-        # script's defaults: a run that starts shortly before ADR-0007's 00:00 ET stop first waits out the
-        # boundary, then wakes the database and the NAT. A job timeout inside the gate is the misleading failure
-        # the gate exists to prevent, so the gate's own bounds must be the ones that fire. Sized on the wake
-        # alone, this limit lost all six shards of run 37173553902 inside the boundary wait.
-        timeout-minutes: 110
+        # 30 for the suite, with margin. This job touches no sandbox resource, so there is no gate to outlive:
+        # the stubbed-API suite needs only the Clerk Backend API (see the fixture note on the secrets step below).
+        timeout-minutes: 45
         runs-on: ubuntu-latest
         # `build-ui` rather than `build`: the `.next` artifact is gone with the local server, but
         # `mockupFidelity.spec.ts` still imports `@commise/ui/tokens/gradients`, whose exports map resolves to
@@ -2049,8 +2041,8 @@ jobs:
         # test count tracks sharding by time. Playwright balances whole FILES (it never splits one), and the
         # largest file here holds 9 tests against ~25.5 per shard, so 4 shards balance cleanly. Above ~4 the
         # win collapses into fixed cost — ~1.4m of checkout/deps/browser install plus a Next dev-server boot,
-        # paid per shard — while the Clerk fixture count, the runner minutes, and the exposure to the
-        # `waitForTestUserExternalId` setup flake all keep scaling linearly. 4 buys ~5.2m per shard
+        # paid per shard — while the Clerk fixture count and the runner minutes both keep scaling
+        # linearly. 4 buys ~5.2m per shard
         # (≈ +6.5m runner minutes total) for roughly a 9m cut in wall clock; 8 would roughly double the added
         # cost to shave ~1.5m more, against the repo's cost posture (ADR-0007/ADR-0008).
         #
@@ -2191,11 +2183,10 @@ jobs:
             # domain-locked and refuse to initialize on any origin other than their production domain —
             # ClerkJS aborts with "Production Keys are only allowed for domain <domain>", so <SignIn> never
             # mounts and the sign-in page renders without the auth form (only the Next.js <title> survives).
-            # So these are always the sandbox (dev-instance) keys regardless of the pipeline stage — which is
-            # also why the wake below is always about the SANDBOX database.
+            # So these are always the sandbox (dev-instance) keys regardless of the pipeline stage.
             #
-            # These are the BACKEND keys the fixture provisioning uses (`globalSetup` calls Clerk's Backend
-            # API to create the run-scoped user); the publishable key the BROWSER runs on is the one the
+            # These are the BACKEND keys the fixture provisioning uses (`globalSetup` resolves the run-scoped
+            # sign-in user through Clerk's Backend API); the publishable key the BROWSER runs on is the one the
             # preview's own Vercel build inlined.
             - name: Load sandbox (dev-instance) Clerk secrets for the stubbed-API web suite
               id: secrets
@@ -2206,38 +2197,13 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            # ⛔ ADR-0007 × THIS SUITE'S CLERK FIXTURE — the same nightly shutdown that wedges deploys, hitting
-            # a job that deploys NOTHING. `globalSetup` creates a run-scoped Clerk user and then BLOCKS for 30s
-            # waiting for `external_id` to be backfilled; that backfill is the sandbox `user.created` webhook —
-            # a VPC-attached Lambda that reaches Secrets Manager and the Clerk Backend API through the sandbox
-            # NAT instance and writes the app user to the sandbox RDS. ADR-0007 stops BOTH nightly, 00:00–09:00
-            # ET, so inside that window the backfill can never arrive.
-            #
-            # Observed 2026-08-25 at 01:37 ET on dcf2aaef: all eight shards dead in ~1 minute each, NO test
-            # results produced at all, every one failing with `waitForTestUserExternalId: … still has no
-            # externalId after 30000ms`. That message names a webhook outage because it was written without
-            # knowing the outage is on a SCHEDULE — the suite is not flaky overnight, it is impossible.
-            #
-            # Waking here is near-free on a daytime run (two describe calls against an already-`available`
-            # instance and an already-`running` NAT — `ensure` is idempotent) and starts the tier only on a run
-            # that actually lands in the window, which is exactly when it must. The nightly schedule is
-            # untouched, so ADR-0007's cost intent stands. The script takes no instance argument by
-            # construction — it discovers and validates — so it cannot address the prod database.
-            #
-            # ⛔ It runs BEFORE the artifact download and the browser install, and its exit status is NOT
-            # suppressed: a wake failure must end this job immediately and by its own name, rather than let the
-            # suite proceed and die 30s later inside globalSetup with a message that sends the reader hunting a
-            # webhook outage. Diagnosing that misdirection is most of what this incident cost.
-            #
-            # ⚠️ This runs on the `main` (prod) pipeline too, and that is correct rather than a leak: this job
-            # ALWAYS authenticates against the sandbox dev instance whatever `inputs.stage` says (see the step
-            # above for why pk_live cannot serve localhost), so it is always the SANDBOX that has to be awake.
-            #
-            # AWS credentials come from the `load-secrets` step above, which configures them with the SAME
-            # static keys the deploy workflows already run this script under — so this needs no IAM change.
-            - name: Wake the shared sandbox (ADR-0007 stops the RDS + NAT this suite's Clerk fixture needs)
-              if: steps.secrets.outcome == 'success'
-              run: bash .github/scripts/sandboxWake.sh ensure "${DEFAULT_AWS_REGION}"
+            # ⛔ THIS JOB NEEDS NO SANDBOX RESOURCE, SO IT RUNS WHETHER OR NOT THE SANDBOX IS UP (owner ruling
+            # 2026-10-12: the sandbox starts only by hand). It used to wake the sandbox RDS and NAT here, on the
+            # belief that `globalSetup` blocked on the sandbox `user.created` webhook backfilling `external_id`.
+            # That wait is deleted code: `global.setup.ts` now makes one Clerk Backend API lookup
+            # (`resolvePoolUser`), and every `/api/v1/**` call the specs make is stubbed in the browser.
+            # The wake guarded nothing, and it was the step that started a stopped sandbox on every push.
+            # `sandboxWakeWiring.test.ts` fails if this job references the sandbox status script again.
             # Cache the Playwright browser binaries (~/.cache/ms-playwright) keyed on the lockfile so
             # the Chromium download only happens when the Playwright version changes.
             # `next start` SERVES a build; it does not make one. The `build` job publishes `.next` and this

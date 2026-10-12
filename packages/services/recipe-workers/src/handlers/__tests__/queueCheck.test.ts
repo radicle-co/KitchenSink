@@ -6,7 +6,7 @@
  * or nothing is carrying the work at all. The difference is entirely in the TRANSPORT, and escalating a
  * healthy backlog trains its reader to ignore the signal — which is worse than not having one.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runRecipeQueueCheck, type CheckedQueue, type RecipeOwedCounts, type TransportDepth } from '../queueCheck.js';
 
@@ -20,11 +20,8 @@ const NOTHING_OWED: RecipeOwedCounts = {
 
 const EMPTY: TransportDepth = { visible: 0, inFlight: 0, deadLettered: 0 };
 
-/** Mid-morning in New York — outside the nightly window. */
-const AWAKE = new Date('2026-07-15T15:00:00Z');
-
-/** 01:00 in New York — inside ADR-0007's nightly stop. */
-const ASLEEP = new Date('2026-07-15T05:00:00Z');
+/** 01:00 in New York — the hours the sandbox used to be silent in, before its clock was deleted. */
+const SMALL_HOURS = new Date('2026-07-15T05:00:00Z');
 
 function queue(name: string, counts: Partial<RecipeOwedCounts>, depth: Partial<TransportDepth> = {}): CheckedQueue {
     return {
@@ -34,14 +31,14 @@ function queue(name: string, counts: Partial<RecipeOwedCounts>, depth: Partial<T
     };
 }
 
-function run(queues: readonly CheckedQueue[], stage = 'sandbox', now = AWAKE) {
+function run(queues: readonly CheckedQueue[], stage = 'sandbox') {
     const escalate = vi.fn();
     const checkIn = vi.fn();
 
     return {
         escalate,
         checkIn,
-        result: runRecipeQueueCheck({ stage, service: 'recipe-workers', queues, escalate, checkIn, now: () => now }),
+        result: runRecipeQueueCheck({ stage, service: 'recipe-workers', queues, escalate, checkIn }),
     };
 }
 
@@ -97,25 +94,28 @@ describe('the recipe queue check', () => {
     });
 
     /**
-     * ⛔ THE NIGHTLY WINDOW, and the assertion that matters is that it reads NOTHING — no database call, no
-     * SQS call. ADR-0007 stops the non-prod tier's RDS from 00:00 to 09:00.
+     * ⛔ THE CLOCK IS GONE (owner ruling 2026-10-12: queue checks "should only be enabled when the sandbox is up
+     * for that PR"). The check used to return early between 00:00 and 09:00 ET on a non-prod stage. Now the ONLY
+     * thing that decides whether it runs is whether its schedule rule is enabled, so a check that IS invoked
+     * reads every queue and says what it found, at any hour, on any stage. These run at 01:00 ET: a clock gate
+     * re-added anywhere in the call path turns the sandbox and preview cases red.
      */
-    it('⛔ during the nightly window it makes NO call and raises nothing', async () => {
-        const parse = queue('parse', { owedPastDeadline: 99, neverReceived: 99 });
-        const { result, escalate } = run([parse], 'sandbox', new Date('2026-07-15T05:00:00Z'));
+    describe.each(['sandbox', 'pr-91', 'prod'])('at 01:00 New York on %s', (stage) => {
+        afterEach(() => {
+            vi.useRealTimers();
+        });
 
-        expect(await result).toEqual([]);
-        expect(parse.counts).not.toHaveBeenCalled();
-        expect(parse.depth).not.toHaveBeenCalled();
-        expect(escalate).not.toHaveBeenCalled();
-    });
+        it('⛔ reads every queue and raises what it finds', async () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(SMALL_HOURS);
+            const parse = queue('parse', { owedPastDeadline: 99, neverReceived: 99 });
+            const { result, escalate } = run([parse], stage);
 
-    it('⛔ PROD checks during those same hours — it is never stopped', async () => {
-        const parse = queue('parse', { owedPastDeadline: 1, neverReceived: 1 });
-        const { result } = run([parse], 'prod', new Date('2026-07-15T05:00:00Z'));
-
-        expect(await result).toHaveLength(1);
-        expect(parse.counts).toHaveBeenCalledTimes(1);
+            expect(await result).toHaveLength(1);
+            expect(parse.counts).toHaveBeenCalledTimes(1);
+            expect(parse.depth).toHaveBeenCalledTimes(1);
+            expect(escalate).toHaveBeenCalledTimes(1);
+        });
     });
 
     /**
@@ -193,21 +193,6 @@ describe('the dead-man check-in', () => {
     });
 
     /**
-     * ⛔ Silence inside ADR-0007's nightly stop must be SILENCE, check-in included. A check-in during the
-     * window would report the job as having run when it deliberately did not — and the monitor's whole value
-     * is that its silence is trustworthy.
-     */
-    it('⛔ neither reads nor checks in during the nightly stop', async () => {
-        const parse = queue('parse', { neverReceived: 9, owedPastDeadline: 9 });
-        const { result, escalate, checkIn } = run([parse], 'sandbox', ASLEEP);
-
-        expect(await result).toEqual([]);
-        expect(parse.counts).not.toHaveBeenCalled();
-        expect(escalate).not.toHaveBeenCalled();
-        expect(checkIn).not.toHaveBeenCalled();
-    });
-
-    /**
      * ⛔ A read that throws must NOT check in. The rejection is the signal that the check did not complete,
      * and a check-in issued anyway would tell the monitor the opposite of what happened.
      */
@@ -226,7 +211,6 @@ describe('the dead-man check-in', () => {
                 queues: [broken],
                 escalate: vi.fn(),
                 checkIn,
-                now: () => AWAKE,
             }),
         ).rejects.toThrow('database unreachable');
 

@@ -1,36 +1,38 @@
 /**
- * Repo-wide guard: the sandbox database WAKE gate (`.github/scripts/sandboxWake.sh`).
+ * Repo-wide guard: the sandbox STATUS CHECK (`.github/scripts/sandboxWake.sh check`).
  *
- * ## The incident this exists to prevent
+ * ## What changed, and the ruling behind it (owner, 2026-10-12)
  *
- * ADR-0007 stops the sandbox RDS instance nightly (00:00–09:00 ET). ADR-0022 moved schema migrations
- * INSIDE the deploy, as an `aws-cdk-lib/triggers` Trigger the ECS service depends on. Composed, those two
- * accepted decisions produce a failure neither predicted: a deploy that lands inside the shutdown window
- * runs its migration Trigger against a STOPPED instance, gets `connect ETIMEDOUT 10.1.4.241:5432`, and
- * fails the stack update — and then the ROLLBACK fails for exactly the same reason, leaving the stack in
- * `UPDATE_ROLLBACK_FAILED`. Observed 00:31 EDT on `kitchensink-recipe-service-pr-91`; recovery needed a
- * hand-run `continue-update-rollback --resources-to-skip RecipeSchemaMigrations`, and every sandbox deploy
- * in between failed on the wedged state rather than on anything in the diff.
+ * This script used to WAKE the sandbox: `ensure` started the stopped RDS instance and the stopped NAT before a
+ * deploy or a test run. The owner ruled that the sandbox starts ONLY by hand (the Sandbox Up workflow) and that
+ * no push, schedule or test job may start it: "There should not be a wake of CI push. I never authorized that."
+ * (docs/plans/2026-10-12-001-fix-sandbox-manual-start-plan.md, D2.) `ensure`, `db_wake_start` and
+ * `nat_wake_start` are deleted. What is left answers one question, "is the sandbox up?", and issues only
+ * `describe` calls: exit 0 up, 3 down (or inside the pre-midnight headroom), 1 error, 2 misuse.
  *
- * `SandboxSchedulerStack` already holds BOTH `rds:StopDBInstance` and `rds:StartDBInstance` — nothing woke
- * the instance ON DEMAND. This script is that missing half.
+ * ## The incidents that still shape it
+ *
+ * - 2026-09-05: a deploy that STARTED before 00:00 ET and CROSSED the nightly stop wedged
+ *   `kitchensink-data-sandbox` in UPDATE_ROLLBACK_FAILED. The headroom rule survives, and now answers "down"
+ *   for a caller that would not finish before the stop, instead of waiting for the boundary.
+ * - The sandbox VPC has no interface endpoints (ADR-0004), so every VPC Lambda reaches AWS through the sandbox
+ *   NAT. "Up" therefore means the database AND the NAT.
  *
  * ## Why the predicates are executed as real `bash`
  *
- * Same reason as `prScope.test.ts` and `deployGate.test.ts`: a TypeScript re-implementation would be a
- * SECOND copy of a decision that could drift from the one CI actually runs. These tests shell out to the
- * real script. The decision half (`classify`, `is-sandbox-instance`) is PURE; everything that touches RDS
- * lives in `ensure` and is covered by `tests/sandboxWake.integration.test.ts`.
+ * Same reason as `prScope.test.ts` and `deployGate.test.ts`: a TypeScript re-implementation would be a SECOND
+ * copy of a decision that could drift from the one CI actually runs. The decision half (`classify`,
+ * `is-sandbox-instance`) is PURE; everything that touches RDS and EC2 lives in `check` and is covered by
+ * `tests/sandboxWake.integration.test.ts`.
  *
  * ## The scoping rule is a SAFETY boundary
  *
- * The account holds exactly two DB instances — `kitchensink-data-prod-…` and `kitchensink-data-sandbox-…`
- * — and prod's is never stopped, so a wake that reached it could only ever be a mistake. `ensure` therefore
- * takes NO instance identifier at all: it DISCOVERS instances and refuses every one that is not
- * sandbox-scoped, so there is no argument a caller could typo into prod.
+ * The account holds exactly two DB instances, `kitchensink-data-prod-…` and `kitchensink-data-sandbox-…`. Prod
+ * is never stopped, so a check that read it would report "up" for a sandbox that is down. `check` therefore
+ * takes NO instance identifier: it DISCOVERS instances and refuses every one that is not sandbox-scoped.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -58,7 +60,7 @@ const run = (...args: readonly string[]): { stdout: string; stderr: string; stat
 const SANDBOX_IDENTIFIERS = ['kitchensink-data-sandbox', 'kitchensink-data-sandbox-databaseb269d8bb-p76w6xmz1xlk'];
 
 /**
- * Identifiers a wake must REFUSE. The prod instance is the one that matters; the rest are the near-misses a
+ * Identifiers the check must REFUSE. The prod instance is the one that matters; the rest are the near-misses a
  * bare `contains`/prefix rule would let through.
  */
 const REFUSED_IDENTIFIERS = [
@@ -76,7 +78,7 @@ const REFUSED_IDENTIFIERS = [
 
 describe('sandboxWake.sh — the file exists where the workflows invoke it from', () => {
     it('is present at .github/scripts/sandboxWake.sh', () => {
-        expect(existsSync(SCRIPT), `expected the sandbox DB wake gate at ${SCRIPT}`).toBe(true);
+        expect(existsSync(SCRIPT), `expected the sandbox status check at ${SCRIPT}`).toBe(true);
     });
 });
 
@@ -96,20 +98,29 @@ describe('db_wake_is_sandbox_instance — the prod database is structurally unre
     });
 });
 
-describe('db_wake_classify — every RDS lifecycle status maps to exactly one action', () => {
+describe('db_wake_classify — every RDS lifecycle status maps to exactly one verdict', () => {
     it('reports `ready` for an instance that is already available', () => {
         expect(run('classify', 'available').stdout).toBe('ready');
     });
 
-    it('reports `wake` for a stopped instance — the ONLY status that may issue StartDBInstance', () => {
-        expect(run('classify', 'stopped').stdout).toBe('wake');
+    // Owner ruling 2026-10-12: nothing here starts anything, so a stopped instance is simply DOWN.
+    it.each(['stopped', 'stopping'])(
+        'reports `down` for the status %s — waiting on a stop would be waiting on nothing',
+        (status) => {
+            expect(run('classify', status).stdout).toBe('down');
+        },
+    );
+
+    it('has no `wake` verdict any more', () => {
+        const verdicts = ['available', 'stopped', 'stopping', 'starting', 'failed', 'banana'].map(
+            (status) => run('classify', status).stdout,
+        );
+
+        expect(verdicts).not.toContain('wake');
     });
 
-    // `stopping` is the 00:31 race: the nightly scheduler is mid-stop. StartDBInstance would be rejected
-    // with InvalidDBInstanceState, so the correct move is to wait for `stopped` and then start.
     it.each([
         'starting',
-        'stopping',
         'creating',
         'rebooting',
         'modifying',
@@ -147,8 +158,8 @@ describe('db_wake_classify — every RDS lifecycle status maps to exactly one ac
         expect(run('classify', status).stdout).toBe('fatal');
     });
 
-    // An unrecognised status is `fatal` ON PURPOSE. Both alternatives end red; `fatal` ends red in seconds
-    // with the status named, while `wait` burns the whole timeout first and says the same thing.
+    // An unrecognised status is `fatal` ON PURPOSE. Both alternatives end in an error; `fatal` ends it in
+    // seconds with the status named, while `wait` burns the whole timeout first and says the same thing.
     it('reports `fatal` for a status it does not recognise', () => {
         expect(run('classify', 'banana').stdout).toBe('fatal');
     });
@@ -163,45 +174,67 @@ describe('sandboxWake.sh — misuse fails loudly instead of guessing', () => {
         expect(run('nonsense').status).toBe(2);
     });
 
-    it('refuses `ensure` without a region', () => {
-        expect(run('ensure').status).toBe(2);
+    it('refuses `check` without a region', () => {
+        expect(run('check').status).toBe(2);
     });
 
     // The whole point of the discovery design: there is no identifier argument to get wrong.
-    it('refuses `ensure` when handed an instance identifier', () => {
-        expect(run('ensure', 'us-east-1', 'kitchensink-data-prod-databaseb269d8bb-ci1yhovuyivm').status).toBe(2);
+    it('refuses `check` when handed an instance identifier', () => {
+        expect(run('check', 'us-east-1', 'kitchensink-data-prod-databaseb269d8bb-ci1yhovuyivm').status).toBe(2);
     });
 });
 
 /**
- * ⛔ THE SECOND HALF OF THE SAME INCIDENT — and the reason this file is no longer called `dbWake`.
+ * ⛔ OWNER RULING 2026-10-12: NOTHING IN CI STARTS THE SANDBOX. The script is read as TEXT, comments included,
+ * so the verbs cannot come back under a comment that "explains" them, and a subcommand cannot be re-added.
+ */
+describe('sandboxWake.sh — it can only LOOK', () => {
+    it('contains no start verb for RDS or EC2, and no `ensure`, `wake` function or stop/modify verb', () => {
+        const source = readFileSync(SCRIPT, 'utf8');
+
+        for (const forbidden of [
+            'start-db-instance',
+            'start-instances',
+            'stop-db-instance',
+            'stop-instances',
+            'modify-db-instance',
+            'db_wake_start',
+            'nat_wake_start',
+            'sandbox_wake_ensure',
+            'nat_wake_ensure',
+        ]) {
+            expect(source, `${forbidden} must not appear in the status check`).not.toContain(forbidden);
+        }
+    });
+
+    it('has no `ensure` subcommand: it is refused as misuse', () => {
+        expect(run('ensure', 'us-east-1').status).toBe(2);
+    });
+
+    it('the only AWS verbs it names are describe calls', () => {
+        const verbs = [...readFileSync(SCRIPT, 'utf8').matchAll(/\baws (rds|ec2) ([a-z-]+)/gu)].map(
+            (match) => `${match[1]} ${match[2]}`,
+        );
+
+        expect(verbs.length).toBeGreaterThan(0);
+        expect(
+            verbs.filter((verb) => !verb.endsWith(' describe-db-instances') && !verb.endsWith(' describe-instances')),
+        ).toEqual([]);
+    });
+});
+
+/**
+ * ⛔ THE NAT IS HALF OF "UP". The sandbox VPC has no interface endpoints (ADR-0004: $14.60/month/stage against a
+ * $3-4/month NAT), so every VPC-attached Lambda reaches Secrets Manager, SQS and Clerk through one `t4g.nano`.
+ * Measured 2026-08-23: the database was `available`, the NAT was `stopped`, and a migration died in the
+ * Secrets Manager fetch with `ETIMEDOUT` before it ever reached Postgres. A check that only looked at RDS
+ * would have said "up".
  *
- * The gate above woke the sandbox DATABASE and, by its own header, deliberately "never touches ECS or the
- * NAT instance". That reasoning was wrong, and the branch's CI proved it: `SandboxSchedulerStack` stops the
- * sandbox NAT **instance** on the same nightly schedule, and the sandbox VPC has NO interface endpoints
- * (ADR-0004 forbids them on cost grounds — $14.60/month/stage against a $3–4/month NAT). So every
- * VPC-attached Lambda reaches Secrets Manager, SQS and the Clerk API through that one `t4g.nano`.
- *
- * Measured, not inferred, on 2026-08-23:
- *
- *   - the sandbox DB was `available` (the gate above had done its job, and the RDS event log confirms
- *     `DB instance started` at 04:13Z),
- *   - `i-0b126b357d15b35fd` — `Global-sandbox/…/NatInstance` — was `stopped`,
- *   - `describe-vpc-endpoints` on the sandbox VPC returned NOTHING,
- *   - and invoking the identity migration runner by hand returned
- *     `TimeoutError … AggregateError [ETIMEDOUT] at internalConnectMultiple`.
- *
- * Note the shape of that error: no address. The 00:31 incident named `10.1.4.241:5432` because it really
- * was Postgres refusing; this one dies BEFORE Postgres, in the Secrets Manager fetch that resolves
- * `DB_SECRET_ARN`. A wake gate that only ever looks at RDS reports success and the deploy still fails.
- *
- * ## The predicate mirrors `selectSandboxNatInstances`, and only ever STARTS
+ * ## The predicate mirrors `selectSandboxNatInstances`
  *
  * `lib/sandbox-scheduler/scheduler.ts` identifies the NAT by a DISABLED source/destination check plus a
- * `sandbox` marker in the `Name` tag. This is the same rule in the runtime CI actually uses — the same
- * bash-vs-TypeScript duality already accepted for the RDS predicate — with one tightening: a name carrying
- * `prod` is refused outright. The prod NAT is live in this account, and while STARTING an already-running
- * instance is harmless, a scope surprise is refused rather than worked around.
+ * `sandbox` marker in the `Name` tag. This is the same rule in the runtime CI uses, with one tightening: a name
+ * carrying `prod` is refused outright. Reading the prod NAT would report "up" for a sandbox that is down.
  */
 describe('nat_wake_is_sandbox_nat — the prod NAT is structurally unreachable', () => {
     it.each([
@@ -239,18 +272,14 @@ describe('nat_wake_classify — every EC2 lifecycle state maps to exactly one ac
         expect(run('classify-ec2', 'running').stdout).toBe('ready');
     });
 
-    it('reports `wake` for a stopped instance — the ONLY state that may issue StartInstances', () => {
-        expect(run('classify-ec2', 'stopped').stdout).toBe('wake');
+    it.each(['stopped', 'stopping'])('reports `down` for the state %s', (state) => {
+        expect(run('classify-ec2', state).stdout).toBe('down');
     });
 
-    // Same race as the RDS half: StartInstances on a `stopping` instance is rejected, so wait for
-    // `stopped` and then start it.
-    it.each(['pending', 'stopping', 'shutting-down', 'UNREADABLE'])(
-        'reports `wait` for the transient state %s',
-        (state) => {
-            expect(run('classify-ec2', state).stdout).toBe('wait');
-        },
-    );
+    // `shutting-down` resolves to `terminated`, which is fatal; waiting names the real state in the error.
+    it.each(['pending', 'shutting-down', 'UNREADABLE'])('reports `wait` for the transient state %s', (state) => {
+        expect(run('classify-ec2', state).stdout).toBe('wait');
+    });
 
     it.each(['terminated', 'banana'])('reports `fatal` for %s', (state) => {
         expect(run('classify-ec2', state).stdout).toBe('fatal');
@@ -269,7 +298,7 @@ describe('nat_wake_classify — every EC2 lifecycle state maps to exactly one ac
  * | UTC        | ET       | what happened                                                              |
  * | ---------- | -------- | -------------------------------------------------------------------------- |
  * | `03:52:09` | 23:52:09 | the job starts                                                              |
- * | `03:52:52` | 23:52:52 | `sandboxWake.sh ensure` reports `available (ready)` + NAT `running (ready)` |
+ * | `03:52:52` | 23:52:52 | the wake gate reports `available (ready)` + NAT `running (ready)`        |
  * | `04:00:07` | 00:00:07 | the scheduler Lambda issues `StopDBInstance` (ADR-0007's nightly stop)       |
  * | `04:02:11` | 00:02:11 | CloudFormation issues `ModifyDBInstance` on `DatabaseB269D8BB`              |
  * | `04:04:24` | 00:04:24 | `UPDATE_FAILED` — `Cannot modify a stopped DB Instance`                     |
@@ -290,7 +319,7 @@ describe('nat_wake_classify — every EC2 lifecycle state maps to exactly one ac
  * The cure is that the gate must stop asserting "the database is up NOW" and start asserting "the database
  * will STILL be up when the caller is done" — a headroom check against the next 00:00 America/New_York.
  * That decision is pure and calendar-dependent, so it is exposed as its own subcommand and tested here
- * rather than only inside `ensure`.
+ * rather than only inside `check`.
  */
 describe('sandbox_wake_next_stop — the next 00:00 America/New_York, DST and all', () => {
     // Epochs are pinned as literals with their ET rendering in the name: a helper that recomputed them

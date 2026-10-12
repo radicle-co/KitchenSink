@@ -107,7 +107,7 @@ on:
         # PR still degrades through each tier's own secret-presence check rather than failing to start.
         secrets:
             AWS_ACCESS_KEY_ID:
-                description: AWS access key id, used only to read stage-scoped secrets and wake the sandbox
+                description: AWS access key id, used only to read stage-scoped secrets
                 required: false
             AWS_SECRET_ACCESS_KEY:
                 description: AWS secret access key paired with AWS_ACCESS_KEY_ID
@@ -861,12 +861,9 @@ jobs:
         # `deployedE2eTiers.test.ts` §5); a prod target runs the non-destructive subset only. The first step
         # refuses a prod target too, so this `if:` is never the only thing in the way.
         if: ${{ inputs.target_stage != 'prod' }}
-        # 30 for the suite plus the wake gate's worst case, which `sandboxWakeWiring.test.ts` derives from the
-        # script's defaults: a run that starts shortly before ADR-0007's 00:00 ET stop first waits out the
-        # boundary, then wakes the database and the NAT. A job timeout inside the gate is the misleading failure
-        # the gate exists to prevent, so the gate's own bounds must be the ones that fire. Sized on the wake
-        # alone, this limit lost all six shards of run 37173553902 inside the boundary wait.
-        timeout-minutes: 110
+        # 30 for the suite, with margin. This job never starts or waits on the sandbox (owner ruling 2026-10-12:
+        # it starts only by hand); a target that is down is a skip upstream, so there is no gate to outlive.
+        timeout-minutes: 45
         runs-on: ubuntu-latest
         # `build-ui` rather than `build`: the `.next` artifact is gone with the local server, but
         # `mockupFidelity.spec.ts` still imports `@commise/ui/tokens/gradients`, whose exports map resolves to
@@ -1067,11 +1064,10 @@ jobs:
             # domain-locked and refuse to initialize on any origin other than their production domain —
             # ClerkJS aborts with "Production Keys are only allowed for domain <domain>", so <SignIn> never
             # mounts and the sign-in page renders without the auth form (only the Next.js <title> survives).
-            # So these are always the sandbox (dev-instance) keys regardless of the pipeline stage — which is
-            # also why the wake below is always about the SANDBOX database.
+            # So these are always the sandbox (dev-instance) keys regardless of the pipeline stage.
             #
-            # These are the BACKEND keys the fixture provisioning uses (`globalSetup` calls Clerk's Backend
-            # API to create the run-scoped user); the publishable key the BROWSER runs on is the one the
+            # These are the BACKEND keys the fixture provisioning uses (`globalSetup` resolves the run-scoped
+            # sign-in user through Clerk's Backend API); the publishable key the BROWSER runs on is the one the
             # preview's own Vercel build inlined.
             - name: Load sandbox (dev-instance) Clerk secrets for the preview web E2E
               id: secrets
@@ -1082,38 +1078,12 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            # ⛔ ADR-0007 × THIS SUITE'S CLERK FIXTURE — the same nightly shutdown that wedges deploys, hitting
-            # a job that deploys NOTHING. `globalSetup` creates a run-scoped Clerk user and then BLOCKS for 30s
-            # waiting for `external_id` to be backfilled; that backfill is the sandbox `user.created` webhook —
-            # a VPC-attached Lambda that reaches Secrets Manager and the Clerk Backend API through the sandbox
-            # NAT instance and writes the app user to the sandbox RDS. ADR-0007 stops BOTH nightly, 00:00–09:00
-            # ET, so inside that window the backfill can never arrive.
-            #
-            # Observed 2026-08-25 at 01:37 ET on dcf2aaef: all eight shards dead in ~1 minute each, NO test
-            # results produced at all, every one failing with `waitForTestUserExternalId: … still has no
-            # externalId after 30000ms`. That message names a webhook outage because it was written without
-            # knowing the outage is on a SCHEDULE — the suite is not flaky overnight, it is impossible.
-            #
-            # Waking here is near-free on a daytime run (two describe calls against an already-`available`
-            # instance and an already-`running` NAT — `ensure` is idempotent) and starts the tier only on a run
-            # that actually lands in the window, which is exactly when it must. The nightly schedule is
-            # untouched, so ADR-0007's cost intent stands. The script takes no instance argument by
-            # construction — it discovers and validates — so it cannot address the prod database.
-            #
-            # ⛔ It runs BEFORE the artifact download and the browser install, and its exit status is NOT
-            # suppressed: a wake failure must end this job immediately and by its own name, rather than let the
-            # suite proceed and die 30s later inside globalSetup with a message that sends the reader hunting a
-            # webhook outage. Diagnosing that misdirection is most of what this incident cost.
-            #
-            # This job ALWAYS authenticates against the sandbox dev instance (see the step above for why pk_live
-            # cannot serve a preview), so it is always the SANDBOX that has to be awake — and it never runs
-            # against a prod target at all.
-            #
-            # AWS credentials come from the `load-secrets` step above, which configures them with the SAME
-            # static keys the deploy workflows already run this script under — so this needs no IAM change.
-            - name: Wake the shared sandbox (ADR-0007 stops the RDS + NAT this suite's Clerk fixture needs)
-              if: steps.secrets.outcome == 'success'
-              run: bash .github/scripts/sandboxWake.sh ensure "${DEFAULT_AWS_REGION}"
+            # ⛔ NOTHING IN THIS TIER STARTS THE SANDBOX (owner ruling 2026-10-12: it starts only by hand). This
+            # job used to wake the sandbox RDS and NAT here, on the belief that `globalSetup` blocked on the
+            # `user.created` webhook backfilling `external_id`. That wait is deleted code: `global.setup.ts`
+            # makes one Clerk Backend API lookup (`resolvePoolUser`). Conjuring a target is also against this
+            # file's own header: a tier that has nothing to test against SKIPS, it does not create one.
+            # `sandboxWakeWiring.test.ts` fails if this file references the sandbox status script again.
             # Cache the Playwright browser binaries (~/.cache/ms-playwright) keyed on the lockfile so
             # the Chromium download only happens when the Playwright version changes.
             - name: Cache Playwright browsers

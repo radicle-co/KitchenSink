@@ -23,6 +23,7 @@ import {
     foodServiceOriginForStage,
     foodSubdomainForStage,
 } from '../lib/FoodServiceStack.js';
+import { SCHEDULED_RULE_STAGE_TAG } from '../lib/scheduledRuleGate.js';
 
 /** Cloud-assembly directories this file synthesized into, removed in `afterAll`. */
 const synthOutputs: string[] = [];
@@ -2036,5 +2037,55 @@ describe('the remote search service: the copy at food’s own stage, the key of 
         expect(secretReads('FoodTaskExecutionRole')).toContain(`"Ref":"${referenceKeyId}"`);
         expect(secretReads('FoodTaskExecutionRole')).toContain(`"Ref":"${signingKeyParameter}"`);
         expect(JSON.stringify(statementsOf('FoodApiTaskRole'))).not.toContain('secretsmanager:');
+    });
+});
+
+/**
+ * ADR-0060: a non-prod scheduled rule runs only while its stage is up. It synthesizes DISABLED and tagged with its
+ * stage, and the sandbox scheduler's `sync` is the only thing that switches it on. An EVENT-PATTERN rule (the task
+ * start-failure alarm feed) is untouched, and prod is untouched. Rules are discovered from the template, never listed.
+ */
+describe('FoodServiceStack — scheduled rules follow the sandbox (ADR-0060)', () => {
+    function rules(template: Template): { scheduled: Record<string, unknown>[]; pattern: Record<string, unknown>[] } {
+        const all = Object.values(template.findResources('AWS::Events::Rule')).map(
+            (resource) => resource['Properties'] as Record<string, unknown>,
+        );
+
+        return {
+            scheduled: all.filter((rule) => rule['ScheduleExpression'] !== undefined),
+            pattern: all.filter((rule) => rule['ScheduleExpression'] === undefined),
+        };
+    }
+
+    it.each(['sandbox', 'pr-7'])(
+        'at %s every scheduled rule is DISABLED and tagged; event-pattern rules are not',
+        (stage) => {
+            const { scheduled, pattern } = rules(synthFoodTemplate(stage, 'sandbox'));
+
+            expect(scheduled.length).toBeGreaterThan(0);
+
+            for (const rule of scheduled) {
+                expect(rule['State']).toBe('DISABLED');
+                expect(rule['Tags']).toContainEqual({ Key: SCHEDULED_RULE_STAGE_TAG, Value: stage });
+            }
+
+            expect(pattern.length).toBeGreaterThan(0);
+
+            for (const rule of pattern) {
+                expect(rule['State']).not.toBe('DISABLED');
+                expect(JSON.stringify(rule['Tags'] ?? [])).not.toContain(SCHEDULED_RULE_STAGE_TAG);
+            }
+        },
+    );
+
+    it('⛔ at prod every scheduled rule keeps running and carries no stage tag', () => {
+        const { scheduled } = rules(synthFoodTemplate('prod', 'prod'));
+
+        expect(scheduled.length).toBeGreaterThan(0);
+
+        for (const rule of scheduled) {
+            expect(rule['State']).toBe('ENABLED');
+            expect(JSON.stringify(rule['Tags'] ?? [])).not.toContain(SCHEDULED_RULE_STAGE_TAG);
+        }
     });
 });

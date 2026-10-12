@@ -98,10 +98,20 @@ describe('a step that acts on a predecessor’s output checks that it succeeded'
     const subjects = (): readonly Step[] =>
         gatedSteps().filter((step) => STATUS_FUNCTIONS.test(step.if) && outputRead().test(step.if));
 
-    it('finds the steps this applies to', () => {
-        // Non-vacuity. Every assertion below filters this population, so a derivation that stopped matching
-        // would report perfect compliance.
-        expect(subjects().length).toBeGreaterThan(0);
+    it('recognises the hazardous shape, and only it — so an empty population below means "none", not "blind"', () => {
+        // REWRITTEN for ADR-0060. This asserted that the LIVE tree holds such a step, and its one instance was
+        // `sandboxReconcile.yml`'s shared-tier delete. That gate moved into `sandboxSharedTier.sh release-if-idle`
+        // (an unanswerable question answered "keep", executed by `sandboxSharedTierRelease.integration.test.ts`),
+        // so the live population is legitimately empty. Non-vacuity is now proven on the matcher itself: the
+        // reconciler's old `if:` still matches, and the safe polarity still does not.
+        const subject = (expression: string): boolean =>
+            STATUS_FUNCTIONS.test(expression) && outputRead().test(expression);
+
+        expect(subject("${{ !cancelled() && steps.find.outputs.live == '' }}")).toBe(true);
+        expect(subject("${{ always() && steps.inuse.outputs.busy != 'true' }}")).toBe(true);
+        expect(subject("${{ always() && steps.live.outputs.recipe != '' }}")).toBe(false);
+        expect(subject("${{ steps.find.outputs.live == '' }}")).toBe(false);
+        expect(gatedSteps().length).toBeGreaterThan(0);
     });
 
     it('every such step also asserts the producing step’s outcome', () => {

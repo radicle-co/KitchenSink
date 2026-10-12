@@ -303,10 +303,11 @@ describe('per-PR reclamation is reachable', () => {
         // property this set exists to keep true. `sandboxReap.yml` is deliberately absent: it presses
         // `Sandbox Down` rather than running the teardown itself, so it adds no second copy of "what
         // belongs to pr-{N}".
+        // ADR-0060 MOVED the first two out of `sandbox-deploy.yml`, which the owner disabled; the set is unchanged.
         expect(invoking.sort()).toEqual([
-            'sandbox-deploy.yml#cleanup',
-            'sandbox-deploy.yml#reap-abandoned',
+            'sandboxCleanup.yml#cleanup',
             'sandboxDown.yml#down',
+            'sandboxReapClosed.yml#reap-abandoned',
         ]);
     });
 

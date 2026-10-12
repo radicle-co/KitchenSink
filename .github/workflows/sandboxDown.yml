@@ -3,9 +3,18 @@ name: Sandbox Down
 # THE OTHER BUTTON. Actions → Sandbox Down → Run workflow, with a PR number. The mirror of `Sandbox Up`,
 # and the ONE door through which a preview is destroyed on purpose.
 #
-# It exists so that destroying a sandbox is a thing you can ASK FOR, rather than something only a schedule
-# or a PR close can cause. `sandboxReap.yml` presses this button on a timer; a human presses it to reclaim
-# a preview they are finished with without closing the pull request.
+# It exists so that destroying a sandbox is a thing you can ASK FOR, rather than something only a PR close can
+# cause. `sandboxReap.yml` presses it for each preview past its deadline; a human presses it to reclaim a preview
+# they are finished with without closing the pull request.
+#
+# ## The LAST preview takes the shared tier with it (ADR-0060)
+#
+# After the teardown, `sync` switches off the scheduled jobs nothing is left to serve, and then — only when no
+# other preview owns a stack and nothing is standing one up — the shared ALB and identity service are DELETED
+# (`sandboxSharedTier.sh release-if-idle`, its allowlist pinned by `sandboxSharedTier.test.ts`). An ALB cannot be
+# stopped, only deleted, and it bills around the clock. ⛔ NEVER the database, the network or the webhooks: the
+# allowlist holds the identity service, its schema stack and the ALB, nothing else, and nothing `-prod`. Sandbox Up
+# rebuilds what was released before it deploys the next preview.
 #
 # ## ⛔ THE TARGET IS A PR NUMBER, AND THAT IS THE SAFETY PROPERTY
 #
@@ -79,6 +88,7 @@ jobs:
         # cleanup leaks AWS spend silently. `reclamationNeverGated.test.ts` fails if this job gains one.
         permissions:
             contents: read
+            actions: read # `release-if-idle` asks whether a Sandbox Up (or a preview deploy) is running right now
         env:
             GH_TOKEN: ${{ github.token }}
             PR_NUMBER: ${{ inputs.pr }}
@@ -133,6 +143,7 @@ jobs:
             # teardown must run on its own merits and report its own outcome rather than inheriting a
             # checkout's or a credential step's failure.
             - name: Tear down every ephemeral resource this PR owns
+              id: teardown
               if: ${{ !cancelled() }}
               env:
                   REGION: ${{ vars.DEFAULT_AWS_REGION }}
@@ -198,3 +209,29 @@ jobs:
                   esac
                   chmod +x .github/scripts/teardownSandboxPr.sh
                   .github/scripts/teardownSandboxPr.sh "pr-${PR_NUMBER}" "$REGION"
+
+            # ⛔ THEN THE SCHEDULED JOBS FOLLOW (ADR-0060). This PR's rules went with its stacks; `sync` re-decides the
+            # shared tier's, which run only while at least one preview is up. `!cancelled()` so a teardown that
+            # reported errors still leaves the rules matching what is actually running.
+            - name: Re-decide the scheduled jobs
+              if: ${{ !cancelled() }}
+              env:
+                  REGION: ${{ vars.DEFAULT_AWS_REGION }}
+              run: bash .github/scripts/sandboxScheduler.sh sync "$REGION"
+
+            # ⛔ PAY THE OWED PER-PR DATABASE DROPS (ADR-0060) — every PR that closed while the sandbox was down. The
+            # verb checks the tier itself and waits for the next Sandbox Up when it is down, so this is a no-op then.
+            - name: Pay owed per-PR database drops
+              if: ${{ !cancelled() }}
+              env:
+                  REGION: ${{ vars.DEFAULT_AWS_REGION }}
+              run: bash .github/scripts/perPrDatabaseDrop.sh drain "$REGION"
+
+            # ⛔ Only after a CLEAN teardown. A preview whose stacks did not all delete still imports the ALB's listener,
+            # and `release-if-idle` would read it as live anyway — but a failed teardown is a run to look at, not one
+            # to compound. The verb deletes nothing while any `pr-{N}` stack exists or anything may be starting one.
+            - name: Release the shared tier if this was the last preview
+              if: ${{ !cancelled() && steps.teardown.outcome == 'success' }}
+              env:
+                  REGION: ${{ vars.DEFAULT_AWS_REGION }}
+              run: bash .github/scripts/sandboxSharedTier.sh release-if-idle "$REGION"

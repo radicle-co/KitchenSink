@@ -1,12 +1,13 @@
 /**
- * The recipe backstop's ENTRY POINT and its connection — R35 at the handler, not only inside the check.
+ * The recipe backstop's ENTRY POINT: it runs whenever invoked, and its connection is taken at the first READ.
  *
- * ⛔ WHY THIS SUITE EXISTS. `runRecipeQueueCheck` honoured the nightly window, but the handler that called it
- * took a pooled connection FIRST, on the claim that `pool.connect()` on an idle pool was a local handshake. It
- * is not: an idle `pg.Pool` opens a physical connection (TCP, TLS, IAM auth). So every five minutes of
- * ADR-0007's stop window, on every non-prod stage, the handler dialled a stopped database and failed — 255 of
- * 255 invocations on pr-91 between 04:05 and 11:10 UTC on 2026-10-08 — invisibly, because the NAT instance that
- * carries Sentry traffic is stopped in the same window. These cases pin the connection to the first READ.
+ * ⛔ REWRITTEN (owner ruling 2026-10-12). The handler used to stand down between 00:00 and 09:00 ET on a non-prod
+ * stage (ADR-0007's window, R35); that clock is deleted, because the check's schedule rule is enabled only while
+ * the sandbox is up for its PR ("The queue checks, sweeps, and reconciliations should only be enabled when the
+ * sandbox is up for that PR"). So an invoked handler always reaches the database, at any hour on any stage.
+ *
+ * The lazy connection stays pinned: an idle `pg.Pool` opens a physical connection (TCP, TLS, IAM auth) on
+ * `connect()`, so the connection belongs to the first READ rather than to the handler's entry.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,11 +18,8 @@ vi.mock('../../common/queueEscalation.js', () => ({ escalate: vi.fn(), checkInQu
 
 import { handler, lazyReadSession } from '../queueCheck.js';
 
-/** 01:00 in New York — inside ADR-0007's nightly stop. */
-const ASLEEP = new Date('2026-10-09T05:00:00Z');
-
-/** 11:00 in New York — the stage is awake. */
-const AWAKE = new Date('2026-10-09T15:00:00Z');
+/** 01:00 in New York — an hour the handler used to refuse to run in on a non-prod stage. */
+const SMALL_HOURS = new Date('2026-10-09T05:00:00Z');
 
 /** A fake checked-out client that records what ran on it. */
 function fakeClient() {
@@ -42,35 +40,19 @@ afterEach(() => {
 });
 
 describe('the scheduled recipe backstop handler', () => {
-    it('does not touch the database while a non-prod stage is asleep', async () => {
-        vi.setSystemTime(ASLEEP);
-        process.env['STAGE'] = 'pr-91';
+    it.each(['pr-91', 'sandbox', 'prod'])(
+        '⛔ reaches the database at 01:00 New York on %s, and a failed connect fails the run',
+        async (stage) => {
+            vi.setSystemTime(SMALL_HOURS);
+            process.env['STAGE'] = stage;
+            const unreachable = Object.assign(new Error('connect ETIMEDOUT 10.1.4.241:5432'), { code: 'ETIMEDOUT' });
+            connect.mockRejectedValue(unreachable);
 
-        await expect(handler()).resolves.toBeUndefined();
+            await expect(handler()).rejects.toBe(unreachable);
 
-        expect(connect).not.toHaveBeenCalled();
-    });
-
-    it('reaches the database while the stage is awake, and a failed connect still fails the run', async () => {
-        vi.setSystemTime(AWAKE);
-        process.env['STAGE'] = 'pr-91';
-        const unreachable = Object.assign(new Error('connect ETIMEDOUT 10.1.4.241:5432'), { code: 'ETIMEDOUT' });
-        connect.mockRejectedValue(unreachable);
-
-        await expect(handler()).rejects.toBe(unreachable);
-
-        expect(connect).toHaveBeenCalledTimes(1);
-    });
-
-    it('reaches the database at night on prod, which never sleeps', async () => {
-        vi.setSystemTime(ASLEEP);
-        process.env['STAGE'] = 'prod';
-        connect.mockRejectedValue(new Error('stop here'));
-
-        await expect(handler()).rejects.toThrow('stop here');
-
-        expect(connect).toHaveBeenCalledTimes(1);
-    });
+            expect(connect).toHaveBeenCalledTimes(1);
+        },
+    );
 });
 
 describe('lazyReadSession', () => {

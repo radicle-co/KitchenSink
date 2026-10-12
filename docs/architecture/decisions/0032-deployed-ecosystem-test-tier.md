@@ -214,7 +214,9 @@ Both readings stand, because they answer different questions:
 > API-level one §7 originally scoped — _"all end to end tests (playwright, e2e, maestro, etc) … should be
 > skipped if the sandbox for the PR is not running."_ The rule below is unchanged; its reach is larger.
 
-So the deployed-ecosystem tier **skips** when no sandbox is live, and a skip is not a pass. The distinction
+So the deployed-ecosystem tier **skips** when no sandbox is live, and a skip is not a pass. The PR-level probe
+follows the same rule ([ADR-0060](0060-sandbox-starts-only-by-hand.md)): when the sandbox is down, `sandboxStatus.sh`
+answers `skip`, never `fail`, and nothing in CI starts the sandbox to make a tier runnable. The distinction
 that matters is between _skipping a job_ and _reporting a green result for work that did not happen_: the
 first is honest, the second is the failure mode every guard in this repository exists to prevent. The tier
 must therefore never be made **required** for merge in a way that a skip would satisfy silently.
@@ -373,7 +375,7 @@ is eight concurrent writers in the production Clerk tenant and a GDPR erasure wa
   deploy, and this is green over an untested one. The two are not equivalent — a skip claims nothing while a
   green claims something false — but the honest statement is that **merging a PR that never had a sandbox
   means merging code no end-to-end test has ever driven.** The mitigations are the manual entrypoint (§4) and
-  pressing `sandbox-up` before merge; neither is enforced by a check.
+  pressing Sandbox Up before merge; neither is enforced by a check.
 - ⚠️ **The coverage the old local e2e suites uniquely held is not all re-homed.** A deployed tier cannot seed
   a fixture, force a 500, or drive a mocked degraded branch, and the integration tier does not drive the
   service over its real HTTP surface for every one of those cases. No audit has been done of what falls

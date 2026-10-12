@@ -136,7 +136,7 @@ export function createQueueEscalation(sentry: SentryPort, identity: BackstopIden
             sentry.captureCheckIn(
                 { monitorSlug: monitorSlug(identity.service, stage), status: 'ok' },
                 {
-                    ...monitorSchedule(stage, identity.intervalMinutes),
+                    ...monitorSchedule(identity.intervalMinutes),
                     checkinMargin: MONITOR_MARGIN_MINUTES,
                     failureIssueThreshold: MONITOR_FAILURES_BEFORE_ISSUE,
                     recoveryThreshold: MONITOR_RECOVERY_THRESHOLD,

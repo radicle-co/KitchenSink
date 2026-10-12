@@ -23,8 +23,8 @@
  *
  * | caller | where its target comes from | what is fed here |
  * |---|---|---|
- * | `sandbox-deploy.yml` › `cleanup` | `pr-${{ github.event.pull_request.number }}` | stage names, spaces, globs |
- * | `sandbox-deploy.yml` › `reap-abandoned` | tokens discovered from AWS and `gh` | stack names carrying tier words |
+ * | `sandboxCleanup.yml` › `cleanup` | `pr-${{ github.event.pull_request.number }}` | stage names, spaces, globs |
+ * | `sandboxReapClosed.yml` › `reap-abandoned` | tokens discovered from AWS and `gh` | stack names carrying tier words |
  * | `sandboxDown.yml` › `down` | the `pr` dispatch input | covered in `sandboxDownReclaims` |
  *
  * ⚠️ `reap-abandoned` is the interesting one: its targets are DISCOVERED, so the hostile input is not a
@@ -132,7 +132,8 @@ function targetsHandedToTeardown(
 /** The one shape a teardown target may ever have. */
 const TOKEN = /^pr-[0-9]+$/u;
 
-describe('sandbox-deploy.yml › cleanup — the on-close path', () => {
+// ADR-0060 MOVED both jobs out of `sandbox-deploy.yml` (disabled by the owner); their bodies are unchanged.
+describe('sandboxCleanup.yml › cleanup — the on-close path', () => {
     /**
      * ⚠️ WHAT THIS JOB ACTUALLY RELIES ON, measured rather than assumed.
      *
@@ -155,7 +156,7 @@ describe('sandbox-deploy.yml › cleanup — the on-close path', () => {
         ['a tier word outright', 'sandbox'],
         ['an appended stage', 'pr-91 prod'],
     ])('passes %s through untransformed — no concatenation on the way', (_label, pr) => {
-        const handed = targetsHandedToTeardown(teardownStep('sandbox-deploy.yml', 'cleanup'), {
+        const handed = targetsHandedToTeardown(teardownStep('sandboxCleanup.yml', 'cleanup'), {
             PR: pr,
             REGION: 'us-east-1',
         });
@@ -178,7 +179,7 @@ describe('sandbox-deploy.yml › cleanup — the on-close path', () => {
     });
 });
 
-describe('sandbox-deploy.yml › reap-abandoned — the discovered path', () => {
+describe('sandboxReapClosed.yml › reap-abandoned — the discovered path', () => {
     it('⛔ never hands over a shared or production stack it discovered', () => {
         // The hostile input here is not a human — it is an ACCOUNT. These are real stack names from the
         // live account, alongside one genuine preview, and the sweep must pick out exactly the preview.
@@ -191,7 +192,7 @@ describe('sandbox-deploy.yml › reap-abandoned — the discovered path', () => 
         ].join('\t');
 
         const handed = targetsHandedToTeardown(
-            teardownStep('sandbox-deploy.yml', 'reap-abandoned'),
+            teardownStep('sandboxReapClosed.yml', 'reap-abandoned'),
             {
                 REGION: 'us-east-1',
                 // ⚠️ Every variable the body reads must be present: it runs under `set -u`, so one missing

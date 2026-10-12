@@ -40,6 +40,7 @@ import {
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 
 import { erasureSsmPath, getAuthSecretName, getErasureSigningSecretName, ssmParamPath } from './config.js';
+import { holdScheduledRulesForTheSandbox } from './scheduledRuleGate.js';
 
 /**
  * How often the scheduled queue backstop runs.
@@ -111,6 +112,10 @@ export class WebhooksStack extends Stack {
 
     public constructor(scope: Construct, id: string, props: WebhooksStackProps) {
         super(scope, id, props);
+
+        // ⚠️ DELIBERATE — ADR-0060. Outside prod, every scheduled rule in this stack synthesizes DISABLED and tagged
+        // with its stage; the sandbox scheduler's `sync` switches it on only while the stage is up. Prod: no change.
+        holdScheduledRulesForTheSandbox(this, props.stage);
 
         const deployStage = props.stage;
         const vpc = ec2.Vpc.fromLookup(this, 'ImportedVpc', { vpcId: props.vpcId });

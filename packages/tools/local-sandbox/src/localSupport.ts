@@ -106,6 +106,10 @@ export const LOCAL_SUPPORT: Readonly<Record<string, LocalSupport>> = Object.free
         kind: 'not-needed',
         why: 'a published version is a deploy artefact; local invocation uses the current code',
     },
+    'AWS::Lambda::EventInvokeConfig': {
+        kind: 'not-needed',
+        why: 'asynchronous-invoke retry and destination policy; local workers are driven by the queue consumers, not by async Lambda invokes',
+    },
     'AWS::SNS::TopicPolicy': {
         kind: 'not-needed',
         why: 'a resource policy authorises deployed principals; LocalStack does not enforce it',

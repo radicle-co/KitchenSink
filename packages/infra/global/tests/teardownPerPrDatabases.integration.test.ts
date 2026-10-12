@@ -1,6 +1,11 @@
 /**
- * Integration suite for `.github/scripts/teardownSandboxPr.sh` §0c and §1 — waking the shared tier, and
+ * Integration suite for `.github/scripts/teardownSandboxPr.sh` §0c and §1 — checking the shared tier, and
  * reclaiming every per-PR logical database through the PLATFORM REAPER.
+ *
+ * ⛔ REWRITTEN 2026-10-12 (owner ruling: the sandbox starts only by hand). §0c used to WAKE the tier so the drop
+ * could run at 00:17 ET. Nothing in CI starts it any more, so §0c now CHECKS it (`sandboxWake.sh check`, read-only):
+ * a tier that is DOWN skips the drop with a notice and does NOT fail the run, and everything that needs no database
+ * is still reclaimed. A check that cannot ANSWER is still an error.
  *
  * ⚠️ REWRITTEN 2026-09-04 (ADR-0031). This file used to prove that §1 discovered a drop door on each of the
  * PR's OWN stacks and invoked it. It now proves the opposite of the first half and more of the second: §1
@@ -50,9 +55,9 @@
  *   2. The payload's `pr` field dropped → `hands the reaper THIS PR's token and no other` fails, and the
  *      reaper would reap whatever a token-less drop resolved to (it refuses; the point is the script must
  *      not rely on that).
- *   3. The §0c wake moved BELOW §1 → `wakes the shared tier BEFORE it invokes the reaper` fails.
- *   4. The wake's `|| teardown_failed=1` branch changed to `exit 1` → `a failed wake does not stop the stack
- *      deletes` fails, and the stacks leak — the 2026-07-28 incident shape that
+ *   3. The §0c check moved BELOW §1 → `checks the shared tier BEFORE it invokes the reaper` fails.
+ *   4. The check's `teardown_failed=1` branch changed to `exit 1` → `a check that cannot answer does not stop the
+ *      stack deletes` fails, and the stacks leak — the 2026-07-28 incident shape that
  *      `sandboxReclamationReachability.test.ts` invariant 1 exists to forbid.
  *   5a. Either drop-failure branch left at `::warning::` with no `teardown_failed=1` → `a failed invoke fails
  *      the run` / `a drop the FUNCTION rejected fails the run too` fail. Owner ruling, 2026-09-03.
@@ -88,7 +93,7 @@ printf '%s\\n' "$*" >> "$AWS_CALL_LOG"
 case "$1 $2" in
     'rds describe-db-instances')
         case "$*" in
-            *DBInstanceStatus*) echo 'available' ;;
+            *DBInstanceStatus*) echo "\${AWS_STUB_DB_STATUS:-available}" ;;
             *) cat "$AWS_STUB_DIR/db-instances" 2>/dev/null || true ;;
         esac
         ;;
@@ -138,6 +143,7 @@ case "$1 $2" in
                 ;;
         esac
         ;;
+    'ssm put-parameter') [ "\${AWS_STUB_SSM:-}" = fails ] && exit 255 ;;
     *) : ;;
 esac
 exit 0
@@ -190,8 +196,6 @@ function run(token: string, fixtures: Fixtures, env: Readonly<Record<string, str
             // 00:05:01 ET — 26 minutes, reported as a 120s timeout because spawnSync blocks the timer.
             // Reproduced with a `date` stub reading 23:40 ET; the sibling `sandboxWake` suite pins all three.
             SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS: '0',
-            SANDBOX_WAKE_MAX_BOUNDARY_WAIT_SECONDS: '0',
-            SANDBOX_WAKE_STOP_SETTLE_SECONDS: '0',
             ...env,
         },
     });
@@ -328,16 +332,61 @@ describe('teardown reclaims per-PR databases through the reaper (ADR-0031)', () 
     });
 });
 
-describe('teardown wakes the shared tier before it needs it', () => {
-    it('wakes the shared tier BEFORE it invokes the reaper', () => {
-        // The reaper is VPC-attached and the shared sandbox RDS is stopped nightly (ADR-0007), so without
-        // the wake this drop cannot work at its most common trigger time.
+describe('teardown checks the shared tier before it needs it, and never starts it', () => {
+    it('checks the shared tier BEFORE it invokes the reaper', () => {
+        // The reaper is VPC-attached and the shared sandbox RDS and NAT are stopped nightly (ADR-0007), so the
+        // drop can only run while the tier is up. Looking first is what lets a down tier skip it cleanly.
         const { calls } = run('pr-73', BOTH_SERVICES);
-        const wake = indexOfCall(calls, 'rds describe-db-instances');
+        const check = indexOfCall(calls, 'rds describe-db-instances');
         const drop = indexOfCall(calls, 'lambda invoke');
 
-        expect(wake, 'the wake must happen at all').toBeGreaterThanOrEqual(0);
-        expect(drop).toBeGreaterThan(wake);
+        expect(check, 'the check must happen at all').toBeGreaterThanOrEqual(0);
+        expect(drop).toBeGreaterThan(check);
+    });
+
+    it.each([
+        ['an up tier', {}],
+        ['a stopped database', { AWS_STUB_DB_STATUS: 'stopped' }],
+    ])('⛔ issues no start, stop or modify call against %s', (_label, env) => {
+        // Owner ruling 2026-10-12: nothing in CI starts the sandbox. A teardown that did would also bring the
+        // paid tier back up every time a PR closed.
+        const { calls } = run('pr-73', BOTH_SERVICES, env);
+
+        expect(calls.filter((call) => /\b(start|stop|modify)-(db-instance|instances)\b/u.test(call))).toEqual([]);
+    });
+
+    it('⛔ a DOWN tier DEFERS the drop — recorded as owed for THIS PR — and does NOT fail the run', () => {
+        // Owner ruling 2026-10-12: "A job that needs the sandbox SKIPS when it is down. It never fails for that
+        // reason." REWRITTEN for ADR-0060: skipping is not forgetting. The stacks are about to be deleted and nothing
+        // would ever name this PR again, so the teardown records the drop as owed (`perPrDatabaseDrop.sh defer`) and
+        // the next Sandbox Up pays it. The record's own behaviour is `perPrDatabaseDrop.integration.test.ts`.
+        const { status, stdout, calls } = run('pr-73', BOTH_SERVICES, { AWS_STUB_DB_STATUS: 'stopped' });
+
+        expect(invokedFunctions(calls)).toEqual([]);
+        expect(calls.filter((call) => call.startsWith('ssm put-parameter'))).toEqual([
+            expect.stringContaining('/kitchensink/sandbox/owed-per-pr-database-drops/pr-73'),
+        ]);
+        expect(stdout).toContain('::notice::');
+        expect(stdout).toContain('OWED');
+        expect(stdout).not.toContain('::error::');
+        expect(status).toBe(0);
+    });
+
+    it('⛔ a DOWN tier whose debt cannot be RECORDED fails the run — an unrecorded skip is the leak', () => {
+        const { status, stdout } = run('pr-73', BOTH_SERVICES, {
+            AWS_STUB_DB_STATUS: 'stopped',
+            AWS_STUB_SSM: 'fails',
+        });
+
+        expect(stdout).toContain('::error::could not record');
+        expect(status).not.toBe(0);
+    });
+
+    it('⛔ a DOWN tier still deletes the stacks — they need no database', () => {
+        const { calls } = run('pr-73', BOTH_SERVICES, { AWS_STUB_DB_STATUS: 'stopped' });
+
+        expect(indexOfCall(calls, 'delete-stack', 'kitchensink-food-service-pr-73')).toBeGreaterThanOrEqual(0);
+        expect(indexOfCall(calls, 'delete-stack', 'kitchensink-recipe-service-pr-73')).toBeGreaterThanOrEqual(0);
     });
 
     it('drops BEFORE the stacks are deleted — now a preference, still asserted', () => {
@@ -351,10 +400,9 @@ describe('teardown wakes the shared tier before it needs it', () => {
         expect(indexOfCall(calls, 'lambda invoke')).toBeLessThan(indexOfCall(calls, 'delete-stack'));
     });
 
-    it('a failed invoke fails the run, exactly as a failed wake does', () => {
-        // ⛔ Owner ruling, 2026-09-03: a failed drop and a failed wake are BOTH errors. The severities used
-        // to disagree, and backwards — the wake, which exists for no other purpose than to make the drop
-        // possible, failed the run while the drop it was serving only warned.
+    it('a failed invoke fails the run, exactly as a check that cannot answer does', () => {
+        // ⛔ Owner ruling, 2026-09-03: a failed drop and a failed tier check are BOTH errors. The severities
+        // used to disagree, and backwards.
         const { status, stdout } = run('pr-73', BOTH_SERVICES, { AWS_STUB_DROP: 'invoke-fails' });
 
         expect(stdout).toContain('::error::could not invoke');
@@ -392,14 +440,14 @@ describe('teardown wakes the shared tier before it needs it', () => {
         expect(indexOfCall(calls, 'delete-stack', 'kitchensink-food-service-pr-73')).toBeGreaterThanOrEqual(0);
     });
 
-    it('a failed wake does not stop the stack deletes', () => {
+    it('a check that cannot answer does not stop the stack deletes', () => {
         // ⛔ The invariant `sandboxReclamationReachability.test.ts` exists for, applied one layer in. On
         // 2026-07-28 a prerequisite step failed and took nine PRs' worth of reclamation with it. Stacks, ECR
-        // repos and log groups need no database, so a wake that cannot complete costs the DROP and nothing
-        // else — while still failing the run at the end.
+        // repos and log groups need no database, so a check that cannot answer (no sandbox instance is
+        // discovered) costs the DROP and nothing else — while still failing the run at the end.
         const { status, calls, stdout } = run('pr-73', { ...BOTH_SERVICES, 'db-instances': '' });
 
-        expect(stdout).toContain('could not wake the shared sandbox tier');
+        expect(stdout).toContain('could not check the shared sandbox tier');
         expect(indexOfCall(calls, 'delete-stack', 'kitchensink-food-service-pr-73')).toBeGreaterThanOrEqual(0);
         expect(status, 'the run must still go red — a leaked database is not a silent outcome').not.toBe(0);
     });

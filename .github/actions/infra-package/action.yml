@@ -583,6 +583,19 @@ runs:
               DIR: ${{ inputs.directory }}
           run: npm run deploy --prefix "${DIR}" -- --all --require-approval never
 
+        # ⛔ ADR-0060 — outside prod every scheduled rule deploys DISABLED, and CloudFormation re-applies a rule's
+        # `State` on every update, so the deploy above has just switched this stage's scheduled jobs OFF. `sync`, the
+        # only writer of rule state, puts back exactly what the tier's state says should run. It runs after EVERY
+        # non-prod package deploy rather than only after the ones that own a scheduled rule: a package that owns none
+        # pays one cheap invoke, and a list of the ones that do would be a hand-kept roster that goes stale.
+        # `scheduledRuleSyncWiring.test.ts` holds every non-prod deploy of a rule-owning app to this.
+        - name: Hand the scheduled rules back to the sandbox scheduler
+          if: inputs.deploy == 'true' && inputs.synth == 'true' && inputs.schema-only != 'true' && inputs.stage != 'prod'
+          shell: bash
+          env:
+              REGION: ${{ inputs.aws-region }}
+          run: bash .github/scripts/sandboxScheduler.sh sync "${REGION:-$DEFAULT_AWS_REGION}"
+
         # ⛔ The seed the database records must be the one the deployed function holds. This job's `--all` deploys the
         # schema stack again from its own build, after another job applied the seed. A build that differs by one byte
         # replaces the function without applying its seed, and every later push then reads stale and redeploys. This

@@ -18,7 +18,7 @@
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { renderWithProviders } from '@commise/test-utils';
 
@@ -116,7 +116,18 @@ describe('Home → recipe detail (mobile, end to end)', () => {
         await vi.waitFor(() => expect(readIds()).toContain('rec_home_tap'));
         expect(readIds()).not.toContain('rec_other');
         // And we really left Home for the detail, pushed onto the Home tab: a recipe detail heading is present.
-        expect(await screen.findByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
+        // ⛔ Wait on a CHEAP signal, then make the role assertion ONCE. A `findByRole` polls an accessible-role query
+        // over the whole document, and the hidden Home screen stays mounted beneath the detail; profiled, those polls
+        // were ~220 ms of the ~400 ms between the tap and the heading, against ~35 ms of React rendering. On a saturated
+        // CI runner that query work grows by an order of magnitude and runs on the same thread as the render it waits
+        // for, so it used up the 5 s budget with the heading committed or about to be (CI, "Unable to find
+        // role=heading"; reproduced locally with the test's core oversubscribed). Only the detail renders this title as
+        // a heading (the hidden Home card shows it as plain text), and the detail commits in one go when its boundary
+        // settles, so one match means the heading is there. The `getByRole` below is the same assertion as before.
+        await waitFor(() =>
+            expect(screen.queryAllByText('Weeknight Pasta', { selector: '[role="heading"]' })).toHaveLength(1),
+        );
+        expect(screen.getByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
         // 20s, not the 5s default. This is the heaviest test in the monorepo — the ONLY one that exceeds
         // 2s — because it deliberately renders the REAL `AppRoot` + REAL `HomeScreen`, waits for the
         // lazily-loaded widget chunk, and then drives a second screen. That integration depth IS the

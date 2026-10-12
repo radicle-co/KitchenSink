@@ -208,30 +208,46 @@ fi
 # but the ordering rule is about what may PRECEDE the DNS reclaim, not about how long each thing takes.
 PR_STACKS=$(discover_pr_stacks)
 
-## 0c. WAKE the shared sandbox database and NAT, so section 1 has something to talk to.
+## 0c. CHECK the shared sandbox database and NAT, so section 1 knows whether it can talk to them.
 ##
-##     ⚠️ This is not belt-and-braces; without it section 1 CANNOT work at its most common trigger time.
-##     A preview expires at 00:00 America/New_York, `SandboxSchedulerStack`'s STOP schedule fires at 00:00
-##     America/New_York, and `sandboxReconcile.yml` runs at :17 — so the reconciler reaches this script
-##     seventeen minutes after the database it needs was stopped, and the drop below is an invocation of an
-##     in-VPC Lambda against a stopped instance. `grep -rn 'sandbox-wake' .github/workflows` returned only
-##     deploy paths: neither reclamation job ever woke the tier.
+##     ⛔ REWRITTEN 2026-10-12 (owner ruling: the sandbox starts only by hand; "no automatic or scheduled tasks
+##     or jobs ... There should not be a wake of CI push"). This section used to WAKE the tier, because the
+##     per-PR drop below invokes an in-VPC Lambda and a reconciler run at :17 reached it seventeen minutes
+##     after the 00:00 stop. Nothing in CI starts the sandbox any more, so it now LOOKS (`sandboxWake.sh check`,
+##     describe calls only) and the drop runs only when the tier is up.
+##
+##     • DOWN (exit 3) is a SKIP, not a failure — "a job that needs the sandbox SKIPS when it is down. It never
+##       fails for that reason." The drop is DEFERRED, not forgotten: §1 records it as owed, and the next Sandbox
+##       Up pays it (`perPrDatabaseDrop.sh drain`). Only a record that cannot be written fails the run.
+##     • A check that cannot ANSWER (exit 1: API failure, nothing discovered, a non-sandbox identifier) is an
+##       error, recorded in `teardown_failed`. The drop is still attempted, as before: it is harmless if the
+##       tier is in fact down and useful if it is up.
 ##
 ##     ⛔ NON-FATAL, deliberately. `sandboxReclamationReachability.test.ts` invariant 1 exists because a
 ##     PREREQUISITE STEP was once allowed to abort the teardown — the 2026-07-28 incident, where a hosted-zone
 ##     lookup failed and took nine PRs' worth of reclamation with it. Stacks, ECR repos and log groups need no
-##     database whatsoever, so a wake that cannot complete must cost the DATABASE drop and nothing else. The
-##     failure is recorded and the run goes red at the end; it does not skip the rest.
+##     database whatsoever, so a check that fails costs the DATABASE drop and nothing else. The failure is
+##     recorded and the run goes red at the end; it does not skip the rest.
 ##
-##     `ensure` takes a region and no instance identifier on purpose — see that script's header. It refuses
+##     `check` takes a region and no instance identifier on purpose — see that script's header. It refuses
 ##     outright if anything but the sandbox instance answers the prefix filter, which is the right posture in
 ##     an account that also holds the production database.
-if bash "$SCRIPT_DIR/sandboxWake.sh" ensure "$REGION"; then
-    echo "[wake] shared sandbox database and NAT are up"
-else
-    echo "::error::could not wake the shared sandbox tier — the per-PR logical databases below cannot be dropped (the reaper is in-VPC too) and will be left behind. Everything that does not need a database is still reclaimed."
-    teardown_failed=1
-fi
+sandbox_tier_down=0
+check_status=0
+bash "$SCRIPT_DIR/sandboxWake.sh" check "$REGION" || check_status=$?
+case "$check_status" in
+    0)
+        echo "[sandbox-check] shared sandbox database and NAT are up"
+        ;;
+    3)
+        sandbox_tier_down=1
+        echo "::notice::the shared sandbox is down (it starts only by hand), so $PR's per-PR logical databases cannot be dropped now. The drop is recorded as OWED and the next Sandbox Up pays it (perPrDatabaseDrop.sh). Everything that needs no database is still reclaimed."
+        ;;
+    *)
+        echo "::error::could not check the shared sandbox tier (exit $check_status) — the per-PR logical databases below may not be droppable (the reaper is in-VPC too) and may be left behind. Everything that does not need a database is still reclaimed."
+        teardown_failed=1
+        ;;
+esac
 
 ## 1. Per-PR logical databases (ADR-0006) — reclaimed by the PLATFORM REAPER (ADR-0031).
 ##
@@ -258,7 +274,7 @@ fi
 ##    wedged stack can eat the whole run. The ordering is now a preference, not a precondition.
 ##
 ##    ⛔ A FAILED DROP IS AN ERROR, not a warning (owner ruling, 2026-09-03). It used to warn, while §0c's
-##    wake — which exists for no purpose other than making this drop possible — failed the run. The
+##    tier check — which exists for no purpose other than making this drop possible — failed the run. The
 ##    severities disagreed, and backwards. Both are errors now. Neither ABORTS: they set `teardown_failed`
 ##    and the run goes red at the end, so everything that needs no database is still reclaimed
 ##    (`sandboxReclamationReachability.test.ts` invariant 1).
@@ -266,47 +282,15 @@ fi
 ##    The per-service `action: 'drop'` doors are DELETED (ADR-0039): the reaper is the ONE authority for
 ##    "how a per-PR database is dropped", and `dropDatabaseAuthority.test.ts` fails if a second appears.
 
-# The persistent platform stage every `pr-{N}` preview rides (ADR-0006). Not derived from the token: a
-# preview never has a platform of its own, and prod has no per-PR databases at all, so there is exactly one
-# possible value. Overridable only so an integration harness can point at a fixture.
-REAPER_STACK="${TEARDOWN_DATA_STACK:-kitchensink-data-sandbox}"
-
-reaper_fn=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$REAPER_STACK" \
-    --query "Stacks[0].Outputs[?OutputKey=='PerPrDatabaseReaperFunctionName'].OutputValue | [0]" \
-    --output text 2>/dev/null) || reaper_fn=""
-
-if [ -z "$reaper_fn" ] || [ "$reaper_fn" = "None" ]; then
-    # NOT a silent skip. An absent reaper means the platform stack has not deployed ADR-0031 yet, or the
-    # output was renamed — and either way this PR's logical databases are being left on the shared instance.
-    echo "::error::$REAPER_STACK publishes no PerPrDatabaseReaperFunctionName (ADR-0031), so $PR's per-PR logical databases cannot be dropped and will be left behind. Deploy the global infra app, then re-run this teardown."
-    teardown_failed=1
-elif aws lambda invoke --region "$REGION" --function-name "$reaper_fn" \
-    --payload "{\"action\":\"drop\",\"pr\":\"$PR\"}" --cli-binary-format raw-in-base64-out \
-    /tmp/db-drop-result.json >/tmp/db-drop-invoke.json 2>/tmp/db-drop-invoke.err; then
-    # ⛔ `aws lambda invoke` EXITS 0 WHEN THE FUNCTION THREW — the throw is reported in its stdout, which is
-    # what this greps. Reading the exit status alone reports a successful drop for a database still there.
-    if grep -q '"FunctionError"' /tmp/db-drop-invoke.json; then
-        echo "::error::per-PR DB drop for $PR returned a FunctionError — the databases were NOT dropped and will be left behind. Inspect $reaper_fn logs."
+# ⛔ The reaper invocation lives ONCE, in `perPrDatabaseDrop.sh`, because the deferred drop (ADR-0060) pays the same
+# debt later through the same door. A down tier DEFERS: the PR is recorded as owing its drop, since the stacks below
+# are about to be deleted and nothing would ever name this PR again. An unrecorded skip is the leak; it fails.
+if [ "$sandbox_tier_down" -eq 1 ]; then
+    if ! bash "$SCRIPT_DIR/perPrDatabaseDrop.sh" defer "$PR" "$REGION"; then
         teardown_failed=1
-    else
-        # The result carries BOTH what was dropped and a whole-instance census, so a run that reclaimed
-        # nothing still says what is out there. The Null Object case is kept for the same reason it always
-        # was: most PRs never deploy a service that owns a logical database, and a run that says nothing
-        # about that reads as a run that skipped the step.
-        echo "[db-drop] $reaper_fn result: $(cat /tmp/db-drop-result.json)"
     fi
-else
-    # ⚠️ PRINT THE REASON. This branch used to send stderr to /dev/null and say only "drop it manually",
-    # which cost a real diagnosis on 2026-08-27: the invoke was failing with
-    # `Unknown options: --cli-binary-format` because the operator's shell resolved AWS CLI **v1**, where
-    # that flag does not exist. The message named the database and the function but not the one fact that
-    # identified the cause in seconds.
-    echo "::error::could not invoke $reaper_fn to drop $PR's per-PR databases — they will be left behind"
+elif ! bash "$SCRIPT_DIR/perPrDatabaseDrop.sh" drop "$PR" "$REGION"; then
     teardown_failed=1
-    sed 's/^/  [db-drop] /' /tmp/db-drop-invoke.err >&2 || true
-    if grep -q 'cli-binary-format' /tmp/db-drop-invoke.err 2>/dev/null; then
-        echo "::error::this shell's \`aws\` is CLI v1 (\`--cli-binary-format\` is v2-only). Re-run with AWS CLI v2." >&2
-    fi
 fi
 
 ## 1b. Drain the PR's ECS services and tasks BEFORE any stack delete — an ORDERING fix, not a retry.

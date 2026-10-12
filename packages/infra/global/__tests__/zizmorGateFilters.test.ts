@@ -285,6 +285,9 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     'prod-deploy.yml:use-trusted-publishing': 1,
     'sandbox-identity-deploy.yml:use-trusted-publishing': 1,
     'sandboxPreview.yml:use-trusted-publishing': 1,
+    // Sandbox Up CALLS `sandbox-identity-deploy.yml` and `sandboxPreview.yml` (ADR-0060), and a reusable workflow can
+    // only downgrade what its caller grants — so the button restates `packages: read` once per call site.
+    'sandboxUp.yml:use-trusted-publishing': 2,
     'sandbox-router-deploy.yml:use-trusted-publishing': 1,
     'sandbox-deploy.yml:use-trusted-publishing': 1,
     'ci-full.yml:use-trusted-publishing': 1,

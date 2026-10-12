@@ -4,7 +4,7 @@
  *
  * ## The invariant, and why it is not obvious
  *
- * `sandbox-deploy.yml`'s `reap-abandoned` job is a two-stage machine. Stage one DISCOVERS candidate `pr-{N}`
+ * `sandboxReapClosed.yml`'s `reap-abandoned` job (moved from `sandbox-deploy.yml` by ADR-0060) is a two-stage machine. Stage one DISCOVERS candidate `pr-{N}`
  * tokens by enumerating live resources; stage two hands each token to `teardownSandboxPr.sh`, which
  * re-applies the anchored `pr-{N}` match and deletes what belongs to it. Those two stages have no shared
  * definition of "the things a preview owns" — the teardown knows five resource classes, the discovery step
@@ -173,9 +173,16 @@ const missingDiscoverySources = (discoveryBody: string): readonly string[] =>
 const REAPER_STEP = 'Reap pr-{N} resources';
 const CLEANUP_STEP = 'Tear down';
 
+/**
+ * Where each reclamation job lives. ADR-0060 MOVED both out of `sandbox-deploy.yml`, which the owner disabled: the
+ * on-close teardown to `sandboxCleanup.yml`, the sweep to the dispatch-only `sandboxReapClosed.yml`.
+ */
+const REAPER_WORKFLOW = 'sandboxReapClosed.yml';
+const CLEANUP_WORKFLOW = 'sandboxCleanup.yml';
+
 describe('the reaper can discover every class the teardown deletes', () => {
     it('enumerates a signal for all five reclaimed resource classes', () => {
-        const missing = missingDiscoverySources(stepBody('sandbox-deploy.yml', 'reap-abandoned', REAPER_STEP));
+        const missing = missingDiscoverySources(stepBody(REAPER_WORKFLOW, 'reap-abandoned', REAPER_STEP));
 
         expect(
             missing,
@@ -188,7 +195,7 @@ describe('the reaper can discover every class the teardown deletes', () => {
     });
 
     it('derives tokens through the ONE `pr-[0-9]+` extraction, not a per-source matcher', () => {
-        const body = stepBody('sandbox-deploy.yml', 'reap-abandoned', REAPER_STEP);
+        const body = stepBody(REAPER_WORKFLOW, 'reap-abandoned', REAPER_STEP);
 
         // Every source feeds one brace group piped into a single extraction. A second, source-specific
         // matcher is what CLAUDE.md forbids and what would let one source's scope drift from the rest.
@@ -197,7 +204,7 @@ describe('the reaper can discover every class the teardown deletes', () => {
     });
 
     it('reads the environment list with the ADMIN token, never the workflow token', () => {
-        const body = stepBody('sandbox-deploy.yml', 'reap-abandoned', REAPER_STEP);
+        const body = stepBody(REAPER_WORKFLOW, 'reap-abandoned', REAPER_STEP);
 
         // `github.token` cannot even be granted `administration`, and the call ends in `2>/dev/null`, so the
         // wrong token here produces an empty list and a green sweep rather than an error anybody sees.
@@ -205,7 +212,7 @@ describe('the reaper can discover every class the teardown deletes', () => {
     });
 
     it('paginates the environment list, because the default page size is 30', () => {
-        const body = stepBody('sandbox-deploy.yml', 'reap-abandoned', REAPER_STEP);
+        const body = stepBody(REAPER_WORKFLOW, 'reap-abandoned', REAPER_STEP);
         const call = body.split('\n').find((line) => line.includes('/environments"'));
 
         // 51 environments existed on 2026-08-11. An unpaginated list stops at 30 and everything past it is
@@ -216,7 +223,7 @@ describe('the reaper can discover every class the teardown deletes', () => {
 });
 
 describe('missingDiscoverySources (the analyzer itself)', () => {
-    const realBody = stepBody('sandbox-deploy.yml', 'reap-abandoned', REAPER_STEP);
+    const realBody = stepBody(REAPER_WORKFLOW, 'reap-abandoned', REAPER_STEP);
 
     it('reports the environment source when its API call is removed', () => {
         // The exact regression that motivated this file: the class is still deleted by §0b, still discussed
@@ -251,14 +258,14 @@ describe('GH_ENVIRONMENT_ADMIN_TOKEN reaches both reclamation jobs', () => {
     // Two call sites, two failure modes. Missing on `cleanup` ⇒ every PR close leaks its environment behind a
     // warning. Missing on `reap-abandoned` ⇒ the backstop cannot reclaim what a failed close left, AND the
     // discovery source above goes dark, since it is gated on this variable being set.
-    const sites: readonly { readonly job: string; readonly step: string }[] = [
-        { job: 'cleanup', step: CLEANUP_STEP },
-        { job: 'reap-abandoned', step: REAPER_STEP },
+    const sites: readonly { readonly workflow: string; readonly job: string; readonly step: string }[] = [
+        { workflow: CLEANUP_WORKFLOW, job: 'cleanup', step: CLEANUP_STEP },
+        { workflow: REAPER_WORKFLOW, job: 'reap-abandoned', step: REAPER_STEP },
     ];
 
-    for (const { job, step } of sites) {
+    for (const { workflow, job, step } of sites) {
         it(`${job} passes the secret into its teardown step`, () => {
-            const found = stepsOf('sandbox-deploy.yml', job).find((candidate) => candidate.name?.startsWith(step));
+            const found = stepsOf(workflow, job).find((candidate) => candidate.name?.startsWith(step));
 
             expect(
                 found?.env?.['GH_ENVIRONMENT_ADMIN_TOKEN'],
@@ -274,18 +281,21 @@ describe('GH_ENVIRONMENT_ADMIN_TOKEN reaches both reclamation jobs', () => {
         expect(readRepoFile('.github', 'scripts', 'teardownSandboxPr.sh')).toContain('${GH_ENVIRONMENT_ADMIN_TOKEN:-}');
     });
 
-    it('does not smuggle the token through a job- or workflow-level env, where every step would see it', () => {
-        const workflow = readWorkflow('sandbox-deploy.yml');
-        const jobs = workflow['jobs'] as Record<string, { env?: Record<string, string> }>;
+    it.each([CLEANUP_WORKFLOW, REAPER_WORKFLOW])(
+        'does not smuggle the token through a job- or workflow-level env in %s, where every step would see it',
+        (file) => {
+            const workflow = readWorkflow(file);
+            const jobs = workflow['jobs'] as Record<string, { env?: Record<string, string> }>;
 
-        // An admin-scoped credential belongs to the one step that needs it. Hoisting it to the job (let alone
-        // the workflow) puts `Administration: write` in scope for `npm ci` and every action on the runner.
-        expect(Object.values(workflow['env'] ?? {})).not.toContain(ADMIN_TOKEN_EXPRESSION);
+            // An admin-scoped credential belongs to the one step that needs it. Hoisting it to the job (let alone
+            // the workflow) puts `Administration: write` in scope for `npm ci` and every action on the runner.
+            expect(Object.values(workflow['env'] ?? {})).not.toContain(ADMIN_TOKEN_EXPRESSION);
 
-        for (const [name, job] of Object.entries(jobs)) {
-            expect(Object.values(job.env ?? {}), `${name} hoists the admin token to job scope`).not.toContain(
-                ADMIN_TOKEN_EXPRESSION,
-            );
-        }
-    });
+            for (const [name, job] of Object.entries(jobs)) {
+                expect(Object.values(job.env ?? {}), `${name} hoists the admin token to job scope`).not.toContain(
+                    ADMIN_TOKEN_EXPRESSION,
+                );
+            }
+        },
+    );
 });

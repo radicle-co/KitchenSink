@@ -45,16 +45,33 @@ describe('the e2e branch verdict', () => {
         expect(verdict('true', 'false').branch).toBe('run');
     });
 
-    it('⛔ FAILS when the tier is down and nobody said that was intended', () => {
-        // THE CASE THIS EXISTS FOR. Today it is green and says nothing.
+    it('⛔ SKIPS when the tier is down — a job that needs the sandbox never fails for that reason', () => {
+        // Owner ruling 2026-10-12 (docs/plans/2026-10-12-001-fix-sandbox-manual-start-plan.md, D2): "A job that
+        // needs the sandbox SKIPS when it is down. It never fails for that reason." This REVERSES the earlier
+        // `fail` branch, which turned a stopped sandbox into a red check on every PR. The reason must still say
+        // DOWN and name the way up, so the skip is never mistaken for a pass.
         const result = verdict('false', 'false');
 
-        expect(result.branch).toBe('fail');
+        expect(result.branch).toBe('skip');
         expect(result.reason).toContain('DOWN');
+        expect(result.reason).toContain('Sandbox Up');
     });
 
     it('SKIPS on the explicit label', () => {
         expect(verdict('false', 'true').branch).toBe('skip');
+    });
+
+    it('⛔ has no `fail` verdict at all, for any input', () => {
+        const branches = ['true', 'false'].flatMap((tierUp) =>
+            ['true', 'false'].flatMap((label) =>
+                ['pull_request', 'push', 'schedule', 'workflow_dispatch'].map(
+                    (event) => verdict(tierUp, label, event).branch,
+                ),
+            ),
+        );
+
+        expect(new Set(branches)).toEqual(new Set(['run', 'skip']));
+        expect(readFileSync(SCRIPT, 'utf8')).not.toContain('branch=fail');
     });
 
     it('⛔ honours the label even when the tier IS up', () => {
@@ -86,6 +103,17 @@ describe('the e2e branch verdict', () => {
     it('is MISUSE to invoke the script with no subcommand, or probe with no stage', () => {
         expect(spawnSync('bash', [SCRIPT], { encoding: 'utf8' }).status).toBe(2);
         expect(spawnSync('bash', [SCRIPT, 'probe', 'us-east-1'], { encoding: 'utf8' }).status).toBe(2);
+    });
+});
+
+describe('the probe asks the status check for the database and the NAT', () => {
+    it('⛔ calls `sandboxWake.sh check` — one answer to "is it up?", not a second implementation', () => {
+        // CloudFormation status alone answers "up" for a sandbox whose RDS and NAT the nightly stop shut down
+        // (finding 2 of the 2026-10-12 plan): the stacks stay UPDATE_COMPLETE while everything under them is
+        // stopped. The behaviour is proven in tests/sandboxStatusProbe.integration.test.ts; this pins the wiring.
+        const source = readFileSync(SCRIPT, 'utf8');
+
+        expect(source).toMatch(/sandboxWake\.sh"? check/u);
     });
 });
 

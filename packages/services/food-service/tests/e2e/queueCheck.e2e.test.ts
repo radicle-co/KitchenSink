@@ -25,9 +25,6 @@ import { foodDb } from '../support/roleDb.js';
 import { makeQueueRow } from '../__fixtures__/queueRow.js';
 import { makeRequesterRow } from '../__fixtures__/requesterRow.js';
 
-/** Mid-morning in New York — outside the nightly window, so the check runs. */
-const AWAKE = new Date('2026-07-15T15:00:00Z');
-
 describe('the food queue check (integration)', () => {
     let pool: pg.Pool;
     let db: TestDb;
@@ -100,7 +97,6 @@ describe('the food queue check (integration)', () => {
                 counts: () => readOnlyCounts(session, 250),
                 escalate,
                 checkIn: () => undefined,
-                now: () => AWAKE,
             }),
         );
 
@@ -122,7 +118,6 @@ describe('the food queue check (integration)', () => {
                 counts: () => readOnlyCounts(session, 250),
                 escalate,
                 checkIn: () => undefined,
-                now: () => AWAKE,
             }),
         );
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { checksIn, hourField, monitorSchedule, monitorSlug } from '../cronMonitor.js';
+import * as cronMonitor from '../cronMonitor.js';
+import { checksIn, monitorSchedule, monitorSlug } from '../cronMonitor.js';
 import type { EscalationPayload } from '../escalationPayload.js';
 import { escalationLevel, escalationTitle } from '../escalationPayload.js';
 
@@ -12,9 +13,21 @@ import { escalationLevel, escalationTitle } from '../escalationPayload.js';
  * remove, reintroduced one level up. A cron monitor inverts that: silence becomes the alert.
  */
 describe('which stages check in', () => {
-    it('⛔ checks in on prod and sandbox — the two stages whose silence means something', () => {
+    it('⛔ checks in on prod, and ONLY prod — the one stage that is never stopped', () => {
         expect(checksIn('prod')).toBe(true);
-        expect(checksIn('sandbox')).toBe(true);
+    });
+
+    /**
+     * ⛔ THE SANDBOX DOES NOT CHECK IN (owner ruling 2026-10-12: it starts only by hand). A cron monitor promises
+     * a check-in on a schedule and alerts on silence. A sandbox that is down by default is silent by default, so
+     * its monitor would report a missed check-in forever. The monitor was written for a sandbox that slept on a
+     * clock (00:00-09:00) and the clock is gone; what is left is prod alone. Sandbox findings still ESCALATE —
+     * it is the promise to keep running that is withheld.
+     *
+     * Rewritten to prove the new behaviour: this case used to assert `checksIn('sandbox') === true`.
+     */
+    it('⛔ does NOT check in on sandbox, whose silence is its normal resting state', () => {
+        expect(checksIn('sandbox')).toBe(false);
     });
 
     /**
@@ -64,61 +77,23 @@ describe('the monitor slug', () => {
 });
 
 /**
- * ⛔ THE MONITOR EXPECTS A CHECK-IN ONLY WHEN THE CHECK IS ALLOWED TO GIVE ONE.
- *
- * A sandbox check returns before its check-in for the whole ADR-0007 window, by design (R35), and it could not
- * send one anyway: the window stops the NAT instance, and a VPC-attached Lambda then has no route to Sentry. An
- * interval monitor ("every five minutes, always") therefore reported the check dead every night.
+ * The monitor expects a check-in every N minutes, always: the only stage that checks in is prod, and prod is never
+ * stopped, so it has no hours off. There is no crontab arm and no hour field. Both existed to describe the
+ * sandbox's 09:00-23:59 awake window, which a clock no longer defines (owner ruling 2026-10-12).
  */
 describe('the schedule a monitor is upserted with', () => {
-    it('⛔ PROD keeps an every-N-minutes interval — it is never stopped, so it has no hours off', () => {
-        expect(monitorSchedule('prod', 5)).toEqual({ schedule: { type: 'interval', value: 5, unit: 'minute' } });
+    it('⛔ is an every-N-minutes interval', () => {
+        expect(monitorSchedule(5)).toEqual({ schedule: { type: 'interval', value: 5, unit: 'minute' } });
     });
 
-    /**
-     * The hour field is DERIVED from the same predicate `isAwake` answers with, so it cannot drift from the
-     * hours the check actually runs in. Written out here as the literal it must equal, because a test that
-     * rebuilt it from the same constants would agree with any bug in the derivation.
-     */
-    it("⛔ a stage with a nightly window expects check-ins only in its awake hours, in the window's own zone", () => {
-        expect(monitorSchedule('sandbox', 5)).toEqual({
-            schedule: { type: 'crontab', value: '*/5 9-23 * * *' },
-            timezone: 'America/New_York',
-        });
+    it('carries the cadence into the interval, even one that does not divide the hour', () => {
+        expect(monitorSchedule(15)).toEqual({ schedule: { type: 'interval', value: 15, unit: 'minute' } });
+        expect(monitorSchedule(7)).toEqual({ schedule: { type: 'interval', value: 7, unit: 'minute' } });
     });
 
-    it('carries the cadence into the minute field', () => {
-        expect(monitorSchedule('sandbox', 15)).toEqual({
-            schedule: { type: 'crontab', value: '*/15 9-23 * * *' },
-            timezone: 'America/New_York',
-        });
-    });
-
-    /**
-     * ⛔ A minute step that does not divide the hour restarts at :00, so the last gap of every hour is SHORTER
-     * than the cadence — the monitor would expect a check-in the check never sends, once an hour. Refused
-     * rather than rounded: a cadence that cannot be stated as a crontab is a configuration error to fix.
-     */
-    it('⛔ refuses a cadence a crontab cannot state evenly', () => {
-        expect(() => monitorSchedule('sandbox', 7)).toThrow(/7/u);
-        expect(() => monitorSchedule('sandbox', 0)).toThrow();
-        expect(() => monitorSchedule('sandbox', 90)).toThrow();
-    });
-
-    it('accepts the same uneven cadence on prod, whose interval schedule has no hour boundary to cross', () => {
-        expect(monitorSchedule('prod', 7)).toEqual({ schedule: { type: 'interval', value: 7, unit: 'minute' } });
-    });
-});
-
-describe('the crontab hour field', () => {
-    it('states a contiguous run as a range and a lone hour as itself', () => {
-        expect(hourField([9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23])).toBe('9-23');
-        expect(hourField([7])).toBe('7');
-    });
-
-    /** A window that does not touch midnight leaves two awake runs, one either side of it. */
-    it('joins separate runs with commas', () => {
-        expect(hourField([0, 1, 2, 3, 4, 5, 22, 23])).toBe('0-5,22-23');
+    it('⛔ has no crontab and no timezone: the awake-hours machinery is deleted, not disabled', () => {
+        expect(cronMonitor).not.toHaveProperty('hourField');
+        expect(Object.keys(monitorSchedule(5))).toEqual(['schedule']);
     });
 });
 

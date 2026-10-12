@@ -7,8 +7,6 @@ import { App, type AppProps } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { afterAll, describe, it, expect, beforeAll } from 'vitest';
 
-import { isAwake } from '@kitchensink/queue-check';
-
 import { WebhooksStack } from '../lib/WebhooksStack.js';
 
 /** Cloud-assembly directories this file synthesized into, removed in `afterAll`. */
@@ -776,17 +774,6 @@ describe('WebhooksStack — the queue backstop holds no queue mutation (plan U12
     });
 });
 
-/** A daily `cron(M H …)` rule's UTC hour and minute, or `undefined` for a rate rule. */
-function cronHourMinute(expression: string): { readonly hour: number; readonly minute: number } | undefined {
-    const match = /^cron\((\d+) (\d+) /.exec(expression);
-
-    if (match === null) {
-        return undefined;
-    }
-
-    return { minute: Number(match[1]), hour: Number(match[2]) };
-}
-
 /** A `rate(N unit)` rule's period in minutes, or `undefined` for a cron rule. */
 function rateMinutes(expression: string): number | undefined {
     const match = /^rate\((\d+) (minute|minutes|hour|hours|day|days)\)$/.exec(expression);
@@ -800,28 +787,43 @@ function rateMinutes(expression: string): number | undefined {
     return Number(match[1]) * (perUnit[match[2] ?? 'minute'] ?? 1);
 }
 
-describe('⛔ scheduled jobs and the sandbox nightly stop (ADR-0007)', () => {
+/**
+ * ⛔ REWRITTEN (owner ruling 2026-10-12). The first case here used to prove that every daily job fired inside the
+ * sandbox's awake window (09:00-23:59 ET) in winter and summer, by asking the queue-check package's `isAwake`.
+ * That clock is deleted, and so is the window. A non-prod scheduled job no longer runs because it was deployed:
+ * it runs while its stage is UP, and the sandbox scheduler's `sync` is the only writer of that state. So the
+ * property to hold is that a non-prod stack SYNTHESIZES every scheduled rule DISABLED and tagged with its stage,
+ * which is how `sync` finds it. (The gate itself is `lib/scheduledRuleGate.ts`; the all-apps sweep is
+ * `packages/infra/global/__tests__/nonProdScheduledRules.test.ts`.)
+ */
+describe('⛔ scheduled jobs follow the sandbox, not a clock (owner ruling 2026-10-12)', () => {
     const template = synthWebhooks(false);
     const rules = Object.values(template.findResources('AWS::Events::Rule')) as Array<{
-        Properties: { ScheduleExpression?: string; Targets?: Array<{ Arn: { 'Fn::GetAtt': [string, string] } }> };
+        Properties: {
+            ScheduleExpression?: string;
+            State?: string;
+            Tags?: Array<{ Key: string; Value: string }>;
+            Targets?: Array<{ Arn: { 'Fn::GetAtt': [string, string] } }>;
+        };
     }>;
+    const scheduled = rules.filter((rule) => rule.Properties.ScheduleExpression !== undefined);
 
-    it('every daily job fires while the sandbox database is awake, in winter and in summer', () => {
-        const daily = rules.flatMap((rule) => {
-            const at = cronHourMinute(rule.Properties.ScheduleExpression ?? '');
+    it('the stack has scheduled rules at all, so the assertions below are not vacuous', () => {
+        expect(scheduled.length).toBeGreaterThan(0);
+    });
 
-            return at === undefined ? [] : [at];
-        });
+    it('every scheduled rule synthesizes DISABLED at a non-prod stage', () => {
+        for (const rule of scheduled) {
+            expect(rule.Properties.State, rule.Properties.ScheduleExpression).toBe('DISABLED');
+        }
+    });
 
-        expect(daily.length).toBeGreaterThan(0);
-
-        for (const { hour, minute } of daily) {
-            for (const month of [0, 6]) {
-                expect(
-                    isAwake('sandbox', new Date(Date.UTC(2026, month, 15, hour, minute))),
-                    `${hour}:${minute} UTC`,
-                ).toBe(true);
-            }
+    it('every scheduled rule is tagged with the stage it serves, which is how `sync` finds it', () => {
+        for (const rule of scheduled) {
+            expect(rule.Properties.Tags, rule.Properties.ScheduleExpression).toContainEqual({
+                Key: 'SandboxStage',
+                Value: 'test',
+            });
         }
     });
 

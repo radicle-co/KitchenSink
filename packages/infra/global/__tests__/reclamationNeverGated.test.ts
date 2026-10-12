@@ -4,9 +4,10 @@
  *
  * ## The failure this pins
  *
- * `sandbox-deploy.yml` reclaims per-PR infrastructure in two places — `cleanup` (on PR close) and
- * `reap-abandoned` (the daily sweep, which is the ONLY retry a stack that failed to delete on close ever
- * gets). Both were briefly bound to the `Sandbox` GitHub Environment while wiring the `secrets-outside-env`
+ * Per-PR infrastructure is reclaimed in three places — `sandboxCleanup.yml`'s `cleanup` (on PR close),
+ * `sandboxReapClosed.yml`'s `reap-abandoned` (the by-hand sweep, the ONLY retry a stack that failed to delete on
+ * close ever gets) and `sandboxDown.yml`'s `down` (the button). The first two lived in `sandbox-deploy.yml` until
+ * ADR-0060. Both were briefly bound to the `Sandbox` GitHub Environment while wiring the `secrets-outside-env`
  * remediation, on the reasoning that every secret-reading job should name an Environment.
  *
  * That reasoning is right for deploys and wrong for reclamation, because an Environment binding is a place a
@@ -48,8 +49,12 @@ const repoRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', 
  * the expensive half is remembering that anything which can suspend them turns a PR close into a bill.
  */
 const RECLAMATION_JOBS: readonly { readonly workflow: string; readonly job: string }[] = [
-    { workflow: 'sandbox-deploy.yml', job: 'cleanup' },
-    { workflow: 'sandbox-deploy.yml', job: 'reap-abandoned' },
+    // ADR-0060 moved both out of `sandbox-deploy.yml` (which the owner disabled): the on-close teardown to
+    // `sandboxCleanup.yml`, the abandoned-preview sweep to the dispatch-only `sandboxReapClosed.yml`.
+    { workflow: 'sandboxCleanup.yml', job: 'cleanup' },
+    { workflow: 'sandboxReapClosed.yml', job: 'reap-abandoned' },
+    // Sandbox Down tears a preview down and, for the last one, releases the shared tier.
+    { workflow: 'sandboxDown.yml', job: 'down' },
 ];
 
 /** Parses a workflow under `.github/workflows/`. */

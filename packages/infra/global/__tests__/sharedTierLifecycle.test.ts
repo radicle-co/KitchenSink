@@ -20,16 +20,16 @@
  * **2. The reconciler does not stop the RDS and NAT AT ALL** (owner ruling, 2026-09-03). It used to invoke
  * the scheduler Lambda with `{"action":"stop"}` as its last step, which took the shared DATABASE down every
  * time no preview happened to be live. The owner's ruling is that per-PR cleanup reclaims the per-PR
- * databases and nothing else, while _"the RDS should still be stopped and started on the original
- * schedule"_ — so that lifecycle belongs entirely to `SandboxSchedulerStack`'s 00:00/09:00 ET pair and this
- * workflow must not carry a second, differently-triggered copy of it.
+ * databases and nothing else — so the database's lifecycle belongs entirely to the scheduler: its midnight stop,
+ * and the per-PR start only Sandbox Up issues (ADR-0060, which deleted the 09:00 start). This workflow must not
+ * carry a second, differently-triggered copy of either.
  *
  * The ordering constraint that step used to carry is not lost, it is DISCHARGED: the reason the delete had
  * to precede the stop was that draining ECS tasks into an environment with no database produced the
  * `NotStabilized` wedge repaired on 2026-08-30. With no stop in this workflow, the delete can no longer be
  * followed by one.
  *
- * **3. Create BEFORE the preview deploys are dispatched.** `identity.sandbox.commise.app` is the ONE
+ * **3. Create BEFORE the preview deploys.** `identity.sandbox.commise.app` is the ONE
  * identity service every preview signs in against (ADR-0001). Dispatch the previews first and they come up,
  * their smoke tests pass, and nobody can log in — the exact failure `sandboxUp.yml` already documents for
  * the scale-up case, now reachable one step earlier because the stack itself may be absent.
@@ -91,11 +91,16 @@ describe('shared sandbox tier lifecycle (ADR-0028, amended 2026-08-30)', () => {
             expect(isSkipTolerant(step?.if)).toBe(true);
         });
 
-        it('only deletes when no sandbox is live AND no consumer is mid-flight', () => {
-            const condition = steps[indexOfRun(steps, 'sandboxSharedTier.sh')]?.if ?? '';
+        it('only deletes when no sandbox is live AND no consumer is mid-flight — through the ONE idle verb', () => {
+            // REWRITTEN for ADR-0060. The two probes were workflow steps whose outputs gated this delete; they moved
+            // into `sandboxSharedTier.sh release-if-idle`, which Sandbox Down shares, so "idle" has one definition.
+            // That verb's refusals (a preview left, a start in flight, an unanswerable question) are EXECUTED by
+            // `sandboxSharedTierRelease.integration.test.ts`; what this asserts is that the reconciler goes through
+            // it and never calls the unconditional `down`.
+            const run = steps[indexOfRun(steps, 'sandboxSharedTier.sh')]?.run ?? '';
 
-            expect(condition).toContain("steps.find.outputs.live == ''");
-            expect(condition).toContain("steps.inuse.outputs.busy == 'false'");
+            expect(run).toMatch(/sandboxSharedTier\.sh\s+release-if-idle/u);
+            expect(run).not.toMatch(/sandboxSharedTier\.sh\s+down\b/u);
         });
 
         it('does NOT tear down a per-PR preview itself', () => {
@@ -105,7 +110,7 @@ describe('shared sandbox tier lifecycle (ADR-0028, amended 2026-08-30)', () => {
             // `sandboxReclamationReachability.test.ts` exists to prevent.
             //
             // The tier must still outlive the previews using it. That ORDERING CONCERN is discharged by the
-            // condition asserted directly above: the tier is deleted only when `steps.find.outputs.live == ''`, i.e.
+            // verb asserted directly above: `release-if-idle` deletes only when no `pr-{N}` stack exists, i.e.
             // only when no preview exists to be using it. That is a stronger guarantee than sequencing two
             // steps in one job, because it holds no matter who reaped the preview or when.
             expect(indexOfRun(steps, 'teardownSandboxPr.sh')).toBe(-1);
@@ -114,8 +119,8 @@ describe('shared sandbox tier lifecycle (ADR-0028, amended 2026-08-30)', () => {
         it('NEVER stops the shared RDS or NAT — that clock belongs to the scheduler alone', () => {
             // ⛔ The owner's ruling of 2026-09-03, asserted rather than described. The reconciler used to end
             // by invoking the scheduler Lambda with `{"action":"stop"}` whenever no preview was live, which
-            // is what "took all of RDS down" on a preview's teardown. The stop and the start are now ONE
-            // decision, expressed once, in `SandboxSchedulerStack`'s 00:00/09:00 ET pair.
+            // is what "took all of RDS down" on a preview's teardown. The stop is ONE decision, expressed once, in
+            // `SandboxSchedulerStack`'s midnight schedule (ADR-0060), and the start is Sandbox Up's alone.
             //
             // Matched on the ACTION, not on the function name: a future step could rediscover the scheduler
             // by a different route, and what is forbidden is the stop, not the lookup.
@@ -131,23 +136,47 @@ describe('shared sandbox tier lifecycle (ADR-0028, amended 2026-08-30)', () => {
     });
 
     describe('sandboxUp.yml rebuilds the tier before anything depends on it', () => {
-        const steps = stepsOf('sandboxUp.yml');
+        // REWRITTEN for ADR-0060: the button is a job graph that CALLS its workflows, so "before" is a `needs:` edge
+        // and "waits" is what a called workflow does by construction (`sandboxUpVerification.test.ts`).
+        const jobs = (workflow('sandboxUp.yml').jobs ?? {}) as Record<string, { uses?: string; needs?: string[] }>;
+        const jobCalling = (file: string): string | undefined =>
+            Object.entries(jobs).find(([, job]) => (job.uses ?? '').endsWith(`/${file}`))?.[0];
 
-        it('ensures the shared identity tier exists before dispatching the preview deploys', () => {
-            const identity = indexOfRun(steps, 'sandbox-identity-deploy.yml');
-            const previews = indexOfRun(steps, 'sandbox-deploy.yml');
+        it('ensures the shared identity tier exists before the preview deploys', () => {
+            const identity = jobCalling('sandbox-identity-deploy.yml');
+            const previews = jobCalling('sandboxPreview.yml');
 
-            expect(identity).toBeGreaterThanOrEqual(0);
-            expect(previews).toBeGreaterThanOrEqual(0);
-            expect(identity).toBeLessThan(previews);
+            expect(identity).toBeDefined();
+            expect(previews).toBeDefined();
+            expect(jobs[previews ?? '']?.needs ?? []).toContain(identity);
+        });
+    });
+
+    describe('sandboxDown.yml releases the tier only for the LAST preview (ADR-0060 D9)', () => {
+        const steps = stepsOf('sandboxDown.yml');
+
+        it('releases it through the ONE idle verb, never the unconditional `down`', () => {
+            const release = steps[indexOfRun(steps, 'sandboxSharedTier.sh')];
+
+            expect(release?.run ?? '').toMatch(/sandboxSharedTier\.sh\s+release-if-idle/u);
+            expect(release?.run ?? '').not.toMatch(/sandboxSharedTier\.sh\s+down\b/u);
         });
 
-        it('waits for that deploy rather than firing and forgetting', () => {
-            const step = steps[indexOfRun(steps, 'sandbox-identity-deploy.yml')];
+        it('AFTER the PR teardown and AFTER `sync`, and only when the teardown came back clean', () => {
+            const teardown = indexOfRun(steps, 'teardownSandboxPr.sh');
+            const sync = indexOfRun(steps, 'sandboxScheduler.sh sync');
+            const release = indexOfRun(steps, 'sandboxSharedTier.sh');
 
-            // `gh workflow run` returns as soon as the dispatch is accepted. Without an explicit wait the
-            // previews deploy against an identity service that does not exist yet.
-            expect(step?.run ?? '').toMatch(/gh run watch|run list|--exit-status|wait/u);
+            expect(teardown).toBeGreaterThanOrEqual(0);
+            expect(sync).toBeGreaterThan(teardown);
+            expect(release).toBeGreaterThan(sync);
+            expect(steps[release]?.if ?? '').toContain("steps.teardown.outcome == 'success'");
+        });
+
+        it('NEVER stops the shared RDS or NAT', () => {
+            for (const step of steps) {
+                expect(step.run ?? '').not.toMatch(/"action":"stop"|stop-db-instance|stop-instances/u);
+            }
         });
     });
 

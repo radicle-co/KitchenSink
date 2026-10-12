@@ -21,7 +21,6 @@ import {
     checksIn,
     classifyOwed,
     countsFrom,
-    isAwake,
     type EscalationPayload,
     type OwedObservation,
     type ReadSession,
@@ -78,7 +77,6 @@ export interface RecipeCheckDeps {
      * only on a stage that checks in — see {@link runRecipeQueueCheck}.
      */
     readonly checkIn: () => void;
-    readonly now: () => Date;
 }
 
 /**
@@ -88,19 +86,14 @@ export interface RecipeCheckDeps {
  * report the loudest problem and hide the others — and the others are exactly what tells an operator whether
  * one consumer is stuck or the whole stage is.
  *
- * @param deps - The stage, the classes, the sink and the clock.
+ * @param deps - The stage, the classes and the sink.
  * @returns One escalation per class that had something to say.
  * @sideEffect Reads the database and SQS; may emit Sentry events.
  */
 export async function runRecipeQueueCheck(deps: RecipeCheckDeps): Promise<readonly EscalationPayload[]> {
-    // ⛔ THE NIGHTLY WINDOW, FIRST — before any database or SQS call (R35). ADR-0007 stops the non-prod
-    // tier's RDS from 00:00 to 09:00; a check that ran would find its database unreachable and every queue
-    // apparently stalled, and would escalate every night in every preview. A signal that fires nightly for a
-    // reason nobody can act on is a signal its reader mutes.
-    if (!isAwake(deps.stage, deps.now())) {
-        return [];
-    }
-
+    // ⛔ NO CLOCK GATE (owner ruling 2026-10-12). A check that is invoked reads and reports, at any hour. Whether
+    // it is invoked at all is the schedule rule's job: the rule is enabled only while the sandbox is up for its
+    // PR, so a stopped database is never dialled by a rule that is off.
     const raised: EscalationPayload[] = [];
 
     for (const queue of deps.queues) {
@@ -144,7 +137,7 @@ export async function runRecipeQueueCheck(deps: RecipeCheckDeps): Promise<readon
     // are unrelated failures, and the escalations already carry the second; withholding a check-in because
     // work is stuck would report a live backstop as a dead one every time it did its job.
     //
-    // ⚠️ A preview does not check in at all: its stack is torn down when the PR closes, and the monitor it
+    // ⚠️ Only prod checks in (`checksIn`). A preview's stack is torn down when the PR closes, and the monitor it
     // created would then be missing a check-in forever. It escalates what it finds and promises nothing.
     if (checksIn(deps.stage)) {
         deps.checkIn();
@@ -264,9 +257,8 @@ function requirePositiveEnv(name: string, env: NodeJS.ProcessEnv): number {
 /**
  * A lazily-read, once-only batch of every class's counts.
  *
- * ⛔ LAZY AND SHARED, and both halves are load-bearing. LAZY because {@link runRecipeQueueCheck} must reach
- * its nightly-window check before anything touches the database (R35) — a handler that pre-read would call an
- * RDS that ADR-0007 has stopped, every night, in every non-prod stage. SHARED because all five statements
+ * ⛔ LAZY AND SHARED, and both halves are load-bearing. LAZY so the read happens on the first call, inside the
+ * check's own failure handling, rather than at wiring time. SHARED because all five statements
  * must describe ONE instant: five independent reads let a consumer claim rows between two of them and produce
  * a combination that never existed, which the classifier would then name with confidence.
  *
@@ -360,9 +352,9 @@ export interface SessionClient {
 /**
  * ONE connection, opened by the first statement rather than up front.
  *
- * ⛔ LAZY because {@link runRecipeQueueCheck} must reach its nightly-window check before anything touches the
- * database (R35). `pool.connect()` on an idle pool is NOT local: it opens a physical connection (TCP, TLS, IAM
- * auth), so an eager acquire dialled ADR-0007's stopped database every tick of the stop window.
+ * ⛔ LAZY because `pool.connect()` on an idle pool is NOT local: it opens a physical connection (TCP, TLS, IAM
+ * auth). The connection therefore belongs to the first READ, inside the check's own failure handling, and a run
+ * that never reads never dials the database.
  *
  * ⚠️ The opening promise is MEMOISED, so statements that race for the first connection share one. Every
  * statement therefore lands on the same backend, which is what the read-only transaction needs (see
@@ -420,7 +412,6 @@ async function rawHandler(): Promise<void> {
             checkIn: () => {
                 checkInQueueCheck(stage);
             },
-            now: () => new Date(),
         });
     } finally {
         await close();

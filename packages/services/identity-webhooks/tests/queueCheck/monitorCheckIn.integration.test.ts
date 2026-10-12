@@ -9,9 +9,13 @@ import { checkInQueueCheck } from '../../src/common/queueEscalation.js';
  * The cron check-in, through the REAL Sentry SDK to the envelope it would send.
  *
  * ⛔ The unit suites pass a fake `captureCheckIn` and read back the object they were handed. That cannot show
- * the SDK keeps a crontab schedule and its timezone on the wire — a field it dropped would leave the monitor on
- * whatever schedule it already had — an every-five-minutes interval that reads ADR-0007's window as a dead
- * check. So this suite captures the serialized envelope with a recording transport and asserts on `monitor_config` itself.
+ * what the SDK actually puts on the wire, or that a stage which must not check in sends NOTHING. So this suite
+ * captures the serialized envelope with a recording transport and asserts on `monitor_config` itself.
+ *
+ * ⛔ REWRITTEN (owner ruling 2026-10-12). The sandbox used to upsert an awake-hours crontab (9-23 in
+ * New York time) and stay silent inside ADR-0007's window. The window's clock is deleted and the sandbox starts
+ * only by hand, so it is down — and silent — by default: a monitor on its silence would alarm forever. Only
+ * prod checks in. Delete the `*-queue-check-sandbox` monitors in Sentry.
  */
 /** The envelope shape this suite reads: a header, then `[itemHeader, item]` pairs. The SDK does not export its type. */
 type RecordedEnvelope = readonly [unknown, ReadonlyArray<readonly [{ readonly type?: string }, unknown]>];
@@ -51,19 +55,11 @@ beforeEach(() => {
 });
 
 describe('the identity queue check-in on the wire', () => {
-    it('⛔ sandbox upserts a crontab over its awake hours, in New York time', async () => {
+    it('⛔ sandbox sends NO check-in and upserts no monitor', async () => {
         checkInQueueCheck('sandbox');
         await Sentry.flush();
 
-        expect(sentMonitorConfigs()).toEqual([
-            expect.objectContaining({
-                schedule: { type: 'crontab', value: '*/5 9-23 * * *' },
-                timezone: 'America/New_York',
-                checkin_margin: 5,
-                failure_issue_threshold: 2,
-                recovery_threshold: 1,
-            }),
-        ]);
+        expect(sentMonitorConfigs()).toEqual([]);
     });
 
     it('prod keeps its every-five-minutes interval', async () => {
@@ -78,12 +74,11 @@ describe('the identity queue check-in on the wire', () => {
     });
 
     /**
-     * ⛔ The two halves of the fix must agree: a run inside the window sends NOTHING (it cannot reach Sentry
-     * then anyway), and the monitor above expects nothing then. A run in the awake hours checks in.
+     * ⛔ The whole run, not just the helper: a finished check on the sandbox sends nothing, one on prod checks in.
+     * There is no hour that changes either answer, because there is no clock in the path.
      */
-    it('⛔ a sandbox run in the nightly window sends no check-in; one at 09:00 New York time does', async () => {
+    it('⛔ a finished sandbox check sends no check-in; a finished prod check sends one', async () => {
         const deps = {
-            stage: 'sandbox',
             counts: async () => ({
                 unappliedStatusChanges: 0,
                 owedHandleSyncs: 0,
@@ -93,16 +88,25 @@ describe('the identity queue check-in on the wire', () => {
             }),
             depth: async () => ({ visible: 0, inFlight: 0, deadLettered: 0 }),
             escalate: () => undefined,
+        };
+
+        await runIdentityQueueCheck({
+            ...deps,
+            stage: 'sandbox',
             checkIn: () => {
                 checkInQueueCheck('sandbox');
             },
-        };
-
-        await runIdentityQueueCheck({ ...deps, now: () => new Date('2026-10-05T12:55:00Z') }); // 08:55 EDT
+        });
         await Sentry.flush();
         expect(sentMonitorConfigs()).toHaveLength(0);
 
-        await runIdentityQueueCheck({ ...deps, now: () => new Date('2026-10-05T13:00:00Z') }); // 09:00 EDT
+        await runIdentityQueueCheck({
+            ...deps,
+            stage: 'prod',
+            checkIn: () => {
+                checkInQueueCheck('prod');
+            },
+        });
         await Sentry.flush();
         expect(sentMonitorConfigs()).toHaveLength(1);
     });

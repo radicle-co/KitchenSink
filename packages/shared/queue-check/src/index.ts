@@ -10,7 +10,6 @@ export {
 export { classifyOwed } from './classifyOwed.js';
 export type { OwedObservation } from './classifyOwed.js';
 export { escalationFingerprint } from './escalationFingerprint.js';
-export { isAwake, nightlyLocalHour, NIGHTLY_START_HOUR, NIGHTLY_STOP_HOUR, NIGHTLY_TIMEZONE } from './awakeWindow.js';
 export type { QueryRunner, ReadSession } from './readSession.js';
 export { createQueueEscalation } from './queueEscalation.js';
 export type {

@@ -18,8 +18,12 @@ name: Sandbox Preview (reusable)
 # would have pointed one ECS service at two different images on alternating runs.
 #
 # What stays here is what is genuinely about the PREVIEW rather than about a package: whether this PR's
-# tier should exist at all (ADR-0010's ensure-exists gate), and waking the shared database that ADR-0028
-# turns off overnight. Those are the questions a package cannot answer about itself.
+# tier should exist at all (ADR-0010's ensure-exists gate), and whether the shared sandbox is up to deploy
+# into. Those are the questions a package cannot answer about itself.
+#
+# ⛔ THE SANDBOX STARTS ONLY BY HAND (owner ruling 2026-10-12). This workflow used to WAKE the shared database
+# and NAT; it now LOOKS (`sandboxWake.sh check`, describe calls only) and, when the sandbox is down, deploys
+# nothing and says so. The Sandbox Up workflow starts the tier and then calls this one with `forced: true`.
 on:
     workflow_call:
         inputs:
@@ -218,11 +222,33 @@ jobs:
                       none \
                       "kitchensink-remote-search-${STAGE}"
 
-            # ADR-0028 turns the shared sandbox database off overnight, and a migration against a stopped
-            # instance fails in a way that names neither the cause nor the schedule.
-            - name: Wake the shared sandbox database
-              if: steps.food-gate.outputs.deploy == 'true' || steps.recipe-gate.outputs.deploy == 'true'
-              run: bash .github/scripts/sandboxWake.sh ensure "${DEFAULT_AWS_REGION}"
+            # ⛔ THE SANDBOX STARTS ONLY BY HAND (owner ruling 2026-10-12: "There should not be a wake of CI push").
+            # A deploy into a stopped sandbox would fail its schema migrate step and could wedge a stack, so a
+            # down sandbox means NO DEPLOY, with a notice: "a job that needs the sandbox SKIPS when it is down."
+            # The Sandbox Up workflow starts the tier first and then calls this workflow, so the check passes there.
+            #
+            # ⚠️ `run:` steps run under `bash -e`, so `check`'s exit 3 (down) is CAPTURED rather than allowed to end
+            # the step. Anything other than 0 or 3 is an error and fails the job: a check that cannot answer is not
+            # "down".
+            - name: Check the shared sandbox is up (it starts only by hand)
+              id: sandbox
+              if: steps.food-gate.outputs.deploy == 'true' || steps.recipe-gate.outputs.deploy == 'true' || steps.search-gate.outputs.deploy == 'true'
+              run: |
+                  check_status=0
+                  bash .github/scripts/sandboxWake.sh check "${DEFAULT_AWS_REGION}" || check_status=$?
+                  case "$check_status" in
+                      0)
+                          echo 'up=true' >> "$GITHUB_OUTPUT"
+                          ;;
+                      3)
+                          echo 'up=false' >> "$GITHUB_OUTPUT"
+                          echo "::notice::The shared sandbox is down, so nothing is deployed for ${STAGE}. It starts only by hand: run the Sandbox Up workflow for this PR."
+                          ;;
+                      *)
+                          echo "::error::The sandbox status check could not answer (exit ${check_status})."
+                          exit "$check_status"
+                          ;;
+                  esac
 
             # ⛔ The list is the SAFETY control, not an optimisation. A `pr-{N}` preview runs on the SHARED
             # sandbox platform (ADR-0006) and `packages/infra/global` carries no `pr-` guard — naming it
@@ -238,9 +264,18 @@ jobs:
                   SEARCH: ${{ steps.search-gate.outputs.deploy }}
                   FOOD: ${{ steps.food-gate.outputs.deploy }}
                   RECIPE: ${{ steps.recipe-gate.outputs.deploy }}
+                  SANDBOX_UP: ${{ steps.sandbox.outputs.up }}
               run: |
                   set -euo pipefail
                   packages=''
+                  # A down sandbox deploys NOTHING, remote search included — see the check step above. Only an
+                  # explicit `false` is down: the step is skipped when no gate wants a deploy, and then every
+                  # gate output is already false.
+                  if [ "$SANDBOX_UP" = 'false' ]; then
+                      SEARCH=false
+                      FOOD=false
+                      RECIPE=false
+                  fi
                   # The search copy is its own gate: food reads it, and `deployInfra.yml` deploys it before food.
                   if [ "$SEARCH" = 'true' ]; then
                       packages='remote-search'

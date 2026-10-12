@@ -23,7 +23,6 @@ import {
     checksIn,
     classifyOwed,
     countsFrom,
-    isAwake,
     type EscalationPayload,
     type OwedObservation,
     type ReadSession,
@@ -47,8 +46,6 @@ export interface QueueCheckDeps {
      * for the symptoms to pile up.
      */
     readonly checkIn: () => void;
-    /** Clock, injected so the nightly window is testable without waiting for midnight. */
-    readonly now: () => Date;
 }
 
 /** What one read of the food queue found. Counts only — see `escalationPayload.ts` for why. */
@@ -73,20 +70,13 @@ const QUEUE_NAME = 'food-fetch';
 /**
  * Run one check.
  *
- * @param deps - The stage, the read, the sink and the clock.
+ * @param deps - The stage, the read and the sink.
  * @returns The escalation raised, or `undefined` when there was nothing to say.
  * @sideEffect Reads the database; may emit one Sentry event.
  */
 export async function runQueueCheck(deps: QueueCheckDeps): Promise<EscalationPayload | undefined> {
-    // ⛔ THE NIGHTLY WINDOW, FIRST — before any database call (R35). ADR-0007 stops the non-prod tier's RDS
-    // from 00:00 to 09:00; a check that ran would find its database unreachable and every queue apparently
-    // stalled, and would escalate every night in every preview. A signal that fires nightly for a reason
-    // nobody can act on is a signal its reader mutes, and the one time it means something is the night they
-    // do not look.
-    if (!isAwake(deps.stage, deps.now())) {
-        return undefined;
-    }
-
+    // ⛔ NO CLOCK GATE (owner ruling 2026-10-12). An invoked check reads and reports at any hour. This one rides
+    // the worker's own tick, and the worker runs only while the sandbox is up for its PR.
     const counts = await deps.counts();
 
     // ⛔ THE CHECK-IN IS ISSUED AS SOON AS THE READ SUCCEEDS, AND BEFORE EITHER RETURN BELOW. It means "this
@@ -94,7 +84,7 @@ export async function runQueueCheck(deps: QueueCheckDeps): Promise<EscalationPay
     // a check that only checked in when it found something would report a healthy stage as a dead backstop,
     // which is the alert inverted. A read that throws never reaches here, and that silence is the truth.
     //
-    // ⚠️ A preview does not check in at all: its stack is torn down when the PR closes (ADR-0005), and the
+    // ⚠️ Only prod checks in (`checksIn`). A preview's stack is torn down when the PR closes (ADR-0005), and the
     // monitor it created would be missing a check-in forever afterwards. It escalates and promises nothing.
     if (checksIn(deps.stage)) {
         deps.checkIn();

@@ -75,8 +75,11 @@ const MUST_REFUSE: ReadonlyArray<readonly [string, string]> = [
     ['', 'the empty string'],
 ];
 
-const run = (...args: string[]): { status: number; stdout: string } => {
-    const result = spawnSync('bash', [SCRIPT, ...args], { encoding: 'utf8' });
+const run = (...args: string[]): { status: number; stdout: string } => runWith('', ...args);
+
+/** Run a verb with `input` on stdin. */
+const runWith = (input: string, ...args: string[]): { status: number; stdout: string } => {
+    const result = spawnSync('bash', [SCRIPT, ...args], { encoding: 'utf8', input });
 
     return { status: result.status ?? -1, stdout: result.stdout ?? '' };
 };
@@ -114,5 +117,43 @@ describe('sandboxSharedTier.sh (ADR-0028 on-demand shared tier)', () => {
     it('rejects an unknown verb rather than doing something', () => {
         expect(run('destroy-everything').status).toBe(2);
         expect(run().status).toBe(2);
+    });
+
+    /**
+     * ADR-0060: Sandbox Down releases the shared tier only when NO preview is left, and "left" is read from the
+     * stacks that exist. Every `kitchensink-<app>-pr-<N>` stack names a preview that still imports the ALB's
+     * listener, so a wrong "none left" deletes sign-in out from under it and wedges the ALB on an export in use.
+     */
+    describe('live-tokens — which previews still own a stack (pure, stdin)', () => {
+        const tokens = (names: readonly string[]): string[] =>
+            runWith(names.join('\n'), 'live-tokens')
+                .stdout.split('\n')
+                .filter((line) => line !== '');
+
+        it('reads each preview token once, from every app that names it', () => {
+            expect(
+                tokens([
+                    'kitchensink-food-service-pr-91',
+                    'kitchensink-recipe-schema-pr-91',
+                    'kitchensink-recipe-workers-pr-7',
+                    'kitchensink-alb-sandbox',
+                    'kitchensink-identity-service-sandbox',
+                ]),
+            ).toEqual(['pr-7', 'pr-91']);
+        });
+
+        it.each([
+            ['kitchensink-alb-sandbox', 'the shared tier itself'],
+            ['kitchensink-food-service-prod', 'production'],
+            ['armoury-api-pr-5', 'the other application in this account'],
+            ['kitchensink-food-service-pr-', 'a token with no number'],
+            ['kitchensink-food-service-pr-91-old', 'a name that only CONTAINS a token'],
+        ])('ignores %s — %s', (name) => {
+            expect(tokens([name])).toEqual([]);
+        });
+
+        it('answers nothing for no stacks — the one input that releases the tier', () => {
+            expect(tokens([])).toEqual([]);
+        });
     });
 });

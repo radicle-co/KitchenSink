@@ -38,7 +38,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { readSource, withoutTsComments } from './roleSplitSources.js';
+import { productionSources, readSource, withoutTsComments } from './roleSplitSources.js';
 
 /** One rule, implemented once per service. */
 interface MirrorGroup {
@@ -93,6 +93,14 @@ const MIRROR_GROUPS: readonly MirrorGroup[] = [
             'packages/services/recipe-service/src/auth/servicePrincipal.decorator.ts',
         ],
     },
+    {
+        // ADR-0060. Its natural home, `@radicle-co/infra-shared`, is consumed at a pinned PUBLISHED version only a
+        // commit may move, so a new export there cannot reach the apps in the change that adds it. DISCOVERED, not
+        // listed: every app that owns a scheduled rule carries one (`nonProdScheduledRules.test.ts`), so the copies
+        // are found by name and a fourth is held to the other three the day it lands.
+        what: 'the non-prod scheduled-rule gate',
+        files: productionSources().filter((file) => file.endsWith('/infra/lib/scheduledRuleGate.ts')),
+    },
 ];
 
 /** A file's code, with comments gone and every domain noun collapsed to one token. Pure. */
@@ -112,6 +120,12 @@ describe('mirrored service modules', () => {
             }
         },
     );
+
+    it('every group holds at least two copies — a group of one compares nothing', () => {
+        for (const group of MIRROR_GROUPS) {
+            expect(group.files.length, group.what).toBeGreaterThanOrEqual(2);
+        }
+    });
 
     it('names files that exist — a renamed mirror must update this list, not silently stop being checked', () => {
         for (const group of MIRROR_GROUPS) {

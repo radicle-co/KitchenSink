@@ -1,29 +1,23 @@
 /**
- * ADR-0007 sandbox scheduler infra: a least-privilege Lambda + the nightly STOP/START PAIR — 00:00 and
- * 09:00 America/New_York — created by GlobalStack ONLY for the sandbox stage (prod gets nothing → no prod
- * diff, ADR-0002 discipline).
+ * ADR-0007 / ADR-0060 sandbox scheduler infra: a least-privilege Lambda and ONE schedule — the midnight stop,
+ * America/New_York — created by GlobalStack ONLY for the sandbox stage (prod gets nothing → no prod diff, ADR-0002
+ * discipline).
  *
- * ## The 09:00 START was removed by ADR-0028 and RESTORED on 2026-09-03. Read why before removing it again.
+ * ## There is no daily start, and the absence is the decision (ADR-0060)
  *
- * ADR-0028 deleted the start on one argument: it "would resurrect the whole tier every weekday morning
- * regardless of intent, silently undoing the reaper". That was true when it was written, and its premise
- * has since expired.
+ * The owner ruled on 2026-10-12: "no automatic or scheduled tasks or jobs except for the single one to check if the
+ * sandbox is running at midnight and bringing every single sandbox down." The sandbox starts only when Sandbox Up is
+ * pressed for a PR, through this function's per-PR `start`. A daily start resurrected the database and the NAT every
+ * morning for nobody, and a CI wake-on-push restarted them inside the shutdown window.
  *
- * ADR-0028's own amendment of 2026-08-30 made the shared ALB and identity service **deleted stacks** rather
- * than stopped ones. A schedule cannot create a stack. So after the reaper has run there is nothing for a
- * start to resurrect except the two things that were only ever STOPPED — the RDS instance and the NAT — and
- * those are the two the owner has ruled must follow the original clock (2026-09-03): _"The RDS should still
- * be stopped and started on the original schedule."_
+ * The stop stays, and is not merely a backstop: AWS auto-restarts a stopped RDS instance after SEVEN DAYS, and the
+ * nightly stop is what catches that within a day.
  *
- * The STOP was never merely a backstop and still is not: AWS auto-restarts a stopped RDS instance after
- * SEVEN DAYS, and the nightly stop is what catches that within a day, every time — including in the weeks
- * when GitHub's best-effort scheduled workflows do not run at all. The START now carries the same property
- * in the other direction: a deploy landing inside the old 00:00–09:00 window no longer meets a stopped
- * database (ADR-0007 × ADR-0022, the `UPDATE_ROLLBACK_FAILED` wedge `sandboxWake.sh` was written after).
+ * ## The scheduler is the only writer of a scheduled rule's state
  *
- * ⛔ The two schedules are EXACT INVERSES on purpose, because `runStop` and `runStart` are: `runStop`
- * records each service's prior desired count in SSM and `runStart` refuses to guess when it is missing.
- * Scheduling one without the other is what leaves that bookkeeping half-applied.
+ * Every non-prod scheduled rule synthesizes DISABLED and tagged with its stage; `sync` switches it on only while its
+ * stage is up. So this function may toggle EventBridge rules — and the grant is scoped to exactly the rules the CDK
+ * gate tagged, with production refused by an explicit Deny.
  */
 import { Stack, aws_sns as sns, type App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
@@ -32,6 +26,7 @@ import { describe, it, expect } from 'vitest';
 
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
 import { SandboxSchedulerStack } from '../lib/platform/SandboxSchedulerStack.js';
+import { SCHEDULED_RULE_STAGE_TAG } from '../lib/sandbox-scheduler/scheduler.js';
 import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
@@ -146,57 +141,20 @@ describe('SandboxSchedulerStack (ADR-0007)', () => {
         });
     });
 
-    it('creates exactly two EventBridge schedules, both in America/New_York', () => {
-        const template = schedulerTemplate();
-
-        template.resourceCountIs('AWS::Scheduler::Schedule', 2);
-
-        const schedules = Object.values(template.findResources('AWS::Scheduler::Schedule')).map(
+    it('⛔ creates exactly ONE schedule — the midnight stop, America/New_York (ADR-0060)', () => {
+        const schedules = Object.values(schedulerTemplate().findResources('AWS::Scheduler::Schedule')).map(
             (resource: any) => resource.Properties,
         );
 
-        for (const schedule of schedules) {
-            // DST-correct by timezone, never by a UTC hour. `America/New_York` is UTC-4 for eight months and
-            // UTC-5 for four; a UTC cron would drift an hour twice a year and the drift is invisible until a
-            // deploy lands in a window that was supposed to be open.
-            expect(schedule.ScheduleExpressionTimezone).toBe('America/New_York');
-        }
-
-        // Both expressions PINNED, not merely counted. `day: '*'` with the weekDay field left as `?` is what
-        // the CDK helper emits, and it is the difference between "every day" and a synth error — asserting
-        // only the count would let a `cron(0 9 ? * * *)` typo through.
-        const expressions = schedules.map((schedule: any) => schedule.ScheduleExpression).sort();
-        expect(expressions).toEqual(['cron(0 0 * * ? *)', 'cron(0 9 * * ? *)']);
-    });
-
-    it('passes stop and start to the Lambda target as structured input, one each', () => {
-        const template = schedulerTemplate();
-        const inputs = Object.values(template.findResources('AWS::Scheduler::Schedule')).map((resource: any) =>
-            JSON.parse(resource.Properties.Target.Input),
-        );
-
-        // ⛔ Set equality, not "contains a stop". `runStop` writes each ECS service's prior desired count to
-        // SSM and `runStart` deliberately REFUSES to guess when that parameter is missing — so a schedule
-        // that stops without a matching start strands whatever it scaled down, and a duplicate of either
-        // action fires the bookkeeping twice.
-        expect([...inputs].sort((a, b) => String(a.action).localeCompare(String(b.action)))).toEqual([
-            { action: 'start' },
-            { action: 'stop' },
-        ]);
-    });
-
-    it('pairs each action with its own hour, so the two cannot be swapped unnoticed', () => {
-        // The previous assertion proves both actions exist and the one before it proves both hours exist.
-        // Neither catches the two being crossed — a start at midnight and a stop at nine, which synthesizes
-        // cleanly, passes both, and shuts the sandbox down for the entire working day.
-        const byAction = Object.fromEntries(
-            Object.values(schedulerTemplate().findResources('AWS::Scheduler::Schedule')).map((resource: any) => [
-                JSON.parse(resource.Properties.Target.Input).action,
-                resource.Properties.ScheduleExpression,
-            ]),
-        );
-
-        expect(byAction).toEqual({ stop: 'cron(0 0 * * ? *)', start: 'cron(0 9 * * ? *)' });
+        // ⛔ Pinned as the WHOLE set, so a restored start fails here rather than merely adding a row. DST-correct by
+        // timezone, never by a UTC hour: `America/New_York` is UTC-4 for eight months and UTC-5 for four.
+        expect(
+            schedules.map((schedule: any) => ({
+                expression: schedule.ScheduleExpression,
+                timezone: schedule.ScheduleExpressionTimezone,
+                input: JSON.parse(schedule.Target.Input),
+            })),
+        ).toEqual([{ expression: 'cron(0 0 * * ? *)', timezone: 'America/New_York', input: { action: 'stop' } }]);
     });
 
     it('scopes IAM to exactly the rds/ecs/ec2/ssm actions it needs (no service-wildcard admin)', () => {
@@ -218,13 +176,17 @@ describe('SandboxSchedulerStack (ADR-0007)', () => {
             'ec2:StartInstances',
             'ssm:GetParameter',
             'ssm:PutParameter',
+            'events:ListRules',
+            'events:ListTagsForResource',
+            'events:EnableRule',
+            'events:DisableRule',
         ]) {
             expect(actions.has(action)).toBe(true);
         }
 
         // No service-wildcard admin (e.g. `rds:*`, `ec2:*`).
         for (const action of actions) {
-            expect(action).not.toMatch(/^(rds|ecs|ec2|ssm|iam):\*$/);
+            expect(action).not.toMatch(/^(rds|ecs|ec2|ssm|iam|events):\*$/);
             expect(action).not.toBe('*');
         }
 
@@ -251,11 +213,11 @@ describe('GlobalStack scheduler guard (ADR-0007 / no prod diff)', () => {
             domainName: 'example.com',
         });
 
-    it('creates the SandboxSchedulerStack (with BOTH schedules) ONLY for the sandbox stage', () => {
+    it('creates the SandboxSchedulerStack (with its one schedule) ONLY for the sandbox stage', () => {
         const sandbox = makeGlobal('sandbox');
 
         expect(sandbox.sandboxScheduler).toBeInstanceOf(SandboxSchedulerStack);
-        Template.fromStack(sandbox.sandboxScheduler!).resourceCountIs('AWS::Scheduler::Schedule', 2);
+        Template.fromStack(sandbox.sandboxScheduler!).resourceCountIs('AWS::Scheduler::Schedule', 1);
     });
 
     it('creates no scheduler for prod (guard leaves it undefined → prod template unchanged)', () => {
@@ -353,7 +315,7 @@ describe('a failed scheduler run raises an alarm', () => {
         withAlarms(false).resourceCountIs('AWS::CloudWatch::Alarm', 0);
     });
 
-    it('retries a failed run briefly and never into the next window', () => {
+    it('retries a failed stop briefly and never into the next day', () => {
         const schedules = Object.values(withAlarms(true).findResources('AWS::Scheduler::Schedule')) as {
             Properties: {
                 Target: { RetryPolicy?: { MaximumRetryAttempts: number; MaximumEventAgeInSeconds: number } };
@@ -361,7 +323,6 @@ describe('a failed scheduler run raises an alarm', () => {
         }[];
 
         expect(schedules.map(({ Properties }) => Properties.Target.RetryPolicy)).toEqual([
-            { MaximumRetryAttempts: 2, MaximumEventAgeInSeconds: 3600 },
             { MaximumRetryAttempts: 2, MaximumEventAgeInSeconds: 3600 },
         ]);
     });
@@ -383,5 +344,70 @@ describe('GlobalStack hands the scheduler the stage alarm settings', () => {
 
         // The action is the messaging stack's alarm topic, imported across stacks.
         expect(JSON.stringify(alarm?.Properties.AlarmActions)).toContain('MessageSubstrateAlarmTopic');
+    });
+});
+
+/**
+ * ADR-0060: the scheduler is the ONLY writer of a scheduled rule's state, so it holds the grant to toggle one — and
+ * nothing more. The scope is asserted against the SYNTHESIZED policy, in both directions.
+ *
+ * `events:EnableRule`/`DisableRule` act on the `rule-on-default-event-bus` resource type, whose condition keys include
+ * `aws:ResourceTag/${TagKey}` (AWS Service Authorization Reference for `events`, read 2026-10-12 from
+ * `servicereference.us-east-1.amazonaws.com/v1/events/events.json`). So the tag the CDK gate stamps IS an enforceable
+ * boundary: a rule that never went through the gate — every production rule — cannot be toggled.
+ */
+describe('the rule-toggle grant (ADR-0060)', () => {
+    type Statement = {
+        Sid?: string;
+        Effect: string;
+        Action: string | string[];
+        Resource: unknown;
+        Condition?: Record<string, Record<string, unknown>>;
+    };
+
+    function statements(): Statement[] {
+        return Object.values(schedulerTemplate().findResources('AWS::IAM::Policy')).flatMap(
+            (policy: any) => policy.Properties.PolicyDocument.Statement as Statement[],
+        );
+    }
+
+    const actionsOf = (statement: Statement): string[] =>
+        Array.isArray(statement.Action) ? statement.Action : [statement.Action];
+
+    const TOGGLES = ['events:EnableRule', 'events:DisableRule'];
+
+    it('allows toggling ONLY a rule tagged with a sandbox or preview stage', () => {
+        const allows = statements().filter(
+            (statement) =>
+                statement.Effect === 'Allow' && actionsOf(statement).some((action) => TOGGLES.includes(action)),
+        );
+
+        expect(allows).toHaveLength(1);
+        expect(actionsOf(allows[0]!).sort()).toEqual([...TOGGLES].sort());
+        expect(allows[0]!.Condition).toEqual({
+            StringLike: { [`aws:ResourceTag/${SCHEDULED_RULE_STAGE_TAG}`]: ['sandbox', 'pr-*'] },
+        });
+        // …and only within this repository's rule namespace, in an account that hosts another application.
+        expect(JSON.stringify(allows[0]!.Resource)).toContain(':rule/kitchensink-*');
+    });
+
+    it('⛔ DENIES toggling any rule tagged Environment=production, whatever else it carries', () => {
+        const deny = statements().find(
+            (statement) =>
+                statement.Effect === 'Deny' && actionsOf(statement).some((action) => TOGGLES.includes(action)),
+        );
+
+        expect(deny).toBeDefined();
+        expect(actionsOf(deny!).sort()).toEqual([...TOGGLES].sort());
+        expect(deny!.Condition).toEqual({ StringEquals: { 'aws:ResourceTag/Environment': 'production' } });
+    });
+
+    it('reads tags only on rules in its namespace, and lists rules where IAM offers no resource scope', () => {
+        const byAction = (action: string): Statement | undefined =>
+            statements().find((statement) => statement.Effect === 'Allow' && actionsOf(statement).includes(action));
+
+        expect(JSON.stringify(byAction('events:ListTagsForResource')?.Resource)).toContain(':rule/kitchensink-*');
+        // `ListRules` has no resource type in the service reference, so `*` is the only valid scope.
+        expect(byAction('events:ListRules')?.Resource).toBe('*');
     });
 });

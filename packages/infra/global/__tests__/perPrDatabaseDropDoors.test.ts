@@ -105,6 +105,19 @@ import { PER_PR_DATABASE_BASE_BY_PRODUCER } from '../src/db-reaper/perPrDatabase
 /** The teardown script that must reach per-PR databases through the reaper, and through nothing else. */
 const TEARDOWN_SCRIPT = '.github/scripts/teardownSandboxPr.sh';
 
+/**
+ * The ONE invoker of the reaper (ADR-0060): the teardown drops through it now, and the owed-drop drain pays deferred
+ * drops through it later. Both scripts are held to the reaper-only rule.
+ */
+const DROP_SCRIPT = '.github/scripts/perPrDatabaseDrop.sh';
+
+/** A script's text with its whole-line comments removed. */
+const codeOf = (file: string): string =>
+    readFileSync(path.join(repoRoot, file), 'utf8')
+        .split('\n')
+        .filter((line) => !/^\s*#/.test(line))
+        .join('\n');
+
 /** A stack deriving a per-stage (and therefore per-PR) logical database name. */
 interface DatabaseFamily {
     /** Repo-relative path of the stack that derives it. */
@@ -250,15 +263,11 @@ describe('per-PR logical databases (ADR-0006) all have a drop door', () => {
         ).toEqual([]);
     });
 
-    it('⛔ is reclaimed through the REAPER — the teardown script names no per-service door', () => {
-        const script = readFileSync(path.join(repoRoot, TEARDOWN_SCRIPT), 'utf8');
-        // Strip comments before looking for literals: the script EXPLAINS the food-only bug it used to have,
+    it('⛔ is reclaimed through the REAPER — neither the teardown nor the drop script names a per-service door', () => {
+        // Comments stripped before looking for literals: the script EXPLAINS the food-only bug it used to have,
         // and a textual gate that fired on its own rationale would get deleted. Same trap
         // `reclaimableStackImports.test.ts` fell into on its first draft.
-        const code = script
-            .split('\n')
-            .filter((line) => !/^\s*#/.test(line))
-            .join('\n');
+        const code = `${codeOf(TEARDOWN_SCRIPT)}\n${codeOf(DROP_SCRIPT)}`;
         const named = [...new Set(doors.map(({ outputKey }) => outputKey))].filter((key) => code.includes(key)).sort();
 
         expect(
@@ -270,13 +279,14 @@ describe('per-PR logical databases (ADR-0006) all have a drop door', () => {
         ).toEqual([]);
     });
 
-    it('invokes the reaper by the output DataStack publishes', () => {
+    it('invokes the reaper by the output DataStack publishes — through the one drop script the teardown calls', () => {
         // The positive half: "names no door" is satisfied by a script that drops nothing at all. Pinned to
         // the output key rather than a function name, because the name is CloudFormation-generated.
-        const script = readFileSync(path.join(repoRoot, TEARDOWN_SCRIPT), 'utf8');
-
-        expect(script).toContain('PerPrDatabaseReaperFunctionName');
-        expect(script).toMatch(/"action\\":\\"drop/);
+        // REPOINTED for ADR-0060: the invocation moved into `perPrDatabaseDrop.sh`, which the owed-drop drain also
+        // uses, so the teardown must call that script's `drop` and the script must hold the invocation.
+        expect(codeOf(TEARDOWN_SCRIPT)).toMatch(/perPrDatabaseDrop\.sh"? drop "\$PR"/);
+        expect(codeOf(DROP_SCRIPT)).toContain('PerPrDatabaseReaperFunctionName');
+        expect(codeOf(DROP_SCRIPT)).toMatch(/"action\\":\\"drop/);
     });
 });
 

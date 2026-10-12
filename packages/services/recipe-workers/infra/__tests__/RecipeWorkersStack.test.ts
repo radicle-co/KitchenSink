@@ -23,6 +23,7 @@ import { BEDROCK_MODEL_REGISTRY, residencyClearance } from '@kitchensink/recipe-
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
 
 import { RecipeWorkersStack } from '../lib/RecipeWorkersStack.js';
+import { SCHEDULED_RULE_STAGE_TAG } from '../lib/scheduledRuleGate.js';
 
 /** Cloud-assembly directories this file synthesized into, removed in `afterAll`. */
 const synthOutputs: string[] = [];
@@ -538,9 +539,12 @@ describe('RecipeWorkersStack', () => {
         // posture (owner, 2026-08-15) that is safe ONLY while there is no production traffic — see the
         // ⛔ note on ArchiveSweepSchedule. This assertion is what makes restoring the cadence a
         // test-visible change rather than a silent one.
+        //
+        // ⚠️ DISABLED at this (sandbox) stage by ADR-0060: a non-prod rule runs only while its stage is up, and the
+        // scheduler's `sync` switches it on. Prod's own state is pinned in the scheduled-rule gate block below.
         template.hasResourceProperties('AWS::Events::Rule', {
             ScheduleExpression: 'rate(1 day)',
-            State: 'ENABLED',
+            State: 'DISABLED',
         });
     });
 
@@ -874,10 +878,11 @@ describe('RecipeWorkersStack — account erasure', () => {
         // The service enqueues eagerly, so this rule is not the latency path; it is the durability path.
         // Without it, a job whose send failed (SQS outage) or whose message was lost sits `queued`
         // forever and the user's right-to-erasure request is silently never honoured.
+        // DISABLED here because this is a sandbox synth (ADR-0060); `sync` enables it while the stage is up.
         template.hasResourceProperties('AWS::Events::Rule', {
             Name: 'kitchensink-recipe-erasure-sweep-sandbox',
             ScheduleExpression: 'rate(5 minutes)',
-            State: 'ENABLED',
+            State: 'DISABLED',
         });
     });
 
@@ -1006,10 +1011,11 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
         // Hourly, not the archive sweeper's every-minute: this is a backstop-of-a-backstop for a sub-ms,
         // already-rare race, not a latency path. Without the rule the residual is never reconciled and an
         // orphaned snapshot survives a right-to-erasure request indefinitely.
+        // DISABLED here because this is a sandbox synth (ADR-0060); `sync` enables it while the stage is up.
         template.hasResourceProperties('AWS::Events::Rule', {
             Name: 'kitchensink-recipe-erasure-orphan-sweep-sandbox',
             ScheduleExpression: 'rate(1 hour)',
-            State: 'ENABLED',
+            State: 'DISABLED',
         });
     });
 
@@ -2361,32 +2367,60 @@ describe('RecipeWorkersStack — consumer concurrency (U8)', () => {
     });
 
     /**
-     * ⛔ R2's other half. A non-prod consumer's database is deliberately stopped for nine hours every night
-     * (ADR-0007), and a consumer that cannot reach it fails every delivery — each failure spending a receive.
-     * Below `window / visibilityTimeout`, a perfectly healthy message dead-letters because the stage was
-     * asleep, and the DLQ depth ADR-0024 layer 4 alarms on fills with work nothing was wrong with.
+     * ⛔ R2's other half, RE-DERIVED for ADR-0060. The sandbox database used to be down for nine hours a night; it is
+     * now down from the midnight stop until somebody presses Sandbox Up, which can be days. No receive budget
+     * outlasts an unbounded outage, so the property is no longer "survive the stop" — it is "never LOSE the
+     * message to it". A consumer that cannot reach its database fails every delivery and spends a receive each
+     * time, so every consumer queue must PARK such a message in its DLQ (receives × visibility) well before its
+     * own retention would delete it, and the DLQ must keep it longer than the source queue did. There it is seen:
+     * the queue check reports each class's dead-lettered depth whenever the stage is up again.
+     *
+     * Rewritten from "every consumer queue tolerates a full nightly stop": the nine-hour figure still sizes the
+     * two queues that were tuned for it, and is asserted as a floor below, but it no longer models a stop.
      */
-    it('⛔ every consumer queue tolerates a full nightly stop before dead-lettering', () => {
-        const template = synth('sandbox');
-        const nightlyStopSeconds = 9 * 60 * 60;
-        const queues = template.findResources('AWS::SQS::Queue');
+    it('⛔ every queue with a DLQ parks a message failing for want of a database before it could expire', () => {
+        const queues = synth('sandbox').findResources('AWS::SQS::Queue');
+        const withDlq = Object.entries(queues).filter(([, queue]) => queue.Properties?.RedrivePolicy !== undefined);
+        const retentionOf = (logicalId: string): number =>
+            (queues[logicalId]?.Properties?.MessageRetentionPeriod as number | undefined) ?? 4 * 24 * 60 * 60;
 
-        const consumerQueues = Object.entries(queues).filter(
+        expect(withDlq.length).toBeGreaterThanOrEqual(4);
+
+        for (const [id, queue] of withDlq) {
+            const visibility = queue.Properties?.VisibilityTimeout as number;
+            const redrive = queue.Properties?.RedrivePolicy as {
+                maxReceiveCount: number;
+                deadLetterTargetArn: { 'Fn::GetAtt': [string, string] };
+            };
+            const dlq = redrive.deadLetterTargetArn['Fn::GetAtt'][0];
+
+            expect(visibility, `${id} must declare a visibility timeout`).toBeGreaterThan(0);
+            expect(redrive.maxReceiveCount * visibility, `${id} must dead-letter before it expires`).toBeLessThan(
+                retentionOf(id),
+            );
+            expect(retentionOf(dlq), `${id}'s DLQ must keep a parked message longer than ${id} did`).toBeGreaterThan(
+                retentionOf(id),
+            );
+        }
+    });
+
+    it('the two queues tuned for a stopped database still ride out nine hours of it before parking', () => {
+        const queues = synth('sandbox').findResources('AWS::SQS::Queue');
+        const tuned = Object.entries(queues).filter(
             ([id]) => id.includes('RecipeParseQueue') || id.includes('IngredientVerificationQueue'),
         );
 
-        expect(consumerQueues.length).toBe(2);
+        expect(tuned.length).toBe(2);
 
-        for (const [id, queue] of consumerQueues) {
+        for (const [id, queue] of tuned) {
             const visibility = queue.Properties?.VisibilityTimeout as number;
-            const maxReceives = (queue.Properties?.RedrivePolicy as { maxReceiveCount?: number } | undefined)
-                ?.maxReceiveCount;
+            const redrive = queue.Properties?.RedrivePolicy as { maxReceiveCount: number } | undefined;
+            if (redrive === undefined) {
+                throw new Error(`${id} has no redrive policy`);
+            }
+            const maxReceives = redrive.maxReceiveCount;
 
-            expect(visibility, `${id} must declare a visibility timeout`).toBeGreaterThan(0);
-            expect(
-                maxReceives,
-                `${id} must outlast ${String(nightlyStopSeconds)}s of stopped database`,
-            ).toBeGreaterThan(nightlyStopSeconds / visibility);
+            expect(maxReceives * visibility, id).toBeGreaterThan(9 * 60 * 60);
         }
     });
 });
@@ -2547,6 +2581,52 @@ describe('⛔ frequent scheduled jobs make no async retries', () => {
             const config = invokeConfigs.find((candidate) => candidate.Properties.FunctionName.Ref === fn);
 
             expect(config?.Properties.MaximumRetryAttempts, fn).toBe(0);
+        }
+    });
+});
+
+/**
+ * ADR-0060: a non-prod scheduled rule runs only while its stage is up. It synthesizes DISABLED and tagged with its
+ * stage, and the sandbox scheduler's `sync` is the only thing that switches it on. Prod is untouched.
+ *
+ * The rules are DISCOVERED from the template, never listed: a sweeper added tomorrow is held to this the day it lands.
+ */
+describe('RecipeWorkersStack — scheduled rules follow the sandbox (ADR-0060)', () => {
+    /** Every rule in the template, split by whether it runs on a schedule. */
+    function rules(template: Template): { scheduled: Record<string, unknown>[]; pattern: Record<string, unknown>[] } {
+        const all = Object.values(template.findResources('AWS::Events::Rule')).map(
+            (resource) => resource['Properties'] as Record<string, unknown>,
+        );
+
+        return {
+            scheduled: all.filter((rule) => rule['ScheduleExpression'] !== undefined),
+            pattern: all.filter((rule) => rule['ScheduleExpression'] === undefined),
+        };
+    }
+
+    it.each(['sandbox', 'pr-7'])('at %s every scheduled rule is DISABLED and tagged with that stage', (stage) => {
+        const { scheduled } = rules(synth(stage, 'sandbox'));
+
+        // Not vacuous: this stack owns six scheduled jobs (sweepers, drains, the queue check).
+        expect(scheduled.length).toBeGreaterThan(0);
+
+        for (const rule of scheduled) {
+            expect(rule['State'], String(rule['ScheduleExpression'])).toBe('DISABLED');
+            expect(rule['Tags'], String(rule['ScheduleExpression'])).toContainEqual({
+                Key: SCHEDULED_RULE_STAGE_TAG,
+                Value: stage,
+            });
+        }
+    });
+
+    it('⛔ at prod every scheduled rule keeps running and carries no stage tag', () => {
+        const { scheduled } = rules(synth('prod', 'prod'));
+
+        expect(scheduled.length).toBeGreaterThan(0);
+
+        for (const rule of scheduled) {
+            expect(rule['State']).toBe('ENABLED');
+            expect(JSON.stringify(rule['Tags'] ?? [])).not.toContain(SCHEDULED_RULE_STAGE_TAG);
         }
     });
 });

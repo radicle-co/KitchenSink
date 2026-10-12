@@ -1,7 +1,7 @@
 /**
- * Lambda adapter for the sandbox nightly-shutdown scheduler (ADR-0007).
+ * Lambda adapter for the sandbox scheduler (ADR-0007, ADR-0060).
  *
- * This is a thin, mechanical adapter: it constructs the AWS SDK v3 clients (RDS/ECS/EC2/SSM — provided
+ * This is a thin, mechanical adapter: it constructs the AWS SDK v3 clients (RDS/ECS/EC2/SSM/EventBridge — provided
  * by the Node 22 Lambda runtime, so they are marked `external` at bundle time and are NOT package
  * dependencies) and adapts them to the injected client interfaces in `lib/sandbox-scheduler/scheduler`,
  * where ALL the sandbox-only selection + stop/start decision logic lives (and is unit-tested).
@@ -10,7 +10,7 @@
  * it depends on the runtime-provided SDK rather than an installed package; esbuild bundles it via
  * `esbuild.mjs`. The type-checked, tested logic is entirely in the `lib/` module it delegates to.
  *
- * @sideEffect Stops/starts sandbox RDS, ECS services, and the NAT EC2 instance.
+ * @sideEffect Stops/starts sandbox RDS, ECS services and the NAT EC2 instance, and enables/disables scheduled rules.
  */
 import {
     DescribeDBInstancesCommand,
@@ -27,16 +27,25 @@ import {
     UpdateServiceCommand,
 } from '@aws-sdk/client-ecs';
 import { DescribeInstancesCommand, EC2Client, StartInstancesCommand, StopInstancesCommand } from '@aws-sdk/client-ec2';
+import {
+    DisableRuleCommand,
+    EnableRuleCommand,
+    EventBridgeClient,
+    ListRulesCommand,
+    ListTagsForResourceCommand,
+} from '@aws-sdk/client-eventbridge';
 import { GetParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 
 import {
     assertRunSucceeded,
+    parseSchedulerRequest,
     runSchedulerAction,
+    SCHEDULED_RULE_STAGE_TAG,
     type EcsClusterSummary,
     type EcsServiceSummary,
     type Ec2InstanceSummary,
     type RdsInstanceSummary,
-    type SchedulerAction,
+    type ScheduledRuleSummary,
     type SchedulerClients,
     type SchedulerSummary,
 } from '../../lib/sandbox-scheduler/scheduler.js';
@@ -45,6 +54,14 @@ const rdsClient = new RDSClient({});
 const ecsClient = new ECSClient({});
 const ec2Client = new EC2Client({});
 const ssmClient = new SSMClient({});
+const eventBridgeClient = new EventBridgeClient({});
+
+/**
+ * The name prefix every rule this repository deploys carries. CloudFormation truncates a generated rule name but
+ * keeps its start, which is the stack name (`kitchensink-…`), so this scopes the listing to this repository's
+ * rules in an account that also hosts another application. The IAM resource pattern is the same prefix.
+ */
+const RULE_NAME_PREFIX = 'kitchensink-';
 
 const clients: SchedulerClients = {
     rds: {
@@ -183,23 +200,63 @@ const clients: SchedulerClients = {
             );
         },
     },
+    events: {
+        // ⚠️ `ListRules` + `ListTagsForResource`, NOT the Resource Groups Tagging API. The post-deploy sync runs
+        // seconds after CloudFormation created a rule, and the tagging API's index is eventually consistent — a
+        // rule it has not indexed yet would be left DISABLED behind a green sync. EventBridge's own API is not.
+        async listScheduledRules(): Promise<ScheduledRuleSummary[]> {
+            const rules: ScheduledRuleSummary[] = [];
+            let nextToken: string | undefined;
+
+            do {
+                const page = await eventBridgeClient.send(
+                    new ListRulesCommand({ NamePrefix: RULE_NAME_PREFIX, NextToken: nextToken }),
+                );
+
+                for (const rule of page.Rules ?? []) {
+                    // An event-pattern rule is not the scheduler's: the CDK gate leaves it untouched, so this does.
+                    if (rule.Name === undefined || rule.Arn === undefined || rule.ScheduleExpression === undefined) {
+                        continue;
+                    }
+
+                    const { Tags: tags = [] } = await eventBridgeClient.send(
+                        new ListTagsForResourceCommand({ ResourceARN: rule.Arn }),
+                    );
+                    const tagValue = (key: string): string | undefined => tags.find((tag) => tag.Key === key)?.Value;
+
+                    rules.push({
+                        name: rule.Name,
+                        stageTag: tagValue(SCHEDULED_RULE_STAGE_TAG),
+                        environmentTag: tagValue('Environment'),
+                    });
+                }
+
+                nextToken = page.NextToken;
+            } while (nextToken);
+
+            return rules;
+        },
+        async enableRule(name: string): Promise<void> {
+            await eventBridgeClient.send(new EnableRuleCommand({ Name: name }));
+        },
+        async disableRule(name: string): Promise<void> {
+            await eventBridgeClient.send(new DisableRuleCommand({ Name: name }));
+        },
+    },
 };
 
 /**
- * Lambda entrypoint. Applies the requested stop/start action to the sandbox tier.
+ * Lambda entrypoint. Parses the event into one scheduler command and runs it.
  *
- * @param event - `{ action: 'stop' | 'start' }` supplied by the EventBridge Scheduler target input.
+ * @param event - `{ action: 'stop' }` from the midnight schedule, `{ action: 'start', stage: 'pr-<N>' }` from Sandbox
+ *   Up, or `{ action: 'sync' }` from any workflow that changed what is up.
  * @returns The structured run summary (also logged).
- * @throws {SchedulerRunFailedError} When any resource failed its transition, after every step has run.
+ * @throws {InvalidSchedulerRequestError} When the event is not exactly one of the three commands — never defaulted.
+ * @throws {SchedulerRunFailedError} When any resource or rule failed its transition, after every step has run.
  */
-export const handler = async (event: { action?: SchedulerAction }): Promise<SchedulerSummary> => {
-    // Require an EXPLICIT valid action — never default an unknown/typo'd input to 'stop', which would
-    // silently tear the sandbox down on a malformed schedule or manual invocation.
-    if (event.action !== 'start' && event.action !== 'stop') {
-        throw new Error(`Invalid scheduler action ${JSON.stringify(event.action)} — expected 'start' or 'stop'.`);
-    }
-
-    const summary = await runSchedulerAction(event.action, clients);
+export const handler = async (event: unknown): Promise<SchedulerSummary> => {
+    const request = parseSchedulerRequest(event);
+    const summary = await runSchedulerAction(request, clients);
 
     console.log(JSON.stringify({ message: 'sandbox-scheduler run complete', ...summary }));
     assertRunSucceeded(summary);

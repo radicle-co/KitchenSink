@@ -63,6 +63,8 @@ import {
     schemaCurrencyEnvironment,
 } from '@radicle-co/infra-shared/security';
 
+import { holdScheduledRulesForTheSandbox } from './scheduledRuleGate.js';
+
 /**
  * Canonical food worker metric names — MUST stay byte-identical to `src/observability/emfMetrics.ts`
  * `FOOD_METRIC` (the worker emits these EMF metric names; the dashboard charts and the alarms alarm on
@@ -277,6 +279,10 @@ export class FoodServiceStack extends Stack {
 
     public constructor(scope: Construct, id: string, props: FoodServiceStackProps) {
         super(scope, id, props);
+
+        // ⚠️ DELIBERATE — ADR-0060. Outside prod, every scheduled rule in this stack synthesizes DISABLED and tagged
+        // with its stage; the sandbox scheduler's `sync` switches it on only while the stage is up. Prod: no change.
+        holdScheduledRulesForTheSandbox(this, props.stage);
 
         const { stage, imageTag, desiredCount, workerDesiredCount, vpcId, domainName } = props;
 

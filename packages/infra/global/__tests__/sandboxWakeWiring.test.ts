@@ -1,33 +1,30 @@
 /**
- * Repo-wide guard: every sandbox deploy WAKES the shared sandbox database before it deploys anything.
+ * Repo-wide guard: NOTHING IN CI STARTS THE SANDBOX, and every sandbox deploy first LOOKS at whether it is up.
  *
- * ## The composition defect
+ * ## The ruling this file used to contradict (owner, 2026-10-12)
  *
- * ADR-0007 stops the sandbox RDS instance 00:00–09:00 ET. ADR-0022 put schema migrations INSIDE the deploy
- * as an `aws-cdk-lib/triggers` Trigger. Neither is wrong; together they wedge stacks. A deploy that lands
- * in the shutdown window runs its migration Trigger against a STOPPED instance, gets
- * `connect ETIMEDOUT …:5432`, fails the update — and the ROLLBACK then fails for the same reason, leaving
- * `UPDATE_ROLLBACK_FAILED`. That state is not self-healing: every later sandbox deploy fails on the wedge
- * rather than on its own diff, until a human runs `continue-update-rollback --resources-to-skip`.
+ * This suite was written as the opposite: "every sandbox deploy WAKES the shared sandbox database before it
+ * deploys anything", enforced over the workflow tree so the wake could not be quietly removed. The owner ruled
+ * that wake out: "no automatic or scheduled tasks or jobs except for the single one to check if the sandbox is
+ * running at midnight and bringing every single sandbox down. There should not be a wake of CI push. I never
+ * authorized that." (docs/plans/2026-10-12-001-fix-sandbox-manual-start-plan.md, D2/D3.) The sandbox starts ONLY
+ * through the Sandbox Up workflow, for one PR. So the rules are INVERTED here, not weakened:
  *
- * `.github/scripts/sandboxWake.sh` closes it. THIS suite is what stops the fix from being quietly removed or
- * narrowed later: the rule is stated over the workflow tree, not over the three call sites that exist
- * today, so a NEW sandbox job that deploys a stack is covered the moment it is written and has to argue its
- * way OUT via {@link EXEMPT_DEPLOY_STEPS} rather than silently in.
+ *   1. No workflow step and no script passes `ensure` to `sandboxWake.sh` (the subcommand is deleted).
+ *   2. The scheduler's `start` is invoked from `sandboxUp.yml` and nowhere else in `.github/`.
+ *   3. The stubbed-API Playwright job in `_ci.yml` and `deployedE2eTiers.yml` do not reference the script at
+ *      all: the stubbed job needs no sandbox resource (it makes one Clerk Backend API lookup), and a deployed
+ *      tier that has no target SKIPS rather than conjuring one.
+ *   4. What remains of the old guard: a sandbox deploy step is still preceded, in its own job, by a
+ *      `sandboxWake.sh check` — a deploy into a stopped sandbox wedges stacks (2026-09-05) — and the check is
+ *      still not allowed to swallow its own failure.
  *
- * ## The second class — a job that CONSUMES the sandbox rather than deploying to it
+ * ## The composition defect behind rule 4
  *
- * Observed 2026-08-25 at 01:37 ET on `dcf2aaef`: every one of the eight `e2e-web` Playwright shards died in
- * ~1 minute, producing NO test results at all. Nothing deployed, so the deploy rule above could not have
- * covered it. The suite's `globalSetup` creates a Clerk user and then waits 30s for the `user.created`
- * webhook to backfill its `external_id` — and that webhook is a VPC-attached Lambda on the sandbox, which
- * reaches Secrets Manager and the Clerk API through the sandbox NAT and writes to the sandbox RDS. ADR-0007
- * stops BOTH nightly, so inside the window the backfill can never arrive and the setup fails with a message
- * that reads like a webhook outage.
- *
- * So the rule is stated over two step shapes, not one: a step that DEPLOYS a sandbox stack, and a step that
- * RUNS a suite whose fixtures depend on the sandbox identity webhook. Both must be preceded by the gate in
- * their own job.
+ * ADR-0007 stops the sandbox RDS and NAT 00:00-09:00 ET (the stop remains; the 09:00 start is gone). A deploy
+ * that runs against a stopped instance fails its migration or its `ModifyDBInstance`, and the rollback fails the
+ * same way, leaving `UPDATE_ROLLBACK_FAILED`. That state is not self-healing. The check answers "down" before
+ * the deploy starts, and a down sandbox deploys nothing.
  *
  * ⚠️ Prod is deliberately out of scope. The prod instance is never stopped, and `sandboxWake.sh` is scoped so
  * that it cannot address a prod database at all (see `sandboxWake.test.ts`).
@@ -46,6 +43,7 @@ import { SandboxSchedulerStack } from '../lib/platform/SandboxSchedulerStack.js'
 import { testApp } from './testApp.js';
 
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));
+const SCRIPT_DIR = fileURLToPath(new URL('../../../../.github/scripts/', import.meta.url));
 
 interface Step {
     readonly name?: string;
@@ -64,25 +62,31 @@ interface Doc {
     readonly jobs?: Readonly<Record<string, Job>>;
 }
 
-/** The wake gate's invocation, as it appears in a `run:` body. */
-const WAKE_INVOCATION = 'sandboxWake.sh ensure';
+/** The status check's invocation, as it appears in a `run:` body. */
+const CHECK_INVOCATION = 'sandboxWake.sh check';
 
-/** The gate script itself, read as text so the knob names can be checked against their definition. */
+/** The retired subcommand, in any spelling a step might pass it. */
+const ENSURE_INVOCATION = /sandboxWake\.sh["']?\s+ensure\b/u;
+
+/** The status check script itself, read as text so the knob names can be checked against their definition. */
 const WAKE_SCRIPT = fileURLToPath(new URL('../../../../.github/scripts/sandboxWake.sh', import.meta.url));
 
 /**
- * The gate's tuning knobs. Every one of them exists ONLY so the vitest suites can drive the real loops
- * without sleeping for them, and every one of them can DEFEAT the gate if set in CI:
- * `SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS=0` restores the exact 2026-09-05 race behind a green step, and
- * `SANDBOX_WAKE_TIMEOUT_SECONDS=0` turns the instance wait into a coin flip.
+ * The check's tuning knobs. Every one of them exists ONLY so the vitest suites can drive the real loops without
+ * sleeping for them, and every one of them can DEFEAT the check if set in CI:
+ * `SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS=0` restores the exact 2026-09-05 race behind a green step.
  */
 const TUNING_KNOBS = [
     'SANDBOX_WAKE_TIMEOUT_SECONDS',
     'SANDBOX_WAKE_POLL_SECONDS',
     'SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS',
-    'SANDBOX_WAKE_STOP_SETTLE_SECONDS',
-    'SANDBOX_WAKE_MAX_BOUNDARY_WAIT_SECONDS',
 ] as const;
+
+/**
+ * Knobs the script used to read and no longer does, so a workflow that still sets one is setting nothing.
+ * They went with the boundary wait, which only existed to precede a wake.
+ */
+const RETIRED_KNOBS = ['SANDBOX_WAKE_STOP_SETTLE_SECONDS', 'SANDBOX_WAKE_MAX_BOUNDARY_WAIT_SECONDS'] as const;
 
 /**
  * A step that hands a CloudFormation stack to CDK. `infra:deploy` is included because a workspace script
@@ -91,21 +95,12 @@ const TUNING_KNOBS = [
  */
 // ⚠️ `run deploy --prefix` is the third spelling: CDK left the npm workspace, so a package's deploy
 // script is no longer addressable as `--workspace=` and is invoked from its own directory. Without it
-// the router's deploy step stopped being seen as a deploy at all — and its wake EXEMPTION then read as
+// the router's deploy step stopped being seen as a deploy at all — and its exemption then read as
 // stale, which is the guard reporting the wrong problem.
 const DEPLOY_STEP = /\bcdk deploy\b|\binfra:deploy\b|\brun deploy --prefix\b/;
 
 /**
- * A step that runs a suite whose FIXTURES live on the shared sandbox — today, the web Playwright suite,
- * whose `globalSetup` blocks on the sandbox `user.created` webhook backfilling `external_id`.
- *
- * Matched on the workspace invocation rather than on a job name, so a new job (or a new workflow) that runs
- * the same suite is covered the moment it is written.
- */
-const SANDBOX_FIXTURE_STEP = /npm run test:e2e --workspace=@commise\/web/;
-
-/**
- * Deploy steps in a sandbox workflow that legitimately need no database wake, each with the reason.
+ * Deploy steps in a sandbox workflow that legitimately need no status check, each with the reason.
  *
  * Keyed `<file>::<job>::<step name>`; a stale entry fails too, so this cannot rot into fiction.
  */
@@ -124,99 +119,27 @@ const workflows = (): readonly { file: string; doc: Doc }[] =>
         .sort()
         .map((file) => ({ file, doc: parse(readFileSync(join(WORKFLOW_DIR, file), 'utf8')) as Doc }));
 
+/** Every script under `.github/scripts`, as `{ file, text }`. */
+const scripts = (): readonly { file: string; text: string }[] =>
+    readdirSync(SCRIPT_DIR)
+        .filter((file) => file.endsWith('.sh'))
+        .sort()
+        .map((file) => ({ file, text: readFileSync(join(SCRIPT_DIR, file), 'utf8') }));
+
 /** A step's stable identity. */
 const label = (step: Step): string => step.name ?? step.uses ?? (step.run ?? '').split('\n')[0]?.trim() ?? '(unnamed)';
 
-/** Only the SANDBOX workflows are in scope — prod's database is never stopped. */
+/** Only the SANDBOX workflows are in scope for the deploy rule — prod's database is never stopped. */
 const isSandboxWorkflow = (file: string): boolean => file.startsWith('sandbox-');
 
-/**
- * Every deploy step in a sandbox workflow that is NOT preceded, in its own job, by the wake gate.
- *
- * @returns Violation ids (`<file>::<job>::<step>`).
- */
-function findUnwokenDeploys(): readonly string[] {
-    const violations: string[] = [];
-
-    for (const { file, doc } of workflows()) {
-        if (!isSandboxWorkflow(file)) {
-            continue;
-        }
-
-        for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
-            let woken = false;
-
-            for (const step of job.steps ?? []) {
-                const run = step.run ?? '';
-
-                if (run.includes(WAKE_INVOCATION)) {
-                    woken = true;
-                    continue;
-                }
-
-                if (!DEPLOY_STEP.test(run)) {
-                    continue;
-                }
-
-                const id = `${file}::${jobName}::${label(step)}`;
-
-                if (!woken && !EXEMPT_DEPLOY_STEPS.has(id)) {
-                    violations.push(id);
-                }
-            }
-        }
-    }
-
-    return [...violations].sort();
-}
-
-/**
- * Every step in ANY workflow that runs a sandbox-fixture suite and is NOT preceded, in its own job, by the
- * wake gate.
- *
- * ⚠️ Deliberately NOT restricted to `sandbox-*.yml`. This class lives in `_ci.yml`, which is not a sandbox
- * workflow by filename but drives the shared sandbox Clerk instance and, through it, the sandbox webhook
- * Lambda. Scoping the rule by filename is exactly what left this uncovered until 2026-08-25.
- *
- * @returns Violation ids (`<file>::<job>::<step>`).
- */
-function findUnwokenSandboxFixtureSuites(): readonly string[] {
-    const violations: string[] = [];
-
-    for (const { file, doc } of workflows()) {
-        for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
-            let woken = false;
-
-            for (const step of job.steps ?? []) {
-                const run = step.run ?? '';
-
-                if (run.includes(WAKE_INVOCATION)) {
-                    woken = true;
-                    continue;
-                }
-
-                if (!SANDBOX_FIXTURE_STEP.test(run)) {
-                    continue;
-                }
-
-                if (!woken) {
-                    violations.push(`${file}::${jobName}::${label(step)}`);
-                }
-            }
-        }
-    }
-
-    return [...violations].sort();
-}
-
-/** Every step in the tree that invokes the wake gate. */
-function wakeSteps(): readonly { id: string; step: Step }[] {
+/** Every step in the tree that invokes the status check. */
+function checkSteps(): readonly { id: string; step: Step }[] {
     const found: { id: string; step: Step }[] = [];
 
     for (const { file, doc } of workflows()) {
         for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
             for (const step of job.steps ?? []) {
-                if ((step.run ?? '').includes(WAKE_INVOCATION)) {
+                if ((step.run ?? '').includes(CHECK_INVOCATION)) {
                     found.push({ id: `${file}::${jobName}::${label(step)}`, step });
                 }
             }
@@ -226,141 +149,215 @@ function wakeSteps(): readonly { id: string; step: Step }[] {
     return found;
 }
 
-describe('sandbox DB wake wiring — no sandbox deploy runs against a possibly-stopped database', () => {
-    it('every sandbox deploy step is preceded by the wake gate in its own job', () => {
+/**
+ * Every deploy step in a sandbox workflow that is NOT preceded, in its own job, by the status check.
+ *
+ * @returns Violation ids (`<file>::<job>::<step>`).
+ */
+function findUncheckedDeploys(): readonly string[] {
+    const violations: string[] = [];
+
+    for (const { file, doc } of workflows()) {
+        if (!isSandboxWorkflow(file)) {
+            continue;
+        }
+
+        for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
+            let checked = false;
+
+            for (const step of job.steps ?? []) {
+                const run = step.run ?? '';
+
+                if (run.includes(CHECK_INVOCATION)) {
+                    checked = true;
+                    continue;
+                }
+
+                if (!DEPLOY_STEP.test(run)) {
+                    continue;
+                }
+
+                const id = `${file}::${jobName}::${label(step)}`;
+
+                if (!checked && !EXEMPT_DEPLOY_STEPS.has(id)) {
+                    violations.push(id);
+                }
+            }
+        }
+    }
+
+    return [...violations].sort();
+}
+
+describe('⛔ nothing in CI starts the sandbox (owner ruling 2026-10-12)', () => {
+    it('no workflow step passes `ensure` to sandboxWake.sh', () => {
+        const offenders = workflows().flatMap(({ file, doc }) =>
+            Object.entries(doc.jobs ?? {}).flatMap(([jobName, job]) =>
+                (job.steps ?? [])
+                    .filter((step) => ENSURE_INVOCATION.test(step.run ?? ''))
+                    .map((step) => `${file}::${jobName}::${label(step)}`),
+            ),
+        );
+
         expect(
-            findUnwokenDeploys(),
-            'a sandbox `cdk deploy` with no `sandboxWake.sh ensure` before it in the same job can wedge its stack ' +
-                'in UPDATE_ROLLBACK_FAILED during the ADR-0007 nightly window. Add the wake step, or add an ' +
-                'EXEMPT_DEPLOY_STEPS entry stating why that stack touches no database.',
+            offenders,
+            '`sandboxWake.sh ensure` started a stopped RDS instance and NAT before a deploy or a test run. The ' +
+                'subcommand is deleted: the sandbox starts only through the Sandbox Up workflow. Use `check`, which ' +
+                'only describes, and SKIP when it answers 3.',
         ).toEqual([]);
     });
 
-    // The three jobs that exist today. Named explicitly so NARROWING the fix — deleting the step from one
-    // job while the generic rule above still passes for the others — is a red test, not a silent regression.
-    it.each([
-        // ⚠️ ONE entry where there were two. `sandboxPreview.yml`'s `deploy-food` and `deploy-recipe` each
-        // woke the database in their own job; both are gone, and every `cdk deploy` now happens in
-        // `deployInfra.yml`. The wake moved UP to the `gate` job, which is the right home for it — waking a
-        // shared database is a fact about the PREVIEW, not about any one package — and the ordering is
-        // carried by `needs:` instead of by step order, which the next test pins.
-        'sandboxPreview.yml::gate',
-        'sandbox-identity-deploy.yml::deploy',
-    ])('%s wakes the sandbox database', (jobId) => {
-        expect(wakeSteps().map(({ id }) => id.split('::').slice(0, 2).join('::'))).toContain(jobId);
+    it('no SCRIPT passes `ensure` to sandboxWake.sh either', () => {
+        // Scripts are invoked from workflows and by hand, so a wake hidden in one escapes the workflow rule above.
+        // `teardownSandboxPr.sh` §0c was exactly that.
+        const offenders = scripts()
+            .filter(({ text }) => ENSURE_INVOCATION.test(text))
+            .map(({ file }) => file);
+
+        expect(offenders).toEqual([]);
     });
 
-    // ⛔ THE OTHER HALF OF THE MOVE. The wake is only a precondition of the deploy if the deploying job
-    // cannot start without it. In the old shape step order guaranteed that inside one job; now it is a
-    // `needs:` edge across two, so it is asserted rather than assumed — without this, deleting the edge
-    // would leave every deploy free to run against a stopped database with the suite still green.
-    it('⛔ the preview deploy cannot start before the job that wakes the database', () => {
+    it('no script or workflow names an RDS or EC2 start verb', () => {
+        const offenders = [
+            ...scripts().map(({ file, text }) => ({ file: `scripts/${file}`, text })),
+            ...readdirSync(WORKFLOW_DIR)
+                .filter((file) => file.endsWith('.yml'))
+                .map((file) => ({ file: `workflows/${file}`, text: readFileSync(join(WORKFLOW_DIR, file), 'utf8') })),
+        ]
+            .filter(({ text }) => /\b(start-db-instance|start-instances)\b/u.test(text))
+            .map(({ file }) => file);
+
+        expect(
+            offenders,
+            "CI starts nothing directly. The one start is the scheduler Lambda's `start` action, invoked from " +
+                'sandboxUp.yml; a bare `aws rds start-db-instance` or `aws ec2 start-instances` bypasses it (and its ' +
+                'prod interlock).',
+        ).toEqual([]);
+    });
+
+    // The scheduler's start payload, in the spellings a shell step or a script would write it.
+    const SCHEDULER_START_PAYLOAD = /action\\?["']?\s*:\s*\\?["']start\\?["']/u;
+    /** The ONE driver for the scheduler Lambda, and the verb that starts the tier. */
+    const DRIVER = 'sandboxScheduler.sh';
+    const DRIVER_START = /sandboxScheduler\.sh["']?\s+start\b/u;
+
+    /** Script text with whole-line comments removed, so prose about the verb is not mistaken for a call. */
+    const withoutCommentLines = (text: string): string => text.replace(/^\s*#.*$/gmu, '');
+
+    it('the scheduler `start` is requested from sandboxUp.yml and from NO other workflow or script', () => {
+        const callers = [
+            ...workflows().flatMap(({ file, doc }) =>
+                Object.values(doc.jobs ?? {}).some((job) =>
+                    (job.steps ?? []).some((step) => DRIVER_START.test(step.run ?? '')),
+                )
+                    ? [`workflows/${file}`]
+                    : [],
+            ),
+            ...scripts()
+                .filter(({ file, text }) => file !== DRIVER && DRIVER_START.test(withoutCommentLines(text)))
+                .map(({ file }) => `scripts/${file}`),
+        ];
+
+        expect(
+            callers,
+            'Sandbox Up is the only thing that may start the sandbox. A second caller is a second way to bring ' +
+                'the paid tier up with nobody pressing the button.',
+        ).toEqual(['workflows/sandboxUp.yml']);
+    });
+
+    it('the raw `start` payload is written in ONE place: the scheduler driver script', () => {
+        const holders = [
+            ...workflows().flatMap(({ file, doc }) =>
+                Object.values(doc.jobs ?? {}).some((job) =>
+                    (job.steps ?? []).some((step) => SCHEDULER_START_PAYLOAD.test(step.run ?? '')),
+                )
+                    ? [`workflows/${file}`]
+                    : [],
+            ),
+            ...scripts()
+                .filter(({ text }) => SCHEDULER_START_PAYLOAD.test(withoutCommentLines(text)))
+                .map(({ file }) => `scripts/${file}`),
+        ];
+
+        expect(
+            holders,
+            '`aws lambda invoke` exits 0 when the function THREW, so an inline copy that forgets `FunctionError` ' +
+                'reports a scheduler that never ran as a success. Every caller goes through sandboxScheduler.sh.',
+        ).toEqual([`scripts/${DRIVER}`]);
+    });
+
+    it('the stubbed-API Playwright job and deployedE2eTiers.yml do not reference the status script', () => {
+        const ci = readFileSync(join(WORKFLOW_DIR, '_ci.yml'), 'utf8');
+        const tiers = readFileSync(join(WORKFLOW_DIR, 'deployedE2eTiers.yml'), 'utf8');
+        const stubbedJob = parse(ci).jobs['integration-web-playwright'] as Job | undefined;
+
+        expect(stubbedJob, 'the stubbed-API job was renamed — update this guard').toBeDefined();
+        expect(JSON.stringify(stubbedJob)).not.toContain('sandboxWake');
+        expect(JSON.stringify(stubbedJob)).not.toContain('sandboxStatus');
+        // The whole files, comments included: the notes that remain say WHY the reference is gone without naming
+        // the script's start verb, and a re-added step would name it.
+        expect(ci.split('\n').filter((line) => /sandboxWake\.sh\s+(check|ensure)/u.test(line))).toEqual([]);
+        expect(tiers.split('\n').filter((line) => /sandboxWake\.sh\s+(check|ensure)/u.test(line))).toEqual([]);
+    });
+
+    // Guards the vacuity directly: the assertion above is only meaningful while the job still runs the suite.
+    it('the stubbed-API job still runs the web Playwright suite', () => {
+        const job = parse(readFileSync(join(WORKFLOW_DIR, '_ci.yml'), 'utf8')).jobs[
+            'integration-web-playwright'
+        ] as Job;
+
+        expect(
+            (job.steps ?? []).some((step) => /npm run test:e2e --workspace=@commise\/web/u.test(step.run ?? '')),
+        ).toBe(true);
+    });
+});
+
+describe('sandbox status check wiring — no sandbox deploy runs against a possibly-stopped database', () => {
+    it('every sandbox deploy step is preceded by the status check in its own job', () => {
+        expect(
+            findUncheckedDeploys(),
+            'a sandbox `cdk deploy` with no `sandboxWake.sh check` before it in the same job can wedge its stack ' +
+                'in UPDATE_ROLLBACK_FAILED against a stopped instance. Add the check step (and skip the deploy when ' +
+                'it answers 3), or add an EXEMPT_DEPLOY_STEPS entry stating why that stack touches no database.',
+        ).toEqual([]);
+    });
+
+    // The jobs that exist today. Named explicitly so NARROWING the check — deleting the step from one job while
+    // the generic rule above still passes for the others — is a red test, not a silent regression.
+    it.each(['sandboxPreview.yml::gate', 'sandbox-identity-deploy.yml::deploy'])('%s checks the sandbox', (jobId) => {
+        expect(checkSteps().map(({ id }) => id.split('::').slice(0, 2).join('::'))).toContain(jobId);
+    });
+
+    // ⛔ The check is only a precondition of the deploy if the deploying job cannot start without it. A `needs:`
+    // edge across two jobs is asserted rather than assumed — without this, deleting the edge would leave every
+    // preview deploy free to run against a stopped database with the suite still green.
+    it('⛔ the preview deploy cannot start before the job that checks the sandbox', () => {
         const preview = workflows().find(({ file }) => file === 'sandboxPreview.yml');
         const jobs = (preview?.doc.jobs ?? {}) as Record<string, { needs?: unknown }>;
 
         expect(jobs, 'the gate job was renamed or removed — update this guard').toHaveProperty('gate');
         expect(jobs, 'the deploy job was renamed or removed — update this guard').toHaveProperty('deploy');
-        expect(
-            jobs['deploy']?.needs,
-            'the preview deploy must `needs: [gate]`, which is what makes the wake a PRECONDITION rather ' +
-                'than a step that merely happens to run somewhere else in the graph.',
-        ).toEqual(['gate']);
+        expect(jobs['deploy']?.needs).toEqual(['gate']);
     });
 
-    it('is wired in at least as many jobs as deploy DB-backed sandbox stacks', () => {
-        // Was 3 when the preview woke the database twice, once per deploy job. It wakes once now.
-        expect(wakeSteps().length).toBeGreaterThanOrEqual(2);
-    });
-});
-
-describe('sandbox DB wake wiring — no sandbox-fixture suite runs against a sleeping sandbox', () => {
-    it('every sandbox-fixture suite step is preceded by the wake gate in its own job', () => {
-        expect(
-            findUnwokenSandboxFixtureSuites(),
-            "the web Playwright suite's globalSetup blocks on the sandbox `user.created` webhook backfilling " +
-                "`external_id`. Inside ADR-0007's 00:00–09:00 ET window the sandbox RDS and NAT are both STOPPED, " +
-                'so that backfill can never arrive: every shard dies in ~1 minute with no test results at all ' +
-                '(observed 2026-08-25 01:37 ET on dcf2aaef). Add `sandboxWake.sh ensure` before the suite runs.',
-        ).toEqual([]);
-    });
-
-    // Named explicitly because the generic rule above passes VACUOUSLY when nothing matches — deleting the
-    // suite step, renaming the workspace, or dropping the wake would otherwise all read as green.
-    it('deployedE2eTiers.yml::e2e-web wakes the sandbox before the Playwright shards run', () => {
-        expect(wakeSteps().map(({ id }) => id.split('::').slice(0, 2).join('::'))).toContain(
-            'deployedE2eTiers.yml::e2e-web',
-        );
-    });
-
-    // Guards the vacuity directly: the rule above is only meaningful while the step shape it keys on still
-    // exists somewhere in the tree.
-    it('the sandbox-fixture step shape still matches something', () => {
-        const matched = workflows().flatMap(({ doc }) =>
-            Object.values(doc.jobs ?? {}).flatMap((job) =>
-                (job.steps ?? []).filter((step) => SANDBOX_FIXTURE_STEP.test(step.run ?? '')),
-            ),
-        );
-
-        expect(
-            matched.length,
-            'SANDBOX_FIXTURE_STEP matches nothing — the suite invocation was renamed and this guard has gone vacuous.',
-        ).toBeGreaterThan(0);
-    });
-});
-
-describe('sandbox DB wake wiring — the gate is allowed to fail the job', () => {
-    // A wake that cannot fail is worse than none: the deploy proceeds against a stopped instance and wedges
-    // the stack anyway, now behind a step that reported success.
-    it('no wake step suppresses its own exit status', () => {
-        for (const { id, step } of wakeSteps()) {
+    // A check that cannot fail the job is worse than none, but a check whose exit 3 (down) ENDS the step is
+    // worse in the other direction: GitHub's default shell is `bash -e`. So the status is captured with `||`,
+    // and what is forbidden is swallowing it (`|| true`) or marking the step `continue-on-error`.
+    it('no check step suppresses its own exit status', () => {
+        for (const { id, step } of checkSteps()) {
             expect(step['continue-on-error'] ?? false, `${id} must be able to fail the job`).toBe(false);
-            expect(step.run ?? '', `${id} must not suppress the wake gate's exit status`).not.toMatch(
-                /sandboxWake\.sh ensure[^\n]*\|\|/,
+            expect(step.run ?? '', `${id} must not swallow the check's exit status`).not.toMatch(
+                /sandboxWake\.sh check[^\n]*\|\|\s*(true|:)(\s|$)/u,
             );
         }
     });
-});
 
-describe('sandbox DB wake wiring — every exemption is justified and live', () => {
-    it('each exempt step still exists in the tree', () => {
-        const deployStepIds = new Set<string>();
-
-        for (const { file, doc } of workflows()) {
-            for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
-                for (const step of job.steps ?? []) {
-                    if (DEPLOY_STEP.test(step.run ?? '')) {
-                        deployStepIds.add(`${file}::${jobName}::${label(step)}`);
-                    }
-                }
-            }
-        }
-
-        for (const id of EXEMPT_DEPLOY_STEPS.keys()) {
-            expect(deployStepIds.has(id), `stale exemption: ${id} no longer exists`).toBe(true);
-        }
-    });
-
-    it('each exemption states a substantive reason', () => {
-        for (const [id, why] of EXEMPT_DEPLOY_STEPS) {
-            expect(why.trim().split(/\s+/).length, `${id} needs a real reason, not a word`).toBeGreaterThan(5);
-        }
+    it('is wired in at least as many jobs as deploy DB-backed sandbox stacks', () => {
+        expect(checkSteps().length).toBeGreaterThanOrEqual(2);
     });
 });
 
-/**
- * ⛔ THE 2026-09-05 WEDGE — and why the rule above was not enough on its own.
- *
- * `sandbox-identity-deploy.yml::deploy` HAS carried the wake step throughout, the suite above asserts it by
- * name, and on run 33943032063 it RAN and passed honestly: `available (ready)` at 03:52:52Z, which was true.
- * The scheduler stopped the instance at 04:00:07Z and CloudFormation's `ModifyDBInstance` died at 04:02:11Z
- * on `Cannot modify a stopped DB Instance`, wedging `kitchensink-data-sandbox` in `UPDATE_ROLLBACK_FAILED`.
- *
- * The gate's answer went STALE. Its replacement asks whether the instance will still be up when the caller
- * finishes, and that question is parameterised — which introduces a way to disable the fix that leaves every
- * assertion above green: set the headroom to zero in a workflow's `env:`. So the knobs are prohibited in the
- * workflow tree outright. They exist for the suites and for nothing else.
- */
-describe('sandbox DB wake wiring — the headroom gate cannot be defused from a workflow', () => {
+describe('sandbox status check wiring — the check cannot be defused from a workflow', () => {
     it.each(TUNING_KNOBS)('no workflow sets %s', (knob) => {
         const offenders = readdirSync(WORKFLOW_DIR)
             .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
@@ -368,7 +365,7 @@ describe('sandbox DB wake wiring — the headroom gate cannot be defused from a 
 
         expect(
             offenders,
-            `${knob} is a TEST seam. Setting it in a workflow defeats the gate while every wiring assertion ` +
+            `${knob} is a TEST seam. Setting it in a workflow defeats the check while every wiring assertion ` +
                 'above stays green — `SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS=0` restores the exact race that ' +
                 'wedged kitchensink-data-sandbox on 2026-09-05. Delete it; if a caller genuinely needs a ' +
                 'different headroom, change the default in the script and say why.',
@@ -376,17 +373,26 @@ describe('sandbox DB wake wiring — the headroom gate cannot be defused from a 
     });
 
     // Guards the vacuity directly: the prohibition above is only meaningful while these names are the ones
-    // the script actually reads. A rename would otherwise leave five assertions passing about nothing.
+    // the script actually reads. A rename would otherwise leave assertions passing about nothing.
     it.each(TUNING_KNOBS)('%s is still a knob the script reads', (knob) => {
         expect(
             readFileSync(WAKE_SCRIPT, 'utf8'),
             `${knob} no longer appears in sandboxWake.sh — the prohibition above has gone vacuous.`,
         ).toContain(knob);
     });
+
+    it.each(RETIRED_KNOBS)('%s is gone from the script and from every workflow', (knob) => {
+        expect(readFileSync(WAKE_SCRIPT, 'utf8')).not.toContain(knob);
+        expect(
+            readdirSync(WORKFLOW_DIR)
+                .filter((file) => file.endsWith('.yml'))
+                .filter((file) => readFileSync(join(WORKFLOW_DIR, file), 'utf8').includes(knob)),
+        ).toEqual([]);
+    });
 });
 
 /**
- * ⛔ THE GATE AND THE SCHEDULE MUST AGREE, and nothing but this made them.
+ * ⛔ THE CHECK AND THE SCHEDULE MUST AGREE, and nothing but this made them.
  *
  * `sandboxWake.sh` resolves "the next nightly stop" as 00:00 `America/New_York`. That is a COPY of a fact
  * whose original lives in `SandboxSchedulerStack` — and a copy of a fact is exactly what this repo keeps
@@ -399,7 +405,7 @@ describe('sandbox DB wake wiring — the headroom gate cannot be defused from a 
  * SYNTHESIZED stack, and the hour it names is compared against where the gate's own `next-stop` actually
  * lands. A reworded comment cannot satisfy this, and a changed schedule cannot escape it.
  */
-describe('sandbox DB wake wiring — the gate guards the boundary the scheduler actually fires at', () => {
+describe('sandbox status check wiring — the check guards the boundary the scheduler actually fires at', () => {
     /** The stop schedule, read out of the synthesized stack rather than out of the source text. */
     const stopSchedule = (): { readonly expression: string; readonly timezone: string } => {
         const template = Template.fromStack(
@@ -461,46 +467,40 @@ describe('sandbox DB wake wiring — the gate guards the boundary the scheduler 
 const RUNNER_DEFAULT_TIMEOUT_MINUTES = 360;
 
 /**
- * The longest `ensure` can run before its caller's own work starts, from the script's own defaults: the wait for the
- * nightly boundary (bounded by the required headroom), the wait for the stop to land, then one database wake and one
- * NAT wake, each bounded by the wake timeout. Pure.
+ * The longest `check` can run, from the script's own default: it waits for a STARTING database and then for a
+ * STARTING NAT, each bounded by the timeout. (It no longer waits for the nightly boundary: there is no wake to
+ * follow it.) Pure.
  *
  * @param script - The text of `sandboxWake.sh`.
  * @returns Seconds.
  */
-function gateWorstCaseSeconds(script: string): number {
-    const read = (name: string): number => {
-        const value = new RegExp(`^${name}=(\\d+)$`, 'mu').exec(script)?.[1];
+function checkWorstCaseSeconds(script: string): number {
+    const value = /^SANDBOX_WAKE_DEFAULT_TIMEOUT_SECONDS=(\d+)$/mu.exec(script)?.[1];
 
-        if (value === undefined) {
-            throw new Error(`sandboxWake.sh no longer defines ${name}; the gate's worst case cannot be derived.`);
-        }
+    if (value === undefined) {
+        throw new Error(
+            'sandboxWake.sh no longer defines SANDBOX_WAKE_DEFAULT_TIMEOUT_SECONDS; the worst case cannot be derived.',
+        );
+    }
 
-        return Number(value);
-    };
-
-    return (
-        read('SANDBOX_WAKE_DEFAULT_REQUIRED_HEADROOM_SECONDS') +
-        read('SANDBOX_WAKE_DEFAULT_STOP_SETTLE_SECONDS') +
-        2 * read('SANDBOX_WAKE_DEFAULT_TIMEOUT_SECONDS')
-    );
+    return 2 * Number(value);
 }
 
 /**
- * Every job that runs the gate but would be killed inside it: a job limit that leaves no time after the gate's worst
- * case, or a limit on the gate step itself below that worst case. Pure.
+ * Every job that runs the check but would be killed inside it: a job limit that leaves no time after the check's
+ * worst case, or a limit on the check step itself below that worst case. Pure.
  *
  * @param docs - Parsed workflows.
- * @param worstCase - {@link gateWorstCaseSeconds}.
+ * @param worstCase - {@link checkWorstCaseSeconds}.
  * @returns Violation ids (`<file>::<job>`).
  */
-function jobsTooShortForTheGate(docs: readonly { file: string; doc: Doc }[], worstCase: number): readonly string[] {
+function jobsTooShortForTheCheck(docs: readonly { file: string; doc: Doc }[], worstCase: number): readonly string[] {
     const minutes = (value: unknown, fallback: number): number => (value === undefined ? fallback : Number(value));
     const violations: string[] = [];
 
     for (const { file, doc } of docs) {
         for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
-            const gate = (job.steps ?? []).find((step) => (step.run ?? '').includes(WAKE_INVOCATION));
+            const gate = (job.steps ?? []).find((step) => (step.run ?? '').includes(CHECK_INVOCATION));
 
             if (gate === undefined) {
                 continue;
@@ -519,46 +519,45 @@ function jobsTooShortForTheGate(docs: readonly { file: string; doc: Doc }[], wor
 }
 
 /**
- * Run 37173553902 (2026-10-04): six Playwright shards started 40 minutes before the 00:00 ET stop. The gate waited
- * for the boundary, as it must, and the 45-minute job limit killed every shard inside that wait, so no test ran and
- * the check read "cancelled". A job limit sized on the wake alone forgets the boundary wait.
+ * Run 37173553902 (2026-10-04): six Playwright shards started 40 minutes before the 00:00 ET stop, and a 45-minute
+ * job limit killed every shard inside a gate that was WAITING for the boundary, so no test ran and the check read
+ * "cancelled". The wait is gone, but the lesson is not: a job limit must be sized on the check's own bounds, so the
+ * check's bounds are the ones that fire.
  */
-describe('sandbox DB wake wiring — a job that runs the gate outlives the gate', () => {
-    const gateStep = { run: `bash .github/scripts/${WAKE_INVOCATION} us-east-1` };
-    const WORST = 4800;
+describe('sandbox status check wiring — a job that runs the check outlives the check', () => {
+    const checkStep = { run: `bash .github/scripts/${CHECK_INVOCATION} us-east-1` };
+    const WORST = 1800;
 
     it.each([
-        ['a 45-minute job with the gate', { 'timeout-minutes': 45, steps: [gateStep] }, true],
-        ['a job with the gate and no limit (the runner default)', { steps: [gateStep] }, false],
-        ['a job long enough for the gate and its own work', { 'timeout-minutes': 110, steps: [gateStep] }, false],
+        ['a 20-minute job with the check', { 'timeout-minutes': 20, steps: [checkStep] }, true],
+        ['a job with the check and no limit (the runner default)', { steps: [checkStep] }, false],
+        ['a job long enough for the check and its own work', { 'timeout-minutes': 60, steps: [checkStep] }, false],
         [
-            'a job limit equal to the gate, which leaves no time for the work',
-            { 'timeout-minutes': 80, steps: [gateStep] },
+            'a job limit equal to the check, which leaves no time for the work',
+            { 'timeout-minutes': 30, steps: [checkStep] },
             true,
         ],
         [
-            'a long job whose gate step has its own short limit',
-            { 'timeout-minutes': 110, steps: [{ ...gateStep, 'timeout-minutes': 10 }] },
+            'a long job whose check step has its own short limit',
+            { 'timeout-minutes': 60, steps: [{ ...checkStep, 'timeout-minutes': 10 }] },
             true,
         ],
-        ['a 45-minute job without the gate', { 'timeout-minutes': 45, steps: [{ run: 'npm test' }] }, false],
+        ['a 20-minute job without the check', { 'timeout-minutes': 20, steps: [{ run: 'npm test' }] }, false],
     ] as const)('%s', (_label, job, flagged) => {
-        expect(jobsTooShortForTheGate([{ file: 'w.yml', doc: { jobs: { j: job } } }], WORST)).toEqual(
+        expect(jobsTooShortForTheCheck([{ file: 'w.yml', doc: { jobs: { j: job } } }], WORST)).toEqual(
             flagged ? ['w.yml::j'] : [],
         );
     });
 
-    it('derives the worst case from the script, whose boundary wait is bounded by the required headroom', () => {
-        const script = readFileSync(WAKE_SCRIPT, 'utf8');
-
-        expect(script).toContain('local max_wait="${SANDBOX_WAKE_MAX_BOUNDARY_WAIT_SECONDS:-$required}"');
-        expect(gateWorstCaseSeconds(script)).toBeGreaterThan(0);
+    it('derives the worst case from the script: a starting database, then a starting NAT', () => {
+        expect(checkWorstCaseSeconds(readFileSync(WAKE_SCRIPT, 'utf8'))).toBeGreaterThan(0);
+        expect(readFileSync(WAKE_SCRIPT, 'utf8')).not.toContain('MAX_BOUNDARY_WAIT');
     });
 
-    it('no job that runs the gate can be killed inside it', () => {
+    it('no job that runs the check can be killed inside it', () => {
         expect(
-            jobsTooShortForTheGate(workflows(), gateWorstCaseSeconds(readFileSync(WAKE_SCRIPT, 'utf8'))),
-            "raise the job limit to the gate worst case plus the job's own work, and say so beside it",
+            jobsTooShortForTheCheck(workflows(), checkWorstCaseSeconds(readFileSync(WAKE_SCRIPT, 'utf8'))),
+            "raise the job limit to the check's worst case plus the job's own work, and say so beside it",
         ).toEqual([]);
     });
 });

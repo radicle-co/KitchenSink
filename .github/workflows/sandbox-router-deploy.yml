@@ -6,10 +6,11 @@ name: Sandbox Router Deploy
 # (register-preview); this workflow owns the long-lived infrastructure and seeds the single project-wide
 # Vercel bypass key. See docs/architecture/decisions/0001.
 #
-# DRIFT AUTO-HEAL: because this is a global singleton nothing else recreates, an out-of-band delete
-# (as happened 2026-06-21 → ~3 weeks of NXDOMAIN previews with no signal) leaves it dead until a
-# qualifying push. The daily `schedule` below re-runs the idempotent deploy (a no-op when the router
-# already matches, a full recreate when it is gone) and loudly annotates when it had to heal.
+# ⛔ NO SCHEDULE (owner ruling 2026-10-12): "No automatic or scheduled tasks or jobs except for the single one
+# to check if the sandbox is running at midnight and bringing every single sandbox down." This workflow used to
+# re-run daily as a drift-heal for an out-of-band delete (2026-06-21 → ~3 weeks of NXDOMAIN previews with no
+# signal). That heal is now a manual `workflow_dispatch`; the deploy is idempotent (a no-op when the router
+# already matches, a full recreate when it is gone) and annotates when it had to heal.
 
 on:
     push:
@@ -18,10 +19,6 @@ on:
             - 'packages/apps/commise/web/infra/**'
             - 'packages/apps/commise/web/router/**'
             - '.github/workflows/sandbox-router-deploy.yml'
-    # Daily drift-heal. Scheduled runs execute from the default branch only, so this activates once this
-    # workflow is on main — at which point main also carries the subdomain-capable router it deploys.
-    schedule:
-        - cron: '0 13 * * *'
     workflow_dispatch: {}
 
 concurrency:
@@ -88,7 +85,7 @@ jobs:
                   aws-region: ${{ env.AWS_REGION }}
             # Drift detection BEFORE deploy: if the singleton is gone, something deleted it out-of-band and
             # sandbox.commise.app has been NXDOMAIN (all web previews broken). Surface that loudly; the
-            # deploy below heals it. On the daily schedule this is the auto-remediation signal.
+            # deploy below heals it. On a manual dispatch this is the auto-remediation signal.
             - name: Detect router drift
               run: |
                   if aws cloudformation describe-stacks --stack-name kitchensink-sandbox-router-sandbox >/dev/null 2>&1; then

@@ -45,7 +45,7 @@ import { WORKFLOWS_DIR, withoutComments } from './cdkApps.js';
 import { repoRoot, trackedFiles } from './serviceSources.js';
 
 /** Commands that DELETE infrastructure. A step running one of these is destructive by definition. */
-const DESTRUCTIVE = [/teardownSandboxPr\.sh/u, /sandboxSharedTier\.sh\s+down/u, /cdk\s+destroy/u];
+const DESTRUCTIVE = [/teardownSandboxPr\.sh/u, /sandboxSharedTier\.sh\s+(?:down|release-if-idle)/u, /cdk\s+destroy/u];
 
 /** A fallback that manufactures an answer out of a failure. */
 const MANUFACTURED = /\|\|\s*(?:echo\s+\S+|true)\b/u;
@@ -67,7 +67,7 @@ const MANUFACTURED = /\|\|\s*(?:echo\s+\S+|true)\b/u;
  */
 const FAIL_CLOSED: ReadonlyMap<string, string> = new Map([
     [
-        'sandbox-deploy.yml:reap-abandoned » Reap pr-{N} resources whose PR is closed or long-stale',
+        'sandboxReapClosed.yml:reap-abandoned » Reap pr-{N} resources whose PR is closed or long-stale',
         'Both fallbacks feed `-gt 0` guards, so a failed `date` parse yields 0, fails the guard, and the ' +
             'token is NOT reaped. `closed_at` only decides whether to REPORT a stale orphan; `upd` only ' +
             'decides whether an open-but-stale PR is swept. In both, an unparseable timestamp means the ' +
@@ -152,10 +152,30 @@ describe('a probe that authorises a delete fails loudly rather than answering "n
         expect(destructiveSteps.length).toBeGreaterThan(0);
     });
 
-    it('finds the steps that GATE them, so the indirect case is covered too', () => {
-        // The reconciler's tier probe is not itself destructive — it only answers a question. The delete is
-        // two steps later. Without this derivation the guard would check only the obvious half.
-        expect(jobs().flatMap(gatingIds).length).toBeGreaterThan(0);
+    it('⛔ no workflow gates the shared-tier release on a step output — its probes live in ONE verb', () => {
+        // REWRITTEN for ADR-0060. This used to assert that gating steps EXIST, because the reconciler's tier probes
+        // ("is any preview live", "is anything using the tier") were workflow steps whose outputs gated the delete
+        // two steps later. Those probes moved into `sandboxSharedTier.sh release-if-idle`, shared by Sandbox Down
+        // and the reconciler, where an unanswerable question is answered "keep" and that is EXECUTED by
+        // `sandboxSharedTierRelease.integration.test.ts`. What must now hold is that no workflow re-grows a
+        // second, step-output copy of the gate — which is the shape that collapsed "I could not ask" into "no".
+        const regrown = jobs().flatMap((job) =>
+            gatingIds(job).length > 0 &&
+            job.steps.some(
+                (step) =>
+                    /sandboxSharedTier\.sh/u.test(step.run ?? '') && /steps\.[\w-]+\.outputs\./u.test(step.if ?? ''),
+            )
+                ? [`${job.workflow}:${job.name}`]
+                : [],
+        );
+
+        expect(regrown).toEqual([]);
+        // Non-vacuity: the release verb really is what the workflows run.
+        expect(
+            jobs().some((job) =>
+                job.steps.some((step) => /sandboxSharedTier\.sh\s+release-if-idle/u.test(step.run ?? '')),
+            ),
+        ).toBe(true);
     });
 
     it('no such step turns a failure into a benign value', () => {

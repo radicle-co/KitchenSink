@@ -29,12 +29,6 @@ import { recipeWorkersDb } from './roleDb.js';
 const roleDb = recipeWorkersDb();
 const OWNER = 'u12-backstop-owner';
 
-/** Mid-morning in New York — outside ADR-0007's nightly stop. */
-const AWAKE = new Date('2026-07-15T15:00:00Z');
-
-/** 01:00 in New York — inside it. */
-const ASLEEP = new Date('2026-07-15T05:00:00Z');
-
 /** Every env the reads need, with the queue URLs left OUT so the fake transport answers instead. */
 const PARAMS: NodeJS.ProcessEnv = {
     PARSE_CLAIM_LEASE_SECONDS: '150',
@@ -175,7 +169,6 @@ describe('the recipe queue backstop (integration)', () => {
             ],
             escalate,
             checkIn: vi.fn(),
-            now: () => AWAKE,
         });
 
         const payload = escalate.mock.calls[0]?.[0] as EscalationPayload | undefined;
@@ -200,7 +193,6 @@ describe('the recipe queue backstop (integration)', () => {
             ],
             escalate,
             checkIn: vi.fn(),
-            now: () => AWAKE,
         });
 
         const payload = escalate.mock.calls[0]?.[0] as EscalationPayload | undefined;
@@ -264,7 +256,6 @@ describe('the recipe queue backstop (integration)', () => {
             ),
             escalate,
             checkIn: vi.fn(),
-            now: () => AWAKE,
         });
 
         // The seeded row must actually have produced an escalation, or the assertion below passes vacuously.
@@ -298,7 +289,6 @@ describe('the recipe queue backstop (integration)', () => {
                 ],
                 escalate,
                 checkIn: vi.fn(),
-                now: () => AWAKE,
             });
 
             return escalate.mock.calls[0]?.[0] as EscalationPayload | undefined;
@@ -314,13 +304,15 @@ describe('the recipe queue backstop (integration)', () => {
     });
 
     /**
-     * ⛔ NO DATABASE CALL AND NO CHECK-IN inside ADR-0007's nightly stop (R35). The non-prod tier's RDS is
-     * stopped from 00:00 to 09:00, so a check that ran would find it unreachable and every queue apparently
-     * stalled — escalating every night, in every preview, for a reason nobody can act on. A signal that fires
-     * nightly is a signal its reader mutes, and the one night it means something is the night nobody looks.
+     * ⛔ REWRITTEN (owner ruling 2026-10-12). This case used to assert the check touched NEITHER the database NOR
+     * the monitor inside ADR-0007's nightly stop (R35), by passing a clock of 01:00 New York. The clock is deleted:
+     * the check's schedule rule is enabled only while the sandbox is up for its PR, so an invoked check always
+     * reads. Against a real database, a stuck parse job on a sandbox stage is read and escalated, with no input
+     * that could make it stand down. It does NOT check in: only prod does (the sandbox is down by default, and a
+     * monitor on its silence would alarm forever).
      */
-    it('⛔ touches neither the database nor the monitor during the nightly stop', async () => {
-        await seedParseJob(9, 7200, 3600);
+    it('⛔ reads the database and escalates on a sandbox stage, with no clock to stand it down', async () => {
+        await seedParseJob(3, 600, 3600);
 
         const reader = vi.fn(async (text: string, params?: readonly unknown[]) =>
             withSession(async (session) => session.query(text, params)),
@@ -340,36 +332,11 @@ describe('the recipe queue backstop (integration)', () => {
             ),
             escalate,
             checkIn,
-            now: () => ASLEEP,
-        });
-
-        expect(raised).toEqual([]);
-        expect(reader).not.toHaveBeenCalled();
-        expect(escalate).not.toHaveBeenCalled();
-        expect(checkIn).not.toHaveBeenCalled();
-    });
-
-    /** And the same check on `prod`, which has no nightly stop, does read — so the skip above is the WINDOW. */
-    it('reads on prod at the same instant, so the skip is the window and not the stage', async () => {
-        const reader = vi.fn(async (text: string, params?: readonly unknown[]) =>
-            withSession(async (session) => session.query(text, params)),
-        );
-
-        await runRecipeQueueCheck({
-            stage: 'prod',
-            service: 'recipe-workers',
-            queues: await withSession(async (session) =>
-                checkedQueues(
-                    { query: reader, release: session.release },
-                    async () => ({ visible: 0, inFlight: 0 }),
-                    PARAMS,
-                ),
-            ),
-            escalate: vi.fn(),
-            checkIn: vi.fn(),
-            now: () => ASLEEP,
         });
 
         expect(reader).toHaveBeenCalled();
+        expect(raised.length).toBeGreaterThan(0);
+        expect(escalate).toHaveBeenCalledTimes(raised.length);
+        expect(checkIn).not.toHaveBeenCalled();
     });
 });

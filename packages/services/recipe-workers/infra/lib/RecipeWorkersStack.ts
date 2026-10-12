@@ -42,6 +42,7 @@ import {
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import { bedrockInvokeStatements } from './bedrockInvokePolicy.js';
+import { holdScheduledRulesForTheSandbox } from './scheduledRuleGate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -205,30 +206,37 @@ const QUEUE_CHECK_INTERVAL = Duration.minutes(5);
 const FREQUENT_SCHEDULE_RETRIES = 0;
 
 /**
- * The longest a non-prod stage's database is deliberately unreachable: ADR-0007's nightly shutdown, 00:00 to
- * 09:00 America/New_York.
+ * How long a message may fail for want of its database before it is PARKED in its DLQ.
  *
- * ⛔ IT SIZES `maxReceiveCount`, and the reason is R2. A consumer whose RDS is stopped fails every delivery,
- * and each failure spends a receive — so over a nine-hour window a message is redelivered
- * `window / visibilityTimeout` times having never once been given a chance to succeed. Below that, a
- * perfectly healthy message dead-letters because the stage was asleep, and the DLQ depth ADR-0024 layer 4
- * alarms on fills with work nothing was wrong with.
+ * ⛔ RE-DERIVED for ADR-0060, and the value deliberately unchanged (so no stage's template moves). It was "the
+ * longest a non-prod database is deliberately down": ADR-0007's 00:00–09:00 nightly stop. Under ADR-0060 the
+ * sandbox stays down from the midnight stop until somebody presses Sandbox Up, which can be days, so NO receive
+ * budget outlasts the outage and none is attempted. What the budget must guarantee instead is that a message
+ * failing for want of a database is never LOST: a consumer that cannot reach RDS fails every delivery and spends a
+ * receive each time, so it must reach the DLQ (`receives × visibilityTimeout`, about nine hours here) long before
+ * its source queue's four-day retention would delete it, and the DLQ keeps it longer still. Parked messages are
+ * seen: the queue check reports each class's dead-lettered depth whenever the stage is up again. The invariant is
+ * asserted over every queue with a DLQ in `RecipeWorkersStack.test.ts`; the residual is a DLQ whose stage stays
+ * down past the DLQ's own retention.
+ *
+ * Nine hours is kept because a brief outage (a restart, the stop landing on an in-flight message) should not
+ * park healthy work, and because the DLQ depth ADR-0024 layer 4 alarms on should hold work that is really stuck.
  *
  * ⚠️ This does NOT inflate the U6/U7 attempt allowances, and the distinction is the whole reason those are a
  * separate counter. A receive is spent whenever SQS hands the message over; an ATTEMPT is recorded only by a
  * claim, which needs the database. During this window the claim cannot run at all, so the receive count
  * climbs while the attempt count does not — an outage costs redeliveries and never a line's allowance.
  */
-const NIGHTLY_STOP_WINDOW = Duration.hours(9);
+const DATABASE_OUTAGE_BEFORE_PARKING = Duration.hours(9);
 
 /**
- * Redeliveries a queue must tolerate to survive {@link NIGHTLY_STOP_WINDOW}, given its visibility timeout.
+ * Redeliveries a queue spends before it parks a message, given its visibility timeout.
  *
  * @param visibilityTimeout - The queue's visibility timeout.
- * @returns The smallest `maxReceiveCount` that outlasts a full nightly stop, with one delivery to spare.
+ * @returns The smallest `maxReceiveCount` that rides out {@link DATABASE_OUTAGE_BEFORE_PARKING}, with one to spare.
  */
-function receivesSurvivingTheNightlyStop(visibilityTimeout: Duration): number {
-    return Math.ceil(NIGHTLY_STOP_WINDOW.toSeconds() / visibilityTimeout.toSeconds()) + 1;
+function receivesBeforeParking(visibilityTimeout: Duration): number {
+    return Math.ceil(DATABASE_OUTAGE_BEFORE_PARKING.toSeconds() / visibilityTimeout.toSeconds()) + 1;
 }
 
 /**
@@ -236,7 +244,7 @@ function receivesSurvivingTheNightlyStop(visibilityTimeout: Duration): number {
  *
  * ⛔ DELIBERATELY NOT `maxReceiveCount`, and the two were briefly conflated. A RECEIVE is spent whenever SQS
  * hands a message over — including when the consumer cannot reach its database at all, which in non-prod is
- * nine hours out of every twenty-four. An ATTEMPT is recorded only by a successful CLAIM, which needs that
+ * every hour the sandbox is down (ADR-0060). An ATTEMPT is recorded only by a successful CLAIM, which needs that
  * database. So an outage spends receives and never an allowance, and the two numbers answer different
  * questions: `maxReceiveCount` asks "how long may this message survive an outage", this asks "how many real
  * tries does one line get before we stop and say so".
@@ -253,8 +261,8 @@ const CLAIM_ATTEMPT_ALLOWANCE = 20;
  */
 const VERIFICATION_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(90);
 
-/** Redeliveries the verification queue permits — sized to outlast a nightly stop (R2). */
-const VERIFICATION_QUEUE_MAX_RECEIVES = receivesSurvivingTheNightlyStop(VERIFICATION_QUEUE_VISIBILITY_TIMEOUT);
+/** Redeliveries the verification queue permits before it parks a message (R2, re-derived for ADR-0060). */
+const VERIFICATION_QUEUE_MAX_RECEIVES = receivesBeforeParking(VERIFICATION_QUEUE_VISIBILITY_TIMEOUT);
 
 /**
  * How long the handle-sync worker may run: up to ten renames, each one short transaction.
@@ -507,6 +515,10 @@ export class RecipeWorkersStack extends Stack {
 
     public constructor(scope: Construct, id: string, props: RecipeWorkersStackProps) {
         super(scope, id, props);
+
+        // ⚠️ DELIBERATE — ADR-0060. Outside prod, every scheduled rule in this stack synthesizes DISABLED and tagged
+        // with its stage; the sandbox scheduler's `sync` switches it on only while the stage is up. Prod: no change.
+        holdScheduledRulesForTheSandbox(this, props.stage);
 
         if (!existsSync(DIST_PATH)) {
             throw new Error(
@@ -1333,9 +1345,9 @@ export class RecipeWorkersStack extends Stack {
         // it is invisible if the numbers live apart.
         const parseHandlerTimeout = Duration.seconds(150);
         const PARSE_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(180);
-        // Sized to outlast a nightly stop (R2), NOT to bound real attempts — that is
+        // Sized to park rather than lose a message whose database is down (R2), NOT to bound real attempts — that is
         // `CLAIM_ATTEMPT_ALLOWANCE`, which counts claims rather than receives.
-        const PARSE_QUEUE_MAX_RECEIVES = receivesSurvivingTheNightlyStop(PARSE_QUEUE_VISIBILITY_TIMEOUT);
+        const PARSE_QUEUE_MAX_RECEIVES = receivesBeforeParking(PARSE_QUEUE_VISIBILITY_TIMEOUT);
 
         const parseDlq = new sqs.Queue(this, 'RecipeParseDlq', {
             enforceSSL: true,
@@ -2067,8 +2079,10 @@ export class RecipeWorkersStack extends Stack {
             // gets muted, and this is the only detector for the silent-stall class.
             //
             // ⚠️ The accepted cost of BREACHING: a stage whose band-drain schedule is deliberately stopped
-            // pages. Nothing stops it today — ADR-0007's nightly shutdown zeroes ECS desired counts, not
-            // EventBridge rules — but a future maintenance switch would have to disable this alarm with it.
+            // pages. ⛔ Outside prod that is now EVERY hour the sandbox is down: ADR-0060 disables a non-prod
+            // stage's scheduled rules, the band drain's included, until Sandbox Up. Alarms are switched off at
+            // every non-prod stage today (`/kitchensink/{stage}/observability/alarms-enabled`), so nothing pages;
+            // switching them on for one needs this alarm made stage-aware first, or it pages all night.
             //
             // ACTION WHEN IT FIRES: find the `running` jobs older than an hour and look at their `pending`
             // lines. Check `RecipeParseDlqAlarm` and `CrfEngineUnavailableAlarm` first — an engine outage

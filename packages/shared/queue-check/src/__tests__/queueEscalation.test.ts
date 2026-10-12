@@ -170,19 +170,14 @@ describe('the cron check-in', () => {
     });
 
     /**
-     * ⛔ Rewritten to prove the new behaviour: this case used to pin sandbox to prod's interval, which reported
-     * the check dead for every hour of the nightly window it deliberately skips.
+     * ⛔ Rewritten to prove the new behaviour (owner ruling 2026-10-12): this case used to assert that a sandbox
+     * monitor was upserted with an awake-hours crontab. The sandbox now starts only by hand, so its silence is
+     * normal and a monitor on it would alarm forever; only prod checks in.
      */
-    it('⛔ upserts a sandbox monitor that expects nothing during the nightly window', () => {
+    it('⛔ does not check in from the sandbox, whose silence is its normal resting state', () => {
         checkInQueueCheck('sandbox');
 
-        expect(captureCheckIn.mock.calls[0]?.[1]).toEqual({
-            schedule: { type: 'crontab', value: `*/${String(QUEUE_CHECK_INTERVAL_MINUTES)} 9-23 * * *` },
-            timezone: 'America/New_York',
-            checkinMargin: 5,
-            failureIssueThreshold: 2,
-            recoveryThreshold: 1,
-        });
+        expect(captureCheckIn).not.toHaveBeenCalled();
     });
 
     it('⛔ does not check in from a preview, whose monitor would outlive its stack', () => {

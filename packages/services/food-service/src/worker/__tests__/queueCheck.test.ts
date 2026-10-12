@@ -6,7 +6,7 @@
  * entirely in the transport. Escalating a healthy backlog trains its reader to ignore the signal, which is
  * worse than not having one.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runQueueCheck, type FoodOwedCounts } from '../queueCheck.js';
 
@@ -20,18 +20,15 @@ const QUIET: FoodOwedCounts = {
     oldestPendingSeconds: 0,
 };
 
-/** Mid-morning in New York — outside the nightly window, so the check runs. */
-const AWAKE = new Date('2026-07-15T15:00:00Z');
+/** 01:00 in New York — the hours a non-prod stage used to be silent in, before its clock was deleted. */
+const SMALL_HOURS = new Date('2026-07-15T05:00:00Z');
 
-/** 01:00 in New York — inside ADR-0007's nightly stop. */
-const ASLEEP = new Date('2026-07-15T05:00:00Z');
-
-function subject(counts: Partial<FoodOwedCounts>, stage = 'sandbox', now = AWAKE) {
+function subject(counts: Partial<FoodOwedCounts>, stage = 'sandbox') {
     const escalate = vi.fn();
     const checkIn = vi.fn();
     const read = vi.fn().mockResolvedValue({ ...QUIET, ...counts });
 
-    return { escalate, checkIn, read, deps: { stage, counts: read, escalate, checkIn, now: () => now } };
+    return { escalate, checkIn, read, deps: { stage, counts: read, escalate, checkIn } };
 }
 
 describe('the food queue check', () => {
@@ -81,70 +78,26 @@ describe('the food queue check', () => {
     });
 
     /**
-     * ⛔ THE NIGHTLY WINDOW, and the assertion that matters is that it reads NOTHING. ADR-0007 stops the
-     * non-prod tier's RDS from 00:00 to 09:00, so a check that ran would find its database unreachable and
-     * escalate every night in every preview — training its reader to mute the one signal that matters.
+     * ⛔ THE CLOCK IS GONE (owner ruling 2026-10-12: queue checks "should only be enabled when the sandbox is up
+     * for that PR"). The check used to return before any database call between 00:00 and 09:00 ET on a non-prod
+     * stage. Now an invoked check reads and reports at any hour on any stage; whether it is invoked is a matter of
+     * whether its worker is running, which is a matter of whether the sandbox is up. Run at 01:00 ET so a clock
+     * gate re-added anywhere in the path turns the sandbox and preview cases red.
      */
-    it('⛔ during the nightly window it makes NO database call and raises nothing', async () => {
-        const midnightEt = new Date('2026-07-15T05:00:00Z'); // 01:00 in New York
-        const { deps, escalate, read } = subject({ pendingWithNoRow: 99 }, 'sandbox', midnightEt);
+    describe.each(['sandbox', 'pr-91', 'prod'])('at 01:00 New York on %s', (stage) => {
+        afterEach(() => {
+            vi.useRealTimers();
+        });
 
-        expect(await runQueueCheck(deps)).toBeUndefined();
-        expect(read).not.toHaveBeenCalled();
-        expect(escalate).not.toHaveBeenCalled();
-    });
+        it('⛔ reads the database and raises what it finds', async () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(SMALL_HOURS);
+            const { deps, escalate, read } = subject({ pendingWithNoRow: 1 }, stage);
 
-    /** ⛔ PROD is never asleep — it is never stopped, and a clock must not hide a real outage. */
-    it('⛔ PROD checks during those same hours', async () => {
-        const midnightEt = new Date('2026-07-15T05:00:00Z');
-        const { deps, read } = subject({ pendingWithNoRow: 1 }, 'prod', midnightEt);
-
-        expect((await runQueueCheck(deps))?.condition).toBe('lost');
-        expect(read).toHaveBeenCalledTimes(1);
-    });
-
-    /**
-     * ⛔ The payload carries counts and identifiers, never a food name or an ingredient phrase — a backstop
-     * reads rows a user wrote, and a Sentry event is outside every erasure path.
-     */
-    it('⛔ the escalation carries no text', async () => {
-        const { deps } = subject({ pendingWithNoRow: 1 });
-        const payload = await runQueueCheck(deps);
-
-        for (const value of Object.values(payload ?? {})) {
-            expect(['string', 'number']).toContain(typeof value);
-        }
-
-        expect(payload?.service).toBe('food-service');
-    });
-});
-
-/**
- * ⛔ THE DEAD-MAN CHECK-IN (R37), and for food it carries more than for the other two. Food's check does not
- * have a scheduled function of its own — it rides the drainer's reaper tick — so its check-in is a statement
- * about the DRAINER, not only about the backstop. A drainer that dies takes the check with it, the check-in
- * stops, and the monitor reports the drainer's death rather than waiting for its symptoms to accumulate.
- *
- * ⚠️ It fires on every run of the check, i.e. on the reaper cadence. The monitor's expected schedule is
- * configured Sentry-side (U23), which is where a coarser cadence belongs — not in a counter here that would
- * make the drainer's dead-man signal depend on state the drainer itself keeps.
- */
-describe('the dead-man check-in', () => {
-    it("⛔ checks in once the run completes, which is what makes the drainer's silence audible", async () => {
-        const { deps, checkIn } = subject({}, 'prod');
-
-        await runQueueCheck(deps);
-
-        expect(checkIn).toHaveBeenCalledTimes(1);
-    });
-
-    it('⛔ still checks in when it DID find stranded work — the finding is not the failure', async () => {
-        const { deps, escalate, checkIn } = subject({ pendingWithNoRow: 2, oldestPendingSeconds: 600 }, 'prod');
-
-        await runQueueCheck(deps);
-
-        expect(escalate).toHaveBeenCalledTimes(1);
-        expect(checkIn).toHaveBeenCalledTimes(1);
+            expect((await runQueueCheck(deps))?.condition).toBe('lost');
+            expect(read).toHaveBeenCalledTimes(1);
+            expect(escalate).toHaveBeenCalledTimes(1);
+        });
     });
 
     it('⛔ a preview escalates WITHOUT checking in — its monitor would outlive its stack', async () => {
@@ -153,19 +106,6 @@ describe('the dead-man check-in', () => {
         await runQueueCheck(deps);
 
         expect(escalate).toHaveBeenCalledTimes(1);
-        expect(checkIn).not.toHaveBeenCalled();
-    });
-
-    it('⛔ neither reads nor checks in during the nightly stop', async () => {
-        const { deps, read, escalate, checkIn } = subject(
-            { pendingWithNoRow: 9, oldestPendingSeconds: 9000 },
-            'sandbox',
-            ASLEEP,
-        );
-
-        expect(await runQueueCheck(deps)).toBeUndefined();
-        expect(read).not.toHaveBeenCalled();
-        expect(escalate).not.toHaveBeenCalled();
         expect(checkIn).not.toHaveBeenCalled();
     });
 
@@ -178,7 +118,6 @@ describe('the dead-man check-in', () => {
                 counts: vi.fn().mockRejectedValue(new Error('database unreachable')),
                 escalate: vi.fn(),
                 checkIn,
-                now: () => AWAKE,
             }),
         ).rejects.toThrow('database unreachable');
 

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Frame, Page, Request } from '@playwright/test';
 import { patchUserSettingsRequestSchema, SETTINGS_DEFAULTS, type UserSettings } from '@kitchensink/schema-identity';
 
 /** What {@link mockSettingsApi} lets a spec observe and steer. */
@@ -80,25 +80,62 @@ export async function mockSettingsApi(
 }
 
 /**
- * Open `url` and wait until the page has READ the settings and rendered them.
+ * Open `url` and wait until the NEW page has read the settings and rendered them.
  *
- * ⚠️ Pressing a key straight after a full page load races the read: until it answers, the query shows the published
- * default (shortcut on), so `/` can fire for a cook who turned it off. A spec that asserts "off" must wait for the
- * read first. The two animation frames let the query's update commit, because a response is not yet a render and the
- * listener is attached or removed by an effect.
+ * ⚠️ Pressing a key straight after a full page load races the read: until it answers, the query holds the published
+ * default as a placeholder and `useSearchShortcut` keeps `/` OFF, so a spec that expects `/` to work must wait for the
+ * read first.
+ *
+ * ⛔ The read waited on is one the NEW document issued, not any settings `GET`. Leaving Profile straight after the switch
+ * leaves the save's settle-refetch (`onSettled` invalidates the settings) in flight on the OLD page, and it answers
+ * before the new document has even committed. Matching it ended the wait while the new page's own read was still
+ * pending, and `/` was pressed with no listener (`profileSettings.spec.ts` "turns / back on", red in CI; a local trace
+ * of the failure shows the Profile refetch answering, then the Recipes read starting seconds later). Playwright reports events in protocol
+ * order, and the new document can issue no request before it commits, so the wait counts only requests seen after the
+ * main frame next navigates. ⚠️ That event also fires for a same-document URL change, so an old page that changed its
+ * own URL during the `goto` would count too; no caller's page does.
+ *
+ * The two animation frames let the query's update commit, because a response is not yet a render and the listener is
+ * attached or removed by an effect.
  *
  * @param page - The page.
  * @param url - Where to go.
  * @sideEffect Navigates the page.
  */
 export async function gotoAfterSettingsRead(page: Page, url: string): Promise<void> {
-    const read = page.waitForResponse(
-        (response) =>
-            response.request().method() === 'GET' && new URL(response.url()).pathname.endsWith('/users/me/settings'),
-    );
+    const fromNewDocument = new Set<Request>();
+    let committed = false;
 
-    await page.goto(url);
-    await read;
+    const onNavigated = (frame: Frame): void => {
+        if (frame === page.mainFrame()) {
+            committed = true;
+        }
+    };
+
+    const onRequest = (request: Request): void => {
+        if (committed) {
+            fromNewDocument.add(request);
+        }
+    };
+
+    page.on('framenavigated', onNavigated);
+    page.on('request', onRequest);
+
+    try {
+        const read = page.waitForResponse(
+            (response) =>
+                fromNewDocument.has(response.request()) &&
+                response.request().method() === 'GET' &&
+                new URL(response.url()).pathname.endsWith('/users/me/settings'),
+        );
+
+        await page.goto(url);
+        await read;
+    } finally {
+        page.off('framenavigated', onNavigated);
+        page.off('request', onRequest);
+    }
+
     await page.evaluate(
         () =>
             new Promise<void>((resolve) => {

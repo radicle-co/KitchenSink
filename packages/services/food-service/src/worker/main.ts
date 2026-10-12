@@ -157,7 +157,6 @@ async function bootstrap(): Promise<void> {
             checkIn: () => {
                 checkInQueueCheck(stage);
             },
-            now: () => new Date(),
         });
     };
 

@@ -34,6 +34,17 @@ on:
             - 'Dockerfile'
             - '.github/workflows/sandbox-identity-deploy.yml'
     workflow_dispatch:
+    # Sandbox Up calls this to rebuild the shared tier before the previews (ADR-0060). Inside a called workflow
+    # `github.event_name` is the CALLER's (`workflow_dispatch`), so the flags below deploy everything — which is what
+    # a rebuild needs.
+    workflow_call:
+        secrets:
+            AWS_ACCESS_KEY_ID:
+                required: true
+            AWS_SECRET_ACCESS_KEY:
+                required: true
+            SENTRY_AUTH_TOKEN:
+                required: false
 
 # NO `id-token: write` — the single `deploy` job authenticates to AWS with STATIC access keys, never OIDC,
 # so the grant was dead privilege (same removal as prod-deploy.yml / sandbox-deploy.yml). Re-add it on the
@@ -149,6 +160,40 @@ jobs:
             - name: Resolve the alarm feature flag
               run: bash .github/scripts/resolveAlarmsEnabled.sh "${STAGE}"
 
+            # ⛔ IS THE SANDBOX UP? (ADR-0060.) Nothing in CI starts it any more — only Sandbox Up does — so a pull
+            # request that arrives while it is down must deploy NOTHING, and must not fail for it: "A job that needs
+            # the sandbox SKIPS when it is down. It never fails for that reason" (owner ruling 2026-10-12). A down
+            # sandbox on a dispatch or a Sandbox Up call is different: the caller asked for it to be up, so that is
+            # a failure. `check` never starts anything; it waits a bounded time while the database and NAT are
+            # starting, and answers DOWN inside the pre-midnight headroom too — the ADR-0007 × ADR-0022 wedge, where a
+            # deploy that straddles the midnight stop rests in `UPDATE_ROLLBACK_FAILED` on the one identity service
+            # every preview signs in against. Do NOT set any `SANDBOX_WAKE_*` variable here; they are test seams
+            # (`sandboxWakeWiring.test.ts`).
+            - name: Is the sandbox up?
+              id: tier
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+              run: |
+                  set -uo pipefail
+                  rc=0
+                  bash .github/scripts/sandboxWake.sh check "${DEFAULT_AWS_REGION}" || rc=$?
+                  case "$rc" in
+                      0) echo 'up=true' >>"$GITHUB_OUTPUT" ;;
+                      3)
+                          if [ "$EVENT_NAME" = 'pull_request' ]; then
+                              echo 'up=false' >>"$GITHUB_OUTPUT"
+                              echo '::notice::SKIPPED, not passed: the sandbox is DOWN (or too close to the midnight stop), so nothing deploys. Press Sandbox Up for a PR to bring it up.'
+                          else
+                              echo '::error::the sandbox is DOWN (or too close to the midnight stop). Sandbox Up starts it before calling this workflow; a bare dispatch needs it up first.' >&2
+                              exit 1
+                          fi
+                          ;;
+                      *)
+                          echo "::error::could not tell whether the sandbox is up (sandboxWake.sh check exited ${rc})." >&2
+                          exit 1
+                          ;;
+                  esac
+
             # Deploy a service when its code changed OR any stack it owns doesn't exist yet (so the
             # environment self-heals / bootstraps on the first PR). A global-infra change — or ANY missing
             # platform stack — forces both consumers to redeploy.
@@ -159,10 +204,23 @@ jobs:
               # body, so an interpolated value is source code, whereas an env var is only ever data.
               env:
                   EVENT_NAME: ${{ github.event_name }}
+                  SANDBOX_UP: ${{ steps.tier.outputs.up }}
                   CHANGED_GLOBAL: ${{ steps.changes.outputs.global }}
                   CHANGED_SERVICE: ${{ steps.changes.outputs.service }}
                   CHANGED_WEBHOOKS: ${{ steps.changes.outputs.webhooks }}
               run: |
+                  # A down sandbox deploys nothing: every flag false, so every step below skips (see `tier`).
+                  if [ "$SANDBOX_UP" != 'true' ]; then
+                    {
+                      echo "deploy_global=false"
+                      echo "deploy_service=false"
+                      echo "deploy_webhooks=false"
+                      echo "run_migrations=false"
+                    } >> "$GITHUB_OUTPUT"
+                    echo "the sandbox is down — nothing deploys"
+                    exit 0
+                  fi
+
                   stack_exists() { aws cloudformation describe-stacks --stack-name "$1" >/dev/null 2>&1; }
 
                   # ⛔ THE STACK SET IS DERIVED, NOT WRITTEN DOWN — and this gate is the reason the rule
@@ -231,36 +289,6 @@ jobs:
                     echo "run_migrations=$run_migrations"
                   } >> "$GITHUB_OUTPUT"
                   echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations (missing: g=$global_missing s=$service_missing w=$webhooks_missing)"
-
-            # ⛔ ADR-0007 × ADR-0022 — the SAME composition that wedged `kitchensink-recipe-service-pr-91`,
-            # and this tier is the one that hurts most. The shared sandbox RDS instance is STOPPED nightly
-            # 00:00–09:00 ET; `IdentityServiceStack` carries an in-stack migration Trigger, `DataStack`'s
-            # bootstrap custom resources CREATE databases and roles, and the five webhook Lambdas all talk
-            # to the same instance. An identity deploy inside that window hits the identical
-            # `connect ETIMEDOUT …:5432`, fails the update, fails the rollback, and rests in
-            # `UPDATE_ROLLBACK_FAILED` — on the SINGLE shared identity service every PR preview signs in
-            # against, so the blast radius is every open preview rather than one PR.
-            #
-            # Run whenever ANY stack in this workflow will deploy. Nothing here keeps the tier awake and
-            # the nightly schedule is untouched (ADR-0007's cost intent stands); the script takes no
-            # instance argument by construction, so it cannot address the prod database.
-            #
-            # ⚠️ 2026-09-05 — this step being PRESENT is not the whole guarantee, and reading it as one is how
-            # the wedge above happened anyway. On run 33943032063 it ran at 23:52:52 ET and answered
-            # `available (ready)`, truthfully; the scheduler stopped the instance at 00:00:07 and the global
-            # `cdk deploy` below reached `DatabaseB269D8BB` at 00:02:11, nine minutes after the check, dying
-            # on `Cannot modify a stopped DB Instance` — CloudFormation's own ModifyDBInstance, NOT the
-            # ADR-0022 Trigger, which is why grepping for `connect ETIMEDOUT` finds nothing. The gate now
-            # also asserts HEADROOM (that the instance will still be up ~45 minutes later, the longest
-            # observed run of this job) and waits out the 00:00 boundary rather than deploying across it, so
-            # this step can now legitimately take minutes. Do NOT set any `SANDBOX_WAKE_*` env var here to
-            # make it faster — those are test seams, and `sandboxWakeWiring.test.ts` fails the build for it.
-            - name: Wake the shared sandbox database
-              if: |
-                  steps.flags.outputs.deploy_global == 'true' ||
-                  steps.flags.outputs.deploy_service == 'true' ||
-                  steps.flags.outputs.deploy_webhooks == 'true'
-              run: bash .github/scripts/sandboxWake.sh ensure "${DEFAULT_AWS_REGION}"
 
             - name: Setup Node.js
               uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -574,6 +602,15 @@ jobs:
                   # And its log drains — see `verify_deployment_drains_app` for why this is here (ADR-0042).
                   bash .github/scripts/verifyDeployment.sh drains-app "${DEFAULT_AWS_REGION}" \
                     "packages/services/identity-webhooks/infra/node_modules/.bin/tsx packages/services/identity-webhooks/infra/bin/app.ts"
+
+            # ⛔ ADR-0060 — the webhooks' scheduled rules (reconciliation, the erasure sweeps, the queue check) deploy
+            # DISABLED, and CloudFormation re-applies a rule's `State` on every update, so the deploy above has just
+            # switched them OFF. `sync`, the only writer of rule state, puts back what the tier's state says should run.
+            # ⚠️ After the deploy AND its verification, and only when the webhooks deployed: a skipped deploy changed no
+            # rule. `scheduledRuleSyncWiring.test.ts` holds every non-prod deploy of a rule-owning app to this.
+            - name: Hand the scheduled rules back to the sandbox scheduler
+              if: steps.flags.outputs.deploy_webhooks == 'true'
+              run: bash .github/scripts/sandboxScheduler.sh sync "${DEFAULT_AWS_REGION}"
 
             # Post-deploy smoke test. `cdk deploy` returning success only means the stack converged —
             # it does NOT prove the service serves traffic. Hit the public /health end-to-end

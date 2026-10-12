@@ -5,7 +5,7 @@
  *
  * ## The failure this pins
  *
- * `sandboxUp.yml` is the ONE deliberate door into a preview environment (ADR-0028). Until 2026-09-05 its
+ * `sandboxUp.yml` is the ONE deliberate door into a preview environment (ADR-0028, ADR-0060). Until 2026-09-05 its
  * `start` job dispatched `sandbox-deploy.yml` twice — `gh workflow run`, which returns the moment the
  * dispatch is ACCEPTED — and then wrote a summary. The job therefore went GREEN roughly ninety seconds
  * after being pressed, before a single stack had been touched, and stayed green if every one of those
@@ -22,14 +22,15 @@
  *
  * ## The four properties, and why each is derived rather than listed
  *
- * 1. **Every workflow the button dispatches is WAITED on, with `--exit-status`.** The subject is derived
- *    from the job's own `gh workflow run <file>` occurrences, so a third dispatch added tomorrow is covered
- *    the day it lands. Without the wait the dispatch is the whole verdict.
- * 2. **Every CDK app those dispatched workflows deploy is named in the button's own verification step.**
- *    The required set comes from `deployedApps()` — the `cdk deploy --app` lines in the dispatched
- *    workflows themselves — so "everything the CDK declares" is read out of the pipeline rather than
- *    transcribed into this file. A service added to `sandbox-deploy.yml` tomorrow reds this guard until the
- *    button verifies it too.
+ * 1. **The button CALLS every workflow it relies on, and dispatches none** (ADR-0060). A called workflow is
+ *    waited on by construction and its failure is the run's failure; a dispatched one had to be polled for a run
+ *    id, which reported on whichever run appeared next. The callees are derived from the jobs' own `uses:`.
+ *    REWRITTEN from "every dispatch is watched with `--exit-status`" when the button became a job graph — the
+ *    property that protects is unchanged (no verdict without waiting), the mechanism that gives it is stronger.
+ * 2. **Every CDK app those called workflows deploy is named in the button's own verification job.**
+ *    The required set comes from `deployedApps()` — the `cdk deploy --app` lines in the called workflows
+ *    themselves, followed through `uses:` to a fixpoint — so "everything the CDK declares" is read out of the
+ *    pipeline rather than transcribed into this file.
  * 3. **The stacks are DERIVED from the manifest and verified by the ONE verifier.** The step must reach
  *    them through `deployGate.sh stacks-for` (which answers from `docs/generated/infrastructure/manifest.json`,
  *    itself AST-read from the CDK source under a staleness gate) and hand them to
@@ -62,8 +63,8 @@ import { repoRoot } from './serviceSources.js';
 /** The button. */
 const WORKFLOW = 'sandboxUp.yml';
 
-/** The job that does the work. Anchored by key, so a rename is a loud failure rather than a silent skip. */
-const JOB = 'start';
+/** The job that verifies the assembled sandbox. Anchored by key, so a rename is a loud failure, not a skip. */
+const VERIFY_JOB = 'verify';
 
 /** One step, reduced to what these assertions ask about. */
 interface Step {
@@ -72,20 +73,28 @@ interface Step {
     readonly 'continue-on-error'?: unknown;
 }
 
-/** The workflow text, comments stripped — a `--app` inside prose must never count as a deployment. */
-function text(): string {
-    return withoutComments(readFileSync(join(repoRoot, '.github/workflows', WORKFLOW), 'utf8'));
+/** One job, reduced to what these assertions ask about. */
+interface Job {
+    readonly uses?: string;
+    readonly needs?: string | readonly string[];
+    readonly steps?: readonly Step[];
 }
 
-/** Every step of the `start` job, in file order. */
-function steps(): readonly Step[] {
+/** Every job of the button, by key. */
+function jobs(): Readonly<Record<string, Job>> {
     const doc = parse(readFileSync(join(repoRoot, '.github/workflows', WORKFLOW), 'utf8')) as {
-        jobs?: Record<string, { steps?: Step[] }>;
+        jobs?: Record<string, Job>;
     };
-    const job = doc.jobs?.[JOB];
+
+    return doc.jobs ?? {};
+}
+
+/** Every step of the verify job, in file order. */
+function verifySteps(): readonly Step[] {
+    const job = jobs()[VERIFY_JOB];
 
     if (job === undefined) {
-        throw new Error(`${WORKFLOW} has no \`${JOB}\` job — this guard is anchored on it.`);
+        throw new Error(`${WORKFLOW} has no \`${VERIFY_JOB}\` job — this guard is anchored on it.`);
     }
 
     return job.steps ?? [];
@@ -94,11 +103,8 @@ function steps(): readonly Step[] {
 /**
  * One step's shell, reduced to the COMMANDS it runs: comment lines removed, line-continuations folded.
  *
- * ⛔ THE COMMENT STRIP IS LOAD-BEARING, and its absence made this guard's first green run a lie. The
- * dispatch step explains itself in shell comments — "`--exit-status` is what makes a failed preview deploy
- * fail THIS job" — so deleting the real flag left the STRING in the body and every assertion below stayed
- * green over a fire-and-forget dispatch. Measured, not reasoned: the mutation was applied and this file
- * passed. A guard satisfied by prose about the thing is the guard this whole suite exists to replace.
+ * ⛔ THE COMMENT STRIP IS LOAD-BEARING: a step that explains itself in shell comments would otherwise satisfy
+ * an assertion with prose about the thing. Measured on this file's first version, not reasoned.
  *
  * @param step - The step to read.
  * @returns Its executable text. Pure apart from the caller's file read.
@@ -107,40 +113,37 @@ function commands(step: Step): string {
     return foldContinuations(withoutComments(step.run ?? ''));
 }
 
-/** Every shell COMMAND in the job, comments already removed. */
+/** Every shell COMMAND in the verify job, comments already removed. */
 function shell(): string {
-    return steps().map(commands).join('\n');
+    return verifySteps().map(commands).join('\n');
 }
 
-/** `gh workflow run <file>` targets, in order of appearance. */
-function dispatchedWorkflows(): readonly string[] {
-    return [...new Set([...shell().matchAll(/gh\s+workflow\s+run\s+(\S+\.ya?ml)/gu)].map((match) => match[1] ?? ''))];
+/** Every shell command in EVERY job of the button. */
+function allShell(): string {
+    return Object.values(jobs())
+        .flatMap((job) => job.steps ?? [])
+        .map(commands)
+        .join('\n');
 }
 
-/** The steps whose body dispatches at least one workflow. */
-function dispatchingSteps(): readonly Step[] {
-    return steps().filter((step) => /gh\s+workflow\s+run\s/u.test(commands(step)));
+/** The local reusable workflows the button's jobs call directly. */
+function calledWorkflows(): readonly string[] {
+    return Object.values(jobs()).flatMap((job) => {
+        const match = /^\.\/\.github\/workflows\/([\w.-]+\.ya?ml)$/u.exec(job.uses ?? '');
+
+        return match?.[1] === undefined ? [] : [match[1]];
+    });
 }
 
 /**
- * Every CDK app entrypoint the workflows this button dispatches actually deploy.
+ * Every CDK app entrypoint the workflows this button calls actually deploy.
  *
- * This is the honest reading of "everything the CDK declares for this sandbox": it is not a list, it is the
- * `cdk deploy --app` sites of the very workflows the button hands the work to.
+ * ⛔ FOLLOWS `uses:` TRANSITIVELY, to a fixpoint: `sandboxPreview.yml` hands its work to `deployInfra.yml`, and
+ * depth is a fact about today's call graph that has gone stale within one refactor every time it was written down.
  */
 function appsTheSandboxStandsUp(): readonly string[] {
-    const dispatched = new Set(dispatchedWorkflows());
-
-    // ⛔ FOLLOWS `uses:` TRANSITIVELY, to a fixpoint — not one level, and not two.
-    //
-    // A dispatched workflow hands its real work to a reusable one, and that one now does the same again:
-    // `sandbox-deploy.yml` → `sandboxPreview.yml` → `deployInfra.yml`, the last hop added when every
-    // `cdk deploy` moved into one job per `infra/` folder. A one-level reader reported THREE apps where the
-    // button stands up seven; the same reader, unchanged, would have reported three again after this hop.
-    //
-    // ⚠️ Depth is the wrong thing to encode — it is a fact about today's call graph, and every time it has
-    // been written down here it has gone stale within one refactor. The fixpoint has no number in it.
-    const queue = [...dispatched];
+    const called = new Set(calledWorkflows());
+    const queue = [...called];
 
     while (queue.length > 0) {
         const workflow = queue.pop() ?? '';
@@ -150,62 +153,68 @@ function appsTheSandboxStandsUp(): readonly string[] {
             continue;
         }
 
-        for (const [, called] of readFileSync(path, 'utf8').matchAll(
+        for (const [, callee] of readFileSync(path, 'utf8').matchAll(
             /uses:\s*\.\/\.github\/workflows\/([\w.-]+\.ya?ml)/gu,
         )) {
-            if (called !== undefined && !dispatched.has(called)) {
-                dispatched.add(called);
-                queue.push(called);
+            if (callee !== undefined && !called.has(callee)) {
+                called.add(callee);
+                queue.push(callee);
             }
         }
     }
 
-    return [
-        ...new Set(deployedApps().flatMap((app) => (dispatched.has(app.workflow) ? [app.entrypoint] : []))),
-    ].toSorted();
+    return [...new Set(deployedApps().flatMap((app) => (called.has(app.workflow) ? [app.entrypoint] : [])))].toSorted();
 }
 
-/** Every `packages/**\/bin/app.ts` entrypoint named anywhere in the button's own shell. */
+/** Every `packages/**\/bin/app.ts` entrypoint named anywhere in the verify job's shell. */
 function appsTheButtonVerifies(): readonly string[] {
     return [...new Set([...shell().matchAll(/packages\/[\w@./-]*bin\/app\.ts/gu)].map((match) => match[0]))].toSorted();
 }
 
+/** A job's `needs:`, as a list. */
+const needsOf = (job: Job | undefined): readonly string[] =>
+    job?.needs === undefined ? [] : typeof job.needs === 'string' ? [job.needs] : job.needs;
+
 describe('sandboxUp.yml verifies what it stood up (owner directive, 2026-09-05)', () => {
-    it('is not vacuous — the real start job, its dispatches and the apps behind them are all discovered', () => {
-        // Anchors every derivation below. A reader that silently found nothing would make all four
-        // assertions pass by finding nothing, which is the failure mode this whole file is about.
-        expect(steps().length).toBeGreaterThanOrEqual(8);
-        expect(dispatchedWorkflows().length).toBeGreaterThanOrEqual(2);
-        expect(dispatchedWorkflows()).toContain('sandbox-deploy.yml');
-        expect(dispatchedWorkflows()).toContain('sandbox-identity-deploy.yml');
+    it('is not vacuous — the real jobs, their callees and the apps behind them are all discovered', () => {
+        expect(verifySteps().length).toBeGreaterThanOrEqual(5);
+        expect(calledWorkflows()).toEqual(
+            expect.arrayContaining(['sandbox-identity-deploy.yml', 'sandboxPreview.yml', 'previewDomain.yml']),
+        );
         expect(appsTheSandboxStandsUp().length).toBeGreaterThanOrEqual(7);
     });
 
-    it('⛔ waits for EVERY workflow it dispatches, with --exit-status', () => {
-        const firedAndForgotten = dispatchingSteps()
-            .filter((step) => {
-                const body = commands(step);
-
-                return !(body.includes('gh run watch') && body.includes('--exit-status'));
-            })
-            .map(
-                (step) =>
-                    `${WORKFLOW}:${step.name ?? '(unnamed)'} dispatches a workflow and never waits for it — ` +
-                    '`gh workflow run` returns when the dispatch is ACCEPTED, so the button reports the ' +
-                    'outcome of nothing. Capture the run id and `gh run watch "$id" --exit-status`.',
-            );
-
-        expect(firedAndForgotten).toEqual([]);
+    it("⛔ dispatches NO workflow — it calls them, so every one is waited on and its failure is this run's", () => {
+        expect(
+            allShell(),
+            '`gh workflow run` returns when the dispatch is ACCEPTED; a button built on it reports the outcome of ' +
+                'nothing, and the run id it polls for is whichever run appears next. Call the workflow instead.',
+        ).not.toMatch(/gh\s+workflow\s+run\s/u);
     });
 
-    it('⛔ names every CDK app the workflows it dispatches deploy', () => {
+    it('⛔ never relies on sandbox-deploy.yml, which the owner disabled (ADR-0060)', () => {
+        expect(
+            readFileSync(join(repoRoot, '.github/workflows', WORKFLOW), 'utf8').replace(/^\s*#.*$/gmu, ''),
+        ).not.toContain('sandbox-deploy.yml');
+    });
+
+    it('verifies only after every job that stands something up', () => {
+        const deploying = Object.entries(jobs())
+            .filter(([, job]) => job.uses !== undefined)
+            .map(([name]) => name);
+
+        expect(deploying.length).toBeGreaterThan(0);
+        expect(needsOf(jobs()[VERIFY_JOB])).toEqual(expect.arrayContaining(deploying));
+    });
+
+    it('⛔ names every CDK app the workflows it calls deploy', () => {
         const verified = new Set(appsTheButtonVerifies());
         const missing = appsTheSandboxStandsUp().filter((entrypoint) => !verified.has(entrypoint));
 
         expect(
             missing,
             'the button stands these CDK apps up and never verifies them. "All services, lambdas, ' +
-                'resources according to all the CDK" means every app the dispatched workflows deploy.',
+                'resources according to all the CDK" means every app the called workflows deploy.',
         ).toEqual([]);
     });
 
@@ -231,10 +240,12 @@ describe('sandboxUp.yml verifies what it stood up (owner directive, 2026-09-05)'
         ).toContain('smoke/deployedSmoke.ts');
     });
 
-    it('⛔ no step in the start job may swallow its own failure', () => {
-        const swallowed = steps()
-            .filter((step) => step['continue-on-error'] !== undefined)
-            .map((step) => `${WORKFLOW}:${step.name ?? '(unnamed)'} carries continue-on-error`);
+    it('⛔ no step in any job may swallow its own failure', () => {
+        const swallowed = Object.entries(jobs()).flatMap(([name, job]) =>
+            (job.steps ?? [])
+                .filter((step) => step['continue-on-error'] !== undefined)
+                .map((step) => `${WORKFLOW}:${name}:${step.name ?? '(unnamed)'} carries continue-on-error`),
+        );
 
         expect(
             swallowed,
@@ -244,16 +255,11 @@ describe('sandboxUp.yml verifies what it stood up (owner directive, 2026-09-05)'
     });
 
     it('⛔ the verification and reachability steps do not discard a non-zero status', () => {
-        const offenders = steps()
+        const offenders = verifySteps()
             .filter((step) => /verifyDeployment\.sh|deployedSmoke\.ts/u.test(commands(step)))
             .filter((step) => /\|\|\s*true\b/u.test(commands(step)))
             .map((step) => `${WORKFLOW}:${step.name ?? '(unnamed)'} pipes a check into \`|| true\``);
 
         expect(offenders).toEqual([]);
-    });
-
-    it('is not vacuous — the workflow text is really being read', () => {
-        expect(text()).toContain('name: Sandbox Up');
-        expect(steps().some((step) => step.run !== undefined)).toBe(true);
     });
 });

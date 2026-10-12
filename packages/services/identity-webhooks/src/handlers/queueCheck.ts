@@ -23,7 +23,6 @@ import {
     checksIn,
     classifyOwed,
     countsFrom,
-    isAwake,
     type EscalationPayload,
     type OwedObservation,
     type ReadSession,
@@ -70,7 +69,6 @@ export interface IdentityCheckDeps {
     readonly escalate: (payload: EscalationPayload) => void;
     /** Report to the cron monitor that this run completed. Called last, and only on a checking-in stage. */
     readonly checkIn: () => void;
-    readonly now: () => Date;
 }
 
 /** The two work classes this check reports under. A closed vocabulary, per the payload rule. */
@@ -80,16 +78,13 @@ const HANDLE_SYNC = 'identity-handle-sync';
 /**
  * Run one check.
  *
- * @param deps - The stage, the reads, the sink and the clock.
+ * @param deps - The stage, the reads and the sink.
  * @returns One escalation per class that had something to say.
  * @sideEffect Reads the database and SQS; may emit Sentry events.
  */
 export async function runIdentityQueueCheck(deps: IdentityCheckDeps): Promise<readonly EscalationPayload[]> {
-    // The nightly window, before any call (R35) — see the recipe check for the full argument.
-    if (!isAwake(deps.stage, deps.now())) {
-        return [];
-    }
-
+    // ⛔ NO CLOCK GATE (owner ruling 2026-10-12) — see the recipe check. An invoked check reads and reports at any
+    // hour; whether it is invoked is the schedule rule's state, enabled only while the sandbox is up for its PR.
     const counts = await deps.counts();
     const depth = await deps.depth();
     const raised: EscalationPayload[] = [];
@@ -283,9 +278,8 @@ export async function readDeletionQueueDepth(
 /**
  * The scheduled identity backstop.
  *
- * ⚠️ The reads are LAZY — passed as thunks rather than awaited here — because {@link runIdentityQueueCheck}
- * must reach its nightly-window check before anything touches the database or SQS (R35). A handler that
- * pre-read would call an RDS that ADR-0007 has stopped, every night, in every non-prod stage.
+ * ⚠️ The reads are LAZY — passed as thunks rather than awaited here — so {@link runIdentityQueueCheck} decides
+ * when the database and SQS are touched, and a failure surfaces inside its own handling.
  *
  * @sideEffect Reads the database and SQS; may emit Sentry events and a cron check-in.
  */
@@ -299,8 +293,8 @@ async function rawHandler(): Promise<void> {
         stage,
         // ⛔ ONE CHECKED-OUT CONNECTION, held for the whole read and released whatever happens. The pool
         // would hand a different backend to each statement, leaving the read-only transaction applying to a
-        // session nothing else uses — see `ReadSession`. Acquired INSIDE the thunk so the nightly-window
-        // check still runs before anything touches the database (R35).
+        // session nothing else uses — see `ReadSession`. Acquired INSIDE the thunk, so the connection belongs to
+        // the first read.
         counts: async () => {
             const client = await (await getIdentityPool()).connect();
 
@@ -320,7 +314,6 @@ async function rawHandler(): Promise<void> {
         checkIn: () => {
             checkInQueueCheck(stage);
         },
-        now: () => new Date(),
     });
 }
 

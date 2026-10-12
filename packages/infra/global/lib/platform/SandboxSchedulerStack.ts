@@ -21,7 +21,9 @@ import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
 import { NODE_LAMBDA_RUNTIME } from '@radicle-co/infra-shared/security';
-import { NIGHTLY_START_HOUR, NIGHTLY_STOP_HOUR } from '@kitchensink/queue-check';
+
+import { NIGHTLY_STOP_HOUR, NIGHTLY_TIMEZONE } from '../sandbox-scheduler/nightlyStop.js';
+import { SCHEDULED_RULE_STAGE_TAG } from '../sandbox-scheduler/scheduler.js';
 
 /** Props for {@link SandboxSchedulerStack}. */
 export interface SandboxSchedulerStackProps extends StackProps {
@@ -42,13 +44,14 @@ export interface SandboxSchedulerStackProps extends StackProps {
 }
 
 /**
- * Sandbox nightly-shutdown scheduler (ADR-0007, amended by ADR-0028 and its Update of 2026-09-03).
+ * Sandbox scheduler (ADR-0007, ADR-0060).
  *
- * Provisions a least-privilege Lambda plus an EventBridge Scheduler pair — STOP at 00:00 ET and START
- * at 09:00 ET, daily, `America/New_York` (DST-correct) — that stops/starts the sandbox RDS instance,
- * scales the sandbox ECS services to `0` and back to their persisted prior desired count, and
- * stops/starts the sandbox NAT EC2 instance. The Lambda's selectors touch ONLY sandbox resources, and
- * its IAM is scoped to exactly the rds/ecs/ec2/ssm actions it uses (no service-wildcard admin).
+ * Provisions a least-privilege Lambda plus ONE EventBridge Scheduler schedule — STOP at 00:00 ET, daily,
+ * `America/New_York` (DST-correct) — that switches every scheduled rule off, stops the sandbox RDS instance, scales
+ * the sandbox and per-PR ECS services to `0` (recording each prior desired count), and stops the sandbox NAT EC2
+ * instance. Nothing starts the sandbox on a clock: Sandbox Up invokes the per-PR `start` by hand, and `sync` — the
+ * only writer of a scheduled rule's state — runs after anything that changes what is up. The Lambda's selectors touch
+ * ONLY sandbox resources, and its IAM is scoped to exactly the rds/ecs/ec2/ssm/events actions it uses.
  *
  * This stack is instantiated by `GlobalStack` ONLY when `stage === 'sandbox'`, so prod/dev get
  * nothing and the prod synthesized template is unchanged (ADR-0002 no-prod-diff discipline). It is
@@ -145,14 +148,14 @@ export class SandboxSchedulerStack extends Stack {
             code: schedulerCode,
             timeout: Duration.seconds(300),
             memorySize: 256,
-            description: `Sandbox nightly stop/start controller (${props.stage})`,
+            description: `Sandbox midnight stop, per-PR start and scheduled-rule sync (${props.stage})`,
         });
         this.schedulerFunctionName = schedulerFn.functionName;
 
-        // ADR-0028 — the on-demand button (`sandboxUp.yml`) and the hourly reconciler
-        // (`sandboxReconcile.yml`) both drive this function, so they have to find it by name.
+        // ADR-0060 — Sandbox Up, Sandbox Down, the PR-close cleanup and every non-prod deploy drive this function
+        // (`.github/scripts/sandboxScheduler.sh`), so they have to find it by name.
         //
-        // ⚠️ Exported rather than pattern-matched on purpose. Those two workflows must NOT reimplement
+        // ⚠️ Exported rather than pattern-matched on purpose. Those workflows must NOT reimplement
         // stop/start with raw `aws ecs update-service` calls — `runStop` records each service's prior
         // desired count in SSM and `runStart` refuses to guess when it is missing, so a caller that skips
         // the bookkeeping strands the shared sandbox identity service at zero and kills sign-in for every
@@ -228,80 +231,99 @@ export class SandboxSchedulerStack extends Stack {
             }),
         );
 
-        // ── Nightly STOP at 00:00 ET and START at 09:00 ET, DST-correct ──────────────────────────
+        // ── Scheduled rules (ADR-0060): `sync` is the ONLY writer of a scheduled rule's state ─────────────────
         //
-        // ⚠️  ADR-0028 DELETED the 09:00 start; the Update of 2026-09-03 RESTORED it. Read why before
-        // deleting it again — the reasoning that removed it was correct and its premise has since expired.
+        // `ListRules` has no resource type in the service authorization reference, so `*` is its only valid scope;
+        // it reveals names and schedules, not the power to change them.
+        schedulerFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxSchedulerRuleDiscovery',
+                actions: ['events:ListRules'],
+                resources: ['*'],
+            }),
+        );
+
+        // `kitchensink-` is the start of every rule this repository deploys (CloudFormation truncates a generated name
+        // but keeps the stack name it begins with), and the account also hosts another application.
+        const repositoryRules = `arn:aws:events:${this.region}:${this.account}:rule/kitchensink-*`;
+
+        schedulerFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxSchedulerRuleTags',
+                actions: ['events:ListTagsForResource'],
+                resources: [repositoryRules],
+            }),
+        );
+
+        // ⛔ THE TAG IS THE BOUNDARY. `EnableRule`/`DisableRule` act on the `rule-on-default-event-bus` resource
+        // type, whose condition keys include `aws:ResourceTag/${TagKey}` (Service Authorization Reference for
+        // `events`). Only a NON-PROD stack's gate stamps `SandboxStage`, so a production rule — which never carries
+        // it — cannot be toggled by this role, whatever the code above it decides.
+        schedulerFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxSchedulerRuleToggle',
+                actions: ['events:EnableRule', 'events:DisableRule'],
+                resources: [repositoryRules],
+                conditions: {
+                    StringLike: { [`aws:ResourceTag/${SCHEDULED_RULE_STAGE_TAG}`]: ['sandbox', 'pr-*'] },
+                },
+            }),
+        );
+
+        // ⛔ …and production is refused outright, as a second, independent layer: an explicit Deny wins over any
+        // Allow, so a production rule that somehow acquired a stage tag still cannot be switched.
+        schedulerFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxSchedulerNeverProduction',
+                effect: iam.Effect.DENY,
+                actions: ['events:EnableRule', 'events:DisableRule'],
+                resources: ['*'],
+                conditions: { StringEquals: { 'aws:ResourceTag/Environment': 'production' } },
+            }),
+        );
+
+        // ── The midnight STOP, DST-correct — the ONLY scheduled job (ADR-0060) ────────────────────────────────
         //
-        // ADR-0028's argument was that a daily start "would resurrect the whole tier every weekday morning
-        // regardless of whether anyone wanted it". That held while the shared ALB and identity service were
-        // merely STOPPED. ADR-0028's own amendment of 2026-08-30 made them DELETED STACKS, and a schedule
-        // cannot create a stack — so what a start can now resurrect is exactly the two resources that were
-        // only ever stoppable: the sandbox RDS instance and the NAT EC2 instance. The owner ruled on
-        // 2026-09-03 that those two follow the original clock: "The RDS should still be stopped and started
-        // on the original schedule."
+        // ⛔ THERE IS NO START SCHEDULE, AND THE ABSENCE IS THE DECISION. The owner ruled on 2026-10-12: "no automatic
+        // or scheduled tasks or jobs except for the single one to check if the sandbox is running at midnight and
+        // bringing every single sandbox down." The sandbox starts when Sandbox Up is pressed for ONE PR, through this
+        // function's `{ action: 'start', stage: 'pr-<N>' }`. Do not restore a daily start: it resurrected the
+        // database and the NAT every morning for nobody (ADR-0060 supersedes the start half of ADR-0007 §2).
         //
-        // ⛔ The pair is EXACT INVERSES because `runStop`/`runStart` are: `runStop` records each ECS
-        // service's prior desired count in SSM and `runStart` deliberately refuses to guess when that
-        // parameter is missing. Scheduling one without the other leaves that bookkeeping half-applied.
+        // The STOP is not merely a backstop: AWS auto-restarts a stopped RDS instance after SEVEN DAYS, and this
+        // catches that within a day, every time. It also switches every scheduled rule off FIRST, so no sweeper or
+        // queue check runs against a database that is shutting down underneath it.
         //
-        // The STOP is not merely a backstop: AWS auto-restarts a stopped RDS instance after SEVEN DAYS, and
-        // this catches that within a day, every time — including in the weeks when GitHub's best-effort
-        // scheduled workflows do not run at all. The START carries the mirror property: a deploy landing in
-        // the old 00:00-09:00 window no longer meets a stopped database, which is the ADR-0007 x ADR-0022
-        // `UPDATE_ROLLBACK_FAILED` wedge that `sandboxWake.sh` was written after.
+        // Supply `day` (day-of-month) only — the CDK helper rejects setting both day and weekDay, and fills the
+        // unset weekDay field with `?`, yielding the intended `cron(0 0 * * ? *)`.
         //
-        // Supply `day` (day-of-month) only — the CDK helper rejects setting both day and weekDay, and
-        // fills the unset weekDay field with `?`, yielding the intended `cron(0 0 * * ? *)`.
-        const dailyAt = (hour: string): scheduler.ScheduleExpression =>
-            scheduler.ScheduleExpression.cron({
+        // A failed run fails its invocation (`assertRunSucceeded`). Two retries within the hour give a brief AWS
+        // refusal a second chance; repeating a stop is safe, since a service already at zero keeps its recorded count.
+        new scheduler.Schedule(this, 'SandboxStopSchedule', {
+            schedule: scheduler.ScheduleExpression.cron({
                 minute: '0',
-                hour,
+                hour: String(NIGHTLY_STOP_HOUR),
                 day: '*',
                 month: '*',
                 year: '*',
-                timeZone: TimeZone.AMERICA_NEW_YORK,
-            });
-
-        // ⛔ THE HOURS COME FROM THE SHARED WINDOW (plan U11, R35), not from literals here. The queue-check
-        // backstops must stay silent for exactly the span this stack shuts the tier down for — otherwise
-        // every non-prod stage escalates nightly, for nine hours, for a reason nobody can act on, and the
-        // signal its reader mutes is the one that matters the night they do not look. Two copies of the same
-        // two hours is precisely how that drift happens.
-        // A failed run now fails its invocation (`assertRunSucceeded`). Two retries within the hour give a brief AWS
-        // refusal a second chance, and the hour keeps a retried start from landing inside the next stop window.
-        // Repeating either action is safe: a service already at zero keeps its recorded count.
-        const RUN_RETRY = { retryAttempts: 2, maxEventAge: Duration.hours(1) } as const;
-
-        new scheduler.Schedule(this, 'SandboxStopSchedule', {
-            schedule: dailyAt(String(NIGHTLY_STOP_HOUR)),
+                timeZone: TimeZone.of(NIGHTLY_TIMEZONE),
+            }),
             target: new schedulerTargets.LambdaInvoke(schedulerFn, {
                 input: scheduler.ScheduleTargetInput.fromObject({ action: 'stop' }),
-                ...RUN_RETRY,
+                retryAttempts: 2,
+                maxEventAge: Duration.hours(1),
             }),
-            description: 'Stop the sandbox tier nightly at 00:00 America/New_York (ADR-0007, ADR-0028)',
+            description: 'Stop every sandbox at 00:00 America/New_York (ADR-0007, ADR-0060)',
         });
 
-        // ⚠️ The construct id is the ORIGINAL one this schedule carried before `ccae565f` removed it.
-        // EventBridge Scheduler names the schedule from the construct path, so reintroducing it under a new
-        // id would leave the old name orphaned in the account if the delete ever failed, and would make the
-        // restore invisible in `cdk diff` as a rename rather than a re-creation.
-        new scheduler.Schedule(this, 'SandboxStartSchedule', {
-            schedule: dailyAt(String(NIGHTLY_START_HOUR)),
-            target: new schedulerTargets.LambdaInvoke(schedulerFn, {
-                input: scheduler.ScheduleTargetInput.fromObject({ action: 'start' }),
-                ...RUN_RETRY,
-            }),
-            description: 'Start the sandbox tier daily at 09:00 America/New_York (ADR-0007, ADR-0028)',
-        });
-
-        // A refused start leaves the sandbox down all day with nothing to say so (Oct 6–7 2026,
-        // `InsufficientDBInstanceCapacity`). The run fails its invocation, and this alarm reports it on the stage's
-        // existing alarm topic, which already carries the alert email and the CloudWatch publish grant.
+        // A refused start or stop, or a rule `sync` could not write, would otherwise leave the sandbox in the wrong
+        // state with nothing to say so (Oct 6–7 2026, `InsufficientDBInstanceCapacity`). The run fails its
+        // invocation, and this alarm reports it on the stage's existing alarm topic, which already carries the alert
+        // email and the CloudWatch publish grant.
         if (props.alarmsEnabled) {
             new cloudwatch.Alarm(this, 'SandboxSchedulerRunFailedAlarm', {
                 alarmDescription:
-                    'A sandbox stop or start failed: a resource did not transition (for example the database start was refused for capacity). See the scheduler log.',
+                    'A sandbox stop, start or rule sync failed: a resource or scheduled rule did not transition (for example the database start was refused for capacity). See the scheduler log.',
                 metric: schedulerFn.metricErrors({ period: Duration.minutes(5), statistic: 'Sum' }),
                 threshold: 1,
                 comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,

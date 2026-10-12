@@ -183,14 +183,10 @@ The only thing that changes is how _often_ that path is exercised. The `pr-{N}` 
 
 ## Residual risks (known, not fixed here)
 
-1. **Per-PR ECS is NOT in the sandbox nightly-shutdown selector.** `isSandboxClusterArn` matches a cluster
-   whose name contains `sandbox`; per-PR clusters are named `kitchensink-{service}-pr-{N}-…`, so a per-PR
-   cluster is not a scheduler subject even though the shared sandbox RDS is stopped 00:00–09:00 ET
-   (ADR-0007). ⚠️ The RISK this once described — a preview standing 24/7 for weeks — is gone:
-   [ADR-0028](0028-on-demand-sandbox.md) starts a preview on a button press, stamps it with an absolute
-   `SandboxExpiresAt`, and has the hourly reconciler DELETE the whole per-PR stack past expiry, which
-   reclaims the tasks outright rather than scaling them to zero. Widening the scheduler's selector would be
-   redundant work on a resource that no longer exists overnight.
+1. **No longer a risk: per-PR ECS is inside the nightly stop.** The scheduler selects a
+   per-PR cluster by its `pr-{N}` `Environment` tag (`isScheduledCluster`), so a preview's services go to zero at
+   midnight with the shared tier, and [ADR-0060](0060-sandbox-starts-only-by-hand.md) starts them again only when
+   Sandbox Up is pressed for that PR.
 
 2. **An unchanged service can be stale relative to a rebased branch.** `paths-filter` reports the PR's _own_
    diff, so if `main` changes food and a recipe-only PR rebases onto it, food is "unchanged" for that PR and

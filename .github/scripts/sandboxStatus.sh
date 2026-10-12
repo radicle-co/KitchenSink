@@ -29,21 +29,21 @@
 # So the precondition set is the allowlist MINUS what the deploy stands up, matched by shape rather than by
 # name, so a second schema stack added to the allowlist tomorrow is excluded without anyone remembering to.
 #
-# ## The three outcomes
+# ## The two outcomes
 #
 #   run   — the tier is up. Deploy this PR's preview, migrate it, then test against it.
-#   skip  — `skip-e2e` is present. An explicit human decision, recorded where a reviewer sees it.
-#   fail  — the tier is down and nobody said that was intended.
+#   skip  — the tier is down (it starts only by hand, via the Sandbox Up workflow), or `skip-e2e` is present, or
+#           the event is not a pull request. A job that needs the sandbox SKIPS; it never fails for that.
+#
+# ⛔ OWNER RULING 2026-10-12 (docs/plans/2026-10-12-001-fix-sandbox-manual-start-plan.md, D2): "A job that needs
+# the sandbox SKIPS when it is down. It never fails for that reason." There used to be a third outcome, `fail`,
+# for a tier that was down with nobody having said so; it turned a stopped sandbox, the normal resting state,
+# into a red check on every PR. It is deleted rather than disabled. The reason a skip prints still says DOWN and
+# names Sandbox Up, so a skip is never mistaken for a pass.
 #
 # ⚠️ `skip-e2e` wins even when the tier IS up. The label says "this change does not need e2e", which is a
 # statement about the change rather than about the environment; honouring it only when the sandbox happens
 # to be down would make its meaning depend on infrastructure state.
-#
-# ⛔ `fail` is the point of the whole file. ADR-0032's ruling — a deployed tier SKIPS when the sandbox is
-# not running, and a PR that ran none is GREEN — described a tier's behaviour, and it left the PR-level
-# question unanswered: the ADR names the gap itself, "a PR merged without ever raising a sandbox has had no
-# end-to-end test of any kind ... and neither is enforced by a check". This is that check. The tiers still
-# skip; what changes is that the PIPELINE refuses to call that a pass unless somebody says so.
 #
 #   sandboxStatus.sh verdict <event> <tierUp:true|false> <skipLabel:true|false>   # pure
 #   sandboxStatus.sh probe   <region> <stage>                             # impure: prints up=true|false
@@ -55,7 +55,7 @@ SANDBOX_STATUS_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # sandbox_status_verdict <event> <tierUp> <skipLabel>
 #
-# Pure. Prints `branch=run|skip|fail` and `reason=<one line>`.
+# Pure. Prints `branch=run|skip` and `reason=<one line>`.
 sandbox_status_verdict() {
     if [ "$#" -lt 3 ]; then
         echo "usage: sandboxStatus.sh verdict <event> <tierUp> <skipLabel>" >&2
@@ -88,19 +88,25 @@ sandbox_status_verdict() {
         return 0
     fi
 
-    printf 'branch=fail\nreason=%s\n' \
-        'the shared sandbox tier is DOWN, so nothing can be deployed or tested. Raise it with the sandbox-up workflow, or apply the skip-e2e label to record that this change does not need deployed testing.'
+    printf 'branch=skip\nreason=%s\n' \
+        'the shared sandbox tier is DOWN, so nothing is deployed or tested here. It starts only by hand: run the Sandbox Up workflow for this PR. This is a skip, not a pass.'
 }
 
 # sandbox_status_probe <region> <stage>
 #
-# Is the shared tier up? Prints `up=true|false` and `reason=`.
+# Is the shared tier up? Prints `up=true|false` and `reason=`, exit 0. Exit 1 when the status check ERRORS: an
+# error is not an answer, and calling it "down" would turn an AWS outage into a silent skip.
+#
+# Two questions, in order: are the shared stacks healthy (CloudFormation), and are the database and NAT under
+# them running (`sandboxWake.sh check`, read-only)? The second is the one the nightly stop changes: it leaves
+# every stack `UPDATE_COMPLETE` while RDS and the NAT are stopped, so the first alone answers "up" for a sandbox
+# that is down (2026-10-12 plan, finding 2).
 #
 # ⚠️ A stack in a FAILED or rolling-back resting state is NOT up. `describe-stacks` answers for those
 # happily, so a bare existence check reads a wedged tier as healthy — which is the shape ADR-0010's gate
 # was written after.
 #
-# @sideEffect Calls CloudFormation.
+# @sideEffect Calls CloudFormation, RDS and EC2 (describe calls only).
 sandbox_status_probe() {
     local region="${1-}" stage="${2-}"
 
@@ -156,7 +162,25 @@ sandbox_status_probe() {
         return 0
     fi
 
-    printf 'up=true\nreason=%s\n' "shared tier stacks are healthy at stage ${stage}"
+    local check_status=0
+    bash "${SANDBOX_STATUS_SCRIPT_DIR}/sandboxWake.sh" check "$region" || check_status=$?
+
+    case "$check_status" in
+        0) ;;
+        3)
+            printf 'up=false\nreason=%s\n' \
+                'the sandbox database or NAT is stopped (or the nightly stop is near) — shared tier stacks exist but nothing runs under them'
+
+            return 0
+            ;;
+        *)
+            printf 'up=error\nreason=%s\n' "the sandbox status check could not answer (exit ${check_status})"
+
+            return 1
+            ;;
+    esac
+
+    printf 'up=true\nreason=%s\n' "shared tier stacks are healthy and the database and NAT are running at stage ${stage}"
 }
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then

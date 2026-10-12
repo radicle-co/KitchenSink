@@ -1,11 +1,12 @@
 /**
- * The band drain's ENTRY POINT and ADR-0007's nightly window (R35).
+ * The band drain's ENTRY POINT: it runs its job whenever it is invoked.
  *
- * ⛔ The drain ticks every fifteen minutes and every tick reads the recipe database. Before the window was
- * honoured here, each tick of the nightly stop failed against a stopped database — 86 of 86 invocations on
- * pr-91 between 04:05 and 11:10 UTC on 2026-10-08 — and nobody saw it, because the NAT instance that carries
- * Sentry traffic is stopped in the same window. `drainRevokedBands` itself is covered by `bandDrain.test.ts`;
- * these cases cover only whether the handler is allowed to reach it.
+ * ⛔ REWRITTEN (owner ruling 2026-10-12). The handler used to return early between 00:00 and 09:00 ET on a
+ * non-prod stage (ADR-0007's window, R35), because each tick of the nightly stop failed against a stopped
+ * database — 86 of 86 invocations on pr-91 on 2026-10-08. The CLOCK is deleted: a scheduled rule exists only
+ * while the sandbox is up for its PR, so the handler never has to guess from the hour whether it is. Whether it
+ * runs is decided by the rule's state, not by the handler. `drainRevokedBands` itself is covered by
+ * `bandDrain.test.ts`; these cases cover only that the handler reaches it at any hour on any stage.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,17 +16,14 @@ vi.mock('../../common/db.js', () => ({ getRecipePool }));
 
 import { handler } from '../bandDrain.js';
 
-/** 01:00 in New York — inside ADR-0007's nightly stop. */
-const ASLEEP = new Date('2026-10-09T05:00:00Z');
-
-/** 11:00 in New York — the stage is awake. */
-const AWAKE = new Date('2026-10-09T15:00:00Z');
+/** 01:00 in New York — an hour the handler used to refuse to run in on a non-prod stage. */
+const SMALL_HOURS = new Date('2026-10-09T05:00:00Z');
 
 beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers({ toFake: ['Date'] });
-    // Deliberately NO region or queue URL: a run that gets past the window fails on them at once, so whether
-    // the handler stopped at the window is observable without wiring a database, SSM or SQS.
+    // Deliberately NO region or queue URL: a run that gets past the entry fails on them at once, so whether the
+    // handler went on to do its job is observable without wiring a database, SSM or SQS.
     delete process.env['AWS_REGION'];
     delete process.env['INGREDIENT_VERIFICATION_QUEUE_URL'];
 });
@@ -35,27 +33,12 @@ afterEach(() => {
     delete process.env['STAGE'];
 });
 
-describe('the band drain handler — the nightly window (R35)', () => {
-    it('does nothing while a non-prod stage is asleep', async () => {
-        vi.setSystemTime(ASLEEP);
-        process.env['STAGE'] = 'pr-91';
+describe('the band drain handler — it runs whenever invoked', () => {
+    it.each(['pr-91', 'sandbox', 'prod'])('⛔ goes on to do its job at 01:00 New York on %s', async (stage) => {
+        vi.setSystemTime(SMALL_HOURS);
+        process.env['STAGE'] = stage;
 
-        await expect(handler()).resolves.toBeUndefined();
-
-        expect(getRecipePool).not.toHaveBeenCalled();
-    });
-
-    it('runs while the stage is awake', async () => {
-        vi.setSystemTime(AWAKE);
-        process.env['STAGE'] = 'pr-91';
-
-        await expect(handler()).rejects.toThrow(/AWS_REGION/);
-    });
-
-    it('runs at night on prod, which never sleeps', async () => {
-        vi.setSystemTime(ASLEEP);
-        process.env['STAGE'] = 'prod';
-
+        // Rejecting on the missing region proves it got past the entry; resolving would mean it stood down.
         await expect(handler()).rejects.toThrow(/AWS_REGION/);
     });
 });

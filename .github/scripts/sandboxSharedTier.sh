@@ -44,10 +44,18 @@
 # failure in the first step ABORTS before the second rather than leaving an ALB whose importer is gone —
 # the same shape as ADR-0005's preview-domain pair, for the same reason.
 #
-#   sandboxSharedTier.sh order            # pure: the delete order, one stack per line
-#   sandboxSharedTier.sh may-delete NAME  # pure: exit 0 = in the allowlist, 1 = refused, 2 = misuse
-#   sandboxSharedTier.sh down [region]    # delete both, in order, idempotently
+#   sandboxSharedTier.sh order                     # pure: the delete order, one stack per line
+#   sandboxSharedTier.sh may-delete NAME           # pure: exit 0 = in the allowlist, 1 = refused, 2 = misuse
+#   sandboxSharedTier.sh live-tokens < names       # pure: the `pr-{N}` tokens that still own a stack
+#   sandboxSharedTier.sh down [region]             # delete the allowlist, in order, idempotently
+#   sandboxSharedTier.sh release-if-idle [region]  # `down`, but only when no preview is left or being started
+#
+# ## When the tier is released (ADR-0060)
+#
+# Sandbox Down runs `release-if-idle` after tearing its PR down, so the LAST preview to go takes the ALB and the
+# identity service with it; the manual reconciler runs the same verb. ONE definition of "idle", for both.
 set -uo pipefail
+
 
 # ⛔ THE ALLOWLIST, in DELETE order (importer before exporter). This is the security boundary of this
 # script. Adding a name here is a decision about destroying shared infrastructure, not a refactor.
@@ -79,6 +87,103 @@ shared_tier_may_delete() {
     done
 
     return 1
+}
+
+# shared_tier_live_tokens
+#
+# Pure. Read stack names on stdin; print each `pr-{N}` that names a `kitchensink-<app>-pr-<N>` stack, once, sorted.
+# Anchored: a name that merely CONTAINS a token (`…-pr-91-old`), the shared tier, production and the other
+# application in this account all yield nothing.
+shared_tier_live_tokens() {
+    sed -nE 's/^kitchensink-[a-z-]+-(pr-[0-9]+)$/\1/p' | sort -u
+}
+
+# shared_tier_busy
+#
+# Print the workflows that are queued or running and could be standing a preview up, and exit 0 if any is, 1 if
+# none. The set starts from every workflow that asks `sandboxWake.sh` whether the tier is up (the preview and
+# identity deploys, and Sandbox Up), and then walks UP through every workflow that calls one of those with `uses:`,
+# transitively. ⛔ The walk is the point: a CALLED workflow's runs belong to its caller, so GitHub lists nothing
+# for `sandboxPreview.yml` while `ci-pr.yml` → `_ci.yml` → `sandboxPreview.yml` is creating a preview. A workflow
+# GitHub cannot be asked about counts as BUSY: "could not tell" must never read as "nothing is running". The
+# calling workflow (`$GITHUB_WORKFLOW_REF`) is not counted against itself.
+#
+# @sideEffect Reads `.github/workflows` and calls the GitHub API.
+shared_tier_busy() {
+    local self='' ref="${GITHUB_WORKFLOW_REF:-}" file base caller state count busy=''
+    local -a queue=()
+    local -A seen=()
+    # `owner/repo/.github/workflows/<file>.yml@refs/heads/<branch>` — the branch can hold `/`, so cut at `@` first.
+    [ -n "$ref" ] && self=$(basename "${ref%%@*}")
+
+    for file in $(grep -l 'sandboxWake\.sh' .github/workflows/*.yml 2>/dev/null) .github/workflows/sandboxUp.yml; do
+        base=$(basename "$file")
+        [ -n "${seen[$base]:-}" ] && continue
+        seen[$base]=1
+        queue+=("$base")
+    done
+
+    while [ "${#queue[@]}" -gt 0 ]; do
+        base="${queue[0]}"
+        queue=("${queue[@]:1}")
+        for caller in $(grep -lE "uses:[[:space:]]*\./\.github/workflows/${base//./\\.}([[:space:]]|$)" .github/workflows/*.yml 2>/dev/null); do
+            caller=$(basename "$caller")
+            [ -n "${seen[$caller]:-}" ] && continue
+            seen[$caller]=1
+            queue+=("$caller")
+        done
+    done
+
+    for file in $(printf '%s\n' "${!seen[@]}" | sort); do
+        [ "$file" = "${self:-<none>}" ] && continue
+        for state in in_progress queued; do
+            if ! count=$(gh run list --workflow "$file" --status "$state" --limit 1 --json databaseId --jq 'length' 2>/dev/null); then
+                busy="${busy} ${file}(unknown)"
+                continue
+            fi
+            [ "${count:-0}" != '0' ] && busy="${busy} ${file}(${state})"
+        done
+    done
+
+    if [ -n "${busy// /}" ]; then
+        echo "busy:${busy}"
+        return 0
+    fi
+
+    return 1
+}
+
+# shared_tier_release_if_idle <region>
+#
+# Release the shared tier only when NO preview is left and nothing is standing one up; otherwise say why it stays.
+# Exit 0 when it released or rightly kept it, 1 when it could not tell or a delete failed.
+#
+# @sideEffect Lists and may delete CloudFormation stacks; calls the GitHub API.
+shared_tier_release_if_idle() {
+    local region="$1" names live why
+
+    # Every status but DELETE_COMPLETE: a stack mid-CREATE is a preview being stood up and a stack mid-DELETE still
+    # holds its import, so both count as "still there". The resting-state list the deploy gates use would read a
+    # preview Sandbox Up is creating right now as absent. (A projection filter, not an index, so pagination is safe.)
+    if ! names=$(aws cloudformation list-stacks --region "$region" \
+        --query "StackSummaries[?StackStatus!='DELETE_COMPLETE'].StackName" --output text); then
+        echo "::error::sandbox-shared-tier: could not list stacks — refusing to conclude no preview is left" >&2
+        return 1
+    fi
+
+    live=$(printf '%s\n' "$names" | tr '\t' '\n' | shared_tier_live_tokens | tr '\n' ' ')
+    if [ -n "${live// /}" ]; then
+        echo "[shared-tier] kept: previews still own stacks — ${live}"
+        return 0
+    fi
+
+    if why=$(shared_tier_busy); then
+        echo "::notice::[shared-tier] kept: something may be standing a preview up (${why}); the next Sandbox Down or a manual reconcile releases it."
+        return 0
+    fi
+
+    echo '[shared-tier] no preview is left and nothing is starting one — releasing the shared tier'
+    shared_tier_down "$region"
 }
 
 # shared_tier_down <region>
@@ -132,9 +237,11 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     case "${1-}" in
         order) shared_tier_order ;;
         may-delete) shared_tier_may_delete "${2-}" ;;
+        live-tokens) shared_tier_live_tokens ;;
         down) shared_tier_down "${2:-${REGION:-us-east-1}}" ;;
+        release-if-idle) shared_tier_release_if_idle "${2:-${REGION:-us-east-1}}" ;;
         *)
-            echo 'usage: sandboxSharedTier.sh {order|may-delete <stack>|down [region]}' >&2
+            echo 'usage: sandboxSharedTier.sh {order|may-delete <stack>|live-tokens|down [region]|release-if-idle [region]}' >&2
             exit 2
             ;;
     esac

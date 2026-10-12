@@ -6,7 +6,7 @@
  * at Clerk looked exactly like one that was fine. The marker and the version pair turned both into readable
  * facts — this is what reads them.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runIdentityQueueCheck, type DeletionQueueDepth, type IdentityOwedCounts } from '../queueCheck.js';
 
@@ -19,17 +19,11 @@ const NOTHING_OWED: IdentityOwedCounts = {
 };
 
 const EMPTY: DeletionQueueDepth = { visible: 0, inFlight: 0, deadLettered: 0 };
-const AWAKE = new Date('2026-07-15T15:00:00Z');
 
-/** 01:00 in New York — inside ADR-0007's nightly stop. */
-const ASLEEP = new Date('2026-07-15T05:00:00Z');
+/** 01:00 in New York — the hours a non-prod stage used to be silent in, before its clock was deleted. */
+const SMALL_HOURS = new Date('2026-07-15T05:00:00Z');
 
-function run(
-    counts: Partial<IdentityOwedCounts>,
-    depth: Partial<DeletionQueueDepth> = {},
-    stage = 'sandbox',
-    now = AWAKE,
-) {
+function run(counts: Partial<IdentityOwedCounts>, depth: Partial<DeletionQueueDepth> = {}, stage = 'sandbox') {
     const escalate = vi.fn();
     const checkIn = vi.fn();
     const readCounts = vi.fn().mockResolvedValue({ ...NOTHING_OWED, ...counts });
@@ -46,7 +40,6 @@ function run(
             depth: readDepth,
             escalate,
             checkIn,
-            now: () => now,
         }),
     };
 }
@@ -113,24 +106,27 @@ describe('the identity queue check', () => {
         expect(escalate).toHaveBeenCalledTimes(2);
     });
 
-    it('⛔ during the nightly window it makes NO call and raises nothing', async () => {
-        const { result, readCounts, readDepth, escalate } = run(
-            { unappliedStatusChanges: 99 },
-            {},
-            'sandbox',
-            new Date('2026-07-15T05:00:00Z'),
-        );
+    /**
+     * ⛔ THE CLOCK IS GONE (owner ruling 2026-10-12: queue checks "should only be enabled when the sandbox is up
+     * for that PR"). The check used to return early between 00:00 and 09:00 ET on a non-prod stage. Now whether it
+     * runs is the schedule rule's state, so an invoked check reads both sources and reports, at any hour on any
+     * stage. Run at 01:00 ET so a clock gate re-added anywhere in the path turns the sandbox and preview cases red.
+     */
+    describe.each(['sandbox', 'pr-91', 'prod'])('at 01:00 New York on %s', (stage) => {
+        afterEach(() => {
+            vi.useRealTimers();
+        });
 
-        expect(await result).toEqual([]);
-        expect(readCounts).not.toHaveBeenCalled();
-        expect(readDepth).not.toHaveBeenCalled();
-        expect(escalate).not.toHaveBeenCalled();
-    });
+        it('⛔ reads both sources and raises what it finds', async () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(SMALL_HOURS);
+            const { result, readCounts, readDepth, escalate } = run({ unappliedStatusChanges: 99 }, {}, stage);
 
-    it('⛔ PROD checks during those same hours', async () => {
-        const { result } = run({ unappliedStatusChanges: 1 }, {}, 'prod', new Date('2026-07-15T05:00:00Z'));
-
-        expect(await result).toHaveLength(1);
+            expect(await result).toHaveLength(1);
+            expect(readCounts).toHaveBeenCalledTimes(1);
+            expect(readDepth).toHaveBeenCalledTimes(1);
+            expect(escalate).toHaveBeenCalledTimes(1);
+        });
     });
 
     /** ⛔ No display name, no email, no identity id — counts and identifiers only. */
@@ -187,20 +183,6 @@ describe('the dead-man check-in', () => {
         expect(checkIn).not.toHaveBeenCalled();
     });
 
-    it('⛔ neither reads nor checks in during the nightly stop', async () => {
-        const { result, readCounts, escalate, checkIn } = run(
-            { unappliedStatusChanges: 9, oldestConvergenceSeconds: 9000, oldestHandleSyncSeconds: 9000 },
-            {},
-            'sandbox',
-            ASLEEP,
-        );
-
-        expect(await result).toEqual([]);
-        expect(readCounts).not.toHaveBeenCalled();
-        expect(escalate).not.toHaveBeenCalled();
-        expect(checkIn).not.toHaveBeenCalled();
-    });
-
     it('⛔ does not check in when a read fails — the rejection IS the signal', async () => {
         const checkIn = vi.fn();
 
@@ -211,7 +193,6 @@ describe('the dead-man check-in', () => {
                 depth: vi.fn().mockResolvedValue(EMPTY),
                 escalate: vi.fn(),
                 checkIn,
-                now: () => AWAKE,
             }),
         ).rejects.toThrow('database unreachable');
 

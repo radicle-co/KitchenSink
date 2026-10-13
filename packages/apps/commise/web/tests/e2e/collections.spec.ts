@@ -222,11 +222,11 @@ test.describe('collections (T109)', () => {
      * the real HTTP half, and a reset that re-rendered the same rejected query would leave the error on screen.
      *
      * ⚠️ These three carry a long `LOAD_ERROR_TIMEOUT`, unlike the not-found test above, and the wait is real: a
-     * `503` is exactly what the shared retry policy DOES retry (three times, TanStack's default backoff, about
-     * 7 s) before the boundary sees it.
+     * `503` is exactly what the shared retry policy DOES retry (twice, with full-jitter backoff, at most about
+     * 3 s) before the boundary sees it.
      */
     test.describe('recovering from a failed read', () => {
-        /** TanStack's default backoff over `MAX_QUERY_RETRIES` (1 s + 2 s + 4 s), plus headroom for CI. */
+        /** The jittered backoff over `MAX_QUERY_RETRIES` (at most 1 s + 2 s), plus headroom for CI. */
         const LOAD_ERROR_TIMEOUT = 15_000;
         const COLLECTION_READ = /\/api\/v1\/collections\/col_dinners$/;
 

@@ -213,6 +213,8 @@ test.describe('recipe-detail owner actions', () => {
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
         await expect(page.getByRole('button', { name: RECIPE_TITLE })).toHaveCount(0);
+        // Owner 2026-10-13: the screen the cook lands on says so.
+        await expect(page.getByRole('status').filter({ hasText: 'Recipe deleted' })).toBeVisible();
     });
 
     test('a NON-owner sees no owner actions at all', async ({ page }) => {

@@ -2633,8 +2633,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: Visibility defaults to `private` (FR-010). `ownerId` is not an accepted field — ownership comes from the
-        verified token, and the body is strict, so an `ownerId` is rejected with a 400 rather than stripped.
+      description: 'Visibility defaults to `private` for a premium cook (FR-010) and to `public` for a free-tier cook, who may
+        not hold a private collection: asking for `private` answers `400 INVALID_VISIBILITY` with
+        `details.requiredEntitlement: "premium"`. `ownerId` is not an accepted field — ownership comes from the verified
+        token, and the body is strict, so an `ownerId` is rejected with a 400 rather than stripped.'
       requestBody:
         description: The collection to create.
         required: true

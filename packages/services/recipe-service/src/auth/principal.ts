@@ -66,3 +66,34 @@ export interface AuthenticatedRequest extends Request {
     /** Present only after the middleware has verified the token (or applied the dev bypass). */
     principal?: Principal;
 }
+
+/**
+ * The permission string that marks a principal as premium-tier. There is deliberately NO tier field on the
+ * {@link Principal}, so premium is derived from the signed session token's `permissions` claim. This and
+ * {@link isPremiumPrincipal} are the ONE tier source every policy reads, so a later paid-feature gate or role set is
+ * added here and nowhere else.
+ */
+export const PREMIUM_PERMISSION = 'premium';
+
+/**
+ * Whether a principal holds the premium entitlement. Pure.
+ *
+ * @param principal - The verified principal.
+ * @returns `true` when its signed `permissions` include {@link PREMIUM_PERMISSION}.
+ */
+export function isPremiumPrincipal(principal: Pick<Principal, 'permissions'>): boolean {
+    return principal.permissions.includes(PREMIUM_PERMISSION);
+}
+
+/** An {@link ActingPrincipal} plus its tier, for the writes whose rule depends on it (a private collection). */
+export type TieredActingPrincipal = ActingPrincipal & { readonly isPremium: boolean };
+
+/**
+ * Narrow a verified principal to the slice a tier-dependent write needs. Pure.
+ *
+ * @param principal - The verified principal.
+ * @returns Its acting slice plus whether it is premium.
+ */
+export function tieredActingPrincipalOf(principal: Principal): TieredActingPrincipal {
+    return { ...actingPrincipalOf(principal), isPremium: isPremiumPrincipal(principal) };
+}

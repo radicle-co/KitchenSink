@@ -38,7 +38,7 @@ import { ScrollHost, useScrollHost, type ScrollBind } from '@commise/ui/scroll-h
 import { SectionIndex } from '@commise/ui/section-index';
 import { useTheme } from '@commise/ui/theme';
 import { useState, type FC } from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { RecipeConflictView } from '../versions/RecipeConflictView.js';
 import { EditorActionBar } from './EditorActionBar.js';
@@ -159,18 +159,8 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
             items={entries.items}
             currentId={page.current}
             barName={entries.barName}
-            {...(entries.barSuffix === undefined ? {} : { barSuffix: entries.barSuffix })}
             {...(entries.barCount === undefined ? {} : { barCount: entries.barCount })}
-            railFooter={
-                railFooter === undefined && entries.doneText === undefined ? undefined : (
-                    <View style={styles.railFooter}>
-                        {railFooter}
-                        {entries.doneText === undefined ? null : (
-                            <Text style={[styles.caption, { color: colors.inkMuted }]}>{entries.doneText}</Text>
-                        )}
-                    </View>
-                )
-            }
+            railFooter={railFooter}
             onJump={(id) => {
                 if (isEditorSectionId(id)) {
                     setJumps((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
@@ -291,6 +281,4 @@ const styles = StyleSheet.create({
         paddingTop: nativeTokens.spacing[4],
         paddingBottom: nativeTokens.spacing[7],
     },
-    railFooter: { gap: nativeTokens.spacing[1] },
-    caption: { ...nativeTokens.type.caption },
 });

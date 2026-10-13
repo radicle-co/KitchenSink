@@ -30,7 +30,7 @@ import {
     sortVersionsDescending,
 } from './history.js';
 import { recipeVersionMessages } from './messages.js';
-import { formatRelativeTimeAgo } from './timeFormat.js';
+import { formatRelativeTimeAgo, formatVersionTimestamp } from './timeFormat.js';
 
 /** The web version history. */
 export const RecipeVersionList: FC<RecipeVersionListProps> = ({
@@ -126,7 +126,10 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                             <li key={version.id} className="flex items-start gap-3 py-3">
                                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                                     <span data-row-title className="text-body font-semibold text-ink">
-                                        {fillTemplate(versionList.rowTitle, {
+                                        {formatVersionTimestamp(version.createdAt, locale)}
+                                    </span>
+                                    <span data-row-detail className="text-caption text-ink-muted">
+                                        {fillTemplate(versionList.rowDetail, {
                                             version: version.versionNumber,
                                             time: formatRelativeTimeAgo(version.createdAt, new Date(now), locale),
                                         })}

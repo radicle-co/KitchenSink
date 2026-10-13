@@ -15,13 +15,13 @@ import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
 import type { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
 import type { AnalyticsService } from '../../analytics/analytics.service.js';
-import { makeActingPrincipal } from '../../auth/__fixtures__/actingPrincipal.fixtures.js';
+import { makeCollectionsActor } from '../../auth/__fixtures__/actingPrincipal.fixtures.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
 
 const TEST_PRINCIPAL = '01JZCONTAINEDTESTPRINCIPAL';
 const REAL_USER = '01JZREALUSERWHOOWNSTHINGS0';
-const CONTAINED = makeActingPrincipal(TEST_PRINCIPAL, { principalKind: 'test', containment: 'enforce' });
-const UNCONTAINED = makeActingPrincipal(TEST_PRINCIPAL, { principalKind: 'test', containment: 'off' });
+const CONTAINED = makeCollectionsActor(TEST_PRINCIPAL, { principalKind: 'test', containment: 'enforce' });
+const UNCONTAINED = makeCollectionsActor(TEST_PRINCIPAL, { principalKind: 'test', containment: 'off' });
 
 type DalMock = { [K in keyof CollectionsDal]: ReturnType<typeof vi.fn> };
 

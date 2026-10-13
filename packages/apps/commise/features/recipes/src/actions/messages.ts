@@ -105,6 +105,8 @@ export interface RecipeDetailActionMessages {
     /** Resets the cook's checks and current step; offered only while one is set. */
     readonly clearChecks: string;
     readonly deleteRecipe: string;
+    /** The snackbar on the screen the cook lands on after a delete (owner 2026-10-13). */
+    readonly recipeDeleted: string;
     /** The back link above the meta line. */
     readonly backToRecipes: string;
 }
@@ -147,6 +149,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             makePublic: 'Make public',
             clearChecks: 'Clear checks',
             deleteRecipe: 'Delete recipe',
+            recipeDeleted: 'Recipe deleted',
             backToRecipes: 'My recipes',
         },
         upsell: {

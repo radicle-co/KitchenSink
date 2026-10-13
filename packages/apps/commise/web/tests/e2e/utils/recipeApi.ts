@@ -1564,6 +1564,8 @@ export async function mockRecipeApi(
                 ownerId: viewerId,
                 title: `${source?.title ?? 'Recipe'} (copy)`,
                 visibility: 'private',
+                // Owner 2026-10-13: Save a copy creates a DRAFT, as the service does.
+                status: 'draft',
                 clonedFromId: clone[1] as string,
                 sourceAttribution: source?.title,
                 ...(source === undefined ? {} : { ingredients: source.ingredients }),
@@ -1867,9 +1869,9 @@ export async function mockRecipeApi(
                     : source.description !== undefined
                       ? { description: source.description }
                       : {}),
-                // A clone always starts PRIVATE regardless of the source's visibility — publishing is the
-                // cloner's own, separate decision (FR-010).
-                visibility: 'private',
+                // A clone takes the cloner's tier default regardless of the source's visibility: private for a premium
+                // cook (publishing is their own, separate decision, FR-010), public for a free-tier one (owner 2026-10-13).
+                visibility: tier === 'free' ? 'public' : 'private',
                 recipeIds: [...source.recipeIds],
                 memberAddedVia: seededAddedVia,
                 sourceCollectionId: sourceId,
@@ -2055,9 +2057,14 @@ export async function mockRecipeApi(
                     ownerId: viewerId,
                     name: typeof input['name'] === 'string' ? input['name'] : 'New Collection',
                     ...(typeof input['description'] === 'string' ? { description: input['description'] } : {}),
-                    // The contract defaults an unspecified collection visibility to `private` (FR-010).
+                    // The contract defaults an unspecified collection visibility by tier (owner 2026-10-13): `private`
+                    // for a premium cook (FR-010), `public` for a free-tier one.
                     visibility:
-                        typeof input['visibility'] === 'string' ? (input['visibility'] as RecipeVisibility) : 'private',
+                        typeof input['visibility'] === 'string'
+                            ? (input['visibility'] as RecipeVisibility)
+                            : tier === 'free'
+                              ? 'public'
+                              : 'private',
                 });
                 collections.set(created.id, created);
 

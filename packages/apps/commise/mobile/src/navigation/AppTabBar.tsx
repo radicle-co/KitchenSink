@@ -7,6 +7,9 @@
  * tap on the active tab its meaning — the tab's stack pops to its root, and at the root `useScrollToTop` scrolls the
  * screen (`TabRootScreen`). Re-implementing either here would fork the library's behaviour.
  *
+ * Compact height (owner 2026-10-13): in a window under 480 dp tall it draws the compact bar, and while a keyboard is open
+ * there it draws none (`isFrameCollapsed`), so a phone held sideways keeps room for the field the cook is typing in.
+ *
  * ORCHESTRATION: it drives the navigator (emit, navigate); the bar it draws is presentational.
  *
  * @pattern Adapter from `BottomTabBarProps` to the presentational `HomeTabBar`
@@ -14,6 +17,7 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import type { HomeNavItemId } from '@commise/features-core';
 import { useMessages } from '@commise/i18n/react';
+import { useCompactHeight, useFrameCollapsed } from '@commise/ui/layout';
 import type { JSX } from 'react';
 
 import { HomeTabBar } from '../components/home/chrome/HomeTabBar.js';
@@ -25,12 +29,18 @@ import { isTabRoute } from './routes.js';
  * @param props - The tab navigator's state, descriptors, navigation and safe-area insets.
  * @returns The app's tab bar.
  */
-export function AppTabBar({ state, navigation, insets }: BottomTabBarProps): JSX.Element {
+export function AppTabBar({ state, navigation, insets }: BottomTabBarProps): JSX.Element | null {
     const { home } = useMessages(mobileMessages);
+    const compact = useCompactHeight();
+    const collapsed = useFrameCollapsed();
     const active = state.routes[state.index];
     const activeName = active?.name;
 
     const routeOf = (id: HomeNavItemId) => state.routes.find((route) => route.name === id);
+
+    if (collapsed) {
+        return null;
+    }
 
     return (
         <HomeTabBar
@@ -38,6 +48,9 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps): JSX
             liveCapabilities={LIVE_CAPABILITIES}
             activeId={activeName !== undefined && isTabRoute(activeName) ? activeName : 'home'}
             bottomInset={insets.bottom}
+            compact={compact}
+            leftInset={insets.left}
+            rightInset={insets.right}
             onPress={(id) => {
                 const route = routeOf(id);
 

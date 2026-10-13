@@ -19,6 +19,7 @@ import {
     type RecipeVisibility,
 } from '@kitchensink/recipe-core';
 
+import { privateNeedsPremium } from '../actions/privateGate.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import type { DraftAction, ResolvedRecipeFormIngredient } from './draftAction.js';
 import {
@@ -94,7 +95,7 @@ export const visibilityChoice = (
         return undefined;
     }
 
-    return chosen === 'private' && !canGoPrivate ? 'premiumRequired' : { visibility: chosen };
+    return privateNeedsPremium(chosen, canGoPrivate) ? 'premiumRequired' : { visibility: chosen };
 };
 
 /**

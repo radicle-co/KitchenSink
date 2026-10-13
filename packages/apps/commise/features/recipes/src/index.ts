@@ -206,6 +206,8 @@ export type { RecipeFormIngredient, RecipeFormPhoto, RecipeFormStep, RecipeFormV
 export { RecipeDeleteDialog } from './actions/RecipeDeleteDialog.js';
 export { RecipeUpsellSheet } from './actions/RecipeUpsellSheet.js';
 export { usePrivateChoice } from './actions/usePrivateChoice.js';
+export { useGatedPrivate } from './actions/useGatedPrivate.js';
+export { privateNeedsPremium } from './actions/privateGate.js';
 export type { PrivateChoiceProfile } from './actions/usePrivateChoice.js';
 export { recipeActionMessages } from './actions/messages.js';
 export type {

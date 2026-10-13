@@ -37,7 +37,12 @@ import {
 } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
 
-import { actingPrincipalOf, type AuthenticatedRequest, type Principal } from '../auth/principal.js';
+import {
+    actingPrincipalOf,
+    tieredActingPrincipalOf,
+    type AuthenticatedRequest,
+    type Principal,
+} from '../auth/principal.js';
 import { CollectionsService } from './collections.service.js';
 import { AddRecipeToCollectionDto } from './dto/addRecipeToCollection.dto.js';
 import { CloneCollectionDto } from './dto/cloneCollection.dto.js';
@@ -73,7 +78,7 @@ export class CollectionsController {
     ): Promise<CollectionResponse> {
         const owner = this.requirePrincipal(req);
 
-        return this.collections.createCollection(actingPrincipalOf(owner), body);
+        return this.collections.createCollection(tieredActingPrincipalOf(owner), body);
     }
 
     /** List the caller's own collections (paginated). */
@@ -108,7 +113,7 @@ export class CollectionsController {
     ): Promise<CollectionResponse> {
         const owner = this.requirePrincipal(req);
 
-        return this.collections.updateCollection(actingPrincipalOf(owner), id, body);
+        return this.collections.updateCollection(tieredActingPrincipalOf(owner), id, body);
     }
 
     /** Delete an owned collection (no-cascade w.r.t. its recipes). */
@@ -151,7 +156,7 @@ export class CollectionsController {
     ): Promise<CollectionResponse> {
         const owner = this.requirePrincipal(req);
 
-        return this.collections.cloneCollection(actingPrincipalOf(owner), id, body);
+        return this.collections.cloneCollection(tieredActingPrincipalOf(owner), id, body);
     }
 
     /**

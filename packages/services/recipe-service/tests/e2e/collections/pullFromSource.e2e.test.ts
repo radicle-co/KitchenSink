@@ -27,7 +27,7 @@ import { CollectionsService } from '../../../src/collections/collections.service
 import { AnalyticsService } from '../../../src/analytics/analytics.service.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { recipeDb } from '../../support/roleDb.js';
-import { makeActingPrincipal } from '../../../src/auth/__fixtures__/actingPrincipal.fixtures.js';
+import { makeCollectionsActor } from '../../../src/auth/__fixtures__/actingPrincipal.fixtures.js';
 
 const roleDb = recipeDb();
 
@@ -305,7 +305,7 @@ describe('CollectionsService.pullFromSource atomicity (S-R1 unit-of-work)', () =
     });
 
     it('rolls back the newly-pulled memberships and leaves lastPulledAt untouched when the commit fails mid-transaction', async () => {
-        const clone = await service.cloneCollection(makeActingPrincipal(ATOMIC_CLONER), sourceId);
+        const clone = await service.cloneCollection(makeCollectionsActor(ATOMIC_CLONER), sourceId);
         expect(clone.lastPulledAt).toBeUndefined();
 
         // The source gains a recipe AFTER the clone, so the pull has something new to seed.
@@ -333,7 +333,7 @@ describe('CollectionsService.pullFromSource atomicity (S-R1 unit-of-work)', () =
     });
 
     it('a pull that succeeds normally still seeds every added recipe AND stamps lastPulledAt (bulk path is not lossy)', async () => {
-        const clone = await service.cloneCollection(makeActingPrincipal(ATOMIC_CLONER), sourceId);
+        const clone = await service.cloneCollection(makeCollectionsActor(ATOMIC_CLONER), sourceId);
         const addedLater = await insertRecipe('Second Successful Add');
         await db.insert(recipeCollections).values({ collectionId: sourceId, recipeId: addedLater, addedVia: 'manual' });
 

@@ -17,9 +17,23 @@ afterEach(cleanup);
 
 const chrome = mobileMessages.en.home.chrome;
 
-const renderBar = (activeId: HomeNavItemId = 'home', onPress = vi.fn(), live = [RECIPE_HOME_WIDGET_CAPABILITY]) =>
+const renderBar = (
+    activeId: HomeNavItemId = 'home',
+    onPress = vi.fn(),
+    live = [RECIPE_HOME_WIDGET_CAPABILITY],
+    over: { compact?: boolean; leftInset?: number; rightInset?: number } = {},
+) =>
     render(
-        <HomeTabBar chrome={chrome} liveCapabilities={live} activeId={activeId} onPress={onPress} bottomInset={34} />,
+        <HomeTabBar
+            chrome={chrome}
+            liveCapabilities={live}
+            activeId={activeId}
+            onPress={onPress}
+            bottomInset={34}
+            compact={over.compact ?? false}
+            leftInset={over.leftInset ?? 0}
+            rightInset={over.rightInset ?? 0}
+        />,
     );
 
 /** `#RRGGBB` as the `rgb(r, g, b)` jsdom reports. */
@@ -72,5 +86,53 @@ describe('HomeTabBar (native)', () => {
 
         expect(getComputedStyle(screen.getByRole('tablist')).paddingBottom).toBe('34px');
         expect(getComputedStyle(screen.getByRole('tab', { name: 'Home' })).minHeight).toBe('64px');
+    });
+});
+
+/**
+ * Owner 2026-10-13: a phone held sideways (the window under 480 dp tall) gets a compact bar — the label beside the glyph,
+ * 48 dp tall (44 pt on iOS) — that clears a side cutout or the 3-button navigation bar. The labels stay the accessible
+ * names, so nothing a screen reader hears changes.
+ */
+describe('HomeTabBar (native) — compact height', () => {
+    it('puts the label beside the glyph and drops the bar to 48 dp', () => {
+        renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { compact: true });
+
+        const tab = screen.getByRole('tab', { name: 'Home' });
+
+        expect(getComputedStyle(tab).flexDirection).toBe('row');
+        expect(getComputedStyle(tab).minHeight).toBe('48px');
+    });
+
+    it('keeps every label as its tab’s accessible name', () => {
+        renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { compact: true });
+
+        expect(screen.getAllByRole('tab').map((tab) => tab.getAttribute('aria-label'))).toEqual([
+            'Home',
+            'Recipes',
+            'Discover',
+        ]);
+    });
+
+    it('stacks the label under the glyph at 64 dp when the window is not compact', () => {
+        renderBar();
+
+        expect(getComputedStyle(screen.getByRole('tab', { name: 'Home' })).flexDirection).toBe('column');
+    });
+
+    it('pads each side by its inset so a cutout or a 3-button bar never covers a tab (an uneven pair too)', () => {
+        renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { compact: true, leftInset: 48, rightInset: 0 });
+
+        const style = getComputedStyle(screen.getByRole('tablist'));
+
+        // The bar's own 4 dp side padding, plus the inset.
+        expect(style.paddingLeft).toBe('52px');
+        expect(style.paddingRight).toBe('4px');
+    });
+
+    it('pads the insets when it is not compact either: an upright tablet can have a side inset', () => {
+        renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { leftInset: 0, rightInset: 20 });
+
+        expect(getComputedStyle(screen.getByRole('tablist')).paddingRight).toBe('24px');
     });
 });

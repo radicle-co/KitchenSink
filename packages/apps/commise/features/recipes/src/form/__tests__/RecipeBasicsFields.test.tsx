@@ -260,16 +260,37 @@ describe('RecipeBasicsFields (web) — description', () => {
         expect(descriptionBox().getAttribute('aria-invalid')).toBeNull();
     });
 
-    // Publish does not refuse a long description, so the field is not marked invalid: the counter says it all.
-    it('past its cap the counter turns danger, the field is NOT marked invalid, and nothing is cut', () => {
+    // Owner 2026-10-13: a description past 256 blocks Publish (a draft still saves), so past the cap the field says so,
+    // and nothing is cut.
+    it('past its cap the counter turns danger, the field is marked invalid with the limit stated, and nothing is cut', () => {
         renderLive({ initial: filled({ description: 'a'.repeat(DESCRIPTION_MAX_LENGTH + 1) }) });
 
         const counter = screen.getByText(`${String(DESCRIPTION_MAX_LENGTH + 1)}/${String(DESCRIPTION_MAX_LENGTH)}`);
+        const message = screen.getByText(e.details.descriptionLimit);
 
         expect(counter.className).toContain('text-danger-text');
-        expect(descriptionBox().getAttribute('aria-invalid')).toBeNull();
-        expect(descriptionBox().getAttribute('aria-describedby')?.split(' ')).toContain(counter.id);
+        expect(descriptionBox().getAttribute('aria-invalid')).toBe('true');
+        expect(descriptionBox().getAttribute('aria-describedby')?.split(' ')).toEqual(
+            expect.arrayContaining([counter.id, message.id]),
+        );
         expect(descriptionBox().value).toHaveLength(DESCRIPTION_MAX_LENGTH + 1);
+    });
+
+    it('at exactly its cap there is no error', () => {
+        renderLive({ initial: filled({ description: 'a'.repeat(DESCRIPTION_MAX_LENGTH) }) });
+
+        expect(descriptionBox().getAttribute('aria-invalid')).toBeNull();
+        expect(screen.queryByText(e.details.descriptionLimit)).toBeNull();
+    });
+
+    it('a refused publish for a long description says the limit ONCE, as an alert', () => {
+        renderLive({
+            initial: filled({ description: 'a'.repeat(DESCRIPTION_MAX_LENGTH + 5) }),
+            errors: { description: 'descriptionTooLong' },
+        });
+
+        expect(screen.getAllByText(m.errors.descriptionTooLong)).toHaveLength(1);
+        expect(spokenAlert().textContent).toBe(m.errors.descriptionTooLong);
     });
 });
 

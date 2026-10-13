@@ -22,8 +22,10 @@ import { NotFoundError as ProfileNotFoundError } from '@commise/features-account
 import { describe, expect, it } from 'vitest';
 
 import {
+    MAX_MUTATION_RETRIES,
     MAX_MUTATION_RETRY_WAIT_SECONDS,
     MAX_QUERY_RETRIES,
+    queryRetryDelayMs,
     retryAfterDelayMs,
     shouldRetryMutation,
     shouldRetryQuery,
@@ -69,14 +71,13 @@ describe('shouldRetryQuery — transient failures keep retrying, up to the cap',
         expect(shouldRetryQuery(MAX_QUERY_RETRIES + 1, error)).toBe(false);
     });
 
-    it('grants exactly TanStack’s own default number of retries, so only WHICH failures retry changed', () => {
-        // ⛔ A regression guard on the OTHER axis. The bug being fixed is that a 4xx retried at all; if
-        // this change also quietly moved the count, a later "why did retries get shorter?" would land on the
-        // wrong commit. It also matters to the 401 carve-out, whose whole value is outlasting Clerk hydration.
+    it('grants exactly TWO retries to a read (owner 2026-10-13, D13 amended), three attempts in all', () => {
+        // The count is a decision: a read that fails three times is not going to recover by waiting longer, and the
+        // cook sees the error sooner. Writes keep their own cap (MAX_MUTATION_RETRIES), asserted below.
         const granted = [0, 1, 2, 3, 4, 5].filter((n) => shouldRetryQuery(n, new UnexpectedResponseError(500)));
 
-        expect(granted).toEqual([0, 1, 2]);
-        expect(MAX_QUERY_RETRIES).toBe(3);
+        expect(granted).toEqual([0, 1]);
+        expect(MAX_QUERY_RETRIES).toBe(2);
     });
 });
 
@@ -174,9 +175,13 @@ describe('shouldRetryMutation — a write is retried ONLY when the server did no
     });
 
     it('stops at the cap instead of retrying a throttle forever', () => {
-        expect(shouldRetryMutation(MAX_QUERY_RETRIES, new UnexpectedResponseError(429, 'Too Many Requests'))).toBe(
+        expect(MAX_MUTATION_RETRIES).toBe(3);
+        expect(shouldRetryMutation(MAX_MUTATION_RETRIES, new UnexpectedResponseError(429, 'Too Many Requests'))).toBe(
             false,
         );
+        expect(
+            shouldRetryMutation(MAX_MUTATION_RETRIES - 1, new UnexpectedResponseError(429, 'Too Many Requests')),
+        ).toBe(true);
     });
 });
 
@@ -195,5 +200,33 @@ describe('retryAfterDelayMs — the wait before a refused write is sent again', 
 
     it('backs off when the stated wait is zero, rather than sending again at once', () => {
         expect(retryAfterDelayMs(0, new SourceBusyError(0))).toBe(1_000);
+    });
+});
+
+describe('queryRetryDelayMs — full jitter between retries of a read (owner 2026-10-13)', () => {
+    const transient = new UnexpectedResponseError(503, 'Service Unavailable');
+
+    it('draws the wait uniformly from zero up to the exponential ceiling (1 s, 2 s, 4 s, ...)', () => {
+        expect([0, 1, 2].map((failures) => queryRetryDelayMs(failures, transient, () => 1))).toEqual([
+            1_000, 2_000, 4_000,
+        ]);
+        expect([0, 1, 2].map((failures) => queryRetryDelayMs(failures, transient, () => 0))).toEqual([0, 0, 0]);
+        expect(queryRetryDelayMs(1, transient, () => 0.5)).toBe(1_000);
+    });
+
+    it('caps the ceiling at 30 seconds', () => {
+        expect(queryRetryDelayMs(20, transient, () => 1)).toBe(30_000);
+    });
+
+    it('never exceeds the ceiling and is not constant, with the real random source', () => {
+        const waits = Array.from({ length: 200 }, () => queryRetryDelayMs(2, transient));
+
+        expect(Math.max(...waits)).toBeLessThanOrEqual(4_000);
+        expect(Math.min(...waits)).toBeGreaterThanOrEqual(0);
+        expect(new Set(waits).size).toBeGreaterThan(50);
+    });
+
+    it('honours a stated Retry-After exactly, with no jitter: the server named the moment the window opens', () => {
+        expect(queryRetryDelayMs(0, new SourceBusyError(7), () => 0.1)).toBe(7_000);
     });
 });

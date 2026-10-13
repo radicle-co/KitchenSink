@@ -25,6 +25,7 @@ export type EditorSectionId = (typeof EDITOR_SECTIONS)[number];
 /** Which section each validation field belongs to. */
 const FIELD_SECTION: Readonly<Record<keyof RecipeFormErrors, EditorSectionId>> = {
     title: 'details',
+    description: 'details',
     servings: 'details',
     times: 'details',
     ingredients: 'ingredients',

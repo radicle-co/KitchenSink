@@ -26,22 +26,15 @@
  * write that may have committed, without an idempotency key, is a worse failure than the one this policy fixes. A
  * mutation whose every send spends a shared source quota (the live ingredient search) sets `retry: false` itself.
  *
- * ⚠️ NO JITTER YET, and that is a deferral rather than a decision.
- * `docs/engineering/ENGINEERING_EXCELLENCE.md` asks for "exponential backoff with full jitter", and
- * TanStack's default `retryDelay` (`min(1000 * 2**n, 30000)`) has none — so on a deploy, a restart or a 5xx
- * incident every mounted client retries in lockstep at +1s/+2s/+4s. That herd is real here rather than
- * theoretical: non-prod runs ONE Fargate task per service (ADR-0008's Spot, ADR-0010's single per-PR API
- * task), so the recovering task takes the whole burst. It is deferred because it changes timing for every
- * query in both apps and is not the defect being fixed — a separable change with its own measurement. This
- * note IS the tracking: the specs that used to carry this defect pointed at a task that never owned it, and
- * an untracked deferral is how that happens.
+ * READS RETRY TWICE WITH FULL JITTER (owner, 2026-10-13): `queryRetryDelayMs` draws each wait from `0 .. 2**n` seconds, so a
+ * deploy or a 5xx incident does not bring every mounted client back in lockstep at +1 s / +2 s.
  *
  * @pattern Factory — hides a construction DECISION (the shared defaults + the retry policy) rather than
  *     wrapping `new`; a caller mounts a configured cache without learning what configures it.
  */
 import { QueryClient, isServer } from '@tanstack/react-query';
 
-import { retryAfterDelayMs, shouldRetryMutation, shouldRetryQuery } from './retryPolicy.js';
+import { queryRetryDelayMs, retryAfterDelayMs, shouldRetryMutation, shouldRetryQuery } from './retryPolicy.js';
 
 /** Where the client renders: the Next server pass, or a browser / React Native runtime. */
 export type QueryClientEnvironment = 'server' | 'browser';
@@ -61,6 +54,7 @@ export function createAppQueryClient(
         defaultOptions: {
             queries: {
                 retry: environment === 'server' ? 0 : shouldRetryQuery,
+                retryDelay: queryRetryDelayMs,
                 // ⛔ `offlineFirst` BUYS EXACTLY ONE THING: THE FIRST ATTEMPT FIRES. It does NOT make an
                 // offline read reach an error state, and an earlier version of this comment claimed it did.
                 // Measured against the pinned `query-core`, offline, through a real observer:

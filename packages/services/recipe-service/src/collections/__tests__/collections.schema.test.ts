@@ -41,7 +41,7 @@ import {
     pullFromSourceResponseSchema,
     updateCollectionRequestSchema,
 } from '../collections.schema.js';
-import { makeActingPrincipal } from '../../auth/__fixtures__/actingPrincipal.fixtures.js';
+import { makeCollectionsActor } from '../../auth/__fixtures__/actingPrincipal.fixtures.js';
 
 const OWNER = 'owner-1';
 const COLLECTION_ID = '00000000-0000-4000-8000-0000000000c1';
@@ -105,7 +105,7 @@ describe('the published collection body is TRUE of what CollectionsService emits
         const dal = makeDal();
         dal.createIfUnderCap.mockResolvedValue(makeCollectionRow());
 
-        const result = await makeService(dal).createCollection(makeActingPrincipal(OWNER), {
+        const result = await makeService(dal).createCollection(makeCollectionsActor(OWNER), {
             name: 'Weeknight Dinners',
         });
 
@@ -116,7 +116,7 @@ describe('the published collection body is TRUE of what CollectionsService emits
         const dal = makeDal();
         dal.createIfUnderCap.mockResolvedValue(makeFullRow());
 
-        const result = await makeService(dal).createCollection(makeActingPrincipal(OWNER), {
+        const result = await makeService(dal).createCollection(makeCollectionsActor(OWNER), {
             name: 'Weeknight Dinners',
         });
 
@@ -221,7 +221,7 @@ describe('the published collection body is TRUE of what CollectionsService emits
         dal.findActiveRecipe.mockResolvedValue(makeRecipeRow());
         dal.addRecipe.mockResolvedValue({ row: makeMembershipRow(), created: true });
 
-        const result = await makeService(dal).addRecipe(makeActingPrincipal(OWNER), COLLECTION_ID, RECIPE_ID);
+        const result = await makeService(dal).addRecipe(makeCollectionsActor(OWNER), COLLECTION_ID, RECIPE_ID);
 
         expect(collectionRecipeMembershipResponseSchema.parse(result)).toEqual(result);
     });
@@ -239,7 +239,7 @@ describe('the published collection body is TRUE of what CollectionsService emits
             }),
         );
 
-        const result = await makeService(dal).cloneCollection(makeActingPrincipal(OWNER), COLLECTION_ID);
+        const result = await makeService(dal).cloneCollection(makeCollectionsActor(OWNER), COLLECTION_ID);
 
         expect(collectionResponseSchema.parse(result)).toEqual(result);
     });

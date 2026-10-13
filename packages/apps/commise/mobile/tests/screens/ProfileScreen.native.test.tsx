@@ -179,17 +179,15 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         expect(onBack).toHaveBeenCalledTimes(1);
     });
 
-    // A-025: the Email row is back (buildSpec §9.1 draws it, and web has it). The header's email line is the identity
-    // block's own; the row is the read-only fact in the Account group.
-    it('shows the display-name row and a read-only Email row in the Account group, the address also in the header', () => {
+    // Owner 2026-10-13: the Email row stays OUT (a3e787f52, evaluateFinal.md). The header is the identity block and
+    // carries the address; a read-only Email row repeats it.
+    it('shows the email once, in the header, and the display-name row in the Account group', () => {
         renderProfile();
 
         const account = screen.getByRole('button', { name: t.displayName });
         expect(account.textContent).toContain('Eliza Moreno');
-        expect(screen.getByText(t.email)).toBeTruthy();
-        expect(screen.getAllByText('eliza@example.com')).toHaveLength(2);
-        // Read-only: the Email row is not a control.
-        expect(screen.queryByRole('button', { name: t.email })).toBeNull();
+        expect(screen.getAllByText('eliza@example.com')).toHaveLength(1);
+        expect(screen.queryByText(t.email)).toBeNull();
     });
 
     it('draws ONE avatar: the photo control stands in the header, with no “Profile photo” card or initials disc', () => {

@@ -213,9 +213,9 @@ recipes:shell/tabBar
 recipes:recipes/landscape
 recipes:recipes/servingScale
 recipes:recipes/detailCooking
+recipes:recipes/detailBack
 recipes:recipes/deferredCalories
 recipes:recipes/emptyLibrary
-recipes:recipes/editorGuided
 recipes:recipes/searchNavigation
 recipes:recipes/edit
 recipes:recipes/versions
@@ -237,6 +237,7 @@ collections:recipes/newCollectionSheet
 recipes:recipes/createEntry
 recipes:recipes/systemBackGuard
 recipes:recipes/editorSections
+recipes:recipes/editorDescriptionLimit
 recipes:recipes/create
 recipes:recipes/publishFeedback
 recipes:recipes/pasteList
@@ -354,7 +355,6 @@ recipes/servingScale=37
 recipes/detailCooking=51
 recipes/deferredCalories=32
 recipes/emptyLibrary=30
-recipes/editorGuided=30
 recipes/searchNavigation=157
 recipes/edit=157
 recipes/versions=146
@@ -376,6 +376,7 @@ recipes/newCollectionSheet=44
 recipes/createEntry=29
 recipes/systemBackGuard=180
 recipes/editorSections=59
+recipes/editorDescriptionLimit=40
 recipes/create=127
 recipes/publishFeedback=90
 recipes/pasteList=57
@@ -438,7 +439,7 @@ MAESTRO_DRIVER_PORT="${MAESTRO_DRIVER_PORT:-7001}"
 # Maestro's on-device driver. It reinstalls this every invocation, so removing it between flows costs nothing.
 MAESTRO_DRIVER_PACKAGE="dev.mobile.maestro"
 
-EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary recipes/editorGuided "
+EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary "
 
 # Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.
 #

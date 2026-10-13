@@ -31,15 +31,20 @@ import { shouldRetryFoodServiceFailure } from '@kitchensink/food-service-client'
 import { shouldRetryRecipeServiceFailure } from '@kitchensink/recipe-service-client';
 
 /**
- * How many RETRIES a transient failure is allowed — so four attempts in all, the first plus these.
+ * How many RETRIES a failed READ is allowed — so three attempts in all, the first plus these (owner, 2026-10-13: two
+ * retries, with jitter; it amends D13, which kept TanStack's default of three).
  *
- * ⛔ Deliberately TanStack's own default, unchanged. This fix is about WHICH failures retry, not how many
- * times: moving both at once would make a regression in either indistinguishable from a fix to the other, and
- * would quietly shorten the window that covers the Clerk hydration race the `401` carve-out depends on.
- * It is a RETRY count, not an attempt count, because that is the number TanStack's `retry` option takes and
- * the number `failureCount` is compared against — naming it "attempts" is how an off-by-one gets shipped.
+ * It is a RETRY count, not an attempt count, because that is the number TanStack's `retry` option takes and the number
+ * `failureCount` is compared against — naming it "attempts" is how an off-by-one gets shipped. The `401` carve-out for
+ * Clerk hydration is covered by the jittered window, not by a fourth attempt.
  */
-export const MAX_QUERY_RETRIES = 3;
+export const MAX_QUERY_RETRIES = 2;
+
+/**
+ * How many RETRIES a refused WRITE is allowed. Separate from {@link MAX_QUERY_RETRIES} on purpose: the 2026-10-13
+ * ruling is about reads, and a throttled write's cap is a different decision (it waits on a stated `Retry-After`).
+ */
+export const MAX_MUTATION_RETRIES = 3;
 
 /**
  * Every owner's veto, in the order they are asked (which does not matter — conjunction commutes; it is
@@ -134,7 +139,7 @@ function statedWaitSeconds(error: unknown): number | undefined {
  *   and whose stated wait is short.
  */
 export function shouldRetryMutation(failureCount: number, error: unknown): boolean {
-    if (failureCount >= MAX_QUERY_RETRIES) {
+    if (failureCount >= MAX_MUTATION_RETRIES) {
         return false;
     }
 
@@ -179,4 +184,28 @@ export function retryAfterDelayMs(failureCount: number, error: unknown): number 
     }
 
     return Math.min(1000 * 2 ** failureCount, 30_000);
+}
+
+/**
+ * How long to wait before a failed READ is attempted again: full jitter over capped exponential backoff.
+ *
+ * ⛔ A stated `Retry-After` wins and is NOT jittered: the server named the moment its window opens, and jittering below
+ * it would send the request early. With no hint the wait is drawn uniformly from `0 .. min(1000 * 2**n, 30000)` ms
+ * ("Exponential Backoff And Jitter", AWS Architecture Blog) so every mounted client does not return in lockstep at
+ * +1 s / +2 s when a service recovers — the herd `queryClient.ts` used to record as a deferral. Shaped to TanStack's
+ * `retryDelay` option, which supplies the first two arguments.
+ *
+ * @param failureCount - How many attempts have already failed.
+ * @param error - The value the query rejected with.
+ * @param random - A uniform source on `[0, 1)`; injected so the draw is testable. Defaults to `Math.random`.
+ * @returns Milliseconds to wait before the next attempt.
+ */
+export function queryRetryDelayMs(failureCount: number, error: unknown, random: () => number = Math.random): number {
+    const hinted = statedWaitSeconds(error);
+
+    if (hinted !== undefined && hinted > 0) {
+        return hinted * 1000;
+    }
+
+    return Math.floor(random() * Math.min(1000 * 2 ** failureCount, 30_000));
 }

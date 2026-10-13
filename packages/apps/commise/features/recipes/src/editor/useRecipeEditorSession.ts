@@ -50,7 +50,6 @@ import {
     type UseRecipeEditorResult,
 } from '../hooks/useRecipeEditor.js';
 import type { DraftStore } from './draftStore.js';
-import { useGuidedFirstRecipe } from './guidedProgress.js';
 import { outcomeOfExit, type FinishedOutcome } from './finishedOutcome.js';
 import { createPasteHold } from './pasteHold.js';
 import { previewRecipeOf } from './previewRecipe.js';
@@ -115,8 +114,6 @@ export interface RecipeEditorSession {
     readonly blur: () => void;
     /** Append pasted steps (Steps' heading action). */
     readonly appendSteps: (instructions: readonly string[]) => void;
-    /** Whether the cook has never published a recipe: the editor guides a first one (§7.2). */
-    readonly guided: boolean;
     readonly preview: EditorPreview;
 }
 
@@ -133,7 +130,6 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     const queryClient = useQueryClient();
     const setVisibility = useSetRecipeVisibility();
     const rebind = useRebindIngredientLine();
-    const guided = useGuidedFirstRecipe();
     const [previewing, setPreviewing] = useState(false);
     // Made before the editor and the paste, which each need the other: the paste writes it, a checkpoint reads it.
     const [pasteHold] = useState(createPasteHold);
@@ -245,7 +241,6 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         applyLineStatus,
         blur: () => editor.checkpoint('fieldBlur'),
         appendSteps: (instructions) => dispatch({ kind: 'appendSteps', instructions }),
-        guided,
         preview: {
             open: previewing,
             show: () => setPreviewing(true),

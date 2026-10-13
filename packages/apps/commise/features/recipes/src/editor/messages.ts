@@ -60,7 +60,6 @@ export interface EditorMessages {
             readonly notStarted: string;
             readonly optional: string;
             readonly ready: string;
-            readonly startHere: string;
             /** Spoken only, for a quiet complete section (its ✓ shows no words). */
             readonly complete: string;
         };
@@ -71,20 +70,12 @@ export interface EditorMessages {
             readonly ingredientsUnresolved: PluralText;
             readonly ingredientsQuantityInvalid: PluralText;
         } & Readonly<Record<InProgressReason, string>>;
-        /** Guided progress: "{done} of 4 done". */
-        readonly done: string;
-        /** The guided hint under each section's label, for a first recipe. */
-        readonly hint: Readonly<Record<EditorSectionId, string>>;
         /** The phone bar's accessible name: "Sections. Current: {current}." */
         readonly barName: string;
         /** Appended to the bar's name when something needs action. */
         readonly barNameAttention: PluralText;
-        /** Appended to the bar's name for a first recipe: " {done} of 4 done." */
-        readonly barNameDone: string;
         /** The bar's visible end text: "⚠ {count}". */
         readonly barCount: string;
-        /** The bar's visible guided suffix: " · {done} of 4 done". */
-        readonly barDone: string;
         /** Announced politely when the cook's own edit completes a section. */
         readonly announce: Readonly<Record<EditorSectionId, string>>;
     };
@@ -135,7 +126,12 @@ export interface EditorMessages {
         readonly openMyRecipes: string;
     };
 
-    readonly details: { readonly titleLimit: string; readonly titleCounter: string };
+    readonly details: {
+        readonly titleLimit: string;
+        /** Under a description past its limit: Publish is blocked, a draft still saves. */
+        readonly descriptionLimit: string;
+        readonly titleCounter: string;
+    };
 
     /** The Ingredients section's add field and its Paste a list sheet (build spec §7.5.3, §7.5.4, §7.11). */
     readonly ingredients: {
@@ -240,13 +236,13 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 notStarted: 'Not started',
                 optional: 'Optional',
                 ready: 'Ready to publish',
-                startHere: 'Start here',
                 complete: 'Complete',
             },
             reason: {
                 titleRequired: 'Title needed',
                 titleTooLong: 'Title too long',
                 titleTooLongToSave: 'Title too long to save',
+                descriptionTooLong: 'Description too long',
                 ingredientsPendingText: 'Add or clear the line you typed',
                 ingredientsUnresolved: { one: '{count} needs a match', other: '{count} need a match' },
                 ingredientsQuantityInvalid: { one: '{count} amount to fix', other: '{count} amounts to fix' },
@@ -254,18 +250,9 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 servingsPositive: 'Servings must be more than 0',
                 timesNonNegative: "Times can't be negative",
             },
-            done: '{done} of 4 done',
-            hint: {
-                details: 'Name it and say how long it takes',
-                ingredients: 'Add what goes in',
-                steps: 'Say how to make it',
-                photos: 'Add a photo, then publish',
-            },
             barName: 'Sections. Current: {current}.',
             barNameAttention: { one: ' {count} needs attention.', other: ' {count} need attention.' },
-            barNameDone: ' {done} of 4 done.',
             barCount: '⚠ {count}',
-            barDone: ' · {done} of 4 done',
             announce: {
                 details: 'Details complete',
                 ingredients: 'Ingredients complete',
@@ -322,6 +309,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
 
         details: {
             titleLimit: 'Shorten the title to 120 characters or fewer.',
+            descriptionLimit: 'Shorten the description to 256 characters or fewer to publish. Your draft still saves.',
             titleCounter: '{count}/{max}',
         },
 

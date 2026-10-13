@@ -117,8 +117,6 @@ export interface RecipeEditorViewProps {
     readonly mode: 'create' | 'edit';
     /** Where the device draft is kept: `tabSession` on web (D7). */
     readonly keep: DraftKeep;
-    /** Whether the cook has never published a recipe: guided progress shows (D1). */
-    readonly guided: boolean;
     /** The ingredient entry's uncommitted text (the row editor's). */
     readonly pendingEntryText: string;
     /** A paste is being sent, or its lines are still joining the recipe: Publish waits (`useIngredientsPaste`). */

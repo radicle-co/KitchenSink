@@ -7,7 +7,7 @@
  */
 import { recipeStepInstructionSchema } from '@kitchensink/recipe-core';
 
-import { ingredientAddFieldId, stepFieldId, titleFieldId } from '../form/fieldIds.js';
+import { descriptionFieldId, ingredientAddFieldId, stepFieldId, titleFieldId } from '../form/fieldIds.js';
 import type { RecipeFormErrors } from '../form/validate.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { firstSectionWithErrors, type EditorSectionId } from './sections.js';
@@ -46,6 +46,10 @@ export function gateOutcomeOf(errors: RecipeFormErrors): Exclude<GateOutcome, { 
 export function firstInvalidFieldOf(errors: RecipeFormErrors, values: RecipeFormValues): string | undefined {
     if (errors.title !== undefined) {
         return titleFieldId;
+    }
+
+    if (errors.description !== undefined) {
+        return descriptionFieldId;
     }
 
     if (errors.ingredients === 'ingredientsEmpty' || errors.ingredients === 'ingredientsPendingText') {

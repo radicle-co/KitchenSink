@@ -10,9 +10,21 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 import { AppTabBar } from '../../src/navigation/AppTabBar.js';
 
-afterEach(cleanup);
+const layout = vi.hoisted(() => ({ compact: false, collapsed: false }));
 
-function renderAdapter(prevent = false, index = 0) {
+vi.mock('@commise/ui/layout', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/ui/layout')>()),
+    useCompactHeight: () => layout.compact,
+    useFrameCollapsed: () => layout.collapsed,
+}));
+
+afterEach(() => {
+    cleanup();
+    layout.compact = false;
+    layout.collapsed = false;
+});
+
+function renderAdapter(prevent = false, index = 0, insets = { top: 0, bottom: 20, left: 0, right: 0 }) {
     const emit = vi.fn(() => ({ defaultPrevented: prevent }));
     const navigate = vi.fn();
     const routes = [
@@ -23,7 +35,7 @@ function renderAdapter(prevent = false, index = 0) {
     const props = {
         state: { index, routes },
         navigation: { emit, navigate },
-        insets: { top: 0, bottom: 20, left: 0, right: 0 },
+        insets,
         descriptors: {},
     } as unknown as BottomTabBarProps;
 
@@ -63,5 +75,35 @@ describe('AppTabBar', () => {
         renderAdapter(false, 2);
 
         expect(screen.getByRole('tab', { name: 'Discover' }).getAttribute('aria-selected')).toBe('true');
+    });
+
+    // Owner 2026-10-13: the bar goes compact in a window under 480 dp tall, and steps aside while the keyboard is open
+    // there (`isFrameCollapsed`), so a sideways phone keeps its field and its keyboard.
+    it('draws the compact bar, with the window insets, when the window is compact in height', () => {
+        layout.compact = true;
+        renderAdapter(false, 0, { top: 0, bottom: 0, left: 48, right: 0 });
+
+        expect(getComputedStyle(screen.getByRole('tab', { name: 'Home' })).flexDirection).toBe('row');
+        expect(getComputedStyle(screen.getByRole('tablist')).paddingLeft).toBe('52px');
+    });
+
+    it('draws the stacked bar when the window is not compact', () => {
+        renderAdapter();
+
+        expect(getComputedStyle(screen.getByRole('tab', { name: 'Home' })).flexDirection).toBe('column');
+    });
+
+    it('draws NO bar while compact and the keyboard is open, and brings it back when it closes', () => {
+        layout.compact = true;
+        layout.collapsed = true;
+        renderAdapter();
+
+        expect(screen.queryByRole('tablist')).toBeNull();
+        cleanup();
+
+        layout.collapsed = false;
+        renderAdapter();
+
+        expect(screen.getByRole('tablist')).toBeTruthy();
     });
 });

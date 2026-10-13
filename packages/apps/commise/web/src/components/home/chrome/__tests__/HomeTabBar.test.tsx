@@ -134,3 +134,47 @@ describe('HomeTabBar (web)', () => {
         expect(window.scrollTo).not.toHaveBeenCalled();
     });
 });
+
+/**
+ * Owner 2026-10-13: a landscape phone (a window under 480 px tall, below the 840 px sidebar breakpoint) gets a compact bar —
+ * the label beside the glyph, 48 px tall — that clears a side cutout. jsdom evaluates no media query, so what these pin is
+ * the declared rule: the utilities are keyed on `max-height: 479px` (one pixel under the 480 dp compact class,
+ * `isCompactHeight`), and the unconditional layout is unchanged. The rendered height is the Playwright test's.
+ */
+describe('HomeTabBar (web) — compact height', () => {
+    const COMPACT = '[@media(max-height:479px)]';
+
+    it('shrinks the bar to 48 px plus the foot inset, in a window under 480 px tall only', () => {
+        renderBar();
+
+        expect(bar().className).toContain(`${COMPACT}:h-[calc(3rem+env(safe-area-inset-bottom))]`);
+        // The upright height is unchanged.
+        expect(bar().className).toContain('h-[calc(4rem+env(safe-area-inset-bottom))]');
+    });
+
+    it('puts each label beside its glyph and gives each tab a 48 px target, in a window under 480 px tall only', () => {
+        renderBar();
+
+        for (const link of within(bar()).getAllByRole('link')) {
+            expect(link.className).toContain(`${COMPACT}:flex-row`);
+            expect(link.className).toContain(`${COMPACT}:min-h-12`);
+        }
+    });
+
+    it('pads both sides by the safe-area inset so a cutout or a 3-button bar never covers a tab', () => {
+        renderBar();
+
+        expect(bar().className).toContain('pl-[max(0.5rem,env(safe-area-inset-left))]');
+        expect(bar().className).toContain('pr-[max(0.5rem,env(safe-area-inset-right))]');
+    });
+
+    it('keeps every label as the link’s accessible name', () => {
+        renderBar();
+
+        expect(
+            within(bar())
+                .getAllByRole('link')
+                .map((link) => link.textContent),
+        ).toEqual(['Home', 'Recipes', 'Discover']);
+    });
+});

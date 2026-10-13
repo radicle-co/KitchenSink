@@ -281,7 +281,6 @@ function RecipeEditorSession({
                 editor={editor}
                 mode={mode}
                 keep="disk"
-                guided={session.guided}
                 pendingEntryText={session.rowEditor.entry.pendingEntryText}
                 pastePending={paste.pending}
                 sections={sections}

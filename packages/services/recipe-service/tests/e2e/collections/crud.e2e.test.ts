@@ -11,6 +11,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
 import pg from 'pg';
 
+import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { collections, recipeCollections } from '../../../src/database/schema/collections.js';
 import { recipes } from '../../../src/database/schema/recipes.js';
@@ -20,7 +21,7 @@ import { AnalyticsService } from '../../../src/analytics/analytics.service.js';
 import { isRecipeDomainError } from '../../../src/recipes/recipe.error.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { recipeDb } from '../../support/roleDb.js';
-import { makeActingPrincipal } from '../../../src/auth/__fixtures__/actingPrincipal.fixtures.js';
+import { makeCollectionsActor } from '../../../src/auth/__fixtures__/actingPrincipal.fixtures.js';
 
 const roleDb = recipeDb();
 const OWNER = '01JCOLLECTIONOWNERAAAAAAAAA';
@@ -80,8 +81,29 @@ describe('Collections CRUD + membership (integration)', () => {
         await db.delete(recipes).where(sql`${recipes.ownerId} IN (${OWNER}, ${OTHER_OWNER})`);
     });
 
+    /** Owner 2026-10-13: a private collection is Premium — proved against the real column, constraints and read-back. */
+    it('private collections are Premium: a free-tier cook gets public by default and cannot make one private', async () => {
+        const free = makeCollectionsActor(OWNER, { isPremium: false });
+
+        const created = await service.createCollection(free, { name: 'Open by default' });
+        expect(created.visibility).toBe('public');
+
+        await expect(service.updateCollection(free, created.id, { visibility: 'private' })).rejects.toSatisfy(
+            (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.INVALID_VISIBILITY,
+        );
+        expect((await service.getCollection(OWNER, created.id)).visibility).toBe('public');
+
+        const premium = makeCollectionsActor(OWNER, { isPremium: true });
+        const secret = await service.createCollection(premium, { name: 'Mine' });
+        expect(secret.visibility).toBe('private');
+
+        // A lapsed cook keeps what is already private, and may open it up.
+        await service.updateCollection(free, secret.id, { name: 'Mine, renamed', visibility: 'private' });
+        expect((await service.setVisibility(free, secret.id, 'public')).visibility).toBe('public');
+    });
+
     it('creates, reads, updates, and lists a collection', async () => {
-        const created = await service.createCollection(makeActingPrincipal(OWNER), { name: 'Weeknight Dinners' });
+        const created = await service.createCollection(makeCollectionsActor(OWNER), { name: 'Weeknight Dinners' });
         expect(created.visibility).toBe('private');
         expect(created.ownerId).toBe(OWNER);
 
@@ -90,7 +112,7 @@ describe('Collections CRUD + membership (integration)', () => {
         expect(fetched.recipes).toEqual([]);
         expect(fetched.recipeCount).toBe(0);
 
-        const renamed = await service.updateCollection(makeActingPrincipal(OWNER), created.id, {
+        const renamed = await service.updateCollection(makeCollectionsActor(OWNER), created.id, {
             name: 'Fast Dinners',
             visibility: 'public',
         });
@@ -107,14 +129,14 @@ describe('Collections CRUD + membership (integration)', () => {
             'rejected COLLECTION_LIMIT_REACHED, and a DIFFERENT owner is unaffected',
         async () => {
             for (let index = 0; index < 50; index += 1) {
-                const created = await service.createCollection(makeActingPrincipal(OWNER), { name: `Cap ${index}` });
+                const created = await service.createCollection(makeCollectionsActor(OWNER), { name: `Cap ${index}` });
                 expect(created.id).toBeTruthy();
             }
 
             const page = await service.listCollections(OWNER, { page: 1, pageSize: 1 });
             expect(page.total).toBe(50);
 
-            await expect(service.createCollection(makeActingPrincipal(OWNER), { name: 'Cap 51' })).rejects.toSatisfy(
+            await expect(service.createCollection(makeCollectionsActor(OWNER), { name: 'Cap 51' })).rejects.toSatisfy(
                 (err: unknown) => isRecipeDomainError(err) && err.code === 'COLLECTION_LIMIT_REACHED',
             );
 
@@ -123,7 +145,7 @@ describe('Collections CRUD + membership (integration)', () => {
             expect(pageAfterRejection.total).toBe(50);
 
             // Per-owner isolation: OWNER being at the cap must not block a DIFFERENT owner's create.
-            const otherCreated = await service.createCollection(makeActingPrincipal(OTHER_OWNER), {
+            const otherCreated = await service.createCollection(makeCollectionsActor(OTHER_OWNER), {
                 name: 'Other owner unaffected',
             });
             expect(otherCreated.id).toBeTruthy();
@@ -177,14 +199,14 @@ describe('Collections CRUD + membership (integration)', () => {
     });
 
     it('adds and removes recipes (idempotent add), excluding tombstoned recipes from the listing', async () => {
-        const collection = await service.createCollection(makeActingPrincipal(OWNER), { name: 'Mains' });
+        const collection = await service.createCollection(makeCollectionsActor(OWNER), { name: 'Mains' });
         const recipeId = await insertRecipe(db, OWNER, 'Soup');
 
-        const membership = await service.addRecipe(makeActingPrincipal(OWNER), collection.id, recipeId);
+        const membership = await service.addRecipe(makeCollectionsActor(OWNER), collection.id, recipeId);
         expect(membership).toMatchObject({ collectionId: collection.id, recipeId, addedVia: 'manual' });
 
         // Idempotent: re-adding returns the same membership, not a duplicate.
-        await service.addRecipe(makeActingPrincipal(OWNER), collection.id, recipeId);
+        await service.addRecipe(makeCollectionsActor(OWNER), collection.id, recipeId);
         const afterReAdd = await service.getCollection(OWNER, collection.id);
         expect(afterReAdd.recipes).toHaveLength(1);
         expect(afterReAdd.recipeCount).toBe(1);
@@ -209,24 +231,24 @@ describe('Collections CRUD + membership (integration)', () => {
     });
 
     it('supports many-to-many membership (one recipe in multiple collections)', async () => {
-        const collectionA = await service.createCollection(makeActingPrincipal(OWNER), { name: 'A' });
-        const collectionB = await service.createCollection(makeActingPrincipal(OWNER), { name: 'B' });
+        const collectionA = await service.createCollection(makeCollectionsActor(OWNER), { name: 'A' });
+        const collectionB = await service.createCollection(makeCollectionsActor(OWNER), { name: 'B' });
         const recipeId = await insertRecipe(db, OWNER, 'Shared');
 
-        await service.addRecipe(makeActingPrincipal(OWNER), collectionA.id, recipeId);
-        await service.addRecipe(makeActingPrincipal(OWNER), collectionB.id, recipeId);
+        await service.addRecipe(makeCollectionsActor(OWNER), collectionA.id, recipeId);
+        await service.addRecipe(makeCollectionsActor(OWNER), collectionB.id, recipeId);
 
         expect((await service.getCollection(OWNER, collectionA.id)).recipes).toHaveLength(1);
         expect((await service.getCollection(OWNER, collectionB.id)).recipes).toHaveLength(1);
     });
 
     it('no-cascade delete: dropping a collection leaves the recipe and its other memberships intact', async () => {
-        const keep = await service.createCollection(makeActingPrincipal(OWNER), { name: 'Keep' });
-        const drop = await service.createCollection(makeActingPrincipal(OWNER), { name: 'Drop' });
+        const keep = await service.createCollection(makeCollectionsActor(OWNER), { name: 'Keep' });
+        const drop = await service.createCollection(makeCollectionsActor(OWNER), { name: 'Drop' });
         const recipeId = await insertRecipe(db, OWNER, 'Survivor');
 
-        await service.addRecipe(makeActingPrincipal(OWNER), keep.id, recipeId);
-        await service.addRecipe(makeActingPrincipal(OWNER), drop.id, recipeId);
+        await service.addRecipe(makeCollectionsActor(OWNER), keep.id, recipeId);
+        await service.addRecipe(makeCollectionsActor(OWNER), drop.id, recipeId);
 
         await service.deleteCollection(OWNER, drop.id);
 
@@ -243,14 +265,14 @@ describe('Collections CRUD + membership (integration)', () => {
     });
 
     it('enforces ownership: a non-owner gets NOT_OWNER, a stranger add is refused', async () => {
-        const collection = await service.createCollection(makeActingPrincipal(OWNER), { name: 'Private' });
+        const collection = await service.createCollection(makeCollectionsActor(OWNER), { name: 'Private' });
 
         await expect(service.getCollection(OTHER_OWNER, collection.id)).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === 'NOT_OWNER',
         );
 
         const recipeId = await insertRecipe(db, OWNER, 'Locked');
-        await expect(service.addRecipe(makeActingPrincipal(OTHER_OWNER), collection.id, recipeId)).rejects.toSatisfy(
+        await expect(service.addRecipe(makeCollectionsActor(OTHER_OWNER), collection.id, recipeId)).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === 'NOT_OWNER',
         );
     });
@@ -259,10 +281,10 @@ describe('Collections CRUD + membership (integration)', () => {
     // own collection and read its body back. Fail-fast half — the add itself is refused as
     // RECIPE_NOT_FOUND (existence not disclosed), and no membership row is written.
     it("refuses to add another user's PRIVATE recipe to your own collection (RECIPE_NOT_FOUND, no membership)", async () => {
-        const myCollection = await service.createCollection(makeActingPrincipal(OWNER), { name: 'Mine' });
+        const myCollection = await service.createCollection(makeCollectionsActor(OWNER), { name: 'Mine' });
         const othersPrivate = await insertRecipe(db, OTHER_OWNER, "Someone Else's Secret", 'private');
 
-        await expect(service.addRecipe(makeActingPrincipal(OWNER), myCollection.id, othersPrivate)).rejects.toSatisfy(
+        await expect(service.addRecipe(makeCollectionsActor(OWNER), myCollection.id, othersPrivate)).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === 'RECIPE_NOT_FOUND',
         );
 
@@ -281,12 +303,12 @@ describe('Collections CRUD + membership (integration)', () => {
     // and assert `GET /api/v1/collections/:id` (service.getCollection, the controller's exact call) reports
     // each member's addedVia correctly.
     it("exposes each member's addedVia matching how it entered the collection", async () => {
-        const collection = await service.createCollection(makeActingPrincipal(OWNER), { name: 'Provenance' });
+        const collection = await service.createCollection(makeCollectionsActor(OWNER), { name: 'Provenance' });
         const manualRecipeId = await insertRecipe(db, OWNER, 'Manual Add');
         const cloneRecipeId = await insertRecipe(db, OWNER, 'Clone Seed');
         const pullRecipeId = await insertRecipe(db, OWNER, 'Pulled');
 
-        await service.addRecipe(makeActingPrincipal(OWNER), collection.id, manualRecipeId);
+        await service.addRecipe(makeCollectionsActor(OWNER), collection.id, manualRecipeId);
 
         const dal = new CollectionsDal(db);
         await dal.addRecipe(collection.id, cloneRecipeId, 'clone_seed');
@@ -307,10 +329,12 @@ describe('Collections CRUD + membership (integration)', () => {
     // COLLECTION survives and stays fully retrievable (by id AND in the owner's list) after one of its
     // members is tombstoned.
     it('REQ-056b: the collection survives (and stays retrievable) after a member recipe is soft-deleted', async () => {
-        const collection = await service.createCollection(makeActingPrincipal(OWNER), { name: 'Outlives Its Members' });
+        const collection = await service.createCollection(makeCollectionsActor(OWNER), {
+            name: 'Outlives Its Members',
+        });
         const recipeId = await insertRecipe(db, OWNER, 'Doomed Soup');
 
-        await service.addRecipe(makeActingPrincipal(OWNER), collection.id, recipeId);
+        await service.addRecipe(makeCollectionsActor(OWNER), collection.id, recipeId);
         const beforeDelete = await service.getCollection(OWNER, collection.id);
         expect(beforeDelete.recipes.map((recipe) => recipe.id)).toContain(recipeId);
 
@@ -334,11 +358,11 @@ describe('Collections CRUD + membership (integration)', () => {
     // was PUBLIC when added but is later made PRIVATE by its owner must drop out of the listing. If the
     // read filter is missing, the now-private foreign recipe leaks through getCollection.
     it('hides a member that goes PRIVATE after being added (stale-visibility read filter)', async () => {
-        const myCollection = await service.createCollection(makeActingPrincipal(OWNER), { name: 'Curated' });
+        const myCollection = await service.createCollection(makeCollectionsActor(OWNER), { name: 'Curated' });
         const othersRecipe = await insertRecipe(db, OTHER_OWNER, 'Was Public', 'public');
 
         // Legitimately add it while public.
-        await service.addRecipe(makeActingPrincipal(OWNER), myCollection.id, othersRecipe);
+        await service.addRecipe(makeCollectionsActor(OWNER), myCollection.id, othersRecipe);
         const whilePublic = await service.getCollection(OWNER, myCollection.id);
         expect(whilePublic.recipes.map((recipe) => recipe.id)).toContain(othersRecipe);
 

@@ -143,16 +143,8 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                         items={entries.items}
                         currentId={page.current}
                         barName={entries.barName}
-                        {...(entries.barSuffix === undefined ? {} : { barSuffix: entries.barSuffix })}
                         {...(entries.barCount === undefined ? {} : { barCount: entries.barCount })}
-                        railFooter={
-                            railFooter === undefined && entries.doneText === undefined ? undefined : (
-                                <div className="flex flex-col gap-1">
-                                    {railFooter}
-                                    {entries.doneText !== undefined && <p>{entries.doneText}</p>}
-                                </div>
-                            )
-                        }
+                        railFooter={railFooter}
                     />
                     <div className={`flex w-full max-w-list min-w-0 flex-1 flex-col gap-10 pt-6 ${EDITOR_GUTTER}`}>
                         {chrome.resumeBody !== undefined && (

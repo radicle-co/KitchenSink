@@ -76,7 +76,7 @@ function statusKey(statuses: SectionStatuses): string {
  * @returns What the leaves draw and the commands they issue. @sideEffect Raises checkpoints and jumps the page.
  */
 export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
-    const { editor, mode, keep, guided, pendingEntryText, initialSection, onClose, onRefused, onOpenMyRecipes } = props;
+    const { editor, mode, keep, pendingEntryText, initialSection, onClose, onRefused, onOpenMyRecipes } = props;
     const m = useMessages(editorMessages);
     const locale = useLocale();
     const host = useScrollHost();
@@ -87,7 +87,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
     });
     const chrome = editorChromeOf({ editor, mode, keep, statuses, messages: m, locale });
     const current = host.current !== undefined && isEditorSectionId(host.current) ? host.current : 'details';
-    const entries = sectionIndexEntries({ statuses, guided, current, messages: m, locale });
+    const entries = sectionIndexEntries({ statuses, current, messages: m, locale });
     const [confirming, setConfirming] = useState(false);
     const { checkpoint } = editor;
     const { scrollToSection, scrollToField } = host;

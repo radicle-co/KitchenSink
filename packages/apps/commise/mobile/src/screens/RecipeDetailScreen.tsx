@@ -36,6 +36,8 @@ import {
     RecipeRatingDisplay,
     RecipeRatingInput,
     detailMenuOf,
+    RecipeUpsellSheet,
+    useGatedPrivate,
     isUnreachableRecovery,
     recipeMessages,
     ratingModeFor,
@@ -52,6 +54,7 @@ import { Button } from '@commise/ui/button';
 import { HeroButton } from '@commise/ui/hero-button';
 import { Icon } from '@commise/ui/icon';
 import { useTheme } from '@commise/ui/theme';
+import { useSnackbar } from '@commise/ui/snackbar';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
@@ -225,6 +228,7 @@ function SettledRecipeDetail({
     const marks = useCookMarks(recipeId);
     const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
     const theme = useTheme();
+    const snackbar = useSnackbar();
     const { recipes: t } = useMessages(mobileMessages);
     const profile = useUserProfile();
     const deleteRecipe = useDeleteRecipe();
@@ -234,6 +238,20 @@ function SettledRecipeDetail({
     const deleteRating = useDeleteRecipeRating();
     const [deleteOpen, setDeleteOpen] = useState(false);
     const backLabel = useBackLabel();
+    // Make private is offered to every owner (owner 2026-10-13, B2 E1). Whether it applies or opens the Premium sheet is
+    // decided in ONE place, `useGatedPrivate`, which also holds a tap made while the profile still loads.
+    const privateGate = useGatedPrivate({
+        profile:
+            profile.data !== undefined || profile.isError
+                ? {
+                      status: 'settled',
+                      mayGoPrivate: canGoPrivate(
+                          makeViewer({ id: undefined, subscriptionTier: profile.data?.account.subscriptionTier }),
+                      ),
+                  }
+                : { status: 'loading' },
+        apply: () => setVisibility.mutate({ id: recipeId, visibility: RecipeVisibility.PRIVATE }),
+    });
 
     // Wait for the viewer profile too before rendering the detail. Owner-gated UI (edit/delete/visibility actions)
     // and the rating mode are derived from `profile` (the viewer id + tier); rendering before it lands would paint
@@ -253,10 +271,6 @@ function SettledRecipeDetail({
     // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate web now
     // evaluates, closing the drift where web ignored ownership and mobile checked it.
     const viewerCanClone = canClone(recipe, viewer);
-    // C-004: making a recipe private is a premium capability, gated on the viewer's subscription tier — the
-    // same signal the web detail container uses. Fails safe (OFF) while the profile loads or is absent
-    // (`makeViewer` maps an absent/unrecognized tier to `'free'`).
-    const viewerCanGoPrivate = canGoPrivate(viewer);
 
     // FR-013 ratings: the viewer may rate a recipe they can read and do NOT own (Sc8) — ownership is the only
     // client-side gate; the backend enforces the rest (Sc8 403, Sc9 not-found). A write's error maps to the
@@ -277,7 +291,6 @@ function SettledRecipeDetail({
     const menu = detailMenuOf({
         owner: viewerIsOwner,
         isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
-        canGoPrivate: viewerCanGoPrivate,
         hasMarks: marks.hasMarks,
     });
 
@@ -295,7 +308,7 @@ function SettledRecipeDetail({
                     id: item,
                     label: detailActions.makePrivate,
                     icon: 'lock',
-                    onSelect: () => setVisibility.mutate({ id: recipeId, visibility: RecipeVisibility.PRIVATE }),
+                    onSelect: privateGate.request,
                 };
             case 'makePublic':
                 return {
@@ -397,6 +410,8 @@ function SettledRecipeDetail({
                         </Text>
                     )}
 
+                    {viewerIsOwner && <RecipeUpsellSheet {...privateGate.sheet} />}
+
                     {viewerIsOwner && (
                         <RecipeDeleteDialog
                             recipeTitle={recipe.title}
@@ -405,7 +420,15 @@ function SettledRecipeDetail({
                             // B17 — a failed delete left the dialog open with no explanation; surface an honest
                             // reason inside it. Cleared on the next attempt (and on recipe switch).
                             error={deleteRecipe.error !== null}
-                            onConfirm={() => deleteRecipe.mutate(recipeId, { onSuccess: () => onDeleted?.() })}
+                            onConfirm={() =>
+                                deleteRecipe.mutate(recipeId, {
+                                    onSuccess: () => {
+                                        // The snackbar host sits above the navigator, so this outlives the screen we leave.
+                                        snackbar.show({ message: detailActions.recipeDeleted });
+                                        onDeleted?.();
+                                    },
+                                })
+                            }
                             onCancel={() => setDeleteOpen(false)}
                         />
                     )}

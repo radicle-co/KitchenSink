@@ -223,11 +223,21 @@ describe('RecipesService.clone', () => {
             }),
             FAKE_TX,
         );
+        // Owner 2026-10-13: a copy is a DRAFT until the cook edits it and publishes; it is never born published.
+        expect(create.mock.calls[0]?.[0]).toMatchObject({ status: 'draft' });
         // Content is carried over: the source's single step + ingredient line.
         const input = create.mock.calls[0]?.[0] as { steps: unknown[]; ingredients: { foodLookupId: string }[] };
         expect(input.steps).toHaveLength(1);
         expect(input.ingredients[0]?.foodLookupId).toBe(INGREDIENT_ID);
         expect(response.ownerId).toBe(CLONER);
+    });
+
+    it('⛔ creates a DRAFT even when the source is a published, public recipe (owner 2026-10-13)', async () => {
+        const { dal, create } = fakeDal(sourceAggregate({ visibility: 'public', status: 'published' }));
+
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined);
+
+        expect(create.mock.calls[0]?.[0]).toMatchObject({ status: 'draft' });
     });
 
     it('retains the source attribution (sourceType/sourceUrl/sourceAttribution) for an imported source', async () => {

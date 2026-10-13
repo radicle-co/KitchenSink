@@ -692,6 +692,28 @@ describe('RecipeDetailContainer', () => {
 
             expect(deleteSpy).toHaveBeenCalledWith('rec_1');
             await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes'));
+            // Owner 2026-10-13: say so on the screen the cook lands on. The snackbar lives in the app shell, so one raised
+            // here outlives this page.
+            expect((await screen.findByText('Recipe deleted')).closest('[role="status"]')).not.toBeNull();
+        });
+
+        it('says nothing about a delete that failed', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, title: 'Weeknight Pasta' }),
+            );
+            vi.spyOn(client, 'deleteRecipe').mockRejectedValue(new Error('network down'));
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
+            await user.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
+            await user.click(
+                within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete recipe' }),
+            );
+
+            await screen.findByText(/couldn’t delete this recipe/u);
+            expect(screen.queryByText('Recipe deleted')).not.toBeInTheDocument();
         });
 
         it('surfaces a failed delete inside the dialog, not a silent stop (B17)', async () => {
@@ -920,27 +942,58 @@ describe('RecipeDetailContainer', () => {
             ).toBeInTheDocument();
         });
 
-        it.each([
-            { tier: 'premium', offered: true },
-            { tier: 'free', offered: false },
-        ] as const)('offers Make private to a $tier owner: $offered (C-004)', async ({ tier, offered }) => {
+        // Owner 2026-10-13 (B2 E1): Make private is offered to EVERY owner. Premium decides what it does.
+        it.each(['premium', 'free'] as const)('offers Make private to a %s owner', async (tier) => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWithTier(tier));
             renderOwnerDetail();
 
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
 
-            expect(screen.queryByRole('menuitem', { name: 'Make private' }) !== null).toBe(offered);
+            expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeInTheDocument();
         });
 
-        it('fails safe — no Make private — while the profile is still loading', async () => {
+        it('⛔ a free-tier owner who taps Make private meets the Premium sheet, and nothing is sent', async () => {
             const user = userEvent.setup();
-            useUserProfileMock.mockReturnValue({ data: undefined });
-            renderOwnerDetail();
+            useUserProfileMock.mockReturnValue(profileWithTier('free'));
+            const client = renderOwnerDetail();
+            const setVisibilitySpy = vi.spyOn(client, 'setRecipeVisibility');
 
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
+            await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-            expect(screen.queryByRole('menuitem', { name: 'Make private' })).not.toBeInTheDocument();
+            const sheet = await screen.findByRole('dialog', { name: 'Private recipes are part of Premium.' });
+            expect(sheet).toBeInTheDocument();
+            await user.click(within(sheet).getByRole('button', { name: 'Not now' }));
+            expect(setVisibilitySpy).not.toHaveBeenCalled();
+        });
+
+        it('a premium owner who taps Make private makes the recipe private, with no sheet', async () => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWithTier('premium'));
+            const client = renderOwnerDetail();
+            const setVisibilitySpy = vi
+                .spyOn(client, 'setRecipeVisibility')
+                .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE }));
+
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
+            await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
+
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
+            expect(screen.queryByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeNull();
+        });
+
+        it('⛔ never sends a cook to the upsell while the profile is still loading: the tap is held', async () => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue({ data: undefined });
+            const client = renderOwnerDetail();
+            const setVisibilitySpy = vi.spyOn(client, 'setRecipeVisibility');
+
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
+            await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
+
+            expect(screen.queryByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeNull();
+            expect(setVisibilitySpy).not.toHaveBeenCalled();
         });
     });
 

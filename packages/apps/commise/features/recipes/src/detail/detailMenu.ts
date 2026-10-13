@@ -3,9 +3,9 @@
  * platforms; each container maps the entries to its own routes and mutations.
  *
  * The owner: Version history · Make private or Make public · Clear checks · then Delete recipe, the one destructive
- * action. Another cook: Clear checks. Clear checks only while a mark is set. ⚠️ A free-tier owner is not offered Make
- * private: the spec draws an upsell sheet for it ("Private recipes are part of Premium."), which is not built because
- * there is no Premium page to send the cook to, so the entry is withheld rather than offered as something that fails.
+ * action. Another cook: Clear checks. Clear checks only while a mark is set. Make private is offered to EVERY owner (owner
+ * 2026-10-13, B2 E1): a free-tier cook who chooses it gets the Premium sheet from the host (`useGatedPrivate`), so the
+ * menu does not decide entitlement — the one place that does is `privateNeedsPremium`.
  *
  * @pattern Policy — one rule over the viewer and the recipe; the containers receive the decided entries
  */
@@ -23,8 +23,6 @@ export interface DetailMenu {
 export interface DetailMenuInput {
     readonly owner: boolean;
     readonly isPublic: boolean;
-    /** Whether the viewer's tier may make a recipe private (`canGoPrivate`). */
-    readonly canGoPrivate: boolean;
     /** Whether the cook has a check or a current step set on this recipe. */
     readonly hasMarks: boolean;
 }
@@ -35,7 +33,7 @@ export interface DetailMenuInput {
  * @param input - The viewer's and the recipe's facts.
  * @returns The entries, in order, and the destructive action.
  */
-export function detailMenuOf({ owner, isPublic, canGoPrivate, hasMarks }: DetailMenuInput): DetailMenu {
+export function detailMenuOf({ owner, isPublic, hasMarks }: DetailMenuInput): DetailMenu {
     const items: DetailMenuItem[] = [];
 
     if (owner) {
@@ -43,7 +41,7 @@ export function detailMenuOf({ owner, isPublic, canGoPrivate, hasMarks }: Detail
 
         if (!isPublic) {
             items.push('makePublic');
-        } else if (canGoPrivate) {
+        } else {
             items.push('makePrivate');
         }
     }

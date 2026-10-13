@@ -553,7 +553,6 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                 ? {}
                                 : { sourceAttribution: recipe.sourceAttribution })}
                         />
-                        <p>{fillTemplate(detail.versionLabel, { version: recipe.currentVersion })}</p>
                         {versionsHref !== undefined && (
                             <Link href={versionsHref as Href} className={`${EDIT_LINK} ${GHOST_EDGE_CLASS}`}>
                                 <Icon name="clock" size={16} />

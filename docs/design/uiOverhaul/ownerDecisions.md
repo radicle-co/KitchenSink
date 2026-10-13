@@ -5,8 +5,8 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
 
 ## Decided by the owner
 
-- **D1, create and edit.** Create and edit use one scrolling editor page. The page has a section index, autosave, and
-  guided progress for a first recipe. A published recipe saves to the device until the cook presses "Save changes".
+- **D1, create and edit.** Create and edit use one scrolling editor page. The page has a section index and autosave.
+  (Guided progress for a first recipe was part of this decision and was dropped on 2026-10-13, below.) A published recipe saves to the device until the cook presses "Save changes".
   The four-step wizard is retired.
 - **D2, section index.** The owner's vertical box becomes `SectionIndex`, as `editorNavA.md` and `editorNavB.md`
   agree. It is a sticky rail at 960 px and wider. It is a one-row strip on tablets. On phones it is a one-line bar
@@ -91,3 +91,34 @@ agree, this file adopts their recommendation.
 - The canvas wash stays (issue #145). A screen never changes behaviour for being offline, as the owner's offline
   directive says.
 - The app has one signature motion: the overshoot on the check toggle. It respects reduced motion.
+
+## Owner decisions of 2026-10-13
+
+These come after the UI walk-through. Where an earlier line in this file or in `buildSpec.md` disagrees, these win.
+
+1. **A private collection is a Premium feature.** A free-tier cook's new collection is public by default. "Make private"
+   on a collection opens the Premium upsell. The server enforces it too: recipe-service refuses a private collection
+   for a cook who is not premium, in a pure policy module (`collectionVisibilityPolicy`), not a route Guard.
+2. **Recipes: "Make private" stays visible to everyone.** A free-tier tap opens the upsell sheet (B2 E1). The
+   decision "may this cook go private?" is made in one place on each side, so the coming paid-features gate and roles
+   can be added there: `privateNeedsPremium` and `useGatedPrivate` in `features/recipes`, and the policy modules in
+   recipe-service.
+3. **Save a copy creates a draft.** The copy is not published and not public until the cook makes a real edit and
+   publishes. The server creates it with status `draft`. The cook lands in the editor on the copy.
+4. **After a recipe is deleted, a "Recipe deleted" snackbar** shows on the screen the cook lands on, on both platforms.
+5. **A description over 256 characters blocks Publish.** A counter shows near the limit (from 80%) and an error shows
+   over it. The draft still saves.
+6. **Web editor header before the first server save says "Saved in this tab".** Then the normal saved state.
+7. **The recipe page shows no version number.** The versions page labels entries by date, with the number as a small
+   secondary detail.
+8. **Reads retry twice, with jitter.** TanStack's retry delay uses full jitter. This amends the D13 retry pin test
+   (the old policy kept TanStack's default of three retries). Writes keep their own cap.
+9. **Landscape phones get a compact tab bar.** When the window is shorter than 480 dp (on web: `max-height: 479px`
+   below the 840 px sidebar breakpoint), the labels sit beside the icons and the bar is 48 dp (44 pt on iOS). On native
+   it is hidden while the keyboard is open (`isFrameCollapsed`). The bar and the New recipe button pad the left and
+   right safe-area insets, for a cutout and the 3-button navigation bar. The labels stay the accessible names.
+10. **"Use ... as written" stays in the ingredient picker.** No change.
+11. **Mobile Profile has no Email row.** The header already shows the email (commit a3e787f52, `evaluateFinal.md`). A
+    test asserts the email shows once.
+12. **The guided first-recipe editor mode is dropped, on both platforms.** The editor is the same for every cook. The
+    index shows no hints, no "Start here" and no "{done} of 4 done".

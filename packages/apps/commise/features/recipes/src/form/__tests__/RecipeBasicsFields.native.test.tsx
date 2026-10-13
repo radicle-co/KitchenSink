@@ -242,7 +242,7 @@ describe('RecipeBasicsFields (native) — description', () => {
         expect(screen.getByText(`${String(DESCRIPTION_COUNTER_FROM)}/${String(DESCRIPTION_MAX_LENGTH)}`)).toBeTruthy();
     });
 
-    it('past its cap the counter turns danger, the field is NOT marked invalid, and nothing is cut', () => {
+    it('past its cap the counter turns danger, the field is marked invalid with the limit stated, and nothing is cut', () => {
         renderLive({ initial: filled({ description: 'a'.repeat(DESCRIPTION_MAX_LENGTH + 1) }) });
 
         expect(
@@ -250,7 +250,8 @@ describe('RecipeBasicsFields (native) — description', () => {
                 screen.getByText(`${String(DESCRIPTION_MAX_LENGTH + 1)}/${String(DESCRIPTION_MAX_LENGTH)}`),
             ).color,
         ).toBe(rgb(role.dangerText));
-        expect(field(m.descriptionLabel).getAttribute('aria-invalid')).not.toBe('true');
+        expect(field(m.descriptionLabel).getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByText(e.details.descriptionLimit)).toBeTruthy();
         expect(field(m.descriptionLabel).value).toHaveLength(DESCRIPTION_MAX_LENGTH + 1);
     });
 });

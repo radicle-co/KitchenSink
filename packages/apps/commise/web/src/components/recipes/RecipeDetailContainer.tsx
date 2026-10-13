@@ -44,6 +44,8 @@ import {
     RecipeRatingDisplay,
     RecipeRatingInput,
     detailMenuOf,
+    RecipeUpsellSheet,
+    useGatedPrivate,
     editorMessages,
     FINISHED_OUTCOME_PARAM,
     finishedNoticeOf,
@@ -195,6 +197,20 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     const finished = parseFinishedOutcome(useSearchParams().get(FINISHED_OUTCOME_PARAM));
     const finishedNotice = finished === undefined ? undefined : finishedNoticeOf(finished, editorCopy);
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    // Make private is offered to every owner (owner 2026-10-13, B2 E1). Whether it applies or opens the Premium sheet is
+    // decided in ONE place, `useGatedPrivate`, which also holds a tap made while the profile still loads.
+    const privateGate = useGatedPrivate({
+        profile:
+            profile.data !== undefined || profile.isError
+                ? {
+                      status: 'settled',
+                      mayGoPrivate: canGoPrivate(
+                          makeViewer({ id: undefined, subscriptionTier: profile.data?.account.subscriptionTier }),
+                      ),
+                  }
+                : { status: 'loading' },
+        apply: () => setVisibility.mutate({ id: id, visibility: RecipeVisibility.PRIVATE }),
+    });
 
     // E8: the editor finished and navigated here with `?done=<outcome>`. Say it once, then take the parameter off the
     // address WITHOUT a navigation (`history.replaceState`, which the App Router folds into its own state), so a reload
@@ -230,10 +246,6 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate mobile now
     // evaluates, closing the drift where web ignored ownership and mobile checked it.
     const viewerCanClone = canClone(recipe, viewer);
-    // C-004: making a recipe private is a premium capability, gated on the viewer's subscription tier — the
-    // same signal the mobile detail screen uses. Fails safe (OFF) while the profile loads or is absent
-    // (`makeViewer` maps an absent/unrecognized tier to `'free'`).
-    const viewerCanGoPrivate = canGoPrivate(viewer);
 
     // FR-013 ratings: the viewer may rate a recipe they can read and do NOT own (Sc8). The read-through user
     // resolution guarantees the recipe is one the viewer can see, so ownership is the only client-side gate;
@@ -263,7 +275,6 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     const menu = detailMenuOf({
         owner: viewerIsOwner,
         isPublic: recipe.visibility === RecipeVisibility.PUBLIC,
-        canGoPrivate: viewerCanGoPrivate,
         hasMarks: marks.hasMarks,
     });
     const versionsHref = `/${locale}/recipes/${id}/versions`;
@@ -282,7 +293,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                     id: item,
                     label: detailActions.makePrivate,
                     icon: 'lock',
-                    onSelect: () => setVisibility.mutate({ id, visibility: RecipeVisibility.PRIVATE }),
+                    onSelect: privateGate.request,
                 };
             case 'makePublic':
                 return {
@@ -415,6 +426,8 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                 </p>
             )}
 
+            {viewerIsOwner && <RecipeUpsellSheet {...privateGate.sheet} />}
+
             {viewerIsOwner && (
                 <RecipeDeleteDialog
                     recipeTitle={recipe.title}
@@ -425,7 +438,11 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                     error={deleteRecipe.error !== null}
                     onConfirm={() =>
                         deleteRecipe.mutate(id, {
-                            onSuccess: () => router.push(`/${locale}/recipes` as Route),
+                            onSuccess: () => {
+                                // The snackbar host lives in the app shell, so this outlives the page we are leaving.
+                                snackbar.show({ message: detailActions.recipeDeleted });
+                                router.push(`/${locale}/recipes` as Route);
+                            },
                         })
                     }
                     onCancel={() => setDeleteDialogOpen(false)}

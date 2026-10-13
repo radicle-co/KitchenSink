@@ -25,7 +25,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { ChipInput } from './ChipInput.js';
 import { readLimit, singleLine } from './fieldText.js';
-import { servingsErrorId, timesErrorId, titleErrorId } from './fieldErrorIds.js';
+import { descriptionErrorId, servingsErrorId, timesErrorId, titleErrorId } from './fieldErrorIds.js';
 import {
     cuisineFieldId,
     describedByOf,
@@ -92,6 +92,14 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
     const titleMessage =
         errors?.title === undefined ? (title.over ? e.details.titleLimit : undefined) : m.errors[errors.title];
     const description = readLimit(values.description, DESCRIPTION_MAX_LENGTH, DESCRIPTION_COUNTER_FROM);
+    // Past 256 Publish is refused (a draft still saves): the limit is said as soon as it is passed, and as the refusal
+    // once Publish has been tried — never both.
+    const descriptionMessage =
+        errors?.description === undefined
+            ? description.over
+                ? e.details.descriptionLimit
+                : undefined
+            : m.errors[errors.description];
     const total = formatDuration(
         durationOfMinutes(computeTotalTime(values.prepTimeMinutes, values.cookTimeMinutes)),
         duration,
@@ -174,7 +182,11 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
                         value={values.description}
                         minRows={4}
                         autoCapitalize="sentences"
-                        describedBy={description.shown ? descriptionCounterId : undefined}
+                        invalid={descriptionMessage !== undefined}
+                        describedBy={describedByOf(
+                            descriptionMessage === undefined ? undefined : descriptionErrorId,
+                            description.shown ? descriptionCounterId : undefined,
+                        )}
                         onChangeText={(text) => onChange({ ...values, description: text })}
                     />
                     {description.shown ? (
@@ -182,6 +194,15 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
                             {counterText(description.count, DESCRIPTION_MAX_LENGTH)}
                         </Counter>
                     ) : null}
+                    {descriptionMessage === undefined ? null : (
+                        <p
+                            id={descriptionErrorId}
+                            className={fieldMessage}
+                            {...(errors?.description === undefined ? {} : { role: 'alert' })}
+                        >
+                            {descriptionMessage}
+                        </p>
+                    )}
                 </div>
             </Group>
 

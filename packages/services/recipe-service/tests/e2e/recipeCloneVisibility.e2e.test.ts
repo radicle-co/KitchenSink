@@ -113,7 +113,8 @@ describe('recipe clone + visibility (e2e, assembled app)', () => {
         expect(body.title).toBe('Public Source');
         // defaultCloneVisibility(user_created) = public — NOT a private draft.
         expect(body.visibility).toBe('public');
-        expect(body.status).toBe('published');
+        // Owner 2026-10-13: Save a copy creates a DRAFT; it is not published until the cook edits and publishes.
+        expect(body.status).toBe('draft');
         // W-03: no explicit sourceAttribution on the seeded row -> the clone records NONE. Provenance is
         // `clonedFromId`; a raw owner id in a display string reached Discover cards.
         expect(body.sourceAttribution ?? null).toBeNull();

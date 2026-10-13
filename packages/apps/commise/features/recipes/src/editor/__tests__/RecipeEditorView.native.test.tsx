@@ -75,7 +75,6 @@ function view(editor: UseRecipeEditorResult, over: Partial<RecipeEditorViewProps
                 editor={editor}
                 mode="create"
                 keep="disk"
-                guided={false}
                 pendingEntryText=""
                 sections={{
                     details: <></>,

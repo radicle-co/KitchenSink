@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeRecipeFormValues } from '../../__fixtures__/index.js';
-import { ingredientAddFieldId, stepFieldId, titleFieldId } from '../../form/fieldIds.js';
+import { descriptionFieldId, ingredientAddFieldId, stepFieldId, titleFieldId } from '../../form/fieldIds.js';
 import { firstInvalidFieldOf, gateOutcomeOf } from '../gate.js';
 
 describe('gateOutcomeOf', () => {
@@ -42,6 +42,13 @@ describe('firstInvalidFieldOf', () => {
     it('names the title field for an empty or too-long title', () => {
         expect(firstInvalidFieldOf({ title: 'titleRequired' }, values)).toBe(titleFieldId);
         expect(firstInvalidFieldOf({ title: 'titleTooLong' }, values)).toBe(titleFieldId);
+    });
+
+    it('names the description field for a too-long description, after the title when both are refused', () => {
+        expect(firstInvalidFieldOf({ description: 'descriptionTooLong' }, values)).toBe(descriptionFieldId);
+        expect(firstInvalidFieldOf({ title: 'titleTooLong', description: 'descriptionTooLong' }, values)).toBe(
+            titleFieldId,
+        );
     });
 
     it('names the add field for an empty list of ingredients and for text typed but not added', () => {

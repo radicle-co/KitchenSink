@@ -44,6 +44,7 @@ import { EDITOR_SECTIONS, errorsInSection, type EditorSectionId } from './sectio
 export type AttentionReason =
     | 'titleTooLong'
     | 'titleTooLongToSave'
+    | 'descriptionTooLong'
     | 'servingsPositive'
     | 'timesNonNegative'
     | 'ingredientsUnresolved'
@@ -108,16 +109,6 @@ export function sectionStatusesOf(input: SectionStatusInput): SectionStatuses {
 }
 
 /**
- * How many sections are complete: the guided progress's "{done} of 4 done".
- *
- * @param statuses - Every section's status.
- * @returns The count. Pure.
- */
-export function doneCount(statuses: SectionStatuses): number {
-    return EDITOR_SECTIONS.filter((section) => statuses[section].kind === 'complete').length;
-}
-
-/**
  * The sections that became complete between two derivations, in page order: the polite "Ingredients complete" the
  * cook's own edit earns (build spec §7.2).
  *
@@ -154,6 +145,10 @@ function detailsStatus(input: SectionStatusInput, errors: RecipeFormErrors): Sec
         attention.push(
             draftFloorErrors(input.values).title === 'titleTooLongToSave' ? 'titleTooLongToSave' : 'titleTooLong',
         );
+    }
+
+    if (own.description !== undefined) {
+        attention.push('descriptionTooLong');
     }
 
     if (own.servings !== undefined) {

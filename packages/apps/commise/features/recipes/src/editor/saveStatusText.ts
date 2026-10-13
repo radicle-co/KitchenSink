@@ -3,8 +3,8 @@
  *
  * `saveStatus.ts` says WHERE the draft is; this says it in the cook's words, which depend on that place: "on this
  * device" for a draft on disk (mobile), "in this tab" for one in the tab's session storage (web, owner D7). Copy and the
- * web choices are `staff-ux-engineer`'s (slice 7): on web, a never-published draft's device copy lasts only the second
- * before its checkpoint, so it reads "Saving…" rather than warning about a window that closes by itself.
+ * web choices are `staff-ux-engineer`'s (slice 7). Owner 2026-10-13: on web, before the first server save the draft sits
+ * in the tab and the header says "Saved in this tab"; the normal "Saved" follows once the server has it.
  *
  * Only failures are announced, politely and once (build spec §7.3, §7.10); a conflict opens its own view instead.
  *
@@ -53,7 +53,7 @@ export function saveStatusText(status: SaveStatus, keep: DraftKeep, m: EditorMes
                 return quiet(status.store === 'disk' ? m.status.changesOnDevice : m.status.changesInTab);
             }
 
-            return quiet(status.store === 'disk' ? m.status.savedOnDevice : m.status.saving);
+            return quiet(status.store === 'disk' ? m.status.savedOnDevice : m.status.savedInTab);
 
         case 'deviceFailed':
             return told(onDisk ? m.status.deviceFailed : m.status.tabFailed);

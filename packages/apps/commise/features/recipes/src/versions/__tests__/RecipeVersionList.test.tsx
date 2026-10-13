@@ -13,6 +13,7 @@ import { makeRecipeVersion, makeSnapshot } from '../__fixtures__/index.js';
 import { RecipeVersionList } from '../RecipeVersionList.js';
 import type { RecipeVersionListProps } from '../history.js';
 import { recipeVersionMessages } from '../messages.js';
+import { formatVersionTimestamp } from '../timeFormat.js';
 
 const { versionList } = recipeVersionMessages.en;
 
@@ -111,14 +112,17 @@ describe('RecipeVersionList (web) — a recipe with only its current version (D1
 });
 
 describe('RecipeVersionList (web) — rows', () => {
-    it('lists the versions newest first, each with its number and how long ago it was edited', () => {
+    it('lists the versions newest first, each labelled by its date, with its number and how long ago as the detail', () => {
         renderList({ versions: threeVersions, currentVersion: 3 });
 
-        const titles = screen
-            .getAllByRole('listitem')
-            .map((item) => item.querySelector('[data-row-title]')?.textContent);
+        const rows = screen.getAllByRole('listitem');
+        const titles = rows.map((item) => item.querySelector('[data-row-title]')?.textContent);
+        const details = rows.map((item) => item.querySelector('[data-row-detail]')?.textContent);
 
-        expect(titles).toEqual([
+        // Owner 2026-10-13: an entry is labelled by its DATE; its number is a small secondary detail.
+        expect(titles).toEqual(threeVersions.map((v) => formatVersionTimestamp(v.createdAt, 'en')).reverse());
+        expect(titles.join(' ')).not.toMatch(/Version/u);
+        expect(details).toEqual([
             'Version 3 · Edited 2 days ago',
             'Version 2 · Edited 7 days ago',
             'Version 1 · Edited 11 days ago',
@@ -162,7 +166,7 @@ describe('RecipeVersionList (web) — rows', () => {
 
         const [newest] = screen.getAllByRole('listitem');
 
-        expect(newest?.querySelector('[data-row-title]')?.textContent).toBe('Version 2 · Edited now');
+        expect(newest?.querySelector('[data-row-detail]')?.textContent).toBe('Version 2 · Edited now');
     });
 
     it('marks the current version and offers it no ⋯ menu — nothing to restore or compare', () => {

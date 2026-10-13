@@ -342,18 +342,19 @@ describe('RecipeDetailView (web) — seafoam-as-text below the hero is WCAG-AA l
         expect(screen.queryByText(/16200/)).toBeNull();
     });
 
-    it('makes the footer’s version line legible', () => {
+    // Owner 2026-10-13: the recipe page shows no version number; the history page owns it.
+    it('shows no version number in the footer, but still offers the history', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
+                versionsHref="/en/recipes/rec_1/versions"
                 recipe={makeRecipeDetail({ currentVersion: 3 })}
             />,
         );
 
-        const line = screen.getByText('Version 3');
-
-        expect(utilityContrast(`${line.parentElement?.className ?? ''}`), 'version line').toBeGreaterThanOrEqual(4.5);
+        expect(screen.queryByText(/^Version \d+$/u)).toBeNull();
+        expect(screen.getByRole('link', { name: 'Version history' })).toBeTruthy();
     });
 });
 
@@ -1061,7 +1062,7 @@ describe('RecipeDetailView (web) — empty sections (§6.7)', () => {
 });
 
 describe('RecipeDetailView (web) — footer facts (§6.1)', () => {
-    it('states the version and links the version history', () => {
+    it('links the version history, and states no version number', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -1071,7 +1072,7 @@ describe('RecipeDetailView (web) — footer facts (§6.1)', () => {
             />,
         );
 
-        expect(screen.getByText('Version 3')).toBeTruthy();
+        expect(screen.queryByText('Version 3')).toBeNull();
         expect(screen.getByRole('link', { name: 'Version history' }).getAttribute('href')).toBe(
             '/en/recipes/rec_1/versions',
         );

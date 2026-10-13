@@ -14,7 +14,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { RecipeCollectionAddedVia, recipeVisibilitySchema, type RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { assertNotContained } from '../common/containment.error.js';
-import type { ActingPrincipal } from '../auth/principal.js';
+import type { ActingPrincipal, TieredActingPrincipal } from '../auth/principal.js';
 import { toPageEnvelope } from '../common/pagination.js';
 import { resolveCdnUrl } from '../photos/photoView.js';
 import { RECIPE_PHOTOS_CDN_URL } from '../recipes/recipes.tokens.js';
@@ -28,9 +28,11 @@ import {
     collectionNotClonedError,
     collectionNotOwnedError,
     invalidVisibilityError,
+    privateCollectionNotPermittedError,
     pullDriftError,
     recipeNotFoundError,
 } from './collections.errors.js';
+import { defaultCollectionVisibility, evaluateCollectionVisibility } from './domain/collectionVisibilityPolicy.js';
 import { computePullDiff, pullDiffsAgree } from './domain/pullDiff.js';
 import type {
     CloneCollectionRequest,
@@ -93,7 +95,9 @@ export class CollectionsService {
     ) {}
 
     /**
-     * Create a collection owned by `ownerId`. Visibility defaults to `private` (FR-010).
+     * Create a collection owned by `owner`. Visibility defaults by tier (owner 2026-10-13): `private` for a premium cook
+     * (FR-010), `public` for a free-tier one, who may not hold a private collection at all — see
+     * {@link evaluateCollectionVisibility}.
      *
      * REQ-049b: an owner may hold at most {@link MAX_COLLECTIONS_PER_OWNER} collections. Delegates to
      * {@link CollectionsDal.createIfUnderCap}, which enforces the cap ATOMICALLY (COUNT + INSERT in one
@@ -103,8 +107,13 @@ export class CollectionsService {
      * @throws `COLLECTION_LIMIT_REACHED` when the owner already holds {@link MAX_COLLECTIONS_PER_OWNER}
      *   collections.
      */
-    public async createCollection(owner: ActingPrincipal, input: CreateCollectionRequest): Promise<CollectionResponse> {
-        const visibility = input.visibility ?? 'private';
+    public async createCollection(
+        owner: TieredActingPrincipal,
+        input: CreateCollectionRequest,
+    ): Promise<CollectionResponse> {
+        const visibility = input.visibility ?? defaultCollectionVisibility(owner);
+
+        assertTierAllows(owner, visibility);
 
         // ADR-0040: a public collection enters community discovery — refused for a contained test principal.
         assertMayPublish(owner, visibility);
@@ -173,7 +182,7 @@ export class CollectionsService {
 
     /** Update an owned collection (name/description/visibility). Rejects an invalid visibility (FR-010). */
     public async updateCollection(
-        owner: ActingPrincipal,
+        owner: TieredActingPrincipal,
         id: string,
         patch: UpdateCollectionRequest,
     ): Promise<CollectionResponse> {
@@ -182,7 +191,12 @@ export class CollectionsService {
             assertMayPublish(owner, patch.visibility);
         }
 
-        await this.requireOwned(owner.userId, id);
+        const existing = await this.requireOwned(owner.userId, id);
+
+        if (patch.visibility !== undefined) {
+            assertTierAllows(owner, patch.visibility, existing.visibility as RecipeVisibility);
+        }
+
         const row = await this.dal.update(id, patch);
 
         if (!row) {
@@ -196,10 +210,16 @@ export class CollectionsService {
      * Set a collection's visibility (FR-010 / T140): a `public`↔`private` toggle, ownership-enforced,
      * with an invalid value rejected as INVALID_VISIBILITY (→ 400).
      */
-    public async setVisibility(owner: ActingPrincipal, id: string, visibility: string): Promise<CollectionResponse> {
+    public async setVisibility(
+        owner: TieredActingPrincipal,
+        id: string,
+        visibility: string,
+    ): Promise<CollectionResponse> {
         this.assertVisibility(visibility);
         assertMayPublish(owner, visibility);
-        await this.requireOwned(owner.userId, id);
+        const existing = await this.requireOwned(owner.userId, id);
+
+        assertTierAllows(owner, visibility, existing.visibility as RecipeVisibility);
         const row = await this.dal.update(id, { visibility });
 
         if (!row) {
@@ -292,7 +312,7 @@ export class CollectionsService {
      * @sideEffect Inserts a `collections` row plus one `recipe_collections` row per seeded recipe.
      */
     public async cloneCollection(
-        cloner: ActingPrincipal,
+        cloner: TieredActingPrincipal,
         sourceId: string,
         overrides: CloneCollectionRequest = {},
     ): Promise<CollectionResponse> {
@@ -326,9 +346,10 @@ export class CollectionsService {
                     ownerId: clonerId,
                     name: overrides.name ?? source.name,
                     description: overrides.description ?? source.description ?? undefined,
-                    // A clone starts private regardless of the source's visibility — publishing is the
-                    // cloner's own, separate decision (FR-010).
-                    visibility: 'private',
+                    // A clone takes the cloner's tier default regardless of the source's visibility: private for a
+                    // premium cook (publishing is their own, separate decision, FR-010), public for a free-tier
+                    // one, who cannot hold a private collection (owner 2026-10-13).
+                    visibility: defaultCollectionVisibility(cloner),
                     sourceCollectionId: sourceId,
                     sourceOwnerHandle: sourceOwnerHandle ?? null,
                     sourceCollectionName: source.name,
@@ -502,4 +523,31 @@ function assertMayPublish(owner: ActingPrincipal, visibility: string): void {
     }
 
     assertNotContained(owner, 'publish');
+}
+
+/**
+ * Refuse a visibility the cook's tier does not allow (owner 2026-10-13: a private collection is Premium). The rule is
+ * `evaluateCollectionVisibility`; this only turns its refusal into the 400.
+ *
+ * @param owner - The acting principal and its tier.
+ * @param visibility - The visibility being set.
+ * @param current - The collection's current visibility, on an update.
+ * @throws `INVALID_VISIBILITY` (400) carrying `requiredEntitlement: 'premium'` when the tier forbids it.
+ */
+function assertTierAllows(
+    owner: TieredActingPrincipal,
+    visibility: RecipeVisibility,
+    current?: RecipeVisibility,
+): void {
+    const decision = evaluateCollectionVisibility({
+        principalKind: owner.principalKind,
+        containment: owner.containment,
+        isPremium: owner.isPremium,
+        requested: visibility,
+        ...(current !== undefined ? { current } : {}),
+    });
+
+    if (!decision.allowed) {
+        throw privateCollectionNotPermittedError(decision.reason);
+    }
 }

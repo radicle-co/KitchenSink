@@ -310,8 +310,6 @@ export interface RecipeDetailMessages {
     readonly gramsUnit: string;
     /** Visible version-badge text, shown only past v1 (contains `{version}`). */
     readonly versionBadge: string;
-    /** Accessible name for the version badge (contains `{version}`). */
-    readonly versionLabel: string;
     /** Visibility-badge text for a public recipe. */
     readonly visibilityPublic: string;
     /** Visibility-badge text for a private recipe. */
@@ -1000,7 +998,6 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             fatLabel: 'Fat',
             gramsUnit: '{grams} g',
             versionBadge: 'v{version}',
-            versionLabel: 'Version {version}',
             visibilityPublic: 'Public',
             visibilityPrivate: 'Private',
             badgesLabel: 'Recipe status',

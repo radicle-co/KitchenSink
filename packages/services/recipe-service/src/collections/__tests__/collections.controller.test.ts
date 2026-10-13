@@ -64,7 +64,10 @@ describe('CollectionsController', () => {
 
             const result = await controller.create(reqWith(PRINCIPAL), { name: 'Weeknight Dinners' });
 
-            expect(service.createCollection).toHaveBeenCalledWith(ACTING, { name: 'Weeknight Dinners' });
+            expect(service.createCollection).toHaveBeenCalledWith(
+                { ...ACTING, isPremium: false },
+                { name: 'Weeknight Dinners' },
+            );
             expect(result).toEqual({ id: 'c1' });
         });
 
@@ -96,13 +99,26 @@ describe('CollectionsController', () => {
         });
     });
 
+    describe('tier', () => {
+        it('hands the service a PREMIUM actor only when the signed permissions say so', async () => {
+            service.createCollection.mockResolvedValue({ id: 'c1' });
+            const premium: Principal = { ...PRINCIPAL, permissions: ['premium'] };
+
+            await controller.create(reqWith(premium), { name: 'Dinners' });
+
+            expect(service.createCollection).toHaveBeenCalledWith({ ...ACTING, isPremium: true }, { name: 'Dinners' });
+        });
+    });
+
     describe('update', () => {
         it('delegates the parsed patch', async () => {
             service.updateCollection.mockResolvedValue({ id: 'c1', visibility: 'public' });
 
             await controller.update(reqWith(PRINCIPAL), 'c1', { visibility: 'public' });
 
-            expect(service.updateCollection).toHaveBeenCalledWith(ACTING, 'c1', { visibility: 'public' });
+            expect(service.updateCollection).toHaveBeenCalledWith({ ...ACTING, isPremium: false }, 'c1', {
+                visibility: 'public',
+            });
         });
     });
 

@@ -8,7 +8,7 @@ import { openNewRecipe } from './utils/recipeEditor';
 /**
  * The editor's session and chrome, as only a browser shows them (UI walk batch B2): leaving during the first create (E3),
  * the document's scroll padding for focus under the sticky chrome (E4), a refused Publish landing on its field (E7), the
- * bar's foot (E21), the guided progress for an account that has never published (A-005), and the Ready line (A-010b).
+ * bar's foot (E21), the one editor every cook gets (no guided progress, owner 2026-10-13), and the Ready line (A-010b).
  *
  * The recipe-service contract is intercepted (`utils/recipeApi`); selectors are role and label only (repo policy).
  */
@@ -95,6 +95,30 @@ test.describe('the editor session', () => {
         await expect(page.getByRole('radio', { name: /^Public/u })).toBeChecked();
     });
 
+    /** Owner 2026-10-13: a description past 256 characters blocks Publish; a draft still saves. The field says so, and nothing is cut. */
+    test('a description past 256 characters shows the counter and the limit, and keeps every character', async ({
+        page,
+    }) => {
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+
+        await openNewRecipe(page);
+        const description = page.getByRole('textbox', { name: 'Description' });
+        await description.fill('a'.repeat(257));
+
+        await expect(page.getByText('257/256')).toBeVisible();
+        await expect(
+            page.getByText('Shorten the description to 256 characters or fewer to publish. Your draft still saves.'),
+        ).toBeVisible();
+        await expect(description).toHaveAttribute('aria-invalid', 'true');
+        await expect(description).toHaveValue('a'.repeat(257));
+
+        await description.fill('a'.repeat(256));
+
+        await expect(description).not.toHaveAttribute('aria-invalid', 'true');
+        await expect(page.getByText('Your draft still saves.')).toHaveCount(0);
+    });
+
     /** E7 (build spec §7.8): focus goes to the first invalid field, not the section heading. */
     test('a refused Publish puts focus in the title field', async ({ page }) => {
         const viewerId = await readViewerAppId(page);
@@ -121,15 +145,17 @@ test.describe('the editor session', () => {
         expect(Math.abs(bar!.y + bar!.height - 844)).toBeLessThanOrEqual(2);
     });
 
-    /** A-005 + E17: an account that has never published is guided even when the library read was never cached. */
-    test('an empty account opening the editor by URL is guided: "0 of 4 done"', async ({ page }) => {
+    /** Owner 2026-10-13: the editor is the same for every cook, an account that never published included. */
+    test('an empty account opening the editor by URL sees no guided progress', async ({ page }) => {
         await page.setViewportSize({ width: 1280, height: 900 });
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [] });
 
         await page.goto(route('/recipes/new'));
 
-        await expect(page.getByText('0 of 4 done').first()).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Details' })).toBeVisible();
+        await expect(page.getByText(/of 4 done/u)).toHaveCount(0);
+        await expect(page.getByText('Start here')).toHaveCount(0);
     });
 
     /** A-010b (build spec §7.7 item 3): the Ready line is always in Photos & publish. */

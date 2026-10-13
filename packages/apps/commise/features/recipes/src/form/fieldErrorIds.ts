@@ -11,6 +11,7 @@
  * here once rather than being spelled twice.
  */
 export const titleErrorId = 'recipe-title-error';
+export const descriptionErrorId = 'recipe-description-error';
 export const servingsErrorId = 'recipe-servings-error';
 export const timesErrorId = 'recipe-times-error';
 export const ingredientsErrorId = 'recipe-ingredients-error';

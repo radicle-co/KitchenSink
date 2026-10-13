@@ -959,8 +959,7 @@ phone 390                                   840+
     - 600 and wider: the pair sits at the end of the title row.
     - ⋯ menu, in order: Rename · Make private / Make public · Save a copy · Pull updates (copies only) · divider ·
       Delete collection.
-- **Visibility** changes at once from the menu with an undo snackbar ("Collection is now private." **Undo**). A
-  free-tier user choosing Make private gets the upsell sheet: "Private collections are part of Premium." with **See
+- **Visibility** changes at once from the menu with an undo snackbar ("Collection is now private." **Undo**). A private collection is a Premium feature (owner, 2026-10-13): a free-tier cook's new collection is public by default, the server refuses `private` for them (`400 INVALID_VISIBILITY`, `details.requiredEntitlement: premium`), and a free-tier user choosing Make private gets the upsell sheet: "Private collections are part of Premium." with **See
   Premium** and **Not now**, both secondary `md` buttons of equal size side by side (both resolutions agreed on
   equal weight). Nothing is pre-selected. This passes the DSA Art. 25
   test: it is true and does not distort the choice.
@@ -1082,7 +1081,7 @@ below a 560 px column, 4 across above. Then one grouped footnote in `caption`: t
 "From public food databases · Data sources", and the custom-food note only when one is present.
 **Rating:** others' recipe: "Rate this recipe" with 44 px stars. Own: the average and count, and "You can't rate your
 own recipe."
-**Footer facts:** source link, "Version 12 · Edited 2 d ago", and **Version history** (ghost).
+**Footer facts:** source link and **Version history** (ghost). The page shows no version number (owner, 2026-10-13); the history page owns it.
 
 ### 6.2 `SectionSwitch` (`ui/src/sectionSwitch/`)
 
@@ -1131,18 +1130,19 @@ These ship now with detail (owner). The full cook view (008 FR-032 to FR-035) fo
 ### 6.4 Other detail surfaces
 
 - **⋯ menu** (`ActionMenu`): own: Version history · Make private / Make public · Clear checks (when set) · divider ·
-  Delete recipe. Others': Version history (when allowed) · Clear checks (when set). A free-tier owner choosing Make
-  private gets the upsell sheet: "Private recipes are part of Premium." · **See Premium** · **Not now**, at equal
+  Delete recipe. Others': Version history (when allowed) · Clear checks (when set). Make private is shown to every owner (owner, 2026-10-13). A free-tier owner choosing it gets the upsell sheet: "Private recipes are part of Premium." · **See Premium** · **Not now**, at equal
   weight as in §5.2. Check F8 first (a premium viewer was shown the upsell). Keys (NEW, `actions/messages.ts`):
   `upsell.privateRecipe`, `upsell.seePremium` "See Premium", `upsell.notNow` "Not now". Collections use
-  `collections/messages.ts` `upsell.privateCollection` with the same two buttons.
+  `collections/messages.ts` `upsell.privateCollection` with the same two buttons. The decision "may this cook go private, or
+  do we show the upsell?" lives in one place per side: `privateNeedsPremium` / `useGatedPrivate` in `features/recipes`, and
+  `collectionVisibilityPolicy` in recipe-service.
 - **After a recipe's first publish:** the detail page opens with a snackbar "Recipe published." and **Add to a
   collection**. It opens the **collection chooser sheet**: the picker of §5.3 turned around. Title "Add to a
   collection". Rows are the cook's collections (48 px mosaic, name truncate:2, "{n} recipes") as whole-row
   checkboxes that save at once, with a **New collection** row first that opens §5.1's sheet and returns with the new
   collection checked. **Done** closes it. No collections: only the New collection row and the line "You have no
   collections yet." Keys NEW in `collections/messages.ts`: `chooser.title`, `chooser.newRow`, `chooser.empty`. After Save a copy from detail: the copy opens in the editor, because it needs an
-  edit before it can be published (FR-005b).
+  edit before it can be published (FR-005b). The copy is a DRAFT (not published, not public) until the cook edits it and publishes (owner, 2026-10-13); the server creates it with status `draft`.
 
 ### 6.5 Delete confirmation
 
@@ -1150,13 +1150,13 @@ These ship now with detail (owner). The full cook view (008 FR-032 to FR-035) fo
 version history will be deleted. You can't undo this." (the title clamped to 2 lines). Buttons: **Delete recipe**
 (filled `error`, `trash-2`) and **Keep recipe** (secondary, `x`). Side by side from a 400 px dialog, Keep left.
 Stacked full width below, Delete on top. **Focus opens on Keep recipe.** Busy: Delete shows its spinner and both lock.
-Failure: "We couldn't delete this recipe. Try again." inside the dialog. Keys (`actions/messages.ts`): `delete.title`,
+Failure: "We couldn't delete this recipe. Try again." inside the dialog. Success: the screen the cook lands on shows a snackbar, "Recipe deleted" (owner, 2026-10-13; `detailActions.recipeDeleted`, both platforms). Keys (`actions/messages.ts`): `delete.title`,
 `delete.body`, `delete.confirm` change values. NEW `delete.keep` "Keep recipe".
 
 ### 6.6 Version history
 
 - `LargeTitleHeader`: back "Back to recipe", H1 "Version history", subtitle the recipe title (truncate:1).
-- Rows, newest first: "Version 12 · Edited 2 days ago" (`body` 600), "Changed: ingredients, steps" (`meta`,
+- Rows, newest first: the edit's date and time (`body` 600), then "Version 12 · Edited 2 days ago" in `caption` as a small secondary detail (owner, 2026-10-13: the date labels an entry, the number does not), "Changed: ingredients, steps" (`meta`,
   `inkMuted`, truncate:1), and ⋯: Preview · Restore this version · Compare with current. **Compare is per row, against
   the current version.** Comparing two old versions is deferred.
 - Preview opens a sheet with the version's detail page and **Restore this version** as its primary. Restore makes a
@@ -1270,15 +1270,7 @@ food. Steps has at least one step with text. These are the validator's own rules
 edge (rail, sheet) or under the label (strip), the label in `ink` at 600, and `aria-current="location"` (not `step`:
 the cook is not forced through an order).
 
-**Guided progress** (the account has never published a recipe, owner D1):
-
-- Each rail and sheet row shows a one-line hint under its label: "Name it and say how long it takes" · "Add what
-  goes in" · "Say how to make it" · "Add a photo, then publish".
-- Details shows "Start here" as its status until something is typed.
-- The rail foot shows "{done} of 4 done", counting only real Complete statuses. The bar adds " · {done} of 4 done"
-  after the section label.
-- Order is a suggestion, never a gate: every section is reachable at any time. After the first publish, the hints
-  and the count never show again.
+The editor is the same for every cook: there is no guided first-recipe progress (owner, 2026-10-13). The index shows no hints, no "Start here" and no "{done} of 4 done".
 
 **Tracking the current section while scrolling:**
 
@@ -1325,14 +1317,15 @@ here", `index.done` "{done} of 4 done", `index.hint.details` … `index.hint.pho
   changes from {time} that aren't saved to your recipe." with **Save changes** and **Discard** (a confirm dialog).
 - **Save status** (header, `caption`, never wraps, truncate:1):
 
-| Status                         | When                                       | Announced           |
-| ------------------------------ | ------------------------------------------ | ------------------- |
-| (nothing)                      | new recipe, nothing typed                  | no                  |
-| "Saving…"                      | a write is in flight                       | no                  |
-| "Saved"                        | the draft reached the server               | no                  |
-| "Saved on this device"         | the draft is queued in the write port      | no                  |
-| "Changes saved on this device" | a published recipe has device-only changes | no                  |
-| "Couldn't save. Retrying."     | a write failed and is retrying             | yes, politely, once |
+| Status                         | When                                                                                                                             | Announced           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| (nothing)                      | new recipe, nothing typed                                                                                                        | no                  |
+| "Saving…"                      | a write is in flight                                                                                                             | no                  |
+| "Saved"                        | the draft reached the server                                                                                                     | no                  |
+| "Saved on this device"         | the draft is queued in the write port                                                                                            | no                  |
+| "Saved in this tab"            | web only: before the first server save, the draft is kept in the tab (owner, 2026-10-13); "Saved" follows once the server has it | no                  |
+| "Changes saved on this device" | a published recipe has device-only changes                                                                                       | no                  |
+| "Couldn't save. Retrying."     | a write failed and is retrying                                                                                                   | yes, politely, once |
 
 - **Discard draft / Discard changes** (⋯): a `ConfirmDialog`. "Discard this draft?" / "Discard your changes?" with
   **Discard** (filled `error`) and **Keep editing** (secondary). Focus opens on Keep editing.
@@ -1341,17 +1334,17 @@ here", `index.done` "{done} of 4 done", `index.hint.details` … `index.hint.pho
 
 ### 7.4 Details section
 
-| Group (H3, `label`, `inkMuted`) | Field               | Spec                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| About the recipe                | Title               | auto-growing `TextArea`, up to 3 lines, Enter blocked. **Soft limit 120:** no `maxLength`. A counter "{n}/120" in `caption` shows from 100. Past 120 the counter turns `danger`, the field gets `aria-invalid`, and "Shorten the title to 120 characters or fewer." shows under it. It blocks Publish, never typing. Nothing is cut silently (fixes F4) |
-|                                 | Description         | auto-growing `TextArea`, 4 rows minimum, counter from 80% of its existing cap                                                                                                                                                                                                                                                                           |
-| Time and servings               | Servings            | `Stepper`, min 1                                                                                                                                                                                                                                                                                                                                        |
-|                                 | Prep, Cook          | `DurationField` each, empty by default, never "0"                                                                                                                                                                                                                                                                                                       |
-|                                 | Total               | computed text "Total 5 h 30 min" in `meta`, hidden while both are empty                                                                                                                                                                                                                                                                                 |
-| Kind of dish                    | Cuisine             | `Combobox` (existing, `ui/src/combobox/`)                                                                                                                                                                                                                                                                                                               |
-|                                 | Meal type           | `Chip kind="filter"`, `ChipRow overflow="wrap"` up to 3 lines (every option stays visible in a form)                                                                                                                                                                                                                                                    |
-|                                 | Difficulty          | Easy · Medium · Hard as `Chip kind="choice"` toggles with `aria-pressed`. Nothing pressed means "not stated". Pressing the pressed one clears it. No "Not stated" chip                                                                                                                                                                                  |
-| Diet and tags                   | Dietary flags, Tags | chip input. "Add a tag" with Enter or comma. Each added tag is a `Chip kind="input"` named "Remove {tag}"                                                                                                                                                                                                                                               |
+| Group (H3, `label`, `inkMuted`) | Field               | Spec                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| About the recipe                | Title               | auto-growing `TextArea`, up to 3 lines, Enter blocked. **Soft limit 120:** no `maxLength`. A counter "{n}/120" in `caption` shows from 100. Past 120 the counter turns `danger`, the field gets `aria-invalid`, and "Shorten the title to 120 characters or fewer." shows under it. It blocks Publish, never typing. Nothing is cut silently (fixes F4)                                                     |
+|                                 | Description         | auto-growing `TextArea`, 4 rows minimum, **Soft limit 256** (owner, 2026-10-13): no `maxLength`. A counter "{n}/256" shows from 80% of the cap. Past 256 the counter turns `danger`, the field gets `aria-invalid`, and "Shorten the description to 256 characters or fewer to publish. Your draft still saves." shows under it. It blocks Publish, never typing or saving a draft. Nothing is cut silently |
+| Time and servings               | Servings            | `Stepper`, min 1                                                                                                                                                                                                                                                                                                                                                                                            |
+|                                 | Prep, Cook          | `DurationField` each, empty by default, never "0"                                                                                                                                                                                                                                                                                                                                                           |
+|                                 | Total               | computed text "Total 5 h 30 min" in `meta`, hidden while both are empty                                                                                                                                                                                                                                                                                                                                     |
+| Kind of dish                    | Cuisine             | `Combobox` (existing, `ui/src/combobox/`)                                                                                                                                                                                                                                                                                                                                                                   |
+|                                 | Meal type           | `Chip kind="filter"`, `ChipRow overflow="wrap"` up to 3 lines (every option stays visible in a form)                                                                                                                                                                                                                                                                                                        |
+|                                 | Difficulty          | Easy · Medium · Hard as `Chip kind="choice"` toggles with `aria-pressed`. Nothing pressed means "not stated". Pressing the pressed one clears it. No "Not stated" chip                                                                                                                                                                                                                                      |
+| Diet and tags                   | Dietary flags, Tags | chip input. "Add a tag" with Enter or comma. Each added tag is a `Chip kind="input"` named "Remove {tag}"                                                                                                                                                                                                                                                                                                   |
 
 - Layout: below 600, Prep and Cook sit side by side (about 136 px each at 320). Everything else is full width. From
   600, Servings, Prep and Cook share one row, and Cuisine and Meal type sit side by side.
@@ -1525,17 +1518,17 @@ Add an ingredient
 
 ### 7.9 Editor states
 
-| State                              | Shown                                                                                                                   |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| New, empty                         | every section visible and empty, each with one line of help. No "0" anywhere. Guided progress if it is the first recipe |
-| Loading (edit)                     | section skeletons at their real heights                                                                                 |
-| Device changes waiting (published) | the resume notice (§7.3)                                                                                                |
-| Saving, saved, save failed         | the save status (§7.3)                                                                                                  |
-| Publish refused                    | field errors + index statuses + the bar line (§7.8)                                                                     |
-| Publishing                         | primary busy, bar locked                                                                                                |
-| Conflict                           | the existing conflict view                                                                                              |
-| Offline                            | identical behaviour. The save status reads "Saved on this device" until the write port drains                           |
-| Ingredient line states             | §7.5.1                                                                                                                  |
+| State                              | Shown                                                                                         |
+| ---------------------------------- | --------------------------------------------------------------------------------------------- |
+| New, empty                         | every section visible and empty, each with one line of help. No "0" anywhere.                 |
+| Loading (edit)                     | section skeletons at their real heights                                                       |
+| Device changes waiting (published) | the resume notice (§7.3)                                                                      |
+| Saving, saved, save failed         | the save status (§7.3)                                                                        |
+| Publish refused                    | field errors + index statuses + the bar line (§7.8)                                           |
+| Publishing                         | primary busy, bar locked                                                                      |
+| Conflict                           | the existing conflict view                                                                    |
+| Offline                            | identical behaviour. The save status reads "Saved on this device" until the write port drains |
+| Ingredient line states             | §7.5.1                                                                                        |
 
 ### 7.10 Editor accessibility contract
 
@@ -1567,6 +1560,7 @@ All NEW in `editor/messages.ts` unless named:
 | `ready`                                                                                                                 | Ready to publish.                                                                                                                       |
 | `published` / `addToCollection` / `changesSaved`                                                                        | Recipe published. / Add to a collection / Changes saved.                                                                                |
 | `publishFailed`                                                                                                         | We couldn't publish. Your recipe is kept on this device. Try again.                                                                     |
+| `details.descriptionLimit`                                                                                              | Shorten the description to 256 characters or fewer to publish. Your draft still saves.                                                  |
 | `details.titleLimit`                                                                                                    | Shorten the title to 120 characters or fewer.                                                                                           |
 | `ingredients.addLabel` / `.addHint`                                                                                     | Add an ingredient / Type the amount first, then pick the food. For example: 2 tbsp olive oil.                                           |
 | `ingredients.pickFood`                                                                                                  | Pick a food from the list.                                                                                                              |
@@ -1695,7 +1689,7 @@ phone 390, and 840+ in content-reading (640), left-aligned
       name when Clerk has it, and **Save** (primary). It saves only on Save, because the name can show publicly as an
       author handle. This is the only place the app asks for it. The identity service fills the name in from the
       account at sign-up (D22), so the cook can change it here but does not have to set it.
-    - **Email**: read-only value.
+    - **Email**: shown once, in the header's identity block. Web's Account group also lists it as a read-only row; mobile has no Email row (owner, 2026-10-13: the header already shows it).
     - **Preferences:** "Food data sources" → `/legal/sources`. **Keyboard shortcuts** (web only): a switch, on by
       default. Off, `/` types a slash like any other key (SC 2.1.4).
     - **Sign out**: a row button in `ink`, not red (it is not destructive). It issues `useSignOutAndLeave()` exactly as
@@ -1779,7 +1773,7 @@ These are calls the earlier files left open or got wrong. Each was settled by me
 11. **The card's Save a copy snackbar offers Edit, not View.** A copy needs a real edit before it can be published
     (FR-005b), so Edit is the next useful step.
 12. **SectionIndex statuses:** GOV.UK's quiet complete (owner D2's basis), A's "Fix before publishing" plus B's "In
-    progress". Guided progress uses hints and a done count, not numbered items. The phone bar is 44 px (HIG), not 40.
+    progress". The phone bar is 44 px (HIG), not 40.
 13. **One "you are here" marker: the 3 px seafoam `hereBar`** on the tab bar, sidebar, section index and current step.
     One cue for one meaning.
 14. **Back to top:** a page taller than 4 viewports, scrolled past 4, last scroll upward, on web at every width. That is
@@ -1961,7 +1955,7 @@ Where a slice makes an existing spec obsolete, its coverage moves to the named n
 ### Slice 7: the editor frame (the wizard retires for create and edit)
 
 - **Changes:** one page for `/recipes/new` and `/recipes/{id}/edit` and the native editor screen. `SectionIndex` in
-  all three forms with guided progress. Autosave and device-only edits for published recipes (§7.3). Details, Steps
+  all three forms. Autosave and device-only edits for published recipes (§7.3). Details, Steps
   (timer disclosure, Paste steps), Photos & publish (visibility, ready line), Preview, Publish and Save changes. The
   Ingredients section hosts **today's** row model, so this slice can ship alone. It gains one fix: a row added from
   the list no longer gets an invented quantity of 1 (F5).

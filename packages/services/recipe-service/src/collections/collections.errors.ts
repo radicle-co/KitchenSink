@@ -33,6 +33,16 @@ export const invalidVisibilityError = (visibility: string): RecipeDomainError =>
     });
 
 /**
+ * A free-tier cook asked for a private collection, which is a Premium feature (→ 400 `INVALID_VISIBILITY`, owner
+ * 2026-10-13). `details.requiredEntitlement` lets a client open the upsell without parsing the message.
+ */
+export const privateCollectionNotPermittedError = (reason: string): RecipeDomainError =>
+    new RecipeDomainError(RecipeErrorCode.INVALID_VISIBILITY, reason, {
+        visibility: 'private',
+        requiredEntitlement: 'premium',
+    });
+
+/**
  * A pull-from-source was requested for a collection that has no source to pull FROM (→ 400).
  *
  * Either it was authored directly (never cloned), or its `source_collection_id` was orphaned when the

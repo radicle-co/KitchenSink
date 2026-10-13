@@ -18,7 +18,7 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { makeFakeEditorWritePort } from '../../__fixtures__/editorWritePort.js';
-import { makeRecipe, makeRecipeDetail } from '../../__fixtures__/index.js';
+import { makeRecipeDetail } from '../../__fixtures__/index.js';
 import { toRecipeFormValues } from '../../form/wire.js';
 import type { EditorSeed } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
@@ -287,87 +287,6 @@ describe('useRecipeEditorSession — the address after a leave (E3)', () => {
         await settle();
 
         expect(onRecipeRef).toHaveBeenLastCalledWith('rec_9');
-    });
-});
-
-/**
- * A-005 + E17: the guided first-recipe progress keys on "this account has never published", from a REAL read of the
- * library, never the cache alone (opened from Home, by URL or after a reload, the key is cold).
- */
-describe('useRecipeEditorSession — guided progress (A-005, E17)', () => {
-    /** A client whose library holds `recipes`, in one chunk. */
-    function libraryOf(recipes: readonly ReturnType<typeof makeRecipe>[]): RecipeServiceClient {
-        const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'listRecipes').mockResolvedValue({
-            data: [...recipes],
-            total: recipes.length,
-            page: 1,
-            pageSize: 100,
-            hasMore: false,
-        } as Awaited<ReturnType<RecipeServiceClient['listRecipes']>>);
-
-        return client;
-    }
-
-    it('is off until the read settles, then guides an empty library from a COLD cache', async () => {
-        const { result } = mount({}, libraryOf([]));
-
-        expect(result.current.guided).toBe(false);
-        await waitFor(() => expect(result.current.guided).toBe(true));
-    });
-
-    it('guides a cook who only has drafts: "never published", not "no recipes"', async () => {
-        const draft = makeRecipe({ status: RecipeStatus.DRAFT, firstPublishedAt: undefined });
-        const { result, client } = mount({}, libraryOf([draft]));
-
-        await waitFor(() => expect(client.listRecipes).toHaveBeenCalled());
-        await waitFor(() => expect(result.current.guided).toBe(true));
-    });
-
-    it('does not guide a cook who has published a recipe', async () => {
-        const published = makeRecipe({
-            status: RecipeStatus.PUBLISHED,
-            firstPublishedAt: '2026-10-01T10:00:00.000Z',
-        });
-        const { result, client } = mount({}, libraryOf([published]));
-
-        await waitFor(() => expect(client.listRecipes).toHaveBeenCalled());
-        await settle();
-
-        expect(result.current.guided).toBe(false);
-    });
-
-    it('does not guide a cook who once published a recipe that is a draft again (firstPublishedAt, not status)', async () => {
-        const reverted = makeRecipe({
-            status: RecipeStatus.DRAFT,
-            firstPublishedAt: '2026-10-01T10:00:00.000Z',
-        });
-        const { result, client } = mount({}, libraryOf([reverted]));
-
-        await waitFor(() => expect(client.listRecipes).toHaveBeenCalled());
-        await settle();
-
-        expect(result.current.guided).toBe(false);
-    });
-
-    it('⛔ latches at the first settled read: a refetch that now holds a published recipe does not flip it', async () => {
-        const client = libraryOf([]);
-        const { result, queryClient } = mount({}, client);
-
-        await waitFor(() => expect(result.current.guided).toBe(true));
-        vi.spyOn(client, 'listRecipes').mockResolvedValue({
-            data: [makeRecipe({ status: RecipeStatus.PUBLISHED, firstPublishedAt: '2026-10-01T10:00:00.000Z' })],
-            total: 1,
-            page: 1,
-            pageSize: 100,
-            hasMore: false,
-        } as Awaited<ReturnType<RecipeServiceClient['listRecipes']>>);
-        await act(async () => {
-            await queryClient.invalidateQueries();
-        });
-        await settle();
-
-        expect(result.current.guided).toBe(true);
     });
 });
 

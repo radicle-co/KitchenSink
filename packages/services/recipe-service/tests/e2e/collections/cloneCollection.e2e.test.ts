@@ -33,7 +33,7 @@ import { CollectionsService } from '../../../src/collections/collections.service
 import { AnalyticsService } from '../../../src/analytics/analytics.service.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { recipeDb } from '../../support/roleDb.js';
-import { makeActingPrincipal } from '../../../src/auth/__fixtures__/actingPrincipal.fixtures.js';
+import { makeCollectionsActor } from '../../../src/auth/__fixtures__/actingPrincipal.fixtures.js';
 
 const roleDb = recipeDb();
 
@@ -281,7 +281,7 @@ describe('CollectionsService.cloneCollection atomicity (S-R1 unit-of-work)', () 
     it('rolls back the created clone row (no orphan) when the bulk membership seed fails mid-transaction', async () => {
         vi.spyOn(dal, 'addRecipes').mockRejectedValueOnce(new Error('simulated mid-seed failure'));
 
-        await expect(service.cloneCollection(makeActingPrincipal(ATOMIC_CLONER), sourceId)).rejects.toThrow(
+        await expect(service.cloneCollection(makeCollectionsActor(ATOMIC_CLONER), sourceId)).rejects.toThrow(
             'simulated mid-seed failure',
         );
 
@@ -304,7 +304,7 @@ describe('CollectionsService.cloneCollection atomicity (S-R1 unit-of-work)', () 
     });
 
     it('a clone that succeeds normally still seeds every eligible member (bulk path is not silently lossy)', async () => {
-        const result = await service.cloneCollection(makeActingPrincipal(ATOMIC_CLONER), sourceId);
+        const result = await service.cloneCollection(makeCollectionsActor(ATOMIC_CLONER), sourceId);
 
         const members = await db
             .select({ recipeId: recipeCollections.recipeId, addedVia: recipeCollections.addedVia })

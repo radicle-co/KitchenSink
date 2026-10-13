@@ -26,7 +26,7 @@ import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import type { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
 import type { AnalyticsService } from '../../analytics/analytics.service.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
-import { makeActingPrincipal } from '../../auth/__fixtures__/actingPrincipal.fixtures.js';
+import { makeCollectionsActor } from '../../auth/__fixtures__/actingPrincipal.fixtures.js';
 
 type DalMock = {
     [K in keyof CollectionsDal]: ReturnType<typeof vi.fn>;
@@ -103,7 +103,7 @@ describe('CollectionsService.cloneCollection', () => {
         );
         const service = makeService(dal);
 
-        const result = await service.cloneCollection(makeActingPrincipal(CLONER), SOURCE_ID);
+        const result = await service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID);
 
         // S-R1: `create` runs INSIDE the Unit-of-Work `transaction` opened — the tx handle it receives is
         // the very one `dal.transaction` handed the callback.
@@ -121,6 +121,17 @@ describe('CollectionsService.cloneCollection', () => {
         expect(result.ownerId).not.toBe(SOURCE_OWNER);
     });
 
+    it('⛔ gives a FREE-TIER cloner’s copy the tier default, PUBLIC: private is not theirs to hold (owner 2026-10-13)', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(publicSource());
+        dal.listRecipes.mockResolvedValue([]);
+        dal.create.mockResolvedValue(makeCollectionRow({ id: CLONE_ID, ownerId: CLONER, visibility: 'public' }));
+
+        await makeService(dal).cloneCollection(makeCollectionsActor(CLONER, { isPremium: false }), SOURCE_ID);
+
+        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'public' }), FAKE_TX);
+    });
+
     it("seeds the snapshot from the CLONER's view of the source, marking each membership clone_seed", async () => {
         const dal = makeDal();
         const visibleA = makeRecipeRow({ id: 'rec-a', ownerId: SOURCE_OWNER, visibility: 'public' });
@@ -136,7 +147,7 @@ describe('CollectionsService.cloneCollection', () => {
         ]);
         const service = makeService(dal);
 
-        await service.cloneCollection(makeActingPrincipal(CLONER), SOURCE_ID);
+        await service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID);
 
         // The viewer passed to listRecipes MUST be the cloner: the DAL scopes the read to
         // `public OR owner_id = viewer`, so passing SOURCE_OWNER here would seed the clone with the
@@ -153,7 +164,7 @@ describe('CollectionsService.cloneCollection', () => {
         );
         const service = makeService(dal);
 
-        await expect(service.cloneCollection(makeActingPrincipal(CLONER), SOURCE_ID)).rejects.toBeInstanceOf(
+        await expect(service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID)).rejects.toBeInstanceOf(
             NotFoundException,
         );
         // Nothing is created and nothing is read from a collection the cloner may not see.
@@ -172,7 +183,7 @@ describe('CollectionsService.cloneCollection', () => {
         );
         const service = makeService(dal);
 
-        const result = await service.cloneCollection(makeActingPrincipal(SOURCE_OWNER), SOURCE_ID);
+        const result = await service.cloneCollection(makeCollectionsActor(SOURCE_OWNER), SOURCE_ID);
 
         expect(result.sourceCollectionId).toBe(SOURCE_ID);
     });
@@ -182,7 +193,7 @@ describe('CollectionsService.cloneCollection', () => {
         dal.findById.mockResolvedValue(undefined);
         const service = makeService(dal);
 
-        await expect(service.cloneCollection(makeActingPrincipal(CLONER), 'missing')).rejects.toBeInstanceOf(
+        await expect(service.cloneCollection(makeCollectionsActor(CLONER), 'missing')).rejects.toBeInstanceOf(
             NotFoundException,
         );
         expect(dal.create).not.toHaveBeenCalled();
@@ -199,7 +210,7 @@ describe('CollectionsService.cloneCollection', () => {
         );
         const service = makeService(dal);
 
-        const result = await service.cloneCollection(makeActingPrincipal(CLONER), SOURCE_ID);
+        const result = await service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID);
 
         // Still called (so the DAL's own empty-array no-op is what prevents any SQL, not a service-level
         // branch) — but with an EMPTY id list, so zero membership rows are ever written.
@@ -224,7 +235,7 @@ describe('CollectionsService.cloneCollection', () => {
         );
         const service = makeService(dal);
 
-        await service.cloneCollection(makeActingPrincipal(CLONER), SOURCE_ID);
+        await service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID);
 
         expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ sourceCollectionId: SOURCE_ID }), FAKE_TX);
     });
@@ -234,7 +245,7 @@ describe('CollectionsService.cloneCollection', () => {
         dal.findById.mockResolvedValue(undefined);
         const service = makeService(dal);
 
-        const error = await service.cloneCollection(makeActingPrincipal(CLONER), 'not-a-uuid').then(
+        const error = await service.cloneCollection(makeCollectionsActor(CLONER), 'not-a-uuid').then(
             () => undefined,
             (e: unknown) => e,
         );
@@ -275,7 +286,7 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
         const authorHandles = makeAuthorHandlesDal({ findHandle: vi.fn().mockResolvedValue('clara') });
         const service = makeService(dal, authorHandles);
 
-        const result = await service.cloneCollection(makeActingPrincipal(CLONER), SOURCE_ID);
+        const result = await service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID);
 
         // Resolved for the SOURCE owner, not the cloner.
         expect(authorHandles.findHandle).toHaveBeenCalledWith(SOURCE_OWNER);
@@ -305,7 +316,7 @@ describe('CollectionsService.cloneCollection — source attribution (W5 Task 2, 
         const authorHandles = makeAuthorHandlesDal({ findHandle: vi.fn().mockResolvedValue(undefined) });
         const service = makeService(dal, authorHandles);
 
-        const result = await service.cloneCollection(makeActingPrincipal(CLONER), SOURCE_ID);
+        const result = await service.cloneCollection(makeCollectionsActor(CLONER), SOURCE_ID);
 
         expect(dal.create).toHaveBeenCalledWith(
             expect.objectContaining({ sourceOwnerHandle: null, sourceCollectionName: 'Keto Staples' }),

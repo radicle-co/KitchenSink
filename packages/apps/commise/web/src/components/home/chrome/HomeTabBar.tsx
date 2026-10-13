@@ -11,6 +11,10 @@
  * - A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top
  *   (`tabRootOf`; the page's `ScrollHost` moves the document).
  * - 64 px plus the bottom safe-area inset; each item at least 96 × 56 at 320 px.
+ * - Compact height (owner 2026-10-13; a window under 480 px tall, which is a phone held sideways): the label sits BESIDE
+ *   the glyph and the bar is 48 px plus the inset. Both sides pad their safe-area inset, so a cutout or the 3-button navigation
+ *   bar never covers a tab. Pure CSS (`max-height: 479px`, one pixel under `isCompactHeight`'s 480): the bar already
+ *   exists only below `nav` (840), so that is the whole condition. The label stays the link's accessible name.
  *
  * ⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second
  * tap. Everything it draws is derived from props.
@@ -70,7 +74,7 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, ref }: 
             aria-label={chrome.tabNavLabel}
             // The bar grows by the bottom safe-area inset and pads its foot by the same amount, so the 64 px row sits
             // clear above the home indicator. `env(...)` is 0 in a normal viewport.
-            className="fixed inset-x-0 bottom-0 z-50 isolate flex h-[calc(4rem+env(safe-area-inset-bottom))] justify-around px-2 pb-[env(safe-area-inset-bottom)] nav:hidden"
+            className="fixed inset-x-0 bottom-0 z-50 isolate flex h-[calc(4rem+env(safe-area-inset-bottom))] justify-around pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] nav:hidden [@media(max-height:479px)]:h-[calc(3rem+env(safe-area-inset-bottom))]"
         >
             <ChromeSurface edge="top" />
             {resolveHomeNav(liveCapabilities).map((item) => {
@@ -87,7 +91,7 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, ref }: 
                         href={href}
                         aria-current={active ? 'page' : undefined}
                         onClick={onTabClick(item.id)}
-                        className={`relative flex min-h-14 min-w-24 flex-1 flex-col items-center justify-center gap-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
+                        className={`relative flex min-h-14 min-w-24 flex-1 flex-col items-center justify-center gap-1 rounded-md [@media(max-height:479px)]:min-h-12 [@media(max-height:479px)]:flex-row [@media(max-height:479px)]:gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
                             active ? 'text-ink' : 'text-ink-muted'
                         }`}
                     >

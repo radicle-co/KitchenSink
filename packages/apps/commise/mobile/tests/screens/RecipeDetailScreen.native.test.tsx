@@ -18,6 +18,7 @@ import { NavigationContext } from '@react-navigation/native';
 import { computedContrast, renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { palette, tint } from '@commise/ui';
 import { role } from '@commise/ui/colors';
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { NotFoundError, recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
@@ -82,7 +83,11 @@ function seedRecipe(recipe: RecipeDetail, id = 'rec_1'): void {
 /** Render over this test's client and cache — the providers a real app root mounts, the food client's included. */
 function render(ui: ReactElement) {
     return renderWithRecipeClient(
-        withFoodClient(<CookMarksProvider subject="user_test">{ui}</CookMarksProvider>),
+        withFoodClient(
+            <SnackbarHost>
+                <CookMarksProvider subject="user_test">{ui}</CookMarksProvider>
+            </SnackbarHost>,
+        ),
         client,
         { queryClient },
     );
@@ -498,6 +503,21 @@ describe('RecipeDetailScreen — owner actions', () => {
 
         expect(mutate).toHaveBeenCalledWith('rec_1', expect.objectContaining({ onSuccess: expect.any(Function) }));
         expect(onDeleted).toHaveBeenCalledTimes(1);
+        // Owner 2026-10-13: say so on the screen the cook lands on. The snackbar host is above the navigator, so a message
+        // raised here outlives this screen.
+        expect(screen.getByText('Recipe deleted')).toBeTruthy();
+    });
+
+    it('says nothing about a delete that did not succeed', () => {
+        const mutate = vi.fn();
+        useDeleteRecipeMock.mockReturnValue(mutation<ReturnType<typeof useDeleteRecipe>>({ mutate: mutate as never }));
+
+        render(<RecipeDetailScreen recipeId="rec_1" onDeleted={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
+        fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Delete recipe' }));
+
+        expect(screen.queryByText('Recipe deleted')).toBeNull();
     });
 
     it('makes the owner’s private recipe public from the menu', () => {
@@ -657,14 +677,37 @@ describe('RecipeDetailScreen — owner actions are design-system controls (U8)',
 });
 
 describe('RecipeDetailScreen — visibility gating (C-004)', () => {
-    it('offers a free-tier owner no Make private', () => {
+    // Owner 2026-10-13 (B2 E1): Make private is offered to EVERY owner; Premium decides what it does.
+    it('offers a free-tier owner Make private, and tapping it opens the Premium sheet and sends nothing', () => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'free'));
+        const mutate = vi.fn();
+        useSetRecipeVisibilityMock.mockReturnValue(
+            mutation<ReturnType<typeof useSetRecipeVisibility>>({ mutate: mutate as never }),
+        );
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-        expect(screen.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
+        expect(screen.getByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
+        expect(mutate).not.toHaveBeenCalled();
+    });
+
+    it('a premium owner who taps Make private makes it private, with no sheet', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public' }));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
+        const mutate = vi.fn();
+        useSetRecipeVisibilityMock.mockReturnValue(
+            mutation<ReturnType<typeof useSetRecipeVisibility>>({ mutate: mutate as never }),
+        );
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Make private' }));
+
+        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'private' });
+        expect(screen.queryByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeNull();
     });
 
     it('offers a premium owner Make private', () => {
@@ -717,9 +760,11 @@ describe('RecipeDetailScreen — rating error does not leak across a recipeId ch
         // Reuse the screen for recipe B WITHOUT placing a new rating (deep-link/replace path).
         rerender(
             withFoodClient(
-                <CookMarksProvider subject="user_test">
-                    <RecipeDetailScreen recipeId="rec_2" />
-                </CookMarksProvider>,
+                <SnackbarHost>
+                    <CookMarksProvider subject="user_test">
+                        <RecipeDetailScreen recipeId="rec_2" />
+                    </CookMarksProvider>
+                </SnackbarHost>,
             ),
         );
 

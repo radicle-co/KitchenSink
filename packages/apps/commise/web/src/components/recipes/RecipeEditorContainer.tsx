@@ -427,7 +427,6 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
                 editor={editor}
                 mode={mode}
                 keep="tabSession"
-                guided={session.guided}
                 pendingEntryText={session.rowEditor.entry.pendingEntryText}
                 sections={sections}
                 // §7.2 and §7.5.6: the rail's foot shows the Ingredients total too, from the same draft and read.

@@ -27,7 +27,7 @@ import {
     sortVersionsDescending,
 } from './history.js';
 import { recipeVersionMessages } from './messages.js';
-import { formatRelativeTimeAgo } from './timeFormat.js';
+import { formatRelativeTimeAgo, formatVersionTimestamp } from './timeFormat.js';
 
 /** The native version history. */
 export const RecipeVersionList: FC<RecipeVersionListProps> = ({
@@ -109,7 +109,10 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                             <View key={version.id} style={[styles.row, { borderBottomColor: colors.lineDivider }]}>
                                 <View style={styles.rowText}>
                                     <Text style={[styles.rowTitle, { color: colors.ink }]}>
-                                        {fillTemplate(versionList.rowTitle, {
+                                        {formatVersionTimestamp(version.createdAt, locale)}
+                                    </Text>
+                                    <Text style={[styles.caption, muted]}>
+                                        {fillTemplate(versionList.rowDetail, {
                                             version: version.versionNumber,
                                             time: formatRelativeTimeAgo(version.createdAt, new Date(now), locale),
                                         })}
@@ -192,6 +195,7 @@ const styles = StyleSheet.create({
     rowText: { flex: 1, minWidth: 0, gap: 2 },
     rowTitle: { ...nativeTokens.type.cardTitle },
     meta: { ...nativeTokens.type.meta },
+    caption: { ...nativeTokens.type.caption },
     badge: {
         ...nativeTokens.type.caption,
         borderRadius: nativeTokens.radius.sm,

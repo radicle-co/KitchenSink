@@ -55,4 +55,35 @@ test.describe('clone + visibility (T080)', () => {
         await page.getByRole('button', { name: /^More actions for /u }).click();
         await expect(page.getByRole('menuitem', { name: 'Make public' })).toBeVisible();
     });
+
+    // Owner 2026-10-13 (B2 E1): Make private is visible to every owner; a free-tier tap opens the Premium sheet.
+    test('a free-tier owner taps Make private and meets the Premium sheet; the recipe stays public', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const ownPublic = makeRecipeDetail({
+            id: 'ec000000-0000-4000-8000-000000000018',
+            ownerId: viewerId,
+            title: 'My Free Dish',
+            visibility: 'public',
+        });
+        await mockRecipeApi(page, { viewerId, tier: 'free', recipes: [ownPublic] });
+
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000018'));
+        await expect(page.getByRole('heading', { name: 'My Free Dish' })).toBeVisible();
+
+        await page.getByRole('button', { name: /^More actions for /u }).click();
+        await page.getByRole('menuitem', { name: 'Make private' }).click();
+
+        const sheet = page.getByRole('dialog', { name: 'Private recipes are part of Premium.' });
+        await expect(sheet).toBeVisible();
+        await sheet.getByRole('button', { name: 'Not now' }).click();
+        await expect(sheet).toHaveCount(0);
+
+        // Still public: the sheet is the whole answer for a free-tier cook.
+        await page.reload();
+        await page.getByRole('button', { name: /^More actions for /u }).click();
+        await expect(page.getByRole('menuitem', { name: 'Make private' })).toBeVisible();
+    });
 });

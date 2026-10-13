@@ -9,6 +9,8 @@
  */
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
+import { privateNeedsPremium } from '../actions/privateGate.js';
+
 /**
  * Whether making a collection `target` needs the premium plan the viewer lacks.
  *
@@ -17,7 +19,7 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
  * @returns `true` for a free-tier viewer choosing private.
  */
 export function visibilityChangeNeedsPremium(target: RecipeVisibility, canGoPrivate: boolean): boolean {
-    return target === RecipeVisibility.PRIVATE && !canGoPrivate;
+    return privateNeedsPremium(target, canGoPrivate);
 }
 
 /**

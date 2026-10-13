@@ -478,6 +478,7 @@ export interface RecipeFormMessages {
         readonly titleRequired: string;
         readonly titleTooLong: string;
         readonly titleTooLongToSave: string;
+        readonly descriptionTooLong: string;
         readonly ingredientsPendingText: string;
         readonly ingredientsEmpty: string;
         readonly ingredientsUnresolved: string;
@@ -704,6 +705,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
             titleRequired: 'A title is required.',
             titleTooLong: 'Shorten the title to 120 characters or fewer.',
             titleTooLongToSave: 'Shorten the title to 200 characters or fewer to save it.',
+            descriptionTooLong: 'Shorten the description to 256 characters or fewer.',
             ingredientsPendingText:
                 'An ingredient you typed isn’t in the recipe yet. Choose a food for it, or delete what you typed.',
             ingredientsEmpty: 'Add at least one ingredient.',

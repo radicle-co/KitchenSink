@@ -1,6 +1,6 @@
 /**
  * What the section index draws for the editor's statuses (build spec §7.2): each status as a tone and words, the
- * phone bar's name and count, and guided progress for a first recipe. The words are the editor's copy; the index
+ * phone bar's name and count. The words are the editor's copy; the index
  * primitive knows nothing about recipes.
  */
 import { describe, expect, it } from 'vitest';
@@ -18,8 +18,8 @@ const EMPTY: SectionStatuses = {
     photos: { kind: 'optional' },
 };
 
-function entries(statuses: SectionStatuses, guided = false, current: 'details' | 'ingredients' = 'details') {
-    return sectionIndexEntries({ statuses, guided, current, messages: m, locale: 'en' });
+function entries(statuses: SectionStatuses, current: 'details' | 'ingredients' = 'details') {
+    return sectionIndexEntries({ statuses, current, messages: m, locale: 'en' });
 }
 
 describe('sectionIndexEntries — items', () => {
@@ -82,11 +82,10 @@ describe('sectionIndexEntries — the phone bar', () => {
             ingredients: { kind: 'attention', reason: 'ingredientsUnresolved', count: 2 },
             steps: { kind: 'fix', count: 1 },
         };
-        const drawn = entries(statuses, false, 'ingredients');
+        const drawn = entries(statuses, 'ingredients');
 
         expect(drawn.barName).toBe('Sections. Current: Ingredients. 3 need attention.');
         expect(drawn.barCount).toBe('⚠ 3');
-        expect(drawn.barSuffix).toBeUndefined();
     });
 
     it('says nothing about attention when nothing needs it', () => {
@@ -97,27 +96,14 @@ describe('sectionIndexEntries — the phone bar', () => {
     });
 });
 
-describe('sectionIndexEntries — guided progress (a first recipe, D1)', () => {
-    it('adds the hints, "Start here" on an untouched Details, and the done count', () => {
-        const drawn = entries({ ...EMPTY, steps: { kind: 'complete' } }, true);
-
-        expect(drawn.items.map((item) => item.hint)).toEqual([
-            'Name it and say how long it takes',
-            'Add what goes in',
-            'Say how to make it',
-            'Add a photo, then publish',
-        ]);
-        expect(drawn.items[0]).toMatchObject({ tone: 'muted', reason: 'Start here' });
-        expect(drawn.doneText).toBe('1 of 4 done');
-        expect(drawn.barSuffix).toBe(' · 1 of 4 done');
-        expect(drawn.barName).toBe('Sections. Current: Details. 1 of 4 done.');
-    });
-
-    it('shows none of it once the cook has published before', () => {
-        const drawn = entries(EMPTY, false);
+describe('sectionIndexEntries — one editor for every cook (owner 2026-10-13: no guided first-recipe mode)', () => {
+    it('never adds hints, "Start here" or a done count, whatever the statuses', () => {
+        const drawn = entries({ ...EMPTY, steps: { kind: 'complete' } });
 
         expect(drawn.items.every((item) => item.hint === undefined)).toBe(true);
-        expect(drawn.items[0]).toMatchObject({ reason: 'Not started' });
-        expect(drawn.doneText).toBeUndefined();
+        expect(drawn.items[0]).toMatchObject({ tone: 'muted', reason: 'Not started' });
+        expect(drawn).not.toHaveProperty('doneText');
+        expect(drawn).not.toHaveProperty('barSuffix');
+        expect(drawn.barName).toBe('Sections. Current: Details.');
     });
 });

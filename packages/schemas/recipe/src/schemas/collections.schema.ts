@@ -86,7 +86,7 @@ const collectionDescriptionSchema = z.string().min(1).max(MAX_COLLECTION_DESCRIP
 export const createCollectionRequestSchema = z.strictObject({
     name: collectionNameSchema,
     description: collectionDescriptionSchema.optional(),
-    /** Defaults to `private` SERVER-side (FR-010) rather than here, so an omitted field stays distinguishable. */
+    /** Defaults SERVER-side by tier (premium `private`, free-tier `public`) rather than here, so an omitted field stays distinguishable. */
     visibility: recipeVisibilitySchema.optional(),
 });
 

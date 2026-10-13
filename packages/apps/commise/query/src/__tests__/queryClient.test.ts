@@ -23,7 +23,7 @@ import {
 import { NotFoundError, UnexpectedResponseError } from '@kitchensink/recipe-service-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MAX_QUERY_RETRIES } from '../retryPolicy.js';
+import { MAX_MUTATION_RETRIES, MAX_QUERY_RETRIES } from '../retryPolicy.js';
 import { createAppQueryClient } from '../queryClient.js';
 
 /** A distinct key per probe, so no observer ever reads another's cached failure. */
@@ -117,7 +117,7 @@ describe('createAppQueryClient — mutations', () => {
     it('sends a throttled write again, up to the cap (the photo upload case)', async () => {
         await expect(
             sendsFor(new UnexpectedResponseError(429, 'Too Many Requests', 'TOO_MANY_REQUESTS')),
-        ).resolves.toBe(MAX_QUERY_RETRIES + 1);
+        ).resolves.toBe(MAX_MUTATION_RETRIES + 1);
     });
 
     it('sends a write that may have committed (a 500) once', async () => {

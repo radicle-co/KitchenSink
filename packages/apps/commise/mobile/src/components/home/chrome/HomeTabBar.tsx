@@ -10,6 +10,9 @@
  *   `accessibilityState.selected`. Inactive: `inkMuted`. (No filled glyph: Lucide has none, and a filled compass hides
  *   its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)
  * - Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.
+ * - Compact height (owner 2026-10-13; the window under 480 dp, which is every phone held sideways): the label sits
+ *   BESIDE the glyph and the bar is 48 dp (44 pt on iOS). Both sides pad their safe-area inset, so a cutout or the
+ *   3-button navigation bar never covers a tab. The label stays the tab's accessible name.
  *
  * Presentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.
  */
@@ -19,7 +22,7 @@ import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { MobileMessages } from '../../../i18n/messages.js';
 
@@ -37,6 +40,12 @@ export interface HomeTabBarProps {
     readonly onLongPress?: (id: HomeNavItemId) => void;
     /** The bottom safe-area inset, so the bar clears the home indicator. */
     readonly bottomInset: number;
+    /** The window is compact in height (under 480 dp): the label sits beside the glyph and the bar is shorter. */
+    readonly compact: boolean;
+    /** The left safe-area inset (a cutout, or the 3-button navigation bar held sideways). */
+    readonly leftInset: number;
+    /** The right safe-area inset. */
+    readonly rightInset: number;
 }
 
 /**
@@ -52,6 +61,9 @@ export function HomeTabBar({
     onPress,
     onLongPress,
     bottomInset,
+    compact,
+    leftInset,
+    rightInset,
 }: HomeTabBarProps): JSX.Element {
     const { colors } = useTheme();
 
@@ -60,7 +72,14 @@ export function HomeTabBar({
             collapsable={false}
             accessibilityRole="tablist"
             accessibilityLabel={chrome.tabNavLabel}
-            style={[styles.bar, { paddingBottom: bottomInset }]}
+            style={[
+                styles.bar,
+                {
+                    paddingBottom: bottomInset,
+                    paddingLeft: SIDE_PADDING + leftInset,
+                    paddingRight: SIDE_PADDING + rightInset,
+                },
+            ]}
         >
             <ChromeSurface edge="top" />
             {resolveHomeNav(liveCapabilities).map((item) => {
@@ -76,7 +95,7 @@ export function HomeTabBar({
                         aria-selected={selected}
                         onPress={() => onPress(item.id)}
                         onLongPress={onLongPress === undefined ? undefined : () => onLongPress(item.id)}
-                        style={styles.tab}
+                        style={compact ? styles.tabCompact : styles.tab}
                     >
                         <View style={[styles.hereBar, selected ? { backgroundColor: colors.hereBar } : null]} />
                         <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} tone={selected ? 'ink' : 'inkMuted'} />
@@ -96,10 +115,22 @@ export function HomeTabBar({
     );
 }
 
+/** The bar's own side padding; the safe-area inset is added to it. */
+const SIDE_PADDING = nativeTokens.spacing[1];
+
 const styles = StyleSheet.create({
-    bar: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: nativeTokens.spacing[1] },
+    bar: { flexDirection: 'row', justifyContent: 'space-around' },
     // 48 dp covers Android's floor and iOS's 44 pt; 64 tall with the label, like the web bar.
     tab: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: nativeTokens.spacing[1] },
+    // Compact height: the label beside the glyph. 48 dp on Android, 44 pt on iOS (each platform's own floor).
+    tabCompact: {
+        flex: 1,
+        flexDirection: 'row',
+        minHeight: Platform.select({ ios: 44, default: 48 }),
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: nativeTokens.spacing[2],
+    },
     hereBar: {
         position: 'absolute',
         top: 0,

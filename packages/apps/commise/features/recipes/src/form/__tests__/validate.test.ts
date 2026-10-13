@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { makeFilledRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
 import { MAX_RECIPE_TITLE_LENGTH, recipeIngredientQuantitySchema } from '@kitchensink/recipe-core';
-import { TITLE_MAX_LENGTH } from '../limits.js';
+import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from '../limits.js';
 import { mintedLineKey } from '../lineKey.js';
 import { applyDraftAction } from '../props.js';
 import { draftFloorErrors, validateRecipeForm } from '../validate.js';
@@ -29,6 +29,16 @@ describe('validateRecipeForm', () => {
         expect(
             validateRecipeForm(makeFilledRecipeFormValues({ title: 'a'.repeat(TITLE_MAX_LENGTH + 1) }), '').title,
         ).toBe('titleTooLong');
+    });
+
+    it('⛔ the 256 description limit is a publish rule over the trimmed text: 256 passes, 257 blocks Publish (owner 2026-10-13)', () => {
+        const withDescription = (description: string) => makeFilledRecipeFormValues({ description });
+
+        expect(validateRecipeForm(withDescription('a'.repeat(DESCRIPTION_MAX_LENGTH)), '')).toEqual({});
+        expect(validateRecipeForm(withDescription(` ${'a'.repeat(DESCRIPTION_MAX_LENGTH)}  `), '')).toEqual({});
+        expect(validateRecipeForm(withDescription('a'.repeat(DESCRIPTION_MAX_LENGTH + 1)), '').description).toBe(
+            'descriptionTooLong',
+        );
     });
 
     it('requires at least one ingredient and one step', () => {
@@ -362,6 +372,12 @@ describe('draftFloorErrors', () => {
         expect(
             draftFloorErrors(makeFilledRecipeFormValues({ title: 'a'.repeat(MAX_RECIPE_TITLE_LENGTH + 1) })),
         ).toEqual({ title: 'titleTooLongToSave' });
+    });
+
+    it('⛔ lets a description past the publish limit SAVE as a draft: only Publish refuses it', () => {
+        expect(
+            draftFloorErrors(makeFilledRecipeFormValues({ description: 'a'.repeat(DESCRIPTION_MAX_LENGTH * 4) })),
+        ).toEqual({});
     });
 
     it('refuses the numbers the wire refuses', () => {

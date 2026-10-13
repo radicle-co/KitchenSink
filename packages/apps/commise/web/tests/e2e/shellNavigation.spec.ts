@@ -35,6 +35,42 @@ async function signedIn(page: Page, count = 2): Promise<void> {
  */
 const visibleNav = (page: Page) => page.getByRole('navigation', { name: /^(?:Main|Tabs)$/u }).filter({ visible: true });
 
+/**
+ * Owner 2026-10-13: a landscape phone (a window under 480 px tall, below the 840 px sidebar breakpoint) gets a compact
+ * bottom bar — the label beside the glyph, 48 px tall — and the labels remain the links' names.
+ */
+test.describe('the bottom tab bar in landscape (a window under 480 px tall)', () => {
+    test('is 48 px tall with each label beside its glyph, and keeps every tab named', async ({ page }) => {
+        await page.setViewportSize({ width: 800, height: 390 });
+        await signedIn(page);
+        await page.goto(route('/'));
+
+        const nav = visibleNav(page);
+        await expect(nav).toHaveCount(1);
+        await expect(nav.getByRole('link')).toHaveText(['Home', 'Recipes', 'Discover']);
+
+        const box = await nav.boundingBox();
+        expect(box?.height).toBeCloseTo(48, 0);
+
+        const home = nav.getByRole('link', { name: 'Home' });
+        const label = await home.getByText('Home').boundingBox();
+        const glyph = await home.locator('svg').boundingBox();
+        expect(label).not.toBeNull();
+        expect(glyph).not.toBeNull();
+        // Beside, not under: the label starts to the right of the glyph's right edge.
+        expect((label?.x ?? 0) >= (glyph?.x ?? 0) + (glyph?.width ?? 0) - 1).toBe(true);
+    });
+
+    test('is the stacked 64 px bar again in a window 480 px tall or more', async ({ page }) => {
+        await page.setViewportSize({ width: 800, height: 480 });
+        await signedIn(page);
+        await page.goto(route('/'));
+
+        const box = await visibleNav(page).boundingBox();
+        expect(box?.height).toBeCloseTo(64, 0);
+    });
+});
+
 for (const colorScheme of ['light', 'dark'] as const) {
     test.describe(`the shell (${colorScheme})`, () => {
         test.use({ colorScheme });

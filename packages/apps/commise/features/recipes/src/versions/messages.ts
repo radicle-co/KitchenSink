@@ -50,8 +50,11 @@ export interface RecipeVersionListMessages {
     readonly restoreThis: string;
     /** The name of a row's ⋯ menu (contains `{version}`). */
     readonly rowActions: string;
-    /** A row's title line (contains `{version}` and `{time}`, the relative edit time). */
-    readonly rowTitle: string;
+    /**
+     * A row's small secondary line (contains `{version}` and `{time}`, the relative edit time). The row's title is its
+     * DATE, not this (owner 2026-10-13).
+     */
+    readonly rowDetail: string;
     /** The snackbar after a restore (contains `{version}`). */
     readonly restored: string;
     /** The snackbar's action that restores the version that was current before. */
@@ -341,7 +344,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             compareWithCurrent: 'Compare with current',
             restoreThis: 'Restore this version',
             rowActions: 'More actions for version {version}',
-            rowTitle: 'Version {version} · Edited {time}',
+            rowDetail: 'Version {version} · Edited {time}',
             restored: 'Restored version {version}.',
             undo: 'Undo',
             emptyBody: 'Each time you save changes, the version before is kept here.',

@@ -12,6 +12,7 @@ import { makeRecipeVersion, makeSnapshot } from '../__fixtures__/index.js';
 import { RecipeVersionList } from '../RecipeVersionList.native.js';
 import type { RecipeVersionListProps } from '../history.js';
 import { recipeVersionMessages } from '../messages.js';
+import { formatVersionTimestamp } from '../timeFormat.js';
 
 const { versionList } = recipeVersionMessages.en;
 
@@ -102,6 +103,12 @@ describe('RecipeVersionList (native)', () => {
         renderList({ versions: threeVersions, currentVersion: 3 });
 
         expect(screen.getByText('Version 3 · Edited 2 days ago')).toBeTruthy();
+
+        // Owner 2026-10-13: an entry is labelled by its DATE; its number is a small secondary detail.
+        for (const version of threeVersions) {
+            expect(screen.getByText(formatVersionTimestamp(version.createdAt, 'en'))).toBeTruthy();
+        }
+
         const titles = screen.getAllByText(/^Version \d · Edited/u).map((node) => node.textContent);
         expect(titles).toEqual([
             'Version 3 · Edited 2 days ago',

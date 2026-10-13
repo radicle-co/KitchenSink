@@ -10,6 +10,7 @@ const env = vi.hoisted(() => ({
     glass: false,
     width: 390,
     keyboard: false,
+    insets: { left: 0, right: 0 },
     glassProps: [] as Record<string, unknown>[],
 }));
 
@@ -26,18 +27,25 @@ vi.mock('expo-glass-effect', async () => {
         },
     };
 });
+vi.mock('react-native-safe-area-context', async () => {
+    const stub = await import('../../testing/safeAreaContext.native.js');
+
+    return { ...stub, useSafeAreaInsets: () => ({ ...stub.STUB_INSETS, ...env.insets }) };
+});
 vi.mock('../../screenEnvironment/useWindowWidth.native.js', () => ({ useWindowWidth: () => env.width }));
 vi.mock('../../screenEnvironment/useKeyboardOpen.native.js', () => ({ useKeyboardOpen: () => env.keyboard }));
 
 import type { ScrollBind } from '../../scrollHost/props.js';
 import { ScrollHost } from '../../scrollHost/ScrollHost.native.js';
 import { role } from '../../tokens/colors.js';
+import { nativeTokens } from '../../tokens/native.js';
 import { CreateFab } from '../CreateFab.native.js';
 
 beforeEach(() => {
     env.glass = false;
     env.width = 390;
     env.keyboard = false;
+    env.insets = { left: 0, right: 0 };
     env.glassProps = [];
 });
 afterEach(cleanup);
@@ -143,5 +151,33 @@ describe('CreateFab (native)', () => {
         env.keyboard = false;
         renderFab(true);
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+    });
+
+    // Owner 2026-10-13: held sideways, a side cutout or the 3-button navigation bar sits where the button's corner is.
+    // It keeps its margin from the window's edge PLUS the inset on that side, so it is never under either.
+    describe('sideways insets', () => {
+        /** The button's end margin. A per-render style lands inline, and react-native-web resolves `end` to `right` (LTR). */
+        const endOffset = (): string => fab().style.right;
+
+        it('keeps its 16 dp margin when there is no side inset', () => {
+            renderFab();
+
+            expect(endOffset()).toBe('16px');
+        });
+
+        it('adds the inset on its own side: a 48 dp navigation bar moves a phone’s button to 64 dp', () => {
+            env.insets = { left: 0, right: 48 };
+            renderFab();
+
+            expect(endOffset()).toBe('64px');
+        });
+
+        it('adds only the END-side inset to a tablet’s larger margin, and ignores the other side', () => {
+            env.width = 1024;
+            env.insets = { left: 59, right: 20 };
+            renderFab();
+
+            expect(endOffset()).toBe(`${String(nativeTokens.spacing[6] + 20)}px`);
+        });
     });
 });

@@ -9,16 +9,10 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { makeFilledRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
 import { rowPresentationOf, type RowFacts } from '../../form/ingredientRowPolicy.js';
-import { TITLE_MAX_LENGTH } from '../../form/limits.js';
+import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from '../../form/limits.js';
 import { validateRecipeForm } from '../../form/validate.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../../form/values.js';
-import {
-    doneCount,
-    lineNeedsAttention,
-    newlyComplete,
-    sectionStatusesOf,
-    type SectionStatuses,
-} from '../sectionStatus.js';
+import { lineNeedsAttention, newlyComplete, sectionStatusesOf, type SectionStatuses } from '../sectionStatus.js';
 
 const RESOLVED = {
     isUserEntered: false,
@@ -81,6 +75,14 @@ describe('Details', () => {
 
         expect(statuses(long).details).toEqual({ kind: 'attention', reason: 'titleTooLong', count: 1 });
         expect(statuses(tooLongToSave).details).toEqual({ kind: 'attention', reason: 'titleTooLongToSave', count: 1 });
+    });
+
+    it('needs attention for a description past the 256 publish limit, and is complete at exactly the limit', () => {
+        const long = makeFilledRecipeFormValues({ description: 'a'.repeat(DESCRIPTION_MAX_LENGTH + 1) });
+        const exact = makeFilledRecipeFormValues({ description: 'a'.repeat(DESCRIPTION_MAX_LENGTH) });
+
+        expect(statuses(long).details).toEqual({ kind: 'attention', reason: 'descriptionTooLong', count: 1 });
+        expect(statuses(exact).details).toEqual({ kind: 'complete' });
     });
 
     it('is complete at exactly the limit', () => {
@@ -171,7 +173,6 @@ describe('Ingredients with a line whose food needs the cook (F4)', () => {
         expect(validateRecipeForm(values, '')).toEqual({});
         expect(statuses(values).ingredients).toEqual({ kind: 'attention', reason: 'ingredientsUnresolved', count: 1 });
         expect(statuses(values).photos).toEqual({ kind: 'optional' });
-        expect(doneCount(statuses(values))).toBe(2);
     });
 
     it.each([
@@ -258,13 +259,7 @@ describe('after a refused Publish', () => {
     });
 });
 
-describe('doneCount and newlyComplete', () => {
-    it('counts only real Complete statuses', () => {
-        expect(doneCount(statuses(defaultRecipeFormValues()))).toBe(0);
-        expect(doneCount(statuses(makeFilledRecipeFormValues({ steps: [] })))).toBe(2);
-        expect(doneCount(statuses(makeFilledRecipeFormValues()))).toBe(4);
-    });
-
+describe('newlyComplete', () => {
     it('names the sections that became complete, in page order, and nothing that already was', () => {
         const before = statuses(makeFilledRecipeFormValues({ steps: [] }));
         const after = statuses(makeFilledRecipeFormValues());

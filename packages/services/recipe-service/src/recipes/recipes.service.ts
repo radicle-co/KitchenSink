@@ -70,7 +70,7 @@ import { LineIdentityReader } from '../ingredients/lineIdentity.reader.js';
 import { foodRefOf, isStrangerToPrivateFood, privateFoodOwnerOf } from '../database/schema/foodLookupArm.js';
 import type { IngredientRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
 import type { RecipeTx } from '../database/unitOfWork.js';
-import type { Principal } from '../auth/principal.js';
+import { isPremiumPrincipal, type Principal } from '../auth/principal.js';
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { NutritionReadBudget } from '../ingredients/foodNutrition.gateway.js';
 import { RECIPES_DAL, RECIPES_SHADOW_RNG, RECIPE_PHOTOS_CDN_URL, RECIPE_RATINGS_DAL } from './recipes.tokens.js';
@@ -136,13 +136,7 @@ function storedLineToVerifiable(
     };
 }
 
-/**
- * The permission string that marks a principal as premium-tier. There is deliberately NO tier field on
- * the {@link Principal} (subscriptions are a future feature, 010), so premium is derived from the signed
- * session token's `permissions` claim: `isPremium = principal.permissions.includes(PREMIUM_PERMISSION)`.
- * Centralized here so the C-004 policy has a single tier source until 010 introduces real subscriptions.
- */
-export const PREMIUM_PERMISSION = 'premium';
+export { PREMIUM_PERMISSION } from '../auth/principal.js';
 
 /** Map a DTO step to the DAL's step input shape. Pure. */
 function toStepInput(step: { instruction: string; timerSeconds?: number }): StepInput {
@@ -523,7 +517,7 @@ export class RecipesService {
             principalKind: principal.principalKind,
             containment: principal.containment,
             sourceType: provenance.sourceType,
-            isPremium: principal.permissions.includes(PREMIUM_PERMISSION),
+            isPremium: isPremiumPrincipal(principal),
             hasSubstantiveEdit: false,
             requested,
         });
@@ -1164,7 +1158,8 @@ export class RecipesService {
      * their own (even private). The clone is a NEW recipe owned by the caller with
      * `clonedFromId = source.id`, the source's attribution RETAINED
      * (`sourceType`/`sourceUrl`/`sourceAttribution`), content copied, `hasSubstantiveEdit = false`, and
-     * `visibility` set to the C-004 clone default for the source type. The ORIGINAL is never mutated.
+     * `visibility` set to the C-004 clone default for the source type, and `status` `draft` (owner 2026-10-13: it is
+     * published only when the cook edits it and presses Publish). The ORIGINAL is never mutated.
      */
     public async clone(principal: Principal, id: string, caller: CallerToken | undefined): Promise<RecipeResponse> {
         const ownerId = principal.userId;
@@ -1218,6 +1213,10 @@ export class RecipesService {
                     ...(source.recipe.description !== null ? { description: source.recipe.description } : {}),
                     ...(source.recipe.cuisine !== null ? { cuisine: source.recipe.cuisine } : {}),
                     visibility: defaultCloneVisibility(sourceType, principal),
+                    // Owner 2026-10-13: a copy is a DRAFT until the cook makes a real edit and publishes. It is never
+                    // born published, whatever the source's status was — and, being a never-published draft, it
+                    // records no version of its own yet (ADR-0058).
+                    status: RecipeStatus.DRAFT,
                     servings: source.recipe.servings,
                     prepTimeMinutes: source.recipe.prepTimeMinutes,
                     cookTimeMinutes: source.recipe.cookTimeMinutes,
@@ -1284,7 +1283,7 @@ export class RecipesService {
 
         this.assertOwner(principal.userId, existing.recipe);
 
-        const isPremium = principal.permissions.includes(PREMIUM_PERMISSION);
+        const isPremium = isPremiumPrincipal(principal);
         const decision = evaluateVisibility({
             principalKind: principal.principalKind,
             containment: principal.containment,

@@ -678,7 +678,7 @@ describe('RecipeDetailView (native) — contrast (WCAG AA)', () => {
 });
 
 describe('RecipeDetailView (native) — footer facts and the rating line (§6.1)', () => {
-    it('states the version and opens the version history', () => {
+    it('opens the version history, and states no version number', () => {
         const onViewVersions = vi.fn();
         render(
             <RecipeDetailView
@@ -688,7 +688,8 @@ describe('RecipeDetailView (native) — footer facts and the rating line (§6.1)
             />,
         );
 
-        expect(screen.getByText('Version 3')).toBeTruthy();
+        // Owner 2026-10-13: the recipe page shows no version number.
+        expect(screen.queryByText('Version 3')).toBeNull();
         fireEvent.click(screen.getByRole('button', { name: 'Version history' }));
         expect(onViewVersions).toHaveBeenCalledTimes(1);
     });

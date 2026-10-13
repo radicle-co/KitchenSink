@@ -19,8 +19,9 @@ describe('saveStatusText', () => {
         [{ kind: 'saved' }, 'Saved', false],
         [{ kind: 'keptOnDevice', store: 'disk', awaiting: 'checkpoint' }, 'Saved on this device', false],
         [{ kind: 'keptOnDevice', store: 'disk', awaiting: 'saveChanges' }, 'Changes saved on this device', false],
-        // UX: on web a draft's device copy lasts only until the next checkpoint, so it reads as saving, not as kept.
-        [{ kind: 'keptOnDevice', store: 'tabSession', awaiting: 'checkpoint' }, 'Saving…', false],
+        // Owner 2026-10-13: on web, before the first server save the draft is kept in the tab and the header says so;
+        // the normal "Saved" follows when the server has it.
+        [{ kind: 'keptOnDevice', store: 'tabSession', awaiting: 'checkpoint' }, 'Saved in this tab', false],
         [{ kind: 'keptOnDevice', store: 'tabSession', awaiting: 'saveChanges' }, 'Changes kept in this tab', false],
         [{ kind: 'syncFailed', failure: 'transient' }, "Couldn't save. Retrying.", true],
         [{ kind: 'syncFailed', failure: 'conflict' }, 'Not saved. Choose a version.', false],

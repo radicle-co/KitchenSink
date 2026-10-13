@@ -11,7 +11,7 @@
  */
 import { recipeStepInstructionSchema, recipeTitleSchema } from '@kitchensink/recipe-core';
 
-import { TITLE_MAX_LENGTH } from './limits.js';
+import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from './limits.js';
 import { type RecipeFormValues } from './values.js';
 import { draftQuantityVerdict } from './quantity.js';
 
@@ -26,6 +26,8 @@ export type RecipeFormErrorCode =
     | 'titleTooLong'
     /** Past the wire's 200: even a draft cannot be saved (`draftFloorErrors`). */
     | 'titleTooLongToSave'
+    /** Past the 256 publish limit (owner 2026-10-13): Publish is refused, a draft still saves (`draftFloorErrors`). */
+    | 'descriptionTooLong'
     | 'ingredientsPendingText'
     | 'ingredientsEmpty'
     | 'ingredientsUnresolved'
@@ -37,6 +39,7 @@ export type RecipeFormErrorCode =
 /** Field-level validation errors (an error CODE per invalid field; absent when valid). */
 export interface RecipeFormErrors {
     title?: RecipeFormErrorCode;
+    description?: RecipeFormErrorCode;
     ingredients?: RecipeFormErrorCode;
     steps?: RecipeFormErrorCode;
     servings?: RecipeFormErrorCode;
@@ -150,6 +153,10 @@ export const validateRecipeForm = (values: RecipeFormValues, pendingEntryText: s
         errors.title = title === 'titleTooLongToSave' ? 'titleTooLong' : title;
     } else if (values.title.trim().length > TITLE_MAX_LENGTH) {
         errors.title = 'titleTooLong';
+    }
+
+    if (values.description.trim().length > DESCRIPTION_MAX_LENGTH) {
+        errors.description = 'descriptionTooLong';
     }
 
     if (hasEntryText(pendingEntryText)) {

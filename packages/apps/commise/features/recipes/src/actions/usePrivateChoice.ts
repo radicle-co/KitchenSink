@@ -2,28 +2,19 @@
 
 /**
  * @module @commise/features-recipes/actions — what choosing "Private" does in the recipe editor, for both hosts (E1; build
- * spec §6.4 F8, §7.7 item 2). Choosing Private without the plan used to do nothing at all: neither host passed
- * `onPremiumRequired`. Now it opens the Premium sheet ({@link RecipeUpsellSheetProps}), the way a private collection
- * does.
+ * spec §6.4 F8, §7.7 item 2): a free-tier cook is told why with the Premium sheet, a Premium cook gets Private, and a
+ * choice made while the profile loads waits for it. The decision itself is {@link useGatedPrivate}, shared with the recipe
+ * page's ⋯ menu; this only supplies what applying Private means in the editor — setting the draft's visibility.
  *
- * ⛔ A LOADING PROFILE IS NOT THE FREE TIER. `canGoPrivate` is false until the profile arrives, so a Premium cook who taps
- * Private early would be sent to an upsell for a plan they have. While the profile loads the choice is only remembered,
- * and decided once it settles: a Premium cook gets Private, a free-tier cook gets the sheet. The hosts own the profile
- * read; this takes its three facts so it reads no query.
- *
- * @pattern Policy — `visibilityChoice` (the field's) decides what a choice does; this decides WHEN, given the profile
+ * @pattern Adapter — {@link useGatedPrivate} to the visibility field's `canGoPrivate` / `onPremiumRequired` props
  */
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import { useEffect, useEffectEvent, useState } from 'react';
 
 import type { RecipeFormValues } from '../form/values.js';
 import type { RecipeUpsellSheetProps } from './model.js';
+import { useGatedPrivate, type PrivateChoiceProfile } from './useGatedPrivate.js';
 
-/** What the host knows of the viewer's plan. */
-export type PrivateChoiceProfile =
-    | { readonly status: 'loading' }
-    /** The profile read has an answer (or failed, which is the free tier: the server enforces the plan either way). */
-    | { readonly status: 'settled'; readonly mayGoPrivate: boolean };
+export type { PrivateChoiceProfile } from './useGatedPrivate.js';
 
 /** Options for {@link usePrivateChoice}. */
 export interface UsePrivateChoiceOptions {
@@ -51,45 +42,10 @@ export interface PrivateChoice {
  */
 export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoice {
     const { profile, values, onChange } = options;
-    const [open, setOpen] = useState(false);
-    const [waiting, setWaiting] = useState(false);
-    // Counts the times a choice made while loading turned out to be allowed. A counter, never cleared, so the effect
-    // below runs once per decision and a later change of the draft cannot run it again.
-    const [allowed, setAllowed] = useState(0);
-    const settled = profile.status === 'settled';
-    const mayGoPrivate = profile.status === 'settled' && profile.mayGoPrivate;
-
-    // React's own derived-state pattern: the profile settling decides the choice that waited for it, in this render.
-    if (waiting && settled) {
-        setWaiting(false);
-
-        if (mayGoPrivate) {
-            setAllowed((count) => count + 1);
-        } else {
-            setOpen(true);
-        }
-    }
-
-    const applyPrivate = useEffectEvent((): void => {
-        onChange({ ...values, visibility: RecipeVisibility.PRIVATE });
+    const gate = useGatedPrivate({
+        profile,
+        apply: () => onChange({ ...values, visibility: RecipeVisibility.PRIVATE }),
     });
 
-    // @sideEffect Changes the draft, which belongs to the editor: an external store, not this hook's state.
-    useEffect(() => {
-        if (allowed > 0) {
-            applyPrivate();
-        }
-    }, [allowed]);
-
-    return {
-        canGoPrivate: mayGoPrivate,
-        onPremiumRequired: () => {
-            if (settled) {
-                setOpen(true);
-            } else {
-                setWaiting(true);
-            }
-        },
-        sheet: { open, onOpenChange: setOpen, onSeePremium: () => setOpen(false) },
-    };
+    return { canGoPrivate: gate.mayGoPrivate, onPremiumRequired: gate.request, sheet: gate.sheet };
 }

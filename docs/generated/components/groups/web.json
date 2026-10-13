@@ -11,8 +11,8 @@
         "implementationsWithModuleDoc": 66,
         "implementationsWithComponentDoc": 61,
         "documentedProps": 69,
-        "classifiedComponents": 35,
-        "componentsWithPatternTag": 26,
+        "classifiedComponents": 36,
+        "componentsWithPatternTag": 27,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -4041,8 +4041,10 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over the snackbar host — turns the address's one-shot delete flag into a notice"
+            ],
             "platforms": [
                 "web"
             ],
@@ -4057,8 +4059,13 @@
                     "dir": "packages/apps/commise/web/src/components/recipes",
                     "moduleDoc": "My recipes' \"Recipe deleted\" (owner decision 2026-10-13, 4): said once, on the page a delete lands on, from the flag the\ndetail page put in the address (`recipesAfterDeleteHref`). It draws nothing; the words are the snackbar's.",
                     "moduleTags": [],
-                    "description": "Says \"Recipe deleted\" when a delete landed the cook here.",
-                    "tags": [],
+                    "description": "Orchestration: says \"Recipe deleted\" when a delete landed the cook here, and renders nothing.",
+                    "tags": [
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the snackbar host — turns the address's one-shot delete flag into a notice"
+                        }
+                    ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [],
@@ -4066,7 +4073,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]

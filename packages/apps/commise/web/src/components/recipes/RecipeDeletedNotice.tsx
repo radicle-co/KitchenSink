@@ -12,7 +12,11 @@ import { useAddressNotice } from '@/hooks/useAddressNotice';
 
 import { RECIPE_DELETED_PARAM, arrivedAfterDelete } from '@/components/recipes/recipesAfterDeleteHref';
 
-/** Says "Recipe deleted" when a delete landed the cook here. */
+/**
+ * Orchestration: says "Recipe deleted" when a delete landed the cook here, and renders nothing.
+ *
+ * @pattern Adapter over the snackbar host — turns the address's one-shot delete flag into a notice
+ */
 export const RecipeDeletedNotice: FC = () => {
     const { detailActions } = useMessages(recipeActionMessages);
 

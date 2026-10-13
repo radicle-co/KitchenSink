@@ -92,7 +92,12 @@ export interface ScrollHostApi {
     readonly headingLayout: (event: LayoutReport) => void;
     /** A section's layout report (native). Inert on web, which finds sections by id. */
     readonly sectionLayout: (id: string) => (event: LayoutReport) => void;
-    /** The scroller, for React Navigation's `useScrollToTop` (native). Always empty on web. */
+    /**
+     * The scroller, for React Navigation's `useScrollToTop` (native). Always empty on web.
+     *
+     * ⚠️ A snapshot, not a live ref: the host builds a new one when the scroller mounts, and the first render's is
+     * empty. Read it from the render that uses it; a handle kept from an earlier render stays empty.
+     */
     readonly handle: RefObject<ScrollTarget | null>;
 }
 

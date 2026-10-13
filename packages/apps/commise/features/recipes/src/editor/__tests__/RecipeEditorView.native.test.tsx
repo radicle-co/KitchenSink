@@ -19,10 +19,27 @@ import type { RecipeEditorViewProps } from '../frameProps.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeEditorView } from '../RecipeEditorView.native.js';
 
-const { keyboard, win } = vi.hoisted(() => ({
+const { keyboard, win, reveal } = vi.hoisted(() => ({
     keyboard: { shown: false },
     win: { width: undefined as number | undefined },
+    // The scroller the editor hands the field reveal on its latest render.
+    reveal: { scroller: undefined as { readonly current: unknown } | undefined },
 }));
+
+// The real field reveal, with the scroller it is handed recorded: react-native-web lays nothing out, so the reveal's
+// own measuring never runs here, and what the editor wires into it is what this file can see.
+vi.mock('@commise/ui/field-reveal', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/ui/field-reveal')>();
+
+    return {
+        ...actual,
+        useFieldRevealHost: (scroller: Parameters<typeof actual.useFieldRevealHost>[0]) => {
+            reveal.scroller = scroller;
+
+            return actual.useFieldRevealHost(scroller);
+        },
+    };
+});
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
@@ -49,6 +66,7 @@ afterEach(() => {
     cleanup();
     keyboard.shown = false;
     win.width = undefined;
+    reveal.scroller = undefined;
 });
 
 /** Says whether its section is the one the cook is in, as a leaf reads it. */
@@ -263,6 +281,22 @@ describe('the native editor', () => {
         render(view(makeEditorResult()));
 
         expect(barInContent()).toBe(false);
+    });
+
+    /**
+     * E1: an ingredient list that opens behind the bar or the keyboard is revealed over the screen's ONE scroller. The
+     * scroller mounts after the editor's first render, so the reveal must be handed the scroller the host holds NOW. A
+     * reveal handed the first render's empty handle measures nothing and never scrolls: the list opens below the fold.
+     */
+    it('⛔ hands the field reveal the scroller once it has mounted, the one that holds the sections', () => {
+        render(view(makeEditorResult()));
+
+        const scroller = reveal.scroller?.current;
+
+        expect(scroller).toBeInstanceOf(HTMLElement);
+        expect((scroller as HTMLElement).contains(screen.getByRole('heading', { name: 'Photos & publish' }))).toBe(
+            true,
+        );
     });
 
     it('draws nothing once the editor has handed off', () => {

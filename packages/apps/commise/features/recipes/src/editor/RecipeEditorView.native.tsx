@@ -105,15 +105,10 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
     // §7.1 "Keyboard open (phones): the section bar hides and the ActionBar unpins" (A-006): the bar then scrolls with the
     // form as its last item, so the keys leave the form every pixel they can. Beside the rail (wide) the form is tall.
     const unpinned = pinning.unpinned || (keyboardShown && !wide);
-    // The field reveal reads the host's ONE scroller rather than holding a second handle to it (blueprint A7).
-    const [revealScroller] = useState(() => ({
-        get current() {
-            const target = host.handle.current;
-
-            return target !== null && isRevealScroller(target) ? target : null;
-        },
-    }));
-    const reveal = useFieldRevealHost(revealScroller);
+    // The field reveal reads the host's ONE scroller rather than holding a second handle to it (blueprint A7), as this
+    // render's `handle` holds it (`ScrollHostApi.handle`).
+    const scroller = host.handle.current;
+    const reveal = useFieldRevealHost({ current: scroller !== null && isRevealScroller(scroller) ? scroller : null });
     // The cook's drag on the page: it releases a section jump's hold (the host's), and closes an open food list unless
     // it began on that list (`ScrollerDragContext`).
     const drag = useScrollerDragHost();

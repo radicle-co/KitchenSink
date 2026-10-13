@@ -42,6 +42,8 @@
  * cannot see properties — only a reader can.
  */
 
+import { METRIC_STAGE_DIMENSION, metricStage } from '@kitchensink/metric-dimensions';
+
 /** The line's reserved fields, which a caller-supplied property may not displace. */
 interface ReservedFields {
     readonly Stage: string;
@@ -77,7 +79,7 @@ export interface StageCountMetric {
  * @returns One line of JSON, with no embedded newline.
  */
 export function buildStageCountMetricLine(metric: StageCountMetric): string {
-    const reserved: ReservedFields = { Stage: metric.stage, [metric.metricName]: 1 };
+    const reserved: ReservedFields = { [METRIC_STAGE_DIMENSION]: metric.stage, [metric.metricName]: 1 };
 
     return JSON.stringify({
         _aws: {
@@ -85,7 +87,7 @@ export function buildStageCountMetricLine(metric: StageCountMetric): string {
             CloudWatchMetrics: [
                 {
                     Namespace: metric.namespace,
-                    Dimensions: [['Stage']],
+                    Dimensions: [[METRIC_STAGE_DIMENSION]],
                     Metrics: [{ Name: metric.metricName, Unit: 'Count' }],
                 },
             ],
@@ -105,5 +107,5 @@ export function buildStageCountMetricLine(metric: StageCountMetric): string {
  * @returns The stage label; `unknown` when neither `STAGE` nor `NODE_ENV` is set.
  */
 export function resolveMetricStage(env: NodeJS.ProcessEnv = process.env): string {
-    return env['STAGE'] ?? env['NODE_ENV'] ?? 'unknown';
+    return metricStage({ STAGE: env['STAGE'] ?? env['NODE_ENV'] });
 }

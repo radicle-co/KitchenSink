@@ -61,7 +61,7 @@ function makeReader(world: World): {
         { follow },
         { readFacts },
         { readRefFacts },
-        new FoodMetrics(sink),
+        new FoodMetrics('test', sink),
     );
 
     return { reader, citingSeedRoots, ownersOfLineage, readRefFacts, readFacts, follow, sink };

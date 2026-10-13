@@ -313,6 +313,22 @@ export function bagKeys(node: ts.Expression | undefined): readonly string[] | un
 }
 
 /**
+ * The dimension key an element of a directive denotes: a string literal, or the constant
+ * `@kitchensink/metric-dimensions` publishes as `METRIC_STAGE_DIMENSION` (ADR-0062), whose value is `Stage`.
+ *
+ * ⚠️ MATCHED BY NAME and restated here, because this gate judges SOURCE TEXT and cannot import the constant's value
+ * without making the guard depend on the package it polices. `metricDimensions.test.ts` pins the value. Read as an
+ * unknown identifier, an emitter that spells its stage this way was an open element nothing could trace to a parameter,
+ * and was reported BLIND — which reads as "unsafe emitter" when the truth is "the gate could not read its own constant".
+ *
+ * @param element - A dimension set's element.
+ * @returns The key, or `undefined` for anything computed.
+ */
+function dimensionKeyText(element: ts.Expression): string | undefined {
+    return ts.isIdentifier(element) && element.text === 'METRIC_STAGE_DIMENSION' ? 'Stage' : literalText(element);
+}
+
+/**
  * Every `_aws.CloudWatchMetrics[].Dimensions` array literal in a parsed file, with its elements.
  *
  * @param source - The parsed file.
@@ -531,7 +547,7 @@ export function findEmfEmitters(file: SourceFile): readonly EmfEmitter[] {
             }
 
             for (const element of set.elements) {
-                const text = literalText(element);
+                const text = dimensionKeyText(element);
 
                 if (text === undefined) {
                     openElements.push(element);
@@ -1042,6 +1058,57 @@ export function emitMetric(metric: EmfMetric): void {
 
         expect(findings).toHaveLength(1);
         expect(findings[0]).toContain("'userId' is a CloudWatch dimension (call-site)");
+    });
+});
+
+describe('the published Stage dimension (ADR-0062)', () => {
+    /** An emitter spelling the stage with the constant `@kitchensink/metric-dimensions` publishes. */
+    const publishedStageEmitter = (extra: string): string => `
+import { METRIC_STAGE_DIMENSION } from '@kitchensink/metric-dimensions';
+interface EmfMetric { readonly name: string; readonly dimensions?: Record<string, string>; }
+export function emitMetric(metric: EmfMetric): void {
+    const facets = Object.entries(metric.dimensions ?? {}).filter(([, value]) => value !== undefined);
+    const facetKeys = facets.map(([key]) => key);
+    ${extra}
+    console.log(JSON.stringify({
+        _aws: { Timestamp: 0, CloudWatchMetrics: [{ Namespace: 'N', Dimensions: [[METRIC_STAGE_DIMENSION], ...facetedSet], Metrics: [] }] },
+    }));
+}
+`;
+    const FACETED = 'const facetedSet = facetKeys.length === 0 ? [] : [[METRIC_STAGE_DIMENSION, ...facetKeys]];';
+
+    it('reads METRIC_STAGE_DIMENSION as the literal key `Stage`, so the emitter is not reported blind', () => {
+        // ⛔ Read as an unknown identifier it was an open element nothing could trace to a parameter, and the one
+        // emitter that spelled the stage this way was reported blind — a false positive that reads as "unsafe emitter".
+        const service = fakeService('published-stage', {
+            'src/emf.ts': publishedStageEmitter(FACETED),
+            'src/worker.ts': "emitMetric({ name: 'M', dimensions: { source } });",
+        });
+
+        expect(blindEmitterViolations(service)).toEqual([]);
+        expect([...new Set(serviceDimensionKeys(service).map((site) => site.key))].sort()).toEqual(['Stage', 'source']);
+    });
+
+    it('still JUDGES a key a caller supplies beside the published stage', () => {
+        const findings = identifierDimensionViolations(
+            fakeService('published-stage-bad', {
+                'src/emf.ts': publishedStageEmitter(FACETED),
+                'src/worker.ts': "emitMetric({ name: 'M', dimensions: { userId } });",
+            }),
+        );
+
+        expect(findings).toHaveLength(1);
+        expect(findings[0]).toContain("'userId' is a CloudWatch dimension (call-site)");
+    });
+
+    it('does not extend that trust to another identifier: only the published constant means `Stage`', () => {
+        const service = fakeService('lookalike', {
+            'src/emf.ts': publishedStageEmitter(FACETED).replaceAll('METRIC_STAGE_DIMENSION', 'SOMETHING_ELSE'),
+            'src/worker.ts': "emitMetric({ name: 'M', dimensions: { source } });",
+        });
+
+        // `SOMETHING_ELSE` is not read as a key at all, so `Stage` does not appear: the constant is matched by name.
+        expect([...new Set(serviceDimensionKeys(service).map((site) => site.key))].sort()).toEqual(['source']);
     });
 });
 

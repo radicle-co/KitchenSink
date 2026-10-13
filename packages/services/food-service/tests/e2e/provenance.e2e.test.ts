@@ -76,7 +76,7 @@ describe('async-producer provenance (integration, FR-048)', () => {
         const consumer = new FoodConsumerService({
             foodDao,
             sources: new FoodSourcesDao(db),
-            catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
+            catalog: workerCatalogOf(db, new FoodMetrics('test', () => undefined)),
             queue,
             registry,
             merge,

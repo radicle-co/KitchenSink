@@ -165,7 +165,7 @@ describe('change-refresh + UNRESOLVED TTL full-stack e2e', () => {
             sources: app.get(FoodSourcesDao, { strict: false }),
             catalog: workerCatalogOf(
                 app.get<FoodDrizzle>(DrizzleProvider, { strict: false }),
-                new FoodMetrics(() => undefined),
+                new FoodMetrics('test', () => undefined),
             ),
             queue: new FetchQueueDao(drizzle),
             registry: app.get(SourceAdapterRegistry, { strict: false }),

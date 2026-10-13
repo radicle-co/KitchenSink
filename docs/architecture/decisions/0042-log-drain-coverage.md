@@ -91,6 +91,7 @@ loops.
 | `kitchensink-sandbox-scheduler-{stage}-SandboxSchedulerLogGroup*`         | `SandboxSchedulerStack`   | yes    | `sandbox-scheduler`             |
 | `kitchensink-sandbox-scheduler-{stage}-SandboxReclaimLogGroup*`           | `SandboxSchedulerStack`   | yes    | `sandbox-reclaim`               |
 | `kitchensink-sandbox-scheduler-{stage}-ReclaimStateMachineLogGroup*`      | `SandboxSchedulerStack`   | no     | `sandbox-reclaim-states`        |
+| `kitchensink-alarm-relay-{stage}-AlarmRelayLogGroup*`                     | `AlarmRelayStack`         | yes    | `alarm-relay`                   |
 | `/aws/lambda/kitchensink-remote-search-{stage}`                           | `RemoteSearchStack`       | yes    | `remote-search`                 |
 | `kitchensink-remote-search-shared-{stage}-SigningKeyProvisionerLogGroup*` | `RemoteSearchSharedStack` | yes    | `remote-search-key-provisioner` |
 | `kitchensink-remote-search-shared-{stage}-SigningKeyProviderLogGroup*`    | `RemoteSearchSharedStack` | yes    | `remote-search-key-provider`    |

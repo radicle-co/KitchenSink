@@ -56,7 +56,7 @@ function makeService(world: World): { service: FoodsService; readNutritionBatch:
         unused,
         unused,
         unused,
-        new FoodMetrics(() => undefined),
+        new FoodMetrics('test', () => undefined),
         unused,
         { readNutrition, liveVariantRoots } as unknown as FoodVariantDao,
         { refFacts } as unknown as CatalogOwnerReader,

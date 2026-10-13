@@ -53,6 +53,8 @@ import { USDA_REQUEST_TIMEOUT_MS } from '@kitchensink/usda-client';
 
 import { baseStageOf, type RemoteSearchStage } from './remoteSearchStage.js';
 
+import { importAlarmRelayArn, relayAlarmTransitions } from './alarmRelaySubscription.js';
+
 /** What the function allows itself beyond one USDA request: a cold start and the once-per-container key read. */
 const FUNCTION_HEADROOM_MS = 5_000;
 
@@ -305,6 +307,10 @@ export class RemoteSearchStack extends Stack {
         );
 
         if (props.alarmsEnabled) {
+            // ADR-0062: deliver this topic's transitions to the stage's alarm relay, and forward the OKs too. Inside the
+            // switch, like the alarms: no alarm, nothing to deliver.
+            relayAlarmTransitions(this, alarmTopic, importAlarmRelayArn(props.stage));
+
             const alarmAction = new cloudwatchActions.SnsAction(alarmTopic);
 
             // An unhandled error or a timeout: the handler answers every failure it knows with a typed response, so

@@ -74,6 +74,61 @@
             "packageName": "@kitchensink/infra-global",
             "stacks": [
                 {
+                    "className": "AlarmRelayStack",
+                    "source": "packages/infra/global/lib/platform/AlarmRelayStack.ts",
+                    "stackNameTemplate": "kitchensink-alarm-relay-{stage}",
+                    "condition": null,
+                    "resources": [
+                        {
+                            "kind": "queue",
+                            "logicalId": "AlarmRelayFailureQueue",
+                            "nameTemplate": null,
+                            "handler": null,
+                            "condition": null,
+                            "notes": []
+                        },
+                        {
+                            "kind": "lambdaFunction",
+                            "logicalId": "AlarmRelayFunction",
+                            "nameTemplate": null,
+                            "handler": null,
+                            "condition": null,
+                            "notes": [
+                                "handler is not a literal: hasLambdaAsset ? 'alarmRelay/handler.handler' : 'index.handler'"
+                            ]
+                        },
+                        {
+                            "kind": "topic",
+                            "logicalId": "AlarmRelayAlarmTopic",
+                            "nameTemplate": null,
+                            "handler": null,
+                            "condition": null,
+                            "notes": []
+                        },
+                        {
+                            "kind": "alarm",
+                            "logicalId": "AlarmRelayFailureQueueAlarm",
+                            "nameTemplate": "kitchensink-alarm-relay-failures-{stage}",
+                            "handler": null,
+                            "condition": "props.alarmsEnabled",
+                            "notes": []
+                        }
+                    ],
+                    "importedExports": [],
+                    "unclassifiedConstructs": [
+                        "aws-cdk-lib.CfnOutput",
+                        "aws-cdk-lib/aws-cloudwatch-actions.SnsAction",
+                        "aws-cdk-lib/aws-iam.PolicyStatement",
+                        "aws-cdk-lib/aws-iam.Role",
+                        "aws-cdk-lib/aws-iam.ServicePrincipal",
+                        "aws-cdk-lib/aws-lambda-destinations.SqsDestination",
+                        "aws-cdk-lib/aws-logs-destinations.LambdaDestination",
+                        "aws-cdk-lib/aws-logs.LogGroup",
+                        "aws-cdk-lib/aws-logs.SubscriptionFilter"
+                    ],
+                    "unfollowedConstructs": []
+                },
+                {
                     "className": "DataStack",
                     "source": "packages/infra/global/lib/platform/DataStack.ts",
                     "stackNameTemplate": "kitchensink-data-{stage}",
@@ -588,6 +643,7 @@
                         }
                     ],
                     "importedExports": [
+                        "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn",
                         "kitchensink-alb-{baseStage}:SharedAlbArn",
                         "kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId",
                         "kitchensink-alb-{baseStage}:SharedAlbDnsName",
@@ -631,6 +687,7 @@
                 }
             ],
             "importedExports": [
+                "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn",
                 "kitchensink-alb-{baseStage}:SharedAlbArn",
                 "kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId",
                 "kitchensink-alb-{baseStage}:SharedAlbDnsName",
@@ -769,6 +826,7 @@
                         }
                     ],
                     "importedExports": [
+                        "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn",
                         "kitchensink-data-{identityStage}:HandleSyncTopicArn",
                         "kitchensink-service-logs-{deployStage}:IdentityServiceLogGroupName"
                     ],
@@ -780,6 +838,7 @@
                         "aws-cdk-lib/aws-apigateway.RestApi",
                         "aws-cdk-lib/aws-certificatemanager.Certificate",
                         "aws-cdk-lib/aws-cloudwatch-actions.SnsAction",
+                        "aws-cdk-lib/aws-cloudwatch.MathExpression",
                         "aws-cdk-lib/aws-cloudwatch.Metric",
                         "aws-cdk-lib/aws-events-targets.LambdaFunction",
                         "aws-cdk-lib/aws-events.Rule",
@@ -798,6 +857,7 @@
                 }
             ],
             "importedExports": [
+                "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn",
                 "kitchensink-data-{identityStage}:HandleSyncTopicArn",
                 "kitchensink-data-{stage}:ArchiveBucketName",
                 "kitchensink-data-{stage}:DatabaseEndpoint",
@@ -900,6 +960,7 @@
                         }
                     ],
                     "importedExports": [
+                        "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn",
                         "kitchensink-alb-{stage}:SharedAlbArn",
                         "kitchensink-alb-{stage}:SharedAlbCanonicalHostedZoneId",
                         "kitchensink-alb-{stage}:SharedAlbDnsName",
@@ -938,6 +999,7 @@
                 }
             ],
             "importedExports": [
+                "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn",
                 "kitchensink-alb-{stage}:SharedAlbArn",
                 "kitchensink-alb-{stage}:SharedAlbCanonicalHostedZoneId",
                 "kitchensink-alb-{stage}:SharedAlbDnsName",
@@ -1507,7 +1569,9 @@
                             "notes": []
                         }
                     ],
-                    "importedExports": [],
+                    "importedExports": [
+                        "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn"
+                    ],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-cloudwatch-actions.SnsAction",
@@ -1527,7 +1591,9 @@
                     "unfollowedConstructs": []
                 }
             ],
-            "importedExports": []
+            "importedExports": [
+                "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn"
+            ]
         },
         {
             "entrypoint": "packages/services/remote-search/infra/bin/app.ts",
@@ -1581,6 +1647,7 @@
                         }
                     ],
                     "importedExports": [
+                        "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn",
                         "kitchensink-domain-{baseStage}:CertificateArn",
                         "kitchensink-domain-{baseStage}:HostedZoneId"
                     ],
@@ -1601,6 +1668,7 @@
                 }
             ],
             "importedExports": [
+                "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn",
                 "kitchensink-domain-{baseStage}:CertificateArn",
                 "kitchensink-domain-{baseStage}:HostedZoneId"
             ]
@@ -1622,6 +1690,14 @@
             "producerPackage": "@kitchensink/infra-global",
             "producerStack": "DomainStack",
             "exportName": "kitchensink-domain-{stage}:HostedZoneId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service-infra",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "AlarmRelayStack",
+            "exportName": "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn"
         },
         {
             "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
@@ -1718,6 +1794,14 @@
             "producerPackage": "@kitchensink/infra-global",
             "producerStack": "NetworkStack",
             "exportName": "kitchensink-network-{baseStage}:ServiceSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks-infra",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "AlarmRelayStack",
+            "exportName": "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn"
         },
         {
             "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
@@ -1838,6 +1922,14 @@
             "producerPackage": "@kitchensink/infra-global",
             "producerStack": "ServiceLogsStack",
             "exportName": "kitchensink-service-logs-{deployStage}:IdentityServiceLogGroupName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-infra",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "AlarmRelayStack",
+            "exportName": "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn"
         },
         {
             "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
@@ -2110,6 +2202,22 @@
             "producerPackage": "@kitchensink/infra-global",
             "producerStack": "NetworkStack",
             "exportName": "kitchensink-network-{baseStage}:ServiceSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-workers/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-workers-infra",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "AlarmRelayStack",
+            "exportName": "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/remote-search/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/remote-search-infra",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "AlarmRelayStack",
+            "exportName": "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn"
         },
         {
             "consumerEntrypoint": "packages/services/remote-search/infra/bin/app.ts",

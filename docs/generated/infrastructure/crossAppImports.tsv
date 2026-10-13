@@ -8,6 +8,7 @@
 # consumer entrypoint	producer entrypoint	export name ({stage}/{baseStage} substituted by the caller)
 packages/apps/commise/web/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-domain-{stage}:CertificateArn
 packages/apps/commise/web/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-domain-{stage}:HostedZoneId
+packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn
 packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbArn
 packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId
 packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbDnsName
@@ -20,6 +21,7 @@ packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts
 packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:AlbSecurityGroupId
 packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:DatabaseSecurityGroupId
 packages/services/food-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:ServiceSecurityGroupId
+packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn
 packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{identityStage}:HandleSyncTopicArn
 packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:ArchiveBucketName
 packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-data-{stage}:DatabaseEndpoint
@@ -35,6 +37,7 @@ packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/a
 packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{stage}:DatabaseSecurityGroupId
 packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{stage}:LambdaSecurityGroupId
 packages/services/identity-webhooks/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-service-logs-{deployStage}:IdentityServiceLogGroupName
+packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn
 packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{stage}:SharedAlbArn
 packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{stage}:SharedAlbCanonicalHostedZoneId
 packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{stage}:SharedAlbDnsName
@@ -69,5 +72,7 @@ packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.
 packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:AlbSecurityGroupId
 packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:DatabaseSecurityGroupId
 packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{baseStage}:ServiceSecurityGroupId
+packages/services/recipe-workers/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn
+packages/services/remote-search/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn
 packages/services/remote-search/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-domain-{baseStage}:CertificateArn
 packages/services/remote-search/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-domain-{baseStage}:HostedZoneId

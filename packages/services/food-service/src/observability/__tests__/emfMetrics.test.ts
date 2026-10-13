@@ -69,7 +69,7 @@ describe('emf-metrics', () => {
          */
         it('emits every metric name it declares, except the two that are declared and unimplemented', () => {
             const lines: string[] = [];
-            const metrics = new FoodMetrics((line) => lines.push(line));
+            const metrics = new FoodMetrics('prod', (line) => lines.push(line));
 
             metrics.recordResolutionLatencySeconds(1);
             metrics.recordQueueDepth(1);
@@ -85,8 +85,8 @@ describe('emf-metrics', () => {
             metrics.recordForwardUnresolved();
             metrics.recordLineageMatch('usda');
             metrics.recordSearchGaps('usda', 2);
-            metrics.recordRemoteSearchEnding('prod', 'usda', 'answered');
-            metrics.recordRemoteSearchAvailability('prod', false);
+            metrics.recordRemoteSearchEnding('usda', 'answered');
+            metrics.recordRemoteSearchAvailability(false);
             metrics.recordSourceWindowCount('usda', 1);
             metrics.recordSourceRateLimit('usda', { limit: 1000, remaining: 1 });
 
@@ -125,8 +125,9 @@ describe('emf-metrics', () => {
     });
 
     describe('buildEmf', () => {
-        it('encodes a single dimensionless metric with the default namespace', () => {
+        it('encodes a metric whose only dimension is the stage, with the default namespace', () => {
             const payload = buildEmf({
+                stage: 'prod',
                 metrics: [{ name: FOOD_METRIC.fetchQueueDepth, value: 7, unit: 'Count' }],
                 timestamp: 1_700_000_000_000,
             });
@@ -137,23 +138,25 @@ describe('emf-metrics', () => {
                     CloudWatchMetrics: [
                         {
                             Namespace: 'Commise/Food',
-                            Dimensions: [[]],
+                            Dimensions: [['Stage']],
                             Metrics: [{ Name: 'food-fetch-queue-depth', Unit: 'Count' }],
                         },
                     ],
                 },
+                Stage: 'prod',
                 'food-fetch-queue-depth': 7,
             } satisfies EmfPayload);
         });
 
         it('encodes a dimensioned metric with the dimension key in the dimension set and as a top-level field', () => {
             const payload = buildEmf({
+                stage: 'prod',
                 metrics: [{ name: FOOD_METRIC.sourceRollingWindowCount, value: 42, unit: 'Count' }],
                 dimensions: { source: 'usda' },
                 timestamp: 1_700_000_000_000,
             });
 
-            expect(payload._aws.CloudWatchMetrics[0].Dimensions).toEqual([['source']]);
+            expect(payload._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Stage', 'source']]);
             expect(payload['source']).toBe('usda');
             expect(payload['source-rolling-window-count']).toBe(42);
         });
@@ -166,13 +169,81 @@ describe('emf-metrics', () => {
          */
         it('declares no dimension for a facet whose value is absent', () => {
             const payload = buildEmf({
+                stage: 'prod',
                 metrics: [{ name: FOOD_METRIC.sourceRollingWindowCount, value: 1, unit: 'Count' }],
                 dimensions: { source: undefined },
                 timestamp: 1,
             });
 
-            expect(payload._aws.CloudWatchMetrics[0].Dimensions).toEqual([[]]);
+            expect(payload._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Stage']]);
             expect(Object.keys(payload)).not.toContain('source');
+        });
+    });
+
+    /**
+     * ⛔ ADR-0062. EVERY line this service emits is dimensioned by the stage, because an alarm on a dimensionless
+     * series reads every stage that publishes it: prod's tombstone alarm went ALARM each morning when the preview
+     * workers started. Measured over EVERY recorder, so a recorder added without it reds here instead of in prod.
+     */
+    describe('the Stage dimension', () => {
+        /** Drive every recorder once and return the parsed lines. */
+        const everyLine = (stage: string): readonly EmfPayload[] => {
+            const lines: string[] = [];
+            const metrics = new FoodMetrics(stage, (line) => lines.push(line));
+
+            metrics.recordResolutionLatencySeconds(1);
+            metrics.recordQueueDepth(1);
+            metrics.recordUnresolvedBacklog(1);
+            metrics.recordTombstoneCount(1);
+            metrics.recordFailedBacklog(1);
+            metrics.recordPendingAgeSeconds(1);
+            metrics.recordInFlightLeases(1);
+            metrics.recordWorkerError(1);
+            metrics.recordLeaseLost();
+            metrics.recordLocalStoreServe(true);
+            metrics.recordRetryBudgetExhausted();
+            metrics.recordForwardUnresolved();
+            metrics.recordLineageMatch('usda');
+            metrics.recordSearchGaps('usda', 2);
+            metrics.recordRemoteSearchEnding('usda', 'answered');
+            metrics.recordRemoteSearchAvailability(false);
+            metrics.recordSourceWindowCount('usda', 1);
+            metrics.recordSourceRateLimit('usda', { limit: 1000, remaining: 1 });
+
+            return lines.map((line) => JSON.parse(line) as EmfPayload);
+        };
+
+        it('leads every directive with `Stage`, and carries the stage as a field, on every recorder', () => {
+            const payloads = everyLine('prod');
+
+            expect(payloads).toHaveLength(18);
+
+            for (const payload of payloads) {
+                const [directive] = payload._aws.CloudWatchMetrics;
+
+                expect(directive?.Dimensions).toHaveLength(1);
+                expect(directive?.Dimensions[0]?.[0]).toBe('Stage');
+                expect(payload['Stage']).toBe('prod');
+            }
+        });
+
+        it('carries the constructor stage, so a preview worker writes only its own series', () => {
+            expect(everyLine('pr-91').every((payload) => payload['Stage'] === 'pr-91')).toBe(true);
+        });
+
+        it('no longer emits the lowercase `stage` dimension: it named a different, silent series', () => {
+            for (const payload of everyLine('prod')) {
+                expect(Object.keys(payload)).not.toContain('stage');
+                expect(payload._aws.CloudWatchMetrics[0]?.Dimensions[0]).not.toContain('stage');
+            }
+        });
+
+        it('declares every directive key as a field of the line (CloudWatch discards a record that does not)', () => {
+            for (const payload of everyLine('prod')) {
+                for (const key of payload._aws.CloudWatchMetrics[0]?.Dimensions[0] ?? []) {
+                    expect(Object.keys(payload), key).toContain(key);
+                }
+            }
         });
     });
 
@@ -180,7 +251,11 @@ describe('emf-metrics', () => {
         it('writes exactly one EMF JSON line containing the _aws envelope', () => {
             const lines: string[] = [];
             emitMetric(
-                { metrics: [{ name: FOOD_METRIC.tombstoneCount, value: 3, unit: 'Count' }], timestamp: 1 },
+                {
+                    stage: 'prod',
+                    metrics: [{ name: FOOD_METRIC.tombstoneCount, value: 3, unit: 'Count' }],
+                    timestamp: 1,
+                },
                 (line) => lines.push(line),
             );
 
@@ -196,7 +271,7 @@ describe('emf-metrics', () => {
     describe('FoodMetrics recorder', () => {
         it('records resolution latency in seconds (dimensionless)', () => {
             const sink = vi.fn();
-            new FoodMetrics(sink).recordResolutionLatencySeconds(1.5);
+            new FoodMetrics('prod', sink).recordResolutionLatencySeconds(1.5);
 
             const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
 
@@ -204,18 +279,18 @@ describe('emf-metrics', () => {
                 { Name: 'food-resolution-latency-seconds', Unit: 'Seconds' },
             ]);
             expect(parsed['food-resolution-latency-seconds']).toBe(1.5);
-            expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([[]]);
+            expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Stage']]);
         });
 
         it('records the search gaps one answer found, counted under the source dimension', () => {
             const sink = vi.fn<(line: string) => void>();
-            new FoodMetrics(sink).recordSearchGaps('usda', 3);
+            new FoodMetrics('prod', sink).recordSearchGaps('usda', 3);
 
             expect(sink).toHaveBeenCalledTimes(1);
 
             const payload = JSON.parse(String(sink.mock.calls[0]?.[0])) as EmfPayload;
 
-            expect(payload._aws.CloudWatchMetrics[0]?.Dimensions).toEqual([['source']]);
+            expect(payload._aws.CloudWatchMetrics[0]?.Dimensions).toEqual([['Stage', 'source']]);
             expect(payload._aws.CloudWatchMetrics[0]?.Metrics).toEqual([{ Name: 'food-search-gap', Unit: 'Count' }]);
             expect(payload['source']).toBe('usda');
             expect(payload['food-search-gap']).toBe(3);
@@ -223,18 +298,18 @@ describe('emf-metrics', () => {
 
         it('records a remote search ending under its stage, source and reason', () => {
             const sink = vi.fn<(line: string) => void>();
-            new FoodMetrics(sink).recordRemoteSearchEnding('pr-91', 'usda', 'noEcho');
+            new FoodMetrics('pr-91', sink).recordRemoteSearchEnding('usda', 'noEcho');
 
             expect(sink).toHaveBeenCalledTimes(1);
 
             const payload = JSON.parse(String(sink.mock.calls[0]?.[0])) as EmfPayload;
 
-            expect(payload._aws.CloudWatchMetrics[0]?.Dimensions).toEqual([['stage', 'source', 'reason']]);
+            expect(payload._aws.CloudWatchMetrics[0]?.Dimensions).toEqual([['Stage', 'source', 'reason']]);
             expect(payload._aws.CloudWatchMetrics[0]?.Metrics).toEqual([
                 { Name: 'remote-search-ending', Unit: 'Count' },
             ]);
             expect(payload).toMatchObject({
-                stage: 'pr-91',
+                Stage: 'pr-91',
                 source: 'usda',
                 reason: 'noEcho',
                 'remote-search-ending': 1,
@@ -246,24 +321,24 @@ describe('emf-metrics', () => {
             [false, 0],
         ])('records a remote search that was unavailable=%s as %s Percent, under the stage alone', (dark, percent) => {
             const sink = vi.fn<(line: string) => void>();
-            new FoodMetrics(sink).recordRemoteSearchAvailability('prod', dark);
+            new FoodMetrics('prod', sink).recordRemoteSearchAvailability(dark);
 
             const payload = JSON.parse(String(sink.mock.calls[0]?.[0])) as EmfPayload;
 
-            expect(payload._aws.CloudWatchMetrics[0]?.Dimensions).toEqual([['stage']]);
+            expect(payload._aws.CloudWatchMetrics[0]?.Dimensions).toEqual([['Stage']]);
             expect(payload._aws.CloudWatchMetrics[0]?.Metrics).toEqual([
                 { Name: 'remote-search-unavailable-rate', Unit: 'Percent' },
             ]);
-            expect(payload).toMatchObject({ stage: 'prod', 'remote-search-unavailable-rate': percent });
+            expect(payload).toMatchObject({ Stage: 'prod', 'remote-search-unavailable-rate': percent });
         });
 
         it('records per-source rolling-window count under a source dimension', () => {
             const sink = vi.fn();
-            new FoodMetrics(sink).recordSourceWindowCount('usda', 12);
+            new FoodMetrics('prod', sink).recordSourceWindowCount('usda', 12);
 
             const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
 
-            expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([['source']]);
+            expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Stage', 'source']]);
             expect(parsed['source']).toBe('usda');
             expect(parsed['source-rolling-window-count']).toBe(12);
         });
@@ -279,13 +354,13 @@ describe('emf-metrics', () => {
          */
         it('records the reported rate limit on one line, under the source dimension', () => {
             const sink = vi.fn();
-            new FoodMetrics(sink).recordSourceRateLimit('usda', { limit: 1000, remaining: 987 });
+            new FoodMetrics('prod', sink).recordSourceRateLimit('usda', { limit: 1000, remaining: 987 });
 
             expect(sink).toHaveBeenCalledTimes(1);
 
             const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
 
-            expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([['source']]);
+            expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Stage', 'source']]);
             expect(parsed['source']).toBe('usda');
             expect(parsed._aws.CloudWatchMetrics[0].Metrics).toEqual([
                 { Name: 'source-rate-limit-remaining', Unit: 'Count' },
@@ -297,7 +372,7 @@ describe('emf-metrics', () => {
 
         it('omits the half USDA did not report rather than publishing a zero for it', () => {
             const sink = vi.fn();
-            new FoodMetrics(sink).recordSourceRateLimit('usda', { remaining: 0 });
+            new FoodMetrics('prod', sink).recordSourceRateLimit('usda', { remaining: 0 });
 
             const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
 
@@ -310,7 +385,7 @@ describe('emf-metrics', () => {
 
         it('emits nothing at all when the snapshot carries neither value', () => {
             const sink = vi.fn();
-            new FoodMetrics(sink).recordSourceRateLimit('usda', {});
+            new FoodMetrics('prod', sink).recordSourceRateLimit('usda', {});
 
             expect(sink).not.toHaveBeenCalled();
         });
@@ -325,7 +400,7 @@ describe('emf-metrics', () => {
          */
         it('records a served local-store read as 100 Percent (the CloudWatch Average is the serve rate)', () => {
             const sink = vi.fn();
-            new FoodMetrics(sink).recordLocalStoreServe(true);
+            new FoodMetrics('prod', sink).recordLocalStoreServe(true);
 
             const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
 
@@ -333,12 +408,12 @@ describe('emf-metrics', () => {
                 { Name: 'food-local-store-serve-rate', Unit: 'Percent' },
             ]);
             expect(parsed['food-local-store-serve-rate']).toBe(100);
-            expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([[]]);
+            expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Stage']]);
         });
 
         it('records an unserved read as 0 Percent (so it counts against the rate, not out of it)', () => {
             const sink = vi.fn();
-            new FoodMetrics(sink).recordLocalStoreServe(false);
+            new FoodMetrics('prod', sink).recordLocalStoreServe(false);
 
             const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
 
@@ -348,7 +423,7 @@ describe('emf-metrics', () => {
 
         it('records the operational snapshot gauges (queue depth, backlog, tombstone, pending age)', () => {
             const sink = vi.fn();
-            const metrics = new FoodMetrics(sink);
+            const metrics = new FoodMetrics('prod', sink);
             metrics.recordQueueDepth(11);
             metrics.recordUnresolvedBacklog(4);
             metrics.recordTombstoneCount(2);

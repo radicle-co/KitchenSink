@@ -10,6 +10,7 @@
  * @pattern Factory — a composition root's worth of wiring behind one function, shared by the three roots
  * @implements FR-ADP-1 FR-019 FR-026
  */
+import { metricStage } from '@kitchensink/metric-dimensions';
 import { UsdaApiClient } from '@kitchensink/usda-client';
 
 import { settingFromEnv } from '../config/env.schema.js';
@@ -52,7 +53,7 @@ export function createSourceRegistry(deps: SourceRegistryDeps): SourceAdapterReg
     const transport = new RateLimitedTransport({
         admission: deps.admission,
         blocks: deps.blocks,
-        metrics: deps.metrics ?? new FoodMetrics(),
+        metrics: deps.metrics ?? new FoodMetrics(metricStage(process.env)),
         upstream: deps.upstream ?? globalThis.fetch,
     });
     const registry = new SourceAdapterRegistry();

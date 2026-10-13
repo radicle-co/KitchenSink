@@ -88,7 +88,7 @@ describe('FoodConsumerService — change-refresh branch (integration)', () => {
             queue,
             registry,
             merge,
-            catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
+            catalog: workerCatalogOf(db, new FoodMetrics('test', () => undefined)),
             events: new FoodEventEmitter(publisher),
             logger: new SilentWorkerLogger(),
         });

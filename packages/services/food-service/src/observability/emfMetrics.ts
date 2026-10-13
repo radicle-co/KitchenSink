@@ -13,8 +13,14 @@
  * service's runtime sources. Rename one here and the alarm watching the old name reds. Coarse but unfakeable,
  * and it is the guard to keep working.
  *
+ * ⛔ EVERY LINE CARRIES THE `Stage` DIMENSION (ADR-0062), and every alarm and dashboard on this namespace selects
+ * `Stage=<its stage>`. The series used to be dimensionless, shared by prod and every `pr-{N}` worker, so prod's alarm
+ * read the previews' data too. The dimension's name and the way a runtime learns its stage live in
+ * `@kitchensink/metric-dimensions`, which the infrastructure imports as well.
+ *
  * @implements SC-002 SC-006 US-10
  */
+import { METRIC_STAGE_DIMENSION } from '@kitchensink/metric-dimensions';
 
 export const FOOD_METRIC_NAMESPACE = 'Commise/Food';
 
@@ -71,9 +77,9 @@ export const FOOD_METRIC = {
      * (dimension: `source`, ADR-0055 point 4). The rows themselves are `search_gap`'s; this says how often it grows.
      */
     searchGap: 'food-search-gap',
-    /** One remote search's ending (dimensions: `stage`, `source`, `reason`; ADR-0055 point 6). */
+    /** One remote search's ending (dimensions: `source`, `reason`; ADR-0055 point 6). */
     remoteSearchEnding: 'remote-search-ending',
-    /** One remote search observed as dark (100) or not (0), so `Average` is the stage's unavailable rate (`stage`). */
+    /** One remote search observed as dark (100) or not (0), so `Average` is the stage's unavailable rate. */
     remoteSearchUnavailableRate: 'remote-search-unavailable-rate',
     /** Share of reads served from the local store with no source call, as a percentage (SC-005). */
     localStoreServeRate: 'food-local-store-serve-rate',
@@ -127,10 +133,10 @@ export type MetricUnit = 'Count' | 'Seconds' | 'Milliseconds' | 'Percent' | 'Non
  * EMF publishes only the dimension sets the directive lists — there is no dimensionless rollup to fall back on.
  *
  * `source` qualifies because its value space is the registered source adapters (`usda`, …), bounded by code
- * rather than by traffic. `reason` is a closed union in the emitting module (`RemoteSearchEnding`). `stage` grows only
- * with previews opened, and is what lets an alarm read its own stage's series rather than every stage's.
+ * rather than by traffic. `reason` is a closed union in the emitting module (`RemoteSearchEnding`). The stage is NOT a
+ * facet: every line carries it (see {@link EmfInput.stage}), so it cannot be left out or displaced by a caller.
  */
-export type FoodMetricDimension = 'source' | 'stage' | 'reason';
+export type FoodMetricDimension = 'source' | 'reason';
 
 /**
  * A dimension bag: allowlisted facet → value. Partial, because most food metrics carry no dimension at all —
@@ -148,6 +154,11 @@ export interface MetricDatum {
 
 /** Input to {@link buildEmf}. */
 export interface EmfInput {
+    /**
+     * The deploy stage this process runs as, written as the `Stage` dimension of EVERY line (ADR-0062). Required, so a
+     * caller cannot publish a series that every stage's alarm would read.
+     */
+    readonly stage: string;
     /** The metrics published in this record (all share the dimension set + timestamp). */
     readonly metrics: readonly MetricDatum[];
     /** Optional dimensions (e.g. `{ source: 'usda' }`); each key becomes a CloudWatch dimension. */
@@ -161,7 +172,7 @@ export interface EmfInput {
 /** The CloudWatch metric-directive block embedded under `_aws`. */
 export interface EmfMetricDirective {
     readonly Namespace: string;
-    /** Dimension sets — a single set of the provided dimension keys (`[[]]` when none). */
+    /** Dimension sets — a single set: `Stage`, then the provided facet keys. */
     readonly Dimensions: readonly (readonly string[])[];
     readonly Metrics: ReadonlyArray<{ readonly Name: string; readonly Unit: MetricUnit }>;
 }
@@ -180,15 +191,15 @@ export interface EmfPayload {
 }
 
 /**
- * Build a CloudWatch EMF record from a set of metrics + optional dimensions. Pure given its `timestamp`
- * (defaults to `Date.now()`, the only impurity).
+ * Build a CloudWatch EMF record from a set of metrics, a stage and optional facet dimensions. Pure given its
+ * `timestamp` (defaults to `Date.now()`, the only impurity).
  *
  * A facet present with an `undefined` value is DROPPED rather than declared: `JSON.stringify` omits an
  * `undefined` field, so declaring the key anyway would ship a directive naming a dimension the line does not
  * carry, which CloudWatch rejects — discarding the whole record. Silently losing a metric is the worst failure
  * an emitter can have.
  *
- * @param input - The metrics, optional dimensions, namespace, and timestamp.
+ * @param input - The stage, metrics, optional facet dimensions, namespace, and timestamp.
  * @returns The serializable EMF payload.
  */
 export function buildEmf(input: EmfInput): EmfPayload {
@@ -197,7 +208,7 @@ export function buildEmf(input: EmfInput): EmfPayload {
     const dimensions = Object.fromEntries(
         Object.entries(input.dimensions ?? {}).filter((entry): entry is [string, string] => entry[1] !== undefined),
     );
-    const dimensionKeys = Object.keys(dimensions);
+    const dimensionKeys = [METRIC_STAGE_DIMENSION, ...Object.keys(dimensions)];
 
     // ⛔ NULL PROTOTYPE, and `_aws` is attached to it rather than seeding it. Every other write below is
     // `payload[name] = …` with a name that came from the DATA — a dimension key and a metric name — so on an
@@ -222,6 +233,9 @@ export function buildEmf(input: EmfInput): EmfPayload {
             },
         ],
     };
+
+    // The stage is written BEFORE the facets and the facet type is closed, so no caller key can displace it.
+    payload[METRIC_STAGE_DIMENSION] = input.stage;
 
     for (const [key, value] of Object.entries(dimensions)) {
         payload[key] = value;
@@ -263,8 +277,25 @@ export function emitMetric(input: EmfInput, sink: (line: string) => void = write
  * CDK dashboard/alarm reference.
  */
 export class FoodMetrics {
-    /** @param sink - The line sink (defaults to stdout via {@link writeLine}; injected in tests). */
-    public constructor(private readonly sink: (line: string) => void = writeLine) {}
+    /**
+     * @param stage - The deploy stage, written as the `Stage` dimension of every line (ADR-0062). Required: there is
+     *   no default stage that would be right for a caller that forgot to pass one.
+     * @param sink - The line sink (defaults to stdout via {@link writeLine}; injected in tests).
+     */
+    public constructor(
+        private readonly stage: string,
+        private readonly sink: (line: string) => void = writeLine,
+    ) {}
+
+    /**
+     * Write one line, dimensioned by this recorder's stage.
+     *
+     * @param input - The metrics and facets; the stage is this recorder's.
+     * @sideEffect Writes one line to the sink.
+     */
+    private emit(input: Omit<EmfInput, 'stage'>): void {
+        emitMetric({ ...input, stage: this.stage }, this.sink);
+    }
 
     /**
      * Record an end-to-end per-row resolution latency (SC-002).
@@ -273,10 +304,7 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordResolutionLatencySeconds(seconds: number): void {
-        emitMetric(
-            { metrics: [{ name: FOOD_METRIC.resolutionLatencySeconds, value: seconds, unit: 'Seconds' }] },
-            this.sink,
-        );
+        this.emit({ metrics: [{ name: FOOD_METRIC.resolutionLatencySeconds, value: seconds, unit: 'Seconds' }] });
     }
 
     /**
@@ -286,7 +314,7 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordQueueDepth(depth: number): void {
-        emitMetric({ metrics: [{ name: FOOD_METRIC.fetchQueueDepth, value: depth, unit: 'Count' }] }, this.sink);
+        this.emit({ metrics: [{ name: FOOD_METRIC.fetchQueueDepth, value: depth, unit: 'Count' }] });
     }
 
     /**
@@ -296,7 +324,7 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordUnresolvedBacklog(count: number): void {
-        emitMetric({ metrics: [{ name: FOOD_METRIC.unresolvedBacklog, value: count, unit: 'Count' }] }, this.sink);
+        this.emit({ metrics: [{ name: FOOD_METRIC.unresolvedBacklog, value: count, unit: 'Count' }] });
     }
 
     /**
@@ -306,7 +334,7 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordTombstoneCount(count: number): void {
-        emitMetric({ metrics: [{ name: FOOD_METRIC.tombstoneCount, value: count, unit: 'Count' }] }, this.sink);
+        this.emit({ metrics: [{ name: FOOD_METRIC.tombstoneCount, value: count, unit: 'Count' }] });
     }
 
     /**
@@ -320,7 +348,7 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordFailedBacklog(count: number): void {
-        emitMetric({ metrics: [{ name: FOOD_METRIC.failedBacklog, value: count, unit: 'Count' }] }, this.sink);
+        this.emit({ metrics: [{ name: FOOD_METRIC.failedBacklog, value: count, unit: 'Count' }] });
     }
 
     /**
@@ -330,7 +358,7 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordPendingAgeSeconds(seconds: number): void {
-        emitMetric({ metrics: [{ name: FOOD_METRIC.pendingAgeSeconds, value: seconds, unit: 'Seconds' }] }, this.sink);
+        this.emit({ metrics: [{ name: FOOD_METRIC.pendingAgeSeconds, value: seconds, unit: 'Seconds' }] });
     }
 
     /**
@@ -340,7 +368,7 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordInFlightLeases(count: number): void {
-        emitMetric({ metrics: [{ name: FOOD_METRIC.inFlightLeases, value: count, unit: 'Count' }] }, this.sink);
+        this.emit({ metrics: [{ name: FOOD_METRIC.inFlightLeases, value: count, unit: 'Count' }] });
     }
 
     /**
@@ -350,7 +378,7 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordWorkerError(count: number = 1): void {
-        emitMetric({ metrics: [{ name: FOOD_METRIC.workerErrorCount, value: count, unit: 'Count' }] }, this.sink);
+        this.emit({ metrics: [{ name: FOOD_METRIC.workerErrorCount, value: count, unit: 'Count' }] });
     }
 
     /**
@@ -359,7 +387,7 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordLeaseLost(): void {
-        emitMetric({ metrics: [{ name: FOOD_METRIC.leaseLost, value: 1, unit: 'Count' }] }, this.sink);
+        this.emit({ metrics: [{ name: FOOD_METRIC.leaseLost, value: 1, unit: 'Count' }] });
     }
 
     /**
@@ -376,10 +404,7 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordLocalStoreServe(served: boolean): void {
-        emitMetric(
-            { metrics: [{ name: FOOD_METRIC.localStoreServeRate, value: served ? 100 : 0, unit: 'Percent' }] },
-            this.sink,
-        );
+        this.emit({ metrics: [{ name: FOOD_METRIC.localStoreServeRate, value: served ? 100 : 0, unit: 'Percent' }] });
     }
 
     /**
@@ -391,7 +416,7 @@ export class FoodMetrics {
      * @sideEffect Emits an EMF metric.
      */
     public recordRetryBudgetExhausted(): void {
-        emitMetric({ metrics: [{ name: FOOD_METRIC.retryBudgetExhausted, value: 1, unit: 'Count' }] }, this.sink);
+        this.emit({ metrics: [{ name: FOOD_METRIC.retryBudgetExhausted, value: 1, unit: 'Count' }] });
     }
 
     /**
@@ -401,7 +426,7 @@ export class FoodMetrics {
      * @sideEffect Emits an EMF metric.
      */
     public recordForwardUnresolved(): void {
-        emitMetric({ metrics: [{ name: FOOD_METRIC.forwardUnresolved, value: 1, unit: 'Count' }] }, this.sink);
+        this.emit({ metrics: [{ name: FOOD_METRIC.forwardUnresolved, value: 1, unit: 'Count' }] });
     }
 
     /**
@@ -412,10 +437,7 @@ export class FoodMetrics {
      * @sideEffect Emits an EMF metric.
      */
     public recordLineageMatch(source: string): void {
-        emitMetric(
-            { metrics: [{ name: FOOD_METRIC.lineageMatch, value: 1, unit: 'Count' }], dimensions: { source } },
-            this.sink,
-        );
+        this.emit({ metrics: [{ name: FOOD_METRIC.lineageMatch, value: 1, unit: 'Count' }], dimensions: { source } });
     }
 
     /**
@@ -426,48 +448,34 @@ export class FoodMetrics {
      * @sideEffect Emits an EMF metric.
      */
     public recordSearchGaps(source: string, count: number): void {
-        emitMetric(
-            { metrics: [{ name: FOOD_METRIC.searchGap, value: count, unit: 'Count' }], dimensions: { source } },
-            this.sink,
-        );
+        this.emit({ metrics: [{ name: FOOD_METRIC.searchGap, value: count, unit: 'Count' }], dimensions: { source } });
     }
 
     /**
      * Record how one remote search ended (ADR-0055 point 6).
      *
-     * @param stage - The stage the search ran at.
      * @param source - The source searched.
      * @param reason - The ending (`RemoteSearchEnding`).
      * @sideEffect Emits an EMF metric.
      */
-    public recordRemoteSearchEnding(stage: string, source: string, reason: string): void {
-        emitMetric(
-            {
-                metrics: [{ name: FOOD_METRIC.remoteSearchEnding, value: 1, unit: 'Count' }],
-                dimensions: { stage, source, reason },
-            },
-            this.sink,
-        );
+    public recordRemoteSearchEnding(source: string, reason: string): void {
+        this.emit({
+            metrics: [{ name: FOOD_METRIC.remoteSearchEnding, value: 1, unit: 'Count' }],
+            dimensions: { source, reason },
+        });
     }
 
     /**
      * Record one remote search as dark or not: `100` or `0` `Percent`, so `Average` over a period is the unavailable
-     * rate, as {@link recordLocalStoreServe} does for its own rate.
+     * rate, as {@link recordLocalStoreServe} does for its own rate. Dimensioned by the stage alone, which every line is.
      *
-     * @param stage - The stage the search ran at.
      * @param unavailable - Whether it went dark.
      * @sideEffect Emits an EMF metric.
      */
-    public recordRemoteSearchAvailability(stage: string, unavailable: boolean): void {
-        emitMetric(
-            {
-                metrics: [
-                    { name: FOOD_METRIC.remoteSearchUnavailableRate, value: unavailable ? 100 : 0, unit: 'Percent' },
-                ],
-                dimensions: { stage },
-            },
-            this.sink,
-        );
+    public recordRemoteSearchAvailability(unavailable: boolean): void {
+        this.emit({
+            metrics: [{ name: FOOD_METRIC.remoteSearchUnavailableRate, value: unavailable ? 100 : 0, unit: 'Percent' }],
+        });
     }
 
     /**
@@ -478,13 +486,10 @@ export class FoodMetrics {
      * @sideEffect Emits one EMF line.
      */
     public recordSourceWindowCount(source: string, count: number): void {
-        emitMetric(
-            {
-                metrics: [{ name: FOOD_METRIC.sourceRollingWindowCount, value: count, unit: 'Count' }],
-                dimensions: { source },
-            },
-            this.sink,
-        );
+        this.emit({
+            metrics: [{ name: FOOD_METRIC.sourceRollingWindowCount, value: count, unit: 'Count' }],
+            dimensions: { source },
+        });
     }
 
     /**
@@ -518,6 +523,6 @@ export class FoodMetrics {
             return;
         }
 
-        emitMetric({ metrics, dimensions: { source } }, this.sink);
+        this.emit({ metrics, dimensions: { source } });
     }
 }

@@ -216,7 +216,7 @@ describe('the fan-out worker over the real catalog Facades (DAOs and merge seam 
             { follow: async () => new Map() },
             { readFacts: async () => [] },
             { readRefFacts: async (ids) => ROOT_FACTS.filter((root) => ids.includes(root.id)) },
-            new FoodMetrics(() => undefined),
+            new FoodMetrics('test', () => undefined),
         );
         const resolveAndPersist = vi.fn(async (_input: ResolveAndPersistInput): Promise<PersistResult> => ({
             outcome: 'UNRESOLVED',

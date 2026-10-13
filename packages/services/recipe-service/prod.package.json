@@ -15,6 +15,7 @@
         "@kitchensink/db-schema-guard": "*",
         "@kitchensink/food-service-client": "*",
         "@kitchensink/identity-core": "*",
+        "@kitchensink/metric-dimensions": "*",
         "@kitchensink/nest-error-envelope": "*",
         "@kitchensink/observability-scrubbers": "*",
         "@kitchensink/rds-iam-auth": "*",

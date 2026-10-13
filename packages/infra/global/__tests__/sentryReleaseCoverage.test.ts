@@ -53,6 +53,11 @@ const NO_RELEASE_OWED: Readonly<Record<string, string>> = {
     // where every release in this guard is created — never builds it, and what it sends is a MESSAGE event
     // (`announceSilentNoOp`) with no stack trace to symbolicate.
     SandboxSchedulerStack: 'Sandbox only: prod-deploy.yml never builds it, and it sends message events with no trace',
+    // The alarm relay (ADR-0062) wires the platform DSN to post one MESSAGE event per alarm, built by hand
+    // (`buildAlarmEnvelope`) with no `release` field and no exception. An alarm is a measured condition, not a thrown
+    // error, so there is no stack trace for a source map to symbolicate and a release would associate with nothing.
+    AlarmRelayStack:
+        'Sends message events with no stack trace and no release: an alarm is a condition, not an exception',
 };
 
 /** Infra files that inject a `SENTRY_DSN` into something they deploy. */

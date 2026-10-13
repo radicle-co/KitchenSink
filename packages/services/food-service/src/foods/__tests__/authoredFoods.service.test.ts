@@ -79,7 +79,7 @@ function makeService(overrides: {
         unused,
         unused,
         unused,
-        new FoodMetrics(vi.fn()),
+        new FoodMetrics('test', vi.fn()),
         authored as unknown as AuthoredFoodsDao,
         { listLive: vi.fn().mockResolvedValue([]) } as unknown as FoodVariantDao,
         unused,

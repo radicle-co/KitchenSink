@@ -44,6 +44,10 @@ COPY packages/schemas/food/dist ./packages/schemas/food/dist
 # TRANSITIVE too, for the same reason: @kitchensink/food-service-client reads every response's `Retry-After` with it.
 COPY packages/shared/retry-after/prod.package.json ./packages/shared/retry-after/package.json
 COPY packages/shared/retry-after/dist ./packages/shared/retry-after/dist
+# Shared @kitchensink/metric-dimensions — the `Stage` dimension every custom metric is emitted under and every alarm
+# selects (ADR-0062). A runtime import on the metric-emitting path, so a missing dist here fails the first line emitted.
+COPY packages/shared/metric-dimensions/prod.package.json ./packages/shared/metric-dimensions/package.json
+COPY packages/shared/metric-dimensions/dist ./packages/shared/metric-dimensions/dist
 COPY packages/shared/clerk-verify/prod.package.json ./packages/shared/clerk-verify/package.json
 COPY packages/shared/clerk-verify/dist ./packages/shared/clerk-verify/dist
 COPY packages/shared/identity-core/prod.package.json ./packages/shared/identity-core/package.json

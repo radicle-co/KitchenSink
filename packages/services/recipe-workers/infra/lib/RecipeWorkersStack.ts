@@ -43,6 +43,7 @@ import {
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import { bedrockInvokeStatements } from './bedrockInvokePolicy.js';
+import { importAlarmRelayArn, relayAlarmTransitions } from './alarmRelaySubscription.js';
 import { holdScheduledRulesForTheSandbox } from './scheduledRuleGate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -822,7 +823,12 @@ export class RecipeWorkersStack extends Stack {
             securityGroups: [lambdaSecurityGroup],
             timeout: Duration.seconds(60),
             memorySize: 512,
-            environment: { ...commonDbEnv, ...sentryEnv, RECIPE_ARCHIVE_BUCKET: props.archiveBucketName },
+            environment: {
+                ...commonDbEnv,
+                ...sentryEnv,
+                RECIPE_ARCHIVE_BUCKET: props.archiveBucketName,
+                STAGE: props.stage,
+            },
             logGroup,
         });
 
@@ -889,6 +895,7 @@ export class RecipeWorkersStack extends Stack {
             ...sentryEnv,
             RECIPE_ARCHIVE_BUCKET: props.archiveBucketName,
             RECIPE_MEDIA_BUCKET: props.mediaBucketName,
+            STAGE: props.stage,
         };
 
         if (props.cloudfrontDistributionId !== undefined) {
@@ -961,7 +968,7 @@ export class RecipeWorkersStack extends Stack {
             // The symbol the queue's visibility timeout is derived from — see HANDLE_SYNC_WORKER_TIMEOUT.
             timeout: HANDLE_SYNC_WORKER_TIMEOUT,
             memorySize: 256,
-            environment: { ...commonDbEnv, ...sentryEnv },
+            environment: { ...commonDbEnv, ...sentryEnv, STAGE: props.stage },
             logGroup,
         });
         // Partial-batch responses: the handler returns batchItemFailures, so SQS retries only failed renames.
@@ -1625,6 +1632,10 @@ export class RecipeWorkersStack extends Stack {
         // reason a `pr-{N}` preview alone provisioned ten. FR-007b-i and ADR-0024's layer 4 still REQUIRE
         // every one of them in the stage that is actually running the pipeline; none is deleted here.
         if (props.alarmsEnabled) {
+            // ADR-0062: deliver this topic's transitions to the stage's alarm relay, and forward the OKs too. Inside the
+            // switch, like the alarms: no alarm, nothing to deliver.
+            relayAlarmTransitions(this, alarmTopic, importAlarmRelayArn(props.stage));
+
             // "a CloudWatch alarm MUST fire when the backlog exceeds 100 rows for more than 15 minutes".
             // The backlog is a DB row count, which CloudWatch cannot see — so the sweeper emits it as a
             // metric. `claimed` is bounded by the sweep batch size, so this measures "work still due",

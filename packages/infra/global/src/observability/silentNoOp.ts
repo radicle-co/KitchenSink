@@ -22,7 +22,7 @@
  * which is a silent failure to report a silent failure — the branch this module was extended to close. If a
  * third handler ever needs this, it calls the announcing form.
  */
-import { parseDsn } from './sentryEnvelope.js';
+import { parseDsn, postEnvelope } from './sentryEnvelope.js';
 
 /** How long a report may take before it is abandoned. Well inside a custom resource's own timeout. */
 export const SILENT_NOOP_DEADLINE_MS = 2_000;
@@ -101,25 +101,12 @@ export async function reportSilentNoOp(
         return false;
     }
 
-    try {
-        const response = await fetch(target.url, {
-            method: 'POST',
-            headers: {
-                'content-type': 'application/x-sentry-envelope',
-                'x-sentry-auth': `Sentry sentry_version=7, sentry_key=${target.key}`,
-            },
-            body: buildSilentNoOpEnvelope(noOp),
-            signal: AbortSignal.timeout(SILENT_NOOP_DEADLINE_MS),
-        });
-
-        // ⛔ THE RESPONSE IS CHECKED. This returned `true` for a 401, a 413 or a 429 — claiming a delivery it
-        // never verified, in the module whose entire subject is a success that is not one. `fetch` rejects
-        // only on a transport failure, so an expired DSN key would have reported "sent" forever.
-        return response.ok;
-    } catch {
-        // ⛔ SWALLOWED, always. See the module docstring: a failed report must never fail a deploy.
-        return false;
-    }
+    // ⛔ `postEnvelope` CHECKS THE RESPONSE: this once returned `true` for a 401, a 413 or a 429 — claiming a delivery it
+    // never verified, in the module whose entire subject is a success that is not one. `fetch` rejects only on a
+    // transport failure, so an expired DSN key would have reported "sent" forever. It never throws, which is the
+    // swallow this module wants: a failed report must never fail a deploy. (The alarm relay, which must not drop
+    // anything, shares the same function and makes the opposite choice from its answer.)
+    return postEnvelope(target, buildSilentNoOpEnvelope(noOp), SILENT_NOOP_DEADLINE_MS);
 }
 
 /**

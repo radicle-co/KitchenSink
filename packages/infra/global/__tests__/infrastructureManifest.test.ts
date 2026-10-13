@@ -380,6 +380,30 @@ export class ConsumerStack extends Stack {
         expect(computed.importedExports).toEqual(['{?}']);
     });
 
+    /**
+     * ADR-0062. Every service's alarm topic imports the alarm relay's export through the MIRRORED helper
+     * `importAlarmRelayArn`, so the `Fn.importValue` sits in a module that is not a stack and the reader never sees it.
+     * The edge is real: a service deployed before the global app has built the relay fails with `No export named …`.
+     * Naming the helper here is the price of the mirror, and the test below proves the edge appears for every consumer.
+     */
+    it('reads a call to the mirrored `importAlarmRelayArn` helper as an import of the relay’s export', () => {
+        const consumer = scope(
+            `import { Stack } from 'aws-cdk-lib';\nimport { importAlarmRelayArn } from './alarmRelaySubscription.js';\nclass S extends Stack { constructor(p) { importAlarmRelayArn(p.stage); } }`,
+            'S',
+        );
+
+        expect(consumer.importedExports).toEqual(['kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn']);
+    });
+
+    it('does not read a lookalike helper from another module as the relay import', () => {
+        const other = scope(
+            `import { Stack } from 'aws-cdk-lib';\nimport { importAlarmRelayArn } from './somewhereElse.js';\nclass S extends Stack { constructor(p) { importAlarmRelayArn(p.stage); } }`,
+            'S',
+        );
+
+        expect(other.importedExports).toEqual([]);
+    });
+
     it('does not mistake some other object’s `.importValue` for a CloudFormation import', () => {
         // Keyed on the identifier resolving to `aws-cdk-lib`, never on the method name alone — the same rule
         // that keeps `cloudfront.Function` from being filed as a Lambda.
@@ -450,6 +474,25 @@ describe('buildManifest — the cross-APP deploy graph', () => {
         );
 
         expect(found.map((edge) => edge.exportName).filter((name) => SERVICE_LOG_GROUP.test(name))).toHaveLength(1);
+    });
+
+    it('resolves the alarm relay edge from EVERY app that owns an alarm topic, to the global app', () => {
+        // ADR-0062. Without this edge a service-only deploy that runs before the global app has built the relay fails
+        // with `No export named …`, and the deploy gate (which reads this table) cannot force the producer leg.
+        const consumers = [
+            'packages/services/food-service/infra/bin/app.ts',
+            'packages/services/identity-webhooks/infra/bin/app.ts',
+            'packages/services/identity/infra/bin/app.ts',
+            'packages/services/recipe-workers/infra/bin/app.ts',
+            'packages/services/remote-search/infra/bin/app.ts',
+        ];
+
+        for (const consumer of consumers) {
+            expect(
+                edgesTo(consumer, 'packages/infra/global/bin/app.ts').map((edge) => edge.exportName),
+                consumer,
+            ).toContainEqual(expect.stringMatching(/^kitchensink-alarm-relay-\{\w+\}:AlarmRelayFunctionArn$/u));
+        }
     });
 
     it('resolves the SAME edge from the identity service, which imports it too', () => {

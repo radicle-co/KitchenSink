@@ -37,6 +37,8 @@ const entryPoints = [
     'src/db-reaper/handler.ts',
     // The remote search CloudFront signing key's provisioner (ADR-0055), one per base stage.
     'src/remoteSearchSigningKey/handler.ts',
+    // The alarm relay (ADR-0062): every alarm topic's transitions, delivered to Sentry.
+    'src/alarmRelay/handler.ts',
 ];
 
 await build({

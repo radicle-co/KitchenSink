@@ -20,6 +20,8 @@ import {
 } from '@radicle-co/infra-shared/messaging';
 import { AcceptedNagFindings, acceptNagFindings, subscribeAlarmEmail } from '@radicle-co/infra-shared/security';
 
+import { relayAlarmTransitions } from './alarmRelaySubscription.js';
+
 /** Props for {@link MessageSubstrateStack}. */
 export interface MessageSubstrateStackProps extends StackProps {
     /** The BASE deploy stage this substrate serves (`prod` or `sandbox`). */
@@ -41,6 +43,14 @@ export interface MessageSubstrateStackProps extends StackProps {
      * `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
      */
     readonly alarmsEnabled: boolean;
+
+    /**
+     * The alarm relay's function ARN (ADR-0062), which this stack's alarm topic delivers to when the alarms are on.
+     *
+     * REQUIRED, so a topic cannot be added without deciding where its alarms go. In the global app it is the relay
+     * stack's own token, which makes this stack deploy after it.
+     */
+    readonly alarmRelayArn: string;
 }
 
 /**
@@ -159,6 +169,9 @@ export class MessageSubstrateStack extends Stack {
         // costs nothing. Gating it would thread an `SnsAction | undefined` through every alarm for $0. The
         // reasoning and the enforcement live in `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
         if (props.alarmsEnabled) {
+            // ADR-0062: deliver this topic's transitions to the relay, and forward the OKs too.
+            relayAlarmTransitions(this, this.alarmTopic, props.alarmRelayArn);
+
             // A write that DynamoDB rejects is a message nobody will ever read, and the producer that wrote it
             // was told nothing (fire-and-forget). This alarm is the only way that becomes visible.
             const writeThrottleAlarm = new cloudwatch.Alarm(this, 'MessageWriteThrottleAlarm', {

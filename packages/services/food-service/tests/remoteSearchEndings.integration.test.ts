@@ -92,7 +92,7 @@ async function publishedBy(signingKey: string = SIGNING_KEY): Promise<Published>
         budget: fakeSourceBudget(1_800).store,
         blocks: { record: async () => undefined },
         metrics: { recordSourceRateLimit: () => undefined },
-        endings: new RemoteSearchEndingMetrics(new FoodMetrics((line) => lines.push(line)), STAGE),
+        endings: new RemoteSearchEndingMetrics(new FoodMetrics(STAGE, (line) => lines.push(line))),
         logger: { warn: () => undefined, error: () => undefined },
     });
 
@@ -109,7 +109,7 @@ async function publishedBy(signingKey: string = SIGNING_KEY): Promise<Published>
 
     return {
         reason: ending?.['reason'],
-        stage: ending?.['stage'],
+        stage: ending?.['Stage'],
         unavailablePercent: rate?.['remote-search-unavailable-rate'],
     };
 }

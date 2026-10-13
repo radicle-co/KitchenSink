@@ -38,8 +38,10 @@ import {
     subscribeAlarmEmail,
 } from '@radicle-co/infra-shared/security';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
+import { stageDimensions } from '@kitchensink/metric-dimensions';
 
 import { erasureSsmPath, getAuthSecretName, getErasureSigningSecretName, ssmParamPath } from './config.js';
+import { importAlarmRelayArn, relayAlarmTransitions } from './alarmRelaySubscription.js';
 import { holdScheduledRulesForTheSandbox } from './scheduledRuleGate.js';
 
 /**
@@ -596,6 +598,10 @@ export class WebhooksStack extends Stack {
         // costs nothing. Gating it would thread an `SnsAction | undefined` through every alarm for $0. The
         // reasoning and the enforcement live in `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
         if (props.alarmsEnabled) {
+            // ADR-0062: deliver this topic's transitions to the stage's alarm relay, and forward the OKs too. Inside the
+            // switch, like the alarms: no alarm, nothing to deliver.
+            relayAlarmTransitions(this, alarmTopic, importAlarmRelayArn(deployStage));
+
             /**
              * The dimensions `emitMetric` (`src/common/observability.ts`) attaches to EVERY metric it publishes.
              *
@@ -621,6 +627,7 @@ export class WebhooksStack extends Stack {
             const emitterDimensions = (metricName: string): Record<string, string> => ({
                 service: 'identity-webhooks',
                 metric: metricName,
+                ...stageDimensions(deployStage),
             });
 
             // R7 detective control: alarm when ANY erased identity's recipe/food leg is still incomplete. The
@@ -717,16 +724,29 @@ export class WebhooksStack extends Stack {
             // `forward_error` is transient — so this watches the SUM across reasons rather than one of them,
             // and discriminates on duration: three consecutive five-minute periods with failures is a drain
             // that is down, not a Sentry hiccup.
+            const logForwarderFailure = (reason: string): cloudwatch.Metric =>
+                new cloudwatch.Metric({
+                    namespace: EMITTER_NAMESPACE,
+                    metricName: 'LogForwarderFailure',
+                    dimensionsMap: { ...emitterDimensions('LogForwarderFailure'), reason },
+                    statistic: cloudwatch.Stats.SUM,
+                    period: Duration.minutes(5),
+                });
             const logForwarderFailureAlarm = new cloudwatch.Alarm(this, 'LogForwarderFailureAlarm', {
                 alarmName: `kitchensink-log-forwarder-failure-${deployStage}`,
                 alarmDescription:
                     'The CloudWatch->Sentry log forwarder is failing. Its symptom is an ABSENCE of logs in Sentry, which is indistinguishable from a quiet system — so this alarm is the only thing that reports it.',
-                metric: new cloudwatch.Metric({
-                    namespace: EMITTER_NAMESPACE,
-                    metricName: 'LogForwarderFailure',
-                    dimensionsMap: emitterDimensions('LogForwarderFailure'),
-                    statistic: cloudwatch.Stats.SUM,
+                // ⛔ A MATH EXPRESSION OVER THE TWO REASONS. `logForwarder.ts` emits `LogForwarderFailure` ONLY with a
+                // `reason`, so the `{service, metric}` series this alarm used to select never had a datapoint. `FILL(…, 0)`
+                // makes a reason that never fired zero rather than a missing operand that blanks the whole sum.
+                metric: new cloudwatch.MathExpression({
+                    expression: 'FILL(missingDsn,0)+FILL(forwardError,0)',
+                    usingMetrics: {
+                        missingDsn: logForwarderFailure('missing_dsn'),
+                        forwardError: logForwarderFailure('forward_error'),
+                    },
                     period: Duration.minutes(5),
+                    label: 'Log forwarder failures',
                 }),
                 threshold: 0,
                 comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,

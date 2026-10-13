@@ -206,7 +206,7 @@ describe('/api/v1/foods/* full-stack e2e (booted Nest + real Postgres + worker d
             sources: app.get(FoodSourcesDao, { strict: false }),
             catalog: workerCatalogOf(
                 app.get<FoodDrizzle>(DrizzleProvider, { strict: false }),
-                new FoodMetrics(() => undefined),
+                new FoodMetrics('test', () => undefined),
             ),
             queue: new FetchQueueDao(app.get<FoodDrizzle>(DrizzleProvider, { strict: false })),
             registry: app.get(SourceAdapterRegistry, { strict: false }),

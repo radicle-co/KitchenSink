@@ -101,6 +101,18 @@ const MIRROR_GROUPS: readonly MirrorGroup[] = [
         what: 'the non-prod scheduled-rule gate',
         files: productionSources().filter((file) => file.endsWith('/infra/lib/scheduledRuleGate.ts')),
     },
+    {
+        // ADR-0062. Same reason as the scheduled-rule gate: its natural home, `@radicle-co/infra-shared`, is consumed at a
+        // pinned PUBLISHED version only a commit may move. DISCOVERED, not listed: every app that owns an alarm topic
+        // subscribes the relay through one, so a new owner is held to the others the day its copy lands — and
+        // `alarmRelayExportContract.test.ts` holds the export name every copy imports to the one the relay stack exports.
+        what: 'the alarm relay subscription',
+        files: productionSources().filter(
+            (file) =>
+                file.endsWith('/lib/alarmRelaySubscription.ts') ||
+                file.endsWith('/lib/platform/alarmRelaySubscription.ts'),
+        ),
+    },
 ];
 
 /** A file's code, with comments gone and every domain noun collapsed to one token. Pure. */

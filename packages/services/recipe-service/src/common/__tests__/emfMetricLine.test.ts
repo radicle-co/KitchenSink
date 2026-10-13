@@ -115,6 +115,12 @@ describe('resolveMetricStage', () => {
         expect(resolveMetricStage({})).toBe('unknown');
     });
 
+    it('delegates to the shared published language: a blank STAGE is unknown, never an empty dimension value', () => {
+        // CloudWatch rejects an empty dimension value, and a line with one is discarded outright.
+        expect(resolveMetricStage({ STAGE: '' })).toBe('unknown');
+        expect(resolveMetricStage({ STAGE: '  ', NODE_ENV: 'test' })).toBe('unknown');
+    });
+
     it('reads process.env by default', () => {
         // The no-argument form is what every emitter's constructor default uses; a signature that only
         // worked when handed an environment would leave the production path untested.

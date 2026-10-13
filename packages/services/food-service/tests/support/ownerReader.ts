@@ -26,6 +26,6 @@ export function makeCatalogOwnerReader(
         new FoodForwardDao(db),
         new FoodVariantDao(db),
         new FoodDao(db),
-        new FoodMetrics(sink),
+        new FoodMetrics('test', sink),
     );
 }

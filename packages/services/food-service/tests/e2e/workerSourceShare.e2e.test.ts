@@ -101,7 +101,7 @@ function workerOn(task: Task): FoodConsumerService {
     return new FoodConsumerService({
         foodDao: new FoodDao(task.db),
         sources: new FoodSourcesDao(task.db),
-        catalog: workerCatalogOf(task.db, new FoodMetrics(() => undefined)),
+        catalog: workerCatalogOf(task.db, new FoodMetrics('test', () => undefined)),
         queue: new FetchQueueDao(task.db),
         registry,
         merge: new MergeAndPersistService(task.db, new GoldenRecordMergeEngine(registry)),

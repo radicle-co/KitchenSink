@@ -117,6 +117,7 @@ ADR under `docs/architecture/decisions/` and confirm you are not reintroducing t
   TypeScript copy of the `prScope.sh` and `sandboxSharedTier.sh` matchers is the one exception to ADR-0005's
   "no second matcher", held equal by `reclaimShellParity.test.ts`. Don't give it a role, a VPC or a wider grant. See
   `docs/architecture/decisions/0061-midnight-stop-reclaims-what-nothing-uses.md`.
+- **Every custom metric carries `Stage`, and every alarm topic delivers to ONE relay Lambda per base stage that turns an ALARM into a Sentry issue.** The relay stays OUTSIDE the VPC (ADR-0004), is NEVER rerouted through `announceSilentNoOp` (its swallow rule drops alarms; the relay throws so the failure queue keeps the event), and its export `kitchensink-alarm-relay-{stage}:AlarmRelayFunctionArn` is a one-way door: once imported the function cannot be replaced without detaching every subscriber. Fingerprints are built from names, never text. Read `docs/architecture/decisions/0062-stage-scoped-metrics-and-alarm-relay.md`.
 - **ADR-0008 — non-prod cost levers diverge from prod on purpose.** Non-prod RDS uses `gp3` while prod
   stays `gp2`; non-prod Fargate runs `FARGATE_SPOT` while prod runs on-demand. Don't "fix" sandbox to
   match prod, and don't flip prod without its own PR and a no-diff proof.

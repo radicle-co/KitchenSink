@@ -39,6 +39,7 @@
         "@kitchensink/clerk-verify": "*",
         "@kitchensink/db-schema-guard": "*",
         "@kitchensink/messaging": "*",
+        "@kitchensink/metric-dimensions": "*",
         "@kitchensink/nest-error-envelope": "*",
         "@kitchensink/observability-scrubbers": "*",
         "@kitchensink/queue-check": "*",

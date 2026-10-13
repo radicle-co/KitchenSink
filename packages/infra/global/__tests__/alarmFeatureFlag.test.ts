@@ -427,11 +427,12 @@ describe('the alarm feature flag — discovery is not vacuous', () => {
         expect(APPS.every(({ stacks }) => stacks.length > 0)).toBe(true);
     });
 
-    it('finds the seven alarm-owning stacks and all thirty-nine alarms', () => {
+    it('finds the eight alarm-owning stacks and all forty alarms', () => {
         // Pinned as a FLOOR, not an equality: a new alarm must inherit the rule, never trip this count. The
         // floor is what makes every gate below non-vacuous — a discovery that silently found nothing would
         // otherwise report a perfectly gated tree.
         expect(ALARM_SOURCES.map((source) => source.file).toSorted()).toStrictEqual([
+            'packages/infra/global/lib/platform/AlarmRelayStack.ts',
             'packages/infra/global/lib/platform/MessageSubstrateStack.ts',
             'packages/infra/global/lib/platform/SandboxSchedulerStack.ts',
             'packages/services/food-service/infra/lib/FoodServiceStack.ts',
@@ -454,8 +455,9 @@ describe('the alarm feature flag — discovery is not vacuous', () => {
         // and throttles alarms (ADR-0055), and thirty-eight with food's remote-search unavailable-rate alarm, which
         // sees what CloudFront refuses before the function runs. Thirty-nine with the sandbox scheduler's
         // failed-run alarm: the 09:00 start was refused for capacity on two mornings in October 2026 and the run
-        // reported success.
-        expect(ALARM_SOURCES.flatMap(discoverAlarms).length).toBe(39);
+        // reported success. Forty with the alarm relay's failure-queue depth alarm (ADR-0062): an alarm that could
+        // not be delivered to Sentry is parked in that queue, and nothing else can say so.
+        expect(ALARM_SOURCES.flatMap(discoverAlarms).length).toBe(40);
         expect(ALARM_SOURCES.flatMap(discoverAlarms).map((alarm) => alarm.id)).toHaveLength(
             new Set(ALARM_SOURCES.flatMap(discoverAlarms).map((alarm) => `${alarm.file}#${alarm.id}`)).size,
         );

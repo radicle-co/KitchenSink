@@ -609,8 +609,17 @@ describe('the log-drain register (ADR-0042)', () => {
 
         // Rewritten for ADR-0061, which adds a drained group to the scheduler stack: the midnight reclaim's function
         // (`sandbox-reclaim`). Its state machine's group is registered but not drained, so it is not a filter here.
-        expect(rowsAt('sandbox')).toEqual(['db-bootstrap', 'per-pr-reaper', 'sandbox-reclaim', 'sandbox-scheduler']);
-        expect(rowsAt('prod')).toEqual(['db-bootstrap']);
+        //
+        // Rewritten for ADR-0062, which adds the alarm relay: `AlarmRelayStack` is built at EVERY global stage (one relay
+        // per base stage), so `alarm-relay` joins the prod row too, and prod no longer declares `db-bootstrap` alone.
+        expect(rowsAt('sandbox')).toEqual([
+            'alarm-relay',
+            'db-bootstrap',
+            'per-pr-reaper',
+            'sandbox-reclaim',
+            'sandbox-scheduler',
+        ]);
+        expect(rowsAt('prod')).toEqual(['alarm-relay', 'db-bootstrap']);
     });
 
     /**

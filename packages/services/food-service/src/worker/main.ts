@@ -14,6 +14,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
 import { ConsolePublisher, type MessagePublisher } from '@kitchensink/messaging';
+import { metricStage } from '@kitchensink/metric-dimensions';
 import { DynamoPublisher } from '../events/DynamoPublisher.js';
 import { FoodEventEmitter } from '../events/FoodEventEmitter.js';
 import { AdminMetricsDao } from '../foods/admin/adminMetrics.dao.js';
@@ -72,7 +73,7 @@ async function bootstrap(): Promise<void> {
     const pool = new Pool({ ...foodPoolConfigFromEnv(), max: Math.max(10, concurrency + 2) });
     const db = drizzle(pool, { schema });
 
-    const metrics = new FoodMetrics();
+    const metrics = new FoodMetrics(metricStage(process.env));
     // The ONE registry factory: every source call goes through the rate-limited transport, charged to the WORKER
     // lane and admitted against the same shared window the API and change-refresh charge (ADR-0053 §3).
     const registry = createSourceRegistry({

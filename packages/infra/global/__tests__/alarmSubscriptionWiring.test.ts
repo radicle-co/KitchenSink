@@ -60,6 +60,30 @@ describe('alarm topics are wired to a recipient', () => {
         expect(unwired).toStrictEqual([]);
     });
 
+    /**
+     * ⛔ A SUBSCRIBED HUMAN IS NOT ENOUGH ANY MORE (ADR-0062). An email reaches whoever configured an address; the relay
+     * reaches Sentry, where the issue is fingerprinted, owned and visible to the team. Every alarm topic delivers to it,
+     * and a NEW topic must too: the topic is the seam, owned by the service, so nothing else can add the subscription for
+     * it. Read from SOURCE here (the call is guarded by the alarm switch, so the template of a stage with alarms off
+     * cannot show it); `prodAlarmPosture.integration.test.ts` proves the synthesized result for production.
+     *
+     * `CostGuardrailsStack` is the one named exemption: its topic is ACCOUNT-scoped (one for the whole AWS account, not
+     * per stage), carries budget and cost-anomaly notices rather than alarms, and has no per-stage relay to deliver to.
+     */
+    it('⛔ every file that CREATES an alarm topic also delivers it to the alarm relay', () => {
+        const accountScoped = ['packages/infra/global/lib/platform/CostGuardrailsStack.ts'];
+        const creators = SOURCES.filter(
+            (file) =>
+                /new sns\.Topic\(/.test(file.text) && /[Aa]larm/.test(file.text) && !accountScoped.includes(file.path),
+        );
+        const unrelayed = creators
+            .filter((file) => !file.text.includes('relayAlarmTransitions('))
+            .map((file) => file.path);
+
+        expect(creators.length).toBeGreaterThanOrEqual(6);
+        expect(unrelayed).toStrictEqual([]);
+    });
+
     it('⛔ NO committed stack source contains an email address literal — this repository is public', () => {
         // The reason the recipient is a prop at all. A literal here is published the moment it is pushed,
         // and no amount of later redaction un-publishes it.

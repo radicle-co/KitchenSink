@@ -1273,3 +1273,61 @@ describe('the log drain is attached only when CI resolved a forwarder ARN', () =
         template.resourceCountIs('AWS::Logs::SubscriptionFilter', expected);
     });
 });
+
+/**
+ * ADR-0062: this stack's alarm topic delivers to the stage's alarm relay, and each alarm's OK goes where its ALARM goes.
+ *
+ * ⛔ The relay is IMPORTED by name (`kitchensink-alarm-relay-{prod|sandbox}:AlarmRelayFunctionArn`), one per BASE stage,
+ * so a `pr-{N}` preview alarms through the sandbox relay. The import is asserted against the synthesized template
+ * because nothing fails at deploy if it is wrong until the export is missing; and the invoke permission is asserted to be
+ * scoped to THIS topic, because one with no `SourceArn` lets any topic in the account invoke the relay.
+ */
+describe('the alarm relay (ADR-0062)', () => {
+    const relayImport = (base: string): unknown => ({
+        'Fn::ImportValue': `kitchensink-alarm-relay-${base}:AlarmRelayFunctionArn`,
+    });
+
+    it.each([
+        ['prod', 'prod'],
+        ['sandbox', 'sandbox'],
+        ['pr-12', 'sandbox'],
+    ])('subscribes the %s relay to the alarm topic, with a permission scoped to that topic', (stage, base) => {
+        const template = identityTemplate(stage, true);
+        const topics = Object.keys(template.findResources('AWS::SNS::Topic'));
+
+        expect(topics).toHaveLength(1);
+        template.hasResourceProperties('AWS::SNS::Subscription', {
+            Protocol: 'lambda',
+            Endpoint: relayImport(base),
+            TopicArn: { Ref: topics[0] },
+        });
+        template.hasResourceProperties('AWS::Lambda::Permission', {
+            Action: 'lambda:InvokeFunction',
+            FunctionName: relayImport(base),
+            Principal: 'sns.amazonaws.com',
+            SourceArn: { Ref: topics[0] },
+        });
+    });
+
+    it('sends every alarm’s OK where its ALARM goes', () => {
+        const alarms = Object.values(identityTemplate('prod', true).findResources('AWS::CloudWatch::Alarm'));
+
+        expect(alarms.length).toBeGreaterThan(0);
+
+        for (const alarm of alarms) {
+            expect(alarm.Properties.AlarmActions, String(alarm.Properties.AlarmName)).toBeDefined();
+            expect(alarm.Properties.OKActions, String(alarm.Properties.AlarmName)).toEqual(
+                alarm.Properties.AlarmActions,
+            );
+        }
+    });
+
+    it('delivers nothing to the relay when the stage’s alarms are off', () => {
+        const template = identityTemplate('prod', false);
+
+        expect(template.findResources('AWS::SNS::Subscription', { Properties: { Protocol: 'lambda' } })).toEqual({});
+        expect(
+            template.findResources('AWS::Lambda::Permission', { Properties: { Principal: 'sns.amazonaws.com' } }),
+        ).toEqual({});
+    });
+});

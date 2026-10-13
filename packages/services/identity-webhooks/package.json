@@ -45,6 +45,7 @@
         "@kitchensink/identity-db": "*",
         "@kitchensink/identity-service": "*",
         "@kitchensink/identity-utils": "*",
+        "@kitchensink/metric-dimensions": "*",
         "@kitchensink/observability-scrubbers": "*",
         "@kitchensink/queue-check": "*",
         "@kitchensink/rds-iam-auth": "*",

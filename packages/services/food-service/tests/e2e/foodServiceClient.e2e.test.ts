@@ -114,7 +114,7 @@ describe('@kitchensink/food-service-client against the booted food service (e2e)
             sources: app.get(FoodSourcesDao, { strict: false }),
             catalog: workerCatalogOf(
                 app.get<FoodDrizzle>(DrizzleProvider, { strict: false }),
-                new FoodMetrics(() => undefined),
+                new FoodMetrics('test', () => undefined),
             ),
             queue: new FetchQueueDao(app.get<FoodDrizzle>(DrizzleProvider, { strict: false })),
             registry: app.get(SourceAdapterRegistry, { strict: false }),

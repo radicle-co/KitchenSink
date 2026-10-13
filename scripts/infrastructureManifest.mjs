@@ -412,6 +412,25 @@ export function readInfrastructureSource(source, file) {
      * different fact and must not become a deploy-graph edge.
      */
     const recordImport = (node, context) => {
+        // ADR-0062: every alarm-owning stack imports the alarm relay's export through the MIRRORED helper
+        // `importAlarmRelayArn`, so the `Fn.importValue` is in a module that is not a stack and this reader never sees
+        // it. The edge is real — the consumer fails with `No export named …` if the global app has not built the relay —
+        // so the helper's call is the import. Keyed on the identifier RESOLVING to a module of that name, for the same
+        // reason `Fn.importValue` is keyed on `aws-cdk-lib`.
+        if (
+            ts.isIdentifier(node.expression) &&
+            node.expression.text === 'importAlarmRelayArn' &&
+            named.get('importAlarmRelayArn')?.endsWith('/alarmRelaySubscription.js')
+        ) {
+            const relay = 'kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn';
+
+            if (!context.scope.importedExports.includes(relay)) {
+                context.scope.importedExports.push(relay);
+            }
+
+            return;
+        }
+
         if (!ts.isPropertyAccessExpression(node.expression) || node.expression.name.text !== 'importValue') {
             return;
         }

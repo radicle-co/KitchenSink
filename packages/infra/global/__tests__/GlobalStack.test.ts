@@ -52,6 +52,29 @@ describe('GlobalStack child-stack naming (cross-stack import contract)', () => {
     });
 });
 
+describe('GlobalStack alarm relay (ADR-0062)', () => {
+    it.each(['prod', 'sandbox'])(
+        'builds the relay at every global stage, named for the export consumers import (%s)',
+        (stage) => {
+            const global = makeGlobal(stage);
+
+            expect(global.alarmRelay.stackName).toBe(`kitchensink-alarm-relay-${stage}`);
+        },
+    );
+
+    it('hands the relay’s ARN to the message substrate, so its alarm topic delivers to it', () => {
+        const global = makeGlobal('prod');
+        const subscriptions = Object.values(
+            Template.fromStack(global.messaging).findResources('AWS::SNS::Subscription', {
+                Properties: { Protocol: 'lambda' },
+            }),
+        );
+
+        expect(subscriptions).toHaveLength(1);
+        expect(JSON.stringify(subscriptions[0]?.Properties.Endpoint)).toContain('AlarmRelayFunction');
+    });
+});
+
 describe('GlobalStack stage propagation into children', () => {
     it('drives the per-stage VPC CIDR through NetworkStack (prod 10.0/16, sandbox 10.1/16)', () => {
         // Proves `stage` is actually threaded into the network child (not hard-coded), which is the

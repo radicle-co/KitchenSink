@@ -339,7 +339,7 @@ describe('the progressive search and the remote pick (booted app, real Postgres)
             consumer = new FoodConsumerService({
                 foodDao: new FoodDao(db),
                 sources: new FoodSourcesDao(db),
-                catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
+                catalog: workerCatalogOf(db, new FoodMetrics('test', () => undefined)),
                 queue: new FetchQueueDao(db),
                 registry,
                 merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),

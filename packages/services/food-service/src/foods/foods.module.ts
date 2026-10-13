@@ -16,6 +16,8 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 
+import { metricStage } from '@kitchensink/metric-dimensions';
+
 import { MeteredAdmission } from '../common/throttle/meteredAdmission.js';
 import { throttlerModuleOptions } from '../common/throttle/throttle.config.js';
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
@@ -54,7 +56,7 @@ import { AuthoredFoodsDao } from './dao/authoredFoods.dao.js';
 import { TestPrincipalPurgeService } from './testPrincipalPurge.service.js';
 import { UserErasureService } from './userErasure.service.js';
 import { RoutedWorkerLogger } from '../worker/RoutedWorkerLogger.js';
-import { remoteSearchSettingsFromEnv, settingFromEnv, type RemoteSearchSettings } from '../config/env.schema.js';
+import { remoteSearchSettingsFromEnv, type RemoteSearchSettings } from '../config/env.schema.js';
 import { RemoteSearchEndingMetrics } from '../sources/remote/remoteSearchEndings.js';
 import type { RemoteSearchPort } from '../sources/remote/remoteSearchPort.js';
 import { SearchServiceRemoteSearch } from '../sources/remote/SearchServiceRemoteSearch.js';
@@ -152,7 +154,7 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
         // T-199b — the EMF recorder the read path publishes the SC-004/SC-005 local-store serve rate
         // through. A factory rather than a bare class provider because its only constructor parameter is
         // the injectable line sink (defaulting to `console.log`), which Nest's DI cannot resolve.
-        { provide: FoodMetrics, useFactory: (): FoodMetrics => new FoodMetrics() },
+        { provide: FoodMetrics, useFactory: (): FoodMetrics => new FoodMetrics(metricStage(process.env)) },
         // The ONE registry factory, shared with both Fargate entrypoints. Every client it builds goes through the
         // rate-limited transport (ADR-0053 §3), charged to the INTERACTIVE lane: in this process a cook is waiting
         // on every source call (PATCH resolve, the remote pick).
@@ -220,7 +222,7 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
                           budget,
                           blocks: new SourceBackoffDao(db),
                           metrics,
-                          endings: new RemoteSearchEndingMetrics(metrics, settingFromEnv('STAGE')),
+                          endings: new RemoteSearchEndingMetrics(metrics),
                       })
                     : new UnconfiguredRemoteSearch(),
         },

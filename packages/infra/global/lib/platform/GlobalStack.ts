@@ -1,6 +1,7 @@
 import { Stack, type StackProps } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
+import { AlarmRelayStack } from './AlarmRelayStack.js';
 import { DataStack } from './DataStack.js';
 import { DomainStack } from './DomainStack.js';
 import { MessageSubstrateStack } from './MessageSubstrateStack.js';
@@ -70,6 +71,8 @@ export class GlobalStack extends Stack {
     public readonly serviceLogs: ServiceLogsStack;
     /** What every remote search copy on this base stage shares: the signing key and the CDN policies (ADR-0055). */
     public readonly remoteSearchShared: RemoteSearchSharedStack;
+    /** The alarm relay every alarm topic delivers to (ADR-0062) — ONE per base stage, so every global stage has one. */
+    public readonly alarmRelay: AlarmRelayStack;
     /** The sandbox nightly-shutdown scheduler — created ONLY for `stage === 'sandbox'` (ADR-0007). */
     public readonly sandboxScheduler?: SandboxSchedulerStack;
     public readonly stage: string;
@@ -120,6 +123,17 @@ export class GlobalStack extends Stack {
             stage,
         });
 
+        // ADR-0062: the alarm relay is built FIRST, because every alarm topic delivers to it and its function ARN is a
+        // token the substrate takes. The services' topics (other CDK apps) import its export instead.
+        this.alarmRelay = new AlarmRelayStack(this, `AlarmRelay-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-alarm-relay-${stage}`,
+            stage,
+            alertEmail: props.alertEmail,
+            alarmsEnabled: props.alarmsEnabled,
+            logForwarderArn: props.logForwarderArn,
+        });
+
         // The durable per-group message substrate (R1, plan U5). This app only ever deploys BASE stages
         // (`prod`/`sandbox`) — `bin/app.ts` tags the whole app with its persistent TIER and sandbox-deploy
         // never runs it with `stage=pr-{N}` — so a per-PR table is created in the PRODUCER's stack instead,
@@ -130,6 +144,7 @@ export class GlobalStack extends Stack {
             stage,
             alertEmail: props.alertEmail,
             alarmsEnabled: props.alarmsEnabled,
+            alarmRelayArn: this.alarmRelay.relayFunction.functionArn,
         });
 
         // What every remote search copy shares: ONE per base stage, because CloudFront's account caps on public keys,

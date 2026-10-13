@@ -30,6 +30,7 @@
         "@kitchensink/db-schema-guard": "*",
         "@kitchensink/identity-core": "*",
         "@kitchensink/ingredient-parser": "*",
+        "@kitchensink/metric-dimensions": "*",
         "@kitchensink/observability-scrubbers": "*",
         "@kitchensink/queue-check": "*",
         "@kitchensink/rds-iam-auth": "*",

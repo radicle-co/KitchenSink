@@ -192,7 +192,7 @@ export async function bootMockedFoodsApi(doubles: MockedFoodsApiDoubles): Promis
         (doubles.merge ?? unstaged('MergeAndPersistService')) as unknown as MergeAndPersistService,
         (doubles.enqueue ?? unstaged('EnqueueEmitter')) as unknown as EnqueueEmitter,
         unstaged('SourceAdapterRegistry'),
-        new FoodMetrics(() => undefined),
+        new FoodMetrics('test', () => undefined),
         unstaged('AuthoredFoodsDao'),
         (doubles.variants ?? unstaged('FoodVariantDao')) as unknown as FoodVariantDao,
         // Unless a suite doubles the reader itself, the REAL owner reader runs over the doubled DAOs, so the mocked tier
@@ -203,7 +203,7 @@ export async function bootMockedFoodsApi(doubles: MockedFoodsApiDoubles): Promis
                 (doubles.forwards ?? unstaged('FoodForwardDao')) as unknown as FoodForwardDao,
                 (doubles.variants ?? unstaged('FoodVariantDao')) as unknown as FoodVariantDao,
                 doubles.foodDao as unknown as FoodDao,
-                new FoodMetrics(() => undefined),
+                new FoodMetrics('test', () => undefined),
             )) as unknown as CatalogOwnerReader,
     );
 

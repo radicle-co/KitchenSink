@@ -36,6 +36,11 @@ import { productionSources, readSource, withoutTsComments } from './roleSplitSou
  * execution role and both legs call Bedrock. `llmSpendGuards.test.ts` is what holds that to one grantee.
  */
 const REGISTER: Readonly<Record<string, readonly string[]>> = {
+    // ADR-0062: the alarm relay's FAILURE queue. The relay's own role is the only principal that may write it, because
+    // a message there means "an alarm could not be delivered" and any other writer would forge that claim. Lambda's
+    // failure destination adds the same grant implicitly; it is stated here so the authority is a line in this register
+    // rather than a side effect of a construct option.
+    'packages/infra/global/lib/platform/AlarmRelayStack.ts': ['this.failureQueue.grantSendMessages(role)'],
     'packages/services/identity-webhooks/infra/lib/WebhooksStack.ts': [
         // The queue BACKSTOP (plan U12) reads depth and nothing else. `iam:sqs:GetQueueAttributes` appears
         // beside these because the raw-action regex also matches the action string inside `grant(…)` — the

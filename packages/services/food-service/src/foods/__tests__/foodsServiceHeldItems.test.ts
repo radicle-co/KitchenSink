@@ -187,7 +187,7 @@ function serviceOver(spec: WorldSpec) {
             new FoodForwardDao(db),
             new FoodVariantDao(db),
             new FoodDao(db, { notFoundTtlDays: 30 }),
-            new FoodMetrics(() => undefined),
+            new FoodMetrics('test', () => undefined),
         ),
         { standingOfItems },
     );
@@ -199,7 +199,7 @@ function serviceOver(spec: WorldSpec) {
         merge,
         enqueue,
         registry,
-        new FoodMetrics(() => undefined),
+        new FoodMetrics('test', () => undefined),
         new AuthoredFoodsDao(db),
         variants,
         owners,

@@ -48,7 +48,7 @@ function run(args: readonly string[], answer: StubAnswer) {
         env: { PATH: `${directory}:${process.env['PATH'] ?? ''}`, GITHUB_ENV: envFile },
     });
     const exported = readFileSync(envFile, 'utf8');
-    let asked = '';
+    let asked: string;
 
     try {
         asked = readFileSync(calls, 'utf8');

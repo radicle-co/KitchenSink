@@ -236,7 +236,7 @@ describe('DataStack bundles every handler it deploys', () => {
     const entryPointFor = (handler: string): string => `src/${handler.slice(0, handler.lastIndexOf('.'))}.ts`;
 
     /** Every bundled-handler string the stack names — `index.handler` is the inline stub, not a bundle. */
-    const deployedHandlers = [...dataStack.matchAll(/'([a-z0-9-]+\/handler\.handler)'/g)].map(
+    const deployedHandlers = [...dataStack.matchAll(/'([A-Za-z0-9-]+\/handler\.handler)'/g)].map(
         ([, handler]) => handler ?? '',
     );
 
@@ -253,6 +253,49 @@ describe('DataStack bundles every handler it deploys', () => {
             `DataStack deploys '${handler}' but esbuild.mjs does not bundle '${entryPointFor(handler)}' — the ` +
                 'function would ship whatever else happens to be in dist-lambda/, or nothing at all',
         ).toContain(`'${entryPointFor(handler)}'`);
+    });
+});
+
+/**
+ * ⛔ THE ALARM RELAY (ADR-0062) BUNDLES THE HANDLER IT DEPLOYS, AND ITS PLACEHOLDER NEVER LOOKS HEALTHY.
+ *
+ * The relay is the one thing standing between an alarm and nobody. A deploy that shipped without its bundle must fail
+ * when invoked, not return: a placeholder that resolved would accept every SNS delivery, deliver nothing, and leave the
+ * failure queue empty — the silent success this relay exists to prevent. Both halves are read from the stack and the
+ * bundler config, not listed here.
+ */
+describe('AlarmRelayStack bundles the handler it deploys', () => {
+    const relayStack = readFileSync(
+        fileURLToPath(new URL('../lib/platform/AlarmRelayStack.ts', import.meta.url)),
+        'utf8',
+    );
+    const bundler = readFileSync(fileURLToPath(new URL('../esbuild.mjs', import.meta.url)), 'utf8');
+    const handlers = [...relayStack.matchAll(/'([A-Za-z0-9-]+\/handler\.handler)'/g)].map(
+        ([, handler]) => handler ?? '',
+    );
+
+    it('names a bundled handler — a gate that finds none passes vacuously', () => {
+        expect(handlers).toEqual(['alarmRelay/handler.handler']);
+    });
+
+    // Comment lines are dropped first: a commented-out entry point still contains its own text, and a `toContain` over the
+    // raw file would pass for a handler the bundle no longer builds.
+    const entries = bundler
+        .split('\n')
+        .filter((line) => !line.trimStart().startsWith('//'))
+        .join('\n');
+
+    it.each(handlers)('bundles %s', (handler) => {
+        expect(entries, `AlarmRelayStack deploys '${handler}' but esbuild.mjs does not bundle it`).toContain(
+            `'src/${handler.slice(0, handler.lastIndexOf('.'))}.ts'`,
+        );
+    });
+
+    it('falls back to a placeholder that THROWS, never one that returns', () => {
+        expect(relayStack).toMatch(/exports\.handler = async \(\) => \{ throw new Error\("alarm-relay asset not built/);
+        expect(relayStack).not.toMatch(
+            /exports\.handler\s*=\s*async\s*\(\)\s*=>\s*\(?\{\s*(?:ok|statusCode|PhysicalResourceId)/,
+        );
     });
 });
 

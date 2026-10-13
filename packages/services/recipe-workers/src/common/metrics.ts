@@ -1,3 +1,5 @@
+import { METRIC_STAGE_DIMENSION } from '@kitchensink/metric-dimensions';
+
 /**
  * The CloudWatch unit for a metric. Constrained to the units the recipe-workers Lambdas actually
  * publish — a database age (seconds), a database count, and `None` — so a typo cannot silently mis-label a
@@ -103,7 +105,7 @@ export function emitMetric(metric: EmfMetric): void {
     // decide which dimensions EVERY alarm must select, and `Stage` — the one key common to every set below —
     // is the only correct answer. A second literal set naming `CallSite` would make W4 demand it of the
     // sweeper alarms, whose series never carry it.
-    const facetedSet = facetKeys.length === 0 ? [] : [['Stage', ...facetKeys]];
+    const facetedSet = facetKeys.length === 0 ? [] : [[METRIC_STAGE_DIMENSION, ...facetKeys]];
 
     console.log(
         JSON.stringify({
@@ -112,12 +114,12 @@ export function emitMetric(metric: EmfMetric): void {
                 CloudWatchMetrics: [
                     {
                         Namespace: namespace,
-                        Dimensions: [['Stage'], ...facetedSet],
+                        Dimensions: [[METRIC_STAGE_DIMENSION], ...facetedSet],
                         Metrics: [{ Name: name, Unit: unit }],
                     },
                 ],
             },
-            Stage: stage,
+            [METRIC_STAGE_DIMENSION]: stage,
             ...Object.fromEntries(facets),
             [name]: value,
         }),

@@ -80,6 +80,8 @@ export const LOG_DRAIN_SOURCES: readonly LogDrainSource[] = [
         service: 'sandbox-reclaim-states',
         pattern: /^kitchensink-sandbox-scheduler-([a-z0-9-]+?)-ReclaimStateMachineLogGroup/iu,
     },
+    // ADR-0062: the alarm relay, which logs one structured line per alarm transition (an OK is recorded only there).
+    { service: 'alarm-relay', pattern: /^kitchensink-alarm-relay-([a-z0-9-]+?)-AlarmRelayLogGroup/iu },
     // The remote search service (ADR-0055) and its base stage's shared key stack.
     { service: 'remote-search', pattern: /^\/aws\/lambda\/kitchensink-remote-search-([a-z0-9-]+)$/iu },
     {

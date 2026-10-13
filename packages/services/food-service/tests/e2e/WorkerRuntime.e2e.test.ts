@@ -74,7 +74,7 @@ describe('WorkerRuntime (integration)', () => {
         return new FoodConsumerService({
             foodDao,
             sources: new FoodSourcesDao(db),
-            catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
+            catalog: workerCatalogOf(db, new FoodMetrics('test', () => undefined)),
             queue,
             registry,
             merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),

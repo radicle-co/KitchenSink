@@ -332,7 +332,7 @@ describe('real UsdaApiClient + UsdaSourceAdapter over undici MockAgent (e2e)', (
             sources: app.get(FoodSourcesDao, { strict: false }),
             catalog: workerCatalogOf(
                 app.get<FoodDrizzle>(DrizzleProvider, { strict: false }),
-                new FoodMetrics(() => undefined),
+                new FoodMetrics('test', () => undefined),
             ),
             queue: new FetchQueueDao(app.get<FoodDrizzle>(DrizzleProvider, { strict: false })),
             registry,

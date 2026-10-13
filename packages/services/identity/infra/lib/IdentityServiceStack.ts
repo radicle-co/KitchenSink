@@ -41,6 +41,8 @@ import {
 } from '@radicle-co/infra-shared/security';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 
+import { importAlarmRelayArn, relayAlarmTransitions } from './alarmRelaySubscription.js';
+
 export interface IdentityServiceStackProps extends StackProps {
     /**
      * Email that receives this stack's alarms (R3.2 / plan U11). Supplied per-stage from
@@ -579,6 +581,10 @@ export class IdentityServiceStack extends Stack {
         // was already over. Gating the topic would also mean threading an `SnsAction | undefined` through
         // every alarm below for a saving of zero. See `packages/infra/global/__tests__/alarmFeatureFlag.test.ts`.
         if (props.alarmsEnabled) {
+            // ADR-0062: deliver this topic's transitions to the stage's alarm relay, and forward the OKs too. Inside the
+            // switch, like the alarms: no alarm, nothing to deliver.
+            relayAlarmTransitions(this, alarmTopic, importAlarmRelayArn(stage));
+
             // Per-service 5xx on the shared ALB. The ALB-level metric would now aggregate every service's
             // 5xx, so this scopes to the identity target group's target 5xx count instead.
             const alb5xxAlarm = new cloudwatch.Alarm(this, 'IdentityAlb5xxAlarm', {

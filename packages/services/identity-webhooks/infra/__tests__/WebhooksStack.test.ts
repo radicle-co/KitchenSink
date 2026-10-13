@@ -510,7 +510,7 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
      * The alarms, and the two ways one can be dead while looking healthy.
      *
      * `emitMetric` (`src/common/observability.ts`) publishes EVERY metric under
-     * `Dimensions: [['service', 'metric', ...Object.keys(dimensions)]]`. EMF publishes ONLY the dimension sets
+     * `Dimensions: [['service', 'metric', 'Stage', ...Object.keys(dimensions)]]`. EMF publishes ONLY the dimension sets
      * its directive lists — there is no dimensionless rollup — so an alarm that selects no dimensions subscribes
      * to a time series that has never had a datapoint, and `treatMissingData: NOT_BREACHING` renders that as a
      * confident, permanent `OK`. Verified against the deployed account: both `kitchensink-erasure-incomplete-*`
@@ -519,8 +519,12 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
      * The second way is having no action at all, which this stack's only alarm also had.
      */
     describe('alarms watch series the code actually publishes, and page someone', () => {
-        /** The dimension keys `emitMetric` attaches to every metric, whatever the caller passes. */
-        const EMITTER_DIMENSIONS = ['service', 'metric'];
+        /**
+         * The dimension keys `emitMetric` attaches to every metric, whatever the caller passes.
+         *
+         * `Stage` is among them (ADR-0062): without it prod's alarms would read every sandbox Lambda's datapoints too.
+         */
+        const EMITTER_DIMENSIONS = ['service', 'metric', 'Stage'];
 
         const alarmsFor = (metricName: string): ReadonlyArray<Record<string, unknown>> =>
             Object.values(template.findResources('AWS::CloudWatch::Alarm'))
@@ -543,6 +547,8 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
             // The values are the emitter's own: `service: 'identity-webhooks'` and `metric: <metricName>`.
             expect(dimensions.get('service')).toBe('identity-webhooks');
             expect(dimensions.get('metric')).toBe('ErasureIncomplete');
+            // The synthesized stage ('test' here), never a constant: a preview's alarm reads only its own series.
+            expect(dimensions.get('Stage')).toBe('test');
         });
 
         it('⛔ alarms on the deletion DLQ, which two handler comments already promise', () => {
@@ -599,7 +605,60 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
                 expect([...dimensions.keys()].sort()).toEqual([...EMITTER_DIMENSIONS, 'reason'].sort());
                 expect(dimensions.get('service')).toBe('identity-webhooks');
                 expect(dimensions.get('metric')).toBe('IdentityWebhookRejected');
+                expect(dimensions.get('Stage')).toBe('test');
             }
+        });
+
+        /**
+         * ⛔ THIS ALARM WATCHED A SERIES THAT NEVER HAD DATA. `logForwarder.ts` publishes `LogForwarderFailure` ONLY
+         * with a `reason`, so the series `{service, metric}` the alarm selected did not exist. The two reasons are
+         * summed instead, each series selecting the stage, with `FILL(…, 0)` so a reason that never fired is zero
+         * rather than a missing operand that blanks the whole expression.
+         */
+        it('watches the LogForwarderFailure SUM over both reasons, each series selecting this stage', () => {
+            const [alarm] = Object.values(template.findResources('AWS::CloudWatch::Alarm')).filter(
+                (resource) => resource.Properties?.AlarmName === 'kitchensink-log-forwarder-failure-test',
+            );
+            const queries = (alarm?.Properties?.Metrics ?? []) as ReadonlyArray<{
+                Id: string;
+                Expression?: string;
+                ReturnData?: boolean;
+                MetricStat?: {
+                    Stat: string;
+                    Period: number;
+                    Metric: { Namespace: string; MetricName: string; Dimensions: { Name: string; Value: string }[] };
+                };
+            }>;
+            const stats = queries.filter((query) => query.MetricStat !== undefined);
+            const expression = queries.find((query) => query.Expression !== undefined);
+
+            expect(alarm, 'the log forwarder failure alarm is missing').toBeDefined();
+            expect(alarm?.Properties?.MetricName).toBeUndefined();
+            expect(stats).toHaveLength(2);
+
+            const byReason = new Map(
+                stats.map((query) => {
+                    const dimensions = new Map(
+                        (query.MetricStat?.Metric.Dimensions ?? []).map((d) => [d.Name, d.Value] as const),
+                    );
+
+                    expect(query.MetricStat?.Metric.Namespace).toBe('KitchenSink/IdentityWebhooks');
+                    expect(query.MetricStat?.Metric.MetricName).toBe('LogForwarderFailure');
+                    expect(query.MetricStat?.Stat).toBe('Sum');
+                    expect(query.MetricStat?.Period).toBe(300);
+                    expect(dimensions.get('service')).toBe('identity-webhooks');
+                    expect(dimensions.get('metric')).toBe('LogForwarderFailure');
+                    expect(dimensions.get('Stage')).toBe('test');
+
+                    return [dimensions.get('reason'), query.Id] as const;
+                }),
+            );
+
+            expect([...byReason.keys()].sort()).toEqual(['forward_error', 'missing_dsn']);
+            expect(expression?.Expression).toBe(
+                `FILL(${byReason.get('missing_dsn')},0)+FILL(${byReason.get('forward_error')},0)`,
+            );
+            expect(expression?.ReturnData).not.toBe(false);
         });
 
         it('gives EVERY alarm an action — an alarm that pages nobody is a dashboard', () => {
@@ -841,5 +900,62 @@ describe('⛔ scheduled jobs follow the sandbox, not a clock (owner ruling 2026-
             const config = invokeConfigs.find((candidate) => candidate.Properties.FunctionName.Ref === fn);
             expect(config?.Properties.MaximumRetryAttempts, fn).toBe(0);
         }
+    });
+});
+
+/**
+ * ADR-0062: this stack's alarm topic delivers to the stage's alarm relay, and each alarm's OK goes where its ALARM goes.
+ *
+ * ⛔ The relay is IMPORTED by name (`kitchensink-alarm-relay-{prod|sandbox}:AlarmRelayFunctionArn`), one per BASE stage,
+ * so a `pr-{N}` preview alarms through the sandbox relay. The import is asserted against the synthesized template
+ * because nothing fails at deploy if it is wrong until the export is missing; and the invoke permission is asserted to be
+ * scoped to THIS topic, because one with no `SourceArn` lets any topic in the account invoke the relay.
+ */
+describe('the alarm relay (ADR-0062)', () => {
+    const relayImport = (base: string): unknown => ({
+        'Fn::ImportValue': `kitchensink-alarm-relay-${base}:AlarmRelayFunctionArn`,
+    });
+
+    it.each([['test', 'sandbox']])(
+        'subscribes the %s relay to the alarm topic, with a permission scoped to that topic',
+        (_stage, base) => {
+            const template = synthWebhooks(true);
+            const topics = Object.keys(template.findResources('AWS::SNS::Topic'));
+
+            expect(topics).toHaveLength(1);
+            template.hasResourceProperties('AWS::SNS::Subscription', {
+                Protocol: 'lambda',
+                Endpoint: relayImport(base),
+                TopicArn: { Ref: topics[0] },
+            });
+            template.hasResourceProperties('AWS::Lambda::Permission', {
+                Action: 'lambda:InvokeFunction',
+                FunctionName: relayImport(base),
+                Principal: 'sns.amazonaws.com',
+                SourceArn: { Ref: topics[0] },
+            });
+        },
+    );
+
+    it('sends every alarm’s OK where its ALARM goes', () => {
+        const alarms = Object.values(synthWebhooks(true).findResources('AWS::CloudWatch::Alarm'));
+
+        expect(alarms.length).toBeGreaterThan(0);
+
+        for (const alarm of alarms) {
+            expect(alarm.Properties.AlarmActions, String(alarm.Properties.AlarmName)).toBeDefined();
+            expect(alarm.Properties.OKActions, String(alarm.Properties.AlarmName)).toEqual(
+                alarm.Properties.AlarmActions,
+            );
+        }
+    });
+
+    it('delivers nothing to the relay when the stage’s alarms are off', () => {
+        const template = synthWebhooks(false);
+
+        expect(template.findResources('AWS::SNS::Subscription', { Properties: { Protocol: 'lambda' } })).toEqual({});
+        expect(
+            template.findResources('AWS::Lambda::Permission', { Properties: { Principal: 'sns.amazonaws.com' } }),
+        ).toEqual({});
     });
 });

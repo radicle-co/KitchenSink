@@ -105,13 +105,9 @@ export function endingOfFailure(error: unknown, callerLeft: boolean): RemoteSear
  * @pattern Adapter — the remote search adapter's endings onto food's EMF recorder
  */
 export class RemoteSearchEndingMetrics implements RemoteSearchEndings {
-    /**
-     * @param metrics - Food's EMF recorder.
-     * @param stage - The stage this process runs at, which every ending is published under.
-     */
+    /** @param metrics - Food's EMF recorder, which dimensions every ending by the stage this process runs at. */
     public constructor(
         private readonly metrics: Pick<FoodMetrics, 'recordRemoteSearchEnding' | 'recordRemoteSearchAvailability'>,
-        private readonly stage: string,
     ) {}
 
     /**
@@ -123,12 +119,12 @@ export class RemoteSearchEndingMetrics implements RemoteSearchEndings {
      * @sideEffect Emits one or two EMF metrics.
      */
     public record(source: RemoteSearchSource, ending: RemoteSearchEnding, outcome: RemoteSourceOutcome): void {
-        this.metrics.recordRemoteSearchEnding(this.stage, source, ending);
+        this.metrics.recordRemoteSearchEnding(source, ending);
 
         if (ending === 'callerLeft') {
             return;
         }
 
-        this.metrics.recordRemoteSearchAvailability(this.stage, outcome.kind === 'unavailable');
+        this.metrics.recordRemoteSearchAvailability(outcome.kind === 'unavailable');
     }
 }

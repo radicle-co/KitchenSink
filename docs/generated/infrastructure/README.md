@@ -21,6 +21,7 @@ nothing in CloudFormation can order two `cdk deploy` invocations (ADR-0022 §5).
 | --- | --- | --- |
 | `@commise/web-infra` | `@kitchensink/infra-global` (`DomainStack`) | `kitchensink-domain-{stage}:CertificateArn` |
 | `@commise/web-infra` | `@kitchensink/infra-global` (`DomainStack`) | `kitchensink-domain-{stage}:HostedZoneId` |
+| `@kitchensink/food-service-infra` | `@kitchensink/infra-global` (`AlarmRelayStack`) | `kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn` |
 | `@kitchensink/food-service-infra` | `@kitchensink/infra-global` (`SharedAlbStack`) | `kitchensink-alb-{baseStage}:SharedAlbArn` |
 | `@kitchensink/food-service-infra` | `@kitchensink/infra-global` (`SharedAlbStack`) | `kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId` |
 | `@kitchensink/food-service-infra` | `@kitchensink/infra-global` (`SharedAlbStack`) | `kitchensink-alb-{baseStage}:SharedAlbDnsName` |
@@ -33,6 +34,7 @@ nothing in CloudFormation can order two `cdk deploy` invocations (ADR-0022 §5).
 | `@kitchensink/food-service-infra` | `@kitchensink/infra-global` (`NetworkStack`) | `kitchensink-network-{baseStage}:AlbSecurityGroupId` |
 | `@kitchensink/food-service-infra` | `@kitchensink/infra-global` (`NetworkStack`) | `kitchensink-network-{baseStage}:DatabaseSecurityGroupId` |
 | `@kitchensink/food-service-infra` | `@kitchensink/infra-global` (`NetworkStack`) | `kitchensink-network-{baseStage}:ServiceSecurityGroupId` |
+| `@kitchensink/identity-webhooks-infra` | `@kitchensink/infra-global` (`AlarmRelayStack`) | `kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn` |
 | `@kitchensink/identity-webhooks-infra` | `@kitchensink/infra-global` (`DataStack`) | `kitchensink-data-{identityStage}:HandleSyncTopicArn` |
 | `@kitchensink/identity-webhooks-infra` | `@kitchensink/infra-global` (`DataStack`) | `kitchensink-data-{stage}:ArchiveBucketName` |
 | `@kitchensink/identity-webhooks-infra` | `@kitchensink/infra-global` (`DataStack`) | `kitchensink-data-{stage}:DatabaseEndpoint` |
@@ -48,6 +50,7 @@ nothing in CloudFormation can order two `cdk deploy` invocations (ADR-0022 §5).
 | `@kitchensink/identity-webhooks-infra` | `@kitchensink/infra-global` (`NetworkStack`) | `kitchensink-network-{stage}:DatabaseSecurityGroupId` |
 | `@kitchensink/identity-webhooks-infra` | `@kitchensink/infra-global` (`NetworkStack`) | `kitchensink-network-{stage}:LambdaSecurityGroupId` |
 | `@kitchensink/identity-webhooks-infra` | `@kitchensink/infra-global` (`ServiceLogsStack`) | `kitchensink-service-logs-{deployStage}:IdentityServiceLogGroupName` |
+| `@kitchensink/identity-infra` | `@kitchensink/infra-global` (`AlarmRelayStack`) | `kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn` |
 | `@kitchensink/identity-infra` | `@kitchensink/infra-global` (`SharedAlbStack`) | `kitchensink-alb-{stage}:SharedAlbArn` |
 | `@kitchensink/identity-infra` | `@kitchensink/infra-global` (`SharedAlbStack`) | `kitchensink-alb-{stage}:SharedAlbCanonicalHostedZoneId` |
 | `@kitchensink/identity-infra` | `@kitchensink/infra-global` (`SharedAlbStack`) | `kitchensink-alb-{stage}:SharedAlbDnsName` |
@@ -82,6 +85,8 @@ nothing in CloudFormation can order two `cdk deploy` invocations (ADR-0022 §5).
 | `@kitchensink/recipe-service-infra` | `@kitchensink/infra-global` (`NetworkStack`) | `kitchensink-network-{baseStage}:AlbSecurityGroupId` |
 | `@kitchensink/recipe-service-infra` | `@kitchensink/infra-global` (`NetworkStack`) | `kitchensink-network-{baseStage}:DatabaseSecurityGroupId` |
 | `@kitchensink/recipe-service-infra` | `@kitchensink/infra-global` (`NetworkStack`) | `kitchensink-network-{baseStage}:ServiceSecurityGroupId` |
+| `@kitchensink/recipe-workers-infra` | `@kitchensink/infra-global` (`AlarmRelayStack`) | `kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn` |
+| `@kitchensink/remote-search-infra` | `@kitchensink/infra-global` (`AlarmRelayStack`) | `kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn` |
 | `@kitchensink/remote-search-infra` | `@kitchensink/infra-global` (`DomainStack`) | `kitchensink-domain-{baseStage}:CertificateArn` |
 | `@kitchensink/remote-search-infra` | `@kitchensink/infra-global` (`DomainStack`) | `kitchensink-domain-{baseStage}:HostedZoneId` |
 
@@ -114,6 +119,19 @@ Not summarised here (out of this manifest's scope): `aws-cdk-lib/aws-budgets.Cfn
 ## @kitchensink/infra-global
 
 Entrypoint: `packages/infra/global/bin/app.ts`
+
+### `kitchensink-alarm-relay-{stage}`
+
+Construct `AlarmRelayStack` — `packages/infra/global/lib/platform/AlarmRelayStack.ts`
+
+| kind | logical id | handler / name template | only when |
+| --- | --- | --- | --- |
+| alarm | `AlarmRelayFailureQueueAlarm` | `kitchensink-alarm-relay-failures-{stage}` | `props.alarmsEnabled` |
+| lambdaFunction | `AlarmRelayFunction` | `—` | — | handler is not a literal: hasLambdaAsset ? 'alarmRelay/handler.handler' : 'index.handler'
+| queue | `AlarmRelayFailureQueue` | `—` | — |
+| topic | `AlarmRelayAlarmTopic` | `—` | — |
+
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-lambda-destinations.SqsDestination`, `aws-cdk-lib/aws-logs-destinations.LambdaDestination`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-logs.SubscriptionFilter`.
 
 ### `kitchensink-data-{stage}`
 
@@ -284,7 +302,7 @@ Construct `WebhooksStack` — `packages/services/identity-webhooks/infra/lib/Web
 | ssmParameter | `SsmWebhooksApiUrl` | `/kitchensink/identity/{deployStage}/webhooks/api/url` | — |
 | topic | `WebhooksAlarmTopic` | `—` | — |
 
-Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-apigateway.DomainName`, `aws-cdk-lib/aws-apigateway.LambdaIntegration`, `aws-cdk-lib/aws-apigateway.LogGroupLogDestination`, `aws-cdk-lib/aws-apigateway.RestApi`, `aws-cdk-lib/aws-certificatemanager.Certificate`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-cloudwatch.Metric`, `aws-cdk-lib/aws-events-targets.LambdaFunction`, `aws-cdk-lib/aws-events.Rule`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-lambda-event-sources.SqsEventSource`, `aws-cdk-lib/aws-lambda.CfnPermission`, `aws-cdk-lib/aws-logs-destinations.LambdaDestination`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-logs.SubscriptionFilter`, `aws-cdk-lib/aws-route53-targets.ApiGatewayDomain`, `aws-cdk-lib/aws-route53.ARecord`.
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-apigateway.DomainName`, `aws-cdk-lib/aws-apigateway.LambdaIntegration`, `aws-cdk-lib/aws-apigateway.LogGroupLogDestination`, `aws-cdk-lib/aws-apigateway.RestApi`, `aws-cdk-lib/aws-certificatemanager.Certificate`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-cloudwatch.MathExpression`, `aws-cdk-lib/aws-cloudwatch.Metric`, `aws-cdk-lib/aws-events-targets.LambdaFunction`, `aws-cdk-lib/aws-events.Rule`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-lambda-event-sources.SqsEventSource`, `aws-cdk-lib/aws-lambda.CfnPermission`, `aws-cdk-lib/aws-logs-destinations.LambdaDestination`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-logs.SubscriptionFilter`, `aws-cdk-lib/aws-route53-targets.ApiGatewayDomain`, `aws-cdk-lib/aws-route53.ARecord`.
 
 ## @kitchensink/identity-infra
 

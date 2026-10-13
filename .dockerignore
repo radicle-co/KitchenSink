@@ -64,6 +64,9 @@
 # that recipe's image carries reads every response's header with it.
 !packages/shared/retry-after/dist
 !packages/shared/retry-after/prod.package.json
+# The `Stage` metric dimension (ADR-0062) — food and recipe emit custom metrics under it at runtime.
+!packages/shared/metric-dimensions/dist
+!packages/shared/metric-dimensions/prod.package.json
 !packages/clients/usda/dist
 !packages/clients/usda/prod.package.json
 # Recipe service image (feature 001; mirrors the food allowlist): the service dist + prod manifest, plus

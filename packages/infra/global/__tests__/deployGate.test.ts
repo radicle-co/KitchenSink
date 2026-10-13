@@ -795,7 +795,11 @@ describe('deploy_gate_stacks_for — a probe never has to write down what an app
         const declared = stacksFor(GLOBAL_APP, 'sandbox', MANIFEST);
 
         expect(declared.status).toBe(0);
+        // Rewritten for ADR-0062, which adds the alarm relay to the global app at every stage: the probe DERIVES the
+        // list, so the new stack is asked about with no edit anywhere else, and a sandbox that predates it is reported
+        // incomplete and gets a global deploy.
         expect(declared.stacks).toEqual([
+            'kitchensink-alarm-relay-sandbox',
             'kitchensink-alb-sandbox',
             'kitchensink-data-sandbox',
             'kitchensink-domain-sandbox',

@@ -205,7 +205,7 @@ describe('FOOD-SERVICE-6: a held source item is never offered, picked over, or w
             queue: new FetchQueueDao(db),
             registry: app.get(SourceAdapterRegistry, { strict: false }),
             merge: app.get(MergeAndPersistService, { strict: false }),
-            catalog: workerCatalogOf(db, new FoodMetrics(() => undefined)),
+            catalog: workerCatalogOf(db, new FoodMetrics('test', () => undefined)),
             events: new FoodEventEmitter(bus),
             logger: new SilentWorkerLogger(),
         });

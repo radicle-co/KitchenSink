@@ -255,7 +255,7 @@ describe('SearchServiceRemoteSearch — the ending it records', () => {
 function linesFor(ending: RemoteSearchEnding, outcome: RemoteSourceOutcome): EmfPayload[] {
     const lines: string[] = [];
 
-    new RemoteSearchEndingMetrics(new FoodMetrics((line) => lines.push(line)), 'prod').record('usda', ending, outcome);
+    new RemoteSearchEndingMetrics(new FoodMetrics('prod', (line) => lines.push(line))).record('usda', ending, outcome);
 
     return lines.map((line) => JSON.parse(line) as EmfPayload);
 }
@@ -276,9 +276,9 @@ describe('RemoteSearchEndingMetrics — what an ending publishes', () => {
         const lines = linesFor('noEcho', { kind: 'unavailable' });
         const count = lineWith(lines, 'remote-search-ending');
 
-        expect(count?._aws.CloudWatchMetrics[0]?.Dimensions).toEqual([['stage', 'source', 'reason']]);
+        expect(count?._aws.CloudWatchMetrics[0]?.Dimensions).toEqual([['Stage', 'source', 'reason']]);
         expect(count?._aws.CloudWatchMetrics[0]?.Metrics).toEqual([{ Name: 'remote-search-ending', Unit: 'Count' }]);
-        expect(count).toMatchObject({ stage: 'prod', source: 'usda', reason: 'noEcho', 'remote-search-ending': 1 });
+        expect(count).toMatchObject({ Stage: 'prod', source: 'usda', reason: 'noEcho', 'remote-search-ending': 1 });
     });
 
     it.each<[RemoteSearchEnding, RemoteSourceOutcome, number]>([
@@ -290,11 +290,11 @@ describe('RemoteSearchEndingMetrics — what an ending publishes', () => {
     ])('observes %s as %s%% unavailable, under the stage alone', (ending, outcome, percent) => {
         const rate = lineWith(linesFor(ending, outcome), 'remote-search-unavailable-rate');
 
-        expect(rate?._aws.CloudWatchMetrics[0]?.Dimensions).toEqual([['stage']]);
+        expect(rate?._aws.CloudWatchMetrics[0]?.Dimensions).toEqual([['Stage']]);
         expect(rate?._aws.CloudWatchMetrics[0]?.Metrics).toEqual([
             { Name: 'remote-search-unavailable-rate', Unit: 'Percent' },
         ]);
-        expect(rate).toMatchObject({ stage: 'prod', 'remote-search-unavailable-rate': percent });
+        expect(rate).toMatchObject({ Stage: 'prod', 'remote-search-unavailable-rate': percent });
     });
 
     it('counts the cook leaving, but never as the search going dark', () => {

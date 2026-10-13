@@ -1,0 +1,18 @@
+{
+    "name": "@kitchensink/metric-dimensions",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/metricDimensions.js",
+    "types": "./dist/metricDimensions.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/metricDimensions.d.ts",
+            "default": "./dist/metricDimensions.js"
+        }
+    },
+    "dependencies": {},
+    "engines": {
+        "node": "24.x"
+    }
+}

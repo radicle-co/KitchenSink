@@ -647,6 +647,29 @@ describe('RecipeWorkersStack', () => {
         });
     });
 
+    /**
+     * ADR-0062: the posture integration test requires `STAGE` on every handler of an app that links
+     * `@kitchensink/metric-dimensions`, because "which handlers emit" is a property of source nobody keeps a list of.
+     * Three handlers (the archive worker, the erasure worker and the handle-sync worker) carried none, which also left
+     * their Sentry `environment` at the `dev` fallback in `observability.ts`.
+     */
+    it('sets STAGE on EVERY handler, not just the metric emitters', () => {
+        const handlers = Object.values(template.findResources('AWS::Lambda::Function')).filter((resource) =>
+            String(resource.Properties?.Handler).startsWith('handlers/'),
+        );
+
+        expect(handlers.length).toBeGreaterThanOrEqual(10);
+
+        for (const handler of handlers) {
+            expect(
+                (handler.Properties?.Environment as { Variables?: Record<string, unknown> } | undefined)?.Variables?.[
+                    'STAGE'
+                ],
+                String(handler.Properties?.Handler),
+            ).toBe('sandbox');
+        }
+    });
+
     it('grants the worker PutObject on the archive bucket but never SQS send', () => {
         // Least privilege (ARCH-IT-7): the worker consumes and archives. If it could send, a bug could
         // fan out archive work; the sweeper is the only producer.
@@ -2690,4 +2713,61 @@ describe('every resource is deleted with its stack at pr-1 (ADR-0061)', () => {
             expect(undisposableResources(template)).toEqual([]);
         },
     );
+});
+
+/**
+ * ADR-0062: this stack's alarm topic delivers to the stage's alarm relay, and each alarm's OK goes where its ALARM goes.
+ *
+ * ⛔ The relay is IMPORTED by name (`kitchensink-alarm-relay-{prod|sandbox}:AlarmRelayFunctionArn`), one per BASE stage,
+ * so a `pr-{N}` preview alarms through the sandbox relay. The import is asserted against the synthesized template
+ * because nothing fails at deploy if it is wrong until the export is missing; and the invoke permission is asserted to be
+ * scoped to THIS topic, because one with no `SourceArn` lets any topic in the account invoke the relay.
+ */
+describe('the alarm relay (ADR-0062)', () => {
+    const relayImport = (base: string): unknown => ({
+        'Fn::ImportValue': `kitchensink-alarm-relay-${base}:AlarmRelayFunctionArn`,
+    });
+
+    it.each([
+        ['prod', 'prod'],
+        ['pr-73', 'sandbox'],
+    ])('subscribes the %s relay to the alarm topic, with a permission scoped to that topic', (stage, base) => {
+        const template = synth(stage, stage === 'prod' ? 'prod' : 'sandbox', true);
+        const topics = Object.keys(template.findResources('AWS::SNS::Topic'));
+
+        expect(topics).toHaveLength(1);
+        template.hasResourceProperties('AWS::SNS::Subscription', {
+            Protocol: 'lambda',
+            Endpoint: relayImport(base),
+            TopicArn: { Ref: topics[0] },
+        });
+        template.hasResourceProperties('AWS::Lambda::Permission', {
+            Action: 'lambda:InvokeFunction',
+            FunctionName: relayImport(base),
+            Principal: 'sns.amazonaws.com',
+            SourceArn: { Ref: topics[0] },
+        });
+    });
+
+    it('sends every alarm’s OK where its ALARM goes', () => {
+        const alarms = Object.values(synth('prod', 'prod', true).findResources('AWS::CloudWatch::Alarm'));
+
+        expect(alarms.length).toBeGreaterThan(0);
+
+        for (const alarm of alarms) {
+            expect(alarm.Properties.AlarmActions, String(alarm.Properties.AlarmName)).toBeDefined();
+            expect(alarm.Properties.OKActions, String(alarm.Properties.AlarmName)).toEqual(
+                alarm.Properties.AlarmActions,
+            );
+        }
+    });
+
+    it('delivers nothing to the relay when the stage’s alarms are off', () => {
+        const template = synth('prod', 'prod', false);
+
+        expect(template.findResources('AWS::SNS::Subscription', { Properties: { Protocol: 'lambda' } })).toEqual({});
+        expect(
+            template.findResources('AWS::Lambda::Permission', { Properties: { Principal: 'sns.amazonaws.com' } }),
+        ).toEqual({});
+    });
 });

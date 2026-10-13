@@ -15,7 +15,7 @@
  */
 
 /** What a Sentry DSN decomposes into for a direct envelope POST. */
-interface IngestTarget {
+export interface IngestTarget {
     readonly url: string;
     readonly key: string;
 }
@@ -41,5 +41,38 @@ export function parseDsn(dsn: string): IngestTarget | undefined {
         return { url: `${parsed.origin}/api/${projectId}/envelope/`, key: parsed.username };
     } catch {
         return undefined;
+    }
+}
+
+/**
+ * POST one envelope, bounded by a deadline.
+ *
+ * ⛔ THE ANSWER IS EXACT AND NOTHING IS SWALLOWED INTO SILENCE: `true` only for a 2xx. `fetch` rejects on a transport
+ * failure but RESOLVES for a 401, a 413 or a 429, so an expired DSN key would otherwise read as "sent" forever. It never
+ * throws, so that the caller decides what a failed delivery means: the silent-no-op reporter swallows it (a failed
+ * report must not fail a deploy), the alarm relay turns it into a failed invocation (a dropped alarm is the failure it
+ * exists to prevent). Putting that policy here would give one of them the wrong one.
+ *
+ * @param target - Where to post, from {@link parseDsn}.
+ * @param body - The serialized envelope.
+ * @param deadlineMs - How long the whole request may take before it is abandoned.
+ * @returns Whether Sentry accepted the envelope.
+ * @sideEffect Issues one HTTP POST.
+ */
+export async function postEnvelope(target: IngestTarget, body: string, deadlineMs: number): Promise<boolean> {
+    try {
+        const response = await fetch(target.url, {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/x-sentry-envelope',
+                'x-sentry-auth': `Sentry sentry_version=7, sentry_key=${target.key}`,
+            },
+            body,
+            signal: AbortSignal.timeout(deadlineMs),
+        });
+
+        return response.ok;
+    } catch {
+        return false;
     }
 }

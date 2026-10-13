@@ -19,6 +19,9 @@ import { testApp } from './testApp.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
 
+/** The alarm relay's function ARN the substrate's topic delivers to (ADR-0062). */
+const RELAY_ARN = 'arn:aws:lambda:us-east-1:123456789012:function:kitchensink-alarm-relay-fn';
+
 const substrateTemplate = (stage: string, alarmsEnabled = true): Template =>
     Template.fromStack(
         new MessageSubstrateStack(testApp(), `Substrate-${stage}`, {
@@ -26,6 +29,7 @@ const substrateTemplate = (stage: string, alarmsEnabled = true): Template =>
             stackName: `kitchensink-messaging-${stage}`,
             stage,
             alarmsEnabled,
+            alarmRelayArn: RELAY_ARN,
         }),
     );
 
@@ -173,5 +177,37 @@ describe('⛔ the alarm feature flag (default OFF)', () => {
         // gating it would make it `| undefined` and push an optional through every consumer for $0.
         substrateTemplate('pr-91', false).resourceCountIs('AWS::SNS::Topic', 1);
         substrateTemplate('prod', true).resourceCountIs('AWS::SNS::Topic', 1);
+    });
+});
+
+describe('MessageSubstrateStack — the alarm relay (ADR-0062)', () => {
+    it('subscribes the relay to its alarm topic, with an invoke permission scoped to that topic', () => {
+        const template = substrateTemplate('prod');
+
+        template.hasResourceProperties('AWS::SNS::Subscription', { Protocol: 'lambda', Endpoint: RELAY_ARN });
+        template.hasResourceProperties('AWS::Lambda::Permission', {
+            Action: 'lambda:InvokeFunction',
+            FunctionName: RELAY_ARN,
+            Principal: 'sns.amazonaws.com',
+            SourceArn: { Ref: Object.keys(template.findResources('AWS::SNS::Topic'))[0] },
+        });
+    });
+
+    it('sends each alarm’s OK where its ALARM goes, so the relay can say an incident ended', () => {
+        const alarms = Object.values(substrateTemplate('prod').findResources('AWS::CloudWatch::Alarm'));
+
+        expect(alarms.length).toBeGreaterThanOrEqual(2);
+
+        for (const alarm of alarms) {
+            expect(alarm.Properties.OKActions).toEqual(alarm.Properties.AlarmActions);
+        }
+    });
+
+    it('delivers to the relay only when the stage’s alarm switch is on, like the alarms it carries', () => {
+        expect(
+            substrateTemplate('prod', false).findResources('AWS::SNS::Subscription', {
+                Properties: { Protocol: 'lambda' },
+            }),
+        ).toEqual({});
     });
 });

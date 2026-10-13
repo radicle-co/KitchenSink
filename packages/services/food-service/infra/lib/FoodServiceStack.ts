@@ -54,6 +54,7 @@ import {
     MESSAGE_TABLE_TTL_ATTRIBUTE,
 } from '@kitchensink/messaging';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
+import { stageDimensions } from '@kitchensink/metric-dimensions';
 import {
     AcceptedNagFindings,
     clerkAuthEnvironment,
@@ -63,6 +64,7 @@ import {
     schemaCurrencyEnvironment,
 } from '@radicle-co/infra-shared/security';
 
+import { importAlarmRelayArn, relayAlarmTransitions } from './alarmRelaySubscription.js';
 import { holdScheduledRulesForTheSandbox } from './scheduledRuleGate.js';
 
 /**
@@ -1071,10 +1073,15 @@ export class FoodServiceStack extends Stack {
         );
         const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);
 
+        // ⛔ EVERY `Commise/Food` SERIES IS DIMENSIONED BY `Stage` (ADR-0062), so every alarm and chart built here selects
+        // THIS stage's. The series used to be dimensionless and shared by prod and every `pr-{N}` worker: prod's
+        // tombstone alarm went ALARM each morning when the preview workers started. Alarms and dashboard move together
+        // because both are built from this one helper.
         const emfMetric = (metricName: string, statistic: string): cloudwatch.Metric =>
             new cloudwatch.Metric({
                 namespace: FOOD_METRIC_NAMESPACE,
                 metricName,
+                dimensionsMap: stageDimensions(stage),
                 period: Duration.minutes(5),
                 statistic,
             });
@@ -1087,6 +1094,10 @@ export class FoodServiceStack extends Stack {
         // ⚠️ `emfMetric` stays OUTSIDE the gate on purpose: the dashboard below reads the same EMF series,
         // and a dashboard is a different line item from an alarm slot. Only the alarms move.
         if (props.alarmsEnabled) {
+            // ADR-0062: deliver this topic's transitions to the stage's alarm relay, and forward the OKs too. Inside the
+            // switch, like the alarms: no alarm, nothing to deliver.
+            relayAlarmTransitions(this, alarmTopic, importAlarmRelayArn(stage));
+
             // Any tombstone (NOT_FOUND/FAILED) row is worth a look — alarm at > 0 (DSN-9 / FR-016).
             // ⛔ SEPARATE from the tombstone alarm below, deliberately (U9). DSN-9 keeps the `NOT_FOUND`
             // tombstone quiet because "no wired source has this food" is a normal outcome — but a food that
@@ -1294,21 +1305,14 @@ export class FoodServiceStack extends Stack {
             // ADR-0055 point 7. A signature the search CDN refuses is CloudFront's own `403`: it never invokes the search
             // function, so that stack's alarms stay green while every search food sends goes dark. Food observes each
             // search it makes (`src/sources/remote/remoteSearchEndings.ts`) under its own stage, which keeps a preview's
-            // broken signatures off prod's alarm; the dimensionless alarms above cannot do that (see the healthy-host
-            // note).
+            // broken signatures off prod's alarm, as every other alarm on this namespace now does (see `emfMetric`).
             //
             // ACTION WHEN IT FIRES: chart `remote-search-ending` for this stage by `reason`. `noEcho` is the CDN refusing
             // food's request, so check the key-pair id food signs with against the key group (the rotation runbook in
             // `RemoteSearchSharedStack.ts`); `upstreamStatus` is the search function or USDA answering an error;
             // `accountingFailed` is food's own database.
             const remoteSearchRate = (statistic: string): cloudwatch.Metric =>
-                new cloudwatch.Metric({
-                    namespace: FOOD_METRIC_NAMESPACE,
-                    metricName: FOOD_METRIC.remoteSearchUnavailableRate,
-                    dimensionsMap: { stage },
-                    period: Duration.minutes(5),
-                    statistic,
-                });
+                emfMetric(FOOD_METRIC.remoteSearchUnavailableRate, statistic);
             const remoteSearchUnavailableAlarm = new cloudwatch.Alarm(this, 'FoodRemoteSearchUnavailableAlarm', {
                 metric: new cloudwatch.MathExpression({
                     expression: `IF(searches >= ${String(REMOTE_SEARCH_MIN_SEARCHES)}, unavailable, 0)`,
@@ -1358,7 +1362,7 @@ export class FoodServiceStack extends Stack {
                 // without a template change, where a hardcoded per-source `dimensionsMap` would not.
                 left: [
                     new cloudwatch.MathExpression({
-                        expression: `SEARCH('{${FOOD_METRIC_NAMESPACE},source} MetricName="${FOOD_METRIC.sourceRollingWindowCount}"', 'Sum', 300)`,
+                        expression: `SEARCH('{${FOOD_METRIC_NAMESPACE},Stage,source} Stage="${stage}" MetricName="${FOOD_METRIC.sourceRollingWindowCount}"', 'Sum', 300)`,
                         usingMetrics: {},
                         label: '',
                         period: Duration.minutes(5),
@@ -1370,7 +1374,7 @@ export class FoodServiceStack extends Stack {
                     // each already has its own address. `Minimum` because the closest approach to zero in
                     // the period is the reading that matters; an average would hide it.
                     new cloudwatch.MathExpression({
-                        expression: `SEARCH('{${FOOD_METRIC_NAMESPACE},source} MetricName="${FOOD_METRIC.sourceRateLimitRemaining}"', 'Minimum', 300)`,
+                        expression: `SEARCH('{${FOOD_METRIC_NAMESPACE},Stage,source} Stage="${stage}" MetricName="${FOOD_METRIC.sourceRateLimitRemaining}"', 'Minimum', 300)`,
                         usingMetrics: {},
                         label: '',
                         period: Duration.minutes(5),
@@ -1417,7 +1421,7 @@ export class FoodServiceStack extends Stack {
                 title: 'Live hits answered by lineage (USDA re-keyed a pinned food)',
                 left: [
                     new cloudwatch.MathExpression({
-                        expression: `SEARCH('{${FOOD_METRIC_NAMESPACE},source} MetricName="${FOOD_METRIC.lineageMatch}"', 'Sum', 3600)`,
+                        expression: `SEARCH('{${FOOD_METRIC_NAMESPACE},Stage,source} Stage="${stage}" MetricName="${FOOD_METRIC.lineageMatch}"', 'Sum', 3600)`,
                         usingMetrics: {},
                         label: '',
                         period: Duration.hours(1),

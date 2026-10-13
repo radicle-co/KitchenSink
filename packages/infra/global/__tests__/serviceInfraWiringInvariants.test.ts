@@ -95,6 +95,33 @@ function stringConstants(source: SourceFile): ReadonlyMap<string, string> {
 }
 
 /**
+ * The CloudWatch dimension name `@kitchensink/metric-dimensions` publishes as `METRIC_STAGE_DIMENSION`.
+ *
+ * ⚠️ RESTATED here rather than imported: this file judges SOURCE TEXT, and the alarm side of an emitter that spells its
+ * directive with the constant is unreadable to it unless the constant's VALUE is known. `metricDimensions.test.ts`
+ * pins the constant to `'Stage'`, so a change to either side reds one of the two.
+ */
+const METRIC_STAGE_DIMENSION_NAME = 'Stage';
+
+/**
+ * The dimension name an expression denotes: the published constant resolves to its value, a string literal to its text.
+ *
+ * ⛔ A DIRECTIVE KEY THIS CANNOT READ IS A KEY W4 STOPS ENFORCING. The recipe and webhook emitters spell `Stage` with
+ * the constant, so an implementation that only understood literals would have dropped it from the unconditional set and
+ * gone green over every alarm that omitted it.
+ *
+ * @param node - A dimension key expression.
+ * @returns The dimension name, or `undefined` when it is neither.
+ */
+function publishedDimensionName(node: ts.Expression | undefined): string | undefined {
+    if (node !== undefined && ts.isIdentifier(node) && node.text === 'METRIC_STAGE_DIMENSION') {
+        return METRIC_STAGE_DIMENSION_NAME;
+    }
+
+    return literalText(node);
+}
+
+/**
  * The KEY names of an object-shaped expression, resolving the indirection real stacks use.
  *
  * Handles literals, shorthand (`{ reason }`), spreads (`{ ...base, reason }`), a reference to a `const` object,
@@ -137,6 +164,13 @@ function objectKeys(
 
             if (name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteral(name))) {
                 keys.push(name.text);
+            } else if (name !== undefined && ts.isComputedPropertyName(name)) {
+                // `{ [METRIC_STAGE_DIMENSION]: stage }` — the published constant used as a key (ADR-0062).
+                const resolved = publishedDimensionName(name.expression);
+
+                if (resolved !== undefined) {
+                    keys.push(resolved);
+                }
             }
         }
 
@@ -146,7 +180,11 @@ function objectKeys(
     if (ts.isCallExpression(node)) {
         const callee = ts.isIdentifier(node.expression) ? node.expression.text : undefined;
 
-        return callee === undefined ? undefined : factories.get(callee);
+        // `stageDimensions(stage)` is the published map `@kitchensink/metric-dimensions` exports (ADR-0062): it
+        // yields exactly the `Stage` key, so a local factory of the same name still wins when one exists.
+        return callee === undefined
+            ? undefined
+            : (factories.get(callee) ?? (callee === 'stageDimensions' ? [METRIC_STAGE_DIMENSION_NAME] : undefined));
     }
 
     return ts.isIdentifier(node) ? factories.get(node.text) : undefined;
@@ -799,7 +837,7 @@ function unconditionalEmfDimensions(service: DiscoveredService): readonly string
                     }
 
                     for (const key of set.elements) {
-                        const text = literalText(key);
+                        const text = publishedDimensionName(key);
 
                         if (text !== undefined) {
                             keys.add(text);
@@ -1252,7 +1290,11 @@ describe('every deployable service wires its infra to its code', () => {
         it('W4 finds an emitter that attaches unconditional dimensions', () => {
             const webhooks = services.find((service) => service.name === 'identity-webhooks');
 
+            // ⛔ `Stage` is in the set because the directive spells it with the published constant
+            // (`METRIC_STAGE_DIMENSION`), which W4 must RESOLVE: read as an unknown identifier it would drop out of
+            // the set, and every alarm on this emitter would stop being held to selecting the stage.
             expect([...unconditionalEmfDimensions(webhooks as DiscoveredService)].sort()).toEqual([
+                'Stage',
                 'metric',
                 'service',
             ]);
@@ -1475,6 +1517,89 @@ describe('every deployable service wires its infra to its code', () => {
             };
 
             expect(alarmDimensionViolations(dynamicEmitter)).toEqual([]);
+        });
+
+        describe('W4 resolves the published Stage dimension (ADR-0062)', () => {
+            /** An emitter whose directive spells the stage with the published constant, as the real ones do. */
+            const stageEmitter = (alarmBody: string): DiscoveredService => ({
+                ...VIOLATING_SERVICE,
+                sources: VIOLATING_SERVICE.sources.map((source) => {
+                    if (source.file.endsWith('observability.ts')) {
+                        return {
+                            ...source,
+                            contents: `
+                                export const emitMetric = (metricName, value) => {
+                                    process.stdout.write(JSON.stringify({
+                                        _aws: {
+                                            CloudWatchMetrics: [{
+                                                Namespace: 'KitchenSink/Fake',
+                                                Dimensions: [['service', 'metric', METRIC_STAGE_DIMENSION]],
+                                            }],
+                                        },
+                                    }));
+                                };
+                            `,
+                        };
+                    }
+
+                    return isInfraFile(source.file)
+                        ? {
+                              ...source,
+                              contents: `
+                                  const emitterDimensions = (metricName) => ({ service: 'fake', metric: metricName });
+
+                                  const a = new cloudwatch.Alarm(this, 'FakeRejectedAlarm', {
+                                      metric: new cloudwatch.Metric({
+                                          namespace: 'KitchenSink/Fake',
+                                          metricName: 'FakeRejected',
+                                          dimensionsMap: ${alarmBody},
+                                      }),
+                                  });
+                                  a.addAlarmAction(alarmAction);
+                              `,
+                          }
+                        : source;
+                }),
+            });
+
+            it('counts a directive key spelled METRIC_STAGE_DIMENSION as the unconditional dimension `Stage`', () => {
+                expect([...unconditionalEmfDimensions(stageEmitter('{}'))].sort()).toEqual([
+                    'Stage',
+                    'metric',
+                    'service',
+                ]);
+            });
+
+            it('fires on an alarm that omits Stage over such an emitter', () => {
+                const findings = alarmDimensionViolations(stageEmitter("emitterDimensions('FakeRejected')"));
+
+                expect(findings).toHaveLength(1);
+                expect(findings[0]).toContain('the emitter publishes every metric with [Stage, metric, service]');
+            });
+
+            it('accepts an alarm selecting the stage with stageDimensions(...), spread beside the emitter keys', () => {
+                expect(
+                    alarmDimensionViolations(
+                        stageEmitter("{ ...emitterDimensions('FakeRejected'), ...stageDimensions(props.stage) }"),
+                    ),
+                ).toEqual([]);
+            });
+
+            it('accepts an alarm selecting the stage with a computed METRIC_STAGE_DIMENSION key', () => {
+                expect(
+                    alarmDimensionViolations(
+                        stageEmitter("{ ...emitterDimensions('FakeRejected'), [METRIC_STAGE_DIMENSION]: props.stage }"),
+                    ),
+                ).toEqual([]);
+            });
+
+            it('does not accept a lookalike: an unrelated helper named stageDimension is not the published one', () => {
+                expect(
+                    alarmDimensionViolations(
+                        stageEmitter("{ ...emitterDimensions('FakeRejected'), ...stageDimension(props.stage) }"),
+                    ),
+                ).toHaveLength(1);
+            });
         });
 
         it('W6 reports a container command that starts the service without the preload', () => {

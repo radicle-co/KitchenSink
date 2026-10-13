@@ -717,9 +717,9 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
         const body = dashboardBody();
 
         expect(body).toContain(
-            `SEARCH('{${FOOD_METRIC_NAMESPACE},source} MetricName=\\"${FOOD_METRIC.lineageMatch}\\"', 'Sum', 3600)`,
+            `SEARCH('{${FOOD_METRIC_NAMESPACE},Stage,source} Stage=\\"test\\" MetricName=\\"${FOOD_METRIC.lineageMatch}\\"', 'Sum', 3600)`,
         );
-        expect(body).toContain(`["Commise/Food","${FOOD_METRIC.forwardUnresolved}",{"stat":"Sum"}]`);
+        expect(body).toContain(`["Commise/Food","${FOOD_METRIC.forwardUnresolved}","Stage","test",{"stat":"Sum"}]`);
     });
 
     it('charts the local-store serve rate as an Average on a 0–100 axis (SC-004/SC-005, T-199b)', () => {
@@ -728,8 +728,81 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
         // CDK omits `stat` when it is the widget default (Average) and renders it explicitly otherwise
         // (`{"stat":"Sum"}`, `{"stat":"p50"}` above), so a BARE metric entry is the assertion that this is
         // averaged. Summing 100/0 observations would report a nonsense multiple of the read count.
-        expect(body).toContain(`["Commise/Food","${FOOD_METRIC.localStoreServeRate}"]`);
+        expect(body).toContain(`["Commise/Food","${FOOD_METRIC.localStoreServeRate}","Stage","test"]`);
         expect(body).toContain('"yAxis":{"left":{"min":0,"max":100}}');
+    });
+
+    /**
+     * ⛔ ADR-0062. A `Commise/Food` series is shared by every stage that publishes it, so an alarm or a chart that
+     * selects no stage reads them all: prod's tombstone alarm went ALARM each morning when the preview workers
+     * started. Every alarm on the namespace therefore selects `Stage=<its own stage>`, and so does every SEARCH
+     * expression on the dashboard (a SEARCH over a bare `{Commise/Food,source}` schema matches every stage's series).
+     */
+    describe.each(['test', 'prod'])('the Stage dimension (%s)', (stage) => {
+        const template = (): Template => (stage === 'test' ? serviceTemplate : synthFoodTemplate('prod', 'prod'));
+
+        it('is selected by every alarm on the Commise/Food namespace, plain or inside a math expression', () => {
+            const alarms = Object.entries(template().findResources('AWS::CloudWatch::Alarm')).filter(([, alarm]) =>
+                JSON.stringify(alarm.Properties).includes(FOOD_METRIC_NAMESPACE),
+            );
+
+            // Non-vacuity: the namespace has four plain alarms and the remote search math alarm.
+            expect(alarms.length).toBeGreaterThanOrEqual(5);
+
+            for (const [id, alarm] of alarms) {
+                const properties = alarm.Properties as {
+                    Namespace?: string;
+                    Dimensions?: readonly { Name: string; Value: string }[];
+                    Metrics?: readonly {
+                        MetricStat?: { Metric: { Namespace: string; Dimensions?: readonly unknown[] } };
+                    }[];
+                };
+                const metrics =
+                    properties.Metrics === undefined
+                        ? [{ Namespace: properties.Namespace, Dimensions: properties.Dimensions }]
+                        : properties.Metrics.flatMap((query) =>
+                              query.MetricStat === undefined ? [] : [query.MetricStat.Metric],
+                          );
+                const food = metrics.filter((metric) => metric.Namespace === FOOD_METRIC_NAMESPACE);
+
+                expect(food.length, `${id} reads no ${FOOD_METRIC_NAMESPACE} metric`).toBeGreaterThan(0);
+
+                for (const metric of food) {
+                    expect(metric.Dimensions, `${id} selects no Stage=${stage}`).toContainEqual({
+                        Name: 'Stage',
+                        Value: stage,
+                    });
+                }
+            }
+        });
+
+        it('is selected by every dashboard widget on the namespace', () => {
+            const body = (() => {
+                const dashboards = template().findResources('AWS::CloudWatch::Dashboard');
+                const raw = Object.values(dashboards)[0]?.Properties?.DashboardBody as
+                    string | { 'Fn::Join': [string, unknown[]] };
+
+                return typeof raw === 'string'
+                    ? raw
+                    : raw['Fn::Join'][1]
+                          .map((part) => (typeof part === 'string' ? part : JSON.stringify(part)))
+                          .join('');
+            })();
+            const entries = [...body.matchAll(/\["Commise\/Food","[^"]+"(?<tail>[^\]]*)\]/gu)];
+            const searches = [...body.matchAll(/SEARCH\('\{Commise\/Food[^']*'/gu)];
+
+            expect(entries.length).toBeGreaterThan(5);
+            expect(searches.length).toBeGreaterThanOrEqual(2);
+
+            for (const entry of entries) {
+                expect(entry.groups?.['tail'], entry[0]).toContain(`"Stage","${stage}"`);
+            }
+
+            for (const search of searches) {
+                expect(search[0]).toContain(`{Commise/Food,Stage,`);
+                expect(search[0]).toContain(`Stage=\\"${stage}\\"`);
+            }
+        });
     });
 
     it('creates the alarm SNS topic', () => {
@@ -755,10 +828,9 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
      * ALB `HTTPCode_ELB_5XX_Count` is LoadBalancer-dimensioned on a SHARED ALB (ADR-0003), so it cannot say
      * WHICH service is down.
      *
-     * ⚠️ It selects the TARGET GROUP dimensions, which are per-stage by construction — unlike the
-     * `Commise/Food` alarms above, whose series carry no `Stage` at all (verified against CloudWatch:
-     * `list-metrics` returns `Dimensions: []`), so prod's copies read a series every stage writes into.
-     * That is pre-existing and deliberately NOT changed here; this alarm simply must not join it.
+     * ⚠️ It selects the TARGET GROUP dimensions, which are per-stage by construction. The `Commise/Food` alarms
+     * above select `Stage=<stage>` for the same reason (ADR-0062); before that they read a dimensionless series that
+     * every stage wrote into.
      */
     it('has a healthy-host alarm treating missing data as breaching (the detector the outage lacked)', () => {
         serviceTemplate.hasResourceProperties('AWS::CloudWatch::Alarm', {
@@ -950,7 +1022,7 @@ describe('the remote search unavailable-rate alarm', () => {
                             Metric: {
                                 Namespace: FOOD_METRIC_NAMESPACE,
                                 MetricName: FOOD_METRIC.remoteSearchUnavailableRate,
-                                Dimensions: [{ Name: 'stage', Value: stage }],
+                                Dimensions: [{ Name: 'Stage', Value: stage }],
                             },
                         }),
                     ),
@@ -2188,5 +2260,62 @@ describe('every resource is deleted with its stack at pr-1 (ADR-0061)', () => {
 
     it('is not vacuous: the SAME stack at prod keeps its log groups, and the check sees it', () => {
         expect(undisposableResources(synthFoodTemplate('prod', 'prod')).join(' ')).toContain('DeletionPolicy Retain');
+    });
+});
+
+/**
+ * ADR-0062: this stack's alarm topic delivers to the stage's alarm relay, and each alarm's OK goes where its ALARM goes.
+ *
+ * ⛔ The relay is IMPORTED by name (`kitchensink-alarm-relay-{prod|sandbox}:AlarmRelayFunctionArn`), one per BASE stage,
+ * so a `pr-{N}` preview alarms through the sandbox relay. The import is asserted against the synthesized template
+ * because nothing fails at deploy if it is wrong until the export is missing; and the invoke permission is asserted to be
+ * scoped to THIS topic, because one with no `SourceArn` lets any topic in the account invoke the relay.
+ */
+describe('the alarm relay (ADR-0062)', () => {
+    const relayImport = (base: string): unknown => ({
+        'Fn::ImportValue': `kitchensink-alarm-relay-${base}:AlarmRelayFunctionArn`,
+    });
+
+    it.each([
+        ['prod', 'prod'],
+        ['pr-91', 'sandbox'],
+    ])('subscribes the %s relay to the alarm topic, with a permission scoped to that topic', (stage, base) => {
+        const template = synthFoodTemplate(stage, stage === 'prod' ? 'prod' : 'sandbox', true);
+        const topics = Object.keys(template.findResources('AWS::SNS::Topic'));
+
+        expect(topics).toHaveLength(1);
+        template.hasResourceProperties('AWS::SNS::Subscription', {
+            Protocol: 'lambda',
+            Endpoint: relayImport(base),
+            TopicArn: { Ref: topics[0] },
+        });
+        template.hasResourceProperties('AWS::Lambda::Permission', {
+            Action: 'lambda:InvokeFunction',
+            FunctionName: relayImport(base),
+            Principal: 'sns.amazonaws.com',
+            SourceArn: { Ref: topics[0] },
+        });
+    });
+
+    it('sends every alarm’s OK where its ALARM goes', () => {
+        const alarms = Object.values(synthFoodTemplate('prod', 'prod', true).findResources('AWS::CloudWatch::Alarm'));
+
+        expect(alarms.length).toBeGreaterThan(0);
+
+        for (const alarm of alarms) {
+            expect(alarm.Properties.AlarmActions, String(alarm.Properties.AlarmName)).toBeDefined();
+            expect(alarm.Properties.OKActions, String(alarm.Properties.AlarmName)).toEqual(
+                alarm.Properties.AlarmActions,
+            );
+        }
+    });
+
+    it('delivers nothing to the relay when the stage’s alarms are off', () => {
+        const template = synthFoodTemplate('prod', 'prod', false);
+
+        expect(template.findResources('AWS::SNS::Subscription', { Properties: { Protocol: 'lambda' } })).toEqual({});
+        expect(
+            template.findResources('AWS::Lambda::Permission', { Properties: { Principal: 'sns.amazonaws.com' } }),
+        ).toEqual({});
     });
 });

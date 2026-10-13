@@ -82,6 +82,10 @@ COPY packages/shared/recipe-core/dist ./packages/shared/recipe-core/dist
 # (ADR-0053 §5). A runtime import on the source-call path, so a missing dist here fails the first refused call.
 COPY packages/shared/retry-after/prod.package.json ./packages/shared/retry-after/package.json
 COPY packages/shared/retry-after/dist ./packages/shared/retry-after/dist
+# Shared @kitchensink/metric-dimensions — the `Stage` dimension every custom metric is emitted under and every alarm
+# selects (ADR-0062). A runtime import on the metric-emitting path, so a missing dist here fails the first line emitted.
+COPY packages/shared/metric-dimensions/prod.package.json ./packages/shared/metric-dimensions/package.json
+COPY packages/shared/metric-dimensions/dist ./packages/shared/metric-dimensions/dist
 # The GENERATED wire-contract leaf (CODING_STANDARDS §15.2). `main.ts` imports its published CONTRACT_HASH to
 # run the drift-layer-3 skew assertion BEFORE anything else, so this is a genuine runtime import on the very
 # first line of the boot path: without its dist in the image the process crash-loops before it can report why.

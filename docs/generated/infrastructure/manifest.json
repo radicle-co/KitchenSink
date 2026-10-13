@@ -65,6 +65,21 @@
                         "aws-cdk-lib/aws-sns.TopicPolicy"
                     ],
                     "unfollowedConstructs": []
+                },
+                {
+                    "className": "GithubActionsAccessStack",
+                    "source": "packages/infra/global/lib/platform/GithubActionsAccessStack.ts",
+                    "stackNameTemplate": "kitchensink-github-actions-access",
+                    "condition": null,
+                    "resources": [],
+                    "importedExports": [],
+                    "unclassifiedConstructs": [
+                        "aws-cdk-lib.CfnOutput",
+                        "aws-cdk-lib/aws-iam.OidcProviderNative",
+                        "aws-cdk-lib/aws-iam.Role",
+                        "aws-cdk-lib/aws-iam.WebIdentityPrincipal"
+                    ],
+                    "unfollowedConstructs": []
                 }
             ],
             "importedExports": []

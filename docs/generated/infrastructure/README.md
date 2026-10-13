@@ -116,6 +116,14 @@ Construct `CostGuardrailsStack` — `packages/infra/global/lib/platform/CostGuar
 
 Not summarised here (out of this manifest's scope): `aws-cdk-lib/aws-budgets.CfnBudget`, `aws-cdk-lib/aws-ce.CfnAnomalyMonitor`, `aws-cdk-lib/aws-ce.CfnAnomalySubscription`, `aws-cdk-lib/aws-iam.AnyPrincipal`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-sns-subscriptions.EmailSubscription`, `aws-cdk-lib/aws-sns.TopicPolicy`.
 
+### `kitchensink-github-actions-access`
+
+Construct `GithubActionsAccessStack` — `packages/infra/global/lib/platform/GithubActionsAccessStack.ts`
+
+_No Lambda, queue, topic, alarm, ECS service or SSM parameter is declared in this stack._
+
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-iam.OidcProviderNative`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.WebIdentityPrincipal`.
+
 ## @kitchensink/infra-global
 
 Entrypoint: `packages/infra/global/bin/app.ts`

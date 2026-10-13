@@ -39,6 +39,7 @@ import { App, Tags } from 'aws-cdk-lib';
 import { attachSecurityChecks, stampCommitProvenance } from '@radicle-co/infra-shared/security';
 
 import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
+import { GithubActionsAccessStack } from '../lib/platform/GithubActionsAccessStack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // ⛔ `quiet: true` IS LOAD-BEARING — this app's STDOUT is parsed by `verifyDeployment.sh`, which runs
@@ -69,6 +70,13 @@ new CostGuardrailsStack(app, 'CostGuardrails', {
     env: { account, region },
     stackName: 'kitchensink-cost-guardrails',
     alertEmail,
+});
+
+// ADR-0063: the GitHub OIDC provider and the three roles CI assumes, so no job holds a long-lived access key.
+// Account-scoped for the same reason as the budget above: there is one provider per issuer per account.
+new GithubActionsAccessStack(app, 'GithubActionsAccess', {
+    env: { account, region },
+    stackName: 'kitchensink-github-actions-access',
 });
 
 app.synth();

@@ -90,7 +90,7 @@ jobs:
             # old build serving. `deployLegsWatchTheirLibraries.test.ts` derives the list.
             - name: Detect changes
               id: changes
-              uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.2
+              uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
               if: github.event_name == 'pull_request'
               with:
                   filters: |

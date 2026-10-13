@@ -111,7 +111,7 @@ jobs:
         timeout-minutes: 20
         permissions:
             contents: read
-            actions: read
+            actions: read # find and download a test app an earlier run built
         outputs:
             eligible: ${{ steps.eligible.outputs.eligible }}
             android_key: ${{ steps.keys.outputs.android_key }}

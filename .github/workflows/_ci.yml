@@ -1244,7 +1244,7 @@ jobs:
         # `ci-full.yml`) — or the whole run is rejected with `startup_failure`.
         permissions:
             contents: read
-            actions: read
+            actions: read # mobile-app-build reuses an earlier run's test app artifact
         with:
             stage: sandbox
             recipe_origin: ${{ needs.resolve-sandbox.outputs.recipe_origin }}

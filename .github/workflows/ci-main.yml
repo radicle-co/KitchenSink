@@ -21,7 +21,7 @@ jobs:
             id-token: write # granted so _ci.yml e2e-web can reach it (a callee only downgrades)
             # ⛔ Granted for `_ci.yml`'s `mobile-app-build` job, whose plan reads and downloads an earlier run's test app
             # artifact. A callee can only downgrade, so a caller that omits it has the whole run rejected (`startup_failure`).
-            actions: read
+            actions: read # mobile-app-build reuses an earlier run's test app artifact
             # `_ci.yml`'s `infra-shared` job declares `packages: write`, and a called workflow's job may only
             # DOWNGRADE the caller's grant — requesting more is a hard error, so it is granted here even
             # though on main the job publishes nothing (the release is `publishInfraShared.yml`'s job).

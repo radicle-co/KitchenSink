@@ -329,7 +329,7 @@ jobs:
         uses: ./.github/workflows/_mobileAppBuild.yml
         permissions:
             contents: read
-            actions: read
+            actions: read # mobile-app-build reuses an earlier run's test app artifact
         with:
             stage: sandbox
             recipe_origin: ${{ needs.resolve.outputs.recipe_origin }}

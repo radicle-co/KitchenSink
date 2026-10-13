@@ -1,6 +1,6 @@
 /**
- * WHICH SHARD of the Maestro matrix this process belongs to — and the check that the two channels carrying
- * that one fact have not drifted apart.
+ * WHICH SHARD of WHICH PLATFORM's Maestro matrix this process belongs to — and the check that the two channels
+ * carrying each of those facts have not drifted apart.
  *
  * ## Why there are two channels at all
  *
@@ -17,11 +17,22 @@
  * first purge. This is the same posture ADR-0035 takes for the migration manifest: two independent
  * computations of one value, compared, rather than one value trusted twice.
  *
- * @pattern Parse, don't validate — an unreadable or disagreeing shard throws rather than defaulting
+ * ## The platform is the same shape of fact (2026-10-13)
+ *
+ * Android and iOS have pool lanes of their own, so a (platform, shard) pair is what names a lane. `MAESTRO_PLATFORM` is
+ * the environment channel (the runner's own `PLATFORMS` variable reads the same name, and its absent value is
+ * `android`); `--platform` is the command-line channel `resetPool` and `poolAdmin` take. They are asserted to agree for
+ * the reason the shard's are.
+ *
+ * @pattern Parse, don't validate — an unreadable or disagreeing shard or platform throws rather than defaulting
  */
+import { MAESTRO_PLATFORMS, type MaestroPlatform } from '@kitchensink/e2e-fixtures/testPool';
 
 /** The environment variable the run key and the slot allocation both read. */
 const SHARD_ENV = 'COMMISE_E2E_SHARD';
+
+/** The environment variable that names the Maestro platform. */
+const PLATFORM_ENV = 'MAESTRO_PLATFORM';
 
 /**
  * The shard this process is, from the environment. Pure.
@@ -76,6 +87,59 @@ export function assertShardsAgree(flagged: number, env: Readonly<Record<string, 
         throw new Error(
             `e2e-seed: --shard ${String(flagged)} contradicts ${SHARD_ENV}=${String(declared)} — one of them would ` +
                 'purge or lease another shard’s pool slots. Fix the workflow; do not pick a winner here.',
+        );
+    }
+}
+
+/**
+ * The Maestro platform this process is, from the environment. Pure.
+ *
+ * ⛔ ABSENT IS `android`, and that is the runner's own rule rather than a guess (`runMaestroFlows.sh` defaults its
+ * `PLATFORMS` the same way, and a local run sets nothing). A PRESENT value that is not exactly a declared platform
+ * throws — no trimming, no case folding — because demoting an iOS job to Android would put it on Android's lane.
+ *
+ * @param env - The process environment.
+ * @returns The platform whose pool lanes this process leases and resets.
+ */
+export function resolveMaestroPlatform(env: Readonly<Record<string, string | undefined>>): MaestroPlatform {
+    const raw = env[PLATFORM_ENV];
+
+    if (raw === undefined || raw === '') {
+        return 'android';
+    }
+
+    const platform = MAESTRO_PLATFORMS.find((candidate) => candidate === raw);
+
+    if (platform === undefined) {
+        throw new Error(
+            `e2e-seed: ${PLATFORM_ENV}='${raw}' is not one of ${MAESTRO_PLATFORMS.join(', ')} — refusing to guess a platform`,
+        );
+    }
+
+    return platform;
+}
+
+/**
+ * Refuse a run whose two statements of "which platform am I" disagree. Pure.
+ *
+ * @param flagged - The platform the command line stated.
+ * @param env - The process environment.
+ * @throws When {@link PLATFORM_ENV} is set and names a different platform.
+ */
+export function assertPlatformsAgree(
+    flagged: MaestroPlatform,
+    env: Readonly<Record<string, string | undefined>>,
+): void {
+    if (env[PLATFORM_ENV] === undefined || env[PLATFORM_ENV] === '') {
+        return;
+    }
+
+    const declared = resolveMaestroPlatform(env);
+
+    if (declared !== flagged) {
+        throw new Error(
+            `e2e-seed: --platform ${flagged} contradicts ${PLATFORM_ENV}=${declared} — one of them would ` +
+                'purge or lease another platform’s pool slots. Fix the workflow; do not pick a winner here.',
         );
     }
 }

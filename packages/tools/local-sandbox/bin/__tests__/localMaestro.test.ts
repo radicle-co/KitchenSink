@@ -351,3 +351,38 @@ describe('local_maestro_align_identities — the local identity agrees with Cler
         expect(at('local_maestro_align_identities')).toBeLessThan(at('maestro_run_flow_list'));
     });
 });
+
+/**
+ * ADDED 2026-10-13: iOS has pool lanes of its own, so every seed and reset step names its platform. A local run is
+ * the Android emulator, and it says so EXPLICITLY — an absent platform would default to android in the seed tools, but
+ * a default is a decision nobody wrote down here, and `resetPool` refuses one outright.
+ */
+describe('the local run names its platform', () => {
+    const fakeNpx = (sandbox: Sandbox): void => {
+        writeFileSync(
+            path.join(sandbox.bin, 'npx'),
+            `#!/usr/bin/env bash\necho "npx $* platform=\${MAESTRO_PLATFORM:-unset}" >> "${sandbox.calls}"\nexit 0\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
+    };
+
+    it('⛔ resets the pool for android shard 1, with --platform on the command line', () => {
+        const sandbox = makeSandbox();
+        fakeNpx(sandbox);
+
+        expect(run(sandbox, 'local_maestro_reset_pool').status).toBe(0);
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain(
+            'resetPool.ts --tier maestro --platform android --shard 1',
+        );
+    });
+
+    it('exports MAESTRO_PLATFORM=android for the seed tools, beside the shard', () => {
+        const sandbox = makeSandbox();
+        const result = run(
+            sandbox,
+            `local_maestro_seed_env '${sandbox.state}'; echo "$MAESTRO_PLATFORM $COMMISE_E2E_SHARD"`,
+        );
+
+        expect(result.stdout.trim().split('\n').at(-1)).toBe('android 1');
+    });
+});

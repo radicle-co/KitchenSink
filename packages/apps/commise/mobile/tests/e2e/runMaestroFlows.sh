@@ -12,7 +12,10 @@
 # Measured on nightly run 31471786779, this job is 52.75m: 17.3m of FIXED setup (12.9m Gradle release-APK
 # build + ~1.5m emulator/AVD boot + install + ~2.9m checkout/deps/service build/seed) and 35.5m of FLOW
 # EXECUTION. The variable half dominates the fixed half 2:1, so which FLOWS run is the lever — not Gradle or
-# AVD caching, which target the smaller fixed half (~2.8%, refuted; do not re-propose it).
+# AVD caching, which target the smaller fixed half (~2.8%, refuted; do not re-propose it). That still holds for those
+# two. What changed on 2026-10-13 is a DIFFERENT lever on the same fixed half: the app is no longer built per shard at
+# all — it is built once, beside the deploy, and reused whole when its content key matches an earlier build
+# (`_mobileAppBuild.yml`) — which removes the build rather than speeding it up.
 # `recipes/collectionsPagination` alone is 7.75m, 22% of all flow time.
 #
 # Since commit 5832ce7c the tier auto-triggers on the mobile surface, so a large share of PRs pay the
@@ -45,9 +48,11 @@
 #
 #   1. **Disjoint identities.** Every flow signs in as the tier's FIXED Clerk pool slots and the per-flow reset
 #      RECONCILES that signer's library to the run manifest, so two shards on one signer delete each other's
-#      fixtures mid-flow. `maestroSlotForShard` (testPool.ts) partitions the roster and `MAESTRO_MAX_SHARDS` below
-#      is the shell-side copy of what that roster can reach. The erasure subjects are NOT partitioned: they all
-#      belong to `MAESTRO_ERASURE_SHARD`, and every flow in `MAESTRO_ERASING_FLOWS` is pinned there (see below).
+#      fixtures mid-flow. `maestroSlotForShard` (testPool.ts) partitions the roster by PLATFORM and then by shard
+#      (Android and iOS each have four disjoint lanes), and `MAESTRO_MAX_SHARDS` below is the shell-side copy of what
+#      EACH platform's lanes can reach. A platform's erasure subjects are NOT partitioned across its shards: they all
+#      belong to that platform's `MAESTRO_ERASURE_SHARD`, and every flow in `MAESTRO_ERASING_FLOWS` is pinned there
+#      (see below).
 #   2. **The SPINE runs on every shard.** Each shard installs the APK on its own emulator and nothing wipes the
 #      app between flows, so a shard that skipped `auth/loginFlow` would start every flow signed out.
 #   3. **A flow runs on exactly ONE shard.** Asserted over the UNION of the shards, because "a flow that runs
@@ -81,7 +86,9 @@
 #     runMaestroFlows.sh plan | verticals | platforms | max-shards | erasure-shard | erasing-flows | weights | default-weight
 set -uo pipefail
 
-APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-release.apk
+# The APK to install. CI hands the one `_mobileAppBuild.yml` built, downloaded and verified (`MAESTRO_ANDROID_APK`);
+# the default is the Gradle output path, which only a developer's own local build produces, so a local run is unchanged.
+APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-release.apk}"
 
 # ── THE PLAN — every flow CI runs, in execution order, each labelled with its vertical ────────────────────
 #
@@ -293,22 +300,23 @@ MAESTRO_IOS_DRIVER_BUNDLE='dev.mobile.maestro-driver-iosUITests.xctrunner'
 
 # ── SHARDING: how many runners the plan may be split across, and what each flow costs ────────────────────
 #
-# ⛔ `MAESTRO_MAX_SHARDS` IS A COPY OF `maestroShardCapacity()` (packages/tools/e2e-fixtures/src/testPool.ts),
-# and `maestroShardPartition.test.ts` asserts the two agree FROM DISK. It is a copy because neither language
-# can typecheck the other and this script must answer "how many shards" without a node process — the same
-# cross-language-contract posture `maestroFixtureVariables.test.ts` takes for the fixture key set. Raising it
-# is a THREE-part act: append signer/co-author lanes to `POOL_ROSTER`, have the owner run `poolAdmin --apply`
-# so those Clerk users exist, and raise this number. Raising it alone produces a shard whose very first pool
-# lease fails with "run poolAdmin --apply".
-MAESTRO_MAX_SHARDS=2
+# ⛔ `MAESTRO_MAX_SHARDS` IS A COPY OF `maestroShardCapacity(platform)` (packages/tools/e2e-fixtures/src/testPool.ts),
+# and `maestroShardPartition.test.ts` asserts the two agree FROM DISK, for EACH platform. It is a copy because neither
+# language can typecheck the other and this script must answer "how many shards" without a node process — the same
+# cross-language-contract posture `maestroFixtureVariables.test.ts` takes for the fixture key set. One number serves
+# both platforms because both have four lanes (2026-10-13: Android signer/signer02-04, iOS iossigner01-04); if they
+# ever differ this becomes a per-platform table and the guard says so. Raising it is a THREE-part act: append
+# signer/co-author lanes to `POOL_ROSTER`, have the owner run `poolAdmin --apply` so those Clerk users exist, and
+# raise this number. Raising it alone produces a shard whose very first pool lease fails with "run poolAdmin --apply".
+MAESTRO_MAX_SHARDS=4
 
 # ── THE ERASURE LANE — which shard erases, and which flows erase ───────────────────────────────────────────
 #
 # ⛔ `MAESTRO_ERASURE_SHARD` IS A COPY OF `MAESTRO_ERASURE_SHARD` in testPool.ts, asserted equal from disk by
-# `maestroShardPartition.test.ts`. That module gives EVERY erasure subject to this one shard
-# (`maestroErasureSlots` states the lease contract), so every flow that erases is PINNED here rather than packed:
-# this shard's concurrency group is the only thing that keeps two jobs from leasing the same subject, and a flow
-# packed onto another shard would erase on another lane. It is shard 1 because shard 1 is the only index every
+# `maestroShardPartition.test.ts`. That module gives each platform's erasure subjects to this one shard of that
+# platform (`maestroErasureSlots` states the lease contract), so every flow that erases is PINNED here rather than
+# packed: this shard's concurrency group is the only thing that keeps two jobs from leasing the same subject, and a
+# flow packed onto another shard would erase on another lane. It is shard 1 because shard 1 is the only index every
 # matrix holds — Android's and iOS's are sized separately, so "the last shard" would differ between them.
 MAESTRO_ERASURE_SHARD=1
 
@@ -316,47 +324,75 @@ MAESTRO_ERASURE_SHARD=1
 # membership. The guard derives this set from the flows' own YAML and holds this list to it in both directions.
 MAESTRO_ERASING_FLOWS=' accountErasure '
 
-# What each flow COSTS, in seconds, measured on run 35220684252 (23 flows, 32.2m of flow execution). The
-# packing below is least-loaded-first over these, which is what keeps `recipes/collectionsPagination` — 432s,
-# a fifth of the whole suite — from deciding the wall clock on its own.
+# What each flow COSTS, in seconds. REFRESHED 2026-10-13 from run 38322183404: the wall-clock span of each flow's log group
+# (its reset, driver start and flow, as the runner prints them) for every Android flow that PASSED on either shard — 44
+# flows. The table used to hold the 23 flows timed on run 35220684252; the plan has since grown to 55, and an untimed flow
+# is packed at the default. A flow that FAILED in that run keeps its earlier measurement where it had one (its time-to-fail
+# is not its cost) and is otherwise untimed: seven flows are, until a green run times them. The packing below is
+# least-loaded-first over these, which is what keeps `recipes/collectionsPagination` — 432s, the largest flow by far —
+# from deciding the wall clock on its own.
 #
 # ⚠️ A STALE ENTRY COSTS BALANCE, NEVER CORRECTNESS: every flow still runs on exactly one shard whatever the
 # weights say, so drift makes a run slower and never wrong. What the guard does forbid is an entry naming a
 # flow the plan does not run, because that is a rename nobody followed through.
-# ⚠️ COVERAGE IS PARTIAL AND THE GUARD ONLY SEES ONE DIRECTION. These weights cover only the flows timed on that
-# run; every other planned flow is untimed and takes the default. The guard catches an entry naming a flow the plan
+# ⚠️ COVERAGE IS PARTIAL AND THE GUARD ONLY SEES ONE DIRECTION. These weights cover only the flows timed above; every
+# other planned flow is untimed and takes the default. The guard catches an entry naming a flow the plan
 # does NOT run (currently 0) — it does NOT catch a flow the plan runs with no entry, which is the direction a
 # NEW flow drifts in. Consequence is balance only, never correctness: every flow still runs on exactly one
 # shard whatever the table says. ⚠️ And the wall-clock figure quoted in `_ci-heavy.yml` was derived from a
 # 23-flow run, so re-measure it rather than trusting it after the plan grows.
-MAESTRO_FLOW_WEIGHTS="auth/loginFlow=69
-home=32
-recipes/rating=44
-recipes/listDetail=52
-recipes/emptyLibrary=27
+MAESTRO_FLOW_WEIGHTS="auth/loginFlow=62
+home=26
+recipes/rating=49
+recipes/listDetail=60
+shell/tabBar=52
+recipes/servingScale=37
+recipes/detailCooking=51
+recipes/deferredCalories=32
+recipes/emptyLibrary=30
 recipes/searchNavigation=157
-recipes/edit=89
+recipes/edit=157
 recipes/versions=146
-recipes/visibility=44
-recipes/discoverBrowse=62
-recipes/discoverRecentSearches=86
-recipes/discoverDetailSaveCopy=44
+recipes/visibility=36
+recipes/discoverBrowse=72
+recipes/discoverRecentSearches=81
+recipes/discoverIngredientCap=59
+recipes/discoverSaveCopy=36
+recipes/discoverDetailSaveCopy=42
+recipes/privateFoodStandIn=58
 recipes/conflictMerge=94
-recipes/collections=74
+recipes/collections=96
+recipes/collectionAddRemoveUndo=63
 recipes/collectionsPagination=432
-recipes/collectionsVisibility=54
-recipes/collectionsSaveCopy=58
-recipes/collectionsPull=108
-recipes/newCollectionSheet=45
-recipes/create=79
-recipes/photos=68
-recipes/accessibility=36
-accountDangerZone=34
-recipes/delete=43"
+recipes/collectionsVisibility=58
+recipes/collectionsSaveCopy=56
+recipes/collectionsPull=110
+recipes/newCollectionSheet=44
+recipes/createEntry=29
+recipes/systemBackGuard=180
+recipes/editorSections=59
+recipes/create=127
+recipes/pasteList=57
+recipes/quantityRange=159
+recipes/addIngredientLoop=87
+recipes/ingredientUnmatched=75
+recipes/ingredientNutritionPanel=85
+recipes/ingredientRemove=88
+recipes/ingredientAddDetails=97
+recipes/ingredientVariantSearch=103
+recipes/ingredientRowVariant=82
+recipes/ingredientRowEditor=144
+recipes/ingredientCandidates=93
+recipes/photos=60
+recipes/accessibility=31
+dataSources=32
+accountDangerZone=35
+recipes/delete=38
+accountErasure=66"
 
 # The cost assumed for a flow nobody has timed — the MEDIAN of the measured set, not its mean (the mean is
 # dragged up by the 432s outlier) and not zero (a flow assumed free is a flow the packer ignores).
-MAESTRO_DEFAULT_FLOW_WEIGHT=58
+MAESTRO_DEFAULT_FLOW_WEIGHT=61
 
 # Flows whose state under test is a GENUINELY EMPTY library (the first-run screen a new account opens on).
 # The reset truncates for every flow; for these it also SKIPS the re-seed, which is the only way to reach

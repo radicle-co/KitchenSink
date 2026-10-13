@@ -14,6 +14,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import type { SessionHandle } from '@kitchensink/e2e-fixtures';
+import { MAESTRO_PLATFORMS, type MaestroPlatform } from '@kitchensink/e2e-fixtures/testPool';
 
 import { withoutTrailingSlashes } from './env.js';
 
@@ -28,6 +29,13 @@ export interface SessionState {
      * leased — so a reset can never disagree with the session it is holding, whatever the environment says.
      */
     readonly shard: number;
+    /**
+     * The Maestro platform these sessions belong to; with {@link SessionState.shard} it names the lane.
+     *
+     * ⛔ Carried in the FILE for the reason `shard` is, and parsed as strictly: it decides which platform's signer
+     * a reset reconciles, so a reset must never disagree with the session it is holding.
+     */
+    readonly platform: MaestroPlatform;
     readonly signer: SessionHandle;
     readonly coAuthor: SessionHandle;
 }
@@ -93,7 +101,7 @@ export function readSessionState(path: string): SessionState {
     // let absence through while the comment above it claimed otherwise.
     const shard: unknown = (parsed as { readonly shard?: unknown }).shard;
 
-    // ⚠️ ONLY `shard` IS PARSED, and the `as SessionState` below is that NARROW claim, not a total one. The
+    // ⚠️ ONLY `shard` AND `platform` ARE PARSED, and the `as SessionState` below is that NARROW claim, not a total one. The
     // asymmetry is the reason: a well-typed WRONG shard is silently destructive — it purges another pool
     // slot's world — whereas a malformed `signer`/`coAuthor` cannot be silently wrong, because
     // `remintFromSession` throws loudly at mint time (`e2e-fixtures/src/clerkSession.ts`), which is
@@ -102,6 +110,17 @@ export function readSessionState(path: string): SessionState {
     if (typeof shard !== 'number' || !Number.isInteger(shard) || shard < 1) {
         throw new Error(
             `e2e-seed session state at ${path} carries an invalid shard: ${JSON.stringify(shard)} (expected a positive integer)`,
+        );
+    }
+
+    const platform: unknown = (parsed as { readonly platform?: unknown }).platform;
+
+    // ⛔ A state file with no platform predates the per-platform lanes, and "assume android" would reset the Android
+    // signer on behalf of an iOS run. It is as invalid as an unknown value, so it throws here, under its own message.
+    if (typeof platform !== 'string' || !MAESTRO_PLATFORMS.some((candidate) => candidate === platform)) {
+        throw new Error(
+            `e2e-seed session state at ${path} carries an invalid platform: ${JSON.stringify(platform)} ` +
+                `(expected one of ${MAESTRO_PLATFORMS.join(', ')})`,
         );
     }
 

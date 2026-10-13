@@ -1,7 +1,7 @@
 name: CI — heavy tiers (reusable)
 
-# The HEAVY test tiers: mobile Maestro (Android emulator + Gradle APK build, and iOS Simulator + Xcode Release
-# build on a standard macOS runner) and the k6 load test against
+# The HEAVY test tiers: mobile Maestro (an Android emulator, and an iOS Simulator on a standard macOS runner, each
+# driving a test app built ONCE per run by `_mobileAppBuild.yml`) and the k6 load test against
 # this stage's DEPLOYED origins. Parameterized by `stage`, and called ONLY by `deployedE2eTiers.yml` (the
 # pull-request pipeline and the manual door `deployedE2e.yml`), `recipe-loadtest.yml` and `ci-full.yml` — never
 # directly by ci-pr.yml or ci-main.yml.
@@ -20,8 +20,9 @@ name: CI — heavy tiers (reusable)
 #
 # ## Why they are opt-in at all (cost + duration)
 #
-# Maestro boots an Android emulator and Gradle-builds a release APK (~50 min measured); the k6 job drives
-# minutes of sustained load against three deployed origins. Together that is tens of runner-minutes per
+# Maestro boots an Android emulator or an iOS Simulator and drives the flows on each (~45 min a shard on the 2026-10-13
+# measurement, before the build moved out); the k6 job drives minutes of sustained load against three deployed
+# origins. Together that is tens of runner-minutes per
 # push, which contradicts the repo's cost posture (ADR-0007/ADR-0008). So Maestro runs on a PR carrying the
 # `mobile-e2e` label or on demand, and k6 runs ONLY on demand (owner ruling 2026-09-13: "not run k6
 # automatically, but let it remain a job I can manually trigger") — and both are BLOCKING when they do run: a
@@ -103,8 +104,8 @@ on:
                 default: sandbox
             run_mobile_maestro:
                 description: >-
-                    Run the mobile Maestro tier — BOTH platforms: the Android emulator job (release APK) and the
-                    iOS Simulator job (Release app, standard macOS runner). One switch on purpose: the
+                    Run the mobile Maestro tier — BOTH platforms: the Android emulator job and the iOS Simulator job
+                    (standard macOS runner), each driving the test app `_mobileAppBuild.yml` built. One switch on purpose: the
                     cross-platform rule ships every feature to both, so a caller that wants the mobile tier wants
                     both halves of it.
                 required: false
@@ -136,26 +137,58 @@ on:
                     costs nothing: `shard-matrix` parses and clamps whatever arrives, which it must do anyway for
                     a value a human typed into a form.
                     ⛔ THE DEFAULT IS WHAT THE CLERK POOL CAN IDENTIFY, AND RAISING IT IS NOT A FREE DIAL.
-                    `maestroShardCapacity()` clamps to the DECLARED roster, but a declared lane is not a Clerk
-                    user: shard 2's `resetBefore` leases `signer02`/`coauthor02` FOR REAL, so a default the
-                    sandbox tenant cannot satisfy fails the job at its first pool lease, for a reason that has
-                    nothing to do with the flows. '2' is the roster's capacity (`testPool.ts`), and
-                    `maestroShardPartition.test.ts` is what refuses anything above it.
+                    `maestroShardCapacity(platform)` clamps to the DECLARED roster, but a declared lane is not a Clerk
+                    user: shard 4's `resetBefore` leases `signer04`/`coauthor04` (iOS: `iossigner04`/`ioscoauthor04`)
+                    FOR REAL, so a default the sandbox tenant cannot satisfy fails the job at its first pool lease,
+                    for a reason that has nothing to do with the flows. Each platform's roster now identifies four
+                    shards (`testPool.ts`; the owner's coordinator ran `poolAdmin --apply` for all twelve new users on
+                    2026-10-13), and `maestroShardPartition.test.ts` is what refuses anything above it. The default stays
+                    '2' until all three defaults move to '4', which is the last step of the three-part act (below).
+
+                    ⚠️ FOUR RUNNERS PER PLATFORM IS EIGHT DEVICES against one 0.5-vCPU Spot recipe task and one shared
+                    micro database, and five concurrent macOS jobs is GitHub Free's ceiling (four iOS shards plus the iOS
+                    build). The first labelled run is the measurement: per-shard wall clock, Clerk 429s, recipe-service
+                    5xx and timeouts.
+
+                    ⛔ THE SHARD JOBS' TIMEOUTS (60 minutes Android, 75 iOS) ASSUME FOUR SHARDS. They were sized from the
+                    measured flow time divided four ways plus about six to eight minutes of setup. A run with fewer shards —
+                    the default of '2' for as long as the defaults have not moved, a rollback, or a value typed into the
+                    manual form — runs more flows per runner and needs a LONGER timeout: at two shards Android has about
+                    eight minutes of margin (46 minutes of flows measured on run 38322183404, plus setup, against 60), and
+                    a single shard cannot finish inside either bound. Raise the two `timeout-minutes` with any such run.
 
                     ⚠️ THIS IS NOT THE ONLY FILE THE NUMBER LIVES IN, and it is not the one a labelled PR
                     reads. `_ci.yml` calls `deployedE2eTiers.yml`, which relays `maestro_shards` on from ITS
                     OWN default — so the `mobile-e2e` PR path is governed there, and that path has NO form to
                     override it. The three agree only because `maestroShardPartition.test.ts` asserts they do;
-                    editing this one alone reds that guard rather than changing behaviour. A rollback to '1'
-                    is therefore a three-file commit on the PR path, and a form field only on the manual door.
+                    editing this one alone reds that guard rather than changing behaviour. A rollback is therefore a
+                    three-file commit on the PR path, and a form field only on the manual door.
 
-                    ⛔ RAISING IT TO 3 HAS AN ORDER, and two of the steps share a commit: append the roster
+                    ⛔ RAISING IT FURTHER HAS AN ORDER, and two of the steps share a commit: append the roster
                     lanes AND raise `MAESTRO_MAX_SHARDS` TOGETHER (the guard asserts the two are equal, so a
                     lane added alone is already red), run `poolAdmin --apply` so those Clerk users exist, and
                     move this default — and the other two — LAST.
                 required: false
                 type: string
                 default: '2'
+            android_test_app:
+                description: >-
+                    The name of the artifact holding the Android test app, built ONCE for the whole run by
+                    `_mobileAppBuild.yml` (or reused from an earlier run with the same content key). Every Android
+                    shard downloads it and checks its manifest against this run's own origins before driving it.
+
+                    ⛔ EMPTY MAKES THE SHARDS REFUSE, not skip: no app is a red job, never a green one. The only
+                    callers that switch Maestro on (`deployedE2eTiers.yml`, and through it `_ci.yml` and
+                    `deployedE2e.yml`) always build first. Every other caller passes `run_mobile_maestro: false` as a
+                    literal (`ci-full.yml`, `recipe-loadtest.yml`), which `workflowInvariants.test.ts` requires.
+                required: false
+                type: string
+                default: ''
+            ios_test_app:
+                description: The iOS twin of `android_test_app` (a tarball of the Simulator `.app` plus its manifest).
+                required: false
+                type: string
+                default: ''
             maestro_flow_selector:
                 description: >-
                     WHICH Maestro flows to run, as `<name>=true|false` pairs (`full`, plus one per flow
@@ -211,11 +244,33 @@ jobs:
                   # No job here performs a git push/fetch/remote operation (verified), so the
                   # checkout token is pure attack surface left in the workspace (zizmor: artipacked).
                   persist-credentials: false
+            # ⛔ THE FAST PATH (2026-10-13). This job exists only to SEED the `node_modules` entry every other job of the
+            # tier restores, and on a run whose lockfile did not change the entry is already there — yet it ran `npm ci`
+            # unconditionally, 2.9 minutes on run 38322183404. A `lookup-only` restore asks whether the EXACT key exists
+            # without downloading the entry; on a hit there is nothing to seed, so `npm ci` and the save are skipped.
+            #
+            # `cache-hit` is `true` only for an exact primary-key match, and there are deliberately NO `restore-keys`: a
+            # prefix match would report another lockfile's tree as a hit and the tier would run on the wrong dependencies.
+            # The key is the one the save below writes, and `heavyInstallFastPath.test.ts` holds the two equal.
+            - name: Is the node_modules entry already cached?
+              id: probe
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  lookup-only: true
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
-            # `cache: npm` is KEPT here and removed from every restore-only job below, which is the split
+                  # The npm tarball cache is for `npm ci`, so it is switched on only when `npm ci` will run: on a fast-path
+                  # run there is nothing to restore and the post-step would try to save an empty directory.
+                  cache: ${{ steps.probe.outputs.cache-hit != 'true' && 'npm' || '' }}
+            # `cache: npm` is KEPT on a miss and removed from every restore-only job below, which is the split
             # that matters: this job runs `npm ci` and can actually use the tarball cache, while those jobs
             # restore the extracted `node_modules` entry and could never read it — they were each downloading
             # ~0.53 GB per run for nothing (~10.6 GB of pointless transfer across one CI run).
@@ -225,8 +280,11 @@ jobs:
             # run on `pull_request`, so the entry exists for every lockfile hash regardless. Removing it would
             # only buy this critical-path job a cold `npm ci`. Accumulation is bounded by `cachePrune.yml`
             # instead, which is the mechanism that actually holds the repo under GitHub's 10 GB cap.
-            - run: npm ci
+            - name: Install dependencies
+              if: steps.probe.outputs.cache-hit != 'true'
+              run: npm ci
             - name: Cache dependencies
+              if: steps.probe.outputs.cache-hit != 'true'
               uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
@@ -513,8 +571,10 @@ jobs:
             # ⚠️ NO CREDENTIALS IS AN ABSENCE TOO, not a red. Both AWS secrets are `required: false` on this
             # reusable workflow (a fork or Dependabot PR is given neither), and a stack probe without
             # credentials cannot distinguish "torn down" from "not allowed to look". Saying so and skipping
-            # is honest; failing the tier on a PR that cannot supply a credential is the unfixable red this
-            # file's `continue-on-error` secret load already exists to avoid one job over.
+            # is honest; failing the tier on a PR that cannot supply a credential is an unfixable red. That skip is
+            # decided HERE, by `live=false`, and not by a tolerated failure further down: the shard's own secrets load
+            # is NOT `continue-on-error` (owner rule 2026-10-13: a skip may only happen because the sandbox is down, and
+            # a skip is never a pass), so on a LIVE sandbox a failed load is a red job.
             #
             # `GITHUB_OUTPUT=` is cleared per call so the two evaluations cannot overwrite each other's
             # `deploy=`/`live=` keys; ONE combined `live=` is written at the end.
@@ -581,6 +641,11 @@ jobs:
         # interpolated one publishes the raw `${{ … }}` verbatim on exactly the runs a human is scanning).
         name: E2E (mobile — Maestro on an emulator, against the deployed sandbox)
         runs-on: ubuntu-latest
+        # Bounded (it had no bound, so GitHub's six hours): a shard no longer builds, so it is about 6 minutes of setup, the
+        # emulator boot, and a quarter of the flows — the slowest shard of the measured 2-shard run was 46 minutes of flows.
+        # ⛔ 60 ASSUMES FOUR SHARDS (see `maestro_shards`): at two shards the margin is about eight minutes, and fewer than
+        # two cannot fit. A dispatch or a rollback with fewer shards must raise this number with it.
+        timeout-minutes: 60
         needs: [install, resolve-mobile-target]
         # The target this job's e2e suite drives (`e2eTargetDeclaration.ts`, docs/CODING_STANDARDS.md §7.1a).
         env:
@@ -605,12 +670,13 @@ jobs:
         # divided, so two shards take ~33m and three ~28m; `runMaestroFlows.sh`'s header records why caching
         # the fixed half was refuted instead.
         #
-        # ⛔ WHY THE APK BUILD IS NOT HOISTED INTO ITS OWN JOB. It is the largest fixed cost (10.68m) and the
-        # obvious thing to build once and download as an artifact — but hoisting SERIALIZES it ahead of every
-        # shard (14m + 3m + flows/N) whereas a per-shard build runs it CONCURRENTLY (15m + flows/N), so the
-        # hoisted shape is strictly SLOWER in wall clock at every N while adding an artifact round-trip and a
-        # job the guards must discover. What it would buy is runner-minutes, which is a different objective
-        # from the one stated here; if that becomes the goal, hoist it then and say so.
+        # ⛔ THE APP IS BUILT ONCE, IN `_mobileAppBuild.yml`, AND THIS JOB ONLY DOWNLOADS IT (owner, 2026-10-13: "Do all
+        # three"). This note used to say the opposite — "WHY THE APK BUILD IS NOT HOISTED INTO ITS OWN JOB" — and its premise
+        # was a build INSIDE the tier: hoisting it there serialised the build (14m + 3m) ahead of every shard, strictly
+        # slower in wall clock than a per-shard build running concurrently. The build now sits in a job BESIDE the preview
+        # deploy (36.6 minutes on run 38322183404), so it costs the critical path nothing and the per-shard builds (18.4 and
+        # 14.3 minutes on Android, 17.5 and 26.2 on iOS) are gone. What replaced the "cheap" per-shard build is a manifest
+        # check: each shard refuses an app that is not exactly what its own run resolved (`buildTestApp.sh verify-manifest`).
         #
         # ⛔ AND NOT MAESTRO'S OWN `--shard-split`, WHICH WOULD PAY THE FIXED HALF ONCE. That is the option
         # that looks strictly better and it is declined on FOUR grounds, read out of Maestro's own source at
@@ -672,12 +738,18 @@ jobs:
         #
         # ⚠️ THE GROUP NAMES THE SLOT, NOT THE TIER, and that is what REPLACES the protection the old tier-wide
         # `test-pool-sandbox-maestro` group gave rather than weakening it. Shard 2 of this run holds different Clerk
-        # users than shard 1 (`maestroSlotForShard` partitions the signers and co-authors; every erasure subject
-        # belongs to shard 1, whose lane is therefore the only one that erases — `maestroErasureSlots`), so what must be
-        # mutually excluded is "two runs' shard 2", not "two shards". A tier-wide group would run the matrix one shard
-        # at a time and buy nothing; a shard-wide group excludes exactly the runs that share a user. This is the same
-        # shape `deployedE2eTiers.yml`'s 8-way `test-pool-sandbox-web-${{ matrix.shard }}` already uses, and
-        # `testPoolWorkflowWiring.test.ts` asserts the group, the shard hand-off to both resets, and the reset steps.
+        # users than shard 1 (`maestroSlotForShard` partitions the signers and co-authors by platform and shard; each
+        # platform's erasure subjects belong to its shard 1, whose lane is therefore the only one of that platform
+        # that erases — `maestroErasureSlots`), so what must be mutually excluded is "two runs' Android shard 2", not
+        # "two shards". A tier-wide group would run the matrix one shard at a time and buy nothing; a shard-wide
+        # group excludes exactly the runs that share a user. This is the same shape `deployedE2eTiers.yml`'s 8-way
+        # `test-pool-sandbox-web-${{ matrix.shard }}` already uses, and `testPoolWorkflowWiring.test.ts` asserts the
+        # group, the shard hand-off to both resets, and the reset steps.
+        #
+        # ⛔ THE ANDROID NAME IS UNCHANGED, and that is deliberate: since 2026-10-13 the iOS job holds a group of its
+        # own (`test-pool-sandbox-maestro-ios-…`) because it signs in as its own pool lanes, so this group now
+        # excludes only Android jobs. Keeping the old spelling means a run of OLDER code on another branch (which
+        # shares this group with its iOS job) is still excluded from this one.
         # ⚠️ GitHub keeps only ONE pending run per concurrency group: a third run arriving while one runs and one
         # waits cancels the waiting one, which reports red. Owner ruling (2026-09-14): "Accept, re-run on red".
         concurrency:
@@ -723,8 +795,22 @@ jobs:
                       echo "::error::the Maestro tier is sandbox-only — it provisions a Clerk sign-in test user in the '${STAGE}' tenant. Dispatch it with stage=sandbox, or with run_mobile_maestro=false."
                       exit 1
                   fi
-            # ⛔ BEFORE ANYTHING IS FETCHED, AND BEFORE THE CLERK SECRETS: every origin this job bakes into
-            # an APK arrives from ANOTHER job's output, and the whole purpose of the APK is to send requests
+            # ⛔ NO BUILT APP IS A RED JOB, NEVER A GREEN ONE. The Android test app is built once per run by
+            # `_mobileAppBuild.yml` (called from `_ci.yml` and `deployedE2e.yml`) and arrives here as an artifact name. An
+            # EMPTY name means the build did not run or did not finish, and the honest outcome is a failure that says so:
+            # skipping would render green over a tier that drove nothing, and building here would bring back the per-shard
+            # build this job no longer has. It sits right after the stage refusal and before anything is fetched, so it
+            # costs a few seconds. `mobileTestAppBuild.test.ts` EXECUTES this body.
+            - name: Refuse to run without the built Android test app
+              env:
+                  TEST_APP: ${{ inputs.android_test_app }}
+              run: |
+                  if [ -z "${TEST_APP}" ]; then
+                      echo "::error::this shard was handed no Android test app. It is built once per run by the mobile-app-build job (_mobileAppBuild.yml) and passed in as android_test_app; an empty name means that job did not run or did not finish. Look at its result first — this job cannot build one."
+                      exit 1
+                  fi
+            # ⛔ BEFORE ANYTHING IS FETCHED, AND BEFORE THE CLERK SECRETS: every origin this job drives (and checks
+            # the downloaded app was built for) arrives from ANOTHER job's output, and the whole purpose of the APK is to send requests
             # to them. An origin outside our own apex is either a resolver handed the wrong domain (an empty
             # or re-pointed `DOMAIN_NAME` repo variable resolves to `https://recipe-pr-91.` — a name, and a
             # request, that is not ours) or a `needs` plumbing mistake. This one FAILS rather than skipping:
@@ -817,7 +903,7 @@ jobs:
             # every stateful step below already keys on `steps.secrets.outcome == 'success'`, which reads
             # `skipped` when this gate closes, and the `always()` reset-after carries the same term so it
             # skips too — a closed gate must not run a pool reset against a stage that no longer exists.
-            # The prep steps above (checkout, JDK, Gradle, cache, `npm ci`) sit deliberately outside the
+            # The prep steps above (checkout, cache, `npm ci`) sit deliberately outside the
             # valve: they touch nothing remote, and re-running them on the rare skip path is harmless.
             - name: Is the deployed sandbox still up? (deploy-gate liveness, re-probed for this shard)
               id: liveness
@@ -879,16 +965,44 @@ jobs:
               id: secrets
               # ⛔ THE VALVE — gated on the re-probe's own answer, not the resolver's frozen one. Every
               # stateful step below keys on `steps.secrets.outcome == 'success'`, which reads `skipped` when
-              # this closes, so this one `if` shuts the whole tier (provision, JDK, Gradle, emulator, flows,
-              # artifacts and the reset-after) on a sandbox that is no longer up.
+              # this closes, so this one `if` shuts the whole tier (download, provision, JDK, emulator, flows,
+              # artifacts and the reset-after) on a sandbox that is no longer up. ⛔ NOT `continue-on-error` (owner rule
+              # 2026-10-13: a skip may only happen because the sandbox is down; a skip is never a pass): this step
+              # is skipped by its `if`, and when it RUNS, a failure is a red job.
               if: steps.liveness.outputs.live == 'true'
-              continue-on-error: true
               uses: ./.github/actions/load-secrets
               with:
                   stage: ${{ inputs.stage }}
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
+            # ⛔ THE BUILT APP, AND PROOF THAT IT IS THIS RUN'S. Downloaded after the valve (so a closed valve fetches
+            # nothing) and VERIFIED before the first pool reset, so a wrong app is refused before a Clerk slot is touched.
+            # `verify-manifest` is exact: the platform, the content key in the artifact's own NAME, the three origins this
+            # run resolved, and a digest of the publishable key. An artifact is reused across runs, so "some other run built
+            # this" is the normal case, and a binary baked for another stage does not fail loudly — it signs in and then
+            # reports defects that are not defects.
+            - name: Download the Android test app
+              if: steps.secrets.outcome == 'success'
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  name: ${{ inputs.android_test_app }}
+                  path: ${{ runner.temp }}/testApp
+            - name: Verify the Android test app is the one this run resolved
+              if: steps.secrets.outcome == 'success'
+              env:
+                  TEST_APP: ${{ inputs.android_test_app }}
+                  EXPECT_RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  EXPECT_FOOD_ORIGIN: ${{ needs.resolve-mobile-target.outputs.food_origin }}
+                  EXPECT_IDENTITY_ORIGIN: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
+                  EXPECT_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
+              run: |
+                  set -euo pipefail
+                  script=packages/apps/commise/mobile/scripts/buildTestApp.sh
+                  EXPECT_CONTENT_KEY=$(bash "${script}" key-from-artifact-name android "${TEST_APP}")
+                  export EXPECT_CONTENT_KEY
+                  bash "${script}" verify-manifest "${RUNNER_TEMP}/testApp/testApp.manifest" android
+                  test -f "${RUNNER_TEMP}/testApp/app.apk"
             # ⛔ PROVISION THIS RUN'S WORLD — lease the tier's three FIXED pool slots (no Clerk user is created),
             # the sessions every per-flow reset re-mints from, and the co-authored public recipe — and write the
             # fixture MANIFEST the flows are parameterised with.
@@ -923,11 +1037,12 @@ jobs:
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   SHARD_INDEX: ${{ matrix.shard }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
-              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --shard "${SHARD_INDEX}"
+                  MAESTRO_PLATFORM: android
+              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform android --shard "${SHARD_INDEX}"
             # ⛔ REFILL THE ERASURE SUBJECTS, then provision (owner ruling 2026-10-08 — `poolAdmin.ts`'s header states
             # it). Each real erasure destroys its subject, so the pool tops itself up here, through the single writer,
-            # scoped to the subjects THIS shard may lease: all of them on the erasure shard, none on any other
-            # (`maestroErasureSlots`), so the other shard's step reconciles nothing. It runs inside this shard's lease,
+            # scoped to the subjects THIS shard of THIS platform may lease: all of Android's five on its erasure shard,
+            # none on any other (`maestroErasureSlots`), so the other shards' steps reconcile nothing. It runs inside this shard's lease,
             # right before provisioning, and a refill that cannot make every subject leasable FAILS the job rather
             # than provisioning over an empty pool. `CLERK_SECRET_KEY` comes from the masked job environment
             # `load-secrets` wrote, and `poolAdmin` refuses a key that is not a development-instance key.
@@ -936,7 +1051,7 @@ jobs:
               if: steps.secrets.outcome == 'success'
               env:
                   SHARD_INDEX: ${{ matrix.shard }}
-              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --shard "${SHARD_INDEX}"
+              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --platform android --shard "${SHARD_INDEX}"
             # `COMMISE_E2E_SHARD` is LOAD-BEARING here, not decoration: `provision` leases THIS shard's signer and
             # co-author from it (and, on the erasure shard only, the erasure subject), `deriveRunKey` appends it so the
             # two shards' recipe TITLES differ, and `deriveFixtureManifest` puts this shard's signer address in the
@@ -949,6 +1064,7 @@ jobs:
                   E2E_SEED_FOOD_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
+                  MAESTRO_PLATFORM: android
               run: |
                   mkdir -p "${RUNNER_TEMP}/e2e-seed"
                   npx tsx packages/tools/e2e-seed/src/provision.ts > "${RUNNER_TEMP}/e2e-seed/fixture.env"
@@ -1017,85 +1133,11 @@ jobs:
               with:
                   distribution: temurin
                   java-version: '17'
-            # The mobile app's dependency closure only: the release JS bundle (built at APK-build time)
-            # imports `@commise/ui/tokens/*`, which resolves to that package's built `dist`, so its dist (and
-            # any other dist-exporting workspace dep) must exist first. The recipe-service image this step
-            # used to build alongside it is gone with the runner-local stack.
-            - name: Build the mobile app's workspace dependencies
+            # The seed tools' dependency closure only (`provision` and the per-flow `reset` run through `tsx`). The app's own
+            # workspace closure is built by `_mobileAppBuild.yml`, in the job that compiles the app.
+            - name: Build the workspace packages the seed tools import
               if: steps.secrets.outcome == 'success'
-              run: npx turbo run build --filter=@commise/mobile^...
-            # Build a standalone RELEASE APK (JS bundle EMBEDDED). A debug APK loads its JS from a Metro
-            # bundler at runtime — absent in CI, so the app renders nothing. The release build bundles the
-            # JS in-APK (with EXPO_PUBLIC_* inlined at build time → the DEPLOYED origins resolved above), so
-            # it runs Metro-free. Expo prebuild signs `release` with the debug keystore by default, so the
-            # APK installs without any keystore setup. Minification is disabled to avoid proguard stripping
-            # something the E2E needs.
-            #
-            # ⚠️ THE CLEARTEXT-HTTP MANIFEST PATCH IS GONE WITH THE LOCAL STACK. It existed so a release APK
-            # could reach `http://10.0.2.2:3000`; both endpoints are now `https://` under our own apex, which
-            # a release build allows by default. Do not restore it — re-enabling cleartext to reach a runner
-            # service is precisely the shape this conversion removed.
-            - name: Build Android release APK
-              if: steps.secrets.outcome == 'success'
-              working-directory: packages/apps/commise/mobile
-              env:
-                  # Every endpoint is REQUIRED — `mobile/src/config/env.ts` declares them with no default,
-                  # so the APK build fails outright if one is absent. They come from
-                  # `resolve-mobile-target`, which resolved them through the origin authority.
-                  EXPO_PUBLIC_RECIPE_API_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
-                  # Plan 002 S5: the app reads foods and their variants from food-service directly.
-                  EXPO_PUBLIC_FOOD_API_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
-                  # The app fetches the viewer PROFILE (viewerId → client-side ownership, tier) from the
-                  # identity service — the ONE shared `identity.{stage}` deploy every preview signs in
-                  # against, which is also the tenant the Clerk test user above is provisioned into.
-                  EXPO_PUBLIC_IDENTITY_API_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
-                  EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
-                  # The release build runs the @sentry/react-native gradle hook, which uploads source maps
-                  # via sentry-cli; there is no Sentry auth token in E2E, so disable the upload.
-                  SENTRY_DISABLE_AUTO_UPLOAD: 'true'
-              run: |
-                  npx expo prebuild --platform android --no-install
-                  cd android
-                  # ⛔ CONFIGURE FIRST, AND RETRY — the Android SDK components this build needs are
-                  # downloaded by Gradle during CONFIGURATION, not during compilation, and that download is
-                  # the least reliable thing in this job. On 2026-09-04 it simply failed:
-                  #
-                  #     "Install NDK (Side by side) 27.1.12297006" failed.
-                  #     com.android.builder.sdk.InstallFailedException: Failed to install the following
-                  #     SDK components: ndk;27.1.12297006
-                  #     BUILD FAILED in 2m 30s
-                  #
-                  # The run before it installed the same NDK from the same image without complaint, so this
-                  # is transient — and it cost the WHOLE heavy tier, because the APK never built and not one
-                  # Maestro flow ran. A failure that reports as "mobile e2e failed" while the app was never
-                  # assembled is the most expensive kind of red: it looks like the thing under test.
-                  #
-                  # ⛔ NO VERSION IS NAMED HERE, deliberately. `ndkVersion` comes from Expo's own Gradle
-                  # version catalog (`expoLibs`), not from any file in this repository — `android/` is
-                  # generated by `expo prebuild` and gitignored. Any literal we wrote would be a second copy
-                  # that silently drifts the next time the Expo SDK moves. Instead `:app:tasks` forces the
-                  # same configuration phase the real build performs, so Gradle asks for exactly whatever it
-                  # needs today and this step never has to know what that is.
-                  #
-                  # It is also CHEAP: configuration is ~1-2 minutes against ~12 for `assembleRelease`, so a
-                  # transient install failure now costs a short retry instead of a twelve-minute build that
-                  # dies at its second minute. By the time the assemble below runs, the components are on
-                  # disk and its configuration is a no-op.
-                  for attempt in 1 2 3; do
-                      if ./gradlew :app:tasks --no-daemon -q > /tmp/ndk-configure.log 2>&1; then
-                          echo "android sdk components resolved (attempt ${attempt})"
-                          break
-                      fi
-                      if [ "$attempt" -eq 3 ]; then
-                          echo "::error::Gradle could not resolve the Android SDK components after 3 attempts. This is the SDK download, not the app build — no APK was produced and no Maestro flow ran, so nothing below tested the mobile app. Log follows."
-                          cat /tmp/ndk-configure.log
-                          exit 1
-                      fi
-                      echo "::warning::Android SDK component install failed (attempt ${attempt}/3) — retrying in $((attempt * 20))s"
-                      sleep "$((attempt * 20))"
-                  done
-                  ./gradlew :app:assembleRelease --no-daemon \
-                      -PenableProguardInReleaseBuilds=false -PenableShrinkResourcesInReleaseBuilds=false
+              run: npx turbo run build --filter='@kitchensink/e2e-seed^...'
             # Hardware-accelerate the emulator (KVM). Without this the emulator falls back to slow software
             # rendering (a ~7min boot + ~4min APK install), which starves the Maestro Android driver and
             # times it out ("driver did not start up in time"). GitHub's Linux runners expose /dev/kvm but
@@ -1107,10 +1149,11 @@ jobs:
                       | sudo tee /etc/udev/rules.d/99-kvm4all.rules
                   sudo udevadm control --reload-rules
                   sudo udevadm trigger --name-match=kvm
-            # The emulator-runner installs a ~3 GB x86_64 system image; once the mobile deps and the release
-            # APK are on disk the runner's ~14 GB budget is nearly spent, and the install can abort with "No
-            # space left on device" (the emulator then never boots). The APK is already built by this point,
-            # so reclaim the large toolchains this job never uses — but NOT the Android
+            # The emulator-runner installs a ~3 GB x86_64 system image, and the runner's ~14 GB budget was nearly
+            # spent by the dependencies and (before the build moved to `_mobileAppBuild.yml`) the Gradle output, so
+            # the install can abort with "No space left on device" (the emulator then never boots). The APK is only
+            # downloaded now, which leaves more room, but the step is KEPT: the margin was never measured and the
+            # step is cheap. Reclaim the large toolchains this job never uses — but NOT the Android
             # platform-tools/emulator/system images. This makes the emulator boot robust to runner-to-runner
             # free-space variance.
             - name: Free disk space for the emulator system image
@@ -1130,6 +1173,9 @@ jobs:
               env:
                   # Stated, not defaulted — the same platform the `shards` step sized this matrix for.
                   MAESTRO_PLATFORM: android
+                  # The APK `_mobileAppBuild.yml` built and this job downloaded and verified. The runner script's own
+                  # default is the Gradle output path, which only a developer's local build produces.
+                  MAESTRO_ANDROID_APK: ${{ runner.temp }}/testApp/app.apk
                   MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
                   # The per-flow reset reconciles the signer's library to the manifest through the recipe
                   # API, re-minting from the session `provision` established. Same three values that step
@@ -1218,7 +1264,8 @@ jobs:
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   SHARD_INDEX: ${{ matrix.shard }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
-              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --shard "${SHARD_INDEX}"
+                  MAESTRO_PLATFORM: android
+              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform android --shard "${SHARD_INDEX}"
             - name: Upload Maestro artifacts
               if: failure() && steps.secrets.outcome == 'success'
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1262,13 +1309,15 @@ jobs:
     # `workflowProvenance`), and `maestroIosTier.test.ts` pins what is new with iOS. Where a note below would
     # restate the Android job's reasoning, it points at it instead.
     #
-    # ⛔ THE SAME POOL LANE AS ANDROID — `test-pool-sandbox-maestro-${{ matrix.shard }}` — AND THAT COSTS WALL
-    # CLOCK ON PURPOSE. The Clerk roster has one signer/co-author pair per SHARD, not per platform, so iOS shard N
-    # signs in as Android shard N's users, and the per-flow reset reconciles THAT signer's library. Two platforms
-    # on one lane at once would delete each other's fixtures mid-flow; sharing the group serialises them instead.
-    # A separate lane is the three-part act on `maestro_shards` (roster lanes, `poolAdmin --apply`, the shell
-    # ceiling) and is the owner's to take. ⚠️ GitHub keeps ONE pending job per group, so a third arrival cancels a
-    # waiting shard (owner ruling 2026-09-14: "Accept, re-run on red") — with two platforms that happens more often.
+    # ⛔ ITS OWN POOL LANES, `test-pool-sandbox-maestro-ios-${{ matrix.shard }}` (owner, 2026-10-13: "do all three").
+    # This header used to say the opposite: the roster had one signer/co-author pair per SHARD, so iOS shard N signed
+    # in as Android shard N's users and the two jobs shared a group, which serialised them (run 38322183404: iOS
+    # waited 36 minutes behind Android). The three-part act on `maestro_shards` was taken instead — the roster now
+    # carries `iossigner01-04` and `ioscoauthor01-04`, `poolAdmin --apply` created them, and `MAESTRO_MAX_SHARDS` is 4
+    # — so the platforms run side by side. Each platform's shard 1 erases from ITS OWN five subjects (Android
+    # `erasure01-05`, iOS `erasure06-10`; `maestroErasureSlots`), and every seed, reset and refill step names its
+    # platform. ⚠️ GitHub keeps ONE pending job per group, so a third arrival cancels a waiting shard (owner ruling
+    # 2026-09-14: "Accept, re-run on red").
     #
     # ⛔ A STANDARD macOS RUNNER, NAMED BY VERSION. The repository is public, so standard runners cost nothing;
     # every `-large`/`-xlarge` label (and `-intel`, which maps onto them) is billed regardless. `macos-26` is the
@@ -1278,16 +1327,21 @@ jobs:
     #   • No `node_modules` cache restore. The Linux `install` job's entry is keyed `Linux-…`, so on macOS it
     #     could never hit — and the cache-miss warning would fire on every run and train readers to ignore it.
     #   • The Maestro install verifies with `shasum -a 256`, macOS's tool; the pin is the same pair.
-    #   • The app is built by `expo prebuild` + `xcodebuild` (Release, Simulator SDK) and installed by the script.
+    #   • The app is NOT built here: `_mobileAppBuild.yml` builds it once per run (`expo prebuild` + `xcodebuild`, Release,
+    #     Simulator SDK), and this job downloads, verifies and unpacks it. The script installs it.
     #   • Flows that drive Android's SYSTEM back key are excluded on iOS by the script's own table, printed per
     #     flow with a class and a reason (`maestroPlatformExclusions.test.ts`) — never silently.
     e2e-mobile-maestro-ios:
         # ⛔ A CONSTANT (workflowInvariants invariant 8), and it says E2E and declares DEPLOYED (invariant 7).
         name: E2E (mobile — Maestro on an iOS Simulator, against the deployed sandbox)
         runs-on: macos-26
-        # ⛔ BOUNDED. The Android job is not, but a hung Simulator here holds the SHARED pool lane — and therefore
-        # the Android shard queued behind it — for GitHub's six-hour default.
-        timeout-minutes: 150
+        # ⛔ BOUNDED. A hung Simulator here holds its pool lane — and therefore the next run's iOS shard queued behind it — for
+        # GitHub's six-hour default. 75 minutes (it was 150, sized for a per-shard build of up to 26 minutes plus 54 minutes
+        # of flows on two shards): a shard is now about 8 minutes of setup, a boot that overlaps it, and a quarter of the
+        # flows. `maestroIosTier.test.ts` holds the number.
+        # ⛔ 75 ASSUMES FOUR SHARDS, like the Android job's 60 (see `maestro_shards`): fewer shards means more flows per runner,
+        # and a rollback or a dispatch with fewer must raise this number with it.
+        timeout-minutes: 75
         needs: [install, resolve-mobile-target]
         env:
             E2E_TARGET: deployed
@@ -1306,9 +1360,11 @@ jobs:
             fail-fast: false
             matrix:
                 shard: ${{ fromJSON(needs.resolve-mobile-target.outputs.maestro_ios_shards || '[1]') }}
-        # ⛔ THE ANDROID JOB'S GROUP, VERBATIM — see the header above for why sharing it is the safe choice.
+        # ⛔ ITS OWN GROUP, NOT THE ANDROID JOB'S — see the header above. The iOS lanes are `iossigner0N` /
+        # `ioscoauthor0N`, so an iOS shard and the Android shard with the same number share no Clerk user and no
+        # longer queue behind each other. What this group excludes is two RUNS' iOS shard N, which do share one.
         concurrency:
-            group: test-pool-sandbox-maestro-${{ matrix.shard }}
+            group: test-pool-sandbox-maestro-ios-${{ matrix.shard }}
             cancel-in-progress: false
         if: ${{ inputs.run_mobile_maestro && needs.resolve-mobile-target.outputs.live == 'true' }}
         steps:
@@ -1322,12 +1378,22 @@ jobs:
                       echo "::error::the Maestro tier is sandbox-only — it provisions a Clerk sign-in test user in the '${STAGE}' tenant. Dispatch it with stage=sandbox, or with run_mobile_maestro=false."
                       exit 1
                   fi
+            # ⛔ NO BUILT APP IS A RED JOB, NEVER A GREEN ONE — the Android job's refusal, for its reason. The iOS test app is
+            # built once per run by `_mobileAppBuild.yml`; an empty name means it did not run or did not finish.
+            - name: Refuse to run without the built iOS test app
+              env:
+                  TEST_APP: ${{ inputs.ios_test_app }}
+              run: |
+                  if [ -z "${TEST_APP}" ]; then
+                      echo "::error::this shard was handed no iOS test app. It is built once per run by the mobile-app-build job (_mobileAppBuild.yml) and passed in as ios_test_app; an empty name means that job did not run or did not finish. Look at its result first — this job cannot build one."
+                      exit 1
+                  fi
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
                   # No step here performs a git push/fetch/remote operation, so the checkout token is pure attack
                   # surface left in the workspace (zizmor: artipacked).
                   persist-credentials: false
-            # Every origin this job bakes into the app comes from another job's output — vouched for here, before
+            # Every origin this job drives, and checks the downloaded app was built for, comes from another job's output — vouched for here, before
             # anything is fetched from it, by the ONE predicate every deployed tier calls.
             - name: Confirm every resolved target is under this repository's own domain
               env:
@@ -1354,6 +1420,50 @@ jobs:
                       exit 1
                   fi
                   xcodebuild -version
+            # THE BOOT OVERLAP (2026-10-13): started HERE, right after the Xcode check, because nothing about booting needs the
+            # dependencies, the liveness answer or the Clerk keys, and a Simulator takes 2-3 minutes to boot. It is created and
+            # booted while `npm ci` runs; 'Wait for the iOS Simulator to finish booting' further down is the only part on the
+            # path to the flows. It sits OUTSIDE the secrets valve for that reason, and costs nothing when the liveness probe
+            # then skips the shard (a runner is discarded). It touches no remote.
+            # ⛔ CREATE THE PINNED SIMULATOR AND START IT BOOTING — by NAME, resolved to identifiers on this image, REFUSED if
+            # absent or unavailable (`maestroIosTier.test.ts` executes this body against a stubbed `xcrun`). It is
+            # created fresh per shard, so its keychain is empty: `auth/loginFlow` — the spine, and the only flow
+            # that starts signed out — relies on that, because Maestro's `clearState` does not clear the iOS
+            # keychain where `expo-secure-store` keeps the Clerk session.
+            #
+            # The keyboard's suggestion settings are written into the device's preferences BEFORE it boots,
+            # because the keyboard reads them as it starts: autocorrect, capitalisation, spell check and prediction
+            # would otherwise rewrite what `inputText` types — the iOS form of the Android job's
+            # `spell_checker_enabled 0`. ⚠️ Best-effort, like that line: a key the OS ignores costs nothing, and
+            # whether all of them take effect headless is unverified until a real run.
+            #
+            - name: Create the pinned iOS Simulator and start it booting
+              id: simulator
+              env:
+                  SHARD_INDEX: ${{ matrix.shard }}
+              run: |
+                  set -euo pipefail
+                  runtime=$(xcrun simctl list runtimes -j |
+                      jq -r --arg name "${IOS_SIMULATOR_RUNTIME}" \
+                          '.runtimes[] | select(.name == $name and .isAvailable == true) | .identifier' | head -1)
+                  devicetype=$(xcrun simctl list devicetypes -j |
+                      jq -r --arg name "${IOS_SIMULATOR_DEVICE}" '.devicetypes[] | select(.name == $name) | .identifier' |
+                      head -1)
+                  if [ -z "${runtime}" ] || [ -z "${devicetype}" ]; then
+                      echo "::error::the pinned Simulator (${IOS_SIMULATOR_DEVICE} on ${IOS_SIMULATOR_RUNTIME}) is not available on this image — refusing to run on a different device. Bump IOS_SIMULATOR_RUNTIME, IOS_SIMULATOR_DEVICE and DEVELOPER_DIR together."
+                      xcrun simctl list runtimes
+                      exit 1
+                  fi
+                  udid=$(xcrun simctl create "maestro-${GITHUB_RUN_ID}-${SHARD_INDEX}" "${devicetype}" "${runtime}")
+                  prefs="$HOME/Library/Developer/CoreSimulator/Devices/${udid}/data/Library/Preferences"
+                  mkdir -p "${prefs}"
+                  for key in KeyboardAutocorrection KeyboardAutocapitalization KeyboardCheckSpelling KeyboardPrediction KeyboardPeriodShortcut; do
+                      defaults write "${prefs}/com.apple.Preferences" "${key}" -bool false ||
+                          echo "::warning::could not write ${key} for the Simulator keyboard"
+                  done
+                  xcrun simctl boot "${udid}"
+                  echo "udid=${udid}" >> "$GITHUB_OUTPUT"
+                  echo "booting ${IOS_SIMULATOR_DEVICE} on ${IOS_SIMULATOR_RUNTIME} as ${udid}"
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
@@ -1419,19 +1529,61 @@ jobs:
                   else
                       echo "::notice::${STAGE} is no longer up for the iOS Maestro tier — SKIPPING this shard (this is not a failure; the sandbox this run resolved has since been torn down or stopped answering). recipe: $(field "${recipe_verdict}" reason). food: $(field "${food_verdict}" reason)"
                   fi
-            # THE VALVE — every stateful step below keys on `steps.secrets.outcome == 'success'`.
+            # THE VALVE — every stateful step below keys on `steps.secrets.outcome == 'success'`, which reads `skipped`
+            # only when the liveness re-probe above closed it. The load itself is NOT `continue-on-error`: a failure on a
+            # live sandbox is red, never a shard that quietly drove nothing.
             - name: Load ${{ inputs.stage }} Clerk secrets
               id: secrets
               if: steps.liveness.outputs.live == 'true'
-              continue-on-error: true
               uses: ./.github/actions/load-secrets
               with:
                   stage: ${{ inputs.stage }}
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            # ⛔ RESET BEFORE, AND IT FAILS THE JOB — this shard's slots only. The Android job's note says why; the
-            # lane is the SAME one, and the concurrency group above is what keeps the two platforms off it at once.
+            # ⛔ THE BUILT APP, AND PROOF THAT IT IS THIS RUN'S — the Android job's pair, for its reason. The Xcode the app was
+            # built with is part of what is checked (`xcodebuild -version`, normalised by the script), because the Simulator
+            # runtime on this runner must be the one that SDK targets.
+            - name: Download the iOS test app
+              if: steps.secrets.outcome == 'success'
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  name: ${{ inputs.ios_test_app }}
+                  path: ${{ runner.temp }}/testApp
+            - name: Verify the iOS test app is the one this run resolved
+              if: steps.secrets.outcome == 'success'
+              env:
+                  TEST_APP: ${{ inputs.ios_test_app }}
+                  EXPECT_RECIPE_ORIGIN: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
+                  EXPECT_FOOD_ORIGIN: ${{ needs.resolve-mobile-target.outputs.food_origin }}
+                  EXPECT_IDENTITY_ORIGIN: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
+                  EXPECT_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
+              run: |
+                  set -euo pipefail
+                  script=packages/apps/commise/mobile/scripts/buildTestApp.sh
+                  EXPECT_CONTENT_KEY=$(bash "${script}" key-from-artifact-name ios "${TEST_APP}")
+                  EXPECT_XCODE_VERSION=$(bash "${script}" xcode-version)
+                  export EXPECT_CONTENT_KEY EXPECT_XCODE_VERSION
+                  bash "${script}" verify-manifest "${RUNNER_TEMP}/testApp/testApp.manifest" ios
+            # Unpacked only AFTER the manifest has been verified, so an app that was refused is never unpacked. A tarball
+            # because `upload-artifact` drops the executable bit and an .app is full of executables.
+            - name: Unpack the iOS test app
+              id: app
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  set -euo pipefail
+                  dest="${RUNNER_TEMP}/testApp/unpacked"
+                  mkdir -p "${dest}"
+                  tar -xzf "${RUNNER_TEMP}/testApp/app.tar.gz" -C "${dest}"
+                  apps=("${dest}"/*.app)
+                  if [ "${#apps[@]}" -ne 1 ] || [ ! -d "${apps[0]}" ]; then
+                      echo "::error::expected exactly one .app bundle in the iOS test app tarball, found: ${apps[*]}"
+                      exit 1
+                  fi
+                  echo "app=${apps[0]}" >> "$GITHUB_OUTPUT"
+            # ⛔ RESET BEFORE, AND IT FAILS THE JOB — this lane's slots only (iOS shard N: `iossigner0N` and
+            # `ioscoauthor0N`). The Android job's note says why; `--platform ios` is what keeps this reset off Android's
+            # live world, which is running right now on `signer`/`coauthor`.
             - name: Reset the leased Maestro pool slots before the run (shard ${{ matrix.shard }}, e2e-seed resetPool)
               id: resetBefore
               if: steps.secrets.outcome == 'success'
@@ -1442,14 +1594,15 @@ jobs:
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   SHARD_INDEX: ${{ matrix.shard }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
-              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --shard "${SHARD_INDEX}"
-            # ⛔ REFILL THE ERASURE SUBJECTS, then provision — the Android job's note says why. Both platforms' erasure
-            # shards hold the SAME lane, so this refill and the Android one never run at once.
+                  MAESTRO_PLATFORM: ios
+              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform ios --shard "${SHARD_INDEX}"
+            # ⛔ REFILL THE ERASURE SUBJECTS, then provision — the Android job's note says why. The two platforms refill
+            # DISJOINT sets (iOS: `erasure06-10`), so this refill and the Android one may now run at the same time.
             - name: Refill the Maestro erasure subjects before provisioning (shard ${{ matrix.shard }}, poolAdmin)
               if: steps.secrets.outcome == 'success'
               env:
                   SHARD_INDEX: ${{ matrix.shard }}
-              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --shard "${SHARD_INDEX}"
+              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --platform ios --shard "${SHARD_INDEX}"
             - name: Lease the shard's Maestro pool slots and seed its world (shard ${{ matrix.shard }}, e2e-seed provision)
               if: steps.secrets.outcome == 'success'
               env:
@@ -1458,6 +1611,7 @@ jobs:
                   E2E_SEED_FOOD_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
+                  MAESTRO_PLATFORM: ios
               run: |
                   mkdir -p "${RUNNER_TEMP}/e2e-seed"
                   npx tsx packages/tools/e2e-seed/src/provision.ts > "${RUNNER_TEMP}/e2e-seed/fixture.env"
@@ -1485,144 +1639,20 @@ jobs:
               with:
                   distribution: temurin
                   java-version: '17'
-            # The mobile app's workspace closure only — the Android job's step, for its reason.
-            - name: Build the mobile app's workspace dependencies
+            # The seed tools' dependency closure only — the Android job's step, for its reason.
+            - name: Build the workspace packages the seed tools import
               if: steps.secrets.outcome == 'success'
-              run: npx turbo run build --filter=@commise/mobile^...
-            # ⛔ CREATE AND BOOT THE PINNED SIMULATOR — by NAME, resolved to identifiers on this image, REFUSED if
-            # absent or unavailable (`maestroIosTier.test.ts` executes this body against a stubbed `xcrun`). It is
-            # created fresh per shard, so its keychain is empty: `auth/loginFlow` — the spine, and the only flow
-            # that starts signed out — relies on that, because Maestro's `clearState` does not clear the iOS
-            # keychain where `expo-secure-store` keeps the Clerk session.
-            #
-            # The keyboard's suggestion settings are written into the device's preferences BEFORE it boots,
-            # because the keyboard reads them as it starts: autocorrect, capitalisation, spell check and prediction
-            # would otherwise rewrite what `inputText` types — the iOS form of the Android job's
-            # `spell_checker_enabled 0`. ⚠️ Best-effort, like that line: a key the OS ignores costs nothing, and
-            # whether all of them take effect headless is unverified until a real run.
-            #
-            # Booted BEFORE the build so `xcodebuild` can target its UDID (one architecture, not every Simulator's).
-            - name: Create and boot the pinned iOS Simulator
-              id: simulator
+              run: npx turbo run build --filter='@kitchensink/e2e-seed^...'
+            # ⛔ WAIT FOR THE SIMULATOR STARTED EARLIER (see 'Create the pinned iOS Simulator and start it booting' above). By
+            # here the boot has been running through `npm ci`, the liveness probe, the secrets load, the pool reset and the
+            # app download, so this normally returns at once; it is a separate step because waiting is the only part of the
+            # boot that has to sit on the path to the flows. `-b` boots the device if it is not booting and waits for it
+            # either way.
+            - name: Wait for the iOS Simulator to finish booting
               if: steps.secrets.outcome == 'success'
               env:
-                  SHARD_INDEX: ${{ matrix.shard }}
-              run: |
-                  set -euo pipefail
-                  runtime=$(xcrun simctl list runtimes -j |
-                      jq -r --arg name "${IOS_SIMULATOR_RUNTIME}" \
-                          '.runtimes[] | select(.name == $name and .isAvailable == true) | .identifier' | head -1)
-                  devicetype=$(xcrun simctl list devicetypes -j |
-                      jq -r --arg name "${IOS_SIMULATOR_DEVICE}" '.devicetypes[] | select(.name == $name) | .identifier' |
-                      head -1)
-                  if [ -z "${runtime}" ] || [ -z "${devicetype}" ]; then
-                      echo "::error::the pinned Simulator (${IOS_SIMULATOR_DEVICE} on ${IOS_SIMULATOR_RUNTIME}) is not available on this image — refusing to run on a different device. Bump IOS_SIMULATOR_RUNTIME, IOS_SIMULATOR_DEVICE and DEVELOPER_DIR together."
-                      xcrun simctl list runtimes
-                      exit 1
-                  fi
-                  udid=$(xcrun simctl create "maestro-${GITHUB_RUN_ID}-${SHARD_INDEX}" "${devicetype}" "${runtime}")
-                  prefs="$HOME/Library/Developer/CoreSimulator/Devices/${udid}/data/Library/Preferences"
-                  mkdir -p "${prefs}"
-                  for key in KeyboardAutocorrection KeyboardAutocapitalization KeyboardCheckSpelling KeyboardPrediction KeyboardPeriodShortcut; do
-                      defaults write "${prefs}/com.apple.Preferences" "${key}" -bool false ||
-                          echo "::warning::could not write ${key} for the Simulator keyboard"
-                  done
-                  xcrun simctl boot "${udid}"
-                  xcrun simctl bootstatus "${udid}" -b
-                  echo "udid=${udid}" >> "$GITHUB_OUTPUT"
-                  echo "booted ${IOS_SIMULATOR_DEVICE} on ${IOS_SIMULATOR_RUNTIME} as ${udid}"
-            # ⛔ CACHE ONLY WHAT IS CONTENT-ADDRESSED: CocoaPods' DOWNLOAD cache, which holds each pod by name and
-            # version and so cannot serve a stale build. Never DerivedData or the built app — the build half of this
-            # job is what proves the app compiles, and the Android script header records build caching as refuted.
-            # Keyed FIRST on the lockfile hash, because `cachePrune.yml` reads a key's first 64-hex run as the
-            # lockfile it belongs to; the prefix restore lets a lockfile change reuse every pod that did not move.
-            - name: Cache CocoaPods downloads
-              if: steps.secrets.outcome == 'success'
-              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-              with:
-                  path: ~/Library/Caches/CocoaPods
-                  key: ${{ runner.os }}-cocoapods-${{ hashFiles('package-lock.json') }}
-                  restore-keys: |
-                      ${{ runner.os }}-cocoapods-
-            # Build a standalone RELEASE app for the Simulator SDK — the iOS form of the Android job's release APK:
-            # the JS bundle is EMBEDDED (Release runs no Metro), with `EXPO_PUBLIC_*` inlined at build time from the
-            # SAME env the APK build is given, so the app talks to this stage's DEPLOYED origins. Every value is
-            # step ENV and never an `xcodebuild KEY=value` argument — argv is echoed into the log.
-            #
-            # Signing is left to Xcode's default for the Simulator SDK (ad-hoc, "Sign to Run Locally"), not
-            # disabled: an UNSIGNED Simulator app carries no application-identifier entitlement, and the keychain
-            # `expo-secure-store` keeps the Clerk session in refuses an app without one.
-            - name: Build the iOS Release app for the Simulator
-              id: build
-              if: steps.secrets.outcome == 'success'
-              working-directory: packages/apps/commise/mobile
-              env:
-                  EXPO_PUBLIC_RECIPE_API_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
-                  EXPO_PUBLIC_FOOD_API_URL: ${{ needs.resolve-mobile-target.outputs.food_origin }}
-                  EXPO_PUBLIC_IDENTITY_API_URL: ${{ needs.resolve-mobile-target.outputs.identity_origin }}
-                  EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
-                  # The Release build runs the @sentry/react-native Xcode phase, which would upload source maps;
-                  # there is no Sentry auth token in E2E, so disable the upload (the APK build's setting).
-                  SENTRY_DISABLE_AUTO_UPLOAD: 'true'
                   MAESTRO_IOS_UDID: ${{ steps.simulator.outputs.udid }}
-              run: |
-                  set -euo pipefail
-                  # ⛔ NO SECRET REACHES THE BUILD. `load-secrets` put the Clerk secret key and webhook secrets in
-                  # `$GITHUB_ENV` (and its AWS step the AWS credentials), so this process inherits them — and
-                  # `xcodebuild` imports its environment as BUILD SETTINGS and echoes them (`export NAME=value`)
-                  # ahead of every script phase. GitHub masks the console, not a file. The build needs none of
-                  # them (the publishable key is public), so they are removed here, before anything runs.
-                  # `maestroIosTier.test.ts` derives the list from `load-secrets` itself.
-                  unset CLERK_SECRET_KEY IDP_SECRET_KEY CLERK_WEBHOOK_SECRET IDP_WEBHOOK_SECRET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
-                  npx expo prebuild --platform ios --no-install
-                  cd ios
-                  # ⛔ INSTALL PODS SEPARATELY, AND RETRY — the iOS twin of the Android job's Gradle-configure retry.
-                  # The pod install DOWNLOADS (the CocoaPods CDN, React Native's prebuilt artefacts) are the least
-                  # reliable thing in this build, and a transient failure there must not read as "the app did not
-                  # build".
-                  for attempt in 1 2 3; do
-                      if pod install > "${RUNNER_TEMP}/pod-install.log" 2>&1; then
-                          echo "pods installed (attempt ${attempt})"
-                          break
-                      fi
-                      if [ "${attempt}" -eq 3 ]; then
-                          echo "::error::pod install failed after 3 attempts. This is the dependency download, not the app build — no app was built and no Maestro flow ran. Log follows."
-                          cat "${RUNNER_TEMP}/pod-install.log"
-                          exit 1
-                      fi
-                      echo "::warning::pod install failed (attempt ${attempt}/3) — retrying in $((attempt * 20))s"
-                      sleep "$((attempt * 20))"
-                  done
-                  # ⛔ NO PROJECT NAME IS TYPED HERE. The workspace and scheme are derived by `expo prebuild` from the
-                  # app's name, so they are discovered — exactly one, or the build refuses — rather than written down.
-                  workspaces=(*.xcworkspace)
-                  if [ "${#workspaces[@]}" -ne 1 ] || [ ! -d "${workspaces[0]}" ]; then
-                      echo "::error::expected exactly one .xcworkspace from expo prebuild, found: ${workspaces[*]}"
-                      exit 1
-                  fi
-                  workspace="${workspaces[0]}"
-                  derived="${RUNNER_TEMP}/ios-derived-data"
-                  # Disk is unmeasured on this runner; the first real run should answer it rather than a guess.
-                  df -h /
-                  # `ONLY_ACTIVE_ARCH=YES`: Release otherwise builds every Simulator architecture; the destination
-                  # names the one booted device, so one architecture is all that can run. The raw log stays on
-                  # the runner (it is printed, MASKED, on failure) and is never uploaded — see the note on `unset`.
-                  if ! xcodebuild -workspace "${workspace}" -scheme "${workspace%.xcworkspace}" \
-                      -configuration Release -sdk iphonesimulator \
-                      -destination "id=${MAESTRO_IOS_UDID}" -derivedDataPath "${derived}" \
-                      ONLY_ACTIVE_ARCH=YES \
-                      build 2>&1 | tee "${RUNNER_TEMP}/xcodebuild.log" | xcbeautify --quiet; then
-                      echo "::error::xcodebuild failed — no app was built and no Maestro flow ran. Raw log tail follows."
-                      tail -200 "${RUNNER_TEMP}/xcodebuild.log"
-                      exit 1
-                  fi
-                  df -h /
-                  apps=("${derived}/Build/Products/Release-iphonesimulator/"*.app)
-                  if [ "${#apps[@]}" -ne 1 ] || [ ! -d "${apps[0]}" ]; then
-                      echo "::error::expected exactly one Release-iphonesimulator .app bundle, found: ${apps[*]}"
-                      exit 1
-                  fi
-                  echo "app=${apps[0]}" >> "$GITHUB_OUTPUT"
+              run: xcrun simctl bootstatus "${MAESTRO_IOS_UDID}" -b
             # Install the app and run this shard's flows on the Simulator — `runMaestroFlows.sh`'s run mode, the same
             # one the emulator runs, told its platform. It installs the app, excludes (and PRINTS) the flows iOS
             # cannot run, partitions what is left for this shard, and drives each flow with the Android job's per-
@@ -1632,7 +1662,7 @@ jobs:
               env:
                   MAESTRO_PLATFORM: ios
                   MAESTRO_IOS_UDID: ${{ steps.simulator.outputs.udid }}
-                  MAESTRO_IOS_APP: ${{ steps.build.outputs.app }}
+                  MAESTRO_IOS_APP: ${{ steps.app.outputs.app }}
                   MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
                   CLERK_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
                   E2E_SEED_RECIPE_URL: ${{ needs.resolve-mobile-target.outputs.recipe_origin }}
@@ -1656,7 +1686,8 @@ jobs:
                   E2E_SEED_WEB_ORIGIN: ${{ needs.resolve-mobile-target.outputs.web_origin }}
                   SHARD_INDEX: ${{ matrix.shard }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
-              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --shard "${SHARD_INDEX}"
+                  MAESTRO_PLATFORM: ios
+              run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform ios --shard "${SHARD_INDEX}"
             - name: Upload Maestro artifacts
               if: failure() && steps.secrets.outcome == 'success'
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

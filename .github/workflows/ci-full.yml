@@ -1,14 +1,16 @@
 # CI — full pipeline (all jobs, on demand).
 #
 # The ordinary PR/main pipelines (`ci-pr.yml` / `ci-main.yml`) call `_ci.yml` only — the BASE tier. The two
-# heavyweight tiers (the k6 SC-009 load gate and the Maestro mobile-emulator flows) live in `_ci-heavy.yml`
-# and are opt-in purely for cost/duration. This workflow is the manual entry point that runs the COMPLETE
-# pipeline end to end (T116) by calling BOTH reusable workflows. The two run CONCURRENTLY and independently
+# heavyweight tiers (the k6 SC-009 load gate and the Maestro mobile flows) live in `_ci-heavy.yml` and are opt-in
+# purely for cost/duration. This workflow is the manual entry point that runs the COMPLETE pipeline end to end
+# (T116) by calling BOTH reusable workflows — EXCEPT Maestro: it passes `run_mobile_maestro: false`, because the
+# Maestro shards drive a test app that `_mobileAppBuild.yml` builds, and only `_ci.yml` (behind the `mobile-e2e` label)
+# and `deployedE2e.yml` (the manual door) have a build job to hand them one. Run Maestro from `deployedE2e.yml`. The two run CONCURRENTLY and independently
 # — `heavy` does not `needs: base`, so a lint failure does not cancel a 50-minute emulator run that would
 # have told you something different.
 #
 # Trigger: Actions → "CI — full (all jobs, on demand)" → Run workflow (pick a branch), or
-#   `gh workflow run ci-full.yml --ref <branch> [-f run_mobile_maestro=false] [-f run_load_test=false]`.
+#   `gh workflow run ci-full.yml --ref <branch> [-f run_load_test=false]`.
 #
 # NOTE (workflow_dispatch): a workflow is only dispatchable once it exists on the repository's DEFAULT
 # branch — so this file must be merged to `main` before the "Run workflow" button / `gh workflow run`
@@ -25,10 +27,6 @@ on:
                 default: sandbox
             run_load_test:
                 description: Run the k6 SC-009 load gate
-                type: boolean
-                default: true
-            run_mobile_maestro:
-                description: Run the Maestro mobile-emulator flows
                 type: boolean
                 default: true
 
@@ -51,6 +49,9 @@ jobs:
         permissions:
             contents: read
             id-token: write # granted so _ci.yml e2e-web can reach it (a callee only downgrades)
+            # ⛔ Granted for `_ci.yml`'s `mobile-app-build` job, whose plan reads and downloads an earlier run's test app
+            # artifact. A callee can only downgrade, so a caller that omits it has the whole run rejected (`startup_failure`).
+            actions: read
             # ⛔ Same rule, and this caller was MISSED when the constructs started publishing:
             # `_ci.yml`'s `infra-shared` job writes the prerelease to GitHub Packages, and `cdk-checks`,
             # `integration-infra`, `integration-selfcontained` and `deploy-preview` read it back. Without
@@ -69,9 +70,9 @@ jobs:
             SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
     heavy:
-        # Skipped entirely when the dispatcher turns both tiers off, rather than starting a job whose
-        # only work would be to skip its own two children.
-        if: ${{ inputs.run_load_test || inputs.run_mobile_maestro }}
+        # Skipped entirely when the dispatcher turns the load gate off, rather than starting a job whose only work
+        # would be to skip its own children.
+        if: ${{ inputs.run_load_test }}
         uses: ./.github/workflows/_ci-heavy.yml
         # No job in `_ci-heavy.yml` needs more than read access (it declares `contents: read` itself and
         # authenticates to AWS with static keys, not OIDC), so the heavy tier gets no token write scope.
@@ -80,11 +81,11 @@ jobs:
         with:
             stage: ${{ inputs.stage }}
             run_load_test: ${{ inputs.run_load_test }}
-            # Forwarded as-is on purpose. The Maestro job is SANDBOX-ONLY — it provisions a Clerk test user
-            # into the stage's tenant — and it enforces that itself, loudly, as its first step (see
-            # `_ci-heavy.yml`): a `prod` dispatch with this left on fails that job with the reason rather
-            # than being quietly narrowed here, so the operator sees the mistake instead of a green run.
-            run_mobile_maestro: ${{ inputs.run_mobile_maestro }}
+            # ⛔ A LITERAL FALSE, not a form field. The Maestro shards need a built test app (`android_test_app` /
+            # `ios_test_app`) that this workflow has no job to produce; with the tier on and no app they would REFUSE (red),
+            # and with it off they never exist. `workflowInvariants.test.ts` (artifact pairing) clears this call site on
+            # exactly that literal, so turning Maestro on here without a build job is a red guard, not a quiet gap.
+            run_mobile_maestro: false
         # Explicit, not `inherit` — `_ci-heavy.yml` declares exactly these two, and `inherit` would hand it
         # every repository secret regardless of need.
         secrets:

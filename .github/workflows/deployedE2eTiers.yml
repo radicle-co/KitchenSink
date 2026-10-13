@@ -67,7 +67,7 @@ on:
             run_mobile_maestro:
                 description: >-
                     Run the Maestro tier — Android emulator (~50 min) AND iOS Simulator (standard macOS runner),
-                    which share the Clerk pool lanes and so run one after the other per shard. The pull-request
+                    which hold Clerk pool lanes of their own and so run side by side. The pull-request
                     pipeline passes its `mobile-e2e` label; the manual door passes its own switch, which defaults
                     ON. Never on prod.
                 required: false
@@ -84,6 +84,19 @@ on:
                 description: >-
                     WHICH Maestro flows run, passed straight through to `_ci-heavy.yml`. Empty is the fail-safe
                     "every flow", which is what the manual door wants.
+                required: false
+                type: string
+                default: ''
+            android_test_app:
+                description: >-
+                    The artifact name of the Android test app `_mobileAppBuild.yml` built (or reused) for this run,
+                    passed straight through to `_ci-heavy.yml`. EMPTY when the build did not run, which is when Maestro
+                    does not — and a Maestro shard handed an empty name REFUSES rather than skips.
+                required: false
+                type: string
+                default: ''
+            ios_test_app:
+                description: The iOS twin of `android_test_app`.
                 required: false
                 type: string
                 default: ''
@@ -1264,6 +1277,8 @@ jobs:
             run_load_test: false
             maestro_flow_selector: ${{ inputs.maestro_flow_selector }}
             maestro_shards: ${{ inputs.maestro_shards }}
+            android_test_app: ${{ inputs.android_test_app }}
+            ios_test_app: ${{ inputs.ios_test_app }}
         secrets:
             AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
             AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

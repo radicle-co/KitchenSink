@@ -325,13 +325,27 @@ describe('1 — every deployed e2e tier is defined once, in the tiers file', () 
 });
 
 describe('2 — both doors call the one definition, each behind its own evidence of a target', () => {
+    /**
+     * REWRITTEN 2026-10-13. It used to forbid `!cancelled()` outright, as the proof that the tiers wait for the deploy to
+     * SUCCEED. That is still the property; the spelling changed because the call now also `needs` `mobile-app-build`, a job
+     * that is SKIPPED on every run without the `mobile-e2e` label — and a skipped dependency skips its dependents, which
+     * would have switched off every other deployed tier on every unlabelled pull request. So `!cancelled()` is now REQUIRED,
+     * and the property is held by naming each real dependency explicitly: the deploy must have `success`d (not merely
+     * finished), and so must every other need. `always()` stays forbidden — it would run the tiers over a failed deploy.
+     * `mobileTestAppBuild.test.ts` holds the other half: that the condition never mentions the build.
+     */
     it('the pull-request pipeline calls it behind the preview deploy it tests', () => {
         const call = callOf(PR_PIPELINE);
 
-        expect(needsOf(call)).toEqual(expect.arrayContaining(['deploy-preview', 'resolve-sandbox', 'sandbox-status']));
+        expect(needsOf(call)).toEqual(
+            expect.arrayContaining(['deploy-preview', 'resolve-sandbox', 'sandbox-status', 'mobile-app-build']),
+        );
         expect(call.if ?? '').toContain("needs.sandbox-status.outputs.branch == 'run'");
         expect(call.if ?? '').toContain("needs.deploy-preview.result == 'success'");
-        expect(call.if ?? '').not.toMatch(/always\(\)|!cancelled\(\)/);
+        expect(call.if ?? '', '!cancelled() is what lets the tiers run past the build being skipped').toContain(
+            '!cancelled()',
+        );
+        expect(call.if ?? '', 'always() would run the tiers over a failed deploy').not.toMatch(/always\(\)/);
     });
 
     it('the manual door calls it only on a dispatch, and only when its probe found the stage serving', () => {

@@ -314,13 +314,47 @@ jobs:
     # ⚠️ What the gate does NOT serialise: a human pressing this button while a `CI — PR` run of the same PR is in
     # flight. Both drive one preview. Their Clerk fixtures are run-scoped and cannot collide, but both put load on
     # the same single Spot task.
+    # ── THE MOBILE TEST APPS, built once per platform (`_mobileAppBuild.yml`) ──────────────────────────────────
+    #
+    # The same job `_ci.yml` runs for a pull request, under the same condition the tiers use to turn Maestro on: a live,
+    # non-production target and the dispatcher's switch. Never on prod — the tier writes run-scoped users into the tenant.
+    mobile-app-build:
+        name: Build the mobile test apps
+        needs: resolve
+        if: >-
+            ${{ github.event_name == 'workflow_dispatch'
+            && needs.resolve.outputs.live == 'true'
+            && inputs.run_mobile_maestro
+            && needs.resolve.outputs.stage != 'prod' }}
+        uses: ./.github/workflows/_mobileAppBuild.yml
+        permissions:
+            contents: read
+            actions: read
+        with:
+            stage: sandbox
+            recipe_origin: ${{ needs.resolve.outputs.recipe_origin }}
+            food_origin: ${{ needs.resolve.outputs.food_origin }}
+            identity_origin: ${{ needs.resolve.outputs.identity_origin }}
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
     deployed-tiers:
         # ⛔ A CONSTANT, and deliberately WITHOUT the word "E2E" — `workflowInvariants` invariant 8 (branch
         # protection matches a rendered name) and invariant 7 (a name claiming the e2e tier must name a deployed
         # target, which a `uses:` job cannot). The tiers inside carry their own `E2E (…)` names.
         name: Deployed tiers
-        needs: resolve
-        if: github.event_name == 'workflow_dispatch' && needs.resolve.outputs.live == 'true'
+        needs: [resolve, mobile-app-build]
+        # ⛔ NOT GATED ON THE BUILD — see `_ci.yml`'s `deployed-tiers`. The build is skipped whenever Maestro is switched
+        # off, and a skipped dependency would skip every other tier; `!cancelled()` plus the explicit `resolve` terms keep
+        # the old condition exactly, and a failed build leaves the shards to refuse (red) rather than the tiers to skip.
+        # The dispatch term stays FIRST: `k6TargetsDeployedOrigins.test.ts` admits a k6-starting job only when its condition
+        # opens with `github.event_name == 'workflow_dispatch'`.
+        if: >-
+            ${{ github.event_name == 'workflow_dispatch'
+            && !cancelled()
+            && needs.resolve.result == 'success'
+            && needs.resolve.outputs.live == 'true' }}
         uses: ./.github/workflows/deployedE2eTiers.yml
         # ⛔ A called workflow can only DOWNGRADE its caller's grant, and the web shards exchange an OIDC token for
         # their secretless Argos credential — so the grant is stated here, or the run fails to start.
@@ -334,6 +368,8 @@ jobs:
             food_origin: ${{ needs.resolve.outputs.food_origin }}
             web_origin: ${{ needs.resolve.outputs.web_origin }}
             run_mobile_maestro: ${{ inputs.run_mobile_maestro }}
+            android_test_app: ${{ needs.mobile-app-build.outputs.android_test_app }}
+            ios_test_app: ${{ needs.mobile-app-build.outputs.ios_test_app }}
             run_load_test: ${{ inputs.run_load_test }}
             maestro_shards: ${{ inputs.maestro_shards }}
         # Declared EXPLICITLY rather than `secrets: inherit` (zizmor `secrets-inherit`).

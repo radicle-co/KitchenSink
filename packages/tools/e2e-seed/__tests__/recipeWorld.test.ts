@@ -19,7 +19,7 @@ import {
     type ProbeFoodClients,
 } from '../src/recipeWorld.js';
 
-const manifest = deriveFixtureManifest('gh42-1-maestro', 1);
+const manifest = deriveFixtureManifest('gh42-1-maestro', 'android', 1);
 
 /** A binding id the way the service mints one: a uuid. */
 const BINDING = '00000000-0000-4000-8000-0000000000b1';

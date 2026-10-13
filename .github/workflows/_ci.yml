@@ -1215,6 +1215,45 @@ jobs:
             AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
             AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
+    # ── THE MOBILE TEST APPS — built once per platform, BESIDE the preview deploy ───────────────────────────
+    #
+    # The Maestro shards used to build the app themselves, one build per shard (18.4 / 14.3 minutes on Android, 17.5 /
+    # 26.2 on iOS, run 38322183404). The build needs the stage's origins, which `resolve-sandbox` knows before anything
+    # is deployed, so it runs concurrently with `deploy-preview` (36.6 minutes on that run) and costs the critical path
+    # nothing. `_mobileAppBuild.yml` says what it builds, how it names it and what a shard checks before using it.
+    #
+    # ⛔ THE CONDITION IS THE SWITCH THAT TURNS MAESTRO ON, VERBATIM: the deploy-gate term (`branch == 'run'`), the
+    # `mobile-e2e` label expression `deployed-tiers` passes as `run_mobile_maestro`, and a resolved stage. A build that
+    # ran without Maestro would waste ~25 runner-minutes; Maestro without a build refuses (red). `mobileTestAppBuild.test.ts`
+    # holds the label term to the tiers' own expression, so the two cannot name different labels.
+    #
+    # ⚠️ This is a skip on every unlabelled pull request, which renders as a skipped check: the same shape as the Maestro
+    # jobs themselves, and for the same reason (the tier is opt-in by label).
+    mobile-app-build:
+        name: Build the mobile test apps
+        # `install` is an ORDERING edge (the build's jobs restore the `node_modules` entry it seeds). `build-ui` is not a need:
+        # `_mobileAppBuild.yml` builds the whole dependency closure itself and uses nothing `build-ui` produces.
+        needs: [install, sandbox-status, resolve-sandbox]
+        if: >-
+            ${{ needs.sandbox-status.outputs.branch == 'run'
+            && contains(github.event.pull_request.labels.*.name, 'mobile-e2e')
+            && needs.resolve-sandbox.outputs.stage != '' }}
+        uses: ./.github/workflows/_mobileAppBuild.yml
+        # `actions: read` lets the plan find and download an artifact an EARLIER run built (reuse). A called workflow can
+        # only DOWNGRADE its caller's grant, so every caller of this file grants it too (`ci-pr.yml`, `ci-main.yml`,
+        # `ci-full.yml`) — or the whole run is rejected with `startup_failure`.
+        permissions:
+            contents: read
+            actions: read
+        with:
+            stage: sandbox
+            recipe_origin: ${{ needs.resolve-sandbox.outputs.recipe_origin }}
+            food_origin: ${{ needs.resolve-sandbox.outputs.food_origin }}
+            identity_origin: ${{ needs.resolve-sandbox.outputs.identity_origin }}
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
     # ── THE DEPLOYED E2E TIERS — defined ONCE, in `deployedE2eTiers.yml`, and called from here ──────────
     #
     # Every tier that drives this PR's preview — the Playwright shards, the identity/food/recipe tiers, the
@@ -1235,8 +1274,23 @@ jobs:
     # invariants 7 and 8); the tiers inside carry their own `E2E (…)` names.
     deployed-tiers:
         name: Deployed tiers
-        needs: [deploy-preview, install, build-ui, resolve-sandbox, sandbox-status, detect-mobile-flows]
-        if: ${{ needs.sandbox-status.outputs.branch == 'run' && needs.deploy-preview.result == 'success' }}
+        needs:
+            [deploy-preview, install, build-ui, resolve-sandbox, sandbox-status, detect-mobile-flows, mobile-app-build]
+        # ⛔ NOT GATED ON `mobile-app-build`, AND THAT IS THE POINT OF EVERY TERM BELOW. The build is skipped on every
+        # run without the `mobile-e2e` label, and a skipped dependency skips its dependents — which would take every
+        # other deployed tier down with it. `!cancelled()` lets this job run past that skip, and the explicit `success`
+        # terms then restore what a bare `needs` gave for free: nothing runs past a failed or skipped REAL dependency.
+        # The build is deliberately absent from the condition. A FAILED build must not skip the tiers either — a skip
+        # renders green, so a broken build would erase a tier's verdict instead of reddening it. The Maestro shards
+        # refuse an empty app name themselves, which is the red (`mobileTestAppBuild.test.ts`).
+        if: >-
+            ${{ !cancelled()
+            && needs.install.result == 'success'
+            && needs.build-ui.result == 'success'
+            && needs.resolve-sandbox.result == 'success'
+            && needs.detect-mobile-flows.result == 'success'
+            && needs.sandbox-status.outputs.branch == 'run'
+            && needs.deploy-preview.result == 'success' }}
         uses: ./.github/workflows/deployedE2eTiers.yml
         # ⛔ A called workflow can only DOWNGRADE its caller's grant; the web shards exchange an OIDC token for
         # their secretless Argos credential, so `id-token: write` is granted here or the run fails to start.
@@ -1252,6 +1306,10 @@ jobs:
             # Maestro boots an Android emulator, so it is not wanted on every PR: the deploy decides whether it
             # COULD run, the `mobile-e2e` label whether it SHOULD. The manual door turns it on by default.
             run_mobile_maestro: ${{ contains(github.event.pull_request.labels.*.name, 'mobile-e2e') }}
+            # The apps the shards drive, built once by `mobile-app-build` above (empty when the build did not run, which
+            # is exactly when Maestro does not). The shards refuse an empty name rather than skip.
+            android_test_app: ${{ needs.mobile-app-build.outputs.android_test_app }}
+            ios_test_app: ${{ needs.mobile-app-build.outputs.ios_test_app }}
             # ⛔ k6 NEVER runs automatically (owner ruling 2026-09-13: "not run k6 automatically, but let it remain a
             # job I can manually trigger"). It runs only from the manual door, `deployedE2e.yml`. Do not wire it to a
             # label.

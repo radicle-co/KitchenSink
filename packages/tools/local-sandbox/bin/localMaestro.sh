@@ -35,7 +35,7 @@
 # directory (outside the repository), read back with the `read` builtin, and are never on an argv and never printed.
 # Everything after that read runs with AWS pinned to LocalStack and throwaway credentials.
 #
-# ⚠️ The Clerk users are the Maestro tier's FIXED pool slots for shard 1, the same users CI's
+# ⚠️ The Clerk users are the Maestro tier's FIXED pool slots for ANDROID shard 1, the same users CI's
 # `test-pool-sandbox-maestro-1` group signs in. Their DATA here lives in the local database, so a local run cannot
 # disturb a CI run's world, but both sign the same users in. ⚠️ They also lease the same ERASURE subjects, and this
 # run holds no lane: run concurrently with a CI shard-1 job and both may take the same subject, so one erasure fails
@@ -486,11 +486,13 @@ local_maestro_seed_env() {
     export E2E_SEED_WEB_ORIGIN="$LOCAL_MAESTRO_WEB_ORIGIN"
     export E2E_SEED_STATE_DIR="$state"
     export COMMISE_E2E_SHARD=1
+    # The Android emulator, stated rather than left to the seed tools' default (iOS has pool lanes of its own).
+    export MAESTRO_PLATFORM=android
     export MAESTRO_FIXTURE_ENV_FILE="${state}/e2e-seed/fixture.env"
 }
 
 local_maestro_reset_pool() {
-    npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --shard 1
+    npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform android --shard 1
 }
 
 # Give the shard's pool users, in the LOCAL identity database, the app-user id their Clerk `external_id` names.

@@ -39,6 +39,8 @@
  *      demands of every gate caller; the job-level `STAGE` binding below is why it resolves). The
  *      duplication is deliberate (extracting it would rewrite a load-bearing step and the three tests that
  *      execute it); THIS test is what keeps the two copies from drifting one side at a time.
+ *   6. A SECRETS FAILURE IS RED (2026-10-13) — the secrets step is not `continue-on-error`: a skip may only happen
+ *      because the sandbox is down, and a swallowed failure on a live one was a green no-op shard.
  *   5. ABSENCE SKIPS — the probe treats missing AWS credentials (withheld from fork/Dependabot PRs) as
  *      `live=false` + `exit 0`, so a withheld secret can never red the tier: red-over-nothing is the mirror
  *      of green-over-nothing.
@@ -163,6 +165,35 @@ describe.each(maestroJobs())('%s re-proves liveness inside its own job', (_, job
         expect(secrets?.if, 'the secrets step must key on the re-probe, not the frozen resolver answer').toBe(
             "steps.liveness.outputs.live == 'true'",
         );
+    });
+
+    /**
+     * ADDED 2026-10-13 (owner rule: "a skip may only happen because the sandbox is down; a skip is never a pass").
+     * The secrets step used to be `continue-on-error`, so a FAILED load on a LIVE sandbox turned into `outcome ==
+     * 'failure'`, every stateful step below skipped on `outcome == 'success'`, and the shard went green having driven
+     * nothing. The only legitimate reason for the tier to have no secrets is that the re-probe above said the sandbox is
+     * not up — which already includes "this run holds no AWS credentials" (the next test) — and that case skips the step
+     * through its `if`, not through a swallowed failure. So the step must be allowed to fail the job.
+     */
+    it('⛔ lets a secrets-load failure on a LIVE sandbox be RED — the step is not continue-on-error', () => {
+        const secrets = maestroJob()?.steps?.find((step) => /load-secrets/u.test(step.uses ?? ''));
+
+        expect(secrets, 'no load-secrets step').toBeDefined();
+        expect(
+            secrets?.['continue-on-error'],
+            'a failed secrets load on a live sandbox would skip every stateful step and report green',
+        ).toBeUndefined();
+    });
+
+    it('⛔ leaves no other way for the secrets outcome to be non-success while the sandbox is live', () => {
+        const steps = maestroJob()?.steps ?? [];
+        const secretsIndex = steps.findIndex((step) => /load-secrets/u.test(step.uses ?? ''));
+
+        // Every step between the probe and the secrets load that could fail the job must fail it, not be tolerated:
+        // nothing between them may swallow a failure, or a skipped valve could be read as an absent sandbox.
+        for (const [index, step] of steps.slice(0, secretsIndex).entries()) {
+            expect(step['continue-on-error'], `step ${index} swallows its own failure`).toBeUndefined();
+        }
     });
 
     it('keeps the fresh-run gate at job level — the re-probe is defence in depth, not a replacement', () => {

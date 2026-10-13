@@ -42,7 +42,7 @@
  * first, because a sign-in is the per-IP-throttled half; a slot with no usable handle is LEASED — resolved,
  * checked against its provisioning, and signed in (`leaseSession`).
  *
- * Usage: `resetPool --tier web --shard N | --tier maestro --shard N | --tier k6 --vus N | --tier linkage [--handles file]`,
+ * Usage: `resetPool --tier web --shard N | --tier maestro --platform android|ios --shard N | --tier k6 --vus N | --tier linkage [--handles file]`,
  * with `E2E_SEED_RECIPE_URL`, `E2E_SEED_FOOD_URL` and `E2E_SEED_WEB_ORIGIN` naming the stage.
  *
  * ⛔ EXIT STATUS: non-zero when any slot could not be reset, after attempting every slot. Whether that reddens the
@@ -58,9 +58,11 @@ import { remintFromSession, type SessionCredential, type SessionHandle } from '@
 import { clerkLeasePort, leaseSession } from '@kitchensink/e2e-fixtures/lease';
 import {
     k6VuSlots,
+    MAESTRO_PLATFORMS,
     maestroSlotForShard,
     slotFor,
     slotForShard,
+    type MaestroPlatform,
     type PoolSlot,
 } from '@kitchensink/e2e-fixtures/testPool';
 import {
@@ -74,7 +76,7 @@ import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 
 import { clientFor, foodClientFor } from './client.js';
 import { readFoodOrigin, readSeedEnvironment } from './env.js';
-import { assertShardsAgree } from './shard.js';
+import { assertPlatformsAgree, assertShardsAgree } from './shard.js';
 import { readWorld } from './recipeWorld.js';
 import { awaitPurge, DEFAULT_PURGE_TIMING, requestPurge, type PurgeTiming } from './testReset.js';
 import { isTransientStatus } from './transientStatus.js';
@@ -82,7 +84,7 @@ import { isTransientStatus } from './transientStatus.js';
 /** Which slots a reset addresses. The stubbed web tier is absent on purpose: it authors nothing on a stage. */
 export type ResetRequest =
     | { readonly tier: 'web'; readonly shard: number }
-    | { readonly tier: 'maestro'; readonly shard: number }
+    | { readonly tier: 'maestro'; readonly platform: MaestroPlatform; readonly shard: number }
     | { readonly tier: 'k6'; readonly vus: number }
     | { readonly tier: 'linkage' };
 
@@ -228,7 +230,20 @@ export function parseResetArgs(argv: readonly string[]): ResetRequest {
             throw new Error(`resetPool: --tier ${tier} needs --shard <positive integer>`);
         }
 
-        return { tier, shard };
+        if (tier === 'web') {
+            return { tier, shard };
+        }
+
+        // ⛔ AND IT TAKES A PLATFORM, REQUIRED for the same reason (2026-10-13): Android and iOS hold disjoint pool
+        // lanes, so a reset that defaulted the platform would purge the Android signer on behalf of an iOS job. An
+        // exact match — no trimming or case folding — over the declared platforms only.
+        const platform = MAESTRO_PLATFORMS.find((candidate) => candidate === flag('--platform'));
+
+        if (platform === undefined) {
+            throw new Error(`resetPool: --tier maestro needs --platform ${MAESTRO_PLATFORMS.join('|')}`);
+        }
+
+        return { tier, platform, shard };
     }
 
     if (tier === 'k6') {
@@ -255,11 +270,14 @@ export function resetTargets(request: ResetRequest): readonly PoolSlot[] {
         case 'web':
             return [slotForShard('web', request.shard)];
         case 'maestro':
-            // This SHARD's two identities only. Resetting every non-consumable maestro lane — which is what
-            // stood here while the tier was a single job — would now empty the OTHER shard's signer and
-            // co-author while that shard was running, which is precisely the failure the per-shard
-            // `test-pool-sandbox-maestro-{shard}` lease exists to prevent.
-            return [maestroSlotForShard('signer', request.shard), maestroSlotForShard('coauthor', request.shard)];
+            // This LANE's two identities only (a lane is a platform and a shard). Resetting every non-consumable
+            // maestro slot — which is what stood here while the tier was a single job — would empty the OTHER
+            // lanes' signers and co-authors while they were running, which is precisely the failure the
+            // per-lane `test-pool-sandbox-maestro[-ios]-{shard}` lease exists to prevent.
+            return [
+                maestroSlotForShard('signer', request.platform, request.shard),
+                maestroSlotForShard('coauthor', request.platform, request.shard),
+            ];
         case 'k6':
             return [...k6VuSlots(request.vus), slotFor('k6', 'admin')];
         case 'linkage':
@@ -473,10 +491,12 @@ async function main(): Promise<void> {
     const foodOrigin = readFoodOrigin(process.env);
     const request = parseResetArgs(argv);
 
-    // ⛔ BEFORE THE FIRST PURGE. `--shard` and `COMMISE_E2E_SHARD` are two channels for one fact (see
-    // `shard.ts`); a job whose two statements disagree would hard-delete another shard's live world.
+    // ⛔ BEFORE THE FIRST PURGE. `--shard` and `COMMISE_E2E_SHARD` (and `--platform` and `MAESTRO_PLATFORM`) are two
+    // channels for one fact each (see `shard.ts`); a job whose two statements disagree would hard-delete another
+    // lane's live world.
     if (request.tier === 'maestro') {
         assertShardsAgree(request.shard, process.env);
+        assertPlatformsAgree(request.platform, process.env);
     }
 
     const handlesIndex = argv.indexOf('--handles');

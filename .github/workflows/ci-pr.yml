@@ -21,6 +21,9 @@ jobs:
         permissions:
             contents: read
             id-token: write # granted so _ci.yml e2e-web can reach it (a callee only downgrades)
+            # ⛔ Granted for `_ci.yml`'s `mobile-app-build` job, whose plan reads and downloads an earlier run's test app
+            # artifact. A callee can only downgrade, so a caller that omits it has the whole run rejected (`startup_failure`).
+            actions: read
             # ⛔ Granted for `_ci.yml`'s `infra-shared` job, which publishes the shared CDK constructs as a
             # prerelease when they change. Without it that job cannot write to GitHub Packages and every CDK
             # app in the run silently compiles against the LAST PUBLISHED construct instead of this branch's.

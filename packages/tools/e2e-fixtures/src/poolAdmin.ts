@@ -15,8 +15,8 @@
  *
  * ⛔ AMENDED by owner ruling 2026-10-08: **the pool refills itself before each Maestro run.** The Maestro job (Android
  * and iOS, sandbox tenant only) runs this command right before it provisions, as
- * `poolAdmin.ts --apply --maestro-erasure --shard N`, which reconciles ONLY the erasure subjects that shard may lease
- * (`maestroErasureSlots` — all of them for the erasure shard, none for any other). So a run now tops the pool up, but
+ * `poolAdmin.ts --apply --maestro-erasure --platform P --shard N`, which reconciles ONLY the erasure subjects that
+ * platform's shard may lease (`maestroErasureSlots` — that platform's five for its erasure shard, none for any other). So a run now tops the pool up, but
  * only through this module, the single writer; the tests themselves still never create a user, and every other slot
  * is still provisioned only by the owner's full run. The reason: each real erasure destroys its subject, the flow
  * runs on every Maestro run and both platforms, and a pool replenished only by hand ran dry
@@ -67,10 +67,12 @@ import { withClerkBackendRetry } from './clerkSession.js';
 import { awaitExternalId, EXTERNAL_ID_DEADLINE_MS, EXTERNAL_ID_POLL_MS } from './externalId.js';
 import { judgePoolSlot } from './leaseSession.js';
 import {
+    MAESTRO_PLATFORMS,
     maestroErasureSlots,
     POOL_PASSWORD,
     poolSlotMetadata,
     rosterSlots,
+    type MaestroPlatform,
     type PoolSlot,
     type PoolSlotMetadata,
 } from './testPool.js';
@@ -131,8 +133,11 @@ export interface PoolReport {
 /** Which slots one invocation reconciles. */
 export type PoolScope =
     | { readonly kind: 'roster' }
-    /** The 2026-10-08 refill: the erasure subjects one Maestro shard may lease (see this file's header). */
-    | { readonly kind: 'maestroErasure'; readonly shard: number };
+    /**
+     * The 2026-10-08 refill: the erasure subjects one Maestro shard of one platform may lease (see this file's header).
+     * The platform is REQUIRED since 2026-10-13, when the ten subjects were split between Android and iOS.
+     */
+    | { readonly kind: 'maestroErasure'; readonly platform: MaestroPlatform; readonly shard: number };
 
 /** Whether a reconciliation lists the whole instance to report drift. */
 export type DriftAudit = 'audit' | 'skip';
@@ -146,7 +151,7 @@ export function poolScopeOptions(scope: PoolScope): {
         case 'roster':
             return { slots: rosterSlots(), drift: 'audit' };
         case 'maestroErasure':
-            return { slots: maestroErasureSlots(scope.shard), drift: 'skip' };
+            return { slots: maestroErasureSlots(scope.platform, scope.shard), drift: 'skip' };
     }
 }
 
@@ -166,6 +171,7 @@ function readPoolAdminArgv(argv: readonly string[]) {
         options: {
             apply: { type: 'boolean' },
             'maestro-erasure': { type: 'boolean' },
+            platform: { type: 'string' },
             shard: { type: 'string' },
         },
     });
@@ -178,7 +184,8 @@ function readPoolAdminArgv(argv: readonly string[]) {
  * scope flag that fell back to the whole roster would turn a CI refill into the owner's full run.
  *
  * @param argv - The arguments after the script path.
- * @throws On an unknown argument, a repeated `--shard`, or `--maestro-erasure` and `--shard` not given together.
+ * @throws On an unknown argument, a repeated `--shard` or `--platform`, a platform that is not `android` or `ios`, or
+ *   `--maestro-erasure`, `--platform` and `--shard` not given together.
  */
 export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     let parsed: ReturnType<typeof readPoolAdminArgv>;
@@ -192,22 +199,36 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     const apply = parsed.values.apply === true;
     const erasure = parsed.values['maestro-erasure'] === true;
     const shard = parsed.values.shard;
+    const platform = parsed.values.platform;
 
-    // `parseArgs` keeps the LAST of a repeated option; two shards named is a caller that has not decided which.
-    if (parsed.tokens.filter((token) => token.kind === 'option' && token.name === 'shard').length > 1) {
-        throw new Error('poolAdmin: --shard may be given once');
+    // `parseArgs` keeps the LAST of a repeated option; two shards or platforms named is a caller that has not decided.
+    for (const name of ['shard', 'platform']) {
+        if (parsed.tokens.filter((token) => token.kind === 'option' && token.name === name).length > 1) {
+            throw new Error(`poolAdmin: --${name} may be given once`);
+        }
     }
 
     if (!erasure) {
-        if (shard !== undefined) {
-            throw new Error('poolAdmin: --shard scopes only a --maestro-erasure refill');
+        if (shard !== undefined || platform !== undefined) {
+            throw new Error('poolAdmin: --shard and --platform scope only a --maestro-erasure refill');
         }
 
         return { apply, scope: { kind: 'roster' } };
     }
 
+    if (platform === undefined) {
+        throw new Error(
+            'poolAdmin: --maestro-erasure needs --platform android|ios, the platform whose subjects to refill',
+        );
+    }
+
     if (shard === undefined) {
         throw new Error('poolAdmin: --maestro-erasure needs --shard N, the Maestro shard whose subjects to refill');
+    }
+
+    // Exact match, no trimming or case folding: this scope decides WHICH users a CI job creates.
+    if (!isMaestroPlatform(platform)) {
+        throw new Error(`poolAdmin: --platform '${platform}' is not one of ${MAESTRO_PLATFORMS.join(', ')}`);
     }
 
     // Digits only, anchored: `Number(' 1')` is 1, and every leniency is a scope nobody stated.
@@ -215,8 +236,11 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
         throw new Error(`poolAdmin: --shard '${shard}' is not a positive integer`);
     }
 
-    return { apply, scope: { kind: 'maestroErasure', shard: Number(shard) } };
+    return { apply, scope: { kind: 'maestroErasure', platform, shard: Number(shard) } };
 }
+
+const isMaestroPlatform = (value: string): value is MaestroPlatform =>
+    MAESTRO_PLATFORMS.some((platform) => platform === value);
 
 const sameList = (actual: unknown, desired: readonly string[]): boolean =>
     Array.isArray(actual) &&

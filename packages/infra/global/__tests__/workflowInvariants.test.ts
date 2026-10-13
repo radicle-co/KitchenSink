@@ -382,11 +382,16 @@ function uploadedNames(job: WorkflowJob): readonly string[] {
 /** Downloads a job performs, as `{ name?, pattern? }` (neither means "every artifact in the run"). */
 function downloads(
     job: WorkflowJob,
-): readonly { readonly step: string; readonly name?: string; readonly pattern?: string }[] {
+): readonly { readonly step: string; readonly name?: string; readonly pattern?: string; readonly crossRun: boolean }[] {
     return (job.steps ?? [])
         .filter((step) => /actions\/download-artifact/.test(step.uses ?? ''))
         .map((step) => ({
             step: stepLabel(step),
+            // A download with a `run-id` fetches from ANOTHER run by definition (ADDED 2026-10-13, for reusing a mobile test
+            // app an earlier run built). No upload in THIS run can pair with it, so the pairing question does not apply; the
+            // question that does — that the run id comes from a lookup that FOUND something — is held by the step's own `if:`
+            // in `mobileTestAppBuild.test.ts`.
+            crossRun: step.with?.['run-id'] !== undefined,
             ...(step.with?.['name'] === undefined ? {} : { name: scalarText(step.with['name']) }),
             ...(step.with?.['pattern'] === undefined ? {} : { pattern: scalarText(step.with['pattern']) }),
         }));
@@ -421,12 +426,117 @@ function globToRegExp(pattern: string): RegExp {
     );
 }
 
+/** `${{ inputs.NAME }}` and nothing else: a download whose artifact name is chosen by the CALLER. */
+const INPUT_NAMED = /^\$\{\{\s*inputs\.([\w-]+)\s*\}\}$/u;
+
+/** `${{ needs.JOB.outputs.NAME }}` and nothing else: a value produced by an earlier job of the caller's own workflow. */
+const NEEDS_OUTPUT = /^\$\{\{\s*needs\.([\w-]+)\.outputs\.[\w-]+\s*\}\}$/u;
+
+/** A `with:` value that is the literal `false`, as a boolean or as the string a YAML scalar can carry. */
+const isFalseLiteral = (value: unknown): boolean => value === false || value === 'false';
+
+/**
+ * Why a download named by an INPUT of its reusable workflow has (or lacks) an upload that precedes it.
+ *
+ * ADDED 2026-10-13, with the mobile test app: the Maestro shards in `_ci-heavy.yml` download an artifact whose name their
+ * caller chooses (`${{ inputs.android_test_app }}`), and the upload is in `_mobileAppBuild.yml`, a sibling job of the
+ * CALLER. Within `_ci-heavy.yml` there is no upload to find, so the intra-workflow check above could only report this
+ * download as orphaned — and the repair that keeps the guard honest is to follow the name UP the call chain until it
+ * reaches a job output of an ancestor that uploads, rather than to exempt the download.
+ *
+ * The chain must end in `needs.<job>.outputs.<x>` where `<job>` is in the calling job's `needs` closure AND is a job that
+ * uploads (directly, or by calling a workflow that does). A literal, an output of a job that is not an ancestor, or an
+ * output of a job that uploads nothing is a violation, as is a reusable workflow that nobody calls. A relay
+ * (`${{ inputs.other }}` passed on to a further callee) is followed.
+ *
+ * A call site that passes a literal FALSE for an input the downloading job's own `if:` requires can never reach the
+ * download (`recipe-loadtest.yml` runs k6 only), so it owes no pairing.
+ *
+ * @param file - The reusable workflow holding the download.
+ * @param input - The input whose value names the artifact.
+ * @param workflows - Every workflow.
+ * @param uploadsByFile - Artifact names uploaded per job per workflow.
+ * @param gates - The inputs the downloading job's `if:` mentions.
+ * @param seen - `file::input` pairs already followed, so a cycle terminates.
+ * @returns One reason per call site that does not pair, empty when every path does. Pure.
+ */
+function inputNamedUnpaired(
+    file: string,
+    input: string,
+    workflows: readonly Workflow[],
+    uploadsByFile: ReadonlyMap<string, Readonly<Record<string, readonly string[]>>>,
+    gates: readonly string[],
+    seen: ReadonlySet<string> = new Set(),
+): readonly string[] {
+    const key = `${file}::${input}`;
+
+    if (seen.has(key)) {
+        return [];
+    }
+
+    const callers = workflows.flatMap(({ file: callerFile, doc }) =>
+        Object.entries(doc.jobs ?? {})
+            .filter(([, job]) => (job.uses ?? '').split('/').pop() === file)
+            .map(([name, job]) => ({ callerFile, name, job, jobs: doc.jobs ?? {} })),
+    );
+
+    if (callers.length === 0) {
+        return [`${file} → its \`${input}\` input names an artifact, but no workflow calls it`];
+    }
+
+    return callers.flatMap(({ callerFile, name, job, jobs }) => {
+        if (gates.some((gate) => isFalseLiteral(job.with?.[gate]))) {
+            return [];
+        }
+
+        const passed = scalarText(job.with?.[input]);
+        const relay = INPUT_NAMED.exec(passed);
+        const produced = NEEDS_OUTPUT.exec(passed);
+
+        if (relay !== null) {
+            return inputNamedUnpaired(
+                callerFile,
+                relay[1] ?? '',
+                workflows,
+                uploadsByFile,
+                gates,
+                new Set([...seen, key]),
+            );
+        }
+
+        if (produced === null) {
+            return [
+                `${callerFile}::${name} → passes \`${input}\` as \`${passed || '(nothing)'}\`, which is not a build job's output`,
+            ];
+        }
+
+        const producer = produced[1] ?? '';
+
+        if (!ancestors(name, jobs).includes(producer)) {
+            return [
+                `${callerFile}::${name} → passes \`${input}\` from \`${producer}\`, which is not in its needs closure`,
+            ];
+        }
+
+        const calledFile = (jobs[producer]?.uses ?? '').split('/').pop() ?? '';
+        const uploads = [
+            ...(uploadsByFile.get(callerFile)?.[producer] ?? []),
+            ...Object.values(uploadsByFile.get(calledFile) ?? {}).flat(),
+        ];
+
+        return uploads.length > 0
+            ? []
+            : [`${callerFile}::${name} → passes \`${input}\` from \`${producer}\`, which uploads no artifact`];
+    });
+}
+
 /**
  * Downloads with no upload that provably precedes them.
  *
  * An unmatched `download-artifact` does NOT fail — it yields an empty directory, so whatever consumes it
  * reads nothing and the job usually carries on green. Uploads inside a called reusable workflow count, since
- * a caller's `needs:` on the calling job does order them within the same run.
+ * a caller's `needs:` on the calling job does order them within the same run. A download named by an input of its
+ * reusable workflow is paired at the caller (`inputNamedUnpaired`).
  */
 function findUnreachableArtifacts(workflows: readonly Workflow[]): readonly string[] {
     const violations: string[] = [];
@@ -451,6 +561,26 @@ function findUnreachableArtifacts(workflows: readonly Workflow[]): readonly stri
             });
 
             for (const download of downloads(job)) {
+                if (download.crossRun) {
+                    continue;
+                }
+
+                const inputName = INPUT_NAMED.exec(download.name ?? '')?.[1];
+
+                if (inputName !== undefined) {
+                    const gates = [
+                        ...new Set([...(job.if ?? '').matchAll(/inputs\.([\w-]+)/gu)].map((match) => match[1] ?? '')),
+                    ];
+
+                    for (const reason of inputNamedUnpaired(file, inputName, workflows, uploadsByFile, gates)) {
+                        violations.push(
+                            `${file}::${name}::${download.step} → downloads \`${download.name}\`: ${reason}`,
+                        );
+                    }
+
+                    continue;
+                }
+
                 const matches =
                     download.name !== undefined
                         ? available.includes(download.name)
@@ -598,11 +728,17 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // the ledger with nothing to show for it, which is an escape hatch leaving the inventory by being
     // refactored — the shape the inventory exists to catch.
     'continue-on-error actions/sentry-release::Create the release and upload source maps ×1',
-    // Clerk/AWS secrets are withheld from Dependabot and fork PRs by design; the soft failure lets the
-    // dependent steps skip on `steps.secrets.outcome`, instead of reporting a red check nobody can fix.
-    'continue-on-error _ci-heavy.yml::e2e-mobile-maestro::Load ${{ inputs.stage }} Clerk secrets ×1',
-    // The iOS Simulator job's copy of the same valve, for the same reason.
-    'continue-on-error _ci-heavy.yml::e2e-mobile-maestro-ios::Load ${{ inputs.stage }} Clerk secrets ×1',
+    // (The two Maestro shards' `Load … Clerk secrets` entries that stood here were REMOVED 2026-10-13: a secrets-load failure on a
+    // live sandbox is now red. The skip for "no AWS credentials" is the shard's own liveness re-probe setting `live=false`.)
+    // REUSE of an earlier mobile test-app build (`_mobileAppBuild.yml`) is an optimisation, so a fetch that lost a race with the
+    // artifact's expiry, or a failed re-upload, must cost a REBUILD and not the plan (a failed plan skips both builds and leaves
+    // every Maestro shard to refuse an empty name). NOT silent: the reuse answer is published only when BOTH steps succeeded
+    // (`steps.fetchX.outcome == 'success' && steps.reuploadX.outcome == 'success'`), so a tolerated failure shows as a build job
+    // running. `mobileTestAppBuild.test.ts` pins the pairing.
+    'continue-on-error _mobileAppBuild.yml::plan::Fetch the earlier Android test app ×1',
+    'continue-on-error _mobileAppBuild.yml::plan::Re-upload the reused Android test app into this run ×1',
+    'continue-on-error _mobileAppBuild.yml::plan::Fetch the earlier iOS test app ×1',
+    'continue-on-error _mobileAppBuild.yml::plan::Re-upload the reused iOS test app into this run ×1',
     // Same reason one job over: without the stage's Clerk keys the k6 SCENARIOS cannot mint a pool, so the
     // dependent steps skip on `steps.k6secrets.outcome`. The generic origin probes are unauthenticated and
     // still run, so a fork PR measures the deployed origins and reports the scenarios as skipped — which is
@@ -1065,11 +1201,228 @@ describe('invariant 2 — every artifact download has an upload before it', () =
         expect(violations).toEqual([]);
     });
 
+    /**
+     * ADDED 2026-10-13: a download whose name is an INPUT is paired at the caller, by following the name up to a job output
+     * of an ancestor that uploads. Each case is a fixture of the caller/callee shape the Maestro shards have.
+     */
+    describe('a download named by an input of its reusable workflow', () => {
+        const callee = [
+            'name: callee',
+            'on:',
+            '    workflow_call:',
+            '        inputs:',
+            '            app:',
+            '                type: string',
+            'jobs:',
+            '    shard:',
+            '        runs-on: ubuntu-latest',
+            '        steps:',
+            '            - uses: actions/download-artifact@v5',
+            '              with:',
+            '                  name: ${{ inputs.app }}',
+            '',
+        ].join('\n');
+        const builder = [
+            'name: builder',
+            'on:',
+            '    workflow_call:',
+            '        outputs:',
+            '            app:',
+            '                value: ${{ jobs.build.outputs.artifact }}',
+            'jobs:',
+            '    build:',
+            '        runs-on: ubuntu-latest',
+            '        outputs:',
+            '            artifact: ${{ steps.p.outputs.artifact }}',
+            '        steps:',
+            '            - uses: actions/upload-artifact@v5',
+            '              with:',
+            '                  name: the-app',
+            '                  path: app/',
+            '            - id: p',
+            '              run: echo artifact=the-app >> "$GITHUB_OUTPUT"',
+            '',
+        ].join('\n');
+        const caller = (needsLine: string, passed: string): string =>
+            [
+                'name: caller',
+                'on:',
+                '    push:',
+                '        branches: [main]',
+                'jobs:',
+                '    build:',
+                '        uses: ./.github/workflows/builder.yml',
+                '    other:',
+                '        runs-on: ubuntu-latest',
+                '        steps:',
+                '            - run: echo hi',
+                '    tiers:',
+                needsLine,
+                '        uses: ./.github/workflows/callee.yml',
+                '        with:',
+                `            app: ${passed}`,
+                '',
+            ].join('\n');
+
+        it('is paired when the caller passes the output of an ancestor build that uploads', () => {
+            expect(
+                findUnreachableArtifacts(
+                    fixture({
+                        'callee.yml': callee,
+                        'builder.yml': builder,
+                        'caller.yml': caller('        needs: [build]', '${{ needs.build.outputs.app }}'),
+                    }),
+                ),
+            ).toEqual([]);
+        });
+
+        it('flags a caller that passes a literal name — nothing proves an upload precedes it', () => {
+            expect(
+                findUnreachableArtifacts(
+                    fixture({
+                        'callee.yml': callee,
+                        'builder.yml': builder,
+                        'caller.yml': caller('        needs: [build]', 'the-app'),
+                    }),
+                ).join('\n'),
+            ).toMatch(/caller\.yml::tiers → passes `app` as `the-app`/);
+        });
+
+        it('flags a caller whose producer is NOT in the tiers job’s needs closure', () => {
+            expect(
+                findUnreachableArtifacts(
+                    fixture({
+                        'callee.yml': callee,
+                        'builder.yml': builder,
+                        'caller.yml': caller('        needs: [other]', '${{ needs.build.outputs.app }}'),
+                    }),
+                ).join('\n'),
+            ).toMatch(/`build`, which is not in its needs closure/);
+        });
+
+        it('flags a caller whose producer uploads nothing', () => {
+            expect(
+                findUnreachableArtifacts(
+                    fixture({
+                        'callee.yml': callee,
+                        'builder.yml': builder,
+                        'caller.yml': caller('        needs: [other]', '${{ needs.other.outputs.app }}'),
+                    }),
+                ).join('\n'),
+            ).toMatch(/`other`, which uploads no artifact/);
+        });
+
+        it('flags a reusable workflow nobody calls', () => {
+            expect(findUnreachableArtifacts(fixture({ 'callee.yml': callee })).join('\n')).toMatch(
+                /no workflow calls it/,
+            );
+        });
+
+        it('follows a relay: an input passed on through a middle workflow to the build that uploads', () => {
+            const middle = [
+                'name: middle',
+                'on:',
+                '    workflow_call:',
+                '        inputs:',
+                '            app:',
+                '                type: string',
+                'jobs:',
+                '    inner:',
+                '        uses: ./.github/workflows/callee.yml',
+                '        with:',
+                '            app: ${{ inputs.app }}',
+                '',
+            ].join('\n');
+
+            expect(
+                findUnreachableArtifacts(
+                    fixture({
+                        'callee.yml': callee,
+                        'middle.yml': middle,
+                        'builder.yml': builder,
+                        'caller.yml': caller('        needs: [build]', '${{ needs.build.outputs.app }}').replace(
+                            './.github/workflows/callee.yml',
+                            './.github/workflows/middle.yml',
+                        ),
+                    }),
+                ),
+            ).toEqual([]);
+        });
+    });
+
     it('holds for every workflow in .github/workflows/', () => {
         expect(
             findUnreachableArtifacts(realWorkflows()),
             'an unmatched download-artifact yields an EMPTY directory, not an error',
         ).toEqual([]);
+    });
+
+    it('does not pair a download that names another RUN (run-id): no upload in this run could satisfy it', () => {
+        const fixtureWorkflow = [
+            'name: cross',
+            'on:',
+            '    push:',
+            '        branches: [main]',
+            'jobs:',
+            '    reuse:',
+            '        runs-on: ubuntu-latest',
+            '        steps:',
+            '            - uses: actions/download-artifact@v5',
+            '              with:',
+            '                  name: from-an-earlier-run',
+            '                  run-id: 12345',
+            '    plain:',
+            '        runs-on: ubuntu-latest',
+            '        steps:',
+            '            - uses: actions/download-artifact@v5',
+            '              with:',
+            '                  name: from-an-earlier-run',
+            '',
+        ].join('\n');
+        const violations = findUnreachableArtifacts(fixture({ 'cross.yml': fixtureWorkflow })).join('\n');
+
+        expect(violations).not.toMatch(/cross\.yml::reuse/);
+        expect(violations, 'the same download WITHOUT a run-id is still orphaned').toMatch(/cross\.yml::plain/);
+    });
+
+    it('a call site that passes a literal false for the input the download job requires owes no pairing', () => {
+        const callee = [
+            'name: callee',
+            'on:',
+            '    workflow_call:',
+            '        inputs:',
+            '            run_it:',
+            '                type: boolean',
+            '            app:',
+            '                type: string',
+            'jobs:',
+            '    shard:',
+            '        if: ${{ inputs.run_it }}',
+            '        runs-on: ubuntu-latest',
+            '        steps:',
+            '            - uses: actions/download-artifact@v5',
+            '              with:',
+            '                  name: ${{ inputs.app }}',
+            '',
+        ].join('\n');
+        const caller = (runIt: string): string =>
+            [
+                'name: caller',
+                'on:',
+                '    push:',
+                '        branches: [main]',
+                'jobs:',
+                '    k6:',
+                '        uses: ./.github/workflows/callee.yml',
+                '        with:',
+                `            run_it: ${runIt}`,
+                '',
+            ].join('\n');
+
+        expect(findUnreachableArtifacts(fixture({ 'callee.yml': callee, 'caller.yml': caller('false') }))).toEqual([]);
+        expect(
+            findUnreachableArtifacts(fixture({ 'callee.yml': callee, 'caller.yml': caller('true') })).join('\n'),
+        ).toMatch(/caller\.yml::k6 → passes `app`/);
     });
 
     it('is NOT vacuous: the tree both uploads AND downloads artifacts, so the check above has teeth', () => {

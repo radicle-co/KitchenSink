@@ -173,9 +173,23 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         // are nobody else's: the per-flow reset RECONCILES the signer's library to the run manifest and
         // `resetPool` hard-deletes every row the slot owns, so two shards on one signer would delete each
         // other's fixtures mid-flow and answer `423 ERASURE_IN_PROGRESS` while a purge is in flight.
-        // `MAESTRO_SHARD_LANES` is the index; `maestroShardCapacity` is what bounds the matrix.
+        // `MAESTRO_PLATFORM_LANES` is the index; `maestroShardCapacity` is what bounds the matrix.
         lane('signer02', { premium: true, signsInByPassword: true }),
         lane('coauthor02'),
+        // Shards 3 and 4 of Android, then iOS's own four shards, so the two platforms run side by side instead of
+        // queueing on one lane's concurrency group (owner, 2026-10-13). Appended, for the reason above.
+        lane('signer03', { premium: true, signsInByPassword: true }),
+        lane('coauthor03'),
+        lane('signer04', { premium: true, signsInByPassword: true }),
+        lane('coauthor04'),
+        lane('iossigner01', { premium: true, signsInByPassword: true }),
+        lane('ioscoauthor01'),
+        lane('iossigner02', { premium: true, signsInByPassword: true }),
+        lane('ioscoauthor02'),
+        lane('iossigner03', { premium: true, signsInByPassword: true }),
+        lane('ioscoauthor03'),
+        lane('iossigner04', { premium: true, signsInByPassword: true }),
+        lane('ioscoauthor04'),
     ],
     k6: [
         // Premium so the load scenarios' writes can be PRIVATE — a public write is visible to real users.
@@ -189,58 +203,111 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
 };
 
 /**
- * The Maestro tier's per-SHARD identities, in shard order: shard `k` takes the lane at index `k - 1`.
- *
- * ⚠️ Shard 1 keeps the ORIGINAL ids (`signer`, `coauthor`) on purpose — their Clerk users already exist, so
- * sharding re-provisions nobody and an unsharded run addresses byte-identical slots. Adding a shard is an
- * append here plus an owner run of `poolAdmin --apply`; the Maestro refill reconciles erasure subjects only.
- *
- * ⛔ The two lists are the same length BY OBLIGATION, not by accident: a shard needs BOTH a signer and a
- * co-author, and {@link maestroShardCapacity} takes the minimum so a half-declared shard is unrepresentable
- * rather than a run that leases one identity and fails on the other.
+ * The platforms the Maestro tier runs on. `runMaestroFlows.sh`'s `PLATFORMS` is the runner's own list, and its
+ * default is `android`.
  */
-const MAESTRO_SHARD_LANES = {
-    signer: ['signer', 'signer02'],
-    coauthor: ['coauthor', 'coauthor02'],
-} as const satisfies Readonly<Record<string, readonly string[]>>;
+export const MAESTRO_PLATFORMS = ['android', 'ios'] as const;
+
+/** One of {@link MAESTRO_PLATFORMS}. */
+export type MaestroPlatform = (typeof MAESTRO_PLATFORMS)[number];
 
 /** Which identity of a Maestro shard is being asked for. */
-export type MaestroShardRole = keyof typeof MAESTRO_SHARD_LANES;
+export type MaestroShardRole = 'signer' | 'coauthor';
 
 /**
- * How many Maestro shards the roster can give DISJOINT identities to. Pure.
+ * The lanes one platform's Maestro matrix draws from, in shard order: shard `k` takes the signer and the co-author at
+ * index `k - 1`, and the platform's own erasure subjects for {@link MAESTRO_ERASURE_SHARD}.
+ */
+interface MaestroPlatformLanes {
+    readonly signer: readonly string[];
+    readonly coauthor: readonly string[];
+    readonly erasure: readonly string[];
+}
+
+/**
+ * The Maestro tier's identities, PARTITIONED BY PLATFORM and then by shard (owner, 2026-10-13: "iOS gets its own
+ * Clerk pool lanes"). It replaces the single per-shard list both platforms shared, which made them queue on one
+ * concurrency group per shard and the iOS run wait for the Android one.
+ *
+ * ⚠️ Android shard 1 keeps the ORIGINAL ids (`signer`, `coauthor`) on purpose — their Clerk users already exist, so an
+ * unsharded or Android-only run addresses byte-identical slots. The iOS lanes and Android shards 3-4 are APPENDED to
+ * {@link POOL_ROSTER}; adding a shard is an append there plus an owner run of `poolAdmin --apply`.
+ *
+ * ⛔ Each platform's three lists are NOT the same length by obligation; signer and co-author are, because a shard needs
+ * BOTH and {@link maestroShardCapacity} takes the minimum, so a half-declared shard is unrepresentable rather than a
+ * run that leases one identity and fails on the other. The erasure set is Android `erasure01-05`, iOS `erasure06-10`:
+ * the ten consumable users are split in half, one half per platform, and no new erasure user exists.
+ *
+ * The type is a `Record` over the platform union, so a platform added to {@link MAESTRO_PLATFORMS} without lanes is a
+ * compile error. This module must not know about workflows; the workflow's side of the contract is held by
+ * `maestroShardPartition.test.ts`.
+ */
+const MAESTRO_PLATFORM_LANES: Readonly<Record<MaestroPlatform, MaestroPlatformLanes>> = {
+    android: {
+        signer: ['signer', 'signer02', 'signer03', 'signer04'],
+        coauthor: ['coauthor', 'coauthor02', 'coauthor03', 'coauthor04'],
+        erasure: ['erasure01', 'erasure02', 'erasure03', 'erasure04', 'erasure05'],
+    },
+    ios: {
+        signer: ['iossigner01', 'iossigner02', 'iossigner03', 'iossigner04'],
+        coauthor: ['ioscoauthor01', 'ioscoauthor02', 'ioscoauthor03', 'ioscoauthor04'],
+        erasure: ['erasure06', 'erasure07', 'erasure08', 'erasure09', 'erasure10'],
+    },
+};
+
+/** The lanes of a platform; throws for a platform the roster does not declare (a cast can smuggle one in). Pure. */
+function lanesFor(platform: MaestroPlatform): MaestroPlatformLanes {
+    // `Object.hasOwn`, not `in`: a platform named `toString` or `constructor` must not resolve to an inherited member.
+    if (!Object.hasOwn(MAESTRO_PLATFORM_LANES, platform)) {
+        throw new Error(
+            `test pool: '${String(platform)}' is not a Maestro platform — the roster declares ${MAESTRO_PLATFORMS.join(', ')}`,
+        );
+    }
+
+    return MAESTRO_PLATFORM_LANES[platform];
+}
+
+/**
+ * How many Maestro shards one platform's lanes can give DISJOINT identities to. Pure.
  *
  * Bounded by the scarcer of the two identities EVERY shard needs — a signer and a co-author. The erasure subjects
  * do not bound it: they all belong to {@link MAESTRO_ERASURE_SHARD}, so no other shard needs one.
  * `runMaestroFlows.sh`'s `MAESTRO_MAX_SHARDS` is the shell-side copy of this number, and
  * `maestroShardPartition.test.ts` asserts the two agree from disk (neither language can typecheck the other).
+ *
+ * @param platform - `android` or `ios`.
  */
-export function maestroShardCapacity(): number {
-    return Math.min(MAESTRO_SHARD_LANES.signer.length, MAESTRO_SHARD_LANES.coauthor.length);
+export function maestroShardCapacity(platform: MaestroPlatform): number {
+    const lanes = lanesFor(platform);
+
+    return Math.min(lanes.signer.length, lanes.coauthor.length);
 }
 
 /**
- * The slot a 1-based Maestro shard signs in as, for one role. Pure.
+ * The slot a 1-based Maestro shard of one platform signs in as, for one role. Pure.
  *
  * ⛔ It THROWS past the declared lanes rather than wrapping, for the reason {@link slotForShard} records: a
  * wrap would put two shards of one run on one user — the collision the pool exists to rule out — and would
  * do it silently, as data loss rather than as an error.
  *
  * @param role - `signer` or `coauthor`.
+ * @param platform - `android` or `ios`.
  * @param shard - The 1-based shard index.
  * @returns That shard's slot for the role.
  */
-export function maestroSlotForShard(role: MaestroShardRole, shard: number): PoolSlot {
+export function maestroSlotForShard(role: MaestroShardRole, platform: MaestroPlatform, shard: number): PoolSlot {
+    const declaredLanes = lanesFor(platform)[role];
+
     if (!Number.isInteger(shard) || shard < 1) {
         throw new Error(`test pool: a Maestro shard must be a positive integer, got ${String(shard)}`);
     }
 
-    const declared = MAESTRO_SHARD_LANES[role][shard - 1];
+    const declared = declaredLanes[shard - 1];
 
     if (declared === undefined) {
         throw new Error(
-            `test pool: Maestro shard ${shard} has no '${role}' lane — the roster declares only ` +
-                `${MAESTRO_SHARD_LANES[role].length}. Append lanes to POOL_ROSTER, run poolAdmin --apply, ` +
+            `test pool: ${platform} Maestro shard ${shard} has no '${role}' lane — the roster declares only ` +
+                `${declaredLanes.length}. Append lanes to POOL_ROSTER, run poolAdmin --apply, ` +
                 'then raise the `maestro_shards` input.',
         );
     }
@@ -249,55 +316,64 @@ export function maestroSlotForShard(role: MaestroShardRole, shard: number): Pool
 }
 
 /**
- * The ONE Maestro shard that erases. `runMaestroFlows.sh`'s `MAESTRO_ERASURE_SHARD` is the shell-side copy, which
- * pins every erasing flow here, and `maestroShardPartition.test.ts` asserts the two agree from disk.
+ * The ONE Maestro shard of each platform that erases. `runMaestroFlows.sh`'s `MAESTRO_ERASURE_SHARD` is the
+ * shell-side copy, which pins every erasing flow here, and `maestroShardPartition.test.ts` asserts the two agree from
+ * disk.
  *
  * ⛔ It is shard 1 because shard 1 is the only index EVERY matrix holds — the `'[1]'` fallback, a narrowed
  * selection, and a platform whose exclusions leave it fewer shards than the other. Pinning to "the last shard"
- * would not do: Android's matrix and iOS's are sized separately, so one run's two platforms could then erase on
+ * would not do: each platform's matrix is sized separately, so one run's two platforms could then erase on
  * two different lanes at once.
  */
 export const MAESTRO_ERASURE_SHARD = 1;
 
 /**
- * The erasure subjects a 1-based Maestro shard may lease, in declared order: EVERY consumable slot for
- * {@link MAESTRO_ERASURE_SHARD}, and none for any other shard. Pure.
+ * The erasure subjects a 1-based Maestro shard of one platform may lease, in declared order: that platform's
+ * own subjects for {@link MAESTRO_ERASURE_SHARD}, and none for any other shard. Pure.
  *
- * ## The lease contract (2026-10-08 — it REPLACES the per-shard stride)
+ * ## The lease contract (2026-10-08 stride -> one lane; 2026-10-13 one lane PER PLATFORM)
  *
  * The stride split the ten subjects across the shards, which was safe but wasted half of them: the flow plan always
  * packed `accountErasure` onto shard 2, so shard 1's five were leased and never erased while shard 2's five ran dry.
- * Now one shard holds all ten and the runner pins every erasing flow to it, so what keeps two runs off one subject
- * is the LANE that shard leases, not a partition of the slots:
+ * Then one shard of the matrix held all ten. Now each PLATFORM's shard 1 holds five of them (Android `erasure01-05`,
+ * iOS `erasure06-10`) and the runner pins every erasing flow to it, so what keeps two runs off one subject is the LANE
+ * that shard leases, not a partition of the slots:
  *
- *   - only the erasure shard leases a subject, refills the subjects, or runs an erasing flow;
- *   - in CI its concurrency group, `test-pool-sandbox-maestro-1`, is shared by the Android and iOS jobs and by every
- *     run of every caller (a group name is repository-wide), and it admits one job at a time;
- *   - so at any moment at most one CI job can lease, refill or erase, and `firstAvailableSlot` taking the first
- *     subject still standing cannot collide with another. A run cancelled mid-flow has either erased its subject
- *     (gone; the next holder's refill recreates it) or not (standing; the next holder may take it) — both are safe.
+ *   - only a platform's erasure shard leases a subject, refills the subjects, or runs an erasing flow;
+ *   - in CI its concurrency group (`test-pool-sandbox-maestro-1` for Android, `test-pool-sandbox-maestro-ios-1` for
+ *     iOS; a group name is repository-wide) admits one job at a time, across every run of every caller;
+ *   - the two platforms' subjects are DISJOINT, so an Android job and an iOS job never contend for one;
+ *   - so at any moment at most one CI job per platform can lease, refill or erase, and `firstAvailableSlot` taking the
+ *     first subject still standing cannot collide with another. A run cancelled mid-flow has either erased its
+ *     subject (gone; the next holder's refill recreates it) or not (standing; the next holder may take it) — both
+ *     are safe.
  *
- * ⚠️ Two hazards this does NOT close. Both can only fail a run — every candidate is a consumable subject that owns
- * nothing, so neither can erase the wrong KIND of account:
+ * ⚠️ Hazards this does NOT close. Each can only fail a run — every candidate is a consumable subject that owns
+ * nothing, so none can erase the wrong KIND of account:
  *
- *   - **A local run holds no lane.** `local-sandbox`'s `localMaestro.sh` runs as shard 1 against the same sandbox
- *     Clerk instance and leases from the same ten, so a local run concurrent with a CI lane-1 job can lease the same
- *     subject, and one of the two erasures fails. The stride used to keep them apart only by accident (local drew
- *     the odd subjects, CI's erasing shard the even ones); this hazard is new with the erasure lane.
+ *   - **A local run holds no lane.** `local-sandbox`'s `localMaestro.sh` runs as Android shard 1 against the same
+ *     sandbox Clerk instance and leases from the same five, so a local run concurrent with a CI Android lane-1 job can
+ *     lease the same subject, and one of the two erasures fails.
+ *   - **A run of OLDER code on another branch.** The previous workflow gave every platform's shard 1 all ten subjects
+ *     and one shared group, so an old-code Android shard 1 can draw `erasure06-10` while a new iOS shard 1 holds them.
+ *     It clears as branches pick up this change.
  *   - **Erasure is asynchronous** (identity, the deletion queue, the worker, then Clerk), so a subject a cancelled
  *     run had started erasing can still exist when the next holder leases it, and be deleted under that holder's
  *     flow. That predates the lane, and the refill does not buffer it: it recreates the first subject, which the
  *     next lease takes again.
  *
+ * @param platform - `android` or `ios`.
  * @param shard - The 1-based shard index.
- * @returns Every consumable maestro slot for the erasure shard; empty for every other shard.
+ * @returns That platform's consumable maestro slots for the erasure shard; empty for every other shard.
  */
-export function maestroErasureSlots(shard: number): readonly PoolSlot[] {
+export function maestroErasureSlots(platform: MaestroPlatform, shard: number): readonly PoolSlot[] {
+    const lanes = lanesFor(platform);
+
     if (!Number.isInteger(shard) || shard < 1) {
         throw new Error(`test pool: a Maestro shard must be a positive integer, got ${String(shard)}`);
     }
 
-    return shard === MAESTRO_ERASURE_SHARD ? consumableSlots('maestro') : [];
+    return shard === MAESTRO_ERASURE_SHARD ? lanes.erasure.map((id) => slotFor('maestro', id)) : [];
 }
 
 /** The sandbox tenant's address for a slot id. The `+clerk_test` subaddress is what makes it a Clerk test user. */

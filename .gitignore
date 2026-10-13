@@ -6,6 +6,9 @@ out
 dist
 *.tgz
 
+# the mobile test app a build job produces (`buildTestApp.sh`): an APK or a tarball, uploaded as a workflow artifact
+dist-testApp/
+
 # code coverage
 coverage
 *.lcov

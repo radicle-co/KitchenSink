@@ -1,7 +1,12 @@
 // @vitest-environment node
 /**
- * ⛔ The Maestro job must resolve its Android SDK components BEFORE the expensive build, and must never name
- * a version to do it.
+ * ⛔ The Android test-app build must resolve its Android SDK components BEFORE the expensive build, and must never
+ * name a version to do it.
+ *
+ * REWRITTEN 2026-10-13: the build recipe moved out of `_ci-heavy.yml` into `packages/apps/commise/mobile/scripts/
+ * buildTestApp.sh` (the one home of how the test app is built — `_mobileAppBuild.yml` runs it once per run instead of
+ * once per shard). This guard now reads the recipe where it lives: the same four properties, over the script's Android
+ * build function, and it still fails — rather than passes vacuously — if the recipe moves again.
  *
  * ## The failure
  *
@@ -47,16 +52,17 @@
  * | move the loop after `assembleRelease` | `… BEFORE the expensive build` |
  * | replace `:app:tasks` with a literal `sdkmanager "ndk;27.1.12297006"` | `names no SDK version of its own` |
  *
- * DESIGN PATTERN: Specification module over a pure predicate — the verdict is computed from the step's shell
+ * DESIGN PATTERN: Specification module over a pure predicate — the verdict is computed from the build's shell
  * body, so it can be fired at fakes as well as at the real workflow.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
-const WORKFLOW = fileURLToPath(new URL('../../../../.github/workflows/_ci-heavy.yml', import.meta.url));
+const BUILD_SCRIPT = fileURLToPath(
+    new URL('../../../../packages/apps/commise/mobile/scripts/buildTestApp.sh', import.meta.url),
+);
 
 /**
  * The shell body with `#` comment lines removed.
@@ -76,26 +82,29 @@ function executableLines(shell: string): string {
         .join('\n');
 }
 
-/** The Maestro job's APK build step, located by what it does rather than by its name. */
+/**
+ * The Android build function of the test-app script, located by what it does rather than by its name.
+ *
+ * The function is the text from the line that declares it to the first closing brace at column zero.
+ */
 function apkBuildShell(): string {
-    const document = parse(readFileSync(WORKFLOW, 'utf8')) as {
-        jobs: Record<string, { steps?: { name?: string; run?: string }[] }>;
-    };
-    const steps = Object.values(document.jobs).flatMap((job) => job.steps ?? []);
-    const build = steps.find((step) => /gradlew[^\n]*assembleRelease/u.test(step.run ?? ''));
+    const script = readFileSync(BUILD_SCRIPT, 'utf8');
+    const declared = script.search(/^test_app_build_android\(\) \{$/mu);
 
-    if (build === undefined) {
+    if (declared === -1 || !/gradlew[^\n]*assembleRelease/u.test(script)) {
         throw new Error(
-            'no step running `gradlew … assembleRelease` was found in _ci-heavy.yml. If the Android build ' +
-                'moved, this guard must move with it rather than pass vacuously.',
+            'no Android build function running `gradlew … assembleRelease` was found in buildTestApp.sh. If the ' +
+                'Android build moved, this guard must move with it rather than pass vacuously.',
         );
     }
 
-    return build.run ?? '';
+    const body = script.slice(declared);
+
+    return body.slice(0, body.search(/^\}$/mu) + 1);
 }
 
-describe('the Maestro job resolves its Android SDK components deliberately', () => {
-    it('is not vacuous: the APK build step is found in the real workflow', () => {
+describe('the Android test-app build resolves its Android SDK components deliberately', () => {
+    it('is not vacuous: the APK build function is found in the real script', () => {
         expect(apkBuildShell()).toMatch(/assembleRelease/u);
     });
 

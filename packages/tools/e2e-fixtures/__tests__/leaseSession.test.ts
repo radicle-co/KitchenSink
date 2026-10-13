@@ -19,7 +19,7 @@ import {
     type LeasePort,
     type PoolUserRecord,
 } from '../src/leaseSession.js';
-import { consumableSlots, MAESTRO_ERASURE_SHARD, slotFor } from '../src/testPool.js';
+import { consumableSlots, MAESTRO_ERASURE_SHARD, maestroErasureSlots, slotFor } from '../src/testPool.js';
 
 const clerk = vi.hoisted(() => ({ getUserList: vi.fn(), createSignInToken: vi.fn() }));
 
@@ -181,47 +181,60 @@ describe('firstAvailableSlot', () => {
 });
 
 /**
- * The erasure lane (2026-10-08, `maestroErasureSlots`): the erasure shard draws from EVERY subject, every other shard
- * leases none. The first case is the measured failure: the old stride gave the shard that runs the flow only every
- * other subject, so once its five were erased it went red while five more stood unused.
+ * The erasure lane (2026-10-08, `maestroErasureSlots`; REWRITTEN 2026-10-13 for per-platform lanes): a platform's
+ * erasure shard draws from EVERY one of THAT platform's subjects and from no other platform's, and every other shard
+ * leases none. The first case is the measured failure behind the lane: the old stride gave the shard that runs the
+ * flow only every other subject, so once its half was erased it went red while the rest stood unused.
  */
 describe('leaseErasureSubject', () => {
-    const erasure = consumableSlots('maestro');
-
-    it('⛔ reaches the LAST subject when every earlier one is consumed — all ten are usable, not every other one', async () => {
-        const last = erasure.at(-1);
-        const port: LeasePort = {
-            findUsers: vi
-                .fn()
-                .mockImplementation(async (email: string) => (email === last?.email ? [provisioned()] : [])),
-            mintTicket: vi.fn(),
-        };
-
-        await expect(leaseErasureSubject(MAESTRO_ERASURE_SHARD, port)).resolves.toMatchObject({ slot: last });
+    const android = maestroErasureSlots('android', MAESTRO_ERASURE_SHARD);
+    const ios = maestroErasureSlots('ios', MAESTRO_ERASURE_SHARD);
+    const portStanding = (...standing: readonly (string | undefined)[]): LeasePort => ({
+        findUsers: vi
+            .fn()
+            .mockImplementation(async (email: string) => (standing.includes(email) ? [provisioned()] : [])),
+        mintTicket: vi.fn(),
     });
 
-    it('reaches a subject the old stride reserved for the OTHER shard', async () => {
-        const reserved = erasure[1];
-        const port: LeasePort = {
-            findUsers: vi
-                .fn()
-                .mockImplementation(async (email: string) => (email === reserved?.email ? [provisioned()] : [])),
-            mintTicket: vi.fn(),
-        };
+    it('⛔ reaches the LAST of a platform’s subjects when every earlier one is consumed', async () => {
+        const last = android.at(-1);
 
-        await expect(leaseErasureSubject(MAESTRO_ERASURE_SHARD, port)).resolves.toMatchObject({ slot: reserved });
+        await expect(
+            leaseErasureSubject('android', MAESTRO_ERASURE_SHARD, portStanding(last?.email)),
+        ).resolves.toMatchObject({ slot: last });
+    });
+
+    it('⛔ draws iOS’s subject from erasure06-10 and Android’s from erasure01-05, never across', async () => {
+        const everyone = portStanding(...consumableSlots('maestro').map((slot) => slot.email));
+
+        await expect(leaseErasureSubject('android', MAESTRO_ERASURE_SHARD, everyone)).resolves.toMatchObject({
+            slot: { id: 'erasure01' },
+        });
+        await expect(leaseErasureSubject('ios', MAESTRO_ERASURE_SHARD, everyone)).resolves.toMatchObject({
+            slot: { id: 'erasure06' },
+        });
+    });
+
+    it('⛔ does NOT fall back to the other platform’s subjects when its own are consumed', async () => {
+        const otherPlatformOnly = portStanding(...android.map((slot) => slot.email));
+
+        await expect(leaseErasureSubject('ios', MAESTRO_ERASURE_SHARD, otherPlatformOnly)).rejects.toThrow(
+            /all 5 .*consumed.*poolAdmin/u,
+        );
+        expect(ios).toHaveLength(5);
     });
 
     it('⛔ leases NOTHING on any other shard, and does not even look', async () => {
         const port = portWith([provisioned()]);
 
-        await expect(leaseErasureSubject(MAESTRO_ERASURE_SHARD + 1, port)).resolves.toBeNull();
+        await expect(leaseErasureSubject('android', MAESTRO_ERASURE_SHARD + 1, port)).resolves.toBeNull();
+        await expect(leaseErasureSubject('ios', MAESTRO_ERASURE_SHARD + 1, port)).resolves.toBeNull();
         expect(port.findUsers).not.toHaveBeenCalled();
     });
 
     it('still goes RED on the erasure shard when every subject is consumed', async () => {
-        await expect(leaseErasureSubject(MAESTRO_ERASURE_SHARD, portWith([]))).rejects.toThrow(
-            /all 10 .*consumed.*poolAdmin/u,
+        await expect(leaseErasureSubject('android', MAESTRO_ERASURE_SHARD, portWith([]))).rejects.toThrow(
+            /all 5 .*consumed.*poolAdmin/u,
         );
     });
 });

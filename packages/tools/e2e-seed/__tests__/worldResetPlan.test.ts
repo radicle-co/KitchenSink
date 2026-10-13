@@ -16,7 +16,7 @@ import {
 } from '../src/worldResetPlan.js';
 
 const RUN = 'gh42-1-maestro';
-const manifest = deriveFixtureManifest(RUN, 1);
+const manifest = deriveFixtureManifest(RUN, 'android', 1);
 
 /** The recipes the SIGNER is supposed to own. The co-author's risotto is deliberately not among them. */
 const signerRecipes = manifest.recipes.filter((r) => r.owner === 'signer');

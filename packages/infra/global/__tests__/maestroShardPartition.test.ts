@@ -24,8 +24,13 @@
  *     other, so the contract is asserted from disk — the posture `maestroFixtureVariables.test.ts` takes);
  *   - every shard's signer and co-author differ from every other shard's, and only the ERASURE shard holds erasure
  *     subjects — the runner pins every erasing flow to that shard (`maestroErasureSlots` states the lease contract);
- *   - the workflow leases per SHARD (`test-pool-sandbox-maestro-{shard}`), not per tier, so the protection the
- *     single `test-pool-sandbox-maestro` group used to give is preserved one lane down rather than dropped.
+ *   - the workflow leases per (PLATFORM, SHARD) (`test-pool-sandbox-maestro-{shard}` for Android,
+ *     `test-pool-sandbox-maestro-ios-{shard}` for iOS), not per tier, so the protection the single
+ *     `test-pool-sandbox-maestro` group used to give is preserved one lane down rather than dropped.
+ *
+ * REWRITTEN 2026-10-13 (owner: "do all three" — iOS lanes of its own, four shards per platform): the roster and the
+ * shell ceiling are now per PLATFORM, so Android and iOS each reach four disjoint shards and the two jobs no longer
+ * queue on one group. Every seed, reset and refill step now states its platform on BOTH channels.
  *
  * ## The two failure modes the partition must not have
  *
@@ -55,6 +60,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import {
     consumableSlots,
     MAESTRO_ERASURE_SHARD,
+    MAESTRO_PLATFORMS,
     maestroErasureSlots,
     maestroShardCapacity,
     maestroSlotForShard,
@@ -160,62 +166,77 @@ const workflow = parse(readFileSync(WORKFLOW, 'utf8')) as {
 };
 
 describe('the shell shard ceiling and the Clerk pool roster agree', () => {
-    it('declares the same capacity on both sides of the language boundary', () => {
-        expect(shellMaxShards()).toBe(maestroShardCapacity());
-    });
+    /**
+     * REWRITTEN 2026-10-13: one shell number bounds BOTH platforms, so it must equal each platform's own capacity —
+     * a roster where Android reached four and iOS two would make the shell's `4` over-promise on iOS.
+     */
+    it.each(MAESTRO_PLATFORMS)(
+        'declares the same capacity on both sides of the language boundary, for %s',
+        (platform) => {
+            expect(shellMaxShards()).toBe(maestroShardCapacity(platform));
+        },
+    );
 
     /**
      * REWRITTEN 2026-10-08 with the erasure lane: a shard no longer needs an erasure subject of its own, so only the
-     * signer and the co-author bound capacity, and the erasure shard alone must hold subjects.
+     * signer and the co-author bound capacity, and the erasure shard alone must hold subjects. Per platform since
+     * 2026-10-13.
      */
-    it('bounds capacity by the scarcer identity EVERY shard needs, and gives the erasure shard its subjects', () => {
-        const capacity = maestroShardCapacity();
+    it.each(MAESTRO_PLATFORMS)(
+        'bounds %s capacity by the scarcer identity EVERY shard needs, and gives the erasure shard its subjects',
+        (platform) => {
+            const capacity = maestroShardCapacity(platform);
 
-        expect(capacity).toBeGreaterThanOrEqual(1);
-        expect(MAESTRO_ERASURE_SHARD).toBeLessThanOrEqual(capacity);
-        expect(maestroErasureSlots(MAESTRO_ERASURE_SHARD).length).toBeGreaterThan(0);
+            expect(capacity).toBeGreaterThanOrEqual(1);
+            expect(MAESTRO_ERASURE_SHARD).toBeLessThanOrEqual(capacity);
+            expect(maestroErasureSlots(platform, MAESTRO_ERASURE_SHARD).length).toBeGreaterThan(0);
 
-        for (let shard = 1; shard <= capacity; shard += 1) {
-            expect(() => maestroSlotForShard('signer', shard)).not.toThrow();
-            expect(() => maestroSlotForShard('coauthor', shard)).not.toThrow();
-        }
+            for (let shard = 1; shard <= capacity; shard += 1) {
+                expect(() => maestroSlotForShard('signer', platform, shard)).not.toThrow();
+                expect(() => maestroSlotForShard('coauthor', platform, shard)).not.toThrow();
+            }
 
-        // … and the first shard PAST capacity must be unrepresentable, not silently wrapped onto shard 1.
-        expect(() => maestroSlotForShard('signer', capacity + 1)).toThrow(/poolAdmin/u);
-    });
+            // … and the first shard PAST capacity must be unrepresentable, not silently wrapped onto shard 1.
+            expect(() => maestroSlotForShard('signer', platform, capacity + 1)).toThrow(/poolAdmin/u);
+        },
+    );
 
-    it('⛔ gives every shard DISJOINT identities — one shared signer is a data-destroying run, not a slow one', () => {
-        const capacity = maestroShardCapacity();
-        const addresses = Array.from({ length: capacity }, (_, index) => index + 1).flatMap((shard) => [
-            maestroSlotForShard('signer', shard).email,
-            maestroSlotForShard('coauthor', shard).email,
-            ...maestroErasureSlots(shard).map((slot) => slot.email),
-        ]);
+    it('⛔ gives every (platform, shard) lane DISJOINT identities — one shared signer is a data-destroying run, not a slow one', () => {
+        const addresses = MAESTRO_PLATFORMS.flatMap((platform) =>
+            Array.from({ length: maestroShardCapacity(platform) }, (_, index) => index + 1).flatMap((shard) => [
+                maestroSlotForShard('signer', platform, shard).email,
+                maestroSlotForShard('coauthor', platform, shard).email,
+                ...maestroErasureSlots(platform, shard).map((slot) => slot.email),
+            ]),
+        );
 
         expect(new Set(addresses).size).toBe(addresses.length);
     });
 
-    it('⛔ hands EVERY erasure subject to the erasure shard and none to any other — all ten usable, one eraser', () => {
-        const capacity = maestroShardCapacity();
-        const declared = consumableSlots('maestro').map((slot) => slot.id);
-        const held = Array.from({ length: capacity }, (_, index) => ({
-            shard: index + 1,
-            ids: maestroErasureSlots(index + 1).map((slot) => slot.id),
-        }));
+    it('⛔ hands each platform’s erasure shard ITS OWN five subjects and every other shard none — all ten usable, one eraser per platform', () => {
+        const held = MAESTRO_PLATFORMS.flatMap((platform) =>
+            Array.from({ length: maestroShardCapacity(platform) }, (_, index) => ({
+                platform,
+                shard: index + 1,
+                ids: maestroErasureSlots(platform, index + 1).map((slot) => slot.id),
+            })),
+        );
+        const erasers = held.filter(({ shard }) => shard === MAESTRO_ERASURE_SHARD);
 
-        expect(held.find(({ shard }) => shard === MAESTRO_ERASURE_SHARD)?.ids).toStrictEqual(declared);
+        expect(erasers.flatMap(({ ids }) => ids)).toStrictEqual(consumableSlots('maestro').map((slot) => slot.id));
+        expect(erasers.every(({ ids }) => ids.length === 5)).toBe(true);
         expect(held.filter(({ shard }) => shard !== MAESTRO_ERASURE_SHARD).flatMap(({ ids }) => ids)).toStrictEqual([]);
     });
 
-    it('keeps shard 1 on the ORIGINAL addresses, so sharding re-provisions nobody already in Clerk', () => {
-        expect(maestroSlotForShard('signer', 1).id).toBe('signer');
-        expect(maestroSlotForShard('coauthor', 1).id).toBe('coauthor');
+    it('keeps Android shard 1 on the ORIGINAL addresses, so the split re-provisions nobody already in Clerk', () => {
+        expect(maestroSlotForShard('signer', 'android', 1).id).toBe('signer');
+        expect(maestroSlotForShard('coauthor', 'android', 1).id).toBe('coauthor');
     });
 });
 
 /**
- * THE ERASURE LANE, the runner's side (2026-10-08). `testPool.ts`'s `maestroErasureSlots` gives every erasure subject
- * to ONE shard, and that is safe only if every flow that erases runs on THAT shard and nowhere else: the shard's
+ * THE ERASURE LANE, the runner's side (2026-10-08; per platform since 2026-10-13). `testPool.ts`'s
+ * `maestroErasureSlots` gives each platform's erasure subjects to ONE shard of that platform, and that is safe only if every flow that erases runs on THAT shard and nowhere else: the shard's
  * concurrency lane is the only thing keeping two jobs from leasing the same subject. Least-loaded packing used to
  * decide where `accountErasure` landed — always shard 2 on a full run, and on whichever shard was lightest on a
  * narrowed one, which differs between platforms because their exclusions differ.
@@ -534,14 +555,26 @@ describe('maestro_shard_matrix — how many shards the workflow actually runs', 
 /**
  * The sharded Maestro jobs — one per platform — and the resolver outputs each one's matrix and count come from.
  *
- * ⚠️ BOTH JOBS HOLD THE SAME CONCURRENCY GROUP, AND THAT IS THE POINT. The iOS job signs in as the SAME fixed pool
- * slots as the Android job (the roster has one lane per shard, not per platform), so "iOS shard 2" and "Android
- * shard 2" are one Clerk signer and must exclude each other exactly as two runs' shard 2 do. A separate iOS group
- * would let the two reset each other's world mid-flow.
+ * ⚠️ EACH JOB HOLDS ITS OWN CONCURRENCY GROUP (2026-10-13; it REPLACES the shared one). The roster now has lanes per
+ * PLATFORM, so "iOS shard 2" signs in as `iossigner02` and "Android shard 2" as `signer02`: they share no Clerk user
+ * and no longer need to exclude each other. What each group still excludes is two RUNS' same-platform same-shard job,
+ * which do share a user. Android keeps the original name so a run of older code on another branch still excludes it.
  */
 const SHARDED_JOBS = [
-    { job: MAESTRO_JOB, platform: 'android', shards: 'maestro_shards', count: 'maestro_shard_count' },
-    { job: 'e2e-mobile-maestro-ios', platform: 'ios', shards: 'maestro_ios_shards', count: 'maestro_ios_shard_count' },
+    {
+        job: MAESTRO_JOB,
+        platform: 'android',
+        shards: 'maestro_shards',
+        count: 'maestro_shard_count',
+        group: 'test-pool-sandbox-maestro-${{ matrix.shard }}',
+    },
+    {
+        job: 'e2e-mobile-maestro-ios',
+        platform: 'ios',
+        shards: 'maestro_ios_shards',
+        count: 'maestro_ios_shard_count',
+        group: 'test-pool-sandbox-maestro-ios-${{ matrix.shard }}',
+    },
 ] as const;
 
 describe.each(SHARDED_JOBS)('_ci-heavy.yml::$job wires the shards without loosening a single gate', (wiring) => {
@@ -553,9 +586,29 @@ describe.each(SHARDED_JOBS)('_ci-heavy.yml::$job wires the shards without loosen
         expect(job?.strategy?.['fail-fast'], 'a failing shard must not cancel the other shards').toBe(false);
     });
 
-    it('⛔ leases per SHARD — the protection the single tier-wide group used to give, one lane down', () => {
-        expect(scalarText(job?.concurrency?.group)).toBe('test-pool-sandbox-maestro-${{ matrix.shard }}');
+    it('⛔ leases per (platform, SHARD) — the protection the single tier-wide group used to give, one lane down', () => {
+        expect(scalarText(job?.concurrency?.group)).toBe(wiring.group);
         expect(job?.concurrency?.['cancel-in-progress']).toBe(false);
+    });
+
+    /**
+     * ADDED 2026-10-13: the two jobs' groups must never be the same string, or the platforms queue on one lane again
+     * (the 36-minute wait this change removes), and no iOS group may be a name an Android group can also take.
+     */
+    it('⛔ holds a group no other Maestro job’s group can equal, for any shard', () => {
+        const others = SHARDED_JOBS.filter((other) => other.job !== wiring.job);
+
+        for (const other of others) {
+            for (const shard of [1, 2, 3, 4]) {
+                const mine = scalarText(job?.concurrency?.group).replace('${{ matrix.shard }}', String(shard));
+                const theirs = scalarText(workflow.jobs?.[other.job]?.concurrency?.group).replace(
+                    '${{ matrix.shard }}',
+                    String(shard),
+                );
+
+                expect(mine, `${wiring.job} and ${other.job} share a lane at shard ${shard}`).not.toBe(theirs);
+            }
+        }
     });
 
     /**
@@ -608,6 +661,41 @@ describe.each(SHARDED_JOBS)('_ci-heavy.yml::$job wires the shards without loosen
         expect(scalarText(emulator?.env?.['MAESTRO_PLATFORM'])).toBe(wiring.platform);
     });
 
+    /**
+     * ADDED 2026-10-13. The platform is the second axis of the lane, and a step that left it to a default would lease
+     * Android's signer on an iOS job. Every step that seeds or resets states it on BOTH channels — `MAESTRO_PLATFORM`
+     * in its env (which `provision` and the per-flow reset read) and, where the command takes one, `--platform` on its
+     * command line (`resetPool` and `poolAdmin`) — as the SAME literal this job's platform, which `resetPool` then
+     * asserts agree before its first purge.
+     */
+    it('⛔ states this job’s PLATFORM on every seed and reset step, in the env and on the command line', () => {
+        const flagged = (job?.steps ?? []).filter((step) => /resetPool\.ts|poolAdmin\.ts/u.test(scalarText(step.run)));
+        const provisioning = (job?.steps ?? []).filter((step) => /provision\.ts/u.test(scalarText(step.run)));
+
+        expect(flagged.length, 'two resets and a refill').toBe(3);
+        expect(provisioning).toHaveLength(1);
+
+        for (const step of flagged) {
+            const body = scalarText(step.run);
+
+            expect(body, `${step.name ?? '(unnamed)'} does not pass --platform ${wiring.platform}`).toMatch(
+                new RegExp(`--platform ${wiring.platform}\\b`, 'u'),
+            );
+            expect(body).not.toMatch(new RegExp(`--platform (?!${wiring.platform}\\b)`, 'u'));
+        }
+
+        // The refill takes the platform from its command line alone — `poolAdmin` reads no environment for it.
+        for (const step of [
+            ...flagged.filter((step) => /resetPool\.ts/u.test(scalarText(step.run))),
+            ...provisioning,
+        ]) {
+            expect(
+                scalarText(step.env?.['MAESTRO_PLATFORM']),
+                `${step.name ?? '(unnamed)'} does not bind MAESTRO_PLATFORM`,
+            ).toBe(wiring.platform);
+        }
+    });
+
     it('⛔ tells every seed, reset and emulator step WHICH shard it is — a step that guesses leases the wrong slot', () => {
         const shardAware = (job?.steps ?? []).filter((step) => {
             const body = scalarText(step.run);
@@ -631,7 +719,11 @@ describe('_ci-heavy.yml declares and relays the shard count', () => {
         const input = workflow.on?.workflow_call?.inputs?.['maestro_shards'];
 
         expect(input, '_ci-heavy.yml declares no `maestro_shards` input').toBeDefined();
-        expect(Number(scalarText(input?.default))).toBeLessThanOrEqual(maestroShardCapacity());
+
+        for (const platform of MAESTRO_PLATFORMS) {
+            expect(Number(scalarText(input?.default))).toBeLessThanOrEqual(maestroShardCapacity(platform));
+        }
+
         expect(Number(scalarText(input?.default))).toBeGreaterThanOrEqual(1);
     });
 

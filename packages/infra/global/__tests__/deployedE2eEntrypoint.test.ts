@@ -222,7 +222,11 @@ describe('analyzer 1 — the deployed authorization-boundary tier runs automatic
         expect(needsOf(call)).toEqual(expect.arrayContaining(['deploy-preview', 'resolve-sandbox', 'sandbox-status']));
         expect(call.if ?? '').toContain("needs.sandbox-status.outputs.branch == 'run'");
         expect(call.if ?? '').toContain("needs.deploy-preview.result == 'success'");
-        expect(call.if ?? '').not.toMatch(/always\(\)|!cancelled\(\)/);
+        // REWRITTEN 2026-10-13: `!cancelled()` is now present and required (see `deployedE2eTiers.test.ts`, the same
+        // assertion) because the call also needs `mobile-app-build`, which is skipped on unlabelled runs. `always()` is
+        // still refused: it would run the tiers over a failed deploy.
+        expect(call.if ?? '').toContain('!cancelled()');
+        expect(call.if ?? '').not.toMatch(/always\(\)/);
     });
 
     it('⛔ its runners are exactly those two doors — no third workflow runs or calls it', () => {

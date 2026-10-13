@@ -8,6 +8,8 @@
         "dev": "expo start",
         "build": "tsc --noEmit",
         "bundle": "expo export --platform android --platform ios",
+        "testApp:android": "bash scripts/buildTestApp.sh android",
+        "testApp:ios": "bash scripts/buildTestApp.sh ios",
         "test": "vitest run && vitest run --config vitest.native.config.ts",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",

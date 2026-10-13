@@ -27,6 +27,12 @@
  *
  * Mutation evidence: written before the iOS job existed; every case failed on "_ci-heavy.yml has no
  * e2e-mobile-maestro-ios job".
+ *
+ * REWRITTEN 2026-10-13: the iOS app is no longer built by this job. It is built once per run by `_mobileAppBuild.yml`
+ * (through `scripts/buildTestApp.sh`), and the shard downloads, verifies and unpacks it. So the build assertions below
+ * moved with the build — they now read the script and the build workflow, which is where `xcodebuild` lives — and the
+ * run assertions prove the NEW behaviour: the shard installs exactly the `.app` its unpack step produced. The refusal of
+ * a missing app, the download and the manifest verification are held by `mobileTestAppBuild.test.ts`.
  */
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -40,6 +46,10 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { scalarText } from './workflowScalar.js';
 
 const WORKFLOW = fileURLToPath(new URL('../../../../.github/workflows/_ci-heavy.yml', import.meta.url));
+const BUILD_WORKFLOW = fileURLToPath(new URL('../../../../.github/workflows/_mobileAppBuild.yml', import.meta.url));
+const BUILD_SCRIPT = fileURLToPath(
+    new URL('../../../../packages/apps/commise/mobile/scripts/buildTestApp.sh', import.meta.url),
+);
 const ANDROID_JOB = 'e2e-mobile-maestro';
 const IOS_JOB = 'e2e-mobile-maestro-ios';
 
@@ -65,6 +75,7 @@ interface Job {
 }
 
 const workflow = parse(readFileSync(WORKFLOW, 'utf8')) as { readonly jobs?: Readonly<Record<string, Job>> };
+const buildWorkflow = parse(readFileSync(BUILD_WORKFLOW, 'utf8')) as { readonly jobs?: Readonly<Record<string, Job>> };
 const ios = workflow.jobs?.[IOS_JOB];
 const android = workflow.jobs?.[ANDROID_JOB];
 const steps = ios?.steps ?? [];
@@ -116,11 +127,22 @@ describe('⛔ the runner is a free STANDARD macOS runner, named by version', () 
         expect(label).toMatch(/^macos-\d+$/u);
     });
 
-    it('bounds its own runtime — a hung Simulator would otherwise hold the SHARED pool lane for six hours', () => {
+    it('bounds its own runtime — a hung Simulator would otherwise hold its pool lane for six hours', () => {
         const minutes = Number(scalarText(ios?.['timeout-minutes']));
 
         expect(minutes).toBeGreaterThan(0);
         expect(minutes).toBeLessThanOrEqual(180);
+    });
+
+    /**
+     * REWRITTEN 2026-10-13: the bound is TIGHT now that the shard no longer builds. It was 150 minutes, sized for a build
+     * of up to 26 minutes plus 23 flows at 54 minutes; a shard is now setup (about 8 minutes), a Simulator boot that
+     * overlaps it, and a quarter of the flows. 75 is generous for that and still stops a hang inside the hour and a half. The
+     * Android shard had no bound at all (GitHub's six hours); it gets 60.
+     */
+    it('⛔ is bounded to 75 minutes, and the Android shard to 60', () => {
+        expect(Number(scalarText(ios?.['timeout-minutes']))).toBe(75);
+        expect(Number(scalarText(android?.['timeout-minutes']))).toBe(60);
     });
 });
 
@@ -248,6 +270,61 @@ describe('⛔ the toolchain is pinned by name and refused when absent', () => {
         };
     }
 
+    /**
+     * ADDED 2026-10-13 (boot overlap). Booting a Simulator takes 2-3 minutes and nothing about it needs the dependencies,
+     * so it is STARTED right after the Xcode check and runs while `npm ci`, the liveness probe and the secrets load do their
+     * work; a later step only WAITS for it. That is a saving only if the start really is early and the wait really is late.
+     */
+    it('⛔ starts the Simulator booting right after the Xcode check, before the dependencies are installed', () => {
+        const xcode = stepRunning(/xcodebuild -version/u).index;
+        const create = stepRunning(/simctl\s+create/u).index;
+        const install = stepRunning(/^npm ci$/mu).index;
+
+        expect(xcode).toBeGreaterThan(-1);
+        expect(create).toBe(xcode + 1);
+        expect(create).toBeLessThan(install);
+    });
+
+    it('⛔ the start step only STARTS the boot — it does not wait, or there is no overlap to speak of', () => {
+        const { step } = stepRunning(/simctl\s+create/u);
+
+        expect(scalarText(step?.run)).toMatch(/simctl boot /u);
+        expect(scalarText(step?.run)).not.toMatch(/bootstatus/u);
+    });
+
+    it('⛔ a separate step WAITS for the boot, after the secrets valve and before the flows run', () => {
+        const wait = stepRunning(/simctl\s+bootstatus/u);
+        const flows = stepRunning(/runMaestroFlows\.sh/u);
+        const secrets = steps.findIndex((step) => /load-secrets/u.test(step.uses ?? ''));
+
+        expect(wait.index).toBeGreaterThan(secrets);
+        expect(wait.index).toBeLessThan(flows.index);
+        expect(scalarText(wait.step?.if)).toContain("steps.secrets.outcome == 'success'");
+        expect(scalarText(wait.step?.env?.['MAESTRO_IOS_UDID'])).toBe('${{ steps.simulator.outputs.udid }}');
+    });
+
+    it('the wait step waits on the UDID it is given, with -b so a boot in progress is waited out rather than restarted', () => {
+        const { step } = stepRunning(/simctl\s+bootstatus/u);
+        const dir = mkdtempSync(join(tmpdir(), 'maestro-ios-bootwait-'));
+
+        scratch.push(dir);
+
+        const calls = join(dir, 'calls.log');
+
+        writeFileSync(join(dir, 'xcrun'), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${calls}"\nexit 0\n`);
+        chmodSync(join(dir, 'xcrun'), 0o755);
+        writeFileSync(join(dir, 'step.sh'), scalarText(step?.run));
+
+        const result = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', 'step.sh'], {
+            cwd: dir,
+            encoding: 'utf8',
+            env: { PATH: `${dir}:${process.env['PATH'] ?? ''}`, HOME: dir, MAESTRO_IOS_UDID: 'UDID-1' },
+        });
+
+        expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+        expect(readFileSync(calls, 'utf8')).toBe('simctl bootstatus UDID-1 -b\n');
+    });
+
     it('creates and boots the pinned device on the pinned runtime, and publishes its UDID', () => {
         const runtime = scalarText(ios?.env?.['IOS_SIMULATOR_RUNTIME']);
         const outcome = runSimulatorStep([
@@ -280,43 +357,51 @@ describe('⛔ the toolchain is pinned by name and refused when absent', () => {
     });
 });
 
-describe('the build and the run', () => {
-    // The build is the step that runs `xcodebuild -workspace`; the pin check also calls `xcodebuild -version`.
-    const build = stepRunning(/xcodebuild\s+-workspace/u);
+/**
+ * The iOS build function of the test-app script: from the line that declares it to the first closing brace at column
+ * zero, with `#` comment lines removed (a comment that names `xcodebuild` is documentation, not a call).
+ */
+function iosBuildShell(): string {
+    const script = readFileSync(BUILD_SCRIPT, 'utf8');
+    const declared = script.search(/^test_app_build_ios\(\) \{$/mu);
+
+    expect(declared, 'buildTestApp.sh has no iOS build function — the build moved, so must this guard').toBeGreaterThan(
+        -1,
+    );
+
+    const body = script.slice(declared);
+
+    return body
+        .slice(0, body.search(/^\}$/mu) + 1)
+        .split('\n')
+        .filter((line) => !line.trimStart().startsWith('#'))
+        .join('\n');
+}
+
+describe('the app the run installs', () => {
     const flows = stepRunning(/runMaestroFlows\.sh/u);
 
-    it('builds a RELEASE app for the Simulator SDK, from a fresh prebuild, before the flows run', () => {
-        const body = scalarText(build.step?.run);
-
-        expect(body).toMatch(/expo prebuild --platform ios --no-install/u);
-        expect(body).toMatch(/-configuration Release/u);
-        expect(body).toMatch(/-sdk iphonesimulator/u);
-        expect(build.index).toBeGreaterThan(-1);
-        expect(build.index).toBeLessThan(flows.index);
-    });
-
-    it('hands the build the same origins and key as the Android build — as ENV, never on the xcodebuild argv', () => {
-        const androidBuild = (android?.steps ?? []).find((step) => /assembleRelease/u.test(scalarText(step.run)));
-
-        for (const key of Object.keys(androidBuild?.env ?? {})) {
-            expect(build.step?.env?.[key], `${key} differs from the Android build`).toBe(androidBuild?.env?.[key]);
-        }
-
-        expect(scalarText(build.step?.run)).not.toMatch(/\b(?:EXPO_PUBLIC_|SENTRY_)[A-Z_]*=/u);
-        expect(scalarText(build.step?.run)).not.toContain('${{');
-    });
-
-    it('fails the build loudly when the app bundle is not exactly one', () => {
-        expect(scalarText(build.step?.run)).toMatch(/::error::[^\n]*\.app/u);
-    });
-
-    it('runs the flows for iOS, on the Simulator and app the earlier steps produced', () => {
+    it('runs the flows for iOS, on the Simulator it booted and the .app its unpack step produced', () => {
         const env = flows.step?.env ?? {};
 
         expect(env['MAESTRO_PLATFORM']).toBe('ios');
         expect(producerOf(scalarText(env['MAESTRO_IOS_UDID']))?.run).toMatch(/simctl\s+create/u);
-        expect(producerOf(scalarText(env['MAESTRO_IOS_APP']))?.run).toMatch(/xcodebuild\s+-workspace/u);
+        expect(producerOf(scalarText(env['MAESTRO_IOS_APP']))?.run).toMatch(/tar -xzf/u);
         expect(scalarText(flows.step?.run)).toBe('bash packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
+    });
+
+    it('does not build: the shard has no prebuild, no pod install and no xcodebuild build of its own', () => {
+        for (const step of steps) {
+            expect(scalarText(step.run), step.name ?? '(unnamed)').not.toMatch(
+                /expo prebuild|pod install|xcodebuild\s+-workspace/u,
+            );
+        }
+    });
+
+    it('unpacks the tarball into exactly one .app, and says so loudly when it is not exactly one', () => {
+        const unpack = steps.find((step) => step.id === 'app');
+
+        expect(scalarText(unpack?.run)).toMatch(/::error::[^\n]*\.app/u);
     });
 
     it('uploads its report under a name the Android shards cannot also claim', () => {
@@ -325,6 +410,48 @@ describe('the build and the run', () => {
 
         expect(upload(ios)).toMatch(/matrix\.shard/u);
         expect(upload(ios)).not.toBe(upload(android));
+    });
+});
+
+/**
+ * THE BUILD, now in `buildTestApp.sh`. These are the properties the shard's own build step used to have, held where the
+ * recipe lives.
+ */
+describe('the iOS test app’s build recipe', () => {
+    it('builds a RELEASE app for the Simulator SDK, from a fresh prebuild', () => {
+        const body = iosBuildShell();
+
+        expect(body).toMatch(/expo prebuild --platform ios --no-install/u);
+        expect(body).toMatch(/-configuration Release/u);
+        expect(body).toMatch(/-sdk iphonesimulator/u);
+    });
+
+    it('builds for the generic Simulator destination (no device is booted in a build job) and one architecture', () => {
+        const body = iosBuildShell();
+
+        expect(body).toMatch(/-destination 'generic\/platform=iOS Simulator'/u);
+        expect(body).toMatch(/ARCHS=arm64/u);
+        expect(body).toMatch(/ONLY_ACTIVE_ARCH=NO/u);
+    });
+
+    it('hands the build its origins and key as ENV — never as an xcodebuild KEY=value argument (argv is logged)', () => {
+        const body = iosBuildShell();
+        const job = buildWorkflow.jobs?.['ios'];
+
+        expect(body).not.toMatch(/\b(?:EXPO_PUBLIC_|SENTRY_)[A-Z_]*=/u);
+        expect(body).not.toContain('${{');
+
+        for (const name of ['EXPO_PUBLIC_RECIPE_API_URL', 'EXPO_PUBLIC_FOOD_API_URL', 'EXPO_PUBLIC_IDENTITY_API_URL']) {
+            expect(scalarText(job?.env?.[name]), `${name} in the build job’s env`).toMatch(/^\$\{\{ inputs\./u);
+        }
+    });
+
+    it('fails the build loudly when the app bundle is not exactly one', () => {
+        expect(iosBuildShell()).toMatch(/expected exactly one Release-iphonesimulator \.app/u);
+    });
+
+    it('ships the app as a tarball, because the artifact upload drops the executable bit', () => {
+        expect(iosBuildShell()).toMatch(/tar -czf dist-testApp\/ios\/app\.tar\.gz/u);
     });
 });
 
@@ -354,17 +481,22 @@ function secretEnvNames(): readonly string[] {
  * the CONSOLE, not a file — and a run artifact of a public repository is downloadable by any signed-in user.
  */
 describe('⛔ no secret reaches the build, and no unmasked log leaves the runner', () => {
-    it('the build step unsets every secret the job holds, before it builds anything', () => {
-        const body = scalarText(steps.find((step) => /xcodebuild\s+-workspace/u.test(scalarText(step.run)))?.run);
-        const unsetLine = body.split('\n').find((line) => /^\s*unset\s/u.test(line)) ?? '';
-        const unset = new Set(unsetLine.trim().split(/\s+/u).slice(1));
+    it('the build unsets every secret the job holds, before it builds anything', () => {
+        const script = readFileSync(BUILD_SCRIPT, 'utf8');
+        const listed = /^TEST_APP_SECRET_VARIABLES='([^']*)'$/mu.exec(script)?.[1] ?? '';
+        const unset = new Set(listed.split(/\s+/u).filter((name) => name.length > 0));
 
         for (const name of secretEnvNames()) {
-            expect(unset.has(name), `the build step does not unset ${name}`).toBe(true);
+            expect(unset.has(name), `the build does not unset ${name}`).toBe(true);
         }
 
-        expect(body.indexOf(unsetLine), 'the unset must come before the prebuild').toBeLessThan(
-            body.indexOf('expo prebuild'),
+        // The unset is in the shared preparation both builds call FIRST, so it precedes every prebuild.
+        const prepare = script.slice(script.search(/^test_app_prepare_build\(\) \{$/mu));
+
+        expect(prepare.slice(0, prepare.search(/^\}$/mu))).toMatch(/unset "\$name"/u);
+        expect(iosBuildShell().indexOf('test_app_prepare_build ios')).toBeGreaterThan(-1);
+        expect(iosBuildShell().indexOf('test_app_prepare_build ios')).toBeLessThan(
+            iosBuildShell().indexOf('expo prebuild'),
         );
     });
 
@@ -381,24 +513,40 @@ describe('⛔ no secret reaches the build, and no unmasked log leaves the runner
         );
     });
 
-    it('builds the Simulator architecture only — Release otherwise compiles every architecture', () => {
-        expect(scalarText(steps.find((step) => /xcodebuild\s+-workspace/u.test(scalarText(step.run)))?.run)).toMatch(
-            /ONLY_ACTIVE_ARCH=YES/u,
+    it('uploads only the app and its manifest from the build job — no build log, no derived data', () => {
+        const uploads = (buildWorkflow.jobs?.['ios']?.steps ?? []).filter((step) =>
+            /upload-artifact@/u.test(step.uses ?? ''),
         );
+
+        expect(uploads).toHaveLength(1);
+        expect(scalarText(uploads[0]?.with?.['path'])).toBe('packages/apps/commise/mobile/dist-testApp/ios');
     });
 });
 
 describe('⛔ caching cannot go stale and cannot escape the prune', () => {
     const caches = steps.filter((step) => /actions\/cache(?:\/(?:restore|save))?@/u.test(step.uses ?? ''));
+    const buildCaches = (buildWorkflow.jobs?.['ios']?.steps ?? []).filter((step) =>
+        /actions\/cache(?:\/(?:restore|save))?@/u.test(step.uses ?? ''),
+    );
+
+    it('the shard caches nothing at all now — it neither builds nor installs, so nothing remains to cache', () => {
+        expect(caches).toEqual([]);
+    });
 
     it('restores no Linux node_modules cache — a different OS can never hit it, and the miss would be a false warning', () => {
-        for (const step of caches) {
+        for (const step of [...caches, ...buildCaches]) {
             expect(scalarText(step.with?.['path'])).not.toMatch(/node_modules/u);
         }
     });
 
+    /**
+     * Recorded decision, restated where the build now lives: DerivedData stays refused. A built app is reused only on an
+     * exact content-key match (`_mobileAppBuild.yml`'s plan), which means inputs identical to ones already compiled — so
+     * "the build half proves the app compiles" still holds, and a partial-hit compiler cache that could serve a stale
+     * object is still not allowed.
+     */
     it('keys every cache FIRST on the lockfile hash, and never caches DerivedData or a build product', () => {
-        for (const step of caches) {
+        for (const step of [...caches, ...buildCaches]) {
             const key = scalarText(step.with?.['key']);
 
             expect(key).toMatch(/^\$\{\{ runner\.os \}\}-[a-z]+-\$\{\{ hashFiles\('package-lock\.json'\) \}\}/u);

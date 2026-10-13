@@ -24,6 +24,8 @@ import {
 import {
     consumableSlots,
     MAESTRO_ERASURE_SHARD,
+    MAESTRO_PLATFORMS,
+    maestroErasureSlots,
     POOL_PASSWORD,
     poolSlotMetadata,
     rosterSlots,
@@ -327,53 +329,50 @@ describe('reconcilePool', () => {
     /**
      * The 2026-10-08 refill: the Maestro job tops the erasure subjects up before it provisions. Its scope is the
      * whole contract of that door, so these pin it against the real roster rather than hand-picked slots.
+     * REWRITTEN 2026-10-13: the scope is now (platform, shard), so each platform refills only ITS OWN five subjects.
      */
-    describe('the Maestro erasure refill scope', () => {
-        it('⛔ creates ONLY erasure subjects, even when every other slot on the roster is absent', async () => {
+    describe.each(MAESTRO_PLATFORMS)('the Maestro erasure refill scope, %s', (platform) => {
+        const scope = { kind: 'maestroErasure', platform, shard: MAESTRO_ERASURE_SHARD } as const;
+        const own = maestroErasureSlots(platform, MAESTRO_ERASURE_SHARD);
+
+        it('⛔ creates ONLY this platform’s erasure subjects, even when every other slot on the roster is absent', async () => {
             const port = fakePort([]);
 
-            const report = await reconcilePool(port, {
-                ...options,
-                ...poolScopeOptions({ kind: 'maestroErasure', shard: MAESTRO_ERASURE_SHARD }),
-                apply: true,
-            });
+            const report = await reconcilePool(port, { ...options, ...poolScopeOptions(scope), apply: true });
             const created = port.createUser.mock.calls.map(([input]) => input.emailAddress[0]);
 
-            expect([...created].sort()).toEqual(
-                consumableSlots('maestro')
-                    .map((slot) => slot.email)
-                    .sort(),
-            );
+            expect([...created].sort()).toEqual(own.map((slot) => slot.email).sort());
+            expect(own).toHaveLength(5);
             expect(port.mergeMetadata).not.toHaveBeenCalled();
             expect(report.healthy).toBe(true);
         });
 
-        it('⛔ re-marks ONLY erasure subjects — a stale signer is left for the owner’s full run', async () => {
+        it('⛔ re-marks ONLY this platform’s erasure subjects — a stale signer or the other platform’s subject is left alone', async () => {
             const stale = { publicMetadata: { testPrincipal: true } };
             const port = fakePort([
                 user(signer.email, stale),
                 ...consumableSlots('maestro').map((slot) => user(slot.email, stale)),
             ]);
 
-            await reconcilePool(port, {
-                ...options,
-                ...poolScopeOptions({ kind: 'maestroErasure', shard: MAESTRO_ERASURE_SHARD }),
-                apply: true,
-            });
+            await reconcilePool(port, { ...options, ...poolScopeOptions(scope), apply: true });
 
-            expect(port.mergeMetadata).toHaveBeenCalledTimes(consumableSlots('maestro').length);
+            expect(port.mergeMetadata).toHaveBeenCalledTimes(own.length);
             expect(port.mergeMetadata).not.toHaveBeenCalledWith(`user_test-signer+clerk_test`, expect.anything());
+
+            const touched = new Set(own.map((slot) => `user_${slot.email}`));
+            const other = consumableSlots('maestro').filter((slot) => !own.some((mine) => mine.id === slot.id));
+
+            for (const slot of other) {
+                expect(touched.has(`user_${slot.email}`)).toBe(false);
+                expect(port.findUsers).not.toHaveBeenCalledWith(slot.email);
+            }
         });
 
         it('does not read the whole instance for drift, and is not failed by an unrelated stray', async () => {
             const stray = user('stray+clerk_test@example.com', { publicMetadata: { testPrincipal: true } });
-            const port = fakePort([stray, ...consumableSlots('maestro').map((slot) => marked(slot))]);
+            const port = fakePort([stray, ...own.map((slot) => marked(slot))]);
 
-            const report = await reconcilePool(port, {
-                ...options,
-                ...poolScopeOptions({ kind: 'maestroErasure', shard: MAESTRO_ERASURE_SHARD }),
-                apply: true,
-            });
+            const report = await reconcilePool(port, { ...options, ...poolScopeOptions(scope), apply: true });
 
             expect(port.listUsers).not.toHaveBeenCalled();
             expect(report.plan.drift).toEqual([]);
@@ -385,7 +384,7 @@ describe('reconcilePool', () => {
 
             const report = await reconcilePool(port, {
                 ...options,
-                ...poolScopeOptions({ kind: 'maestroErasure', shard: MAESTRO_ERASURE_SHARD + 1 }),
+                ...poolScopeOptions({ ...scope, shard: MAESTRO_ERASURE_SHARD + 1 }),
                 apply: true,
             });
 
@@ -402,12 +401,15 @@ describe('poolScopeOptions', () => {
         expect(poolScopeOptions({ kind: 'roster' })).toEqual({ slots: rosterSlots(), drift: 'audit' });
     });
 
-    it('reconciles exactly the erasure shard’s subjects, and skips the instance-wide drift audit', () => {
-        expect(poolScopeOptions({ kind: 'maestroErasure', shard: MAESTRO_ERASURE_SHARD })).toEqual({
-            slots: consumableSlots('maestro'),
-            drift: 'skip',
-        });
-    });
+    it.each(MAESTRO_PLATFORMS)(
+        'reconciles exactly %s’s erasure subjects, and skips the instance-wide drift audit',
+        (platform) => {
+            expect(poolScopeOptions({ kind: 'maestroErasure', platform, shard: MAESTRO_ERASURE_SHARD })).toEqual({
+                slots: maestroErasureSlots(platform, MAESTRO_ERASURE_SHARD),
+                drift: 'skip',
+            });
+        },
+    );
 });
 
 describe('parsePoolAdminArgs', () => {
@@ -419,28 +421,36 @@ describe('parsePoolAdminArgs', () => {
         expect(parsePoolAdminArgs(['--apply'])).toEqual({ apply: true, scope: { kind: 'roster' } });
     });
 
-    it('scopes to one shard’s erasure subjects with --maestro-erasure --shard N', () => {
-        expect(parsePoolAdminArgs(['--apply', '--maestro-erasure', '--shard', '2'])).toEqual({
+    it('scopes to one platform shard’s erasure subjects with --maestro-erasure --platform P --shard N', () => {
+        expect(parsePoolAdminArgs(['--apply', '--maestro-erasure', '--platform', 'ios', '--shard', '2'])).toEqual({
             apply: true,
-            scope: { kind: 'maestroErasure', shard: 2 },
+            scope: { kind: 'maestroErasure', platform: 'ios', shard: 2 },
         });
-        expect(parsePoolAdminArgs(['--shard', '1', '--maestro-erasure'])).toEqual({
+        expect(parsePoolAdminArgs(['--shard', '1', '--platform', 'android', '--maestro-erasure'])).toEqual({
             apply: false,
-            scope: { kind: 'maestroErasure', shard: 1 },
+            scope: { kind: 'maestroErasure', platform: 'android', shard: 1 },
         });
     });
 
     it.each([
-        [['--maestro-erasure'], /--shard/u],
+        [['--maestro-erasure', '--shard', '1'], /--platform/u],
+        [['--maestro-erasure', '--platform', 'ios'], /--shard/u],
+        [['--maestro-erasure'], /--platform|--shard/u],
+        [['--platform', 'ios'], /--maestro-erasure/u],
         [['--shard', '1'], /--maestro-erasure/u],
-        [['--maestro-erasure', '--shard'], /--shard/u],
-        [['--maestro-erasure', '--shard', '0'], /positive integer/u],
-        [['--maestro-erasure', '--shard', ' 1'], /positive integer/u],
-        [['--maestro-erasure', '--shard', '1.5'], /positive integer/u],
-        [['--maestro-erasure', '--shard', '1', '--shard', '2'], /once/u],
+        [['--maestro-erasure', '--platform', 'windows', '--shard', '1'], /platform/u],
+        [['--maestro-erasure', '--platform', '', '--shard', '1'], /platform/u],
+        [['--maestro-erasure', '--platform', ' ios', '--shard', '1'], /platform/u],
+        [['--maestro-erasure', '--platform', 'IOS', '--shard', '1'], /platform/u],
+        [['--maestro-erasure', '--platform', 'ios', '--platform', 'android', '--shard', '1'], /once/u],
+        [['--maestro-erasure', '--platform', 'ios', '--shard'], /--shard/u],
+        [['--maestro-erasure', '--platform', 'ios', '--shard', '0'], /positive integer/u],
+        [['--maestro-erasure', '--platform', 'ios', '--shard', ' 1'], /positive integer/u],
+        [['--maestro-erasure', '--platform', 'ios', '--shard', '1.5'], /positive integer/u],
+        [['--maestro-erasure', '--platform', 'ios', '--shard', '1', '--shard', '2'], /once/u],
         [['--force'], /^poolAdmin: Unknown option '--force'/u],
         [['apply'], /^poolAdmin: Unexpected argument 'apply'/u],
-        [['--maestro-erasure', '--shard', '--apply'], /--shard/u],
+        [['--maestro-erasure', '--platform', 'ios', '--shard', '--apply'], /--shard/u],
     ] as const)('⛔ refuses %j rather than guessing a scope', (argv, message) => {
         expect(() => parsePoolAdminArgs(argv)).toThrow(message);
     });

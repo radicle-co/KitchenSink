@@ -37,7 +37,7 @@ import {
 import { planWorldReset } from '../src/worldResetPlan.js';
 
 const RUN = 'gh42-1-maestro';
-const manifest = deriveFixtureManifest(RUN, 1);
+const manifest = deriveFixtureManifest(RUN, 'android', 1);
 
 interface StoredRecipe {
     readonly id: string;

@@ -179,11 +179,18 @@ describe('isUnitTestFile — the scan scope', () => {
 describe('the pool writer is reached from CI only as the scoped Maestro erasure refill', () => {
     /** An invocation of the writer: the script by path, or the workspace script that wraps it. */
     const INVOKES_WRITER = /poolAdmin\.ts\b|pool:admin\b/u;
-    /** The one admitted spelling: apply, scoped to one shard's erasure subjects, the shard from the matrix. */
-    const REFILL =
-        'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --shard "${SHARD_INDEX}"';
-    /** The jobs that refill — one per Maestro platform. */
-    const REFILLING_JOBS = ['_ci-heavy.yml::e2e-mobile-maestro', '_ci-heavy.yml::e2e-mobile-maestro-ios'];
+    /**
+     * The admitted spelling: apply, scoped to one PLATFORM's shard's erasure subjects, the shard from the matrix. One
+     * spelling per Maestro job, because the platform is a literal in each (REWRITTEN 2026-10-13, when the ten erasure
+     * subjects were split between the platforms: a refill that did not name its platform would be refused outright).
+     */
+    const refillFor = (platform: 'android' | 'ios'): string =>
+        `npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-erasure --platform ${platform} --shard "\${SHARD_INDEX}"`;
+    /** The jobs that refill — one per Maestro platform — and the platform each names. */
+    const REFILLING_JOBS = {
+        '_ci-heavy.yml::e2e-mobile-maestro': 'android',
+        '_ci-heavy.yml::e2e-mobile-maestro-ios': 'ios',
+    } as const;
 
     const commands = (text: string): string =>
         text
@@ -238,12 +245,15 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
     const found = invocations();
 
     it('finds the refill in both Maestro jobs (non-vacuity — discovery still sees an invocation)', () => {
-        expect(found.map((invocation) => invocation.where)).toStrictEqual(REFILLING_JOBS);
+        expect(found.map((invocation) => invocation.where)).toStrictEqual(Object.keys(REFILLING_JOBS));
     });
 
-    it('⛔ every CI invocation is the scoped refill, with its shard from the matrix — never the whole roster', () => {
+    it('⛔ every CI invocation is the scoped refill, with its platform stated and its shard from the matrix — never the whole roster', () => {
         for (const invocation of found) {
-            expect(invocation.run, invocation.where).toBe(REFILL);
+            const platform = REFILLING_JOBS[invocation.where as keyof typeof REFILLING_JOBS];
+
+            expect(platform, `${invocation.where} is not a known refilling job`).toBeDefined();
+            expect(invocation.run, invocation.where).toBe(refillFor(platform));
             expect(invocation.shardIndex, `${invocation.where} does not take SHARD_INDEX from the matrix`).toMatch(
                 /^\$\{\{\s*matrix\.shard\s*\}\}$/u,
             );

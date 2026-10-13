@@ -74,10 +74,12 @@ async function main(): Promise<void> {
     }
 
     const shard = shardFrom(process.env['COMMISE_E2E_SHARD']);
+    // A local run drives the Android emulator, and says so: iOS has pool lanes of its own (2026-10-13).
+    const platform = 'android';
     const slots = [
-        maestroSlotForShard('signer', shard),
-        maestroSlotForShard('coauthor', shard),
-        ...maestroErasureSlots(shard),
+        maestroSlotForShard('signer', platform, shard),
+        maestroSlotForShard('coauthor', platform, shard),
+        ...maestroErasureSlots(platform, shard),
     ];
 
     const pool = new pg.Pool({

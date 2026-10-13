@@ -33,7 +33,13 @@
  * ⛔ Pan-Seared Duck is NOT reproduced. It is seeded to the PRO owner and no flow references it — grepped
  * across the whole `.maestro` corpus, zero hits — so creating it would be a fixture nothing reads.
  */
-import { consumableSlots, maestroSlotForShard, POOL_PASSWORD } from '@kitchensink/e2e-fixtures/testPool';
+import {
+    MAESTRO_ERASURE_SHARD,
+    maestroErasureSlots,
+    maestroSlotForShard,
+    POOL_PASSWORD,
+    type MaestroPlatform,
+} from '@kitchensink/e2e-fixtures/testPool';
 import { MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
 
 /**
@@ -323,6 +329,8 @@ export interface FixtureRecipe extends FixtureRecipeDefinition {
 /** Everything one run's world is. Frozen: a manifest a caller can edit is a manifest that drifts. */
 export interface FixtureManifest {
     readonly runKey: string;
+    /** The Maestro platform whose pool lanes this manifest names; it scopes which erasure subjects may be written out. */
+    readonly platform: MaestroPlatform;
     readonly signInEmail: string;
     readonly coAuthorEmail: string;
     readonly password: string;
@@ -357,22 +365,24 @@ export function runScopedTitle(baseTitle: string, runKey: string): string {
  * which slot a run erases is decided at lease time by what still exists (`firstAvailableSlot`), not derivable
  * from anything a reset process knows — see {@link manifestToEnvLines}.
  *
- * ⛔ `shard` IS REQUIRED, and it must not acquire a default. `signInEmail` is the address the DEVICE types into
+ * ⛔ `platform` AND `shard` ARE REQUIRED, and neither may acquire a default. `signInEmail` is the address the DEVICE types into
  * the login form, so a shard whose manifest named another shard's signer would drive its emulator as that
  * shard's user while its API session was its own — the two shards would then delete each other's recipes
  * through the per-flow reset. A default is a decision made silently for every caller that had not thought
  * about it; a required parameter turns every call site into a place where somebody did.
  *
  * @param runKey - This run's fixture scope (already shard-scoped by `deriveRunKey`).
+ * @param platform - The Maestro platform whose pool lanes the manifest names (they are separate per platform).
  * @param shard - The 1-based Maestro shard whose identities the manifest names.
  */
-export function deriveFixtureManifest(runKey: string, shard: number): FixtureManifest {
+export function deriveFixtureManifest(runKey: string, platform: MaestroPlatform, shard: number): FixtureManifest {
     const capFoodPrefix = runScopedTitle(CAP_FOOD_BASE_NAME, runKey);
 
     return Object.freeze({
         runKey,
-        signInEmail: maestroSlotForShard('signer', shard).email,
-        coAuthorEmail: maestroSlotForShard('coauthor', shard).email,
+        platform,
+        signInEmail: maestroSlotForShard('signer', platform, shard).email,
+        coAuthorEmail: maestroSlotForShard('coauthor', platform, shard).email,
         // The pool's password-bearing slots are created with it; the flows type it.
         password: POOL_PASSWORD,
         probeIngredient: UNATTACHED_PROBE_INGREDIENT,
@@ -401,18 +411,23 @@ export function deriveFixtureManifest(runKey: string, shard: number): FixtureMan
  * "what does the flow see".
  *
  * @param manifest - This run's world.
- * @param erasureEmail - The subject `provision` leased, or `null` on a shard that leases none — only the erasure
+ * @param erasureEmail - The subject `provision` leased, or `null` on a shard that leases none — only a platform's erasure
  *     shard does (`maestroErasureSlots`). REQUIRED, with no default: `null` omits the key, and a default would decide
  *     that silently for a caller that had not thought about which shard it is.
  */
 export function manifestToEnvLines(manifest: FixtureManifest, erasureEmail: string | null): readonly string[] {
-    // ⛔ `accountErasure.yaml` REALLY erases whoever this names. Anything but a consumable pool slot — the signer
-    // every later flow signs in as, or an address off the roster — is refused here, before it reaches a flow.
+    // ⛔ `accountErasure.yaml` REALLY erases whoever this names. Anything but a consumable pool slot of THIS manifest's
+    // platform — the signer every later flow signs in as, an address off the roster, or the OTHER platform's subject,
+    // which a different job holds the lane for — is refused here, before it reaches a flow.
     if (
         erasureEmail !== null &&
-        !consumableSlots('maestro').some((slot) => slot.email === erasureEmail.toLowerCase())
+        !maestroErasureSlots(manifest.platform, MAESTRO_ERASURE_SHARD).some(
+            (slot) => slot.email === erasureEmail.toLowerCase(),
+        )
     ) {
-        throw new Error(`${erasureEmail} is not a consumable maestro pool slot, so no flow may erase it`);
+        throw new Error(
+            `${erasureEmail} is not a consumable maestro pool slot of this platform (${manifest.platform}), so no flow may erase it`,
+        );
     }
 
     const byKey = new Map(manifest.recipes.map((recipe) => [recipe.key, recipe.title]));

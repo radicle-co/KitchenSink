@@ -108,7 +108,7 @@ beforeAll(() => {
     // drift into values with no spaces, which is the one shape that cannot reproduce the defect.
     // Shard 1 — the unsharded tier. This suite exercises the per-flow lifecycle, not the partition
     // (`maestroShardPartition.test.ts` owns that), so it drives the `run-one` seam with one shard's identities.
-    manifest = deriveFixtureManifest(RUN_KEY, 1);
+    manifest = deriveFixtureManifest(RUN_KEY, 'android', 1);
     const manifestFile = join(dir, 'fixture.env');
 
     writeFileSync(manifestFile, `${manifestToEnvLines(manifest, ERASURE_SUBJECT).join('\n')}\n`, 'utf8');
@@ -238,7 +238,7 @@ describe('maestro flow loop — an erasing flow with no leased subject is never 
 
         writeFileSync(
             manifestFile,
-            `${manifestToEnvLines(deriveFixtureManifest(RUN_KEY, 2), null).join('\n')}\n`,
+            `${manifestToEnvLines(deriveFixtureManifest(RUN_KEY, 'android', 2), null).join('\n')}\n`,
             'utf8',
         );
 

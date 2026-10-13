@@ -41,6 +41,12 @@ const REPO_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 
 const CI_WORKFLOW = '.github/workflows/_ci.yml';
 const PREVIEW_WORKFLOW = '.github/workflows/sandboxPreview.yml';
+/**
+ * ADDED 2026-10-13: the mobile test-app build restores the `node_modules` entry too (its plan and Android job), so its
+ * calling job in `_ci.yml` is judged exactly as the preview's is — it must be ordered after `install`, or on a new lockfile
+ * the plan's `turbo` runs against an empty tree and falls back to a slow `npm ci` for no reason.
+ */
+const MOBILE_BUILD_WORKFLOW = '.github/workflows/_mobileAppBuild.yml';
 
 /** One workflow step, as this gate reads it. */
 interface Step {
@@ -145,11 +151,17 @@ function pipelineJobs(): readonly CacheJob[] {
     const read = (file: string): Record<string, Job> =>
         (yaml.parse(readFileSync(`${REPO_ROOT}/${file}`, 'utf8')) as { jobs?: Record<string, Job> }).jobs ?? {};
     const ci = read(CI_WORKFLOW);
-    const calleeSteps = Object.values(read(PREVIEW_WORKFLOW)).flatMap((job) => job.steps ?? []);
+    const callees: ReadonlyMap<string, readonly Step[]> = new Map(
+        [
+            ['sandboxPreview.yml', PREVIEW_WORKFLOW],
+            ['_mobileAppBuild.yml', MOBILE_BUILD_WORKFLOW],
+        ].map(([name, file]) => [name ?? '', Object.values(read(file ?? '')).flatMap((job) => job.steps ?? [])]),
+    );
 
     return Object.entries(ci).map(([name, job]) => {
         const own = job.steps ?? [];
-        const steps = job.uses?.includes('sandboxPreview.yml') ? [...own, ...calleeSteps] : own;
+        const callee = [...callees].find(([called]) => job.uses?.includes(called))?.[1] ?? [];
+        const steps = [...own, ...callee];
         const needs = job.needs === undefined ? [] : Array.isArray(job.needs) ? job.needs : [job.needs];
 
         return {
@@ -198,6 +210,13 @@ describe('the PR pipeline never restores a deps cache before it is written', () 
 
         expect(jobs.some((job) => job.savesDeps)).toBe(true);
         expect(jobs.some((job) => job.restoresDeps)).toBe(true);
+    });
+
+    it('⛔ judges the mobile test-app build as a restorer (non-vacuity for the callee added above)', () => {
+        const build = pipelineJobs().find((job) => job.name === 'mobile-app-build');
+
+        expect(build?.restoresDeps, 'the build job’s restore is not being read').toBe(true);
+        expect(build?.needs).toContain('install');
     });
 
     it('orders every deps-cache restorer after the install that seeds it', () => {

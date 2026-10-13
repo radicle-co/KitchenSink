@@ -27,7 +27,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { consumableSlots } from '@kitchensink/e2e-fixtures/testPool';
+import { MAESTRO_ERASURE_SHARD, maestroErasureSlots } from '@kitchensink/e2e-fixtures/testPool';
 import { deriveFixtureManifest, manifestToEnvLines } from '@kitchensink/e2e-seed';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -35,7 +35,8 @@ const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const SCRIPT = join(REPO_ROOT, 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
 const UDID = 'AAAAAAAA-1111-2222-3333-444444444444';
 const DRIVER_BUNDLE = 'dev.mobile.maestro-driver-iosUITests.xctrunner';
-const ERASURE_SUBJECT = consumableSlots('maestro')[0]?.email ?? '';
+// An iOS subject: the manifest refuses any other platform's (`manifestToEnvLines`, 2026-10-13).
+const ERASURE_SUBJECT = maestroErasureSlots('ios', MAESTRO_ERASURE_SHARD)[0]?.email ?? '';
 
 /** Every directory this file created, removed in `afterAll` so a failing test still cleans up. */
 const scratch: string[] = [];
@@ -80,7 +81,7 @@ function runWithStubs(args: readonly string[], env: Readonly<Record<string, stri
         chmodSync(path, 0o755);
     }
 
-    const manifest = deriveFixtureManifest('pr91-ios-lifecycle', 1);
+    const manifest = deriveFixtureManifest('pr91-ios-lifecycle', 'ios', 1);
     const manifestFile = join(dir, 'fixture.env');
 
     writeFileSync(manifestFile, `${manifestToEnvLines(manifest, ERASURE_SUBJECT).join('\n')}\n`, 'utf8');
@@ -133,7 +134,7 @@ describe('maestro iOS driver lifecycle — one flow through the real loop', () =
     });
 
     it('⛔ names the Simulator: maestro --device <UDID> test …, and nothing else changes in the argv', () => {
-        const manifest = deriveFixtureManifest('pr91-ios-lifecycle', 1);
+        const manifest = deriveFixtureManifest('pr91-ios-lifecycle', 'ios', 1);
         const port = execFileSync('bash', [SCRIPT, 'driver-port'], { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
         const invocation = recorded.calls.find((call) => call.startsWith('maestro\t')) ?? '';
 

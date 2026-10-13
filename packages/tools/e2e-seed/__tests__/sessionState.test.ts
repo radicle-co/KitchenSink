@@ -28,7 +28,7 @@ function stateFile(body: unknown): string {
 }
 
 const handle = { sessionId: 's', devJwt: 'j', fapi: 'f', origin: 'o', email: 'e' };
-const valid = { runKey: 'local-1', shard: 1, signer: handle, coAuthor: handle };
+const valid = { runKey: 'local-1', platform: 'android', shard: 1, signer: handle, coAuthor: handle };
 
 describe('readSessionState', () => {
     it('round-trips a well-formed state file', () => {
@@ -49,5 +49,30 @@ describe('readSessionState', () => {
 
     it('⛔ refuses a non-positive shard, which would index the roster from the wrong end', () => {
         expect(() => readSessionState(stateFile({ ...valid, shard: 0 }))).toThrow(/shard/iu);
+    });
+
+    /**
+     * ADDED 2026-10-13. The platform decides WHICH lane's signer a reset reconciles, exactly as the shard does, so it
+     * is parsed as strictly: an absent or unknown platform is a state file from before the lanes were split, and
+     * resetting "some" signer from it would purge a live run's world.
+     */
+    it('round-trips both platforms', () => {
+        expect(readSessionState(stateFile({ ...valid, platform: 'ios' })).platform).toBe('ios');
+        expect(readSessionState(stateFile(valid)).platform).toBe('android');
+    });
+
+    it('⛔ refuses a state file with NO platform at all', () => {
+        const { platform, ...withoutPlatform } = valid;
+
+        expect(platform).toBe('android');
+        expect(() => readSessionState(stateFile(withoutPlatform))).toThrow(/platform/iu);
+    });
+
+    it.each([['windows'], ['IOS'], [''], [null], [1], [['ios']]])('⛔ refuses the platform %j', (platform) => {
+        expect(() => readSessionState(stateFile({ ...valid, platform }))).toThrow(/platform/iu);
+    });
+
+    it('reports a bad platform as itself, not as a missing state file', () => {
+        expect(() => readSessionState(stateFile({ ...valid, platform: 'windows' }))).not.toThrow(/provision/u);
     });
 });

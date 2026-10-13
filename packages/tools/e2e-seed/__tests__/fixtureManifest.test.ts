@@ -5,6 +5,7 @@
 import { deriveRunKey } from '@kitchensink/e2e-fixtures';
 import {
     consumableSlots,
+    MAESTRO_PLATFORMS,
     maestroShardCapacity,
     maestroSlotForShard,
     POOL_PASSWORD,
@@ -28,26 +29,28 @@ import {
 const RUN = 'gh42-1-maestro';
 /** The shard whose identities these assertions are about; shard 1 is the unsharded tier. */
 const SHARD = 1;
+/** The platform these assertions are about, unless a case says otherwise. */
+const PLATFORM = 'android';
 /** The erasure subject `provision` leased — a consumable pool slot, resolved at run time, never derived. */
 const ERASURE = consumableSlots('maestro')[2]?.email ?? '';
 
 describe('deriveFixtureManifest', () => {
     it('is deterministic — provision, ~35 resets and teardown must agree without passing state', () => {
-        expect(deriveFixtureManifest(RUN, SHARD)).toEqual(deriveFixtureManifest(RUN, SHARD));
+        expect(deriveFixtureManifest(RUN, PLATFORM, SHARD)).toEqual(deriveFixtureManifest(RUN, PLATFORM, SHARD));
     });
 
     it('scopes every title to the run, with the run key LAST', () => {
         // Suffix, not prefix: several flows scroll to a row by its leading words and match unanchored, so a
         // prefix would break every one of them while a suffix keeps the base title matchable.
-        for (const recipe of deriveFixtureManifest(RUN, SHARD).recipes) {
+        for (const recipe of deriveFixtureManifest(RUN, PLATFORM, SHARD).recipes) {
             expect(recipe.title).toBe(`${recipe.baseTitle} ${RUN}`);
             expect(recipe.title.startsWith(recipe.baseTitle)).toBe(true);
         }
     });
 
     it('gives two runs disjoint titles — the whole reason titles are scoped at all', () => {
-        const mine = deriveFixtureManifest(RUN, SHARD).recipes.map((recipe) => recipe.title);
-        const theirs = deriveFixtureManifest('gh99-1-other', SHARD).recipes.map((recipe) => recipe.title);
+        const mine = deriveFixtureManifest(RUN, PLATFORM, SHARD).recipes.map((recipe) => recipe.title);
+        const theirs = deriveFixtureManifest('gh99-1-other', PLATFORM, SHARD).recipes.map((recipe) => recipe.title);
 
         expect(mine.filter((title) => theirs.includes(title))).toEqual([]);
     });
@@ -58,11 +61,11 @@ describe('deriveFixtureManifest', () => {
      * run, serialized by the tier's concurrency group — and only the recipe TITLES stay run-scoped.
      */
     it('signs in as the maestro tier’s fixed pool slots, the same on every run', () => {
-        const manifest = deriveFixtureManifest(RUN, SHARD);
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
 
-        expect(manifest.signInEmail).toBe(maestroSlotForShard('signer', SHARD).email);
-        expect(manifest.coAuthorEmail).toBe(maestroSlotForShard('coauthor', SHARD).email);
-        expect(deriveFixtureManifest('gh99-1-other', SHARD).signInEmail).toBe(manifest.signInEmail);
+        expect(manifest.signInEmail).toBe(maestroSlotForShard('signer', PLATFORM, SHARD).email);
+        expect(manifest.coAuthorEmail).toBe(maestroSlotForShard('coauthor', PLATFORM, SHARD).email);
+        expect(deriveFixtureManifest('gh99-1-other', PLATFORM, SHARD).signInEmail).toBe(manifest.signInEmail);
         expect(manifest.signInEmail).not.toBe(manifest.coAuthorEmail);
     });
 
@@ -70,38 +73,55 @@ describe('deriveFixtureManifest', () => {
      * ⛔ EXTENDED for SHARDING. `signInEmail` is the address the DEVICE types into the login form, so two shards
      * whose manifests named one signer would drive their emulators as the same user while holding separate API
      * sessions — and the per-flow reset, which reconciles that signer's library to the manifest, would then
-     * delete the sibling shard's fixtures mid-flow. The shard is a REQUIRED parameter for exactly this reason:
+     * delete the sibling shard's fixtures mid-flow. The platform and shard are REQUIRED parameters for exactly this reason:
      * a default would make the collision the quiet outcome.
      */
-    it('⛔ gives each shard its OWN signer and co-author, so two shards never drive one user', () => {
-        const capacity = maestroShardCapacity();
+    it('⛔ gives each shard of each platform its OWN signer and co-author, so no two lanes ever drive one user', () => {
+        const manifests = MAESTRO_PLATFORMS.flatMap((platform) =>
+            Array.from({ length: maestroShardCapacity(platform) }, (_, index) =>
+                deriveFixtureManifest(RUN, platform, index + 1),
+            ),
+        );
+        const emails = manifests.flatMap((manifest) => [manifest.signInEmail, manifest.coAuthorEmail]);
 
-        expect(capacity, 'the roster must declare at least two shards for this to be a real assertion').toBe(2);
-
-        const first = deriveFixtureManifest(RUN, 1);
-        const second = deriveFixtureManifest(RUN, 2);
-
-        expect(second.signInEmail).not.toBe(first.signInEmail);
-        expect(second.coAuthorEmail).not.toBe(first.coAuthorEmail);
-        expect(second.signInEmail).not.toBe(first.coAuthorEmail);
-        expect(second.coAuthorEmail).not.toBe(first.signInEmail);
+        expect(manifests, 'the roster must declare more than one lane for this to be a real assertion').toHaveLength(8);
+        expect(new Set(emails).size).toBe(emails.length);
     });
 
-    it('keeps shard 1 on the original addresses, so sharding re-provisions no Clerk user', () => {
-        expect(deriveFixtureManifest(RUN, 1).signInEmail).toBe(slotFor('maestro', 'signer').email);
-        expect(deriveFixtureManifest(RUN, 1).coAuthorEmail).toBe(slotFor('maestro', 'coauthor').email);
+    /**
+     * ADDED 2026-10-13. The same shard number on the two platforms is the case the per-platform lanes exist for:
+     * iOS shard 1 must not sign in as Android shard 1.
+     */
+    it('⛔ gives iOS shard 1 its own signer and co-author, not Android shard 1’s', () => {
+        const android = deriveFixtureManifest(RUN, 'android', 1);
+        const ios = deriveFixtureManifest(RUN, 'ios', 1);
+
+        expect(ios.signInEmail).toBe(maestroSlotForShard('signer', 'ios', 1).email);
+        expect(ios.signInEmail).toBe(slotFor('maestro', 'iossigner01').email);
+        expect(ios.coAuthorEmail).toBe(slotFor('maestro', 'ioscoauthor01').email);
+        expect(ios.signInEmail).not.toBe(android.signInEmail);
+        expect(ios.coAuthorEmail).not.toBe(android.coAuthorEmail);
+    });
+
+    it('keeps Android shard 1 on the original addresses, so the split re-provisions no Clerk user', () => {
+        expect(deriveFixtureManifest(RUN, 'android', 1).signInEmail).toBe(slotFor('maestro', 'signer').email);
+        expect(deriveFixtureManifest(RUN, 'android', 1).coAuthorEmail).toBe(slotFor('maestro', 'coauthor').email);
     });
 
     it('⛔ refuses a shard the roster cannot identify rather than wrapping onto shard 1', () => {
-        expect(() => deriveFixtureManifest(RUN, maestroShardCapacity() + 1)).toThrow(/poolAdmin/u);
+        for (const platform of MAESTRO_PLATFORMS) {
+            expect(() => deriveFixtureManifest(RUN, platform, maestroShardCapacity(platform) + 1)).toThrow(
+                /poolAdmin/u,
+            );
+        }
     });
 
     it('types the password the pool provisions its password-bearing slots with', () => {
-        expect(deriveFixtureManifest(RUN, SHARD).password).toBe(POOL_PASSWORD);
+        expect(deriveFixtureManifest(RUN, PLATFORM, SHARD).password).toBe(POOL_PASSWORD);
     });
 
     it('is frozen — a manifest a caller can edit is a manifest that drifts between processes', () => {
-        const manifest = deriveFixtureManifest(RUN, SHARD);
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
 
         expect(Object.isFrozen(manifest)).toBe(true);
         expect(Object.isFrozen(manifest.recipes)).toBe(true);
@@ -110,11 +130,15 @@ describe('deriveFixtureManifest', () => {
 
     it('owns exactly three signer recipes, which is what makes "3 recipes" true', () => {
         // `searchNavigation.yaml` and `servingScale.yaml` both assert `^3 recipes$` on the library screen.
-        expect(deriveFixtureManifest(RUN, SHARD).recipes.filter((recipe) => recipe.owner === 'signer')).toHaveLength(3);
+        expect(
+            deriveFixtureManifest(RUN, PLATFORM, SHARD).recipes.filter((recipe) => recipe.owner === 'signer'),
+        ).toHaveLength(3);
     });
 
     it('gives the co-author exactly one PUBLIC recipe — a row the signer does not own', () => {
-        const coAuthored = deriveFixtureManifest(RUN, SHARD).recipes.filter((recipe) => recipe.owner === 'coAuthor');
+        const coAuthored = deriveFixtureManifest(RUN, PLATFORM, SHARD).recipes.filter(
+            (recipe) => recipe.owner === 'coAuthor',
+        );
 
         expect(coAuthored).toHaveLength(1);
         expect(coAuthored[0]?.visibility).toBe('public');
@@ -167,11 +191,11 @@ describe('deriveFixtureManifest', () => {
  * one it tests.
  */
 describe('the private-food recipe', () => {
-    const manifest = deriveFixtureManifest(RUN, SHARD);
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
 
     it('scopes its title to the run, with the run key last, like every other fixture title', () => {
         expect(manifest.privateFoodRecipe.title).toBe(`${PRIVATE_FOOD_RECIPE.baseTitle} ${RUN}`);
-        expect(deriveFixtureManifest('gh99-1-other', SHARD).privateFoodRecipe.title).not.toBe(
+        expect(deriveFixtureManifest('gh99-1-other', PLATFORM, SHARD).privateFoodRecipe.title).not.toBe(
             manifest.privateFoodRecipe.title,
         );
     });
@@ -242,7 +266,7 @@ describe('the private-food recipe', () => {
  * below is one way that flow could fail for a reason that is not the cap.
  */
 describe('the cap foods', () => {
-    const manifest = deriveFixtureManifest(RUN, SHARD);
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
 
     it('reaches the flow as E2E_CAP_FOOD_PREFIX', () => {
         expect(FIXTURE_ENV_KEYS.capFoodPrefix).toBe('E2E_CAP_FOOD_PREFIX');
@@ -259,7 +283,7 @@ describe('the cap foods', () => {
     });
 
     it('gives two runs disjoint prefixes and names', () => {
-        const theirs = deriveFixtureManifest('gh99-1-other', SHARD);
+        const theirs = deriveFixtureManifest('gh99-1-other', PLATFORM, SHARD);
 
         expect(theirs.capFoodPrefix).not.toBe(manifest.capFoodPrefix);
         expect(manifest.capFoodNames.filter((name) => theirs.capFoodNames.includes(name))).toEqual([]);
@@ -289,7 +313,7 @@ describe('the cap foods', () => {
         ];
 
         for (const key of keys) {
-            for (const name of deriveFixtureManifest(key, SHARD).capFoodNames) {
+            for (const name of deriveFixtureManifest(key, PLATFORM, SHARD).capFoodNames) {
                 expect(name).toMatch(/^[A-Za-z0-9 -]+$/u);
             }
         }
@@ -314,7 +338,7 @@ describe('the cap foods', () => {
 
 describe('manifestToEnvLines', () => {
     it('carries the cap foods’ run-scoped prefix', () => {
-        const manifest = deriveFixtureManifest(RUN, SHARD);
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
 
         expect(manifestToEnvLines(manifest, ERASURE)).toContain(
             `${FIXTURE_ENV_KEYS.capFoodPrefix}=${manifest.capFoodPrefix}`,
@@ -322,14 +346,14 @@ describe('manifestToEnvLines', () => {
     });
 
     it('emits exactly the registry, one KEY=VALUE per line, nothing else', () => {
-        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, SHARD), ERASURE);
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
 
         expect(lines.map((line) => line.split('=')[0]).sort()).toEqual([...Object.values(FIXTURE_ENV_KEYS)].sort());
         expect(lines.every((line) => /^[A-Z0-9_]+=.+$/.test(line))).toBe(true);
     });
 
     it('carries the run-scoped titles, not the base ones', () => {
-        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, SHARD), ERASURE);
+        const lines = manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE);
 
         expect(lines).toContain(`${FIXTURE_ENV_KEYS.risotto}=${runScopedTitle('Herb Risotto', RUN)}`);
         expect(lines).toContain(
@@ -338,13 +362,13 @@ describe('manifestToEnvLines', () => {
     });
 
     it('carries the private food’s name, which the flow asserts is never shown', () => {
-        expect(manifestToEnvLines(deriveFixtureManifest(RUN, SHARD), ERASURE)).toContain(
+        expect(manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE)).toContain(
             `${FIXTURE_ENV_KEYS.privateFoodName}=${PRIVATE_FOOD_NAME}`,
         );
     });
 
     it('carries the co-author’s email, which the session handoff flow signs in as second', () => {
-        const manifest = deriveFixtureManifest(RUN, SHARD);
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
 
         expect(FIXTURE_ENV_KEYS.coAuthorEmail).toBe('E2E_COAUTHOR_EMAIL');
         expect(manifestToEnvLines(manifest, ERASURE)).toContain(
@@ -354,18 +378,50 @@ describe('manifestToEnvLines', () => {
     });
 
     it('carries the LEASED erasure subject, not a derived one', () => {
-        expect(manifestToEnvLines(deriveFixtureManifest(RUN, SHARD), ERASURE)).toContain(
+        expect(manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE)).toContain(
             `${FIXTURE_ENV_KEYS.erasureEmail}=${ERASURE}`,
         );
     });
 
     it('refuses an erasure subject that is not a consumable pool slot — the flow really erases it', () => {
-        expect(() => manifestToEnvLines(deriveFixtureManifest(RUN, SHARD), slotFor('maestro', 'signer').email)).toThrow(
+        expect(() =>
+            manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), slotFor('maestro', 'signer').email),
+        ).toThrow(/consumable/u);
+        expect(() => manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), 'someone@example.com')).toThrow(
             /consumable/u,
         );
-        expect(() => manifestToEnvLines(deriveFixtureManifest(RUN, SHARD), 'someone@example.com')).toThrow(
-            /consumable/u,
-        );
+    });
+
+    /**
+     * ADDED 2026-10-13. The refusal is scoped to the manifest's OWN platform's subjects: Android may erase only
+     * `erasure01-05` and iOS only `erasure06-10`. A subject of the OTHER platform is a consumable pool slot, so the old
+     * "any of the ten" check admitted it — and it belongs to a lane some other job holds right now.
+     */
+    it.each([
+        ['android', 'erasure06'],
+        ['android', 'erasure10'],
+        ['ios', 'erasure01'],
+        ['ios', 'erasure05'],
+    ] as const)('⛔ refuses the OTHER platform’s subject: a %s manifest may not erase %s', (platform, subject) => {
+        expect(() =>
+            manifestToEnvLines(deriveFixtureManifest(RUN, platform, SHARD), slotFor('maestro', subject).email),
+        ).toThrow(/consumable maestro pool slot of this platform/u);
+    });
+
+    it.each([
+        ['android', 'erasure01'],
+        ['android', 'erasure05'],
+        ['ios', 'erasure06'],
+        ['ios', 'erasure10'],
+    ] as const)('accepts its OWN platform’s subject: a %s manifest may erase %s', (platform, subject) => {
+        expect(() =>
+            manifestToEnvLines(deriveFixtureManifest(RUN, platform, SHARD), slotFor('maestro', subject).email),
+        ).not.toThrow();
+    });
+
+    it('records its platform, because that is what scopes the erasure refusal', () => {
+        expect(deriveFixtureManifest(RUN, 'ios', SHARD).platform).toBe('ios');
+        expect(deriveFixtureManifest(RUN, 'android', SHARD).platform).toBe('android');
     });
 
     /**
@@ -374,7 +430,7 @@ describe('manifestToEnvLines', () => {
      * erasing flow on a manifest that names no subject (`maestroShardPartition.test.ts`).
      */
     it('OMITS the erasure key when this shard leased no subject, and keeps every other key', () => {
-        const manifest = deriveFixtureManifest(RUN, SHARD);
+        const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
         const withSubject = manifestToEnvLines(manifest, ERASURE);
         const without = manifestToEnvLines(manifest, null);
 
@@ -385,7 +441,9 @@ describe('manifestToEnvLines', () => {
 
     it('never emits an empty value — a blank renders as the literal ${VAR} on screen', () => {
         expect(
-            manifestToEnvLines(deriveFixtureManifest(RUN, SHARD), ERASURE).every((line) => line.split('=')[1] !== ''),
+            manifestToEnvLines(deriveFixtureManifest(RUN, PLATFORM, SHARD), ERASURE).every(
+                (line) => line.split('=')[1] !== '',
+            ),
         ).toBe(true);
     });
 });

@@ -30,7 +30,7 @@ import {
     withClerkBackendRetry,
     type SessionHandle,
 } from './clerkSession.js';
-import { assertPoolMember, maestroErasureSlots, type PoolSlot } from './testPool.js';
+import { assertPoolMember, maestroErasureSlots, type MaestroPlatform, type PoolSlot } from './testPool.js';
 
 /** A Clerk user reduced to the facts a lease decides on. */
 export interface PoolUserRecord {
@@ -186,19 +186,20 @@ export async function firstAvailableSlot(
 }
 
 /**
- * The erasure subject a 1-based Maestro shard leases, or `null` when that shard leases none.
+ * The erasure subject a 1-based Maestro shard of one platform leases, or `null` when that shard leases none.
  *
- * Only the erasure shard leases one, from EVERY consumable subject (`maestroErasureSlots` states the lease contract
- * and why it is safe under concurrency). `null` here is "this shard erases nothing" — the empty list is NOT handed to
+ * Only a platform's erasure shard leases one, from THAT platform's subjects and no other's (`maestroErasureSlots`
+ * states the lease contract and why it is safe under concurrency). `null` here is "this shard erases nothing" — the empty list is NOT handed to
  * {@link firstAvailableSlot}, which rightly treats an empty list as an error.
  *
  * @sideEffect One Backend API lookup per slot inspected; none on a shard that leases nothing.
  */
 export async function leaseErasureSubject(
+    platform: MaestroPlatform,
     shard: number,
     port: LeasePort,
 ): Promise<{ readonly slot: PoolSlot; readonly user: PoolUserRecord } | null> {
-    const slots = maestroErasureSlots(shard);
+    const slots = maestroErasureSlots(platform, shard);
 
     return slots.length === 0 ? null : firstAvailableSlot(slots, port);
 }

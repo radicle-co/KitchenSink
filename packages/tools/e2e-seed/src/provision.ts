@@ -6,7 +6,7 @@
  * read it without parsing prose; diagnostics go to stderr.
  *
  * ⛔ IT CREATES NO CLERK USER. The signer, the co-author and the erasure subject are the Maestro tier's FIXED pool
- * slots, provisioned by `poolAdmin` and serialized across runs by the job's per-shard `test-pool-sandbox-maestro-N`
+ * slots, provisioned by `poolAdmin` and serialized across runs by the job's per-lane `test-pool-sandbox-maestro[-ios]-N`
  * concurrency group. The job's refill step tops up the erasure subjects through `poolAdmin` just before this runs
  * (`poolAdmin.ts` records that ruling); a slot that is still absent or unmarked fails this step, and nothing here
  * mints a user. The data those slots own is emptied by `resetPool --tier
@@ -32,7 +32,7 @@ import {
     toCreateRequest,
 } from './recipeWorld.js';
 import { sessionStatePath, writeSessionState } from './sessionState.js';
-import { resolveShard } from './shard.js';
+import { resolveMaestroPlatform, resolveShard } from './shard.js';
 
 const env = readSeedEnvironment(process.env);
 // The fixture foods are authored at food and bound at recipe (plan 002 S5), so provision needs both origins.
@@ -41,23 +41,26 @@ const foodOrigin = readFoodOrigin(process.env);
 // `COMMISE_E2E_SHARD` to scope this shard's fixture TITLES apart from its sibling's, and the three identities
 // leased below are the shard's own. An unsharded run is shard 1 and byte-identical to what ran before.
 const shard = resolveShard(process.env);
+// ⛔ AND THE PLATFORM, which names the other axis of the lane (iOS has pool lanes of its own, 2026-10-13). Absent is
+// `android`, the runner's own default; an unknown value throws rather than leasing the wrong platform's signer.
+const platform = resolveMaestroPlatform(process.env);
 const runKey = resolveRunKey();
-const manifest = deriveFixtureManifest(runKey, shard);
+const manifest = deriveFixtureManifest(runKey, platform, shard);
 const port = clerkLeasePort(env.clerkSecretKey);
 
-console.error(`e2e-seed provision: run ${runKey} (maestro shard ${shard}) against ${env.recipeOrigin}`);
+console.error(`e2e-seed provision: run ${runKey} (maestro ${platform} shard ${shard}) against ${env.recipeOrigin}`);
 
 // The erasure subject signs in on the DEVICE and is destroyed by the flow itself, so it needs no session here —
 // only to exist, marked, with an `external_id`. The first such slot still standing is this run's; none standing
 // is an error, never a skipped flow.
-// ⛔ ONLY THE ERASURE SHARD LEASES ONE, from every subject (`maestroErasureSlots` states the lease contract): the
-// runner pins every erasing flow to that shard, and its concurrency lane is what keeps two runs off one subject.
-// Every other shard leases none, and its manifest names none.
-const erasure = await leaseErasureSubject(shard, port);
+// ⛔ ONLY A PLATFORM'S ERASURE SHARD LEASES ONE, from that platform's own subjects (`maestroErasureSlots` states the
+// lease contract): the runner pins every erasing flow to that shard, and its concurrency lane is what keeps two runs
+// off one subject. Every other shard leases none, and its manifest names none.
+const erasure = await leaseErasureSubject(platform, shard, port);
 
 console.error(
     erasure === null
-        ? `e2e-seed provision: maestro shard ${shard} runs no erasing flow, so it leases no erasure subject`
+        ? `e2e-seed provision: maestro ${platform} shard ${shard} runs no erasing flow, so it leases no erasure subject`
         : `e2e-seed provision: erasure subject is pool slot ${erasure.slot.id}`,
 );
 
@@ -66,7 +69,7 @@ console.error(
 // create outright, and three of the flows' anchors would have to become public — changing what those flows prove.
 const signerSession = (
     await leaseSession({
-        slot: maestroSlotForShard('signer', shard),
+        slot: maestroSlotForShard('signer', platform, shard),
         publishableKey: env.clerkPublishableKey,
         origin: env.webOrigin,
         port,
@@ -77,7 +80,7 @@ const signerSession = (
 console.error(`${new Date().toISOString()} e2e-seed provision: signed in ${manifest.signInEmail}`);
 const coAuthorSession = (
     await leaseSession({
-        slot: maestroSlotForShard('coauthor', shard),
+        slot: maestroSlotForShard('coauthor', platform, shard),
         publishableKey: env.clerkPublishableKey,
         origin: env.webOrigin,
         port,
@@ -86,7 +89,7 @@ const coAuthorSession = (
 console.error(`${new Date().toISOString()} e2e-seed provision: signed in ${manifest.coAuthorEmail}`);
 
 const statePath = sessionStatePath(process.env);
-writeSessionState(statePath, { runKey, shard, signer: signerSession, coAuthor: coAuthorSession });
+writeSessionState(statePath, { runKey, platform, shard, signer: signerSession, coAuthor: coAuthorSession });
 console.error(`e2e-seed provision: sessions established for the signer and co-author; state ${statePath}`);
 
 // The discovery probe. `searchNavigation` filters discovery by it and asserts the feed collapses, so it must be a

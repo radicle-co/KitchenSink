@@ -17,6 +17,7 @@ import { readSeedEnvironment } from './env.js';
 import { deriveFixtureManifest } from './fixtureManifest.js';
 import { applyPlan, readWorld } from './recipeWorld.js';
 import { readSessionState, sessionStatePath } from './sessionState.js';
+import { assertPlatformsAgree } from './shard.js';
 import { planWorldReset, type ResetMode } from './worldResetPlan.js';
 
 /** Read the mode from argv, refusing anything the planner does not define. Pure. */
@@ -34,7 +35,13 @@ export function resetModeFrom(argv: readonly string[]): ResetMode {
 const env = readSeedEnvironment(process.env);
 const mode = resetModeFrom(process.argv.slice(2));
 const state = readSessionState(sessionStatePath(process.env));
-const manifest = deriveFixtureManifest(state.runKey, state.shard);
+
+// ⛔ The state file is what `provision` actually leased, so a reset follows IT. But a job whose environment names
+// another platform than the file does is a broken workflow, and resetting the file's signer would purge a lane the
+// job does not hold. Absent in the environment is fine (a local run sets none).
+assertPlatformsAgree(state.platform, process.env);
+
+const manifest = deriveFixtureManifest(state.runKey, state.platform, state.shard);
 
 const client = clientFor(env.recipeOrigin, state.signer);
 const before = await readWorld(client);

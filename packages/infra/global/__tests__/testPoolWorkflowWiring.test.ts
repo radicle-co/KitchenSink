@@ -285,6 +285,13 @@ describe('every job that writes as the fixed test pool holds its lease and reset
             '${{ matrix.shard }}',
         ]);
         expect(GROUP.exec('test-pool-sandbox-maestro')?.[2]).toBe('maestro');
+        // The iOS lanes (2026-10-13): the platform rides in the LANE suffix, so the tier is still `maestro` and a reset
+        // `--tier maestro` still addresses it, and the lane still names the matrix shard.
+        expect(GROUP.exec('test-pool-sandbox-maestro-ios-${{ matrix.shard }}')?.slice(1)).toEqual([
+            'sandbox',
+            'maestro',
+            'ios-${{ matrix.shard }}',
+        ]);
         expect(GROUP.test('food-loadtest-sandbox')).toBe(false);
         expect(GROUP.test('recipe-loadtest')).toBe(false);
     });

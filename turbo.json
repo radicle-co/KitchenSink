@@ -140,6 +140,16 @@
             "cache": false,
             "outputs": []
         },
+        // ⛔ `transit` IS A NO-OP TASK THAT EXISTS ONLY TO CARRY HASHES UP THE DEPENDENCY GRAPH. No package defines a
+        // script by this name, so turbo runs nothing for it; what it does is give every package a node whose hash
+        // includes its dependencies' nodes (`dependsOn: ["^transit"]`). `^build` cannot do that job for a consumer
+        // that bundles SOURCE: most `@commise/*` and `@kitchensink/*` packages export `./src` and have no `build`
+        // script, and turbo drops a package that lacks the task, so a change inside one of them never reached the hash.
+        // The mobile test app's content key (`packages/apps/commise/mobile/turbo.json`) is the one consumer, and
+        // `testAppContentKey.test.ts` reads turbo's resolved graph to prove the closure is really in it.
+        "transit": {
+            "dependsOn": ["^transit"]
+        },
         "build-ui": {
             "dependsOn": ["^build"],
             "outputs": ["dist/**"]

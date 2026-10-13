@@ -15,7 +15,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { assertShardsAgree, resolveShard } from '../src/shard.js';
+import { assertPlatformsAgree, assertShardsAgree, resolveMaestroPlatform, resolveShard } from '../src/shard.js';
 
 describe('resolveShard', () => {
     it('reads the shard the matrix stated', () => {
@@ -59,5 +59,57 @@ describe('assertShardsAgree', () => {
 
     it('propagates an unreadable environment shard rather than treating it as absent', () => {
         expect(() => assertShardsAgree(1, { COMMISE_E2E_SHARD: 'nope' })).toThrow(/positive integer/u);
+    });
+});
+
+/**
+ * The PLATFORM is the second axis of the lane a Maestro process belongs to (2026-10-13: iOS has pool lanes of its
+ * own). It is carried on two channels for the same reason the shard is, and it is just as destructive to get wrong:
+ * a job that leased the iOS signer while resetting the Android one would purge the world of a run still in flight.
+ *
+ * ⚠️ Mutation lens: defaulting an UNKNOWN value to `android` reds the refusal case (and would put an iOS job on the
+ * Android lane); skipping the comparison when either side is absent reds nothing here on purpose — a local run sets
+ * no environment — but comparing with a coercion reds the disagreement cases.
+ */
+describe('resolveMaestroPlatform', () => {
+    it('reads the platform the job stated', () => {
+        expect(resolveMaestroPlatform({ MAESTRO_PLATFORM: 'ios' })).toBe('ios');
+        expect(resolveMaestroPlatform({ MAESTRO_PLATFORM: 'android' })).toBe('android');
+    });
+
+    it('is android when nothing says otherwise — the runner’s own default, not a guess', () => {
+        expect(resolveMaestroPlatform({})).toBe('android');
+        expect(resolveMaestroPlatform({ MAESTRO_PLATFORM: '' })).toBe('android');
+        expect(resolveMaestroPlatform({ MAESTRO_PLATFORM: undefined })).toBe('android');
+    });
+
+    it('⛔ REFUSES a present-but-unknown platform rather than demoting it to android', () => {
+        for (const raw of ['windows', 'iOS', 'IOS', ' ios', 'ios ', 'android,ios', 'both', 'null']) {
+            expect(() => resolveMaestroPlatform({ MAESTRO_PLATFORM: raw }), raw).toThrow(/MAESTRO_PLATFORM/u);
+        }
+    });
+});
+
+describe('assertPlatformsAgree', () => {
+    it('passes when the two channels name the same platform', () => {
+        expect(() => assertPlatformsAgree('ios', { MAESTRO_PLATFORM: 'ios' })).not.toThrow();
+        expect(() => assertPlatformsAgree('android', { MAESTRO_PLATFORM: 'android' })).not.toThrow();
+    });
+
+    it('passes when only the command line states a platform — a local run sets no environment', () => {
+        expect(() => assertPlatformsAgree('ios', {})).not.toThrow();
+        expect(() => assertPlatformsAgree('android', { MAESTRO_PLATFORM: '' })).not.toThrow();
+    });
+
+    it('⛔ REFUSES a disagreement, names both sides, and does not pick a winner', () => {
+        expect(() => assertPlatformsAgree('android', { MAESTRO_PLATFORM: 'ios' })).toThrow(
+            /--platform android contradicts/u,
+        );
+        expect(() => assertPlatformsAgree('ios', { MAESTRO_PLATFORM: 'android' })).toThrow(/MAESTRO_PLATFORM=android/u);
+        expect(() => assertPlatformsAgree('ios', { MAESTRO_PLATFORM: 'android' })).toThrow(/do not pick a winner/u);
+    });
+
+    it('propagates an unreadable environment platform rather than treating it as absent', () => {
+        expect(() => assertPlatformsAgree('ios', { MAESTRO_PLATFORM: 'nope' })).toThrow(/MAESTRO_PLATFORM/u);
     });
 });

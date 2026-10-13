@@ -32,7 +32,11 @@ const handleFor = (email: string): SessionHandle => ({
 describe('parseResetArgs', () => {
     it.each([
         [['--tier', 'web', '--shard', '3'], { tier: 'web', shard: 3 }],
-        [['--tier', 'maestro', '--shard', '2'], { tier: 'maestro', shard: 2 }],
+        [
+            ['--tier', 'maestro', '--platform', 'android', '--shard', '2'],
+            { tier: 'maestro', platform: 'android', shard: 2 },
+        ],
+        [['--tier', 'maestro', '--shard', '4', '--platform', 'ios'], { tier: 'maestro', platform: 'ios', shard: 4 }],
         [['--tier', 'k6', '--vus', '10'], { tier: 'k6', vus: 10 }],
         [['--tier', 'linkage'], { tier: 'linkage' }],
     ])('reads %j', (argv, expected) => {
@@ -49,7 +53,14 @@ describe('parseResetArgs', () => {
         // with no shard would purge shard 1's slots whatever shard the job is, which on shard 2 means
         // hard-deleting the sibling shard's live world. A missing flag is a broken workflow, so it throws.
         [['--tier', 'maestro'], /--shard/u],
-        [['--tier', 'maestro', '--shard', '0'], /--shard/u],
+        [['--tier', 'maestro', '--platform', 'ios', '--shard', '0'], /--shard/u],
+        // ⛔ ADDED 2026-10-13, for the same reason one axis over: a maestro reset with no PLATFORM would pick a lane
+        // for the caller, and on an iOS job that is the Android signer's live world. REQUIRED, never defaulted.
+        [['--tier', 'maestro', '--shard', '1'], /--platform/u],
+        [['--tier', 'maestro', '--platform', 'windows', '--shard', '1'], /--platform/u],
+        [['--tier', 'maestro', '--platform', '', '--shard', '1'], /--platform/u],
+        [['--tier', 'maestro', '--platform', 'IOS', '--shard', '1'], /--platform/u],
+        [['--tier', 'maestro', '--platform', '--shard', '1'], /--platform/u],
         [['--tier', 'k6'], /--vus/u],
         [['--tier', 'k6', '--vus', '0'], /--vus/u],
     ])('refuses %j', (argv, message) => {
@@ -62,10 +73,13 @@ describe('resetTargets', () => {
         expect(resetTargets({ tier: 'web', shard: 3 })).toEqual([slotForShard('web', 3)]);
     });
 
-    it('resets the maestro signer and co-author and NEVER an erasure subject', () => {
-        const targets = resetTargets({ tier: 'maestro', shard: 1 });
+    it.each([
+        ['android', ['signer', 'coauthor']],
+        ['ios', ['iossigner01', 'ioscoauthor01']],
+    ] as const)('resets the %s shard 1 signer and co-author and NEVER an erasure subject', (platform, ids) => {
+        const targets = resetTargets({ tier: 'maestro', platform, shard: 1 });
 
-        expect(targets.map((slot) => slot.id)).toEqual(['signer', 'coauthor']);
+        expect(targets.map((slot) => slot.id)).toEqual(ids);
         expect(targets.some((slot) => consumableSlots('maestro').includes(slot))).toBe(false);
     });
 
@@ -74,14 +88,22 @@ describe('resetTargets', () => {
      * and the sibling shard is running at the same moment on its own signer. Resetting every non-consumable
      * maestro lane — which is what this function did while the tier was a single job — would empty that live
      * shard's world and answer its next mutation with `423 ERASURE_IN_PROGRESS`.
+     * REWRITTEN 2026-10-13 to range over all eight (platform, shard) lanes, so the sibling includes the OTHER
+     * PLATFORM's same-numbered shard, which now runs concurrently with this one.
      */
-    it('⛔ resets ONLY the named shard’s slots, never the sibling shard’s live identities', () => {
-        const first = resetTargets({ tier: 'maestro', shard: 1 }).map((slot) => slot.email);
-        const second = resetTargets({ tier: 'maestro', shard: 2 }).map((slot) => slot.email);
+    it('⛔ resets ONLY the named lane’s slots, never any sibling lane’s live identities', () => {
+        const lanes = (['android', 'ios'] as const).flatMap((platform) =>
+            [1, 2, 3, 4].map((shard) => ({
+                platform,
+                shard,
+                emails: resetTargets({ tier: 'maestro', platform, shard }).map((slot) => slot.email),
+            })),
+        );
+        const everyEmail = lanes.flatMap((lane) => lane.emails);
 
-        expect(first).toHaveLength(2);
-        expect(second).toHaveLength(2);
-        expect(first.filter((email) => second.includes(email))).toEqual([]);
+        expect(lanes).toHaveLength(8);
+        expect(lanes.every((lane) => lane.emails.length === 2)).toBe(true);
+        expect(new Set(everyEmail).size).toBe(everyEmail.length);
     });
 
     it('resets the k6 VUs the run used plus the admin', () => {

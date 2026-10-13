@@ -20,6 +20,7 @@ import {
     k6VuLanes,
     k6VuSlots,
     MAESTRO_ERASURE_SHARD,
+    MAESTRO_PLATFORMS,
     maestroErasureSlots,
     maestroShardCapacity,
     maestroSlotForShard,
@@ -30,6 +31,7 @@ import {
     rosterSlots,
     slotFor,
     slotForShard,
+    type MaestroPlatform,
     type PoolLane,
 } from '../src/testPool.js';
 
@@ -236,21 +238,23 @@ describe('poolSlotMetadata', () => {
     });
 });
 
+/** Every (platform, 1-based shard) the roster can serve, in platform order. */
+const everyShard = (): readonly { readonly platform: MaestroPlatform; readonly shard: number }[] =>
+    MAESTRO_PLATFORMS.flatMap((platform) =>
+        Array.from({ length: maestroShardCapacity(platform) }, (_, index) => ({ platform, shard: index + 1 })),
+    );
+
 describe('password-bearing slots', () => {
     /**
-     * ⛔ REWRITTEN for Maestro sharding, and DERIVED rather than listed. It used to name `maestro/signer`
-     * literally, which made "the tier now has a signer per shard" look like a defect in the roster instead of
-     * the change it is. Every shard's signer types the password on its own device, so the claim is per-SHARD;
-     * comparing sorted sets rather than the roster's declaration order keeps the assertion about WHICH slots
-     * type a password, which is what `poolAdmin` acts on, and leaves lane order to the tests that own it.
+     * REWRITTEN for per-platform lanes (2026-10-13), and still DERIVED rather than listed: every shard's signer, on
+     * EITHER platform, types the password on its own device, so the claim is per (platform, shard). Comparing sorted
+     * sets keeps the assertion about WHICH slots type a password, which is what `poolAdmin` acts on.
      */
     it('are exactly the slots a flow types a password for: the web shards, every maestro signer, every erasure', () => {
         const typed = rosterSlots()
             .filter((slot) => slot.signsInByPassword)
             .map((slot) => `${slot.tier}/${slot.id}`);
-        const signers = Array.from({ length: maestroShardCapacity() }, (_, index) =>
-            maestroSlotForShard('signer', index + 1),
-        );
+        const signers = everyShard().map(({ platform, shard }) => maestroSlotForShard('signer', platform, shard));
 
         expect([...typed].sort()).toEqual(
             [
@@ -262,19 +266,22 @@ describe('password-bearing slots', () => {
         );
     });
 
-    it('⛔ gives EVERY shard’s signer the password, because every shard types it on its own device', () => {
-        for (let shard = 1; shard <= maestroShardCapacity(); shard += 1) {
-            expect(maestroSlotForShard('signer', shard).signsInByPassword, `shard ${shard}`).toBe(true);
+    it('⛔ gives EVERY shard’s signer the password, on both platforms, because every shard types it on its own device', () => {
+        for (const { platform, shard } of everyShard()) {
+            const label = `${platform} shard ${shard}`;
+
+            expect(maestroSlotForShard('signer', platform, shard).signsInByPassword, label).toBe(true);
             // The co-author is an API identity only — `provision` signs it in over HTTP and no flow types it.
-            expect(maestroSlotForShard('coauthor', shard).signsInByPassword, `shard ${shard}`).toBe(false);
+            expect(maestroSlotForShard('coauthor', platform, shard).signsInByPassword, label).toBe(false);
         }
     });
 
     it('⛔ gives EVERY shard’s signer `premium`, or its three PRIVATE seeded recipes are refused', () => {
-        for (let shard = 1; shard <= maestroShardCapacity(); shard += 1) {
-            expect(poolSlotMetadata(maestroSlotForShard('signer', shard)).permissions, `shard ${shard}`).toEqual([
-                'premium',
-            ]);
+        for (const { platform, shard } of everyShard()) {
+            expect(
+                poolSlotMetadata(maestroSlotForShard('signer', platform, shard)).permissions,
+                `${platform} shard ${shard}`,
+            ).toEqual(['premium']);
         }
     });
 
@@ -284,86 +291,171 @@ describe('password-bearing slots', () => {
 });
 
 /**
- * The Maestro tier runs as a matrix, and a shard is only safe because its identities are nobody else's: the
- * per-flow reset RECONCILES the signer's library to the run manifest and `resetPool` hard-deletes every row a
+ * The Maestro tier runs as a matrix per platform, and a shard is only safe because its identities are nobody else's:
+ * the per-flow reset RECONCILES the signer's library to the run manifest and `resetPool` hard-deletes every row a
  * slot owns, so two shards on one signer delete each other's fixtures mid-flow and answer `423
  * ERASURE_IN_PROGRESS` while a purge runs. These are the allocator's side of that argument;
  * `packages/infra/global/__tests__/maestroShardPartition.test.ts` owns the workflow's side.
+ *
+ * REWRITTEN 2026-10-13: the lanes are now partitioned by (platform, shard). Android and iOS each have four, so the
+ * two platforms run side by side instead of queueing on one lane's concurrency group.
  */
 describe('maestro shard allocation', () => {
-    /**
-     * REWRITTEN 2026-10-08: the erasure subjects no longer bound the shard count. They used to be STRIDED across the
-     * shards, so each shard needed at least one; they now all belong to the ERASURE shard (see the erasure-lane
-     * suite below), so a shard needs only its signer and co-author.
-     */
-    it('reaches exactly as far as the scarcer of the two identities every shard needs', () => {
-        expect(maestroShardCapacity()).toBe(
-            Math.min(
-                POOL_ROSTER.maestro.filter((lane) => lane.id.startsWith('signer')).length,
-                POOL_ROSTER.maestro.filter((lane) => lane.id.startsWith('coauthor')).length,
-            ),
-        );
+    it('declares exactly the two platforms the runner knows', () => {
+        expect(MAESTRO_PLATFORMS).toEqual(['android', 'ios']);
     });
 
-    it('⛔ never hands two shards the same identity, erasure subjects included', () => {
-        const emails = Array.from({ length: maestroShardCapacity() }, (_, index) => index + 1).flatMap((shard) => [
-            maestroSlotForShard('signer', shard).email,
-            maestroSlotForShard('coauthor', shard).email,
-            ...maestroErasureSlots(shard).map((slot) => slot.email),
-        ]);
-
-        expect(new Set(emails).size).toBe(emails.length);
-    });
-
-    it('⛔ THROWS past the roster rather than wrapping onto shard 1, and says how to fix it', () => {
-        const past = maestroShardCapacity() + 1;
-
-        expect(() => maestroSlotForShard('signer', past)).toThrow(/poolAdmin --apply/u);
-        expect(() => maestroSlotForShard('coauthor', past)).toThrow(/poolAdmin --apply/u);
-    });
-
-    it('refuses a shard index that is not a positive integer', () => {
-        for (const shard of [0, -1, 1.5, Number.NaN]) {
-            expect(() => maestroSlotForShard('signer', shard), String(shard)).toThrow(/positive integer/u);
-            expect(() => maestroErasureSlots(shard), String(shard)).toThrow(/positive integer/u);
+    it('gives each platform four shards, which is the shell runner’s own maximum', () => {
+        for (const platform of MAESTRO_PLATFORMS) {
+            expect(maestroShardCapacity(platform), platform).toBe(4);
         }
     });
 
-    it('keeps shard 1 on the ids Clerk already holds, so sharding re-provisions nobody', () => {
-        expect(maestroSlotForShard('signer', 1)).toEqual(slotFor('maestro', 'signer'));
-        expect(maestroSlotForShard('coauthor', 1)).toEqual(slotFor('maestro', 'coauthor'));
-    });
-});
+    /**
+     * Capacity is the scarcer of the two identities every shard needs, per platform: it is read off the roster
+     * itself, so a lane appended without its partner moves neither number.
+     */
+    it('reaches exactly as far as the scarcer of the two identities every shard needs', () => {
+        const declared = (prefix: string): number =>
+            POOL_ROSTER.maestro.filter((lane) => new RegExp(`^${prefix}\\d*$`, 'u').test(lane.id)).length;
 
-/**
- * THE ERASURE LANE (2026-10-08). It REPLACES the per-shard stride, which split the ten subjects five and five: the
- * flow plan always packed `accountErasure` onto shard 2, so shard 2 drained its five while shard 1's five were never
- * used, and provisioning went red with "all 5 consumable slots are consumed".
- *
- * ⛔ What keeps two concurrent runs off one subject is now the LANE, not a partition. Every subject belongs to ONE
- * shard, the runner pins every erasing flow to that shard, and that shard's concurrency group
- * (`test-pool-sandbox-maestro-1`) admits one job at a time across both platforms and every run. So one job at a time
- * can lease a subject, and `firstAvailableSlot` over all ten cannot collide.
- */
-describe('maestro erasure lane', () => {
-    it('is shard 1 — the only index every matrix holds, the `[1]` fallback included', () => {
-        expect(MAESTRO_ERASURE_SHARD).toBe(1);
+        expect(maestroShardCapacity('android')).toBe(Math.min(declared('signer'), declared('coauthor')));
+        expect(maestroShardCapacity('ios')).toBe(Math.min(declared('iossigner'), declared('ioscoauthor')));
     });
 
-    it('gives the erasure shard EVERY consumable subject, in declared order', () => {
-        expect(maestroErasureSlots(MAESTRO_ERASURE_SHARD)).toEqual(consumableSlots('maestro'));
-        expect(maestroErasureSlots(MAESTRO_ERASURE_SHARD)).toHaveLength(10);
+    it('⛔ never hands two shards, on either platform, the same identity — erasure subjects included', () => {
+        const emails = everyShard().flatMap(({ platform, shard }) => [
+            maestroSlotForShard('signer', platform, shard).email,
+            maestroSlotForShard('coauthor', platform, shard).email,
+            ...maestroErasureSlots(platform, shard).map((slot) => slot.email),
+        ]);
+
+        expect(emails).toHaveLength(4 * 2 * 2 + 10);
+        expect(new Set(emails).size).toBe(emails.length);
     });
 
-    it('⛔ gives every OTHER shard none — a second shard leasing a subject is a second eraser on another lane', () => {
-        for (let shard = 1; shard <= maestroShardCapacity() + 2; shard += 1) {
-            if (shard !== MAESTRO_ERASURE_SHARD) {
-                expect(maestroErasureSlots(shard), `shard ${shard}`).toEqual([]);
+    it('declares every one of the eight lanes in the roster, and no other maestro signer or co-author', () => {
+        const lanes = everyShard().flatMap(({ platform, shard }) => [
+            maestroSlotForShard('signer', platform, shard).id,
+            maestroSlotForShard('coauthor', platform, shard).id,
+        ]);
+        const rostered = POOL_ROSTER.maestro.filter((lane) => !lane.consumable).map((lane) => lane.id);
+
+        expect([...lanes].sort()).toEqual([...rostered].sort());
+    });
+
+    it('⛔ THROWS past the roster rather than wrapping onto shard 1, and says how to fix it', () => {
+        for (const platform of MAESTRO_PLATFORMS) {
+            const past = maestroShardCapacity(platform) + 1;
+
+            expect(() => maestroSlotForShard('signer', platform, past)).toThrow(/poolAdmin --apply/u);
+            expect(() => maestroSlotForShard('coauthor', platform, past)).toThrow(/poolAdmin --apply/u);
+        }
+    });
+
+    it('refuses a shard index that is not a positive integer', () => {
+        for (const platform of MAESTRO_PLATFORMS) {
+            for (const shard of [0, -1, 1.5, Number.NaN]) {
+                expect(() => maestroSlotForShard('signer', platform, shard), String(shard)).toThrow(
+                    /positive integer/u,
+                );
+                expect(() => maestroErasureSlots(platform, shard), String(shard)).toThrow(/positive integer/u);
             }
         }
     });
 
-    it('needs at least one subject, or the erasure story could never run', () => {
-        expect(consumableSlots('maestro').length).toBeGreaterThan(0);
+    it('⛔ refuses a platform the roster does not declare, rather than inventing lanes for it', () => {
+        const unknown = 'windows' as unknown as MaestroPlatform;
+
+        expect(() => maestroShardCapacity(unknown)).toThrow(/platform/u);
+        expect(() => maestroSlotForShard('signer', unknown, 1)).toThrow(/platform/u);
+        expect(() => maestroErasureSlots(unknown, 1)).toThrow(/platform/u);
+    });
+
+    it('keeps Android shard 1 on the ids Clerk already holds, so the split re-provisions nobody', () => {
+        expect(maestroSlotForShard('signer', 'android', 1)).toEqual(slotFor('maestro', 'signer'));
+        expect(maestroSlotForShard('coauthor', 'android', 1)).toEqual(slotFor('maestro', 'coauthor'));
+    });
+
+    it('gives iOS lanes of its own: iossigner01..04 and ioscoauthor01..04, in shard order', () => {
+        expect(Array.from({ length: 4 }, (_, i) => maestroSlotForShard('signer', 'ios', i + 1).id)).toEqual([
+            'iossigner01',
+            'iossigner02',
+            'iossigner03',
+            'iossigner04',
+        ]);
+        expect(Array.from({ length: 4 }, (_, i) => maestroSlotForShard('coauthor', 'ios', i + 1).id)).toEqual([
+            'ioscoauthor01',
+            'ioscoauthor02',
+            'ioscoauthor03',
+            'ioscoauthor04',
+        ]);
+    });
+
+    it('keeps Android shards 2 to 4 on signer02..04 and coauthor02..04', () => {
+        expect(Array.from({ length: 3 }, (_, i) => maestroSlotForShard('signer', 'android', i + 2).id)).toEqual([
+            'signer02',
+            'signer03',
+            'signer04',
+        ]);
+        expect(Array.from({ length: 3 }, (_, i) => maestroSlotForShard('coauthor', 'android', i + 2).id)).toEqual([
+            'coauthor02',
+            'coauthor03',
+            'coauthor04',
+        ]);
+    });
+
+    it('⛔ APPENDS the new lanes: the maestro roster before them keeps its old order, so no shard changes user', () => {
+        expect(POOL_ROSTER.maestro.slice(0, 14).map((lane) => lane.id)).toEqual([
+            'signer',
+            'coauthor',
+            ...Array.from({ length: 10 }, (_, i) => `erasure${String(i + 1).padStart(2, '0')}`),
+            'signer02',
+            'coauthor02',
+        ]);
+    });
+});
+
+/**
+ * THE ERASURE LANE, per platform (2026-10-13; it refines the 2026-10-08 lane, which was one lane for both platforms).
+ * Each platform's shard 1 leases ITS OWN five subjects: Android `erasure01-05`, iOS `erasure06-10`. The runner still
+ * pins every erasing flow to shard 1 of its platform, and that shard's concurrency group admits one job at a time, so
+ * one job per platform can lease, and the two platforms draw from DISJOINT sets and cannot collide with each other.
+ */
+describe('maestro erasure lane', () => {
+    const ids = (platform: MaestroPlatform): readonly string[] =>
+        maestroErasureSlots(platform, MAESTRO_ERASURE_SHARD).map((slot) => slot.id);
+
+    it('is shard 1 — the only index every matrix holds, the `[1]` fallback included', () => {
+        expect(MAESTRO_ERASURE_SHARD).toBe(1);
+    });
+
+    it('gives Android shard 1 erasure01-05 and iOS shard 1 erasure06-10, in declared order', () => {
+        expect(ids('android')).toEqual(['erasure01', 'erasure02', 'erasure03', 'erasure04', 'erasure05']);
+        expect(ids('ios')).toEqual(['erasure06', 'erasure07', 'erasure08', 'erasure09', 'erasure10']);
+    });
+
+    it('⛔ keeps the two platforms’ sets disjoint, and their union is every consumable subject', () => {
+        const android = ids('android');
+        const ios = ids('ios');
+
+        expect(android.filter((id) => ios.includes(id))).toEqual([]);
+        expect([...android, ...ios]).toEqual(consumableSlots('maestro').map((slot) => slot.id));
+    });
+
+    it('⛔ gives every OTHER shard none on either platform — a second eraser would sit on another lane', () => {
+        for (const platform of MAESTRO_PLATFORMS) {
+            for (let shard = 1; shard <= maestroShardCapacity(platform) + 2; shard += 1) {
+                if (shard !== MAESTRO_ERASURE_SHARD) {
+                    expect(maestroErasureSlots(platform, shard), `${platform} shard ${shard}`).toEqual([]);
+                }
+            }
+        }
+    });
+
+    it('needs at least one subject per platform, or the erasure story could never run', () => {
+        for (const platform of MAESTRO_PLATFORMS) {
+            expect(ids(platform).length, platform).toBeGreaterThan(0);
+        }
     });
 });

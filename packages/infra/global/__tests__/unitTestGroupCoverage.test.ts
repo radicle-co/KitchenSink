@@ -23,7 +23,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const WORKFLOW = path.join(repoRoot, '.github/workflows/_ci.yml');
 
 /** The `--filter` expressions the matrix declares, one per group. */
-function groupFilters(): { readonly group: string; readonly filter: string }[] {
+function groupFilters(): readonly TestGroup[] {
     const workflow = parse(readFileSync(WORKFLOW, 'utf8')) as {
         jobs: { test: { strategy: { matrix: { include: TestGroup[] } } } };
     };

@@ -66,7 +66,7 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         ).toHaveText('2 cupsSalt · finely chopped');
 
         await addStep(page, 'Marinate and grill.');
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         // VIEW — the preparation is on the surface a cook actually cooks from, as its own text and NOT
         // welded into the food's name.
@@ -113,7 +113,7 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         await expect(section.getByRole('heading', { level: 3 })).toHaveCount(0);
 
         await addStep(page, 'Bake.');
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Flat Loaf' })).toBeVisible();
         // `level: 3` again — the detail's Ingredients region carries its OWN `h2` ("Ingredients"), so an

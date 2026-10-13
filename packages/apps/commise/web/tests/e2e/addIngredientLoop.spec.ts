@@ -49,7 +49,7 @@ test.describe('add-ingredient loop (plan U28, B8)', () => {
         await field.press('Escape');
         await expect(field).toHaveAttribute('aria-expanded', 'false');
         await expect(field).toHaveValue('sal');
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
         await expect(field).toBeFocused();
         await expect(field).toHaveAccessibleDescription(
             /“sal” isn’t in the recipe yet\. Choose a food for it, or clear the box\./u,
@@ -74,7 +74,7 @@ test.describe('add-ingredient loop (plan U28, B8)', () => {
         // …and the recipe can now be finished.
         await addStep(page, 'Season to taste.');
 
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Add Ingredient Loop' })).toBeVisible();
     });

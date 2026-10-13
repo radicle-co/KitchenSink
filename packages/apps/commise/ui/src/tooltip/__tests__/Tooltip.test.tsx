@@ -159,6 +159,44 @@ describe('Tooltip (web)', () => {
         expect(tip()?.textContent).toBe('New recipe');
     });
 
+    // Escape on the TIP takes it away from under a resting pointer, and a browser sends no leave from a node that is gone:
+    // the next move's boundary event comes from the page under the old spot. Hover must still end then, or the dismissal
+    // outlives both engagements and a later keyboard focus shows nothing (SC 1.4.13).
+    it('ends the hover at the next move after Escape took the tip from under the pointer, so a later focus shows it', async () => {
+        const user = userEvent.setup();
+        const button = renderTooltip();
+
+        await user.hover(button);
+        const shown = tip() as HTMLElement;
+        fireEvent.pointerOut(button, { relatedTarget: shown, pointerType: 'mouse' });
+        fireEvent.pointerOver(shown, { relatedTarget: button, pointerType: 'mouse' });
+        await user.keyboard('{Escape}');
+
+        expect(tip()).toBeNull();
+
+        fireEvent.pointerOver(screen.getByRole('button', { name: 'Elsewhere' }), {
+            relatedTarget: null,
+            pointerType: 'mouse',
+        });
+        await user.tab();
+
+        expect(document.activeElement).toBe(button);
+        expect(tip()?.textContent).toBe('New recipe');
+    });
+
+    it('keeps the hover while the pointer moves within the control after Escape', async () => {
+        const user = userEvent.setup();
+        const button = renderTooltip();
+
+        await user.hover(button);
+        await user.keyboard('{Escape}');
+        fireEvent.pointerOver(button, { relatedTarget: null, pointerType: 'mouse' });
+        await user.tab();
+
+        // Still hovered, so the dismissal stands: focusing the control it rests on is not a new engagement.
+        expect(tip()).toBeNull();
+    });
+
     it('stays dismissed while the other of hover and focus is still engaged', async () => {
         const user = userEvent.setup();
         const button = renderTooltip();

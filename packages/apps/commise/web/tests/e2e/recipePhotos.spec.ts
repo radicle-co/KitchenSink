@@ -348,7 +348,7 @@ test.describe('recipe photo upload on a NEW recipe (slice 7)', () => {
             .getByRole('option', { name: 'Salt', exact: true })
             .click();
         await addStep(page, 'Roast the vegetables.');
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page).toHaveURL(new RegExp(`/recipes/${createdId}(?:\\?|$)`, 'u'));
         await expect(page.getByRole('heading', { name: 'Handover Ratatouille' })).toBeVisible();

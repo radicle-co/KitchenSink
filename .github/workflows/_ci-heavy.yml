@@ -661,6 +661,11 @@ jobs:
             # output IS the premise this job is re-verifying (see the `liveness` step below for why the
             # re-ask exists).
             STAGE: ${{ needs.resolve-mobile-target.outputs.stage }}
+            # The emulator's system image, named ONCE: the emulator action's `api-level`/`target`/`arch` and the
+            # retried pre-install step both read these (`androidEmulatorPreinstall.test.ts`).
+            ANDROID_EMULATOR_API_LEVEL: '34'
+            ANDROID_EMULATOR_TARGET: default
+            ANDROID_EMULATOR_ARCH: x86_64
         # ── SHARDED, and the shard count comes from `resolve-mobile-target` ───────────────────────────────
         #
         # Measured on run 35220684252: 47.35m, of which 15.0m is FIXED per-runner setup (10.68m Gradle release
@@ -1163,6 +1168,38 @@ jobs:
                       /usr/local/share/powershell /opt/hostedtoolcache/CodeQL \
                       /usr/local/lib/android/sdk/ndk || true
                   df -h /
+            # ⛔ THE EMULATOR TOOLCHAIN IS DOWNLOADED HERE, RETRIED, so a transient download failure is not a red shard.
+            # Run 38407211276's shard 3 ran no flow: inside the emulator action `sdkmanager --install emulator` failed with
+            # "Error on ZipFile unknown archive", and the `emulator-5554 … Connection refused` after it was the action
+            # cleaning up an emulator it never launched. The action also runs the flows, so it cannot be retried itself.
+            # This installs what it installs, on its channel (`stable`, 0), so its own install calls find the packages
+            # current and download nothing (`androidEmulatorPreinstall.test.ts`).
+            - name: Install the emulator and its system image (retried)
+              if: steps.secrets.outcome == 'success'
+              run: |
+                  set -euo pipefail
+                  # By path: the action puts `cmdline-tools/latest/bin` on PATH itself, and this runs before it does.
+                  sdkmanager="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+                  # Licences answered from a process substitution, not `yes |`: under pipefail a `yes` killed by SIGPIPE is 141.
+                  "${sdkmanager}" --licenses < <(yes) > /dev/null
+                  image="system-images;android-${ANDROID_EMULATOR_API_LEVEL};${ANDROID_EMULATOR_TARGET};${ANDROID_EMULATOR_ARCH}"
+                  for package in emulator "platforms;android-${ANDROID_EMULATOR_API_LEVEL}" "${image}"; do
+                      installed=false
+                      for attempt in 1 2 3; do
+                          if "${sdkmanager}" --install "${package}" --channel=0 > /dev/null; then
+                              installed=true
+                              break
+                          fi
+                          echo "::warning::sdkmanager could not install ${package} (attempt ${attempt} of 3) — retrying"
+                          sleep $((attempt * 20))
+                      done
+                      if [ "${installed}" != true ]; then
+                          echo "::error::the Android emulator toolchain (${package}) did not download or install after 3 attempts — no flow ran; this is the runner's SDK download, not the app"
+                          exit 1
+                      fi
+                  done
+                  test -x "${ANDROID_HOME}/emulator/emulator"
+                  test -d "${ANDROID_HOME}/system-images/android-${ANDROID_EMULATOR_API_LEVEL}/${ANDROID_EMULATOR_TARGET}/${ANDROID_EMULATOR_ARCH}"
             # Boot the emulator, install the APK, and run the flows. Install + test run INSIDE the
             # emulator-runner `script` (the emulator is only up there).
             # A generous MAESTRO_DRIVER_STARTUP_TIMEOUT absorbs first-run driver-install latency.
@@ -1206,8 +1243,9 @@ jobs:
                   # process in the shard must agree with.
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
               with:
-                  api-level: 34
-                  arch: x86_64
+                  api-level: ${{ env.ANDROID_EMULATOR_API_LEVEL }}
+                  target: ${{ env.ANDROID_EMULATOR_TARGET }}
+                  arch: ${{ env.ANDROID_EMULATOR_ARCH }}
                   profile: pixel_6
                   cores: 3
                   ram-size: 4096M
@@ -1265,8 +1303,9 @@ jobs:
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
                   MAESTRO_PLATFORM: android
               run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform android --shard "${SHARD_INDEX}"
+            # `cancelled()` too: a shard stopped by `timeout-minutes` is cancelled, not failed, and is the one whose report matters.
             - name: Upload Maestro artifacts
-              if: failure() && steps.secrets.outcome == 'success'
+              if: (failure() || cancelled()) && steps.secrets.outcome == 'success'
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   # PER SHARD — `upload-artifact@v4` FAILS on a name another job in the same run already
@@ -1652,6 +1691,32 @@ jobs:
               env:
                   MAESTRO_IOS_UDID: ${{ steps.simulator.outputs.udid }}
               run: xcrun simctl bootstatus "${MAESTRO_IOS_UDID}" -b
+            # ⛔ PASSWORD AUTOFILL OFF, so iOS never raises "Save Password?" over the sign-in's code step. The sheet is another
+            # process: Maestro's hierarchy holds only the status bar while it is up, so no flow can tap "Not Now", and it
+            # covered `Verify` on every iOS sign-in of run 38407211276 (`maestroIosTier.test.ts`). The restriction lives in
+            # the device's configuration-profile files, which exist only once it has booted, hence after the wait.
+            # ⚠️ Best-effort, like the keyboard preferences: the three paths are the ones Detox users edit (wix/Detox#3761)
+            # and are unverified on this runtime until a real run; a missing one WARNS by name.
+            - name: Switch password AutoFill off on the iOS Simulator
+              if: steps.secrets.outcome == 'success'
+              env:
+                  MAESTRO_IOS_UDID: ${{ steps.simulator.outputs.udid }}
+              run: |
+                  set -euo pipefail
+                  data="$HOME/Library/Developer/CoreSimulator/Devices/${MAESTRO_IOS_UDID}/data"
+                  for file in \
+                      Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist \
+                      Library/UserConfigurationProfiles/EffectiveUserSettings.plist \
+                      Library/UserConfigurationProfiles/PublicInfo/PublicEffectiveUserSettings.plist; do
+                      if [ ! -f "${data}/${file}" ]; then
+                          echo "::warning::${file} is not on this Simulator — password AutoFill may stay on, and iOS may cover the sign-in with Save Password"
+                          continue
+                      fi
+                      plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO "${data}/${file}" ||
+                          echo "::warning::could not switch password AutoFill off in ${file}"
+                      # Read back, so the log says whether the write took rather than only that it was tried.
+                      echo "${file}: allowPasswordAutoFill=$(plutil -extract restrictedBool.allowPasswordAutoFill.value raw "${data}/${file}" || echo unreadable)"
+                  done
             # Install the app and run this shard's flows on the Simulator — `runMaestroFlows.sh`'s run mode, the same
             # one the emulator runs, told its platform. It installs the app, excludes (and PRINTS) the flows iOS
             # cannot run, partitions what is left for this shard, and drives each flow with the Android job's per-
@@ -1687,8 +1752,9 @@ jobs:
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
                   MAESTRO_PLATFORM: ios
               run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform ios --shard "${SHARD_INDEX}"
+            # `cancelled()` too: a shard stopped by `timeout-minutes` is cancelled, not failed, and is the one whose report matters.
             - name: Upload Maestro artifacts
-              if: failure() && steps.secrets.outcome == 'success'
+              if: (failure() || cancelled()) && steps.secrets.outcome == 'success'
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   # PER SHARD AND PER PLATFORM — `upload-artifact@v4` fails on a name another job of the run already

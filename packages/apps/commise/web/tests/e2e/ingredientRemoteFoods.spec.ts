@@ -117,7 +117,7 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
 
         // The line names a real root, so the recipe publishes with it: the falsifiable end of the story.
         await addStep(page, 'Simmer, then season generously.');
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Remote Pepper Broth' })).toBeVisible();
     });

@@ -63,6 +63,15 @@ appId: io.commise.mobile
 # `signinHome.yaml` is not reused here because it enters the CORRECT password; this step enters a wrong one.
 - tapOn: 'you@example.com'
 - inputText: '${E2E_SIGNIN_EMAIL}'
+# Read back and retyped once, for `signinHome.yaml`'s reason (the iOS Simulator drops keystrokes). A dropped key here
+# reads as "Couldn't find your account" instead of the wrong-password error this step asserts.
+- runFlow:
+      when:
+          notVisible: '${E2E_SIGNIN_EMAIL}'
+      commands:
+          - eraseText: 64
+          - inputText: '${E2E_SIGNIN_EMAIL}'
+- assertVisible: '${E2E_SIGNIN_EMAIL}'
 - tapOn: 'Your password'
 - inputText: 'wrongpassword123'
 - tapOn: 'Sign in'

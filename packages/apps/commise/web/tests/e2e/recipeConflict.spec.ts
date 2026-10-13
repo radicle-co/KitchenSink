@@ -140,8 +140,9 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
 
         // Per-side banner (X3): server side names its version and when it saved — mine has no version of its
         // own (never persisted). The banner's trailing ` on {device}` clause went with the 2026-08-26 owner
-        // ruling; the `$` anchor is what keeps it from creeping back.
-        await expect(page.getByText(/^Server version \(v2\): Saved \d+ minutes? ago$/u)).toBeVisible();
+        // ruling; the `$` anchor is what keeps it from creeping back. A side saved under a minute ago reads "now", the
+        // locale's word, never "0 minutes ago" (P6, `formatRelativeTimeAgo`); this fixture's server side was just saved.
+        await expect(page.getByText(/^Server version \(v2\): Saved (?:now|\d+ minutes? ago)$/u)).toBeVisible();
         await expect(page.getByText('Your version: local unsaved changes')).toBeVisible();
 
         // Changed-only diff (X1/X7): title (mine changed it) and servings (theirs changed it) — Server's

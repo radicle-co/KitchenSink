@@ -359,7 +359,18 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         // §6.1: meta line, stat strip, action row, two columns from a 720 px body). Re-baselined again for the UX
         // evaluation fixes (`evaluateFinal.md` F7, F8, F10, F15): the title is Playfair `largeTitle`, the stat strip stays
         // 2 x 2 below a 480 px strip, the no-photo hero is the 96 px monogram band at the end, the page gutter is the
-        // layout's alone, and "Community rating" is an Inter H2.
+        // layout's alone, and "Community rating" is an Inter H2. Re-baselined for the walk-through fixes and the owner's
+        // decisions of 2026-10-13: with no photo the 96 px band takes the whole top row with the header under it (P1),
+        // and the page shows no version number (decision 7).
+        //
+        // The Screen on hint is a one-time line that appears once the page knows the browser can keep the screen awake
+        // and leaves at the first scroll (§6.3), and the screenshot's own scroll into view takes it away: the article is
+        // 29 px taller, then shorter, mid-capture. The picture is of the page after the cook has scrolled once: the hint
+        // is waited for first, so the scroll that takes it back is one the page is listening for.
+        const hint = page.getByText('Keeps the screen awake while you cook.');
+        await expect(hint.filter({ visible: true })).toHaveCount(1);
+        await page.mouse.wheel(0, 1);
+        await expect(hint).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Weeknight Pasta with Garlic' })).toHaveScreenshot(
             'recipeDetailDesktop.png',
             { maxDiffPixelRatio: 0.02 },

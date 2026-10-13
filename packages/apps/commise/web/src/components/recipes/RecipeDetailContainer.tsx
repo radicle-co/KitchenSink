@@ -65,7 +65,6 @@ import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button
 import { HeroButton } from '@commise/ui/hero-button';
 import { Icon } from '@commise/ui/icon';
 import { ScrollHost, useScrollHost } from '@commise/ui/scroll-host';
-import { useSnackbar } from '@commise/ui/snackbar';
 import { RecipeVisibility, canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
@@ -79,13 +78,15 @@ import {
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import Link from 'next/link';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, type ComponentProps, type FC } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useState, type ComponentProps, type FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { dataSourcesHref } from '@/components/app/dataSourcesHref';
 import { RecipeDetailRouteLoading } from '@/components/recipes/RecipeDetailRouteLoading';
 import { RecipeLoadError } from '@/components/recipes/RecipeLoadError';
+import { recipesAfterDeleteHref } from '@/components/recipes/recipesAfterDeleteHref';
+import { useAddressNotice } from '@/hooks/useAddressNotice';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 /** Props for {@link RecipeDetailContainer}. */
@@ -193,9 +194,15 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
     const { detail: detailCopy } = useMessages(recipeMessages);
     const editorCopy = useMessages(editorMessages);
-    const snackbar = useSnackbar();
-    const finished = parseFinishedOutcome(useSearchParams().get(FINISHED_OUTCOME_PARAM));
-    const finishedNotice = finished === undefined ? undefined : finishedNoticeOf(finished, editorCopy);
+
+    // E8: the editor finished and navigated here with `?done=<outcome>`; say it once. The parameter is the reader's to
+    // forge: only the three spellings count.
+    useAddressNotice(FINISHED_OUTCOME_PARAM, (value) => {
+        const finished = parseFinishedOutcome(value);
+
+        return finished === undefined ? undefined : finishedNoticeOf(finished, editorCopy);
+    });
+
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
     // Make private is offered to every owner (owner 2026-10-13, B2 E1). Whether it applies or opens the Premium sheet is
     // decided in ONE place, `useGatedPrivate`, which also holds a tap made while the profile still loads.
@@ -211,30 +218,6 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                 : { status: 'loading' },
         apply: () => setVisibility.mutate({ id: id, visibility: RecipeVisibility.PRIVATE }),
     });
-
-    // E8: the editor finished and navigated here with `?done=<outcome>`. Say it once, then take the parameter off the
-    // address WITHOUT a navigation (`history.replaceState`, which the App Router folds into its own state), so a reload
-    // or a copied link does not say it again. The parameter is the reader's to forge: only the three spellings count.
-    //
-    // The ADDRESS is the latch: this runs again whenever the snackbar host hands out a new handle (it does, every render),
-    // and what stops it saying the same thing twice is that the address no longer carries the parameter.
-    //
-    // @sideEffect Shows a snackbar and rewrites the address bar.
-    useEffect(() => {
-        if (finishedNotice === undefined) {
-            return;
-        }
-
-        const url = new URL(window.location.href);
-
-        if (!url.searchParams.has(FINISHED_OUTCOME_PARAM)) {
-            return;
-        }
-
-        snackbar.show({ message: finishedNotice });
-        url.searchParams.delete(FINISHED_OUTCOME_PARAM);
-        window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-    }, [finishedNotice, snackbar]);
 
     const recipe = query.data;
     const viewerId = readViewerId(sessionClaims);
@@ -438,11 +421,9 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                     error={deleteRecipe.error !== null}
                     onConfirm={() =>
                         deleteRecipe.mutate(id, {
-                            onSuccess: () => {
-                                // The snackbar host lives in the app shell, so this outlives the page we are leaving.
-                                snackbar.show({ message: detailActions.recipeDeleted });
-                                router.push(`/${locale}/recipes` as Route);
-                            },
+                            // "Recipe deleted" is said by the page this lands on: a snackbar raised here would die with
+                            // this page's shell (`recipesAfterDeleteHref`).
+                            onSuccess: () => router.push(recipesAfterDeleteHref(locale) as Route),
                         })
                     }
                     onCancel={() => setDeleteDialogOpen(false)}

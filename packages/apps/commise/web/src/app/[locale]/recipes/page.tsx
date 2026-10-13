@@ -10,6 +10,7 @@ import { signInPathFor } from '@/lib/signInReturn';
 import { AppShell } from '@/components/app/AppShell';
 import { ShellBackToTop } from '@/components/app/ShellBackToTop';
 import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
+import { RecipeDeletedNotice } from '@/components/recipes/RecipeDeletedNotice';
 import { RecipeListContainer } from '@/components/recipes/RecipeListContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
@@ -63,6 +64,8 @@ export default async function RecipesPage({
                     avatar={<ProfileAvatarEntry />}
                     {...(storedViewMode === undefined ? {} : { storedViewMode })}
                 />
+                {/* A delete lands here and is said here: the detail page's own snackbar went with it (owner 2026-10-13). */}
+                <RecipeDeletedNotice />
                 {/* A long list with a floating create button: "Back to top" sits above it, last in DOM order (§3.6). */}
                 <ShellBackToTop aboveFab />
             </AppShell>

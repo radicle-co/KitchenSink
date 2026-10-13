@@ -127,9 +127,21 @@ async function measure(page: Page, field: Locator): Promise<Frame> {
             return { top, bottom, left, right, width, height };
         };
 
-        // The popup is the fixed box floating-ui places, a child of the combobox's own root.
-        const root = element.parentElement?.parentElement;
-        const popup = Array.from(root?.children ?? []).find((child) => getComputedStyle(child).position === 'fixed');
+        // The popup is the fixed box floating-ui places, a child of the combobox's own root: the nearest ancestor of
+        // the input that holds a fixed child. The input sits several boxes deep in that root (its label, the reference
+        // box around the input and the line under it), so the walk does not assume an exact depth. It is bounded, so
+        // a closed popup is reported as missing rather than mistaken for some fixed box further up the page.
+        const popupOf = (node: Element | null, levelsLeft: number): Element | undefined => {
+            if (node === null || levelsLeft === 0) {
+                return undefined;
+            }
+
+            const fixed = Array.from(node.children).find((child) => getComputedStyle(child).position === 'fixed');
+
+            return fixed ?? popupOf(node.parentElement, levelsLeft - 1);
+        };
+
+        const popup = popupOf(element.parentElement, 6);
 
         return {
             field: boxOf(element),

@@ -128,7 +128,7 @@ for (const [scheme, colors] of THEMES) {
         });
 
         // The editor's Photos & publish section (slice 7): the manager's chrome on a photo is the `photoChip` disc under
-        // an `ink` label (`darkTheme.md` §1, §3.4), on the editor's canvas.
+        // an `ink` label (`darkTheme.md` §1, §3.4), on the editor's canvas, under the group's muted H3.
         test('paints the editor and its photo chrome from the scheme’s roles', async ({ page }) => {
             await openEditorWithPhoto(page);
 
@@ -139,7 +139,9 @@ for (const [scheme, colors] of THEMES) {
 
             const photos = page.getByRole('region', { name: 'Photos', exact: true });
             await expect(photos.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
-            expect(await computed(photos.getByRole('heading', { name: 'Photos' }), 'color')).toBe(rgb(colors.ink));
+            // The Photos group's heading is an H3 in `label`, `inkMuted`, like the Details groups' (build spec §7.4,
+            // §7.7); the section's H2 above it is the `ink` one.
+            expect(await computed(photos.getByRole('heading', { name: 'Photos' }), 'color')).toBe(rgb(colors.inkMuted));
 
             const remove = photos.getByRole('button', { name: 'Remove photo 1' });
             expect(await computed(remove, 'backgroundColor')).toBe(colors.photoChip);

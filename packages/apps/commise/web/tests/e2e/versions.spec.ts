@@ -133,7 +133,14 @@ async function openVersionHistory(page: Page): Promise<void> {
 }
 
 test.describe('recipe version history (W6 Task 6)', () => {
-    test('lists versions newest attribution-first, marks the current version, and shows each row’s changed-fields summary', async ({
+    /**
+     * REWRITTEN for build spec §6.6 and the owner's decision of 2026-10-13 (7): a row is labelled by the edit's DATE,
+     * with "Version {n} · Edited {time}" as its small secondary line, and it draws no editor handle (§6.6 draws
+     * neither the handle nor the server's raw change summary; `RecipeVersionList`). The old version of this test
+     * asserted a `by @{handle}` attribution on every row; that line was removed on purpose, so this proves it stays
+     * gone while the row's other claims are pinned to the row they are about.
+     */
+    test('lists versions newest first, labelled by date, marks the current version, and shows each row’s changed-fields summary', async ({
         page,
     }) => {
         await signInWithTicket(page);
@@ -143,27 +150,27 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await expect(page.getByText('Current version')).toBeVisible();
         await expect(page.getByRole('button', { name: 'More actions for version 3' })).toHaveCount(0);
 
-        // v2's row: `by @{handle}` attribution, plus the changed-fields summary versus its immediately-prior
-        // sibling (v1) — only the title differs between v1 and v2.
-        //
-        // ⚠️ REWRITTEN (this run), and the reason is the point. The ` (from {device})` half of the old
-        // assertion went with the 2026-08-26 owner ruling that deleted device attribution — but that suffix
-        // was also the only thing making each row's attribution text UNIQUE, so an unscoped
-        // `getByText('by @chef_e2e')` became a 3-element strict-mode violation the moment it was dropped.
-        // Scoping each claim to the row it is about is what the assertion always meant; it was passing on an
-        // accident of the copy. Per-row scoping also makes this STRONGER than before — "Changed: Title" is
-        // now pinned to v2 rather than to "somewhere on the page", so a summary rendered against the wrong
-        // sibling would fail here instead of passing.
-
-        // Scoped by the row's OWN title line ("Version 2 · Edited …"), anchored at its start so version 1 never
-        // matches version 12.
+        // Scoped by the row's secondary line ("Version 2 · Edited …"), anchored at its start so version 1 never matches
+        // version 12.
         const rowFor = (version: number) =>
             page.getByRole('listitem').filter({ has: page.getByText(new RegExp(`^Version ${version} · Edited`, 'u')) });
 
-        // All three rows carry the attribution — the property the old single assertion could only sample.
-        await expect(page.getByText('by @chef_e2e')).toHaveCount(3);
+        // Newest first, each row's FIRST line its edit's date (the fixture's versions are a day apart, in UTC).
+        const rows = await page
+            .getByRole('list')
+            .filter({ has: page.getByText(/^Version 1 · Edited/u) })
+            .getByRole('listitem')
+            .allInnerTexts();
+        expect(rows.map((row) => row.split('\n')[0]?.slice(0, 11))).toEqual([
+            'Jan 3, 2026',
+            'Jan 2, 2026',
+            'Jan 1, 2026',
+        ]);
 
-        await expect(rowFor(2).getByText('by @chef_e2e')).toBeVisible();
+        // No row names its editor: the handle the fixture carries never reaches the page.
+        await expect(page.getByText(/@chef_e2e/u)).toHaveCount(0);
+
+        // v2's changed-fields summary is against its immediately-prior sibling (v1): only the title differs.
         await expect(rowFor(2).getByText('Changed: Title')).toBeVisible();
 
         // v1 is the earliest version — nothing to diff against, so it gets the initial-version note and no
@@ -380,11 +387,15 @@ for (const [scheme, colors] of [
             await signInWithTicket(page);
             await openVersionHistory(page);
 
-            const title = page.getByText(/^Version 2 · Edited/u);
+            // A row's title is its date, in `ink`; "Version 2 · Edited …" is the small secondary line under it, in
+            // `inkMuted` (§6.6; owner 2026-10-13).
+            const title = page.getByText(/^Jan 2, 2026/u);
+            const detail = page.getByText(/^Version 2 · Edited/u);
             expect(await page.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor)).toBe(
                 rgb(colors.canvas),
             );
             expect(await title.evaluate((element) => getComputedStyle(element).color)).toBe(rgb(colors.ink));
+            expect(await detail.evaluate((element) => getComputedStyle(element).color)).toBe(rgb(colors.inkMuted));
         });
     });
 }

@@ -58,6 +58,17 @@ appId: io.commise.mobile
       commands:
           - tapOn: 'you@example.com'
           - inputText: '${E2E_SIGNIN_EMAIL}'
+          # ⚠️ The iOS Simulator can DROP keystrokes from `inputText` (run 38407211276 typed `t.com` and
+          # `tigner04+clerk_test@…` for `test-…signer04+clerk_test@…`), and a dropped key is a sign-in that fails for a
+          # reason that is not the app. So the field is read back and retyped once. The selector is the address
+          # itself: Maestro also matches a selector that EQUALS the text, so `+` and `.` need no escaping.
+          - runFlow:
+                when:
+                    notVisible: '${E2E_SIGNIN_EMAIL}'
+                commands:
+                    - eraseText: 64
+                    - inputText: '${E2E_SIGNIN_EMAIL}'
+          - assertVisible: '${E2E_SIGNIN_EMAIL}'
           - tapOn: 'Your password'
           - inputText: '${E2E_SIGNIN_PASSWORD}'
           - tapOn: 'Sign in'
@@ -69,6 +80,14 @@ appId: io.commise.mobile
                 timeout: 15000
           - tapOn: '123456'
           - inputText: '424242'
+          # The email's read-back, for the code.
+          - runFlow:
+                when:
+                    notVisible: '424242'
+                commands:
+                    - eraseText: 10
+                    - inputText: '424242'
+          - assertVisible: '424242'
           - tapOn: 'Verify'
 
 # The authenticated landing: Home's large title carries the avatar, named "Profile, {name}" (or "Profile" with no

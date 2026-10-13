@@ -140,9 +140,19 @@ test.describe('Save a copy from Discover — A-022: deleting the copy frees the 
         await page.getByRole('button', { name: 'Save a copy of Seafood Paella' }).click();
         await expect(page.getByRole('button', { name: 'Saved a copy of Seafood Paella' })).toBeVisible();
 
-        // Open the copy from My recipes and delete it.
+        // Open the copy from My recipes and delete it. The shell link is a client navigation, so the list is waited for.
         await page.getByRole('link', { name: 'Recipes' }).first().click();
-        await page.getByRole('link', { name: 'Seafood Paella' }).first().click();
+        await expect(page).toHaveURL(/\/recipes$/u);
+        await expect(page.getByRole('heading', { level: 1, name: 'Recipes' })).toBeVisible();
+        // The mocked list answers every stored recipe, the original included, so the copy is the DRAFT card: Save a copy
+        // creates a draft (owner 2026-10-13).
+        await page
+            .getByRole('article', { name: 'Seafood Paella' })
+            .filter({ hasText: 'Draft' })
+            .getByRole('link', { name: 'Seafood Paella' })
+            .click();
+        // The copy is the viewer's own (a draft, owner 2026-10-13), so its page offers Edit, not Save a copy.
+        await expect(page.getByRole('link', { name: 'Edit recipe' })).toBeVisible();
         await page.getByRole('button', { name: /^More actions for /u }).click();
         await page.getByRole('menuitem', { name: 'Delete recipe' }).click();
         await page

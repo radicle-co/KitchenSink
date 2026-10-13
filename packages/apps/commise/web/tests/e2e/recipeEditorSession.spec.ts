@@ -125,7 +125,7 @@ test.describe('the editor session', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
         await openNewRecipe(page);
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByLabel('Title')).toBeFocused();
     });
@@ -139,10 +139,19 @@ test.describe('the editor session', () => {
         await openNewRecipe(page);
         await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
 
-        const bar = await page.getByRole('group', { name: 'Recipe actions' }).boundingBox();
+        // The bar is the sticky box around the "Recipe actions" row, which sits inside it above the bar's own
+        // safe-area padding: it is the BAR's bottom edge that must rest on the window's.
+        const barBottom = await page.getByRole('group', { name: 'Recipe actions' }).evaluate((element) => {
+            let node: Element | null = element;
 
-        expect(bar).not.toBeNull();
-        expect(Math.abs(bar!.y + bar!.height - 844)).toBeLessThanOrEqual(2);
+            while (node !== null && getComputedStyle(node).position !== 'sticky') {
+                node = node.parentElement;
+            }
+
+            return node?.getBoundingClientRect().bottom ?? Number.NaN;
+        });
+
+        expect(Math.abs(barBottom - 844)).toBeLessThanOrEqual(2);
     });
 
     /** Owner 2026-10-13: the editor is the same for every cook, an account that never published included. */

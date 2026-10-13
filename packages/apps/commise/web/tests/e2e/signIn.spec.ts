@@ -82,20 +82,16 @@ test.describe('sign-in flow', () => {
             await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
         ).toBeLessThanOrEqual(0);
 
-        // W-16: Clerk painted the new-device notice's words in its own orange (2.8:1 on beige) until the warning alert got
-        // role colours: the label is `ink` on the `attentionTint` wash (`ui/src/clerk.ts`, measured per scheme in its unit
-        // suite). The computed colour is the only thing that sees a third-party renderer. It rides on this test because
-        // reaching the code step SENDS a code, and a second test doing so would spend the shared verification budget.
-        // ⚠️ Not run when written: the notice is found as the code step's `alert`; confirm that role in a live render.
-        const wordsColour = await page.getByRole('alert').evaluate((element) => {
-            const holder = [element, ...element.querySelectorAll('*')].find((node) =>
-                [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && child.textContent?.trim()),
-            );
-
-            return holder === undefined ? '' : getComputedStyle(holder).color;
-        });
-
-        expect(wordsColour).toBe(rgb(role.ink));
+        // W-16: Clerk painted the new-device notice's words in its own orange (2.8:1 on beige). The computed colour is the
+        // only thing that sees a third-party renderer. It rides on this test because reaching the code step SENDS a code,
+        // and a second test doing so would spend the shared verification budget.
+        // REWRITTEN after its first live run: the notice is NOT an alert. Clerk draws it as a caption paragraph coloured
+        // by its `colorWarning` VARIABLE (`data-color="warning"`), with no element key, so `alertText__warning`'s `ink`
+        // never reaches it; the only `alert` on the page was Next's empty route announcer. The variable is the `attention`
+        // role (`ui/src/clerk.ts`, contrast measured per scheme in its unit suite), so that is the colour the words wear.
+        const notice = page.getByText(/signing in from a new device/iu);
+        await expect(notice).toBeVisible();
+        expect(await notice.evaluate((element) => getComputedStyle(element).color)).toBe(rgb(role.attention));
     });
 
     test('a signed-in user visiting /sign-in is redirected to home', async ({ page }) => {

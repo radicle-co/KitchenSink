@@ -691,10 +691,12 @@ describe('RecipeDetailContainer', () => {
             );
 
             expect(deleteSpy).toHaveBeenCalledWith('rec_1');
-            await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes'));
-            // Owner 2026-10-13: say so on the screen the cook lands on. The snackbar lives in the app shell, so one raised
-            // here outlives this page.
-            expect((await screen.findByText('Recipe deleted')).closest('[role="status"]')).not.toBeNull();
+            // Owner 2026-10-13: "Recipe deleted" shows on the screen the cook LANDS on. REWRITTEN: this test used to find
+            // the snackbar here, under the one host it renders, and so passed while no browser ever showed it — every
+            // route mounts its own `AppShell`, so a snackbar raised before the navigation dies with this page. The
+            // outcome rides in the address instead, and My recipes says it (`RecipeDeletedNotice`).
+            await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes?deleted=1'));
+            expect(screen.queryByText('Recipe deleted')).not.toBeInTheDocument();
         });
 
         it('says nothing about a delete that failed', async () => {

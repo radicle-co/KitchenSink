@@ -203,7 +203,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         // The cook can be in another section when the publish is refused.
         await page.setViewportSize({ width: 1280, height: 800 });
         await page.getByRole('navigation', { name: 'Recipe sections' }).getByRole('link', { name: 'Steps' }).click();
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         // The refusal lands in the field, which says why; nothing was written.
         const field = page
@@ -224,7 +224,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         // The list opened with the focus (R7 item 3), so the cook keeps the words without editing them.
         await expect(field).toHaveAttribute('aria-expanded', 'true');
         await page.getByRole('option', { name: 'Use “smoked garlic” as written, without nutrition' }).click();
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'Garlic supper' })).toBeVisible();
         expect(store.get(RECIPE_ID)?.ingredients[1]).toMatchObject({

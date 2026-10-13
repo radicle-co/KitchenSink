@@ -66,9 +66,18 @@ test.describe('Recipes segments — W-25: width by container', () => {
         expect(await widthOf('Recipes')).toBeLessThan(main / 2);
 
         await page.setViewportSize({ width: 320, height: 700 });
-        const narrowMain = (await page.getByRole('main').boundingBox())?.width ?? 0;
+        // The row is `main`'s CONTENT box: its border box includes the 16 px page gutters (§1.2), which no control fills.
+        const narrowRow = await page.getByRole('main').evaluate((element) => {
+            const style = getComputedStyle(element);
+
+            return element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight);
+        });
 
         // On a phone it fills the row, each segment at least 136 px (W-25).
-        expect(await widthOf('Recipes')).toBeGreaterThan(narrowMain - 4);
+        expect(await widthOf('Recipes')).toBeGreaterThan(narrowRow - 1);
+
+        for (const link of await page.getByRole('navigation', { name: 'Recipes' }).getByRole('link').all()) {
+            expect((await link.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(136);
+        }
     });
 });

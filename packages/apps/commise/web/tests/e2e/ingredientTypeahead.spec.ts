@@ -88,7 +88,7 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
 
         await addStep(page, 'Combine and store airtight.');
 
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Herb Blend' })).toBeVisible();
         // REQ-034 — the recipe now has a user-entered ingredient (the blend, as written), so the custom note shows (§S15).

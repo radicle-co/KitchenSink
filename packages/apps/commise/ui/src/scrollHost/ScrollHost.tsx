@@ -214,8 +214,9 @@ export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activatio
                     return;
                 }
 
-                // The heading's own `scroll-margin-top` keeps it clear of the sticky chrome. Focus follows the jump
-                // (it carries `tabIndex={-1}`), without a second scroll.
+                // `scrollIntoView` keeps it clear of the sticky chrome: it adds the heading's own `scroll-margin-top`
+                // to the document's `scroll-padding-top`, where a screen sets one. Focus follows the jump (it carries
+                // `tabIndex={-1}`), without a second scroll.
                 target.scrollIntoView({ behavior: jumpBehavior(), block: 'start' });
                 target.focus({ preventScroll: true });
                 // `null` state: Next's own shallow-update path, so its router learns the hash (`__NA` would skip that).

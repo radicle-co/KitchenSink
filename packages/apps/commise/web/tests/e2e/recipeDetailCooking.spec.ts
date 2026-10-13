@@ -281,8 +281,18 @@ test.describe('the section switch below a 720 px body', () => {
 
         const nav = page.getByRole('navigation', { name: 'Recipe sections' });
         await expect(nav).toBeInViewport();
-        const box = await nav.boundingBox();
-        expect(box?.y ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
+        // What sticks is the switch's 48 px BAR, with the nav centred in it (so the nav itself sits 1.5 px down): the
+        // nearest sticky box around the nav is the one whose top must hold the window's top edge.
+        const barTop = await nav.evaluate((element) => {
+            let node: Element | null = element;
+
+            while (node !== null && getComputedStyle(node).position !== 'sticky') {
+                node = node.parentElement;
+            }
+
+            return node?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY;
+        });
+        expect(Math.abs(barTop)).toBeLessThanOrEqual(1);
     });
 
     test('shows all three section links inside the bar at 320 px', async ({ page }) => {
@@ -308,11 +318,14 @@ test.describe('the section switch below a 720 px body', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await openRecipe(page);
 
+        // The page holds the hint in two places, under the switch below a 720 px body and under the action-row toggle
+        // from it, each hidden by a container query at the other width. Said once means ONE of them shows.
         const hint = page.getByText('Keeps the screen awake while you cook.');
-        await expect(hint).toBeVisible();
+        await expect(hint.filter({ visible: true })).toHaveCount(1);
 
         await page.mouse.wheel(0, 300);
 
+        // Taken back means both copies leave the page, not that the visible one is hidden.
         await expect(hint).toHaveCount(0);
     });
 });

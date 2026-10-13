@@ -20,7 +20,11 @@ import { createServer, type Server } from 'node:http';
 import { text } from 'node:stream/consumers';
 
 import { FoodServiceClient, type FoodError, type FoodResponse } from '@kitchensink/food-service-client';
-import { addIngredientByFoodRequestSchema, createRecipeRequestSchema } from '@kitchensink/schema-recipe';
+import {
+    addIngredientByFoodRequestSchema,
+    createRecipeRequestSchema,
+    type CollectionListItem,
+} from '@kitchensink/schema-recipe';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -149,14 +153,20 @@ const recipeDetail = (
     nutrition: { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, isComplete: false, freshness: 'fresh' },
 });
 
-/** A collection row, likewise minimal against `collectionResponseSchema`. */
-const collectionRow = (id: string) => ({
+/**
+ * A collection LIST row, likewise minimal against `collectionListItemSchema` — the list element, which REQUIRES
+ * `recipeCount` and `coverPhotoUrls` (an empty collection is `0` and `[]`, never absent), unlike the single-collection
+ * body.
+ */
+const collectionRow = (id: string): CollectionListItem => ({
     id,
     ownerId: '01J0K6000000000000000000K6',
     name: `collection ${id}`,
     visibility: 'private',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    recipeCount: 0,
+    coverPhotoUrls: [],
 });
 
 /**

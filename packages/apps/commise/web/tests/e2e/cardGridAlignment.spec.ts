@@ -142,8 +142,11 @@ test.describe('recipe cards — W-06: a one-line meta row is exactly one line', 
         const card = page.getByRole('article', { name: 'Lamb' });
         await expect(card).toHaveAttribute('data-card-variant', 'row');
 
+        // The visible cuisine is the meta line's. The 80 px cover's monogram holds the cuisine too, as an overline it shows
+        // only on a cover 96 px tall or more, so here it is in the DOM and hidden.
         const line = card
             .getByText('Mediterranean')
+            .filter({ visible: true })
             .locator('xpath=ancestor::div[contains(@class,"overflow-hidden")][1]');
         const box = await line.boundingBox();
         const lineHeight = await line.evaluate((element) => Number.parseFloat(getComputedStyle(element).lineHeight));

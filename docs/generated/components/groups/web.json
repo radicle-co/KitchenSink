@@ -4,12 +4,12 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 84,
-        "implementations": 84,
+        "components": 85,
+        "implementations": 85,
         "props": 103,
-        "documentedComponents": 81,
-        "implementationsWithModuleDoc": 65,
-        "implementationsWithComponentDoc": 60,
+        "documentedComponents": 82,
+        "implementationsWithModuleDoc": 66,
+        "implementationsWithComponentDoc": 61,
         "documentedProps": 69,
         "classifiedComponents": 35,
         "componentsWithPatternTag": 26,
@@ -2720,7 +2720,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`\n§3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`).\n\n- The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.\n  Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is\n  told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top\n  (`tabRootOf`; the page's `ScrollHost` moves the document).\n- 64 px plus the bottom safe-area inset; each item at least 96 × 56 at 320 px.\n\n⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second\ntap. Everything it draws is derived from props.",
+                    "moduleDoc": "home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`\n§3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`).\n\n- The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.\n  Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is\n  told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top\n  (`tabRootOf`; the page's `ScrollHost` moves the document).\n- 64 px plus the bottom safe-area inset; each item at least 96 × 56 at 320 px.\n- Compact height (owner 2026-10-13; a window under 480 px tall, which is a phone held sideways): the label sits BESIDE\n  the glyph and the bar is 48 px plus the inset. Both sides pad their safe-area inset, so a cutout or the 3-button navigation\n  bar never covers a tab. Pure CSS (`max-height: 479px`, one pixel under `isCompactHeight`'s 480): the bar already\n  exists only below `nav` (840), so that is the whole condition. The label stays the link's accessible name.\n\n⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second\ntap. Everything it draws is derived from props.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -4025,6 +4025,43 @@
                             "declaredIn": "packages/apps/commise/web/src/components/recipes/IngredientStatusPoller.tsx"
                         }
                     ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/recipes/RecipeDeletedNotice",
+            "name": "RecipeDeletedNotice",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/recipes",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeDeletedNotice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeDeletedNotice.tsx",
+                    "dir": "packages/apps/commise/web/src/components/recipes",
+                    "moduleDoc": "My recipes' \"Recipe deleted\" (owner decision 2026-10-13, 4): said once, on the page a delete lands on, from the flag the\ndetail page put in the address (`recipesAfterDeleteHref`). It draws nothing; the words are the snackbar's.",
+                    "moduleTags": [],
+                    "description": "Says \"Recipe deleted\" when a delete landed the cook here.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {

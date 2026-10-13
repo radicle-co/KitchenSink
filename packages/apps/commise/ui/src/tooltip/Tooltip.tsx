@@ -54,6 +54,7 @@ export const Tooltip: FC<TooltipProps> = ({ label, side = 'end', fill = false, c
     const open = isOpen(engagement);
     const {
         refs: { setReference, setFloating },
+        elements: { reference },
         floatingStyles,
         placement,
     } = useFloating({
@@ -79,6 +80,32 @@ export const Tooltip: FC<TooltipProps> = ({ label, side = 'end', fill = false, c
 
         return () => document.removeEventListener('keydown', dismissOnEscape);
     }, [open]);
+
+    // @sideEffect While a dismissal holds a hover, watches where the pointer goes next. Escape on the TIP takes it away
+    // from under a resting pointer, and a browser sends no leave from a node that is gone: the next move's boundary event
+    // comes from the page under the old spot, so the control would never hear the hover end and the dismissal would
+    // outlive both engagements, hiding the tip from a later keyboard focus. The first move onto anything outside the
+    // control ends the hover.
+    const dismissedWhileHovered = engagement.hovered && engagement.dismissed;
+
+    useEffect(() => {
+        if (!dismissedWhileHovered) {
+            return undefined;
+        }
+
+        const endHoverOutside = (event: globalThis.PointerEvent): void => {
+            const inside =
+                reference instanceof Element && event.target instanceof Node && reference.contains(event.target);
+
+            if (!inside && event.pointerType !== 'touch') {
+                send('hoverEnd');
+            }
+        };
+
+        document.addEventListener('pointerover', endHoverOutside);
+
+        return () => document.removeEventListener('pointerover', endHoverOutside);
+    }, [dismissedWhileHovered, reference]);
 
     const onPointer = (event: PointerEvent, type: Extract<EngagementEvent, 'hoverStart' | 'hoverEnd'>): void => {
         if (event.pointerType !== 'touch') {

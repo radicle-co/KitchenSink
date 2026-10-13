@@ -6,11 +6,11 @@
     "coverage": {
         "components": 132,
         "implementations": 236,
-        "props": 1122,
+        "props": 1120,
         "documentedComponents": 132,
         "implementationsWithModuleDoc": 236,
         "implementationsWithComponentDoc": 136,
-        "documentedProps": 864,
+        "documentedProps": 862,
         "classifiedComponents": 114,
         "componentsWithPatternTag": 58,
         "crossPlatformComponents": 104
@@ -5499,7 +5499,7 @@
                         },
                         {
                             "name": "recipe",
-                            "type": "Pick<RecipeDetail, \"currentVersion\" | \"sourceUrl\" | \"sourceAttribution\">",
+                            "type": "Pick<RecipeDetail, \"sourceUrl\" | \"sourceAttribution\">",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -10838,7 +10838,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/editor/EditorSection.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/editor",
-                    "moduleDoc": "@commise/features-recipes/editor — one editor section (build spec §7.1, §7.10): a region named by its H2, the\nheading row with the section's own controls at its end, then the body.\n\nThe H2's id is the section's id (`sections.ts`), which is what the section index links to, the hash names and the\npage's `ScrollHost` jumps to; it carries `tabIndex={-1}` so a jump can move focus to it, and a scroll margin that\nkeeps it clear of the sticky chrome (the header, and below 960 the index strip or bar).\n\nIt tells the leaves inside whether it is the section the cook is in (`sectionPresence.ts`).\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes/editor — one editor section (build spec §7.1, §7.10): a region named by its H2, the\nheading row with the section's own controls at its end, then the body.\n\nThe H2's id is the section's id (`sections.ts`), which is what the section index links to, the hash names and the\npage's `ScrollHost` jumps to; it carries `tabIndex={-1}` so a jump can move focus to it. A jump lands it 16 px under\nthe sticky chrome (build spec §7.2): the document's `scroll-padding-top` is the chrome (`useEditorScrollPadding`,\n§7.10) and `scrollIntoView` adds this heading's `scroll-margin-top` to it, so the margin is the 16 px alone.\n\nIt tells the leaves inside whether it is the section the cook is in (`sectionPresence.ts`).\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -11268,15 +11268,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
-                            "name": "guided",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the cook has never published a recipe: guided progress shows (D1).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
-                        },
-                        {
                             "name": "headingActions",
                             "type": "Partial<Readonly<Record<\"ingredients\" | \"steps\" | \"details\" | \"photos\", ReactNode>>>",
                             "typeDetail": null,
@@ -11431,15 +11422,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
-                        },
-                        {
-                            "name": "guided",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the cook has never published a recipe: guided progress shows (D1).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {

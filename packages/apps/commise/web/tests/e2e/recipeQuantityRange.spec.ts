@@ -58,7 +58,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await fields.getByRole('button', { name: 'Done' }).click();
 
         await addStep(page, 'Mix and bake.');
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         // VIEW — the detail renders the SPAN, not its lower bound. The checkbox's accessible name is composed
         // from the same formatted quantity the sighted row shows, so asserting on it covers both.
@@ -112,7 +112,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await addStep(page, 'Rub it in.');
         // ⛔ THE ASSERTION THIS SPEC EXISTS FOR: Publish must SUCCEED. Before U9 the draft held `NaN`, the
         // validator refused it, and this click left the author in the editor with no way forward.
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Grandmother Butter' })).toBeVisible();
         const createdId = new URL(page.url()).pathname.split('/recipes/')[1]?.split('/')[0];

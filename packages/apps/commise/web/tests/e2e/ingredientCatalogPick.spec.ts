@@ -68,7 +68,7 @@ test.describe('the ingredient search — the cook’s foods and the catalog’s 
         // …and it is a real catalog id, so the recipe publishes (Publish validation rejects a line whose
         // `ingredientId` does not resolve). This is the falsifiable end of the story.
         await addStep(page, 'Simmer, then season generously.');
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Peppered Broth' })).toBeVisible();
         // REQ-034 — every line came from the food database, so the custom note must NOT render (§S15). Guards against the

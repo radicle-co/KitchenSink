@@ -71,7 +71,7 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
 
         // …and the id is real enough to publish with (the falsifiable end of the story).
         await addStep(page, 'Blend, then chill.');
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
         await expect(page.getByRole('heading', { name: 'E2E Grandma Blend Bowl' })).toBeVisible();
     });
 

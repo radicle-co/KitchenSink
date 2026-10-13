@@ -18,6 +18,7 @@ import type { AddressInfo } from 'node:net';
 import type { SessionHandle } from '@kitchensink/e2e-fixtures';
 import { k6VuSlots } from '@kitchensink/e2e-fixtures/testPool';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
+import type { CollectionListItem } from '@kitchensink/schema-recipe';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -69,13 +70,19 @@ const recipeRow = (id: string) => ({
     updatedAt: '2026-01-01T00:00:00.000Z',
 });
 
-const collectionRow = (id: string) => ({
+/**
+ * A collection LIST row, minimal against `collectionListItemSchema`, which REQUIRES `recipeCount` and
+ * `coverPhotoUrls` — a row without them fails the client's parse, and the reset reports the slot as failed.
+ */
+const collectionRow = (id: string): CollectionListItem => ({
     id,
     ownerId: '01J0K6000000000000000000K6',
     name: `Pull load source ${id}`,
     visibility: 'private',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    recipeCount: 0,
+    coverPhotoUrls: [],
 });
 
 const page = <T>(all: readonly T[], number: number, size: number) => ({

@@ -65,7 +65,7 @@ test.describe('recipe CRUD (T079)', () => {
         await addStep(page, 'Roast the vegetables.');
 
         // Publish, from the action bar.
-        await page.getByRole('button', { name: 'Publish' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         // VIEW — landed on the new recipe's detail.
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille' })).toBeVisible();

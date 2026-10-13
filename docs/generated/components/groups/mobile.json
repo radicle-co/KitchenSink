@@ -6,11 +6,11 @@
     "coverage": {
         "components": 52,
         "implementations": 52,
-        "props": 126,
+        "props": 129,
         "documentedComponents": 51,
         "implementationsWithModuleDoc": 50,
         "implementationsWithComponentDoc": 38,
-        "documentedProps": 118,
+        "documentedProps": 121,
         "classifiedComponents": 30,
         "componentsWithPatternTag": 21,
         "crossPlatformComponents": 0
@@ -832,7 +832,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions\nD6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 pt glyph over a `caption` label, on every phone and tablet, iPad included in both orientations.\n\nIt is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere\n(`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).\n\n- The active tab: `ink` glyph and label at weight 600, a 32 × 3 pt `hereBar` above the glyph, and\n  `accessibilityState.selected`. Inactive: `inkMuted`. (No filled glyph: Lucide has none, and a filled compass hides\n  its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.\n\nPresentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.",
+                    "moduleDoc": "home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions\nD6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 pt glyph over a `caption` label, on every phone and tablet, iPad included in both orientations.\n\nIt is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere\n(`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).\n\n- The active tab: `ink` glyph and label at weight 600, a 32 × 3 pt `hereBar` above the glyph, and\n  `accessibilityState.selected`. Inactive: `inkMuted`. (No filled glyph: Lucide has none, and a filled compass hides\n  its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.\n- Compact height (owner 2026-10-13; the window under 480 dp, which is every phone held sideways): the label sits\n  BESIDE the glyph and the bar is 48 dp (44 pt on iOS). Both sides pad their safe-area inset, so a cutout or the\n  3-button navigation bar never covers a tab. The label stays the tab's accessible name.\n\nPresentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -887,6 +887,24 @@
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
+                            "name": "compact",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The window is compact in height (under 480 dp): the label sits beside the glyph and the bar is shorter.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
+                        },
+                        {
+                            "name": "leftInset",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The left safe-area inset (a cutout, or the 3-button navigation bar held sideways).",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
+                        },
+                        {
                             "name": "liveCapabilities",
                             "type": "readonly string[]",
                             "typeDetail": null,
@@ -911,6 +929,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "A tab was pressed — the active one too (its second tap goes to the root, then the top).",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
+                        },
+                        {
+                            "name": "rightInset",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The right safe-area inset.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
                         }
                     ],
@@ -2127,7 +2154,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/navigation/AppTabBar.tsx",
                     "dir": "packages/apps/commise/mobile/src/navigation",
-                    "moduleDoc": "navigation/AppTabBar — React Navigation's tab state, drawn by our own {@link HomeTabBar} (ownerDecisions D6,\nD14; `docs/architecture/uiOverhaulBlueprint.md` A6).\n\nIt does exactly what the library's default bar does with a press, and nothing more: it emits `tabPress` with\n`canPreventDefault` and navigates unless a listener prevented it. The library's own listeners then give the second\ntap on the active tab its meaning — the tab's stack pops to its root, and at the root `useScrollToTop` scrolls the\nscreen (`TabRootScreen`). Re-implementing either here would fork the library's behaviour.\n\nORCHESTRATION: it drives the navigator (emit, navigate); the bar it draws is presentational.",
+                    "moduleDoc": "navigation/AppTabBar — React Navigation's tab state, drawn by our own {@link HomeTabBar} (ownerDecisions D6,\nD14; `docs/architecture/uiOverhaulBlueprint.md` A6).\n\nIt does exactly what the library's default bar does with a press, and nothing more: it emits `tabPress` with\n`canPreventDefault` and navigates unless a listener prevented it. The library's own listeners then give the second\ntap on the active tab its meaning — the tab's stack pops to its root, and at the root `useScrollToTop` scrolls the\nscreen (`TabRootScreen`). Re-implementing either here would fork the library's behaviour.\n\nCompact height (owner 2026-10-13): in a window under 480 dp tall it draws the compact bar, and while a keyboard is open\nthere it draws none (`isFrameCollapsed`), so a phone held sideways keeps room for the field the cook is typing in.\n\nORCHESTRATION: it drives the navigator (emit, navigate); the bar it draws is presentational.",
                     "moduleTags": [
                         {
                             "name": "module",

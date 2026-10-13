@@ -35,7 +35,7 @@
  * a missing app, the download and the manifest verification are held by `mobileTestAppBuild.test.ts`.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -552,5 +552,112 @@ describe('⛔ caching cannot go stale and cannot escape the prune', () => {
             expect(key).toMatch(/^\$\{\{ runner\.os \}\}-[a-z]+-\$\{\{ hashFiles\('package-lock\.json'\) \}\}/u);
             expect(scalarText(step.with?.['path'])).not.toMatch(/DerivedData|derived|\/build\b|\.app\b/iu);
         }
+    });
+});
+
+/**
+ * ADDED 2026-10-13 (run 38407211276). iOS raises its own "Save Password?" sheet once a `current-password` field leaves the
+ * screen, which the native sign-in does now that it really submits the password (1b6713969). The sheet is another
+ * process: the failed step's hierarchy holds only the status bar, so Maestro can neither see nor tap its "Not Now", and it
+ * covered `Verify` on every iOS sign-in of the run. The Simulator's own restriction switches AutoFill (and with it the
+ * save offer) off; the three profile files are the ones Detox users report editing (wix/Detox#3761).
+ */
+describe('⛔ password AutoFill is switched off on the Simulator before the flows run', () => {
+    const PROFILE_FILES = [
+        'Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist',
+        'Library/UserConfigurationProfiles/EffectiveUserSettings.plist',
+        'Library/UserConfigurationProfiles/PublicInfo/PublicEffectiveUserSettings.plist',
+    ];
+
+    /**
+     * Run the AutoFill step's body with `plutil` stubbed, over a Simulator data directory holding `present` files.
+     *
+     * @sideEffect Writes stubs and files to a scratch directory and spawns bash.
+     */
+    function runAutofillStep(present: readonly string[]): {
+        readonly status: number;
+        readonly output: string;
+        readonly calls: string;
+    } {
+        const { step } = stepRunning(/allowPasswordAutoFill/u);
+        const dir = mkdtempSync(join(tmpdir(), 'maestro-ios-autofill-'));
+
+        scratch.push(dir);
+
+        const data = join(dir, 'Library/Developer/CoreSimulator/Devices/UDID-1/data');
+        const calls = join(dir, 'calls.log');
+
+        for (const file of present) {
+            mkdirSync(join(data, file, '..'), { recursive: true });
+            writeFileSync(join(data, file), '');
+        }
+
+        writeFileSync(calls, '');
+        writeFileSync(join(dir, 'plutil'), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${calls}"\nexit 0\n`);
+        chmodSync(join(dir, 'plutil'), 0o755);
+        writeFileSync(join(dir, 'step.sh'), scalarText(step?.run));
+
+        const result = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', 'step.sh'], {
+            cwd: dir,
+            encoding: 'utf8',
+            env: { PATH: `${dir}:${process.env['PATH'] ?? ''}`, HOME: dir, MAESTRO_IOS_UDID: 'UDID-1' },
+        });
+
+        return {
+            status: result.status ?? -1,
+            output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
+            calls: readFileSync(calls, 'utf8').replaceAll(`${data}/`, ''),
+        };
+    }
+
+    it('runs after the boot wait and before the flows, behind the secrets valve, on the booted UDID', () => {
+        const autofill = stepRunning(/allowPasswordAutoFill/u);
+        const wait = stepRunning(/simctl\s+bootstatus/u);
+        const flows = stepRunning(/runMaestroFlows\.sh/u);
+
+        expect(autofill.index, 'the iOS job has no step that switches password AutoFill off').toBeGreaterThan(-1);
+        expect(autofill.index).toBeGreaterThan(wait.index);
+        expect(autofill.index).toBeLessThan(flows.index);
+        expect(scalarText(autofill.step?.if)).toContain("steps.secrets.outcome == 'success'");
+        expect(scalarText(autofill.step?.env?.['MAESTRO_IOS_UDID'])).toBe('${{ steps.simulator.outputs.udid }}');
+    });
+
+    it('sets the restriction to NO in each of the three profile files', () => {
+        const outcome = runAutofillStep(PROFILE_FILES);
+
+        expect(outcome.status, outcome.output).toBe(0);
+
+        for (const file of PROFILE_FILES) {
+            expect(outcome.calls).toContain(`-replace restrictedBool.allowPasswordAutoFill.value -bool NO ${file}`);
+            // ...and reads it back, so a write that did not take shows in the log.
+            expect(outcome.calls).toContain(`-extract restrictedBool.allowPasswordAutoFill.value raw ${file}`);
+        }
+    });
+
+    it('is best-effort like the keyboard preferences: a missing file WARNS by name and does not fail the shard', () => {
+        const outcome = runAutofillStep(PROFILE_FILES.slice(1));
+
+        expect(outcome.status, outcome.output).toBe(0);
+        expect(outcome.output).toMatch(/::warning::.*UserSettings\.plist/u);
+        expect(outcome.calls).not.toContain(PROFILE_FILES[0]);
+    });
+});
+
+/**
+ * ADDED 2026-10-13 (run 38407211276). iOS shard 1 hit its timeout with fifteen red flows and uploaded NOTHING: its upload
+ * step read `failure()`, and a job cancelled by `timeout-minutes` reports `cancelled()`, not `failure()`. The run with
+ * the least evidence was the one that needed it most. The reset-after step (`always()`) did run, so the step gets time.
+ */
+describe('⛔ a Maestro shard that times out still uploads its report', () => {
+    it.each([
+        ['Android', android],
+        ['iOS', ios],
+    ] as const)('%s: the report upload runs on failure OR cancellation, behind the secrets valve', (_, job) => {
+        const upload = (job?.steps ?? []).find((step) => /upload-artifact@/u.test(step.uses ?? ''));
+        const condition = scalarText(upload?.if);
+
+        expect(condition).toContain('failure()');
+        expect(condition).toContain('cancelled()');
+        expect(condition).toContain("steps.secrets.outcome == 'success'");
     });
 });

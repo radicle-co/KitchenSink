@@ -223,29 +223,49 @@ for (const [scheme, colors] of [
 // A-004 / W-20: Clerk showed the API's own words for a bad identifier ("You have to use email address or username.",
 // "Identifier is invalid."), which name a username the product does not offer. The app replaces the identifier field's
 // errors (`lib/clerkLocalization`); every other error keeps Clerk's copy.
-// ⚠️ Not run when written. The Clerk error codes behind the three keys are PROBABLE, not observed (the strings are server
-// messages that appear nowhere in the repo), so if one of these fails, read `errors[0].code` for that submit against
-// the sandbox instance and correct the key in `clerkLocalization.ts` rather than loosening the assertion.
+// The invalid-format key is OBSERVED (its words render in a live run); the empty-field key cannot be reached from
+// this form (below). If the invalid case fails, read `errors[0].code` for that submit against the sandbox instance and
+// correct the key in `clerkLocalization.ts` rather than loosening the assertion.
 test.describe('the sign-in identifier errors', () => {
     test.beforeEach(async ({ page }) => {
         await setupClerkTestingToken({ page });
         await page.goto(route('/sign-in'));
     });
 
-    test('asks for the email address when the field is submitted empty', async ({ page }) => {
+    /**
+     * REWRITTEN after its first live run. Clerk's identifier field is `required`, so the BROWSER refuses an empty submit
+     * (its own "fill out this field" bubble, which no DOM query sees) and Clerk is never asked: the
+     * `form_param_nil__identifier` words cannot appear from this form. What the cook gets is that refusal, so this proves
+     * it: the field reports a missing value, the step does not move on, and Clerk's username wording never shows.
+     */
+    test('refuses an empty submit in the browser, before Clerk is asked', async ({ page }) => {
+        const signInAttempts: string[] = [];
+        page.on('request', (request) => {
+            if (request.method() === 'POST' && /\/v1\/client\/sign_ins/u.test(request.url())) {
+                signInAttempts.push(request.url());
+            }
+        });
+        const field = page.getByRole('textbox', { name: /email/i });
+
         await clerkPrimarySubmit(page).click();
 
-        await expect(page.getByText('Enter your email address.')).toBeVisible();
+        // The browser's refusal hands focus back to the empty required field; a submit that went through would not.
+        await expect(field).toBeFocused();
+        expect(await field.evaluate((element) => (element as HTMLInputElement).validity.valueMissing)).toBe(true);
+        expect(signInAttempts).toEqual([]);
         // Clerk's own words for it name a username, which the product does not offer. (The field's LABEL still says
         // "or username" until the dashboard change of W-05, so only the error is looked for.)
         await expect(page.getByText(/You have to use email address or username/i)).toHaveCount(0);
     });
 
     test('asks for a valid email address when what was typed is not one', async ({ page }) => {
-        await page.getByRole('textbox', { name: /email/i }).fill('not an email');
+        const field = page.getByRole('textbox', { name: /email/i });
+        await field.fill('not an email');
         await clerkPrimarySubmit(page).click();
 
-        await expect(page.getByText('Enter a valid email address.')).toBeVisible();
+        // The field's own error, linked to it (`aria-describedby`); Clerk also mirrors it into a polite live region, so
+        // the words are on the page twice and the field is what says whose error it is.
+        await expect(field).toHaveAccessibleDescription(/Enter a valid email address\./u);
         await expect(page.getByText(/Identifier is invalid/i)).toHaveCount(0);
     });
 });

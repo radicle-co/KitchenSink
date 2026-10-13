@@ -262,10 +262,15 @@ for (const colorScheme of SCHEMES) {
             const store = await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
 
             await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000011/edit'));
-            await page.getByRole('button', { name: 'Publish' }).click();
+            await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
-            await expect(page.getByText('Fix 1 thing to publish')).toBeVisible();
-            await expect(page.getByRole('heading', { level: 2, name: 'Ingredients' })).toBeFocused();
+            // The action bar's polite line says it (§7.8). The same words are also Photos & publish's Ready line, a
+            // button to the first section that needs it (§7.7 item 3), which is always there.
+            await expect(page.getByRole('status').filter({ hasText: 'Fix 1 thing to publish' })).toBeVisible();
+            await expect(page.getByRole('button', { name: 'Fix 1 thing to publish' })).toBeVisible();
+            // E7 (§7.8): focus goes to the first invalid FIELD, not its section's heading. A recipe with no ingredients
+            // has one, the add-ingredient field (`firstInvalidFieldOf`).
+            await expect(page.getByRole('combobox', { name: 'Add an ingredient' })).toBeFocused();
             expect(store.get('ec000000-0000-4000-8000-000000000011')?.status).toBe('draft');
         });
 
@@ -309,7 +314,7 @@ for (const colorScheme of SCHEMES) {
             );
             await expect(sentence).toHaveCount(2);
 
-            const publish = page.getByRole('button', { name: 'Publish' });
+            const publish = page.getByRole('button', { name: 'Publish', exact: true });
             await expect(publish).toBeEnabled();
             await publish.click();
 
@@ -322,7 +327,7 @@ for (const colorScheme of SCHEMES) {
             await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
             await page.goto(route('/recipes/new'));
-            const publish = page.getByRole('button', { name: 'Publish' });
+            const publish = page.getByRole('button', { name: 'Publish', exact: true });
             const box = await publish.boundingBox();
             // Hit-tested: the topmost element at the button's centre is the button (or inside it).
             const topmost = await page.evaluate(

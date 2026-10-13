@@ -2972,7 +2972,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/createFab/CreateFab.native.tsx",
                     "dir": "packages/apps/commise/ui/src/createFab",
-                    "moduleDoc": "@commise/ui/create-fab — the native design-system {@link CreateFab} (see `props.ts`): the floating button over\nthe screen's foot, 16 pt in on phones and 24 pt on tablets (bottom-left in a right-to-left layout), drawn by `FabFace`.\nRender it as a SIBLING after the screen's scroller, inside the screen's `ScrollHost`, so it floats and reads its\nscroll. Its presentation comes from `createFabPolicy` through `useFabPresentation`.\n\nPresentational about data — it fetches and mutates nothing — though its presentation reads the screen's scroll,\nkeyboard and window.",
+                    "moduleDoc": "@commise/ui/create-fab — the native design-system {@link CreateFab} (see `props.ts`): the floating button over\nthe screen's foot, 16 pt in on phones and 24 pt on tablets (bottom-left in a right-to-left layout), drawn by `FabFace`.\nHeld sideways it adds the safe-area inset on its end side to that margin (owner 2026-10-13), so a cutout or the 3-button\nnavigation bar never covers it.\nRender it as a SIBLING after the screen's scroller, inside the screen's `ScrollHost`, so it floats and reads its\nscroll. Its presentation comes from `createFabPolicy` through `useFabPresentation`.\n\nPresentational about data — it fetches and mutates nothing — though its presentation reads the screen's scroll,\nkeyboard and window.",
                     "moduleTags": [
                         {
                             "name": "module",

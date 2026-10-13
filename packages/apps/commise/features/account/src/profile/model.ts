@@ -27,6 +27,45 @@ export const DISPLAY_NAME_MAX_LENGTH: number = (() => {
     return limit;
 })();
 
+/** How much of the limit the cook has used before the counter appears: 80 %, the build spec's rule for a bounded field. */
+const NAME_COUNTER_FROM_SHARE = 0.8;
+
+/** The counter the display-name field shows once the cook is close to its limit. */
+export interface NameCounter {
+    /** The characters typed, as the field's own `maxLength` counts them. */
+    readonly count: number;
+    /** The limit ({@link DISPLAY_NAME_MAX_LENGTH}). */
+    readonly max: number;
+    /** The cook has used all of it: typing and pasting stop here. */
+    readonly atLimit: boolean;
+}
+
+/**
+ * The counter for the display-name field. The field stops at its limit (a hard `maxLength`, because the name is a
+ * public handle), so without this a paste past it is cut and nothing says so.
+ *
+ * @param draft - The field's text.
+ * @returns The counter from 80 % of the limit upward, or `undefined` while the cook is well within it. Pure.
+ */
+export function nameCounterOf(draft: string): NameCounter | undefined {
+    const count = draft.length;
+
+    if (count < DISPLAY_NAME_MAX_LENGTH * NAME_COUNTER_FROM_SHARE) {
+        return undefined;
+    }
+
+    return { count, max: DISPLAY_NAME_MAX_LENGTH, atLimit: count >= DISPLAY_NAME_MAX_LENGTH };
+}
+
+/**
+ * @param template - The localized counter, with `{count}` and `{max}` (`profileMessages.nameCounter`).
+ * @param counter - The counter to write out.
+ * @returns The text the field shows, such as `85/100`. Pure.
+ */
+export function formatNameCounter(template: string, counter: NameCounter): string {
+    return template.replace('{count}', String(counter.count)).replace('{max}', String(counter.max));
+}
+
 /** The slice of a Clerk `UserResource` the prefill reads; both Clerk SDKs (`@clerk/nextjs`, `@clerk/expo`) fit it. */
 export interface GivenNameSource {
     readonly firstName?: string | null | undefined;

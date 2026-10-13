@@ -188,4 +188,50 @@ test.describe('recipe detail — configurable serving size', () => {
         await expect(servings).toContainText('4');
         await expect(page.getByText(/Amounts scaled from/)).toHaveCount(0);
     });
+
+    // D11: a scaled amount read "1.5 cup". A WORD unit takes the plural of the amount it follows; a symbol does not.
+    test('pluralises a word unit when the amount is scaled, and leaves a symbol alone', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            tier: 'premium',
+            recipes: [
+                makeRecipeDetail({
+                    id: RECIPE_ID.scalable,
+                    ownerId: viewerId,
+                    title: 'Scalable Stew',
+                    servings: 4,
+                    ingredients: [
+                        {
+                            ingredientId: '00000000-0000-4000-8000-0000000000c1',
+                            name: 'flour',
+                            foodId: 'food_flour',
+                            quantity: { kind: 'exact', value: 1 },
+                            unit: 'cup',
+                            isUserEntered: false,
+                        },
+                        {
+                            ingredientId: '00000000-0000-4000-8000-0000000000c2',
+                            name: 'oil',
+                            foodId: 'food_oil',
+                            quantity: { kind: 'exact', value: 1 },
+                            unit: 'tbsp',
+                            isUserEntered: false,
+                        },
+                    ],
+                }),
+            ],
+        });
+
+        await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
+        await expect(page.getByRole('checkbox', { name: '1 cup flour' })).toBeVisible();
+
+        for (let i = 0; i < 2; i += 1) {
+            await page.getByRole('button', { name: 'More servings' }).click();
+        }
+
+        await expect(page.getByRole('checkbox', { name: '1.5 cups flour' })).toBeVisible();
+        await expect(page.getByRole('checkbox', { name: '1.5 tbsp oil' })).toBeVisible();
+    });
 });

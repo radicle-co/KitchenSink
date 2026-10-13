@@ -1819,7 +1819,7 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
         );
     });
 
-    it('records attribution to the original author when a user_created source carries none', async () => {
+    it('W-03: records NO attribution (never the original owner id) when a user_created source carries none', async () => {
         const source: RecipeAggregate = {
             recipe: makeRecipeRow({
                 id: 'src',
@@ -1836,8 +1836,10 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
 
         await newService(dal).clone(principal(), 'src', undefined);
 
+        // Rewritten for W-03: this test used to pin `sourceAttribution` containing the source owner's id, which put a
+        // raw user id into a display string on Discover. Provenance is `clonedFromId` alone.
         expect(create).toHaveBeenCalledWith(
-            expect.objectContaining({ sourceAttribution: expect.stringContaining(OTHER) }),
+            expect.objectContaining({ clonedFromId: 'src', sourceAttribution: undefined }),
             FAKE_TX,
         );
     });

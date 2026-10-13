@@ -2,6 +2,7 @@ import type { Route } from 'next';
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 
+import { signInPathFor } from '@/lib/signInReturn';
 import { AppShell } from '@/components/app/AppShell';
 import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContainer';
 
@@ -26,7 +27,7 @@ export default async function NewRecipePage({
     const { userId } = await auth();
 
     if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+        redirect(signInPathFor(locale, `/${locale}/recipes/new`) as Route);
     }
 
     return (

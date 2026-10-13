@@ -255,6 +255,52 @@ describe('Sheet (web)', () => {
     });
 
     /**
+     * E24 (`page`): the preview of a recipe is a PAGE, not a dialog, from `sm`: the whole visible height, and up to the
+     * detail column (`content-detail`, 72 rem = `max-w-6xl`). `full` is the picker's 85% dialog and must not move.
+     * Every sm geometry utility is asserted as ONE per size (Tailwind decides between two of one variant by emit
+     * order, so a leftover shared `sm:max-h-` / `sm:max-w-` would silently beat the page's).
+     */
+    describe('size page', () => {
+        const smUtilities = (prefix: string): readonly string[] =>
+            screen
+                .getByRole('dialog')
+                .className.split(/\s+/u)
+                .filter((utility) => utility.startsWith(prefix));
+
+        it('takes the whole visible height from sm, and widens to the detail column', async () => {
+            await openHost(<Host overrides={{ size: 'page' }} />);
+
+            expect(smUtilities('sm:h-')).toStrictEqual(['sm:h-[var(--sheet-visible-height,100dvh)]']);
+            expect(smUtilities('sm:max-h-')).toStrictEqual(['sm:max-h-[var(--sheet-visible-height,100dvh)]']);
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-6xl']);
+        });
+
+        it('fills the visible box below sm, as full does', async () => {
+            await openHost(<Host overrides={{ size: 'page' }} />);
+
+            const classes = screen.getByRole('dialog').className.split(/\s+/u);
+
+            expect(classes).toContain('top-[var(--sheet-visible-top,0px)]');
+            expect(classes).toContain('h-[var(--sheet-visible-height,100dvh)]');
+            expect(classes.some((utility) => utility.startsWith('bottom-'))).toBe(false);
+        });
+
+        it('leaves full at 85% of the viewport and one house dialog width, and content at its own box', async () => {
+            const user = await openHost(<Host overrides={{ size: 'full' }} />);
+
+            expect(smUtilities('sm:max-h-')).toStrictEqual(['sm:max-h-[min(85vh,var(--sheet-visible-height,85vh))]']);
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-lg']);
+
+            await user.keyboard('{Escape}');
+            cleanup();
+            await openHost(<Host />);
+
+            expect(smUtilities('sm:max-h-')).toStrictEqual(['sm:max-h-[min(85vh,var(--sheet-visible-height,85vh))]']);
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-lg']);
+        });
+    });
+
+    /**
      * F11 (`evaluateFinal.md`): every web sheet filled a phone, short tasks included. Native was right. A `content` sheet
      * below sm is a bottom sheet: anchored to the foot of the VISIBLE box (so a keyboard lifts it), as tall as its
      * content up to the visible height less a gap, with rounded top corners. `full` keeps the whole visible box.
@@ -288,6 +334,19 @@ describe('Sheet (web)', () => {
 
         expect(title.className).toContain('text-bar-title');
         expect(title.className).not.toContain('font-display');
+    });
+
+    // W-23 (bs §5.1 "sheet header truncate:1"): a long title (a 60-character collection name in "Add to {name}") never
+    // wraps to a second line. The full string stays the heading's text, so it is still the dialog's accessible name.
+    it('keeps a long title on one line, ending in an ellipsis, with the full text still its name', async () => {
+        const long = 'Add to Weeknight dinners for the whole family and any guests who drop by';
+
+        await openHost(<Host overrides={{ title: long }} />);
+
+        const title = screen.getByRole('heading', { name: long });
+
+        expect(title.className.split(/\s+/u)).toContain('truncate');
+        expect(screen.getByRole('dialog', { name: long })).toBeTruthy();
     });
 
     it('draws a hairline above the footer', async () => {

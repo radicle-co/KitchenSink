@@ -77,7 +77,7 @@ test.describe('recipe filters on the Sheet, on a phone (curated U15)', () => {
         await expectNoSidewaysScroll(page);
 
         // A facet applies at once: the URL takes it, and the Sheet stays open for the next one.
-        const vegan = sheet.getByRole('button', { name: 'vegan 1' });
+        const vegan = sheet.getByRole('button', { name: 'Vegan 1' });
         await vegan.click();
         await expect(page).toHaveURL(/dietaryFlags=vegan/u);
         await expect(vegan).toHaveAttribute('aria-pressed', 'true');
@@ -99,7 +99,7 @@ test.describe('recipe filters on the Sheet, on a phone (curated U15)', () => {
         await expect(sheet).toBeHidden();
         await expect(page.getByRole('button', { name: 'Filters, 1 active' })).toBeFocused();
         // The applied filter is a chip under the button, removable without reopening the Sheet.
-        await expect(page.getByRole('button', { name: 'Remove vegan filter' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Remove Vegan filter' })).toBeVisible();
         await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Weeknight Ramen Bowl' })).toBeVisible();
     });
@@ -155,7 +155,7 @@ test.describe('recipe filters, in the panel (slice 5)', () => {
         await expect(page.getByRole('button', { name: /^Filters/u })).toHaveCount(0);
         await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toBeVisible();
 
-        await panel.getByRole('button', { name: 'vegan 1' }).click();
+        await panel.getByRole('button', { name: 'Vegan 1' }).click();
 
         await expect(page).toHaveURL(/dietaryFlags=vegan/u);
         await expect(page.getByRole('article', { name: 'Braised Short Ribs' })).toHaveCount(0);
@@ -274,7 +274,7 @@ test.describe('the filter Sheet’s Done at 640 × 360 (compactHeightLayout.md �
         await expect(sheet).toBeVisible();
         // The facets come from the search the browser settles after the page is up, so the Dietary group can arrive
         // after the Sheet opens and grow it. Nothing is measured until it has.
-        await expect(sheet.getByRole('button', { name: 'vegan 1' })).toBeVisible();
+        await expect(sheet.getByRole('button', { name: 'Vegan 1' })).toBeVisible();
         // The facets overflow, so whether Done moves when they scroll tells a pinned footer from one that is not.
         await expect
             .poll(async () => (await chromeOf(done, close)).overflow, 'the facets fit the Sheet')

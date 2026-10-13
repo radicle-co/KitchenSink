@@ -4,6 +4,7 @@ import { auth } from '@clerk/nextjs/server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { signInPathFor } from '@/lib/signInReturn';
 import { AppShell } from '@/components/app/AppShell';
 import { CollectionDetailContainer } from '@/components/recipes/CollectionDetailContainer';
 
@@ -26,7 +27,7 @@ export default async function CollectionDetailPage({
     const { userId } = await auth();
 
     if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+        redirect(signInPathFor(locale, `/${locale}/collections/${encodeURIComponent(id)}`) as Route);
     }
 
     // The cook's list/grid choice (shared with My recipes), so the server renders it and hydration does not flip the view.

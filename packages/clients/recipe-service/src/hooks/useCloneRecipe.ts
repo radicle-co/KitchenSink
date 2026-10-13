@@ -1,4 +1,6 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+
+import type { RecipeDetail } from '@kitchensink/recipe-core';
 
 import { recipeServiceKeys } from '../queries.js';
 import { useRecipeServiceClient } from './recipeServiceProvider.js';
@@ -10,6 +12,28 @@ import { useRecipeServiceClient } from './recipeServiceProvider.js';
  * of it.
  */
 export const SAVE_COPY_MUTATION_KEY = ['recipe-service', 'mutations', 'saveCopy'] as const;
+
+/**
+ * Forget that a copy was saved, once the copy no longer exists.
+ *
+ * "Saved a copy" is derived from the clone mutations, which live for the session (`gcTime: Infinity`, below), so a
+ * deleted copy would keep its source's card filled: it would say "Saved a copy" for a recipe that is gone, and refuse
+ * a second copy (A-022). Removing the mutation record returns the card to idle, because `useMutationState` re-selects
+ * on a removal. Every path that deletes a recipe calls this with the id it deleted.
+ *
+ * @param queryClient - The client whose mutation cache holds the records.
+ * @param copyId - The id of the recipe that was deleted.
+ * @sideEffect Removes the clone mutations whose answer is that recipe from the mutation cache.
+ */
+export function forgetSavedCopy(queryClient: QueryClient, copyId: string): void {
+    const cache = queryClient.getMutationCache();
+
+    for (const mutation of cache.findAll({ mutationKey: SAVE_COPY_MUTATION_KEY })) {
+        if ((mutation.state.data as RecipeDetail | undefined)?.id === copyId) {
+            cache.remove(mutation);
+        }
+    }
+}
 
 /**
  * `POST /api/v1/recipes/{id}/clone` — clone a public recipe.

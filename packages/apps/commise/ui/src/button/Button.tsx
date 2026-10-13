@@ -68,6 +68,7 @@ export const Button: FC<ButtonProps> = (props) => {
         busy = false,
         accessibilityLabel,
         width = 'auto',
+        iconPlacement = 'start',
         focusRequested = false,
         onFocusRequestHandled,
     } = props;
@@ -76,6 +77,13 @@ export const Button: FC<ButtonProps> = (props) => {
         variant === 'destructive' ? buttonSurfaceClass(variant, size, tone) : buttonSurfaceClass(variant, size);
     const node = useRef<HTMLButtonElement>(null);
     useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
+
+    const glyph =
+        busy || icon !== undefined ? (
+            <span aria-hidden="true" className="inline-flex shrink-0 items-center">
+                {busy || icon === undefined ? <Spinner /> : <Icon name={icon} size={20} />}
+            </span>
+        ) : null;
 
     return (
         <PressScale width={width}>
@@ -89,12 +97,9 @@ export const Button: FC<ButtonProps> = (props) => {
                 // `fill`: the wrapper stretches, so the button takes its whole width; `justify-center` centres the label.
                 className={width === 'fill' ? `${surface} w-full` : surface}
             >
-                {busy || icon !== undefined ? (
-                    <span aria-hidden="true" className="inline-flex shrink-0 items-center">
-                        {busy || icon === undefined ? <Spinner /> : <Icon name={icon} size={20} />}
-                    </span>
-                ) : null}
+                {iconPlacement === 'start' ? glyph : null}
                 <span>{children}</span>
+                {iconPlacement === 'end' ? glyph : null}
             </button>
         </PressScale>
     );

@@ -23,7 +23,12 @@ import type { RecipeListFrameProps } from '../model.js';
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
-    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+    return {
+        ...actual,
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        // jsdom has no layout, so react-native-web reports a 0 dp window; the frame's segments read it (W-25).
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: 840 }),
+    };
 });
 
 /**
@@ -115,6 +120,13 @@ describe('RecipeListFrame (native) — segments and the first run', () => {
         fireEvent.click(screen.getByRole('tab', { name: 'Collections' }));
 
         expect(onSelect).toHaveBeenCalledWith('collections');
+    });
+
+    it('takes the segments’ own width on a tablet, where a full-width bar reads as a header and not a switch (W-25)', () => {
+        render(frame({ segments: { current: 'mine', href: HREF, onSelect: vi.fn() } }));
+
+        // The window is served at 840 dp, past the 600 dp threshold.
+        expect(getComputedStyle(screen.getByRole('tablist', { name: 'Recipes' })).alignSelf).toBe('flex-start');
     });
 
     it('hides the search field on the first run, keeping the boundary', () => {

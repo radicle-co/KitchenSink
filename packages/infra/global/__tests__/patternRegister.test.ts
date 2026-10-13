@@ -158,11 +158,15 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
     },
     'designSystem/combobox/Combobox': {
         verdict: 'sanctioned',
-        why: "One node handle, the field, for `.focus()` and the caret (`setSelectionRange` on web, `setSelection` on native) when a host requests focus. Neither has a declarative form, and the web leaf reads the node from floating-ui rather than holding a ref object. On native the same node also leaves the leaf through `FieldRevealContext` (`@commise/ui/field-reveal`), typed as `Pick<HostInstance, 'measureLayout'>`, so the host can measure it for the reveal.",
+        why: "One node handle, the field, for `.focus()` and the caret (`setSelectionRange` on web, `setSelection` on native) when a host requests focus. Neither has a declarative form, and the web leaf holds the input node in state through a callback ref (as floating-ui holds its reference node) rather than holding a ref object. On native the same node also leaves the leaf through `FieldRevealContext` (`@commise/ui/field-reveal`), typed as `Pick<HostInstance, 'measureLayout'>`, so the host can measure it for the reveal.",
     },
     'designSystem/input/Input': {
         verdict: 'sanctioned',
         why: "One node handle, the field, for a host focus request (a field the host has just shown, such as an ingredient group's name): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Button and Combobox take.",
+    },
+    'designSystem/input/TextArea': {
+        verdict: 'sanctioned',
+        why: 'One node handle, the field, for a host focus request (the step the editor has just added): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Input, Button and Combobox take.',
     },
     'featuresRecipes/form/IngredientRow': {
         verdict: 'sanctioned',
@@ -359,8 +363,14 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * was deleted (D12 keeps glass off cards) and `[locale]/layout.tsx`'s `LocaleLayout` entered the catalogue when the
  * extractor stopped requiring JSX in a single-default-export file (a route segment). A 94 projected from the shared
  * working tree mid-round was never the committed count.
+ *
+ * ⚠️ It went 93 → 98 with five NEW components that state no layer: four route-segment `Loading` files
+ * (`RecipeEditLoading`, `RecipeVersionsLoading`, `RecipeDetailRouteLoading`, `RecipeVersionsRouteLoading`, shapes
+ * §11.2 puts out of scope) and `DataSourcesStates`. No component lost a layer statement: the one that did in this
+ * round (`AvatarField`, rewritten as the profile avatar) had its "Presentational otherwise" restored rather than
+ * counted, and `CuisineSelect` left the catalogue stating its layer.
  */
-const LAYER_UNSTATED_CENSUS = 93;
+const LAYER_UNSTATED_CENSUS = 98;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

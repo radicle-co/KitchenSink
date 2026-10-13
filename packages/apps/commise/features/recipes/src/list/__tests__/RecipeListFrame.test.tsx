@@ -92,6 +92,15 @@ describe('RecipeListFrame (web)', () => {
         expect(onSelect).toHaveBeenCalledWith('collections');
     });
 
+    it('lets the segments fill a narrow container and take their content’s width from 600 (W-25)', () => {
+        render(frame({ segments: { current: 'mine', href: HREF, onSelect: vi.fn() } }));
+        const track = screen.getByRole('link', { name: 'My recipes' }).parentElement as HTMLElement;
+
+        expect(track.className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(['w-full', '@regular/main:inline-flex', '@regular/main:w-auto']),
+        );
+    });
+
     it('⛔ moves focus to the heading when the recovery signal advances, and not on mount', () => {
         const { rerender } = render(frame());
 

@@ -178,3 +178,44 @@ test.describe('recipe-detail hero', () => {
         expect(imageElementCount).toBe(0);
     });
 });
+
+/**
+ * A-014 / D7 / P1: below 840 Back and ⋯ are 44 px discs ON the hero, named for where they go — never the bare "Back" — and
+ * the eyebrow link and the action-row ⋯ take over from 840. A recipe with no photo lets its 96 px band take the whole row
+ * from a 960 body, with the title under it.
+ */
+test.describe('recipe-detail hero controls', () => {
+    test('below 840, Back and ⋯ are discs over the photo, ahead of the title', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await openRecipeWithPhotos(page);
+
+        const back = page.getByRole('link', { name: 'Back to My recipes' });
+        const more = page.getByRole('button', { name: `More actions for ${TITLE}` });
+        const heading = page.getByRole('heading', { level: 1, name: TITLE });
+        await expect(back).toBeVisible();
+        await expect(more).toBeVisible();
+
+        const [backBox, moreBox, headingBox] = await Promise.all([
+            back.boundingBox(),
+            more.boundingBox(),
+            heading.boundingBox(),
+        ]);
+        expect(backBox?.width).toBe(44);
+        expect(backBox?.height).toBe(44);
+        expect(moreBox?.width).toBe(44);
+        expect((backBox?.y ?? 0) + (backBox?.height ?? 0)).toBeLessThanOrEqual(headingBox?.y ?? 0);
+        // The bare "Back" is Android's own nav node; a web disc is named for its parent too.
+        await expect(page.getByRole('link', { name: 'Back', exact: true })).toHaveCount(0);
+    });
+
+    test('from 840, the eyebrow link and the action-row ⋯ replace the discs', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await openRecipeWithPhotos(page);
+
+        await expect(page.getByRole('link', { name: 'Back to My recipes' })).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'My recipes', exact: true })).toBeVisible();
+        const more = page.getByRole('button', { name: `More actions for ${TITLE}` });
+        await expect(more).toHaveCount(1);
+        expect((await more.boundingBox())?.width).toBe(44);
+    });
+});

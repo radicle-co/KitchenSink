@@ -2036,7 +2036,9 @@ export async function mockRecipeApi(
                 const start = (page - 1) * collectionsPageSize;
                 const rows = owned.slice(start, start + collectionsPageSize);
                 const response: PaginatedResponse<CollectionResponse> = {
-                    data: rows.map(toCollectionResponse),
+                    // The list read also carries the covers of each collection's first members (W-11; the contract
+                    // REQUIRES the field, so a list element without it is refused by the client's parse).
+                    data: rows.map((row) => ({ ...toCollectionResponse(row), coverPhotoUrls: [] })),
                     total: owned.length,
                     page,
                     pageSize: collectionsPageSize,

@@ -43,6 +43,7 @@
  */
 import {
     RecipeVersionList,
+    RecipeVersionListError,
     VersionCompareView,
     VersionPreviewModal,
     compareWithCurrent,
@@ -61,6 +62,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, type FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
+import { RecipeVersionsRouteLoading } from '@/components/recipes/RecipeVersionsRouteLoading';
 import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeVersionsContainer}. */
@@ -69,55 +71,22 @@ export interface RecipeVersionsContainerProps {
     readonly recipeId: string;
 }
 
-/** Shared "Back to Recipe" affordance for the boundary's loading and error fallbacks (V6 fold-in, W6 Task
- *  5). The settled history instead wires `onBack` straight into `RecipeVersionList`, which renders its own
- *  styled back control as part of its header chrome; this smaller link exists ONLY so the fallbacks — which
- *  render in place of that component — are never stranded without a way back to the recipe. Reuses `recipeVersionMessages.versionList.backToRecipe` (the SAME copy `RecipeVersionList`
- *  renders) rather than a second `webMessages` key, so the label is one piece of knowledge either way. */
-const BackToRecipeLink: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
-    const { versionList } = useMessages(recipeVersionMessages);
-
-    return (
-        <button
-            type="button"
-            onClick={onBack}
-            // `ocean-dark` foreground over a seafoam hover tint: the label is text a reader reads, the tint is a
-            // non-text accent (see the palette JSDoc in `@commise/ui`).
-            className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-action-text transition hover:bg-action/10"
-        >
-            {versionList.backToRecipe}
-        </button>
-    );
-};
-
-/** The version history's pending state: its way back, and what is loading. */
-const VersionsLoading: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
+/** The version history's failed state: the same header, an alert and a retry. */
+const VersionsError: FC<{ readonly onBack: () => void; readonly backHref: string; readonly onRetry: () => void }> = ({
+    onBack,
+    backHref,
+    onRetry,
+}) => {
     const { recipes } = useMessages(webMessages);
 
     return (
-        <div className="flex max-w-list flex-col gap-3 py-8">
-            <BackToRecipeLink onBack={onBack} />
-            <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-ink-muted">
-                {recipes.versions.loadingLabel}
-            </p>
-        </div>
-    );
-};
-
-/** The version history's failed state: its way back, and a retry. */
-const VersionsError: FC<{ readonly onBack: () => void; readonly onRetry: () => void }> = ({ onBack, onRetry }) => {
-    const { recipes } = useMessages(webMessages);
-
-    return (
-        <div className="flex max-w-list flex-col gap-3 py-8">
-            <BackToRecipeLink onBack={onBack} />
-            <div role="alert">
-                <p>{recipes.versions.errorTitle}</p>
-                <button type="button" onClick={onRetry}>
-                    {recipes.versions.retry}
-                </button>
-            </div>
-        </div>
+        <RecipeVersionListError
+            title={recipes.versions.errorTitle}
+            retryLabel={recipes.versions.retry}
+            onRetry={onRetry}
+            onBack={onBack}
+            backHref={backHref}
+        />
     );
 };
 
@@ -132,14 +101,18 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
     const { locale } = useParams<{ locale: string }>();
     const router = useRouter();
 
+    const recipeHref = `/${locale}/recipes/${recipeId}`;
+
     const goToRecipe = (): void => {
-        router.push(`/${locale}/recipes/${recipeId}` as Route);
+        router.push(recipeHref as Route);
     };
 
     return (
         <ClientQueryBoundary
-            loading={<VersionsLoading onBack={goToRecipe} />}
-            renderError={({ resetErrorBoundary }) => <VersionsError onBack={goToRecipe} onRetry={resetErrorBoundary} />}
+            loading={<RecipeVersionsRouteLoading />}
+            renderError={({ resetErrorBoundary }) => (
+                <VersionsError onBack={goToRecipe} backHref={recipeHref} onRetry={resetErrorBoundary} />
+            )}
             resetKeys={[recipeId]}
         >
             <RecipeVersionsView recipeId={recipeId} onBack={goToRecipe} />
@@ -193,8 +166,11 @@ const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: (
     /** Shared restore trigger for BOTH the list's row action and the preview modal's Restore action — same
      *  mutation, same B17 conflict-refetch; `onRestored` (only supplied from the preview modal) additionally
      *  closes the modal once the restore actually lands. A restore makes a NEW version, so it asks no confirmation:
-     *  the snackbar's Undo restores the version that was current before, which makes another (§6.6). */
-    const restoreVersion = (versionNumber: number, onRestored?: () => void): void => {
+     *  the snackbar's Undo restores the version that was current before, which makes another (§6.6). That second
+     *  restore is the Undo's own and says what it did WITHOUT an Undo of its own (`undoable: false`): offering one would
+     *  be a loop of restores each undoing the last. */
+    const restoreVersion = (versionNumber: number, options: RestoreOptions = {}): void => {
+        const { onRestored, undoable = true } = options;
         const wasCurrent = recipe.currentVersion;
 
         restore.mutate(
@@ -204,7 +180,14 @@ const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: (
                     onRestored?.();
                     snackbar.show({
                         message: fillVersion(versionList.restored, versionNumber),
-                        action: { label: versionList.undo, onAction: () => restoreVersion(wasCurrent) },
+                        ...(undoable
+                            ? {
+                                  action: {
+                                      label: versionList.undo,
+                                      onAction: () => restoreVersion(wasCurrent, { undoable: false }),
+                                  },
+                              }
+                            : {}),
                     });
                 },
                 onError: (error) => {
@@ -258,7 +241,9 @@ const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: (
                 locale={activeLocale}
                 {...(restoreError === undefined ? {} : { restoreError })}
                 onCancel={() => setPreviewTarget(null)}
-                onRestore={(versionNumber) => restoreVersion(versionNumber, () => setPreviewTarget(null))}
+                onRestore={(versionNumber) =>
+                    restoreVersion(versionNumber, { onRestored: () => setPreviewTarget(null) })
+                }
             />
             <VersionCompareView
                 open={compareDiff !== undefined}
@@ -269,6 +254,14 @@ const RecipeVersionsView: FC<RecipeVersionsContainerProps & { readonly onBack: (
         </>
     );
 };
+
+/** What a restore does beyond restoring. */
+interface RestoreOptions {
+    /** Runs once the restore has landed (the preview closes). */
+    readonly onRestored?: () => void;
+    /** Whether the snackbar that follows offers Undo. False for the restore an Undo makes. */
+    readonly undoable?: boolean;
+}
 
 /** A version template with its number filled in. Pure. */
 function fillVersion(template: string, version: number): string {

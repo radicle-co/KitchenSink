@@ -200,3 +200,59 @@ describe('SegmentedControl (web) — view', () => {
         expect(tokensOf(screen.getByRole('radio', { name: 'List view' }))).toContain('min-w-11');
     });
 });
+
+describe('SegmentedControl (web) — route width (W-25)', () => {
+    const PLACES = [
+        { id: 'mine', label: 'My recipes', href: '/en/recipes' },
+        { id: 'collections', label: 'Collections', href: '/en/collections' },
+    ];
+    const tokens = (element: Element): readonly string[] => element.className.split(/\s+/u);
+
+    it('fills the row by default, as before', () => {
+        render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
+        const track = screen.getByRole('link', { name: 'My recipes' }).parentElement as HTMLElement;
+
+        expect(tokens(track)).toContain('w-full');
+        expect(tokens(track)).not.toContain('inline-flex');
+    });
+
+    it('takes its content’s width with width="content", each segment at least 136 px', () => {
+        render(
+            <SegmentedControl
+                form="route"
+                label="Recipes"
+                width="content"
+                segments={PLACES}
+                current="mine"
+                onSelect={vi.fn()}
+            />,
+        );
+        const track = screen.getByRole('link', { name: 'My recipes' }).parentElement as HTMLElement;
+
+        expect(tokens(track)).toContain('inline-flex');
+        expect(tokens(track)).not.toContain('w-full');
+        expect(tokens(screen.getByRole('link', { name: 'My recipes' }))).toContain('min-w-[8.5rem]');
+    });
+
+    it('fills the row in a narrow container and takes its content’s width from 600, with width="adaptive"', () => {
+        render(
+            <SegmentedControl
+                form="route"
+                label="Recipes"
+                width="adaptive"
+                segments={PLACES}
+                current="mine"
+                onSelect={vi.fn()}
+            />,
+        );
+        const track = screen.getByRole('link', { name: 'My recipes' }).parentElement as HTMLElement;
+        const segment = screen.getByRole('link', { name: 'My recipes' });
+
+        expect(tokens(track)).toEqual(
+            expect.arrayContaining(['w-full', '@regular/main:inline-flex', '@regular/main:w-auto']),
+        );
+        expect(tokens(segment)).toEqual(
+            expect.arrayContaining(['flex-1', '@regular/main:flex-none', '@regular/main:min-w-[8.5rem]']),
+        );
+    });
+});

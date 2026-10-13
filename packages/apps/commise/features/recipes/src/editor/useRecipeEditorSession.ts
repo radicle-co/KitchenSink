@@ -40,7 +40,6 @@ import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 import type { LookupRetry, ObservedIngredientStatus, SettledAnswer } from '../form/ingredientStatus.js';
 import { rebindRequestOf } from '../hooks/lineCommit.js';
 import { useIngredientRowEditor, type IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
-import { useLibraryEmpty } from '../hooks/useLibraryEmpty.js';
 import { useLineNutrition } from '../hooks/useLineNutrition.js';
 import { useLookupRetry } from '../hooks/useLookupRetry.js';
 import {
@@ -51,6 +50,8 @@ import {
     type UseRecipeEditorResult,
 } from '../hooks/useRecipeEditor.js';
 import type { DraftStore } from './draftStore.js';
+import { useGuidedFirstRecipe } from './guidedProgress.js';
+import { outcomeOfExit, type FinishedOutcome } from './finishedOutcome.js';
 import { createPasteHold } from './pasteHold.js';
 import { previewRecipeOf } from './previewRecipe.js';
 import type { DraftKeep } from './saveStatus.js';
@@ -59,8 +60,11 @@ import { visibilityFollowUp } from './visibilityFollowUp.js';
 
 /** Where the editor's hand-offs go: the platform's router, behind the editor's own vocabulary. */
 export interface EditorNavigation {
-    /** The recipe was published, or its changes saved: show it. */
-    readonly finished: (recipeId: string) => void;
+    /**
+     * The recipe was published, or its changes saved: show it, and tell the cook which (E8: "Recipe published." or
+     * "Changes saved.", through `finishedNoticeOf`).
+     */
+    readonly finished: (recipeId: string, outcome: FinishedOutcome) => void;
     /** The cook kept the server's copy, or discarded a published recipe's device changes: back to the recipe. */
     readonly leftForRecipe: (recipeId: string) => void;
     /** A recipe never published was discarded: go to My recipes. */
@@ -111,7 +115,7 @@ export interface RecipeEditorSession {
     readonly blur: () => void;
     /** Append pasted steps (Steps' heading action). */
     readonly appendSteps: (instructions: readonly string[]) => void;
-    /** Whether the cook's library is empty: the editor guides a first recipe. */
+    /** Whether the cook has never published a recipe: the editor guides a first one (§7.2). */
     readonly guided: boolean;
     readonly preview: EditorPreview;
 }
@@ -129,27 +133,27 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     const queryClient = useQueryClient();
     const setVisibility = useSetRecipeVisibility();
     const rebind = useRebindIngredientLine();
-    const guided = useLibraryEmpty(recipeQueries(client).library({ sortBy: 'updatedAt' }).queryKey);
+    const guided = useGuidedFirstRecipe();
     const [previewing, setPreviewing] = useState(false);
     // Made before the editor and the paste, which each need the other: the paste writes it, a checkpoint reads it.
     const [pasteHold] = useState(createPasteHold);
 
     /** Published, or its changes saved: visibility follows its answer, then the recipe shows. @sideEffect */
-    const finished = (stored: RecipeDetail): void => {
+    const finished = (stored: RecipeDetail, outcome: FinishedOutcome): void => {
         const visibility = visibilityFollowUp(editor.values.visibility, stored);
 
         if (visibility !== undefined) {
             setVisibility.mutate({ id: stored.id, visibility });
         }
 
-        navigation.finished(stored.id);
+        navigation.finished(stored.id, outcome);
     };
 
     const onExit = (exit: EditorExit): void => {
         switch (exit.kind) {
             case 'published':
             case 'changesSaved':
-                finished(exit.recipe);
+                finished(exit.recipe, outcomeOfExit(exit));
 
                 return;
 

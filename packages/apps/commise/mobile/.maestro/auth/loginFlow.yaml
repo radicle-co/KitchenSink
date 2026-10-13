@@ -1,6 +1,7 @@
 # Maestro E2E: mobile Clerk sign-in journey (US-auth). Verifies that a signed-out app opens DIRECTLY on the
 # sign-in form, that sign-up is reachable from it, and that a full email + password + new-device email-code
-# sign-in lands the caller on the authenticated recipe surface.
+# sign-in lands the caller on the authenticated recipe surface. A wrong password is also asserted to stop at
+# the password step, with no code step.
 #
 # Owner decision, 2026-07-28: the branded welcome hero that used to be the signed-out front door is deleted on
 # both platforms (web's locale root now redirects a signed-out caller straight to `/sign-in`). This flow
@@ -55,6 +56,20 @@ appId: io.commise.mobile
 # while the sign-up screen is up, and confirms the login form is back by its unique email placeholder.
 - tapOn: 'Sign in'
 - assertVisible: 'you@example.com'
+- assertVisible: 'Password'
+
+# A WRONG password stops at the password (A-001): Clerk's error shows and NO verification-code step appears. A
+# sign-in that sends the email code before the password is checked would let the mailbox alone sign a user in.
+# `signinHome.yaml` is not reused here because it enters the CORRECT password; this step enters a wrong one.
+- tapOn: 'you@example.com'
+- inputText: '${E2E_SIGNIN_EMAIL}'
+- tapOn: 'Your password'
+- inputText: 'wrongpassword123'
+- tapOn: 'Sign in'
+- extendedWaitUntil:
+      visible: '.*ncorrect.*'
+      timeout: 20000
+- assertNotVisible: 'Verification code'
 - assertVisible: 'Password'
 
 # Sign in with the shared test user (email + password + new-device email code) via the reusable sub-flow.

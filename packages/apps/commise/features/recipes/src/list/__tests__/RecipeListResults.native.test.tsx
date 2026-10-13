@@ -46,6 +46,7 @@ function results(overrides: Partial<RecipeListResultsProps> = {}) {
                 searchValue=""
                 onClearSearch={noop}
                 onClearFilters={noop}
+                clearCount={0}
                 onSelectRecipe={noop}
                 onCreateRecipe={noop}
                 variant="row"
@@ -65,6 +66,26 @@ function results(overrides: Partial<RecipeListResultsProps> = {}) {
         </LocaleProvider>
     );
 }
+
+describe('RecipeListResults (native) — W-22: Clear filters brings the chip row back to its start', () => {
+    it('remounts the chip row when the host counts another clear, so the selected "All" is in view', () => {
+        const { rerender } = render(results({ clearCount: 0 }));
+        const before = screen.getByRole('group', { name: 'Quick filters' });
+
+        rerender(results({ clearCount: 1 }));
+
+        expect(screen.getByRole('group', { name: 'Quick filters' })).not.toBe(before);
+    });
+
+    it('keeps the SAME row on any other update', () => {
+        const { rerender } = render(results({ clearCount: 2 }));
+        const before = screen.getByRole('group', { name: 'Quick filters' });
+
+        rerender(results({ clearCount: 2, searchValue: 'lamb' }));
+
+        expect(screen.getByRole('group', { name: 'Quick filters' })).toBe(before);
+    });
+});
 
 describe('RecipeListResults (native) — populated', () => {
     it('says the count, and draws one link per recipe in the decided variant, reporting a press', () => {
@@ -133,6 +154,25 @@ describe('RecipeListResults (native) — chips and the result bar', () => {
         fireEvent.click(screen.getByRole('radio', { name: 'A–Z' }));
 
         expect(onChange).toHaveBeenCalledWith('title');
+    });
+
+    it('shows the sort choice alone, names it "Sort: {choice}", and puts the chevron after it (A-018)', () => {
+        render(results({ sort: { value: 'createdAt', onChange: vi.fn() } }));
+        const button = screen.getByRole('button', { name: 'Sort: Newest' });
+        const chevron = button.querySelector('[data-icon-name="chevron-down"]') as HTMLElement;
+
+        expect(button.textContent).toBe('Newest');
+        expect(
+            within(button).getByText('Newest').compareDocumentPosition(chevron) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
+    it('lets the sort and the view switch wrap, so the largest font scale cannot push them off the edge (A-028 b)', () => {
+        render(results({ sort: { value: 'updatedAt', onChange: vi.fn() } }));
+        const controls = screen.getByRole('button', { name: 'Sort: Recently edited' }).parentElement as HTMLElement;
+
+        expect(getComputedStyle(controls).flexWrap).toBe('wrap');
+        expect(within(controls).getByRole('radiogroup', { name: 'View' })).toBeTruthy();
     });
 
     it('hides the chips and the dial while the frame is collapsed', () => {

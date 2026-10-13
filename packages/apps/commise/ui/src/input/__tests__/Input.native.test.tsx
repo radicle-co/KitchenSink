@@ -210,6 +210,35 @@ describe('FieldLabel → field focus (native)', () => {
     });
 });
 
+describe('TextArea (native) — a focus request', () => {
+    // A-008 / E2 (build spec §7.6: "The new step's field takes focus"): the editor asks the step it just added for focus.
+    it('takes focus when asked, and acknowledges once', () => {
+        const onHandled = vi.fn();
+        render(
+            <>
+                <FieldLabel forId="step" label="Step 2" />
+                <TextArea
+                    id="step"
+                    value=""
+                    onChangeText={vi.fn()}
+                    minRows={2}
+                    focusRequested
+                    onFocusRequestHandled={onHandled}
+                />
+            </>,
+        );
+
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Step 2' }));
+        expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not take focus unasked', () => {
+        render(<TextArea id="step" value="" onChangeText={vi.fn()} minRows={2} />);
+
+        expect(document.activeElement).toBe(document.body);
+    });
+});
+
 describe('TextArea (native)', () => {
     /**
      * Type into the field with the content standing at `height`. react-native-web measures a multi-line field's content

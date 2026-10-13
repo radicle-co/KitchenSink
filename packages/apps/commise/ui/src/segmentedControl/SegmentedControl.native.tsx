@@ -8,13 +8,19 @@
  * @pattern Visitor — the `form` discriminated union picks the roles; the look is shared
  */
 import type { FC } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName } from '../icon/props.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SegmentedControlProps } from './props.js';
+
+/** Where an `adaptive` route control stops filling the row and takes its content's width, in dp (`containerThreshold.regular`). */
+const ADAPTIVE_FROM = 600;
+
+/** A content-width route segment's floor, in dp: two place names must not squeeze (W-25). */
+const CONTENT_SEGMENT_MIN = 136;
 
 /** The track's height: 44 pt on iOS, 48 dp on Android (spec §1.6). */
 const trackHeight = (): number => (Platform.OS === 'android' ? 48 : 44);
@@ -37,7 +43,11 @@ const ROLES = {
 /** The native design-system segmented control. */
 export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
     const { colors } = useTheme();
+    const windowWidth = useWindowDimensions().width;
     const roles = ROLES[props.form];
+    // Only a ROUTE control chooses its width (a view switch is sized by its glyphs on web and fills a row here).
+    const routeWidth = props.form === 'route' ? (props.width ?? 'share') : 'share';
+    const compactTrack = routeWidth === 'content' || (routeWidth === 'adaptive' && windowWidth >= ADAPTIVE_FROM);
     const faces: readonly SegmentFace[] =
         props.form === 'route'
             ? props.segments.map((segment) => ({
@@ -59,7 +69,11 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
             collapsable={false}
             role={roles.track}
             aria-label={props.label}
-            style={[styles.track, { minHeight: trackHeight(), backgroundColor: colors.surfaceMuted }]}
+            style={[
+                styles.track,
+                compactTrack ? styles.trackContent : null,
+                { minHeight: trackHeight(), backgroundColor: colors.surfaceMuted },
+            ]}
         >
             {faces.map((face) => (
                 <Pressable
@@ -72,6 +86,7 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     onPress={face.onPress}
                     style={[
                         styles.segment,
+                        compactTrack ? styles.segmentContent : null,
                         face.selected ? [styles.selected, { backgroundColor: colors.paper }] : null,
                     ]}
                 >
@@ -97,6 +112,8 @@ const styles = StyleSheet.create({
         padding: nativeTokens.spacing[1],
         borderRadius: 999,
     },
+    trackContent: { alignSelf: 'flex-start' },
+    segmentContent: { flexGrow: 0, flexBasis: 'auto', minWidth: CONTENT_SEGMENT_MIN },
     segment: {
         flexGrow: 1,
         flexShrink: 1,

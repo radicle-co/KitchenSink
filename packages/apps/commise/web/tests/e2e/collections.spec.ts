@@ -545,3 +545,27 @@ test.describe('collections (T109)', () => {
         await expect(page.getByRole('button', { name: 'Load more' })).toHaveCount(0);
     });
 });
+
+test.describe('collections list — W-11: the card says how many recipes it holds', () => {
+    test('names the card "{name}, {count}, {visibility}" and shows the count', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            tier: 'premium',
+            recipes: [
+                makeRecipeDetail({ id: 'ec000000-0000-4000-8000-000000000081', ownerId: viewerId, title: 'Soup' }),
+            ],
+            collections: [
+                {
+                    ...makeCollection({ id: 'col_dinners', ownerId: viewerId, name: 'Weeknight Dinners' }),
+                    recipeIds: ['ec000000-0000-4000-8000-000000000081'],
+                },
+            ],
+        });
+
+        await page.goto(route('/collections'));
+
+        await expect(page.getByRole('article', { name: 'Weeknight Dinners, 1 recipe, Private' })).toBeVisible();
+    });
+});

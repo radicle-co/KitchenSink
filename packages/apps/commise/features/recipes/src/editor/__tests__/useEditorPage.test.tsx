@@ -7,13 +7,14 @@
 import { LocaleProvider } from '@commise/i18n/react';
 import { ScrollHost } from '@commise/ui/scroll-host';
 import { focusManager } from '@tanstack/react-query';
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeEditorResult } from '../../__fixtures__/editorResult.js';
 import type { ReportedTrigger } from '../../hooks/useRecipeEditor.js';
-import { EDITOR_SECTIONS } from '../sections.js';
+import type { RecipeFormErrors } from '../../form/validate.js';
+import { EDITOR_SECTIONS, firstSectionWithErrors } from '../sections.js';
 import { useEditorPage } from '../useEditorPage.js';
 
 /** Each section's top in the document; the page is long enough for every one to reach the line. */
@@ -150,5 +151,100 @@ describe('useEditorPage — the app going to the background', () => {
         const checkpoint = renderPage();
 
         expect(checkpoint).not.toHaveBeenCalledWith('appHidden');
+    });
+});
+
+/**
+ * E7 (build spec §7.8, WCAG 3.3.1): "Focus moves to the first invalid field, scrolled under the chrome." A refused
+ * Publish took the cook to the section's HEADING; the field the error is about now takes focus, under the real web
+ * `ScrollHost`, which finds it by id.
+ */
+describe('useEditorPage — a refused Publish focuses the first invalid field (E7)', () => {
+    /** An editor whose Publish is refused with `errors`. */
+    function refusing(errors: RecipeFormErrors) {
+        const refused = {
+            kind: 'refused',
+            errors,
+            section: firstSectionWithErrors(errors),
+        } as const;
+
+        return makeEditorResult({ publish: () => refused });
+    }
+
+    /** Render the page; the returned `press` is the primary (Publish), pressed. */
+    function renderRefused(errors: RecipeFormErrors, over: { readonly onRefused?: () => void } = {}): () => void {
+        const Probe = (): ReactElement => {
+            const page = useEditorPage({
+                editor: refusing(errors),
+                mode: 'create',
+                keep: 'tabSession',
+                guided: false,
+                pendingEntryText: '',
+                sections: { details: null, ingredients: null, steps: null, photos: null },
+                onClose: () => undefined,
+                onPreview: () => undefined,
+                onOpenMyRecipes: () => undefined,
+                ...(over.onRefused === undefined ? {} : { onRefused: over.onRefused }),
+            });
+
+            return (
+                <button type="button" onClick={page.finish}>
+                    Publish
+                </button>
+            );
+        };
+
+        render(
+            <LocaleProvider locale="en">
+                <ScrollHost sections={EDITOR_SECTIONS}>
+                    {EDITOR_SECTIONS.map((id) => (
+                        <section key={id} id={id} tabIndex={-1}>
+                            {id === 'details' ? <input id="recipe-title" aria-label="Title" /> : null}
+                            {id === 'ingredients' ? <input id="recipe-ingredient-add" aria-label="Add" /> : null}
+                        </section>
+                    ))}
+                    <Probe />
+                </ScrollHost>
+            </LocaleProvider>,
+        );
+
+        for (const node of document.querySelectorAll('section, input')) {
+            (node as HTMLElement).scrollIntoView = vi.fn();
+        }
+
+        return () => fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+    }
+
+    it('moves focus to the title field, not the Details heading, when the title is refused', () => {
+        const finish = renderRefused({ title: 'titleRequired' });
+
+        act(() => finish());
+
+        expect(document.activeElement?.id).toBe('recipe-title');
+    });
+
+    it('moves focus to the add field when the list of ingredients is empty', () => {
+        const finish = renderRefused({ ingredients: 'ingredientsEmpty' });
+
+        act(() => finish());
+
+        expect(document.activeElement?.id).toBe('recipe-ingredient-add');
+    });
+
+    it('falls back to the section heading when the refused error has no single field', () => {
+        const finish = renderRefused({ servings: 'servingsPositive' });
+
+        act(() => finish());
+
+        expect(document.activeElement?.id).toBe('details');
+    });
+
+    it('still tells the host about the refusal, as the ingredients field`s own focus needs', () => {
+        const onRefused = vi.fn();
+        const finish = renderRefused({ title: 'titleRequired' }, { onRefused });
+
+        act(() => finish());
+
+        expect(onRefused).toHaveBeenCalledTimes(1);
     });
 });

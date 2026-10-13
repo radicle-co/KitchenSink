@@ -29,6 +29,10 @@ appId: io.commise.mobile
       timeout: 40000
 - assertNotVisible: 'Loading recipes'
 
+# A-018 / A-028: the sort control is NAMED "Sort: {choice}" (its visible label is the choice alone, with the chevron
+# after it), and it is on screen — the result bar wraps instead of pushing it off the edge at a large font scale.
+- assertVisible: 'Sort: Recently edited'
+
 # Populated ⇒ the pinned FAB is the create control and the first-run CTA is absent (L1: exactly one create
 # control per state). Asserted as a PAIR, because either one alone is satisfied by more than one state.
 - assertVisible: 'New recipe'
@@ -154,29 +158,14 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 
-# `Back` lives INSIDE the detail's ScrollView (RecipeDetailScreen), so after the walk above it is off the top
-# of the screen — scroll back UP to it rather than tapping blind (the idiom `visibility.yaml` uses for the
-# same reason).
-#
-# ⛔ ANCHORED ABOVE THE RECIPE TITLE, and without that anchor this scroll DOES NOTHING. A Maestro selector
-# matches the WHOLE string, and under three-button navigation Android's system bar publishes a node named
-# exactly `Back` (`com.android.systemui:id/back`) that is visible at ALL times. A bare
-# `scrollUntilVisible: element: 'Back'` is therefore already satisfied on entry: it returns immediately
-# without scrolling, and the `tapOn` that follows hits the SYSTEM button. The flow still goes back and still
-# passes — while having tested none of the app's own header. That is a silent pass, which is worse than a
-# red one.
-#
-# The title is the discriminator rather than a second text: the app's control sits ABOVE the recipe title
-# inside the ScrollView, while the system bar sits at the BOTTOM of the display and is above nothing.
+# The detail's Back is off the top of the screen after the walk above — scroll back UP to it rather than tapping
+# blind. It is NAMED FOR WHERE IT GOES ("Back to My recipes", this flow opened the recipe from the list), which is
+# unique: the Android system bar's node is named exactly `Back`, so this full-match selector can never reach it.
 - scrollUntilVisible:
       element:
-          text: 'Back'
-          above:
-              text: '${E2E_RECIPE_LAMB}'
+          text: 'Back to My recipes'
       direction: UP
       timeout: 20000
 - tapOn:
-      text: 'Back'
-      above:
-          text: '${E2E_RECIPE_LAMB}'
+      text: 'Back to My recipes'
 - assertVisible: 'Recipes'

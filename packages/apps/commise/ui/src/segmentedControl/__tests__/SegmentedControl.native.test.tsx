@@ -14,7 +14,22 @@ import { palette, role } from '../../tokens/colors.js';
  * an `ink` label, the others `inkMuted`.
  */
 
-afterEach(cleanup);
+/** The window width the next render sees (`useWindowDimensions`). */
+const windowWidth = vi.hoisted(() => ({ current: 390 }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: windowWidth.current }),
+    };
+});
+
+afterEach(() => {
+    cleanup();
+    windowWidth.current = 390;
+});
 
 function rgb(hex: string): string {
     const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
@@ -160,5 +175,50 @@ describe('SegmentedControl (native) — view', () => {
 
         expect(screen.getByRole('radio', { name: 'List view' })).toBeTruthy();
         expect(screen.queryByText('List view')).toBeNull();
+    });
+});
+
+describe('SegmentedControl (native) — route width (W-25)', () => {
+    const track = () => screen.getByRole('tablist', { name: 'Recipes' });
+    const tab = () => screen.getByRole('tab', { name: 'My recipes' });
+    const renderRoute = (width?: 'share' | 'content' | 'adaptive') =>
+        render(
+            <SegmentedControl
+                form="route"
+                label="Recipes"
+                segments={PLACES}
+                current="mine"
+                onSelect={vi.fn()}
+                {...(width === undefined ? {} : { width })}
+            />,
+        );
+
+    it('fills the row by default, as before', () => {
+        renderRoute();
+
+        expect(getComputedStyle(track()).alignSelf).not.toBe('flex-start');
+        expect(getComputedStyle(tab()).flexGrow).toBe('1');
+    });
+
+    it('takes its content’s width with width="content", each segment at least 136 dp', () => {
+        renderRoute('content');
+
+        expect(getComputedStyle(track()).alignSelf).toBe('flex-start');
+        expect(getComputedStyle(tab()).flexGrow).toBe('0');
+        expect(getComputedStyle(tab()).minWidth).toBe('136px');
+    });
+
+    it('fills the row on a phone and takes its content’s width from 600 dp, with width="adaptive"', () => {
+        windowWidth.current = 390;
+        const { unmount } = renderRoute('adaptive');
+
+        expect(getComputedStyle(tab()).flexGrow).toBe('1');
+        unmount();
+
+        windowWidth.current = 840;
+        renderRoute('adaptive');
+
+        expect(getComputedStyle(track()).alignSelf).toBe('flex-start');
+        expect(getComputedStyle(tab()).minWidth).toBe('136px');
     });
 });

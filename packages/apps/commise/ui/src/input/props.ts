@@ -40,6 +40,14 @@ interface FieldCommon {
     readonly autoCapitalize?: 'none' | 'sentences' | 'words';
     /** The field cannot be edited, for a rule the person's input did not cause. Dims to 40% (§1.10). */
     readonly disabled?: boolean;
+    /**
+     * A host asks the field to take focus (a field it has just shown, such as a group's name, or the step it has just
+     * added). A LEVEL, as `Button`'s: it stands until {@link onFocusRequestHandled} acknowledges it, so a field that
+     * mounts while it stands takes it.
+     */
+    readonly focusRequested?: boolean;
+    /** Called once the field has taken a requested focus; the host clears its request here. */
+    readonly onFocusRequestHandled?: () => void;
 }
 
 /** The cross-platform `Input` contract: a one-line text field. */
@@ -56,13 +64,6 @@ export interface InputProps extends FieldCommon {
     readonly onSubmit?: () => void;
     /** The most characters the field takes; typing stops there, so a too-long value is never entered. */
     readonly maxLength?: number;
-    /**
-     * A host asks the field to take focus (a field it has just shown, such as a group's name). A LEVEL, as `Button`'s:
-     * it stands until {@link onFocusRequestHandled} acknowledges it, so a field that mounts while it stands takes it.
-     */
-    readonly focusRequested?: boolean;
-    /** Called once the field has taken a requested focus; the host clears its request here. */
-    readonly onFocusRequestHandled?: () => void;
 }
 
 /** The cross-platform `TextArea` contract: a multi-line field that grows with its content. */

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { RecipeServiceClient, collectionQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
+import { signInPathFor } from '@/lib/signInReturn';
 import { AppShell } from '@/components/app/AppShell';
 import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
 import { CollectionListContainer } from '@/components/recipes/CollectionListContainer';
@@ -34,7 +35,7 @@ export default async function CollectionsPage({
     const { userId, getToken } = await auth();
 
     if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+        redirect(signInPathFor(locale, `/${locale}/collections`) as Route);
     }
 
     const queryClient = new QueryClient();

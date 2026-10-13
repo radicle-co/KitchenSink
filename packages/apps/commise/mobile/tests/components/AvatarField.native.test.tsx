@@ -3,7 +3,12 @@
  * It mirrors `RecipePhotoUploader`: a DS `Button` opens `expo-image-picker`, the picked asset's bytes are
  * read as a Blob, client-validated against the 5 MB / JPEG-PNG-WebP allowlist (the same limits the identity
  * presign enforces), uploaded via `useAvatarUpload`, and the durable public URL is handed back through
- * `onChange` for the profile PATCH to persist. `expo-image-picker`, `useAvatarUpload`, and the global
+ * `onChange` for the profile PATCH to persist.
+ *
+ * REWRITTEN for A-025: the field is the Profile header's ONE avatar — a 72 dp disc that is itself the change-photo
+ * control, with the cook's initials as the no-photo fallback (so the header and the photo cannot disagree). It no longer
+ * draws a "Profile photo" label or its own error line: a failed pick is REPORTED through `onError` and the page draws
+ * the single alert. `expo-image-picker`, `useAvatarUpload`, and the global
  * `fetch` (the local blob read) are mocked; the on-device picker + real S3 PUT are a Maestro concern.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,8 +40,6 @@ vi.mock('../../src/hooks/useAvatarUpload.js', () => ({ useAvatarUpload: vi.fn() 
 const { profile } = mobileMessages.en;
 
 const messages = {
-    label: profile.avatarLabel,
-    imageLabel: profile.avatarImageLabel,
     changeAction: profile.avatarChangeAction,
     uploadError: profile.avatarUploadError,
     tooLargeError: profile.avatarTooLargeError,
@@ -67,12 +70,59 @@ afterEach(() => {
 });
 
 describe('AvatarField', () => {
-    it('renders the labelled preview and the change-photo control', () => {
-        render(<AvatarField value="https://cdn/existing.jpg" onChange={vi.fn()} messages={messages} />);
+    it('is ONE 72 dp control named for what it does, with no label of its own', () => {
+        render(
+            <AvatarField
+                value="https://cdn/existing.jpg"
+                initials="EM"
+                onChange={vi.fn()}
+                onError={vi.fn()}
+                messages={messages}
+            />,
+        );
 
-        expect(screen.getByText(messages.label)).toBeTruthy();
-        expect(screen.getByLabelText(messages.imageLabel)).toBeTruthy();
-        expect(screen.getByRole('button', { name: messages.changeAction })).toBeTruthy();
+        const control = screen.getByRole('button', { name: messages.changeAction });
+
+        expect(window.getComputedStyle(control).width).toBe('72px');
+        expect(window.getComputedStyle(control).height).toBe('72px');
+        expect(screen.queryByText(profile.avatarLabel)).toBeNull();
+    });
+
+    it('shows the cook’s initials when there is no photo, and not when there is one', () => {
+        const { rerender } = render(
+            <AvatarField value="" initials="EM" onChange={vi.fn()} onError={vi.fn()} messages={messages} />,
+        );
+
+        expect(screen.getByText('EM')).toBeTruthy();
+
+        rerender(
+            <AvatarField
+                value="https://cdn/existing.jpg"
+                initials="EM"
+                onChange={vi.fn()}
+                onError={vi.fn()}
+                messages={messages}
+            />,
+        );
+
+        expect(screen.queryByText('EM')).toBeNull();
+    });
+
+    it('shows the user glyph, not an empty disc, with neither a photo nor initials', () => {
+        render(<AvatarField value="" initials="" onChange={vi.fn()} onError={vi.fn()} messages={messages} />);
+
+        const glyphs = (): (string | null)[] =>
+            Array.from(
+                screen.getByRole('button', { name: messages.changeAction }).querySelectorAll('[data-icon-name]'),
+            ).map((node) => node.getAttribute('data-icon-name'));
+
+        // The camera badge is always drawn; the user glyph fills an empty disc.
+        expect(glyphs()).toEqual(['user', 'camera']);
+        cleanup();
+
+        render(<AvatarField value="" initials="EM" onChange={vi.fn()} onError={vi.fn()} messages={messages} />);
+
+        expect(glyphs()).toEqual(['camera']);
     });
 
     it('picks an allowlisted image, uploads it, and reports the new URL through onChange', async () => {
@@ -80,7 +130,7 @@ describe('AvatarField', () => {
         fetchMock.mockResolvedValueOnce({ blob: async () => new Blob([new Uint8Array(1024)], { type: 'image/png' }) });
         uploadMock.mockResolvedValue('https://cdn/new-avatar.png');
 
-        render(<AvatarField value="" onChange={onChange} messages={messages} />);
+        render(<AvatarField value="" initials="EM" onChange={onChange} onError={vi.fn()} messages={messages} />);
         fireEvent.click(screen.getByRole('button', { name: messages.changeAction }));
 
         await waitFor(() => expect(onChange).toHaveBeenCalledWith('https://cdn/new-avatar.png'));
@@ -89,58 +139,87 @@ describe('AvatarField', () => {
         );
     });
 
-    it('rejects an oversized pick client-side — never uploads, shows the size error', async () => {
+    it('clears any earlier error as soon as a new pick starts', async () => {
+        const onError = vi.fn();
+        launchMock.mockResolvedValue({ canceled: true, assets: null } as never);
+
+        render(<AvatarField value="" initials="EM" onChange={vi.fn()} onError={onError} messages={messages} />);
+        fireEvent.click(screen.getByRole('button', { name: messages.changeAction }));
+
+        await waitFor(() => expect(launchMock).toHaveBeenCalledTimes(1));
+        expect(onError).toHaveBeenCalledWith(undefined);
+    });
+
+    it('rejects an oversized pick client-side — never uploads, reports the size error', async () => {
         const onChange = vi.fn();
+        const onError = vi.fn();
         fetchMock.mockResolvedValueOnce({
             blob: async () => new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: 'image/png' }),
         });
 
-        render(<AvatarField value="" onChange={onChange} messages={messages} />);
+        render(<AvatarField value="" initials="EM" onChange={onChange} onError={onError} messages={messages} />);
         fireEvent.click(screen.getByRole('button', { name: messages.changeAction }));
 
-        expect(await screen.findByText(messages.tooLargeError)).toBeTruthy();
+        await waitFor(() => expect(onError).toHaveBeenLastCalledWith(messages.tooLargeError));
         expect(uploadMock).not.toHaveBeenCalled();
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it('rejects a disallowed MIME type client-side — never uploads, shows the type error', async () => {
-        const onChange = vi.fn();
+    it('rejects a disallowed MIME type client-side — never uploads, reports the type error', async () => {
+        const onError = vi.fn();
         launchMock.mockResolvedValue({
             canceled: false,
             assets: [{ ...pickedAsset, mimeType: 'image/gif', fileName: 'clip.gif' }],
         } as never);
         fetchMock.mockResolvedValueOnce({ blob: async () => new Blob(['x'], { type: 'image/gif' }) });
 
-        render(<AvatarField value="" onChange={onChange} messages={messages} />);
+        render(<AvatarField value="" initials="EM" onChange={vi.fn()} onError={onError} messages={messages} />);
         fireEvent.click(screen.getByRole('button', { name: messages.changeAction }));
 
-        expect(await screen.findByText(messages.unsupportedTypeError)).toBeTruthy();
+        await waitFor(() => expect(onError).toHaveBeenLastCalledWith(messages.unsupportedTypeError));
         expect(uploadMock).not.toHaveBeenCalled();
     });
 
     it('does nothing when the pick is canceled', async () => {
         const onChange = vi.fn();
+        const onError = vi.fn();
         launchMock.mockResolvedValue({ canceled: true, assets: null } as never);
 
-        render(<AvatarField value="" onChange={onChange} messages={messages} />);
+        render(<AvatarField value="" initials="EM" onChange={onChange} onError={onError} messages={messages} />);
         fireEvent.click(screen.getByRole('button', { name: messages.changeAction }));
 
         await waitFor(() => expect(launchMock).toHaveBeenCalledTimes(1));
         expect(uploadMock).not.toHaveBeenCalled();
         expect(onChange).not.toHaveBeenCalled();
-        expect(screen.queryByText(messages.uploadError)).toBeNull();
+        expect(onError).not.toHaveBeenCalledWith(messages.uploadError);
     });
 
-    it('surfaces the upload error when the upload fails', async () => {
+    it('reports the upload error when the upload fails', async () => {
         const onChange = vi.fn();
+        const onError = vi.fn();
         fetchMock.mockResolvedValueOnce({ blob: async () => new Blob([new Uint8Array(1024)], { type: 'image/png' }) });
         uploadMock.mockRejectedValue(new Error('network'));
 
-        render(<AvatarField value="" onChange={onChange} messages={messages} />);
+        render(<AvatarField value="" initials="EM" onChange={onChange} onError={onError} messages={messages} />);
         fireEvent.click(screen.getByRole('button', { name: messages.changeAction }));
 
-        expect(await screen.findByText(messages.uploadError)).toBeTruthy();
+        await waitFor(() => expect(onError).toHaveBeenLastCalledWith(messages.uploadError));
         expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('cannot start a second pick while one is in flight, and says it is busy', async () => {
+        let release: (value: unknown) => void = () => undefined;
+        launchMock.mockReturnValue(new Promise((resolve) => (release = resolve)) as never);
+
+        render(<AvatarField value="" initials="EM" onChange={vi.fn()} onError={vi.fn()} messages={messages} />);
+        const control = screen.getByRole('button', { name: messages.changeAction });
+        fireEvent.click(control);
+        await waitFor(() => expect(control.getAttribute('aria-busy')).toBe('true'));
+        fireEvent.click(control);
+
+        expect(launchMock).toHaveBeenCalledTimes(1);
+        release({ canceled: true, assets: null });
+        await waitFor(() => expect(control.getAttribute('aria-busy')).toBe('false'));
     });
 });
 
@@ -148,22 +227,24 @@ describe.each([
     ['light', role],
     ['dark', roleDark],
 ] as const)('AvatarField — the %s theme reads colour from roles', (name, roles) => {
-    it('paints the label in ink, the empty photo in surfaceMuted, and the upload error in dangerText', async () => {
+    beforeEach(() => {
         systemScheme.current = name;
-        fetchMock.mockResolvedValueOnce({ blob: async () => new Blob([new Uint8Array(1024)], { type: 'image/png' }) });
-        uploadMock.mockRejectedValue(new Error('network'));
+    });
 
-        render(<AvatarField value="" onChange={vi.fn()} messages={messages} />);
+    it('paints the initials disc in action with onAction text', () => {
+        render(<AvatarField value="" initials="EM" onChange={vi.fn()} onError={vi.fn()} messages={messages} />);
 
-        expect(window.getComputedStyle(screen.getByText(messages.label)).color).toBe(rgb(roles.ink));
-        expect(window.getComputedStyle(screen.getByLabelText(messages.imageLabel)).backgroundColor).toBe(
-            rgb(roles.surfaceMuted),
-        );
+        expect(
+            window.getComputedStyle(screen.getByRole('button', { name: messages.changeAction })).backgroundColor,
+        ).toBe(rgb(roles.action));
+        expect(window.getComputedStyle(screen.getByText('EM')).color).toBe(rgb(roles.onAction));
+    });
 
-        fireEvent.click(screen.getByRole('button', { name: messages.changeAction }));
+    it('paints the empty disc in surfaceMuted', () => {
+        render(<AvatarField value="" initials="" onChange={vi.fn()} onError={vi.fn()} messages={messages} />);
 
-        expect(window.getComputedStyle(await screen.findByText(messages.uploadError)).color).toBe(
-            rgb(roles.dangerText),
-        );
+        expect(
+            window.getComputedStyle(screen.getByRole('button', { name: messages.changeAction })).backgroundColor,
+        ).toBe(rgb(roles.surfaceMuted));
     });
 });

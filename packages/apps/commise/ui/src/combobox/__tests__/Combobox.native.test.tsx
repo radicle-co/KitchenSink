@@ -62,6 +62,7 @@ const Host: FC<Partial<ComboboxProps> & { readonly initial?: string }> = ({ init
 
     return (
         <Combobox
+            id="add-ingredient"
             label="Add an ingredient"
             listLabel="Food suggestions"
             value={value}
@@ -98,6 +99,91 @@ describe('Combobox (native) — a leading glyph (`docs/design/rowEditorOpenDecis
 
         expect(wrapper?.getAttribute('aria-hidden')).toBe('true');
         expect(wrapper?.compareDocumentPosition(field()) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+});
+
+describe('Combobox (native) — a visible label, a visible hint and the house rectangle (A-007, E13; build spec §7.4)', () => {
+    it('draws the label above the field, and pressing it focuses the field, as a web label does', () => {
+        render(<Host />);
+        const label = screen.getByText('Add an ingredient');
+
+        expect(label.compareDocumentPosition(field()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        fireEvent.click(label);
+
+        expect(document.activeElement).toBe(field());
+    });
+
+    it('draws the hint as a visible caption under the label', () => {
+        render(<Host hint="Type the amount first, then pick the food." />);
+        const hint = screen.getByText('Type the amount first, then pick the food.');
+
+        expect(hint.id).toBe('add-ingredient-hint');
+        expect(hint.compareDocumentPosition(field()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('with the label hidden, draws neither the label nor the hint, and the name stays on the field', () => {
+        render(<Host labelVisibility="hidden" hint="Type to search foods." />);
+
+        expect(screen.queryByText('Add an ingredient')).toBeNull();
+        expect(screen.queryByText('Type to search foods.')).toBeNull();
+        expect(field().getAttribute('aria-label')).toBe('Add an ingredient');
+    });
+
+    it('is the house rectangle, not an underline: a 12 radius, a 1 px edge on every side, 48 tall', () => {
+        render(<Host />);
+        const style = getComputedStyle(field());
+
+        expect(style.borderTopLeftRadius).toBe('12px');
+        expect(style.borderTopWidth).toBe('1px');
+        expect(style.borderBottomWidth).toBe('1px');
+        expect(style.borderLeftWidth).toBe('1px');
+        expect(style.minHeight).toBe('48px');
+    });
+
+    it('marks an invalid field with the danger edge, as every house field does', () => {
+        const { rerender } = render(<Host />);
+        const rest = getComputedStyle(field()).borderTopColor;
+
+        rerender(<Host invalid />);
+
+        expect(getComputedStyle(field()).borderTopColor).not.toBe(rest);
+    });
+});
+
+describe('Combobox (native) — opening the list when the field takes focus (P3: a pick-list the cook can browse)', () => {
+    it('opens the list as the field takes focus, and chooses nothing', () => {
+        const onSelect = vi.fn();
+        render(<Host initial="f" openOnFocus onSelect={onSelect} />);
+
+        fireEvent.focus(field());
+
+        expect(field().getAttribute('aria-expanded')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Flaxseed' })).toBeTruthy();
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it('opens nothing on focus unless the host asks', () => {
+        render(<Host initial="f" />);
+
+        fireEvent.focus(field());
+
+        expect(field().getAttribute('aria-expanded')).toBe('false');
+    });
+});
+
+describe('Combobox (native) — a host’s action beside the field (build spec §7.5.4)', () => {
+    it('draws it in the field’s own row, after the field, not beside the label', () => {
+        render(
+            <Host
+                trailingAction={<Text accessibilityRole="button">Paste a list</Text>}
+                hint="Type the amount first."
+            />,
+        );
+        const action = screen.getByText('Paste a list');
+
+        expect(field().compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(screen.getByText('Add an ingredient').parentElement?.parentElement?.contains(action)).toBe(false);
     });
 });
 

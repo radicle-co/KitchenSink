@@ -348,6 +348,29 @@ describe('SearchDal.search', () => {
         expect(pageSql).toMatch(/fl\.food_id IN \(.*\) OR fl\.food_variant_id IN \(/su);
     });
 
+    it('A-017: every time bound also requires a STATED time, because 0 means unstated', async () => {
+        primeExecute(execute);
+
+        await dal.search(filters({ maxPrepTime: 15, maxCookTime: 20, maxTotalTime: 45 }));
+
+        const pageSql = sqlText(execute.mock.calls[0]![0]);
+
+        expect(pageSql).toContain('prep_time_minutes > 0 AND prep_time_minutes <=');
+        expect(pageSql).toContain('cook_time_minutes > 0 AND cook_time_minutes <=');
+        expect(pageSql).toContain('total_time_minutes > 0 AND total_time_minutes <=');
+    });
+
+    it('A-017: a search with no time bound does not exclude untimed recipes', async () => {
+        primeExecute(execute);
+
+        await dal.search(filters({}));
+
+        const pageSql = sqlText(execute.mock.calls[0]![0]);
+
+        expect(pageSql).not.toContain('total_time_minutes > 0');
+        expect(pageSql).not.toContain('prep_time_minutes > 0');
+    });
+
     it('omits the cook-time predicate when maxCookTime is absent (REQ-030f)', async () => {
         primeExecute(execute);
 
@@ -407,6 +430,31 @@ describe('SearchDal.search', () => {
         expect(facetSql).toContain("'total_time'");
         expect(facetSql).toContain('total_time_minutes <= 15');
         expect(facetSql).toContain("'61+'");
+    });
+
+    it('A-017: an untimed recipe (0) falls in NO total-time bucket', async () => {
+        primeExecute(execute);
+
+        await dal.search(filters({ query: 'pasta' }));
+
+        const facetSql = sqlText(execute.mock.calls[2]![0]);
+
+        expect(facetSql).toMatch(/WHEN total_time_minutes = 0 THEN NULL\s+WHEN total_time_minutes <= 15/u);
+    });
+
+    it('A-017: groupFacets drops the NULL bucket the untimed rows form', async () => {
+        primeExecute(execute, {
+            rows: [],
+            total: 0,
+            facets: [
+                makeRawFacetRow({ facet: 'total_time', value: null, count: 4 }),
+                makeRawFacetRow({ facet: 'total_time', value: '16-30', count: 2 }),
+            ],
+        });
+
+        const result = await dal.search(filters({ query: 'pasta' }));
+
+        expect(result.facets.totalTime).toEqual([{ value: '16-30', count: 2 }]);
     });
 
     it('returns mapped results with rank, grouped facets, and the unpaged total', async () => {
@@ -481,7 +529,8 @@ describe('SearchDal.search', () => {
 
         const pageSql = sqlText(execute.mock.calls[0]![0]);
 
-        expect(pageSql).toContain('total_time_minutes ASC');
+        // A-017: an untimed recipe (0) is the SLOWEST, not the quickest — it sorts after every stated time.
+        expect(pageSql).toContain('(total_time_minutes = 0) ASC, total_time_minutes ASC');
         expect(pageSql).toContain('created_at DESC'); // stable tiebreak
     });
 

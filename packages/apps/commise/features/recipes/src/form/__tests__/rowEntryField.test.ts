@@ -20,6 +20,7 @@ import {
 import type { CatalogFoodOption, EntrySearchView } from '../../hooks/foodSuggestions.model.js';
 import type { LineCommitTarget } from '../../hooks/lineCommit.js';
 import { recipeMessages } from '../../messages.js';
+import { ingredientNameFieldId } from '../fieldIds.js';
 import { seedLineKey } from '../lineKey.js';
 import { recipeFormMessages } from '../messages.js';
 import { rowEntryFieldOf, type RowEntryFieldCopy, type RowEntryFieldInput } from '../rowEntryField.js';
@@ -79,7 +80,10 @@ describe('rowEntryFieldOf', () => {
         const props = rowEntryFieldOf(input(), COPY);
 
         expect(props).toMatchObject({
+            id: ingredientNameFieldId(TARGET.key),
             label: 'Ingredient 3 name',
+            // The row names its own food in place, so the field's label is its name and is not drawn.
+            labelVisibility: 'hidden',
             listLabel: 'Food suggestions for ingredient 3',
             hint: form.ingredientNameEditableHint,
             value: 'kale',

@@ -355,6 +355,57 @@ describe('ActionMenu (web) — the overhaul contract', () => {
         expect(screen.queryByRole('separator')).toBeNull();
     });
 
+    // E20: a menu with only a destructive action (a recipe the cook may delete but has no other action on) opened with a
+    // divider above its one row. A divider separates two groups; with one group there is nothing to separate.
+    it('draws no divider above a destructive item that stands alone', async () => {
+        const user = userEvent.setup();
+        render(
+            <ActionMenu
+                triggerLabel="Actions for Saffron"
+                title="Saffron"
+                closeLabel="Close actions for Saffron"
+                items={[]}
+                destructiveItem={{ id: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }}
+            />,
+        );
+        await user.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+
+        expect(screen.queryByRole('separator')).toBeNull();
+        expect(screen.getByRole('menuitem', { name: 'Remove ingredient' })).toBeTruthy();
+    });
+
+    describe('appearance', () => {
+        const renderAppearance = (appearance?: 'plain' | 'disc') => {
+            render(
+                <ActionMenu
+                    triggerLabel="More actions for Lamb"
+                    title="Lamb"
+                    closeLabel="Close"
+                    items={[{ id: 'versions', label: 'Version history', onSelect: vi.fn() }]}
+                    {...(appearance === undefined ? {} : { appearance })}
+                />,
+            );
+
+            return screen.getByRole('button', { name: 'More actions for Lamb' });
+        };
+
+        it('is the plain ⋯ by default', () => {
+            const classes = renderAppearance().className.split(' ');
+
+            expect(classes).toContain('h-11');
+            expect(classes).not.toContain('bg-photo-chip');
+        });
+
+        it('is the hero disc over a photo when asked: a 44 px photoChip disc, still a menu button', () => {
+            const trigger = renderAppearance('disc');
+            const classes = trigger.className.split(' ');
+
+            expect(classes).toEqual(expect.arrayContaining(['size-11', 'rounded-full', 'bg-photo-chip']));
+            expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
+            expect(trigger.getAttribute('aria-expanded')).toBe('false');
+        });
+    });
+
     it('runs the destructive item the host renders now, once the menu has gone', async () => {
         const user = userEvent.setup();
         const opened = vi.fn();

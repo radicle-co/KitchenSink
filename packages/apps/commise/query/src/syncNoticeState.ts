@@ -15,7 +15,27 @@ import type { SyncNoticeState } from '@commise/ui/sync-notice';
 /** The queue facts the notice reads. */
 export interface SyncFacts {
     readonly offline: boolean;
+    /** Every record in the outbox, a parked one included. */
     readonly pendingCount: number;
+    /** How many of those are parked: a conflict or a refusal that waits for the cook. They are not in flight. */
+    readonly parkedCount: number;
+    /**
+     * The device was offline and its queue has not drained since ({@link recoveringOf}). "Back online" is only true
+     * then: a write in flight on a connection that never dropped is not a reconnection.
+     */
+    readonly wasOffline: boolean;
+}
+
+/**
+ * Whether the device is recovering from an offline spell: set while offline, and kept after reconnecting until the
+ * writes that waited have gone. Pure.
+ *
+ * @param was - Whether it was recovering a moment ago.
+ * @param now - Whether it is offline now, and how many writes are really going out (parked ones excluded).
+ * @returns Whether it is recovering now.
+ */
+export function recoveringOf(was: boolean, now: { readonly offline: boolean; readonly unsynced: number }): boolean {
+    return now.offline || (was && now.unsynced > 0);
 }
 
 /** The strings the notice needs, resolved by the app from its own dictionary. */
@@ -37,12 +57,14 @@ function withCount(template: string, count: number): string {
 /**
  * Decide what the notice shows.
  *
- * @param facts - Connectivity and how many writes are queued.
+ * @param facts - Connectivity, how many writes are queued and parked, and whether the device is recovering.
  * @param copy - The app's localized strings.
  * @returns The notice state. Pure.
  */
 export function syncNoticeState(facts: SyncFacts, copy: SyncNoticeCopy): SyncNoticeState {
     if (facts.offline) {
+        // Every record is still on the device and unsent, a parked one included: the owner's bar is to say what has not
+        // synced. Only "syncing" excludes a parked record, for that one is not going out.
         if (facts.pendingCount === 0) {
             return { kind: 'offline', title: copy.offlineTitle, body: copy.offlineBodyNone };
         }
@@ -52,10 +74,13 @@ export function syncNoticeState(facts: SyncFacts, copy: SyncNoticeCopy): SyncNot
         return { kind: 'offline', title: copy.offlineTitle, body: withCount(body, facts.pendingCount) };
     }
 
-    if (facts.pendingCount > 0) {
-        const body = facts.pendingCount === 1 ? copy.syncingBodyOne : copy.syncingBodyOther;
+    // A parked record is the cook's to decide on, so it is not syncing.
+    const unsynced = Math.max(0, facts.pendingCount - facts.parkedCount);
 
-        return { kind: 'syncing', title: copy.syncingTitle, body: withCount(body, facts.pendingCount) };
+    if (facts.wasOffline && unsynced > 0) {
+        const body = unsynced === 1 ? copy.syncingBodyOne : copy.syncingBodyOther;
+
+        return { kind: 'syncing', title: copy.syncingTitle, body: withCount(body, unsynced) };
     }
 
     return { kind: 'hidden' };

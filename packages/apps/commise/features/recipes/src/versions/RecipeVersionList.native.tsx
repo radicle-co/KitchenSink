@@ -22,7 +22,7 @@ import {
     type RecipeVersionListProps,
     changeSummaryForVersion,
     formatChangedFieldNames,
-    formatVersionAttribution,
+    hasEarlierVersions,
     restoreErrorMessage,
     sortVersionsDescending,
 } from './history.js';
@@ -93,7 +93,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                     <Text style={[styles.meta, { color: colors.ink }]}>{restoreErrorText}</Text>
                 </View>
             )}
-            {versions.length === 0 ? (
+            {!hasEarlierVersions(versions, currentVersion) ? (
                 <View style={styles.empty}>
                     <Icon name="clock" size={48} tone="inkMuted" />
                     <Text style={[styles.emptyTitle, { color: colors.ink }]}>{versionList.empty}</Text>
@@ -103,7 +103,6 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                 <View>
                     {sortVersionsDescending(versions).map((version) => {
                         const isCurrent = version.versionNumber === currentVersion;
-                        const attribution = formatVersionAttribution(version.editorHandle, versionList);
                         const { hasPrior, changedFields } = changeSummaryForVersion(versions, version);
 
                         return (
@@ -127,12 +126,6 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                                 })}
                                             </Text>
                                         )
-                                    )}
-                                    {attribution !== undefined && (
-                                        <Text style={[styles.meta, muted]}>{attribution}</Text>
-                                    )}
-                                    {version.changeSummary !== undefined && version.changeSummary.length > 0 && (
-                                        <Text style={[styles.meta, muted]}>{version.changeSummary}</Text>
                                     )}
                                     {restoringVersion === version.versionNumber && (
                                         <Text accessibilityLiveRegion="polite" style={[styles.meta, muted]}>

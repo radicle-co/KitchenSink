@@ -251,13 +251,16 @@ describe('RecipesService.clone', () => {
         );
     });
 
-    it('records attribution to the original author when the source is a user_created original (no attribution)', async () => {
+    it('W-03: never synthesizes an attribution from the source owner id for a user_created original', async () => {
         const { dal, create } = fakeDal(sourceAggregate({ sourceType: 'user_created', sourceAttribution: null }));
 
         await service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined);
 
         const input = create.mock.calls[0]?.[0] as { sourceAttribution?: string };
-        expect(input.sourceAttribution).toContain(SOURCE_OWNER);
+        // Provenance is `clonedFromId`; a stored "Cloned from <user id>" leaked a raw id onto Discover and survived
+        // the original author's erasure.
+        expect(input.sourceAttribution).toBeUndefined();
+        expect(JSON.stringify(create.mock.calls[0]?.[0])).not.toContain('Cloned from');
     });
 
     it('defaults a user_created / imported_public clone to public visibility', async () => {

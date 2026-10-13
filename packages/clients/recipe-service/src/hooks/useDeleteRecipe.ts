@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { recipeServiceKeys } from '../queries.js';
+import { forgetSavedCopy } from './useCloneRecipe.js';
 import { useRecipeServiceClient } from './recipeServiceProvider.js';
 
 /**
@@ -27,8 +28,10 @@ export function useDeleteRecipe() {
 
     return useMutation({
         mutationFn: (id: string) => client.deleteRecipe(id),
-        onSuccess: () => {
+        onSuccess: (_data, id) => {
             invalidateEditedRecipeRows(queryClient);
+            // A deleted copy is no longer a saved one: its source's card must offer Save a copy again (A-022).
+            forgetSavedCopy(queryClient, id);
         },
     });
 }

@@ -120,6 +120,8 @@ export const RecipeInstructionsFields: FC<RecipeEditorSectionProps> = ({ values,
                                     autoCapitalize="sentences"
                                     invalid={invalid}
                                     {...(invalid ? { describedBy: stepsErrorId } : {})}
+                                    focusRequested={list.fieldFocus(index).requested}
+                                    onFocusRequestHandled={list.fieldFocus(index).onHandled}
                                     onChangeText={(instruction) =>
                                         onChange(
                                             applyDraftAction(values, {

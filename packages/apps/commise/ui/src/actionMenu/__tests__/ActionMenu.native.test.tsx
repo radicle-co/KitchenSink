@@ -309,6 +309,55 @@ describe('ActionMenu (native) — the overhaul contract', () => {
         expect(getComputedStyle(screen.getByText('Try again')).color).toBe(formatRgb(role.ink));
     });
 
+    // E20: a menu with only a destructive action opened with a divider above its one row.
+    it('draws no divider above a destructive item that stands alone', () => {
+        render(
+            <ActionMenu
+                triggerLabel="Actions for Saffron"
+                title="Saffron"
+                closeLabel="Close actions for Saffron"
+                items={[]}
+                destructiveItem={{ id: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }}
+            />,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+
+        expect(screen.queryByRole('separator')).toBeNull();
+        expect(screen.getByRole('menuitem', { name: 'Remove ingredient' })).toBeTruthy();
+    });
+
+    describe('appearance', () => {
+        const renderAppearance = (appearance?: 'plain' | 'disc') => {
+            render(
+                <ActionMenu
+                    triggerLabel="More actions for Lamb"
+                    title="Lamb"
+                    closeLabel="Close"
+                    items={[{ id: 'versions', label: 'Version history', onSelect: vi.fn() }]}
+                    {...(appearance === undefined ? {} : { appearance })}
+                />,
+            );
+
+            return screen.getByRole('button', { name: 'More actions for Lamb' });
+        };
+
+        it('is the plain ⋯ by default: no photo disc behind it', () => {
+            expect(getComputedStyle(renderAppearance()).backgroundColor).not.toBe(formatRgb(role.photoChip));
+        });
+
+        it('is the hero disc over a photo when asked: a 44 pt photoChip disc that still opens the sheet', () => {
+            const trigger = renderAppearance('disc');
+
+            expect(getComputedStyle(trigger).backgroundColor).toBe(formatRgb(role.photoChip));
+            expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+            fireEvent.click(trigger);
+
+            expect(screen.getByRole('menuitem', { name: 'Version history' })).toBeTruthy();
+            expect(trigger.getAttribute('aria-expanded')).toBe('true');
+        });
+    });
+
     it('runs the destructive item the host renders now, once the sheet is gone', () => {
         const opened = vi.fn();
         const current = vi.fn();

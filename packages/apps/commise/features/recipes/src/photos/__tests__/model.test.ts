@@ -8,7 +8,14 @@ import { describe, expect, it } from 'vitest';
 import { MAX_RECIPE_PHOTOS as CORE_MAX_RECIPE_PHOTOS } from '@kitchensink/recipe-core';
 
 import { makePhoto, makeQueueItem } from '../../__fixtures__/index.js';
-import { admitPhotoBatch, isAtPhotoCap, isCoverPhoto, MAX_RECIPE_PHOTOS, remainingPhotoSlots } from '../model.js';
+import {
+    admitPhotoBatch,
+    isAtPhotoCap,
+    isCoverPhoto,
+    MAX_RECIPE_PHOTOS,
+    photoGridColumns,
+    remainingPhotoSlots,
+} from '../model.js';
 
 describe('MAX_RECIPE_PHOTOS (single source of truth)', () => {
     it('is the SAME constant recipe-core exports — not a locally hand-restated value', () => {
@@ -96,5 +103,23 @@ describe('admitPhotoBatch — a batch is admitted WHOLE or refused whole, never 
 
     it('accepts an empty batch, which asks for nothing', () => {
         expect(admitPhotoBatch(0, 0)).toEqual({ status: 'accepted' });
+    });
+});
+
+/**
+ * A-010 (buildSpec §7.7): "3 columns below 600, 4 above" — of the grid's own measured width. The boundary is the
+ * point of the test: 600 itself is four-up ("from 600"), 599 is not.
+ */
+describe('photoGridColumns', () => {
+    it('is three below 600 and four from 600', () => {
+        expect(photoGridColumns(320)).toBe(3);
+        expect(photoGridColumns(599)).toBe(3);
+        expect(photoGridColumns(600)).toBe(4);
+        expect(photoGridColumns(1200)).toBe(4);
+    });
+
+    it('holds the narrow reading until the grid has been measured', () => {
+        expect(photoGridColumns(undefined)).toBe(3);
+        expect(photoGridColumns(0)).toBe(3);
     });
 });

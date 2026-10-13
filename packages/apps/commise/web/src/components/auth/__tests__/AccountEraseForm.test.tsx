@@ -339,11 +339,13 @@ describe('AccountEraseForm (web) — the ACCOUNT-erasure leg has its own busy an
         await user_typePhrase();
 
         expect(screen.getByText('Erasing…')).toBeTruthy();
-        // …and the destructive control cannot be fired a second time while it is.
+        // …and the destructive control cannot be fired a second time while it is. REWRITTEN for W-24: the dialog's confirm
+        // is the design system's `Button` now, and a busy `Button` stays FOCUSABLE (`aria-disabled` + `aria-busy`, its click
+        // cancelled) rather than natively `disabled`, so focus is not dropped from the control just pressed (SC 2.4.3).
         const confirm = within(screen.getByRole('dialog')).getByRole<HTMLButtonElement>('button', {
             name: 'Erase my data',
         });
-        expect(confirm.disabled).toBe(true);
+        expect(confirm.getAttribute('aria-disabled')).toBe('true');
         expect(confirm.getAttribute('aria-busy')).toBe('true');
     });
 

@@ -11,12 +11,10 @@ export const sectionHeading = 'font-display text-heading-md font-semibold text-i
  * The input chrome with NO width and NO text colour: the base for a field that states either itself. It IS the
  * design-system field surface (`@commise/ui/input`, spec §1.11), so a recipe field and an `Input` cannot drift apart.
  *
- * ⛔ Never layer a `w-*` (or a `text-*` colour) on {@link field}. Both land in the class attribute, and the stylesheet's
+ * ⛔ Never layer a `w-*` (or a `text-*` colour) on a field built from this string. Both land in the class attribute, and the stylesheet's
  * EMISSION order decides, not the order written: `.w-full` is emitted after `.w-24`/`.w-28`/`.w-40`/`.w-48`, so it won
  * on every sized row field (V1 sign-off W-1; the same class as the invisible difficulty chip). Build sized fields from
  * this string instead.
  */
 export const fieldChrome = FIELD_CLASS;
-/** A full-width charcoal field: the default input. */
-export const field = `w-full ${fieldChrome} text-ink`;
 export const errorText = 'text-body-sm text-danger-text';

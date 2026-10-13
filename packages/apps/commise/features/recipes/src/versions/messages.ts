@@ -36,8 +36,6 @@ export interface RecipeVersionListMessages {
     readonly restoreUnrestorableErrorOne: string;
     /** The same refusal for two or more lines (contains `{count}`). */
     readonly restoreUnrestorableErrorMany: string;
-    /** Editor attribution template (contains `{handle}`); rendered ONLY when `editorHandle` is present. */
-    readonly byEditor: string;
     /** Changed-fields summary template (contains `{fields}`, a localized comma-joined field-name list). */
     readonly changedFields: string;
     /** Label shown on the earliest version in the list (which has no prior version to diff against). */
@@ -251,6 +249,8 @@ export interface RecipeVersionPreviewMessages {
     readonly titleLoading: string;
     /** Ingredients section heading template (contains `{version}`). */
     readonly ingredientsHeading: string;
+    /** Steps section heading template (contains `{version}`); absent for a version that had no steps (D12). */
+    readonly stepsHeading: string;
     /** Per-line calorie chip template (contains `{calories}`); rendered ONLY when the snapshot ingredient
      *  carries a `userCalories` override — never fabricated for a catalog-resolved line. */
     readonly caloriesLabel: string;
@@ -334,7 +334,6 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
                 'This version can’t be restored: one of its ingredients no longer exists, and this version didn’t save its name. Nothing was changed. Preview the version to see which one.',
             restoreUnrestorableErrorMany:
                 'This version can’t be restored: {count} of its ingredients no longer exist, and this version didn’t save their names. Nothing was changed. Preview the version to see which ones.',
-            byEditor: 'by @{handle}',
             changedFields: 'Changed: {fields}',
             initialVersion: 'Initial version',
             preview: 'Preview',
@@ -356,7 +355,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             serverBanner: 'Server version (v{version}): Saved {time}',
             mineBanner: 'Your version: local unsaved changes',
             serverCardHeading: 'Server version (v{version})',
-            yourCardHeading: 'Your version (v{version})',
+            yourCardHeading: 'Edited from v{version}',
             yourCardHeadingUnknown: 'Your version',
             versionCardSavedLabel: 'Saved: {time}',
             draftHeading: 'This draft changed somewhere else',
@@ -422,6 +421,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             title: 'Version {version} Preview: {title}',
             titleLoading: 'Version preview',
             ingredientsHeading: 'Ingredients at v{version}',
+            stepsHeading: 'Steps at v{version}',
             caloriesLabel: '{calories} cal',
             changedFromCurrent: 'Changed from current: {ingredients}, {steps}',
             loading: 'Loading version preview…',

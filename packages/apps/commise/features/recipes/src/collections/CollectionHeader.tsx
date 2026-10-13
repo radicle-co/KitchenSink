@@ -16,7 +16,7 @@
  * @pattern Composite — the title, meta, description and actions of one collection
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { ActionMenu } from '@commise/ui/action-menu';
+import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
@@ -27,12 +27,20 @@ import type { FC, ReactNode } from 'react';
 import { formatRecipeCount } from '../list/model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type { CollectionHeaderProps } from './detailModel.js';
+import { recipeMessages } from '../messages.js';
 import { collectionMessages } from './messages.js';
 import { formatCollectionDate } from './model.js';
 
-/** One meta item: an unbreakable group, with the locale's separator drawn before every item after the first. */
+/**
+ * One meta item: an unbreakable group that draws the locale's separator in its OWN start padding. The line is pulled one
+ * padding to the start inside a clipping box ({@link META_LINE}), so the item that begins a line — the first, or one a
+ * wrap moved down — has its separator outside what shows, and no line starts with a dot (W-07).
+ */
 const META_ITEM =
-    'inline-flex items-center gap-1 whitespace-nowrap not-first:before:me-2 not-first:before:text-ink-muted not-first:before:content-["·"]';
+    'relative inline-flex items-center gap-1 whitespace-nowrap ps-3 before:absolute before:start-0 before:text-ink-muted before:content-[attr(data-sep)]';
+
+/** The meta line: wrapping groups, pulled one {@link META_ITEM} padding to the start. Its parent clips the overhang. */
+const META_LINE = '-ms-3 flex flex-wrap items-center gap-y-1 text-meta text-ink-muted';
 
 export const CollectionHeader: FC<CollectionHeaderProps> = ({
     name,
@@ -58,6 +66,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
     onDelete,
 }) => {
     const { detail, list, menu: copy, header } = useMessages(collectionMessages);
+    const { card } = useMessages(recipeMessages);
     const locale = useLocale();
     const isPublic = visibility === RecipeVisibility.PUBLIC;
     const isCopy = sourceCollectionName !== undefined || sourceCollectionId !== undefined;
@@ -76,27 +85,36 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
             {detail.addRecipeCta}
         </Button>
     );
+    const pullItem: ActionMenuItem = {
+        id: 'pull',
+        label: copy.pullUpdates,
+        icon: 'refreshCw',
+        onSelect: onPullUpdates,
+    };
+    const items: readonly ActionMenuItem[] = [
+        { id: 'rename', label: copy.rename, icon: 'pencilLine', onSelect: onRename },
+        {
+            id: 'visibility',
+            label: isPublic ? copy.makePrivate : copy.makePublic,
+            // The glyph names the visibility the item MOVES TO, as the meta line's names the one it has.
+            icon: isPublic ? 'lock' : 'globe',
+            onSelect: onToggleVisibility,
+        },
+        { id: 'saveCopy', label: copy.saveCopy, icon: 'copyPlus', onSelect: onSaveCopy },
+        ...(isCopy ? [pullItem] : []),
+    ];
     const menu = (
         <ActionMenu
             triggerLabel={fillTemplate(copy.moreActions, { name })}
             title={name}
             closeLabel={copy.close}
-            items={[
-                { id: 'rename', label: copy.rename, onSelect: onRename },
-                {
-                    id: 'visibility',
-                    label: isPublic ? copy.makePrivate : copy.makePublic,
-                    onSelect: onToggleVisibility,
-                },
-                { id: 'saveCopy', label: copy.saveCopy, onSelect: onSaveCopy },
-                ...(isCopy ? [{ id: 'pull', label: copy.pullUpdates, onSelect: onPullUpdates }] : []),
-            ]}
-            destructiveItem={{ id: 'delete', label: copy.delete, onSelect: onDelete }}
+            items={items}
+            destructiveItem={{ id: 'delete', label: copy.delete, icon: 'trash', onSelect: onDelete }}
         />
     );
 
     const metaItem = (key: string, children: ReactNode): ReactNode => (
-        <span key={key} className={META_ITEM}>
+        <span key={key} data-sep={card.separator.trim()} className={META_ITEM}>
             {children}
         </span>
     );
@@ -115,39 +133,41 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
                 }}
                 {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add, menu } } : {})}
             />
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-ink-muted">
-                {metaItem(
-                    'visibility',
-                    <>
-                        <Icon name={isPublic ? 'globe' : 'lock'} size={16} />
-                        {isPublic ? detail.visibilityPublic : detail.visibilityPrivate}
-                    </>,
-                )}
-                {metaItem(
-                    'count',
-                    formatRecipeCount(
-                        recipeCount,
-                        { one: detail.recipeCountOne, other: detail.recipeCountOther },
-                        locale,
-                    ),
-                )}
-                {isCopy
-                    ? metaItem(
-                          'source',
-                          onViewSource !== undefined && sourceCollectionId !== undefined ? (
-                              <button
-                                  type="button"
-                                  onClick={() => onViewSource(sourceCollectionId)}
-                                  className="rounded-sm text-action-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                              >
-                                  {copiedFrom}
-                              </button>
-                          ) : (
-                              copiedFrom
-                          ),
-                      )
-                    : null}
-            </p>
+            <div className="overflow-hidden">
+                <p className={META_LINE}>
+                    {metaItem(
+                        'visibility',
+                        <>
+                            <Icon name={isPublic ? 'globe' : 'lock'} size={16} />
+                            {isPublic ? detail.visibilityPublic : detail.visibilityPrivate}
+                        </>,
+                    )}
+                    {metaItem(
+                        'count',
+                        formatRecipeCount(
+                            recipeCount,
+                            { one: detail.recipeCountOne, other: detail.recipeCountOther },
+                            locale,
+                        ),
+                    )}
+                    {isCopy
+                        ? metaItem(
+                              'source',
+                              onViewSource !== undefined && sourceCollectionId !== undefined ? (
+                                  <button
+                                      type="button"
+                                      onClick={() => onViewSource(sourceCollectionId)}
+                                      className="rounded-sm text-action-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                  >
+                                      {copiedFrom}
+                                  </button>
+                              ) : (
+                                  copiedFrom
+                              ),
+                          )
+                        : null}
+                </p>
+            </div>
             {lastPulledAt === undefined ? null : (
                 <p className="text-caption text-ink-muted">
                     {fillTemplate(header.lastPulled, { date: formatCollectionDate(lastPulledAt, locale) })}

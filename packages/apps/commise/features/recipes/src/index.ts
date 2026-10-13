@@ -125,6 +125,7 @@ export type {
     RecipeListTabControl,
 } from './list/model.js';
 export { RecipeDetailView } from './detail/RecipeDetailView.js';
+export { RecipeDetailSkeleton } from './detail/RecipeDetailSkeleton.js';
 export { RecipeSourceLine } from './detail/RecipeSourceLine.js';
 export { ServingScaleControl } from './detail/ServingScaleControl.js';
 export { formatQuantity, isUnreachableRecovery } from './detail/model.js';
@@ -203,6 +204,9 @@ export type {
 export type { RecipeFormErrors } from './form/validate.js';
 export type { RecipeFormIngredient, RecipeFormPhoto, RecipeFormStep, RecipeFormValues } from './form/values.js';
 export { RecipeDeleteDialog } from './actions/RecipeDeleteDialog.js';
+export { RecipeUpsellSheet } from './actions/RecipeUpsellSheet.js';
+export { usePrivateChoice } from './actions/usePrivateChoice.js';
+export type { PrivateChoiceProfile } from './actions/usePrivateChoice.js';
 export { recipeActionMessages } from './actions/messages.js';
 export type {
     RecipeActionMessages,
@@ -210,9 +214,11 @@ export type {
     RecipeMoreMenuMessages,
     RecipeVisibilityToggleMessages,
 } from './actions/messages.js';
-export type { RecipeDeleteDialogProps } from './actions/model.js';
+export type { RecipeDeleteDialogProps, RecipeUpsellSheetProps } from './actions/model.js';
 export { RecipeConflictView } from './versions/RecipeConflictView.js';
 export { RecipeVersionList } from './versions/RecipeVersionList.js';
+export { RecipeVersionListError } from './versions/RecipeVersionListError.js';
+export { RecipeVersionListSkeleton } from './versions/RecipeVersionListSkeleton.js';
 export { VersionCompareView } from './versions/VersionCompareView.js';
 export { VersionPreviewModal } from './versions/VersionPreviewModal.js';
 export { compareRowsOf, compareWithCurrent } from './versions/compare.js';
@@ -445,6 +451,8 @@ export { useDraftAnswers } from './editor/useDraftAnswers.js';
 // What a device keeps for one cook ends with their session, on both apps (ADR-0057, ADR-0054).
 export { endDeviceSession, useDeviceSessionScope } from './session/deviceSession.js';
 export { editorMessages } from './editor/messages.js';
+export { FINISHED_OUTCOME_PARAM, finishedNoticeOf, parseFinishedOutcome } from './editor/finishedOutcome.js';
+export type { FinishedOutcome } from './editor/finishedOutcome.js';
 export type { GateOutcome } from './editor/gate.js';
 export { RecipePreviewSheet } from './editor/RecipePreviewSheet.js';
 export type { RecipePreviewSheetProps } from './editor/previewSheetProps.js';

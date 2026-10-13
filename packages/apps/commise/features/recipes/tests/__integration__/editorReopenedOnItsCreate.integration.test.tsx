@@ -110,12 +110,19 @@ function twoEditors(held: boolean) {
             }),
         );
 
-    /** The first editor: titled, then left by Back, its exit checkpoint queuing the create. Returns its ref. */
+    /**
+     * The first editor: titled, then left by Back, its exit checkpoint queuing the create. Returns its ref.
+     *
+     * The cook pauses first, so the idle device save runs and mints the ref into the address (`?draft=local:X`), which
+     * is what Forward or a reload reopens. A ref minted only AT the exit never reaches the address on purpose (E3: that
+     * replaceState would discard the navigation away), so there would be no second editor to test.
+     */
     const leaveFirst = async (): Promise<string> => {
         const first = mountEditor({});
         act(() => {
             first.result.current.setField('title', 'Soup');
         });
+        await waitFor(() => expect(refs).toHaveLength(1), { timeout: 3_000 });
         act(() => {
             first.result.current.checkpoint('editorExit');
         });

@@ -96,6 +96,7 @@ export function narrowLibrary<T extends LibraryRecipe>(
  * @param searchValue - The raw search-field value.
  * @param activeFacets - The pressed chips.
  * @param quickLabel - The localized label of the quick bucket.
+ * @param locale - The viewer's locale, whose case rules set the chips' labels.
  * @returns One facet per chip, in the order {@link availableFacetsOf} gives.
  */
 export function libraryFacetsOf(
@@ -103,6 +104,7 @@ export function libraryFacetsOf(
     searchValue: string,
     activeFacets: readonly string[],
     quickLabel: string,
+    locale: string,
 ): readonly LibraryFacet[] {
     const term = searchValue.trim().toLowerCase();
     const searched = recipes.filter((recipe) => matchesTerm(recipe, term));
@@ -113,7 +115,12 @@ export function libraryFacetsOf(
             (recipe) => matchesListFacet(recipe, value) && others.every((facet) => matchesListFacet(recipe, facet)),
         ).length;
 
-        return { value, label: filterChipLabel(value, quickLabel), count, selected: activeFacets.includes(value) };
+        return {
+            value,
+            label: filterChipLabel(value, quickLabel, locale),
+            count,
+            selected: activeFacets.includes(value),
+        };
     });
 }
 

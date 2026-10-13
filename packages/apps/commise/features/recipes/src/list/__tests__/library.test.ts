@@ -67,6 +67,25 @@ describe('availableFacetsOf', () => {
     });
 });
 
+describe('availableFacetsOf — A-017: a recipe with no stated time is not a quick one', () => {
+    it('offers no quick bucket for a library whose only recipes are untimed', () => {
+        const untimed = [makeRecipe({ id: 'u', cuisine: undefined, dietaryFlags: [], totalTimeMinutes: 0 })];
+
+        expect(availableFacetsOf(untimed)).toEqual([]);
+    });
+
+    it('counts only the timed recipes under 30 minutes in the quick chip', () => {
+        const mixed = [
+            makeRecipe({ id: 'u', title: 'Untimed', cuisine: undefined, dietaryFlags: [], totalTimeMinutes: 0 }),
+            makeRecipe({ id: 'q', title: 'Quick', cuisine: undefined, dietaryFlags: [], totalTimeMinutes: 20 }),
+        ];
+        const quick = libraryFacetsOf(mixed, '', [], 'Under 30 min', 'en').find((f) => f.value === QUICK_TIME_FACET);
+
+        expect(quick?.count).toBe(1);
+        expect(narrowLibrary(mixed, '', [QUICK_TIME_FACET]).map((r) => r.id)).toEqual(['q']);
+    });
+});
+
 describe('narrowLibrary', () => {
     it('matches the title case-insensitively, trimming the term', () => {
         expect(narrowLibrary(library, '  LAMB ', []).map((r) => r.id)).toEqual(['a', 'c']);
@@ -82,20 +101,27 @@ describe('narrowLibrary', () => {
 });
 
 describe('libraryFacetsOf — counts over the whole library', () => {
+    // W-10: the VALUE stays raw (the filter matches it literally); only the label is sentence case.
+    it('labels a lower-case dietary flag in sentence case and keeps its value raw for matching', () => {
+        const facet = libraryFacetsOf(library, '', [], list.filterQuick, 'en').find((f) => f.value === 'dairy-free');
+
+        expect(facet).toMatchObject({ value: 'dairy-free', label: 'Dairy-free' });
+    });
+
     it('counts each facet as the rows it would leave, beside the search and the other chips', () => {
-        const facets = libraryFacetsOf(library, '', ['Moroccan'], list.filterQuick);
+        const facets = libraryFacetsOf(library, '', ['Moroccan'], list.filterQuick, 'en');
 
         expect(facets).toEqual([
             { value: QUICK_TIME_FACET, label: 'Under 30 min', count: 1, selected: false },
-            { value: 'dairy-free', label: 'dairy-free', count: 1, selected: false },
-            { value: 'gluten-free', label: 'gluten-free', count: 1, selected: false },
+            { value: 'dairy-free', label: 'Dairy-free', count: 1, selected: false },
+            { value: 'gluten-free', label: 'Gluten-free', count: 1, selected: false },
             { value: 'Italian', label: 'Italian', count: 0, selected: false },
             { value: 'Moroccan', label: 'Moroccan', count: 2, selected: true },
         ]);
     });
 
     it('narrows the counts by the search term too', () => {
-        const facets = libraryFacetsOf(library, 'salad', [], list.filterQuick);
+        const facets = libraryFacetsOf(library, 'salad', [], list.filterQuick, 'en');
 
         expect(facets.find((facet) => facet.value === 'gluten-free')?.count).toBe(1);
         expect(facets.find((facet) => facet.value === 'Moroccan')?.count).toBe(0);
@@ -110,7 +136,7 @@ describe('libraryFacetsOf — counts over the whole library', () => {
             makeRecipe({ id: 'late2', cuisine: 'Peruvian' }),
         ];
 
-        expect(libraryFacetsOf(big, '', [], list.filterQuick).find((f) => f.value === 'Peruvian')?.count).toBe(2);
+        expect(libraryFacetsOf(big, '', [], list.filterQuick, 'en').find((f) => f.value === 'Peruvian')?.count).toBe(2);
     });
 });
 

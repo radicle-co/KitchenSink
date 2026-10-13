@@ -87,28 +87,16 @@ appId: io.commise.mobile
           - assertNotVisible: 'Recent recipes'
 
           # Back must land on HOME, not on a dead end: the detail was pushed onto the Home tab's own stack
-          # (slice 3, ADR-0056), so Back pops it there. `Back` lives INSIDE the detail's own ScrollView, so the walk above
-          # left it off the TOP of the screen — scroll back up to it rather than tapping blind (the idiom
-          # `recipes/listDetail.yaml` uses after the same walk).
-          #
-          # ⛔ ANCHORED ABOVE THE RECIPE TITLE. Unanchored, this scroll is a no-op and the tap lands on the
-          # OPERATING SYSTEM: a Maestro selector matches the WHOLE string, and under three-button navigation
-          # Android's system bar publishes a node named exactly `Back` that is visible at all times, so
-          # `scrollUntilVisible` is satisfied on entry without moving. The flow would still reach the list and
-          # still pass, having exercised none of the app's header — see `recipes/listDetail.yaml`, which
-          # carries the same anchor for the same reason. The app's control is above the title; the system bar
-          # is at the bottom of the display and is above nothing.
+          # (slice 3, ADR-0056), so Back pops it there. The detail's Back is off the top after the walk above, so scroll up
+          # to it. It is NAMED FOR WHERE IT GOES ("Back to Home": the parent is Home), which is unique — the Android
+          # system bar's node is named exactly `Back`, and a selector matches the whole string.
           - scrollUntilVisible:
                 element:
-                    text: 'Back'
-                    above:
-                        text: '${E2E_RECIPE_LAMB}'
+                    text: 'Back to Home'
                 direction: UP
                 timeout: 20000
           - tapOn:
-                text: 'Back'
-                above:
-                    text: '${E2E_RECIPE_LAMB}'
+                text: 'Back to Home'
           - scrollUntilVisible:
                 element: 'Recent recipes'
                 direction: UP

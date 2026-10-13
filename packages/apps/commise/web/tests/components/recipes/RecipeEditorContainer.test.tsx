@@ -43,7 +43,15 @@ vi.mock('@/hooks/useUserProfile', () => ({
     }),
 }));
 // The photo uploader is its own container, covered by its own suite.
-vi.mock('@/components/recipes/RecipePhotoUploaderContainer', () => ({ RecipePhotoUploaderContainer: () => null }));
+// The spy records the props the editor hands it, so the empty-state cover test below can read them.
+const uploader = vi.hoisted(() => ({ props: vi.fn() }));
+vi.mock('@/components/recipes/RecipePhotoUploaderContainer', () => ({
+    RecipePhotoUploaderContainer: (props: object) => {
+        uploader.props(props);
+
+        return null;
+    },
+}));
 
 afterEach(() => {
     cleanup();
@@ -95,6 +103,26 @@ describe('RecipeEditorContainer (web)', () => {
         expect(screen.getByDisplayValue('Stored Stew')).toBeTruthy();
     });
 
+    /**
+     * A-010 / buildSpec §7.7: the photos empty state previews the recipe's own generated cover, which is made from its
+     * TITLE and CUISINE. The editor must hand the uploader both, from the draft, or the preview is a blank tint.
+     */
+    it('hands the photo uploader the draft’s title and cuisine, for the empty-state cover', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ id: 'rec_1', title: 'Stored Stew', cuisine: 'French' }),
+        );
+
+        renderEditor(client, 'rec_1');
+        await screen.findByDisplayValue('Stored Stew');
+
+        await waitFor(() =>
+            expect(uploader.props).toHaveBeenCalledWith(
+                expect.objectContaining({ recipeId: 'rec_1', title: 'Stored Stew', cuisine: 'French' }),
+            ),
+        );
+    });
+
     // Build spec §7.2 and §7.5.6: the rail's foot shows the Ingredients total too (the rail itself shows from @wide).
     it('the section index’s rail foot carries the running total, the same line as the section’s foot', async () => {
         renderEditor(createFakeRecipeServiceClient());
@@ -137,7 +165,8 @@ describe('RecipeEditorContainer (web)', () => {
             await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
         });
 
-        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
+        // E8: the recipe page tells the cook how the editor finished, through a one-shot parameter it clears.
+        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1?done=firstPublish'));
         expect(update).toHaveBeenCalledTimes(1);
         expect(update.mock.calls[0]?.[1]).toMatchObject({ status: 'published', expectedVersion: 2 });
     });
@@ -147,6 +176,27 @@ describe('RecipeEditorContainer (web)', () => {
      * A new recipe has no read to compare against: comparing against the read dropped a private choice on the floor
      * whenever the server stored the recipe public (a create at the draft floor, before the cook chose private).
      */
+    it('Save changes on a published recipe opens it with the parameter that says so', async () => {
+        const client = createFakeRecipeServiceClient();
+        const stored = makeRecipeDetail({
+            id: 'rec_1',
+            title: 'Stored Stew',
+            status: RecipeStatus.PUBLISHED,
+            currentVersion: 2,
+        });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(stored);
+        vi.spyOn(client, 'updateRecipe').mockResolvedValue({ ...stored, currentVersion: 3 } as RecipeDetail);
+
+        renderEditor(client, 'rec_1');
+        const title = await screen.findByDisplayValue('Stored Stew');
+        await userEvent.type(title, ' Deluxe');
+        await act(async () => {
+            await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        });
+
+        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1?done=changesSaved'));
+    });
+
     it('a new recipe published private, that the server holds public, is made private', async () => {
         profile.tier = 'premium';
         const ref = 'local:recipe:visibility';
@@ -194,7 +244,7 @@ describe('RecipeEditorContainer (web)', () => {
             await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
         });
 
-        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_new'));
+        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_new?done=firstPublish'));
         await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_new', RecipeVisibility.PRIVATE));
     });
 
@@ -218,6 +268,59 @@ describe('RecipeEditorContainer (web)', () => {
  * under the edit address, where typing made a second recipe. The URL now stays on the new route, `?draft=` naming the
  * local ref and then the server id; the new route, reopened on a recipe the server holds, goes to its edit route.
  */
+/**
+ * E1 (build spec §6.4, §7.7 item 2): choosing Private did nothing for a free-tier cook, because no host passed
+ * `onPremiumRequired` and no recipe upsell existed. It opens the Premium sheet now; a Premium cook gets Private; and a
+ * profile that is still loading is not the free tier (§6.4 F8).
+ */
+describe('RecipeEditorContainer (web) — Private (E1)', () => {
+    const choosePrivate = async (): Promise<void> => {
+        await userEvent.click(await screen.findByRole('radio', { name: /^Private/u }));
+    };
+
+    it('⛔ tells a free-tier cook why: the Premium sheet opens, and Public stays chosen', async () => {
+        profile.tier = 'free';
+        renderEditor(createFakeRecipeServiceClient());
+
+        await choosePrivate();
+
+        expect(await screen.findByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
+        // The page behind the open sheet is hidden from the accessibility tree.
+        expect((screen.getByRole('radio', { name: /^Public/u, hidden: true }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('Not now closes the sheet and leaves the recipe public', async () => {
+        profile.tier = 'free';
+        renderEditor(createFakeRecipeServiceClient());
+        await choosePrivate();
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Not now' }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: /Premium/u })).toBeNull());
+        expect((screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('lets a Premium cook choose Private, with no sheet', async () => {
+        profile.tier = 'premium';
+        renderEditor(createFakeRecipeServiceClient());
+
+        await choosePrivate();
+
+        expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+        expect(screen.queryByRole('dialog', { name: /Premium/u })).toBeNull();
+    });
+
+    it('⛔ never sends a loading profile to the upsell: no sheet until it settles', async () => {
+        profile.tier = undefined;
+        renderEditor(createFakeRecipeServiceClient());
+
+        await choosePrivate();
+
+        expect(screen.queryByRole('dialog', { name: /Premium/u })).toBeNull();
+        expect((screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement).checked).toBe(true);
+    });
+});
+
 /**
  * Clerk multi-session: the signed-in cook changes from A to B with the editor open (finding 3 of the 2026-10-10 review).
  * The scope ends A's session (`useDeviceSessionScope`), but a container that was not keyed by the cook kept the editor
@@ -381,6 +484,38 @@ describe('RecipeEditorContainer (web) — the URL after the first save', () => {
         });
 
         expect(window.location.pathname + window.location.search).toBe('/en/recipes');
+    });
+
+    /**
+     * E3: × runs the exit checkpoint and THEN pushes. The create the checkpoint sent answers before the push commits, so
+     * the URL is still the new route's and the guard above lets the replaceState through; Next turns it into a restore
+     * that discards the push, and the editor stays. The address bar stops following the recipe once the cook has left.
+     */
+    it('⛔ × then the create`s answer: the URL is not rewritten under the pending navigation', async () => {
+        window.history.replaceState(null, '', '/en/recipes/new');
+        const replaceState = vi.spyOn(window.history, 'replaceState');
+        const client = createFakeRecipeServiceClient();
+        let answer: (detail: RecipeDetail) => void = () => undefined;
+        vi.spyOn(client, 'createRecipe').mockReturnValue(
+            new Promise<RecipeDetail>((resolve) => {
+                answer = resolve;
+            }),
+        );
+
+        renderEditor(client);
+        await userEvent.type(await screen.findByRole('textbox', { name: /title/iu }), 'Soup');
+        await userEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+        await waitFor(() => expect(client.createRecipe).toHaveBeenCalled());
+        // What the focus change on the way out minted is before the leave; only the answer is under test.
+        replaceState.mockClear();
+
+        await act(async () => {
+            answer(makeRecipeDetail({ id: SERVER_ID, title: 'Soup', status: RecipeStatus.DRAFT }));
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        expect(pushMock).toHaveBeenCalledWith('/en/recipes');
+        expect(replaceState).not.toHaveBeenCalled();
     });
 
     it('a ?draft= that names neither a local ref nor a recipe id opens a blank new recipe', async () => {

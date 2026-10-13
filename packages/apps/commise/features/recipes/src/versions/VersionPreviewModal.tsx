@@ -43,7 +43,12 @@ import { recipeMessages } from '../messages.js';
 import { recipeVersionMessages } from './messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { previewRestoreErrorMessage, unrestorablePositionsFor } from './history.js';
-import { type VersionPreviewModalProps, formatChangedFromCurrent, toVersionPreviewIngredientLines } from './preview.js';
+import {
+    type VersionPreviewModalProps,
+    formatChangedFromCurrent,
+    toVersionPreviewIngredientLines,
+    toVersionPreviewSteps,
+} from './preview.js';
 
 export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     open,
@@ -181,6 +186,24 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                     ))}
                                 </ul>
                             </div>
+
+                            {version.snapshot.steps.length > 0 && (
+                                <div className="flex flex-col gap-2">
+                                    <h3 className="font-display text-body-md font-semibold text-ink">
+                                        {fillTemplate(preview.stepsHeading, { version: version.versionNumber })}
+                                    </h3>
+                                    <ol className="flex flex-col gap-2 rounded-2xl bg-surface-muted p-3">
+                                        {toVersionPreviewSteps(version.snapshot.steps).map((step) => (
+                                            <li key={step.key} className="flex gap-2 text-body-sm text-ink">
+                                                <span className="shrink-0 tabular-nums text-ink-muted">
+                                                    {step.marker}
+                                                </span>
+                                                <span className="min-w-0 break-words">{step.text}</span>
+                                            </li>
+                                        ))}
+                                    </ol>
+                                </div>
+                            )}
 
                             {diffFromCurrent !== undefined && (
                                 <p className="text-body-sm italic text-ink-muted">

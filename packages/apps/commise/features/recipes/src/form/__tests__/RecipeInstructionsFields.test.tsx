@@ -8,8 +8,8 @@
  * Moved here from `recipeFieldGroups.test.tsx`, whose instructions blocks pinned the wizard-era row (a one-line input, a
  * visible timer on every row, an inline Remove button).
  *
- * ⚠️ NOT pinned: "the new step's field takes focus" (§7.6). The design-system `TextArea` takes no focus request, so the
- * leaf cannot move focus to it without a ref the register does not admit; see the slice report.
+ * "The new step's field takes focus" (§7.6) is pinned in "adding steps": the design-system `TextArea` takes a focus
+ * request, and `useStepList.add` raises it for the step it appends.
  */
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -354,6 +354,42 @@ describe('RecipeInstructionsFields (web) — adding steps', () => {
         expect(stepBox(4).value).toBe('');
     });
 
+    // A-008 / E2 (build spec §7.6: "The new step's field takes focus"). Ctrl+Enter goes through the same `add`.
+    it('"Add step" moves focus to the NEW step’s field, so typing goes there and adds no more steps', async () => {
+        const user = userEvent.setup();
+        const { onChange } = renderLive();
+
+        await user.click(screen.getByRole('button', { name: e.steps.add }));
+        await waitFor(() => {
+            expect(document.activeElement).toBe(stepBox(4));
+        });
+        await user.keyboard('Fold it in');
+
+        expect(instructions()).toEqual([...THREE.map((step) => step.instruction), 'Fold it in']);
+        expect(lastValues(onChange).steps).toHaveLength(4);
+    });
+
+    it('Ctrl+Enter in a step focuses the step it adds', async () => {
+        renderLive();
+
+        fireEvent.keyDown(stepBox(1), { key: 'Enter', ctrlKey: true });
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(stepBox(4));
+        });
+    });
+
+    it('adding the first step to an empty list focuses it', async () => {
+        const user = userEvent.setup();
+        renderLive({ initial: withSteps([]) });
+
+        await user.click(screen.getByRole('button', { name: e.steps.add }));
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(stepBox(1));
+        });
+    });
+
     it.each([
         ['Ctrl', { ctrlKey: true }],
         ['Cmd', { metaKey: true }],
@@ -416,16 +452,32 @@ describe('RecipeInstructionsFields (web) — empty and refused', () => {
 });
 
 describe('RecipeInstructionsFields (web) — the blur checkpoint', () => {
+    // Rewritten for A-008: Add step now moves focus into the new step's field, so ending the test on Add step would end
+    // it with a field focused. A different button keeps the case it was written for: a field's blur reports, a button's does not.
     it('calls onFieldBlur when a step field loses focus, not when a button does', async () => {
         const user = userEvent.setup();
         const onFieldBlur = vi.fn();
         renderLive({ onFieldBlur });
 
         await user.click(stepBox(1));
-        await user.click(screen.getByRole('button', { name: e.steps.add }));
+        await user.click(screen.getAllByRole('button', { name: e.steps.addTimer })[0] ?? document.body);
         expect(onFieldBlur).toHaveBeenCalledTimes(1);
 
         await user.click(document.body);
+        expect(onFieldBlur).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports the blur of the field Add step focused, as it does any field', async () => {
+        const user = userEvent.setup();
+        const onFieldBlur = vi.fn();
+        renderLive({ onFieldBlur });
+
+        await user.click(screen.getByRole('button', { name: e.steps.add }));
+        await waitFor(() => {
+            expect(document.activeElement).toBe(stepBox(4));
+        });
+        await user.click(document.body);
+
         expect(onFieldBlur).toHaveBeenCalledTimes(1);
     });
 });

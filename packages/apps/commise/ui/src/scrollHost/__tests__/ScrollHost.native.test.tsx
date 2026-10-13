@@ -294,6 +294,14 @@ describe('ScrollHost (native)', () => {
         expect(scrollView.scrollTo).toHaveBeenCalledTimes(1);
     });
 
+    // E7: native fields are not addressable by id (a field holds no registry entry), so the host answers that it found
+    // none and the section's heading, which the jump already focuses, takes the cook.
+    it('finds no field by id: the caller falls back to the section heading', () => {
+        const { api } = renderHost(['details']);
+
+        expect(api().scrollToField('recipe-title')).toBe(false);
+    });
+
     it('throws when read outside a host: a floating button with no scroller is a wiring defect', () => {
         const Orphan = (): null => {
             useScrollHost();

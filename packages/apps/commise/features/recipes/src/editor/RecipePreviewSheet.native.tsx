@@ -1,7 +1,8 @@
 /**
  * @module @commise/features-recipes/editor — the native editor's Preview (build spec §7.7 item 4): the real detail page
- * of the draft, full screen, under the banner "Preview. This is how it looks to others." Android Back and the close
- * control leave it. It is the detail page itself (`RecipeDetailView`), so what the cook previews is what others see.
+ * of the draft, full screen, under the banner "Preview. This is how it looks to others.", a tinted block as on web.
+ * Android Back and the close control leave it. It is the detail page itself (`RecipeDetailView`), so what the cook
+ * previews is what others see.
  *
  * Its own `ScrollHost` over its own scroller: the detail page's section switch must not reach the editor's.
  *
@@ -35,7 +36,9 @@ export const RecipePreviewSheet: FC<RecipePreviewSheetProps> = ({ open, recipe, 
     return (
         <FullScreenSheet label={m.preview} onRequestClose={onClose}>
             <View style={styles.bar}>
-                <Text style={[styles.banner, { color: colors.ink }]}>{m.previewBanner}</Text>
+                <View style={[styles.banner, { backgroundColor: colors.surfaceMuted }]}>
+                    <Text style={[styles.bannerText, { color: colors.ink }]}>{m.previewBanner}</Text>
+                </View>
                 <Button variant="ghost" icon="x" onPress={onClose}>
                     {m.previewClose}
                 </Button>
@@ -53,6 +56,13 @@ export const RecipePreviewSheet: FC<RecipePreviewSheetProps> = ({ open, recipe, 
 
 const styles = StyleSheet.create({
     bar: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    banner: { ...nativeTokens.type.meta, flex: 1 },
+    // The web banner's box (`RecipePreviewSheet.tsx`: `rounded-md bg-surface-muted px-4 py-3`).
+    banner: {
+        flex: 1,
+        borderRadius: nativeTokens.radius.md,
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingVertical: nativeTokens.spacing[3],
+    },
+    bannerText: { ...nativeTokens.type.meta },
     scroll: { flex: 1 },
 });

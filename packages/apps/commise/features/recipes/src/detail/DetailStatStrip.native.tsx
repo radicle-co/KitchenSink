@@ -2,7 +2,8 @@
 
 /**
  * @module @commise/features-recipes — the native recipe page's stat strip: one cell per figure, two to a row below a
- * 360 pt strip. Draws nothing when the recipe has no figure to show.
+ * 360 pt strip (counted in text, so a large font gets it sooner). Draws nothing when the recipe has no figure to show.
+ * With two to a row and an odd count, the last cell spans the row rather than leaving a hole beside it (D8).
  *
  * Presentational: props → JSX.
  */
@@ -23,6 +24,18 @@ export interface DetailStatStripProps {
     readonly statsPerRow: DetailNativeLayout['statsPerRow'];
 }
 
+/**
+ * How much of the row one cell takes. Four to a row share it equally (one row of up to four); two to a row take half
+ * each, except the last of an odd count, which takes the row. Pure.
+ */
+const basisOf = (index: number, count: number, statsPerRow: DetailNativeLayout['statsPerRow']): `${number}%` => {
+    if (statsPerRow === 4) {
+        return `${100 / count}%`;
+    }
+
+    return count % 2 === 1 && index === count - 1 ? '100%' : '50%';
+};
+
 /** The native stat strip. */
 export const DetailStatStrip: FC<DetailStatStripProps> = ({ stats, statsPerRow }) => {
     const { colors } = useTheme();
@@ -33,11 +46,8 @@ export const DetailStatStrip: FC<DetailStatStripProps> = ({ stats, statsPerRow }
 
     return (
         <View style={[styles.statStrip, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
-            {stats.map((cell) => (
-                <View
-                    key={cell.id}
-                    style={[styles.statCell, { flexBasis: statsPerRow === 2 ? '50%' : `${100 / stats.length}%` }]}
-                >
+            {stats.map((cell, index) => (
+                <View key={cell.id} style={[styles.statCell, { flexBasis: basisOf(index, stats.length, statsPerRow) }]}>
                     {cell.id === 'difficulty' ? (
                         <DifficultyBadge level={cell.level}>{cell.value}</DifficultyBadge>
                     ) : (

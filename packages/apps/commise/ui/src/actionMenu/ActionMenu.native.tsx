@@ -20,6 +20,7 @@
 import { useState, type FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { HeroButton } from '../heroButton/HeroButton.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
@@ -62,6 +63,7 @@ export const ActionMenu: FC<ActionMenuProps> = ({
     destructiveItem,
     focusRequested = false,
     onFocusRequestHandled,
+    appearance = 'plain',
     unavailable = false,
 }) => {
     const [open, setOpen] = useState(false);
@@ -96,29 +98,44 @@ export const ActionMenu: FC<ActionMenuProps> = ({
         setOpen(false);
     };
 
+    const openMenu = (): void => {
+        if (heldKey !== undefined) {
+            return;
+        }
+
+        setShown({ items, destructiveItem });
+        setOpen(true);
+    };
+
     return (
         <>
-            <Pressable
-                ref={triggerFocus}
-                accessibilityRole="button"
-                accessibilityLabel={triggerLabel}
-                aria-expanded={open}
-                // `accessibilityState.disabled` on device; a disabled Pressable keeps the screen-reader cursor.
-                disabled={unavailable}
-                onPress={() => {
-                    if (heldKey !== undefined) {
-                        return;
-                    }
-
-                    setShown({ items, destructiveItem });
-                    setOpen(true);
-                }}
-                style={({ pressed }) => [styles.trigger, pressed && { backgroundColor: wash }]}
-            >
+            {appearance === 'disc' ? (
                 <View style={unavailable ? styles.unavailable : null}>
-                    <Icon name="ellipsis" size={24} />
+                    <HeroButton
+                        ref={triggerFocus}
+                        icon="ellipsis"
+                        label={triggerLabel}
+                        expanded={open}
+                        disabled={unavailable}
+                        onPress={openMenu}
+                    />
                 </View>
-            </Pressable>
+            ) : (
+                <Pressable
+                    ref={triggerFocus}
+                    accessibilityRole="button"
+                    accessibilityLabel={triggerLabel}
+                    aria-expanded={open}
+                    // `accessibilityState.disabled` on device; a disabled Pressable keeps the screen-reader cursor.
+                    disabled={unavailable}
+                    onPress={openMenu}
+                    style={({ pressed }) => [styles.trigger, pressed && { backgroundColor: wash }]}
+                >
+                    <View style={unavailable ? styles.unavailable : null}>
+                        <Icon name="ellipsis" size={24} />
+                    </View>
+                </Pressable>
+            )}
             <Sheet
                 open={open}
                 onOpenChange={setOpen}
@@ -133,11 +150,14 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                     ))}
                     {shown.destructiveItem === undefined ? null : (
                         <>
-                            <View
-                                collapsable={false}
-                                role="separator"
-                                style={[styles.divider, { backgroundColor: colors.lineDivider }]}
-                            />
+                            {/* A divider separates two groups; a destructive action with no group above it has none. */}
+                            {shown.items.length === 0 ? null : (
+                                <View
+                                    collapsable={false}
+                                    role="separator"
+                                    style={[styles.divider, { backgroundColor: colors.lineDivider }]}
+                                />
+                            )}
                             <MenuItem item={shown.destructiveItem} tone="dangerText" onChoose={choose} />
                         </>
                     )}

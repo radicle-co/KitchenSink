@@ -150,6 +150,17 @@ export interface RecipeVersionListProps {
 }
 
 /**
+ * Whether the history holds anything but the current version (D12). A recipe saved once has ONE version, the current
+ * one: the page then says "No earlier versions yet" rather than listing a history of one. Pure.
+ *
+ * @param versions - The recipe's versions.
+ * @param currentVersion - The recipe's current version number.
+ * @returns `true` when at least one version is not the current one.
+ */
+export const hasEarlierVersions = (versions: readonly RecipeVersion[], currentVersion: number): boolean =>
+    versions.some((version) => version.versionNumber !== currentVersion);
+
+/**
  * Order a recipe's versions newest-first (descending `versionNumber`). Returns a NEW array — the input is
  * never mutated. Pure.
  *
@@ -230,26 +241,3 @@ export const formatChangedFieldNames = (
     fields: readonly SnapshotFieldKey[],
     messages: RecipeConflictMessages,
 ): string => fields.map((field) => snapshotFieldLabel(field, messages)).join(', ');
-
-// ─── Row-level editor/device attribution (W6 Task 2) ────────────────────────────────────────────────
-
-/**
- * Render a version row's editor attribution line — `by @{handle}`. `undefined` when `editorHandle` is
- * ABSENT (a pre-feature version, or one whose editor could not be resolved) — the caller renders no
- * attribution line at all, never `by @undefined`. `editorHandle` is untrusted free text: this returns a
- * plain string for the caller to render as TEXT (React escapes it) — NEVER via `dangerouslySetInnerHTML`.
- * Pure.
- *
- * ⚠️ No device label and no ` (from {device})` suffix: the owner ruling of **2026-08-26** removed device
- * attribution outright. Do not reintroduce a device parameter here (see the `recipeVersions` table
- * docstring in `recipe-service`).
- *
- * @param editorHandle - The version's editor handle, if known.
- * @param messages - The localized attribution templates.
- * @returns The formatted attribution line, or `undefined` when there is nothing to attribute.
- */
-export const formatVersionAttribution = (
-    editorHandle: string | undefined,
-    messages: RecipeVersionListMessages,
-): string | undefined =>
-    editorHandle === undefined ? undefined : fillTemplate(messages.byEditor, { handle: editorHandle });

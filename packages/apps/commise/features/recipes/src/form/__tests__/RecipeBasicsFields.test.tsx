@@ -71,6 +71,20 @@ const renderLive = (props: Partial<Omit<HarnessProps, 'onChange'>> = {}) => {
     return { onChange };
 };
 
+/**
+ * The one alert that says something. The cuisine Combobox keeps an empty assertive region mounted so a later failure can
+ * be heard (4.1.3), and an empty region is not a message.
+ */
+const spokenAlert = (): HTMLElement => {
+    const [only, ...rest] = screen.getAllByRole('alert').filter((alert) => (alert.textContent ?? '') !== '');
+
+    if (only === undefined || rest.length > 0) {
+        throw new Error('Expected exactly one alert with text.');
+    }
+
+    return only;
+};
+
 /** The last values the leaf reported. */
 const lastValues = (onChange: Mock<(next: RecipeFormValues) => void>): RecipeFormValues => {
     const call = onChange.mock.calls.at(-1);
@@ -198,7 +212,7 @@ describe('RecipeBasicsFields (web) — title', () => {
     it('a refused publish shows its title message, linked to the field', () => {
         renderLive({ initial: filled({ title: '' }), errors: { title: 'titleRequired' } });
 
-        const message = screen.getByRole('alert');
+        const message = spokenAlert();
 
         expect(message.textContent).toBe(m.errors.titleRequired);
         expect(titleBox().getAttribute('aria-invalid')).toBe('true');
@@ -294,7 +308,7 @@ describe('RecipeBasicsFields (web) — servings', () => {
     it('a refused publish shows the servings message', () => {
         renderLive({ initial: filled({ servings: 0 }), errors: { servings: 'servingsPositive' } });
 
-        expect(screen.getByRole('alert').textContent).toBe(m.errors.servingsPositive);
+        expect(spokenAlert().textContent).toBe(m.errors.servingsPositive);
     });
 });
 
@@ -359,40 +373,71 @@ describe('RecipeBasicsFields (web) — prep, cook and total', () => {
     it('a refused publish shows the times message', () => {
         renderLive({ errors: { times: 'timesNonNegative' } });
 
-        expect(screen.getByRole('alert').textContent).toBe(m.errors.timesNonNegative);
+        expect(spokenAlert().textContent).toBe(m.errors.timesNonNegative);
     });
 });
 
+// P3 (build spec §7.4: "Cuisine `Combobox`"): the cuisine is a text field with a list of suggestions, not a select. The
+// wire type is a free string (`CUISINES` is only a display list), so a custom cuisine is what the cook typed.
 describe('RecipeBasicsFields (web) — cuisine', () => {
-    it('is a select with a clear option first, then the curated list', () => {
+    const cuisineField = (): HTMLInputElement =>
+        screen.getByRole<HTMLInputElement>('combobox', { name: m.cuisineLabel });
+    const suggestions = (): string[] =>
+        within(screen.getByRole('listbox', { name: m.cuisineListLabel }))
+            .getAllByRole('option')
+            .map((option) => option.textContent ?? '');
+
+    it('is a Combobox with a visible label, holding the current cuisine', () => {
         renderLive();
 
-        const select = screen.getByRole<HTMLSelectElement>('combobox', { name: m.cuisineLabel });
-        const options = within(select)
-            .getAllByRole<HTMLOptionElement>('option')
-            .map((option) => option.textContent);
-
-        expect(select.value).toBe('Italian');
-        expect(options[0]).toBe(m.cuisineUnsetOption);
-        expect(options.slice(1)).toEqual([...CUISINES]);
+        expect(cuisineField().value).toBe('Italian');
+        expect(screen.getByText(m.cuisineLabel, { selector: 'label' }).getAttribute('for')).toBe(cuisineField().id);
     });
 
-    it('keeps a custom cuisine selected and visible, and clears with the first option', () => {
+    it('offers the whole curated list as soon as it takes focus, in order, with no "none" row', async () => {
+        const user = userEvent.setup();
+        renderLive({ initial: filled({ cuisine: '' }) });
+
+        await user.tab();
+        await user.click(cuisineField());
+
+        expect(suggestions()).toEqual([...CUISINES]);
+    });
+
+    it('narrows the list to what the cook types, without regard to case', async () => {
+        const user = userEvent.setup();
+        renderLive({ initial: filled({ cuisine: '' }) });
+
+        await user.click(cuisineField());
+        await user.type(cuisineField(), 'FRE');
+
+        expect(suggestions()).toEqual(CUISINES.filter((cuisine) => cuisine.toLowerCase().includes('fre')));
+    });
+
+    it('reports a choice and takes the cuisine’s own spelling', async () => {
+        const user = userEvent.setup();
+        const { onChange } = renderLive({ initial: filled({ cuisine: '' }) });
+
+        await user.click(cuisineField());
+        await user.type(cuisineField(), 'fre');
+        await user.click(screen.getByRole('option', { name: 'French' }));
+
+        expect(lastValues(onChange).cuisine).toBe('French');
+    });
+
+    it('keeps a custom cuisine byte for byte, with no list for it, and clears with Escape', async () => {
+        const user = userEvent.setup();
         const { onChange } = renderLive({ initial: filled({ cuisine: 'Grandma’s Secret Blend' }) });
 
-        const select = screen.getByRole<HTMLSelectElement>('combobox', { name: m.cuisineLabel });
+        expect(cuisineField().value).toBe('Grandma’s Secret Blend');
 
-        expect(select.value).toBe('Grandma’s Secret Blend');
-        fireEvent.change(select, { target: { value: '' } });
+        // Focus opens the list, which has nothing to show for a custom name. Escape on an open list only closes it
+        // (APG); the next Escape, on a closed list, clears the field.
+        cuisineField().focus();
+        await user.keyboard('{Escape}');
+        expect(onChange).not.toHaveBeenCalled();
+        await user.keyboard('{Escape}');
         expect(lastValues(onChange).cuisine).toBe('');
-    });
-
-    it('reports a choice', () => {
-        const { onChange } = renderLive();
-
-        fireEvent.change(screen.getByRole('combobox', { name: m.cuisineLabel }), { target: { value: CUISINES[0] } });
-
-        expect(lastValues(onChange).cuisine).toBe(CUISINES[0]);
     });
 });
 
@@ -586,16 +631,25 @@ describe('RecipeBasicsFields (web) — the blur checkpoint', () => {
 });
 
 describe('RecipeBasicsFields (web) — layout by container width', () => {
-    it('servings takes a whole line below 600 and shares the row from 600; prep and cook wrap rather than overflow', () => {
+    // Rewritten for A-009 (build spec §7.4: "below 600, Prep and Cook sit side by side, about 136 px each at 320"): the
+    // cells used to keep their duration boxes whole (`min-w-fit`, about 220 px each), so Cook always wrapped under Prep. The
+    // duration field now fits 136 px, so the cells share the line (`min-w-0 flex-1`) and only servings takes its own.
+    it('servings takes a whole line below 600 and shares the row from 600; prep and cook share a line at every width', () => {
         renderLive();
 
         const prepCell = screen.getByRole('group', { name: m.prepTimeLabel }).parentElement;
+        const cookCell = screen.getByRole('group', { name: m.cookTimeLabel }).parentElement;
         const row = prepCell?.parentElement;
         const servingsCell = screen.getByRole('group', { name: m.servingsLabel }).parentElement?.parentElement;
 
         expect(row?.className).toContain('flex-wrap');
-        expect(prepCell?.className).toContain('min-w-fit');
-        expect(row?.contains(screen.getByRole('group', { name: m.cookTimeLabel }))).toBe(true);
+
+        for (const cell of [prepCell, cookCell]) {
+            expect(cell?.className.split(/\s+/u)).toEqual(expect.arrayContaining(['min-w-0', 'flex-1']));
+            expect(cell?.className.split(/\s+/u)).not.toContain('min-w-fit');
+        }
+
+        expect(cookCell?.parentElement).toBe(row);
         expect(servingsCell?.parentElement).toBe(row);
         expect(servingsCell?.className).toContain('basis-full');
         expect(servingsCell?.className).toContain('@regular/main:basis-0');
@@ -604,7 +658,7 @@ describe('RecipeBasicsFields (web) — layout by container width', () => {
     it('puts cuisine and meal type side by side from 600', () => {
         renderLive();
 
-        const kind = screen.getByRole('combobox', { name: m.cuisineLabel }).parentElement?.parentElement;
+        const kind = screen.getByText(m.cuisineLabel, { selector: 'label' }).closest('.grid');
 
         expect(kind?.className).toContain('@regular/main:grid-cols-2');
         expect(kind?.contains(screen.getByRole('radiogroup', { name: m.mealTypeLabel }))).toBe(true);

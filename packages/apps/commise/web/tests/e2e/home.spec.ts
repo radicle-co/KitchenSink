@@ -38,7 +38,9 @@ test.describe('Home widget surface (T104)', () => {
 
         // The chrome renders: no top bar since slice 3, and the one displayed primary nav landmark.
         await expect(page.getByRole('banner')).toHaveCount(0);
-        await expect(page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })).toHaveCount(1);
+        await expect(page.getByRole('navigation', { name: /^(?:Main|Tabs)$/ }).filter({ visible: true })).toHaveCount(
+            1,
+        );
 
         // The time-of-day greeting renders. Anchored to the four buckets EXACTLY (this used to be a bare
         // `/Chef/u`, which a truncated greeting or a leaked `home.greetings.morning` dictionary key would still

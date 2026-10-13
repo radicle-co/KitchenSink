@@ -53,5 +53,4 @@ appId: io.commise.mobile
       notVisible: 'Delete this recipe\?'
       timeout: 20000
 - tapOn:
-      text: 'Back'
-      above: '${E2E_RECIPE_SALAD}'
+      text: 'Back to My recipes'

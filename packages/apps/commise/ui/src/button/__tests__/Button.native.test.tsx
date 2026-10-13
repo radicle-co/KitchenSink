@@ -405,3 +405,30 @@ describe('Button (native) — a focus request', () => {
         expect(handled).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('Button (native) — iconPlacement (A-018)', () => {
+    it('draws the glyph BEFORE the label by default', () => {
+        render(
+            <Button variant="ghost" icon="chevronDown">
+                Sort
+            </Button>,
+        );
+        const label = screen.getByText('Sort');
+        const glyph = glyphIn(screen.getByRole('button')) as HTMLElement;
+
+        expect(glyph.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('draws the glyph AFTER the label with iconPlacement="end", still decorative', () => {
+        render(
+            <Button variant="ghost" icon="chevronDown" iconPlacement="end">
+                Sort
+            </Button>,
+        );
+        const label = screen.getByText('Sort');
+        const glyph = glyphIn(screen.getByRole('button')) as HTMLElement;
+
+        expect(label.compareDocumentPosition(glyph) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(glyph.closest('[aria-hidden="true"]')).not.toBeNull();
+    });
+});

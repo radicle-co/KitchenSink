@@ -65,19 +65,15 @@ onFlowComplete:
       element: '8 Lamb loin chops'
       direction: DOWN
       timeout: 20000
-# Anchored above the recipe title: the system navigation bar publishes a node named exactly `Back`, and in landscape
-# it sits on a side edge (see maestroBackSelectorAnchoring.test.ts).
+# The detail's Back is named for where it goes ("Back to My recipes"), so it is unique: the system navigation bar
+# publishes a node named exactly `Back`, and in landscape it sits on a side edge (see maestroBackSelectorAnchoring.test.ts).
 - scrollUntilVisible:
       element:
-          text: 'Back'
-          above:
-              text: '${E2E_RECIPE_LAMB}'
+          text: 'Back to My recipes'
       direction: UP
       timeout: 20000
 - tapOn:
-      text: 'Back'
-      above:
-          text: '${E2E_RECIPE_LAMB}'
+      text: 'Back to My recipes'
 - assertVisible: 'Recipes'
 
 # Clear the search, so the list is whole again for the later flows' assumptions about this screen.

@@ -12,22 +12,23 @@
  * Sign out is `SignOutButton`, which issues the one verified sign-out command (ADR-0009); close and erase are
  * `AccountDangerZone`, which keeps its own dialogs and flows. Nothing here calls Clerk's `signOut`.
  *
- * THE PHOTO. The spec's 72 pt avatar is "initials, or the native `AvatarField` photo". `ProfileHeader` is shared with
- * web and draws initials only, so the native-only photo control sits as the first row of the Account group instead.
+ * THE PHOTO. The spec's 72 pt avatar is "initials, or the native `AvatarField` photo". The native `ProfileHeader` takes
+ * the photo control as its `avatar` slot, so the page has ONE avatar (the initials are the control's own fallback).
  * A picked photo is an explicit act and is written ALONE (`{ avatarUrl }`) through its own mutation; the display name is
- * written only from the sheet's Save, so the two never share a pending or failed state.
+ * written only from the sheet's Save, so the two never share a pending or failed state. A failed pick or a failed save
+ * of the photo shows one alert under the header.
  *
  * @pattern Composition root over the Profile render leaves — the read, the editor and the navigator's back meet here and
  *     nowhere below
  */
 import { useUser } from '@clerk/expo';
 import { initialsFor } from '@commise/features-core';
-import { DataSourcesScreen } from '@commise/features-recipes/data-sources/mobile';
 import {
     DisplayNameSheet,
     ProfileGroup,
     ProfileHeader,
     ProfileRow,
+    ProfileValueRow,
     profileMessages,
     profileReadOf,
     useDisplayNameEditor,
@@ -52,6 +53,8 @@ import { mobileMessages } from '../i18n/messages.js';
 export interface ProfileScreenProps {
     /** Leave Profile: pop to the screen it was pushed from. */
     readonly onBack: () => void;
+    /** Open Food data sources: the navigator pushes it as a page, so this screen mounts nothing for it (A-026). */
+    readonly onOpenDataSources: () => void;
 }
 
 /** Props for the page inside its scroll host. */
@@ -63,15 +66,19 @@ interface ProfileSurfaceProps extends ProfileScreenProps {
 /**
  * The Profile page, inside its own scroll host (it is a pushed screen, not a tab root).
  *
- * @param props - The way back.
+ * @param props - The way back, and the way to Data sources.
  * @returns The page.
  */
-export function ProfileScreen({ onBack }: ProfileScreenProps): JSX.Element {
-    return <ScrollHost>{(bind) => <ProfileSurface scrollBind={bind} onBack={onBack} />}</ScrollHost>;
+export function ProfileScreen({ onBack, onOpenDataSources }: ProfileScreenProps): JSX.Element {
+    return (
+        <ScrollHost>
+            {(bind) => <ProfileSurface scrollBind={bind} onBack={onBack} onOpenDataSources={onOpenDataSources} />}
+        </ScrollHost>
+    );
 }
 
 /** The page. */
-function ProfileSurface({ scrollBind, onBack }: ProfileSurfaceProps): JSX.Element {
+function ProfileSurface({ scrollBind, onBack, onOpenDataSources }: ProfileSurfaceProps): JSX.Element {
     const t = useMessages(profileMessages);
     const { profile: photo } = useMessages(mobileMessages);
     const { colors } = useTheme();
@@ -85,13 +92,14 @@ function ProfileSurface({ scrollBind, onBack }: ProfileSurfaceProps): JSX.Elemen
     const nameUpdate = useUpdateProfile();
     const editor = useDisplayNameEditor({ saved, user: clerkUser, update: nameUpdate });
     const photoUpdate = useUpdateProfile();
-    const [sourcesOpen, setSourcesOpen] = useState(false);
-    // Each close of the sheet advances this, which takes the reading cursor back to the row that opened it (§10).
-    const [sourcesClosed, setSourcesClosed] = useState(0);
+    // A pick that failed on the device (type, size, upload) is reported by the control; a failed save by the mutation.
+    const [pickError, setPickError] = useState<string | undefined>(undefined);
     const user = query.data?.user;
     const back = { label: t.back, parent: t.homeParent, onPress: onBack };
     // While a new photo is being saved the preview shows it, so the pick does not appear to be lost.
     const photoUrl = photoUpdate.isPending ? (photoUpdate.variables.avatarUrl ?? '') : (user?.avatarUrl ?? '');
+    const photoError = pickError ?? (photoUpdate.isError ? photo.avatarUploadError : undefined);
+    const initials = read.status === 'ready' ? initialsFor(read.displayName) : '';
 
     return (
         <View style={styles.screen}>
@@ -105,30 +113,30 @@ function ProfileSurface({ scrollBind, onBack }: ProfileSurfaceProps): JSX.Elemen
                 {user === undefined ? null : <SuspensionBanner status={user.status} />}
                 <ProfileHeader
                     read={read}
-                    initials={read.status === 'ready' ? initialsFor(read.displayName) : ''}
+                    initials={initials}
                     onRetry={() => void query.refetch()}
+                    avatar={
+                        <AvatarField
+                            value={photoUrl}
+                            initials={initials}
+                            onChange={(avatarUrl) => photoUpdate.mutate({ avatarUrl })}
+                            onError={setPickError}
+                            messages={{
+                                changeAction: photo.avatarChangeAction,
+                                uploadError: photo.avatarUploadError,
+                                tooLargeError: photo.avatarTooLargeError,
+                                unsupportedTypeError: photo.avatarUnsupportedTypeError,
+                            }}
+                        />
+                    }
                 />
+                {photoError === undefined ? null : (
+                    <Text role="alert" style={[styles.photoError, { color: colors.dangerText }]}>
+                        {photoError}
+                    </Text>
+                )}
                 {read.status === 'ready' ? (
                     <ProfileGroup label={t.account}>
-                        <View>
-                            <AvatarField
-                                value={photoUrl}
-                                onChange={(avatarUrl) => photoUpdate.mutate({ avatarUrl })}
-                                messages={{
-                                    label: photo.avatarLabel,
-                                    imageLabel: photo.avatarImageLabel,
-                                    changeAction: photo.avatarChangeAction,
-                                    uploadError: photo.avatarUploadError,
-                                    tooLargeError: photo.avatarTooLargeError,
-                                    unsupportedTypeError: photo.avatarUnsupportedTypeError,
-                                }}
-                            />
-                            {photoUpdate.isError ? (
-                                <Text role="alert" style={[styles.photoError, { color: colors.dangerText }]}>
-                                    {photo.avatarUploadError}
-                                </Text>
-                            ) : null}
-                        </View>
                         <ProfileRow
                             label={t.displayName}
                             value={read.displayName === '' ? t.displayNameUnset : read.displayName}
@@ -136,16 +144,11 @@ function ProfileSurface({ scrollBind, onBack }: ProfileSurfaceProps): JSX.Elemen
                             chevron
                             onPress={editor.openSheet}
                         />
+                        <ProfileValueRow label={t.email} value={read.email} />
                     </ProfileGroup>
                 ) : null}
                 <ProfileGroup heading={t.preferences}>
-                    <ProfileRow
-                        label={t.dataSources}
-                        tone="ink"
-                        chevron
-                        focusSignal={sourcesClosed}
-                        onPress={() => setSourcesOpen(true)}
-                    />
+                    <ProfileRow label={t.dataSources} tone="ink" chevron onPress={onOpenDataSources} />
                 </ProfileGroup>
                 <ProfileGroup label={t.signOut}>
                     <SignOutButton />
@@ -163,14 +166,6 @@ function ProfileSurface({ scrollBind, onBack }: ProfileSurfaceProps): JSX.Elemen
                 failed={editor.failed}
                 onSave={editor.save}
             />
-            {sourcesOpen ? (
-                <DataSourcesScreen
-                    onRequestClose={() => {
-                        setSourcesOpen(false);
-                        setSourcesClosed((count) => count + 1);
-                    }}
-                />
-            ) : null}
         </View>
     );
 }
@@ -185,9 +180,5 @@ const styles = StyleSheet.create({
         paddingBottom: nativeTokens.spacing[6],
         gap: nativeTokens.spacing[5],
     },
-    photoError: {
-        ...nativeTokens.type.caption,
-        paddingHorizontal: nativeTokens.spacing[4],
-        paddingBottom: nativeTokens.spacing[3],
-    },
+    photoError: { ...nativeTokens.type.caption },
 });

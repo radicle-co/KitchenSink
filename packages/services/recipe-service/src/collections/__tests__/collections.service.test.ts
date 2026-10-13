@@ -41,6 +41,7 @@ function makeDal(): DalMock {
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
+        memberSummaries: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         // Not exercised outside `cloneCollection`/`pullFromSource` here — runs `fn` against a stub tx.
         transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
@@ -65,8 +66,12 @@ function makeService(
         dal as unknown as CollectionsDal,
         makeAuthorHandlesDal() as unknown as AuthorHandlesDal,
         analytics as unknown as AnalyticsService,
+        PHOTOS_CDN,
     );
 }
+
+/** The photo CDN base the service resolves cover keys against. */
+const PHOTOS_CDN = 'https://cdn.test/';
 
 const OWNER = 'owner-1';
 
@@ -184,6 +189,50 @@ describe('CollectionsService.listCollections', () => {
 
         expect(dal.listByOwner).toHaveBeenCalledWith(OWNER, 2, 4);
         expect(result.hasMore).toBe(false);
+    });
+});
+
+describe('CollectionsService.listCollections — member summary (W-11)', () => {
+    it('carries each collection recipeCount and up to four resolved cover URLs', async () => {
+        const dal = makeDal();
+        dal.listByOwner.mockResolvedValue({
+            rows: [makeCollectionRow({ id: 'a' }), makeCollectionRow({ id: 'b' })],
+            total: 2,
+        });
+        dal.memberSummaries.mockResolvedValue(
+            new Map([['a', { recipeCount: 7, coverKeys: ['photos/1.jpg', 'photos/2.jpg'] }]]),
+        );
+
+        const result = await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
+
+        expect(dal.memberSummaries).toHaveBeenCalledWith(['a', 'b'], OWNER);
+        expect(result.data[0]).toMatchObject({
+            id: 'a',
+            recipeCount: 7,
+            coverPhotoUrls: ['https://cdn.test/photos/1.jpg', 'https://cdn.test/photos/2.jpg'],
+        });
+    });
+
+    it('answers an empty collection as zero recipes and no covers, never as absent', async () => {
+        const dal = makeDal();
+        dal.listByOwner.mockResolvedValue({ rows: [makeCollectionRow({ id: 'b' })], total: 1 });
+        dal.memberSummaries.mockResolvedValue(new Map());
+
+        const result = await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
+
+        expect(result.data[0]).toMatchObject({ recipeCount: 0, coverPhotoUrls: [] });
+    });
+
+    it('never emits more than four covers even if the DAL over-delivers', async () => {
+        const dal = makeDal();
+        dal.listByOwner.mockResolvedValue({ rows: [makeCollectionRow({ id: 'a' })], total: 1 });
+        dal.memberSummaries.mockResolvedValue(
+            new Map([['a', { recipeCount: 9, coverKeys: ['1', '2', '3', '4', '5'] }]]),
+        );
+
+        const result = await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
+
+        expect(result.data[0]?.coverPhotoUrls).toHaveLength(4);
     });
 });
 

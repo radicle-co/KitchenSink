@@ -70,6 +70,12 @@ interface ButtonCommon {
      */
     readonly width?: PressScaleWidth;
     /**
+     * Which side of the label the glyph (and the busy spinner) sits on. `end` is for a control that opens a menu or a
+     * sheet, whose chevron follows the word it belongs to (§4.5 "Sort: {choice}" + `chevron-down`). Defaults to
+     * `start`.
+     */
+    readonly iconPlacement?: 'start' | 'end';
+    /**
      * A host asks for focus on the button: keyboard focus on web, the screen-reader cursor on native. A LEVEL, as on
      * `Popover`: it stands until {@link onFocusRequestHandled} acknowledges it, so a button that mounts while the
      * request stands still takes it.

@@ -1190,9 +1190,10 @@ export class RecipesService {
         }
 
         const sourceType = source.recipe.sourceType as RecipeSourceType;
-        // A user_created original carries no attribution — record it to the original author so the clone
-        // still credits provenance. An imported source already carries its attribution; keep it verbatim.
-        const attribution = source.recipe.sourceAttribution ?? `Cloned from ${source.recipe.ownerId}`;
+        // An imported source's attribution is kept verbatim. A user_created original has none, and none is
+        // invented: provenance is `clonedFromId`, and a stored "Cloned from <owner id>" put a raw user id on
+        // Discover cards and outlived the original author's erasure (W-03).
+        const attribution = source.recipe.sourceAttribution ?? undefined;
 
         // U13 (R20), plan 002 R9: the clone KEEPS every binding, including one to another author's private food,
         // which renders as unavailable to the cloner. Its identities are read with the CLONER's credential, and the

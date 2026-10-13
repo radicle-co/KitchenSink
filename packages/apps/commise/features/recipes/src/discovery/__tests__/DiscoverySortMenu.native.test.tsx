@@ -4,7 +4,7 @@
  * reports it and closes the sheet.
  */
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,6 +25,24 @@ function renderMenu(active: RecipeSearchSortBy = RecipeSearchSortBy.RELEVANCE) {
 
     return { onChange };
 }
+
+describe('DiscoverySortMenu (native) — A-018: the trigger reads like the web one', () => {
+    it('shows the choice alone, and keeps "Sort: {choice}" as its name', () => {
+        renderMenu(RecipeSearchSortBy.QUICKEST);
+        const button = screen.getByRole('button', { name: 'Sort: Quickest' });
+
+        expect(button.textContent).toBe('Quickest');
+    });
+
+    it('puts the chevron after the word it belongs to', () => {
+        renderMenu(RecipeSearchSortBy.QUICKEST);
+        const button = screen.getByRole('button', { name: 'Sort: Quickest' });
+        const label = within(button).getByText('Quickest');
+        const chevron = button.querySelector('[data-icon-name="chevron-down"]') as HTMLElement;
+
+        expect(label.compareDocumentPosition(chevron) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+});
 
 describe('DiscoverySortMenu (native)', () => {
     it('says the sort in use on its button', () => {

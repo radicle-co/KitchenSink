@@ -116,6 +116,23 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         expect(store.get('ec000000-0000-4000-8000-000000000009')).toMatchObject({ currentVersion: 2, servings: 8 });
     });
 
+    // E9 (build spec §1.2): a focused task's <main> gives no gutter, and the conflict view is drawn before the editor's
+    // frame, so on a phone its text ran to the screen's edge.
+    for (const width of [390, 320]) {
+        test(`the conflict view keeps the page gutter at ${width}`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 800 });
+            await enterConflict(page, { serverChanges: { servings: 8 } });
+
+            const heading = await page
+                .getByRole('heading', { name: 'This recipe changed while you were editing' })
+                .boundingBox();
+
+            expect(heading).not.toBeNull();
+            expect(heading!.x).toBeGreaterThanOrEqual(16);
+            expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+        });
+    }
+
     test('the conflict shows the per-side banner and the changed-only diff (markers, Server before Yours)', async ({
         page,
     }) => {

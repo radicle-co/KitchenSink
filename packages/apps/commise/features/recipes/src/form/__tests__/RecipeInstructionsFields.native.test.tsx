@@ -5,7 +5,7 @@
  *
  * Moved here from `recipeFieldGroups.native.test.tsx`, whose instructions blocks pinned the wizard-era row.
  *
- * ⚠️ NOT pinned: "the new step's field takes focus" — see the web file's note.
+ * "The new step's field takes focus" (§7.6) is pinned in "adding, empty and refused".
  */
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -218,6 +218,23 @@ describe('RecipeInstructionsFields (native) — adding, empty and refused', () =
         fireEvent.click(screen.getByRole('button', { name: e.steps.add }));
 
         expect(lastValues(onChange).steps).toEqual([...THREE, { instruction: '' }]);
+    });
+
+    // A-008 / E2 (build spec §7.6: "The new step's field takes focus").
+    it('"Add step" moves focus to the NEW step’s field', () => {
+        renderLive();
+
+        fireEvent.click(screen.getByRole('button', { name: e.steps.add }));
+
+        expect(document.activeElement).toBe(stepBox(4));
+    });
+
+    it('adding the first step to an empty list focuses it', () => {
+        renderLive({ initial: withSteps([]) });
+
+        fireEvent.click(screen.getByRole('button', { name: e.steps.add }));
+
+        expect(document.activeElement).toBe(stepBox(1));
     });
 
     it('with no steps: "No steps yet." and Add step', () => {

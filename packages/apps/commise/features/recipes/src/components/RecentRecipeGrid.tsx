@@ -25,6 +25,7 @@ export const RecentRecipeGrid: FC<RecentRecipeGridProps> = ({
             <li key={recipe.id} className={variant === 'grid' ? GRID_CELL_CLASS : undefined}>
                 <RecipeCard
                     variant={variant}
+                    headingLevel={3}
                     recipe={recipe}
                     {...(onSelectRecipe === undefined ? {} : { onSelect: onSelectRecipe })}
                     {...(hrefOf === undefined ? {} : { href: hrefOf(recipe.id) })}

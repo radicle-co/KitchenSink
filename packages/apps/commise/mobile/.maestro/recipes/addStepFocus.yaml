@@ -1,0 +1,28 @@
+appId: io.commise.mobile
+---
+# A-008 / E2 (UI walk 2026-10-13; build spec §7.6: "The new step's field takes focus"). Add step moves focus into the
+# step it adds, so the keyboard is up on that field and typing lands there, not in the ingredient field above it and
+# not on the Add step button.
+#
+# What only this tier proves: that `TextInput.focus()` on the new step's field raises the keyboard and the field takes
+# the typed text on a device. jsdom proves the focus request is raised and taken; it cannot see the keyboard.
+#
+# It types into a new recipe and discards it, so it leaves the library as it found it.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+# No tap on the step: the field already has focus.
+- inputText: 'Fold in the cheese.'
+- assertVisible: 'Fold in the cheese.'
+# Exactly one step took the text: a second Add step is not needed and a Step 2 was not created by the typing.
+- assertNotVisible: 'Step 2'
+
+- runFlow: common/discardDraft.yaml

@@ -7,7 +7,7 @@
  * Moved here from `recipeFieldGroups.native.test.tsx`, whose basics blocks pinned the wizard-era layout.
  */
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC } from 'react';
 
@@ -310,56 +310,57 @@ describe('RecipeBasicsFields (native) — servings, prep, cook and total', () =>
 });
 
 describe('RecipeBasicsFields (native) — cuisine, meal type and difficulty', () => {
-    it('opens the cuisine list and reports a choice', () => {
-        const { onChange } = renderLive();
+    // P3 (build spec §7.4: "Cuisine `Combobox`"): the cuisine is a text field with a list of suggestions. The wire type is a
+    // free string (`CUISINES` is only a display list), so a custom cuisine is what the cook typed.
+    const cuisineField = (): HTMLInputElement => screen.getByLabelText<HTMLInputElement>(m.cuisineLabel);
+    const suggestions = (): (string | null)[] =>
+        screen
+            .getAllByRole('button')
+            .filter((button) => CUISINES.some((cuisine) => cuisine === button.textContent))
+            .map((button) => button.textContent);
 
-        fireEvent.click(screen.getByRole('button', { name: m.cuisineLabel }));
-        fireEvent.click(screen.getByRole('menuitem', { name: CUISINES[0] }));
+    it('is a Combobox with a visible label, holding the current cuisine', () => {
+        renderLive();
 
-        expect(lastValues(onChange).cuisine).toBe(CUISINES[0]);
+        expect(cuisineField().getAttribute('role')).toBe('combobox');
+        expect(cuisineField().value).toBe('Italian');
+        expect(screen.getByText(m.cuisineLabel)).toBeTruthy();
     });
 
-    it('shows the current cuisine on a collapsed trigger, and offers "No cuisine" then the curated list', () => {
+    it('offers the whole curated list as soon as it takes focus, in order, with no "none" row', () => {
         renderLive({ initial: filled({ cuisine: '' }) });
 
-        expect(screen.queryByRole('menuitem', { name: CUISINES[0] })).toBeNull();
-        fireEvent.click(screen.getByRole('button', { name: m.cuisineLabel }));
+        act(() => {
+            cuisineField().focus();
+        });
 
-        expect(screen.getAllByRole('menuitem').map((item) => item.getAttribute('aria-label'))).toEqual([
-            m.cuisineUnsetOption,
-            ...CUISINES,
-        ]);
+        expect(suggestions()).toEqual([...CUISINES]);
     });
 
-    it('keeps a custom cuisine visible and selected, and clears with "No cuisine"', () => {
+    it('narrows the list to what the cook types, without regard to case', () => {
+        renderLive({ initial: filled({ cuisine: '' }) });
+
+        fireEvent.change(cuisineField(), { target: { value: 'FRE' } });
+
+        expect(suggestions()).toEqual(CUISINES.filter((cuisine) => cuisine.toLowerCase().includes('fre')));
+    });
+
+    it('reports a choice', () => {
+        const { onChange } = renderLive({ initial: filled({ cuisine: '' }) });
+
+        fireEvent.change(cuisineField(), { target: { value: 'fre' } });
+        fireEvent.click(screen.getByRole('button', { name: 'French' }));
+
+        expect(lastValues(onChange).cuisine).toBe('French');
+    });
+
+    it('keeps a custom cuisine byte for byte, and clears with the field’s clear button', () => {
         const { onChange } = renderLive({ initial: filled({ cuisine: 'Grandma’s Secret Blend' }) });
 
-        expect(screen.getByText('Grandma’s Secret Blend')).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: m.cuisineLabel }));
-        expect(screen.getByRole('menuitem', { name: 'Grandma’s Secret Blend' }).getAttribute('aria-selected')).toBe(
-            'true',
-        );
+        expect(cuisineField().value).toBe('Grandma’s Secret Blend');
 
-        fireEvent.click(screen.getByRole('menuitem', { name: m.cuisineUnsetOption }));
+        fireEvent.click(screen.getByRole('button', { name: m.cuisineClear }));
         expect(lastValues(onChange).cuisine).toBe('');
-    });
-
-    it.each(['light', 'dark'] as const)('paints the cuisine trigger from the %s theme', (scheme) => {
-        systemScheme.current = scheme;
-        renderLive();
-        const theme = scheme === 'dark' ? roleDark : role;
-        const trigger = screen.getByRole('button', { name: m.cuisineLabel });
-
-        expect(getComputedStyle(trigger).backgroundColor).toBe(rgb(theme.paper));
-        expect(getComputedStyle(screen.getByText('Italian')).color).toBe(rgb(theme.ink));
-    });
-
-    it('lets a long custom cuisine shrink, so the chevron stays on the field', () => {
-        renderLive({ initial: filled({ cuisine: 'Coastal Ligurian home cooking with a Provençal accent' }) });
-
-        expect(
-            appliedStyle(screen.getByText('Coastal Ligurian home cooking with a Provençal accent'), 'flex-shrink'),
-        ).toBe('1');
     });
 
     it('offers every meal type and no "not stated" option', () => {
@@ -435,9 +436,20 @@ describe('RecipeBasicsFields (native) — tags and dietary flags', () => {
         const { onChange } = renderLive();
 
         fireEvent.change(field(m.dietaryFlagsLabel), { target: { value: 'vegan' } });
-        fireEvent.click(screen.getByRole('button', { name: m.addChipLabel.replace('{field}', m.dietaryFlagsLabel) }));
+        fireEvent.click(screen.getByRole('button', { name: m.addDietaryFlagLabel }));
 
         expect(lastValues(onChange).dietaryFlags).toEqual(['vegetarian', 'vegan']);
+    });
+
+    // A-009 (c): the Add buttons said "Add Dietary flags" -- a capitalised field name in mid-sentence. Each is one whole
+    // sentence-case string, naming ONE thing it adds.
+    it('names each Add button as one whole sentence-case string: "Add a tag", "Add a dietary flag"', () => {
+        renderLive();
+
+        expect(m.addTagLabel).toBe('Add a tag');
+        expect(m.addDietaryFlagLabel).toBe('Add a dietary flag');
+        expect(screen.getByRole('button', { name: 'Add a tag' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Add a dietary flag' })).toBeTruthy();
     });
 
     it('removes a tag when its chip is pressed', () => {
@@ -450,7 +462,27 @@ describe('RecipeBasicsFields (native) — tags and dietary flags', () => {
 });
 
 describe('RecipeBasicsFields (native) — layout by container width', () => {
-    const rowOf = (name: string): HTMLElement | null => screen.getByRole('group', { name }).parentElement;
+    /** The row a duration field's cell sits in: the field's parent is the cell. */
+    const rowOf = (name: string): HTMLElement | null =>
+        screen.getByRole('group', { name }).parentElement?.parentElement ?? null;
+    const cellOf = (name: string): HTMLElement | null => screen.getByRole('group', { name }).parentElement;
+
+    // A-009 (build spec §7.4: "below 600, Prep and Cook sit side by side, about 136 dp each at 320"): each is a cell that
+    // takes half the row and may shrink, so the row never has to wrap Cook under Prep.
+    it('below 600: prep and cook are two cells of one row that does not wrap', () => {
+        device.width = 360;
+        renderLive();
+
+        for (const name of [m.prepTimeLabel, m.cookTimeLabel]) {
+            const cell = cellOf(name);
+
+            expect(cell !== null && appliedStyle(cell, 'flex-grow')).toBe('1');
+            expect(cell !== null && appliedStyle(cell, 'min-width')).toBe('0px');
+        }
+
+        expect(rowOf(m.prepTimeLabel)).toBe(rowOf(m.cookTimeLabel));
+        expect(appliedStyle(rowOf(m.prepTimeLabel) ?? document.body, 'flex-wrap')).not.toBe('wrap');
+    });
 
     it('below 600: prep and cook share a row, servings sits above them', () => {
         device.width = 360;

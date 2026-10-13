@@ -4,7 +4,7 @@
  * With a photo it draws the photo: lazily loaded, decoded off the main thread, cropped to cover its box from the
  * centre 40% down. Without one it draws a monogram: the recipe's own tint (`coverTintOf`), the title's first letter in
  * Playfair 700 `ink` at 40% of the cover's height, and the cuisine as an `overline` under it on a cover 96 px tall or
- * taller. The cover is a SIZE container, so both rules read its own height (`cqh`, a container query), never the
+ * taller, unless the caller lays a chip over the cover (`overline={false}`). The cover is a SIZE container, so both rules read its own height (`cqh`, a container query), never the
  * viewport. It is decorative either way — the photo has an empty `alt` and the monogram is hidden — because the title
  * is the name of the link the cover sits in. Each aspect reserves its box, so nothing shifts as an image arrives.
  *
@@ -37,7 +37,7 @@ const COVER_CLASS: Readonly<Record<CoverTintName, string>> = {
 };
 
 /** The web design-system recipe cover. */
-export const RecipeCover: FC<RecipeCoverProps> = ({ recipeId, title, cuisine, photoUrl, aspect }) => (
+export const RecipeCover: FC<RecipeCoverProps> = ({ recipeId, title, cuisine, photoUrl, aspect, overline = true }) => (
     <div className={`relative overflow-hidden [container-name:cover] [container-type:size] ${ASPECT[aspect]}`}>
         {photoUrl === undefined ? (
             <div
@@ -45,7 +45,7 @@ export const RecipeCover: FC<RecipeCoverProps> = ({ recipeId, title, cuisine, ph
                 className={`absolute inset-0 flex flex-col items-center justify-center gap-1 ${COVER_CLASS[coverTintOf(recipeId)]}`}
             >
                 <span className="font-display font-bold leading-none text-ink text-[40cqh]">{monogramOf(title)}</span>
-                {cuisine === undefined ? null : (
+                {cuisine === undefined || !overline ? null : (
                     <span className="hidden text-overline text-ink [@container_cover_(height>=6rem)]:block">
                         {cuisine}
                     </span>

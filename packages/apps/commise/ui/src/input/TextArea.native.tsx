@@ -11,10 +11,13 @@
  * padding taller than a device would — a device check, recorded in the slice report.
  *
  * @pattern Template — one field geometry (`fieldStyle.ts`), rendered by both native text-field leaves
+ * @pattern Adapter over `TextInput.focus()` — a level-triggered focus request, acknowledged once taken. It is the one
+ *     reason this leaf holds a ref: focusing a field has no declarative form.
  */
-import { useState, type FC } from 'react';
-import { StyleSheet } from 'react-native';
+import { useRef, useState, type FC } from 'react';
+import { StyleSheet, type TextInput as NativeTextInput } from 'react-native';
 
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
@@ -51,12 +54,17 @@ export const TextArea: FC<TextAreaProps> = ({
     disabled = false,
     minRows,
     maxRows,
+    focusRequested = false,
+    onFocusRequestHandled,
 }) => {
     const [content, setContent] = useState<number | null>(null);
     const theme = useTheme();
+    const node = useRef<NativeTextInput>(null);
+    useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
 
     return (
         <TextInput
+            ref={node}
             nativeID={id}
             multiline
             value={value}

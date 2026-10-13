@@ -4,14 +4,14 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 49,
-        "implementations": 49,
-        "props": 110,
-        "documentedComponents": 48,
-        "implementationsWithModuleDoc": 47,
+        "components": 52,
+        "implementations": 52,
+        "props": 126,
+        "documentedComponents": 51,
+        "implementationsWithModuleDoc": 50,
         "implementationsWithComponentDoc": 38,
-        "documentedProps": 102,
-        "classifiedComponents": 27,
+        "documentedProps": 118,
+        "classifiedComponents": 30,
         "componentsWithPatternTag": 21,
         "crossPlatformComponents": 0
     },
@@ -122,18 +122,27 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/account/AvatarField.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/account",
-                    "moduleDoc": "components/account/AvatarField — the profile screen's avatar control (U2).\n\nReplaces the old \"paste an image URL\" text box with a real device flow, modelled on\n`RecipePhotoUploader`: a design-system {@link Button} opens\n`expo-image-picker`, the picked asset's bytes are read as a Blob, client-validated against the same\n5 MB / JPEG-PNG-WebP allowlist the identity presign enforces (so an obviously-invalid pick fails fast,\nbefore any request), uploaded via {@link useAvatarUpload}, and the durable public URL is handed back\nthrough `onChange` for the profile PATCH to persist. Presentational otherwise: it owns only the in-flight\n+ error state of a pick, never the saved `value`. It sits in the Profile page's Account group as the native-only\nphoto row (`buildSpec.md` §9.1); colour comes from the theme at render.\n\n`expo-image-picker` is imported lazily on first use (it pulls `expo-modules-core`, which only evaluates in\nthe native runtime) — mirroring the recipe uploader.",
+                    "moduleDoc": "components/account/AvatarField — the Profile header's avatar and its photo control (U2, A-025).\n\nONE 72 dp disc that is itself the change-photo control (`buildSpec.md` §9.1: \"a 72 px avatar — initials, or the\nnative `AvatarField` photo\"). It shows the saved photo, or the cook's initials when there is none, so the header and\nthe photo cannot disagree; a camera badge says it can be pressed. Pressing it opens `expo-image-picker`, the picked\nasset's bytes are read as a Blob, client-validated against the same 5 MB / JPEG-PNG-WebP allowlist the identity\npresign enforces (so an obviously-invalid pick fails fast, before any request), uploaded via {@link useAvatarUpload},\nand the durable public URL is handed back through `onChange` for the profile PATCH to persist.\n\nPresentational otherwise: it owns only the in-flight state of a pick, never the saved `value`, and draws no error of its own: a failed pick is\nREPORTED through `onError` so the page shows one alert for the photo, whether the pick or the save failed. Colour\ncomes from the theme at render.\n\n`expo-image-picker` is imported lazily on first use (it pulls `expo-modules-core`, which only evaluates in\nthe native runtime) — mirroring the recipe uploader.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "components/account/AvatarField — the profile screen's avatar control (U2)."
+                            "text": "components/account/AvatarField — the Profile header's avatar and its photo control (U2, A-025)."
                         }
                     ],
-                    "description": "The avatar picker + preview for the profile edit form.",
+                    "description": "The avatar and its change-photo control.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "initials",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook's initials, shown when there is no photo. Empty when the cook has no name.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/account/AvatarField.tsx"
+                        },
                         {
                             "name": "messages",
                             "type": "AvatarFieldMessages",
@@ -150,6 +159,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Reports a freshly uploaded avatar's durable public URL for the form to persist.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/account/AvatarField.tsx"
+                        },
+                        {
+                            "name": "onError",
+                            "type": "(message: string | undefined) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Reports why a pick failed, or `undefined` when a new pick starts and the earlier failure no longer applies.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/account/AvatarField.tsx"
                         },
                         {
@@ -363,6 +381,182 @@
             ]
         },
         {
+            "id": "mobile/components/auth/AuthCodeActions",
+            "name": "AuthCodeActions",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components/auth",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "AuthCodeActions",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthCodeActions.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components/auth",
+                    "moduleDoc": "components/auth/AuthCodeActions — the two ways out of the email-code step that are not \"Verify\": ask for a\nfresh code, or abandon the attempt and start over. Sign-in and sign-up offer the same two, in the same words.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/AuthCodeActions — the two ways out of the email-code step that are not \"Verify\": ask for a"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The busy state and the two handlers."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "A secondary \"send a new code\" button and a ghost \"start over\" button."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Locks both controls while a request is in flight.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthCodeActions.tsx"
+                        },
+                        {
+                            "name": "onResend",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Sends a fresh code.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthCodeActions.tsx"
+                        },
+                        {
+                            "name": "onStartOver",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Abandons the attempt and returns to the first step.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthCodeActions.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/components/auth/AuthCodeFields",
+            "name": "AuthCodeFields",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components/auth",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "AuthCodeFields",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthCodeFields.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components/auth",
+                    "moduleDoc": "components/auth/AuthCodeFields — the email-code step both signed-out screens show: the prompt, then the\nlabelled one-time-code field. Sign-in (the second-factor code) and sign-up (the email-verification code) ask for\nthe same thing in the same words, so the field's hints (numeric keypad, the OS one-time-code autofill) live here\nonce.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/AuthCodeFields — the email-code step both signed-out screens show: the prompt, then the"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The field's id, value, handlers and busy state."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The prompt and the labelled code field."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Locks the field while a request is in flight.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthCodeFields.tsx"
+                        },
+                        {
+                            "name": "id",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field's id, which its label points at; unique on the screen.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthCodeFields.tsx"
+                        },
+                        {
+                            "name": "onChangeText",
+                            "type": "(text: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called with the new text on every change.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthCodeFields.tsx"
+                        },
+                        {
+                            "name": "onSubmit",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called when the keyboard's \"done\" key is pressed.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthCodeFields.tsx"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The code typed so far.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthCodeFields.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "mobile/components/auth/AuthHeader",
             "name": "AuthHeader",
             "group": "mobile",
@@ -412,6 +606,85 @@
                             "defaultValue": null,
                             "description": "The screen's H1.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthHeader.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/components/auth/AuthSwitchLink",
+            "name": "AuthSwitchLink",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/components/auth",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "AuthSwitchLink",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthSwitchLink.tsx",
+                    "dir": "packages/apps/commise/mobile/src/components/auth",
+                    "moduleDoc": "components/auth/AuthSwitchLink — the \"New to Commise? Create an account\" row at the foot of both signed-out\nscreens (`buildSpec.md` §8 Order): the prompt, then an inline LINK, wrapping to a second line rather than\noverflowing. Sign-in and sign-up differ only in the words and the handler, so the shape lives here once.\n\nThe link text never breaks across lines (`numberOfLines={1}`) and its target is 48 px tall, so the narrow-screen\nand large-font cases wrap the ROW, not the link.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/auth/AuthSwitchLink — the \"New to Commise? Create an account\" row at the foot of both signed-out"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The prompt, the link text and its handler."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "A wrapping row of the prompt and the link."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The link's text, which is also its accessible name.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthSwitchLink.tsx"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Moves to the other screen.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthSwitchLink.tsx"
+                        },
+                        {
+                            "name": "prompt",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The question the link answers, e.g. \"New to Commise?\".",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/auth/AuthSwitchLink.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -1562,7 +1835,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx",
                     "dir": "packages/apps/commise/mobile/src/components",
-                    "moduleDoc": "Recipe photo uploader (mobile, T067, wireframe step 4; w3/e4 per-file queue grid). The container that turns\nthe shared, presentational {@link RecipePhotoManager} block (its native leaf) into a working photo surface:\nit reads the recipe's photos from the query cache, supplies the native image-picker button as the block's\n`addControl`, and ENQUEUES every picked asset onto `useRecipePhotoUploadQueue` (w3/e4) — the layer that\ndrives the shared, single-flight `useRecipePhotoUpload` headless hook (CP-6/P3, B24) once per file,\nsequentially, while the grid shows each file's own status.\n\nUpload flow, on a picked asset: read the asset's bytes as a Blob, then enqueue `{ blob, fileName,\ncontentType, fileSize, previewUri: asset.uri }` (the asset's own URI doubles as the grid thumbnail while\nqueued/uploading/failed — no extra copy needed on this platform, unlike the web leaf's `createObjectURL`).\n`fileSize` is read from the Blob (`blob.size`), NOT `asset.fileSize` — see `addPhoto`'s comment for why\nthe picker's own metadata is not a trustworthy source for the REQ-011 size check.\nThe queue drives the presign → S3 PUT → confirm sequence per file; `confirm → invalidateRecipeProjections`\nstill runs exactly once per successful upload, from inside `useRecipePhotoUpload`. Removal of a CONFIRMED\nphoto delegates to `useDeleteRecipePhoto`, busying just the row whose deletion is in flight; the queue's own\n`retry`/`remove` handle a queued/failed FILE. Cross-platform peer of the web container; the picker\n(`expo-image-picker`) and the real S3 upload require on-device verification.\n\n**Pick + blob-read re-entrancy (B24-adjacent, closed for the full window).** The queue's `uploading` only\nreflects an upload that has actually STARTED, but the picker launch + local blob read that happen BEFORE\n`enqueue()` are themselves awaited work with no guard of their own. `picking` covers that window: the add\ncontrol is disabled only while `picking` (never while an upload is in flight — the whole point of the\nqueue is that a second pick during an in-flight upload is accepted and queued, not blocked), and `addPhoto`\nearly-returns if a pick is already underway — so a second tap during the picker/blob-read can't launch\n`expo-image-picker` a second time concurrently.\n\nEvery enqueued asset also passes through the queue's client-side pre-validation (REQ-011 size, REQ-012\nMIME allowlist) — this container's only involvement is supplying the two localized rejection strings;\nthe admission check itself lives in `useRecipePhotoUploadQueue`.",
+                    "moduleDoc": "Recipe photo uploader (mobile, T067, wireframe step 4; w3/e4 per-file queue grid). The container that turns\nthe shared, presentational {@link RecipePhotoManager} block (its native leaf) into a working photo surface:\nit reads the recipe's photos from the query cache, supplies the native image-picker button as the block's\n`addControl`, and ENQUEUES every picked asset onto `useRecipePhotoUploadQueue` (w3/e4) — the layer that\ndrives the shared, single-flight `useRecipePhotoUpload` headless hook (CP-6/P3, B24) once per file,\nsequentially, while the grid shows each file's own status.\n\n**Add photos (A-010).** The add control is a secondary `Button` that opens a sheet of two sources, \"Take photo\" and\n\"Choose from library\". The chosen source is HELD until the sheet has gone and the picker is launched at its\n`onDismissed` — iOS shows one modal at a time, so a picker opened under a sliding sheet never appears (the rule\n`ActionMenu` keeps for its chosen item). The camera asks for its permission first and says so, in words, when it is\nrefused or the device has none; the library asks for nothing. Replace stays on the library.\n\nUpload flow, on a picked asset: read the asset's bytes as a Blob, then enqueue `{ blob, fileName,\ncontentType, fileSize, previewUri: asset.uri }` (the asset's own URI doubles as the grid thumbnail while\nqueued/uploading/failed — no extra copy needed on this platform, unlike the web leaf's `createObjectURL`).\n`fileSize` is read from the Blob (`blob.size`), NOT `asset.fileSize` — see `addPhoto`'s comment for why\nthe picker's own metadata is not a trustworthy source for the REQ-011 size check.\nThe queue drives the presign → S3 PUT → confirm sequence per file; `confirm → invalidateRecipeProjections`\nstill runs exactly once per successful upload, from inside `useRecipePhotoUpload`. Removal of a CONFIRMED\nphoto delegates to `useDeleteRecipePhoto`, busying just the row whose deletion is in flight; the queue's own\n`retry`/`remove` handle a queued/failed FILE. Cross-platform peer of the web container; the picker\n(`expo-image-picker`) and the real S3 upload require on-device verification.\n\n**Pick + blob-read re-entrancy (B24-adjacent, closed for the full window).** The queue's `uploading` only\nreflects an upload that has actually STARTED, but the picker launch + local blob read that happen BEFORE\n`enqueue()` are themselves awaited work with no guard of their own. `picking` covers that window: the add\ncontrol is disabled only while `picking` (never while an upload is in flight — the whole point of the\nqueue is that a second pick during an in-flight upload is accepted and queued, not blocked), and `addPhoto`\nearly-returns if a pick is already underway — so a second tap during the picker/blob-read can't launch\n`expo-image-picker` a second time concurrently.\n\nEvery enqueued asset also passes through the queue's client-side pre-validation (REQ-011 size, REQ-012\nMIME allowlist) — this container's only involvement is supplying the two localized rejection strings;\nthe admission check itself lives in `useRecipePhotoUploadQueue`.",
                     "moduleTags": [],
                     "description": "The recipe photo uploader.",
                     "tags": [
@@ -1578,6 +1851,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "cuisine",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The recipe's cuisine, shown on the previewed cover where it is tall enough.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx"
+                        },
                         {
                             "name": "externalError",
                             "type": "string",
@@ -1621,6 +1903,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The recipe whose photos are managed, or `null` on a create that has not saved yet (U33).",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The recipe's title, for the cover the empty state previews (buildSpec §7.7: its first letter). Optional: until\nthe screen supplies it the preview shows the cover's tint without a letter.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx"
                         }
                     ],
@@ -2857,7 +3148,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/login.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/login — the mobile sign-in surface (U2 rebuild).\n\nA custom Clerk sign-in form (the app ships its own UI, not Clerk's hosted screens) built on the design\nsystem: the `@commise/ui` {@link Button} (with its real `busy` spinner) + tokenized {@link Input}, all copy\nfrom `mobileMessages` (no hard-coded English), every field label associated for assistive tech, and the\nform wrapped in a `SafeAreaView` + `KeyboardAvoider` so the keyboard never occludes the inputs. It\nmirrors the web `<SignIn>` flow the custom form must otherwise reproduce: `signIn.create` →\n`signIn.password`, and — when the instance requires new-device verification — an email-code step\n(`sendCode` → a `oneTimeCode` field → `verifyCode`) before `setActive`.",
+                    "moduleDoc": "screens/login — the mobile sign-in surface (U2 rebuild).\n\nA custom Clerk sign-in form (the app ships its own UI, not Clerk's hosted screens) built on the design\nsystem: the `@commise/ui` {@link Button} (with its real `busy` spinner) + tokenized {@link Input}, all copy\nfrom `mobileMessages` (no hard-coded English), every field label associated for assistive tech, and the\nform wrapped in a `SafeAreaView` + `KeyboardAvoider` so the keyboard never occludes the inputs.\n\nThe password is the FIRST factor and is always sent: ONE `signIn.password({ identifier, password })` call. A wrong\npassword fails there with Clerk's own message and no code is sent. Only after a correct password does Clerk\nanswer `needs_client_trust` (a new device) or `needs_second_factor`; the email code that follows is the SECOND\nfactor (`signIn.mfa.sendEmailCode` → a `oneTimeCode` field → `signIn.mfa.verifyEmailCode`) before `setActive`.\nThe passwordless first-factor strategy (`signIn.emailCode.*`) is deliberately never used: it signs a user in\nwith the mailbox alone (A-001).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2911,7 +3202,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/profile.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), pushed from the\navatar. It replaces the old profile form AND the `AccountSettings` hub: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the display-name editor and\nthe photo write, and hands the render leaves from `@commise/features-account/profile` their state. The read decides\none of three states — loading, failed, ready — and ONLY the Account group depends on it: sign out and the danger zone\nneed no profile, so a failed read never takes them away (E15). That is why this is a plain query and not a suspense\nread under a boundary: a boundary would replace the whole page with its error.\n\nSign out is `SignOutButton`, which issues the one verified sign-out command (ADR-0009); close and erase are\n`AccountDangerZone`, which keeps its own dialogs and flows. Nothing here calls Clerk's `signOut`.\n\nTHE PHOTO. The spec's 72 pt avatar is \"initials, or the native `AvatarField` photo\". `ProfileHeader` is shared with\nweb and draws initials only, so the native-only photo control sits as the first row of the Account group instead.\nA picked photo is an explicit act and is written ALONE (`{ avatarUrl }`) through its own mutation; the display name is\nwritten only from the sheet's Save, so the two never share a pending or failed state.",
+                    "moduleDoc": "screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), pushed from the\navatar. It replaces the old profile form AND the `AccountSettings` hub: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the display-name editor and\nthe photo write, and hands the render leaves from `@commise/features-account/profile` their state. The read decides\none of three states — loading, failed, ready — and ONLY the Account group depends on it: sign out and the danger zone\nneed no profile, so a failed read never takes them away (E15). That is why this is a plain query and not a suspense\nread under a boundary: a boundary would replace the whole page with its error.\n\nSign out is `SignOutButton`, which issues the one verified sign-out command (ADR-0009); close and erase are\n`AccountDangerZone`, which keeps its own dialogs and flows. Nothing here calls Clerk's `signOut`.\n\nTHE PHOTO. The spec's 72 pt avatar is \"initials, or the native `AvatarField` photo\". The native `ProfileHeader` takes\nthe photo control as its `avatar` slot, so the page has ONE avatar (the initials are the control's own fallback).\nA picked photo is an explicit act and is written ALONE (`{ avatarUrl }`) through its own mutation; the display name is\nwritten only from the sheet's Save, so the two never share a pending or failed state. A failed pick or a failed save\nof the photo shows one alert under the header.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2926,7 +3217,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The way back."
+                            "text": "props - The way back, and the way to Data sources."
                         },
                         {
                             "name": "returns",
@@ -2943,6 +3234,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Leave Profile: pop to the screen it was pushed from.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/profile.tsx"
+                        },
+                        {
+                            "name": "onOpenDataSources",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open Food data sources: the navigator pushes it as a page, so this screen mounts nothing for it (A-026).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/profile.tsx"
                         }
                     ],
@@ -2976,7 +3276,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block from a\nsuspense read under `QueryBoundary`, which owns the localized loading state and the failure: a distinct not-found\nmessage with no retry, or the generic error with a retry that refetches — the same three outcomes as the web\ncontainer. The settled view is keyed on `recipeId`, so a `replace`/deep-link that reuses this screen with a new id\nremounts it: every mutation and the delete dialog start fresh, and nothing of the previous recipe can leak.\nOn top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,\nT075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and tier:\n\n- Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. The\n  private-visibility option is tier-gated (C-004): free-tier owners see it disabled with an upgrade reason.\n- The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.\n\nA single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from `useUserProfile` (the\nviewer's app-user id + subscription tier); every ownership/clone/tier gate above reads from that ONE\n`Viewer` through the shared `isOwner`/`canClone`/`canGoPrivate` policy predicates — the SAME predicates\nthe web detail container evaluates, so the two platforms can never diverge on a gate (this closes D7,\nwhere the clone gate previously disagreed: web ignored ownership while mobile checked it). Every mutation\nis owned here and reported upward so the navigator can route (back to the list after delete, to the new\nrecipe after clone). Remote state stays in the query cache — this screen derives its view state from it.\n\nThe recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another\ncook who may clone — beside the ⋯ menu, whose entries come from the shared `detailMenuOf` (Version history, Make\nprivate/public, Clear checks, then Delete); the rating block goes in the view's `rating` slot, under the nutrition.\nThe cook's marks, the serving scale and Screen on are bound by the view itself; this screen reads the marks only to\noffer Clear checks.",
+                    "moduleDoc": "Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block from a\nsuspense read under `QueryBoundary`, which owns the localized loading state and the failure: a distinct not-found\nmessage with no retry, or the generic error with a retry that refetches — the same three outcomes as the web\ncontainer. The settled view is keyed on `recipeId`, so a `replace`/deep-link that reuses this screen with a new id\nremounts it: every mutation and the delete dialog start fresh, and nothing of the previous recipe can leak.\nOn top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,\nT075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and tier:\n\n- Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. The\n  private-visibility option is tier-gated (C-004): free-tier owners see it disabled with an upgrade reason.\n- The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.\n\nA single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from `useUserProfile` (the\nviewer's app-user id + subscription tier); every ownership/clone/tier gate above reads from that ONE\n`Viewer` through the shared `isOwner`/`canClone`/`canGoPrivate` policy predicates — the SAME predicates\nthe web detail container evaluates, so the two platforms can never diverge on a gate (this closes D7,\nwhere the clone gate previously disagreed: web ignored ownership while mobile checked it). Every mutation\nis owned here and reported upward so the navigator can route (back to the list after delete, to the new\nrecipe after clone). Remote state stays in the query cache — this screen derives its view state from it.\n\nThe recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another\ncook who may clone; Back and the ⋯ menu are discs over the hero photo, the menu's entries coming from the shared\n`detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); the rating block goes in the\nview's `rating` slot, under the nutrition. The cook's marks, the serving scale, Screen on and the page's scroller\nare bound by the view itself; this screen reads the marks only to offer Clear checks, and hands the view what must\nscroll with the page (the failed-visibility alert and the delete dialog) as its `scrollFooter`.\n\nBack is named for where it goes (\"Back to Discover\"), read from the navigator's stack read-only: the tab stacks\nand their routes are the navigator's, and this screen only looks at the route below it.",
                     "moduleTags": [],
                     "description": "The recipe-detail screen: the read boundary around the settled detail.",
                     "tags": [
@@ -3224,11 +3524,11 @@
                         },
                         {
                             "name": "onFinished",
-                            "type": "(recipeId: string) => void",
+                            "type": "(recipeId: string, outcome: \"firstPublish\" | \"published\" | \"changesSaved\") => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe was published, or its changes saved: show it.",
+                            "description": "The recipe was published, or its changes saved: show it, and say which (E8).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         },
                         {
@@ -3476,7 +3776,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/signup.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/signup — the mobile sign-up surface (U2 rebuild).\n\nThe sibling of `LoginScreen`: a custom Clerk sign-up form on the design system\n(`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,\nassociated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It runs `signUp.create` →\n`signUp.password` → `setActive` on completion; anything short of `complete` surfaces the localized\nadditional-verification notice.\n\n`onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate\nopens on login, and login's own \"Create account\" control is the only route here (owner decision 2026-07-28\ndeleted the welcome hero that used to provide a \"Get started\" entry). So the existing back affordance — the\nsecondary \"Sign in\" button under `haveAccountPrompt` — still lands exactly where the user came from, and it\nis now the ONLY exit, which is why `AuthGate` keeps rendering it rather than a bare form.",
+                    "moduleDoc": "screens/signup — the mobile sign-up surface (U2 rebuild).\n\nThe sibling of `LoginScreen`: a custom Clerk sign-up form on the design system\n(`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,\nassociated field labels, and a `SafeAreaView` + `KeyboardAvoider` shell. It runs `signUp.create` →\n`signUp.password`, and — when the instance verifies the email — an email-code step\n(`verifications.sendEmailCode` → a `oneTimeCode` field → `verifications.verifyEmailCode`) before `setActive`.\nAny other requirement the instance still has (a username, a name) is a field this form does not offer: it says so,\nand reports it to Sentry, rather than stranding the user on a form that cannot finish.\n\n`onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate\nopens on login, and login's own \"Create account\" control is the only route here (owner decision 2026-07-28\ndeleted the welcome hero that used to provide a \"Get started\" entry). So the existing back affordance — the\ninline \"Sign in\" link under `haveAccountPrompt` — still lands exactly where the user came from, and it\nis now the ONLY exit, which is why `AuthGate` keeps rendering it rather than a bare form.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -2,8 +2,9 @@
 
 /**
  * @module @commise/features-recipes/editor — the editor's Preview (build spec §7.7 item 4): the real detail page of the
- * draft, in a full-height sheet, under the banner "Preview. This is how it looks to others." It is the detail page
- * itself (`RecipeDetailView`), not a second rendering of the recipe, so what the cook previews is what others see.
+ * draft, in a page-sized sheet (`size="page"`: the whole visible height), under the banner "Preview. This is how it
+ * looks to others." It is the detail page itself (`RecipeDetailView`), not a second rendering of the recipe, so what
+ * the cook previews is what others see.
  *
  * Presentational: props → JSX. Read-only: no owner controls, no rating, no Edit links.
  *
@@ -37,7 +38,7 @@ export const RecipePreviewSheet: FC<RecipePreviewSheetProps> = ({ open, recipe, 
             }}
             title={m.preview}
             closeLabel={m.previewClose}
-            size="full"
+            size="page"
         >
             <p className="rounded-md bg-surface-muted px-4 py-3 text-body-sm text-ink">{m.previewBanner}</p>
             {/* Its own host: the detail page's section switch must not reach the editor's. */}

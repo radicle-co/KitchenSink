@@ -26,7 +26,10 @@ import {
     classifyUnit,
     FoodResolutionStatus,
     isSizeWord,
+    MASS_UNIT_TO_GRAMS,
     NAMELESS_LINE_STATUSES,
+    SUBJECTIVE_UNIT_VOCABULARY,
+    UNIT_VOCABULARY,
     type IngredientQuantity,
 } from '@kitchensink/recipe-core';
 import type { IngredientVariantPart, NamelessLineStatus, RecipeIngredient } from '@kitchensink/recipe-core';
@@ -149,6 +152,39 @@ export const nameForQuantity = (name: string, quantity: IngredientQuantity, unit
     }
 
     return pluralize.singular(name);
+};
+
+/**
+ * The units that are WORDS the amount can be plural of: every spelled-out canonical unit and every one-word subjective
+ * one. Derived from the vocabulary `recipe-core` owns, never listed again here. The mass units' canonical forms
+ * (`g`, `kg`, `mg`, `oz`, `lb`) are symbols, and a symbol has no plural; a phrase ("to taste") is not counted.
+ */
+const PLURALIZABLE_UNITS: ReadonlySet<string> = new Set(
+    [...UNIT_VOCABULARY, ...SUBJECTIVE_UNIT_VOCABULARY].filter(
+        (unit) => !(unit in MASS_UNIT_TO_GRAMS) && (!SUBJECTIVE_UNIT_VOCABULARY.includes(unit) || !unit.includes(' ')),
+    ),
+);
+
+/**
+ * The unit to show beside an amount: a WORD unit in the plural unless the amount is one exact value above 0 and at most
+ * 1 (D11), else the unit as the cook wrote it. Pure.
+ *
+ * The same "one" the name follows ({@link nameForQuantity}), so "1.5 cups" and "1 cup" agree with "1 large onion". A
+ * symbol ("tbsp", "g"), a unit already in the plural, and a word the vocabulary does not know are left as written: this
+ * only ever errs toward what the cook typed.
+ *
+ * @param unit - The unit as the cook wrote it.
+ * @param quantity - The amount it follows.
+ * @returns The unit to show.
+ */
+export const unitForQuantity = (unit: string, quantity: IngredientQuantity): string => {
+    const isOne = quantity.kind === 'exact' && quantity.value > 0 && quantity.value <= 1;
+
+    if (quantity.kind === 'absent' || isOne || !PLURALIZABLE_UNITS.has(unit.trim().toLowerCase())) {
+        return unit;
+    }
+
+    return pluralize.plural(unit);
 };
 
 /**

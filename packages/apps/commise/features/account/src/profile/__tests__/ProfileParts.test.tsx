@@ -326,3 +326,70 @@ describe('DisplayNameSheet (web) — the length limit', () => {
         );
     });
 });
+
+/**
+ * W-26: the field stops at the limit with a hard `maxLength`, so a paste past it was cut silently. A counter in the
+ * `caption` role appears from 80 characters; it is not a live region itself (it would speak on every keystroke), and a
+ * separate polite status says so once, when the limit is reached.
+ */
+describe('DisplayNameSheet (web) — the length counter (W-26)', () => {
+    const withDraft = (draft: string) => (
+        <DisplayNameSheet
+            open
+            onOpenChange={noop}
+            draft={draft}
+            onDraftChange={noop}
+            canSave
+            saving={false}
+            failed={false}
+            onSave={noop}
+        />
+    );
+    const counter = (text: string) => screen.queryByText(text);
+
+    it('shows no counter below 80 characters', () => {
+        render(withDraft('x'.repeat(79)));
+
+        expect(screen.queryByText(/\d+\/100/)).toBeNull();
+    });
+
+    it('shows “{n}/100” in the caption role from 80 characters', () => {
+        render(withDraft('x'.repeat(85)));
+
+        const shown = counter('85/100');
+        expect(shown).toBeTruthy();
+        expect(shown?.className).toContain('text-caption');
+        expect(shown?.className).toContain('text-ink-muted');
+    });
+
+    it('describes the field by the counter, so a screen reader hears it on focus', () => {
+        render(withDraft('x'.repeat(85)));
+
+        const described = screen.getByRole('textbox', { name: 'Display name' }).getAttribute('aria-describedby') ?? '';
+
+        expect(described.split(' ').map((id) => document.getElementById(id)?.textContent)).toContain('85/100');
+    });
+
+    it('does not announce while the cook is under the limit', () => {
+        render(withDraft('x'.repeat(99)));
+
+        expect(screen.getByRole('status').textContent).toBe('');
+    });
+
+    it('turns the counter danger and announces the limit politely when it is reached', () => {
+        render(withDraft('x'.repeat(DISPLAY_NAME_MAX_LENGTH)));
+
+        expect(counter('100/100')?.className).toContain('text-danger-text');
+        expect(screen.getByRole('status').textContent).toBe('That is the longest name we can take.');
+    });
+
+    it('keeps the polite status mounted before the limit, so the browser speaks the change', () => {
+        const { rerender } = render(withDraft('x'.repeat(99)));
+        const region = screen.getByRole('status');
+
+        rerender(withDraft('x'.repeat(DISPLAY_NAME_MAX_LENGTH)));
+
+        expect(screen.getByRole('status')).toBe(region);
+        expect(region.textContent).toBe('That is the longest name we can take.');
+    });
+});

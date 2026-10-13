@@ -17,6 +17,7 @@ import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientEntry } from '../hooks/useIngredientEntry.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { entryComboboxOf, type EntryComboboxCopy, type EntryOption } from './entryCombobox.js';
+import { ingredientNameFieldId } from './fieldIds.js';
 import type { RecipeFormMessages } from './messages.js';
 import type { SourceNaming } from './progressiveNotes.js';
 
@@ -146,7 +147,10 @@ export const rowEntryFieldOf = (input: RowEntryFieldInput, copy: RowEntryFieldCo
     );
 
     return {
+        id: ingredientNameFieldId(input.target.key),
         label: fillTemplate(copy.form.ingredientNameLabel, { number: input.number }),
+        // The row already shows this food's name in place; the label stays the field's accessible name.
+        labelVisibility: 'hidden',
         listLabel: fillTemplate(copy.form.ingredientSuggestionsLabel, { number: input.number }),
         value: text,
         onValueChange: (next) => {

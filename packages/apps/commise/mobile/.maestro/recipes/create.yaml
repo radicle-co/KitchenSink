@@ -39,6 +39,20 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Dinner'
 
+# A-009 / P3 (UI walk 2026-10-13): Cuisine is a combobox that opens its curated list on focus, and the chip fields' Add
+# buttons read as whole sentences. Pick a cuisine from the list, and see both Add buttons.
+- scrollUntilVisible:
+      element: 'Cuisine'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Cuisine'
+- tapOn: 'Italian'
+- scrollUntilVisible:
+      element: 'Add a tag'
+      direction: DOWN
+      timeout: 20000
+- assertVisible: 'Add a dietary flag'
+
 # Ingredients. Since plan 002 V1 B8 the entry is the trailing "Add an ingredient" field after the last line; with no
 # lines yet it is the section's first control. Type a name and declare it "as written": that path mints a
 # real binding through POST /api/v1/ingredients, which is what Publish validation requires, and needs no food
@@ -108,6 +122,9 @@ appId: io.commise.mobile
       timeout: 20000
 - assertVisible:
       text: 'Maestro Weeknight Soup.*'
+# A-012: the banner is a tinted block BESIDE the close control, not bare text. Maestro cannot see a fill, so what it
+# proves is the layout the block must keep: the full banner sentence and Close are both on screen at once.
+- assertVisible: 'Close preview'
 - tapOn: 'Close preview'
 
 # Publish is the pinned action bar's primary, on screen wherever the page is scrolled.

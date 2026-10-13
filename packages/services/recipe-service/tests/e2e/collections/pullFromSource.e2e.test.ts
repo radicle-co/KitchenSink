@@ -279,7 +279,12 @@ describe('CollectionsService.pullFromSource atomicity (S-R1 unit-of-work)', () =
         pool = new pg.Pool({ connectionString: roleDb.appUrl });
         db = createRecipeDrizzle(pool);
         dal = new CollectionsDal(db);
-        service = new CollectionsService(dal, new AuthorHandlesDal(db), new AnalyticsService(db));
+        service = new CollectionsService(
+            dal,
+            new AuthorHandlesDal(db),
+            new AnalyticsService(db),
+            'https://cdn.e2e.test',
+        );
 
         const [source] = await db
             .insert(collections)

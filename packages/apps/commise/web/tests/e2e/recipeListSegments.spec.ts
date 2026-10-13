@@ -48,3 +48,27 @@ test.describe('Recipes segments — My recipes and Collections', () => {
         await expect(page.getByRole('link', { name: 'Weeknight Pasta' })).toBeVisible();
     });
 });
+
+test.describe('Recipes segments — W-25: width by container', () => {
+    test('take their content’s width on a wide screen, and fill the row on a phone', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [] });
+
+        const widthOf = async (name: 'Recipes'): Promise<number> =>
+            (await page.getByRole('navigation', { name }).locator('> div').boundingBox())?.width ?? 0;
+
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.goto(route('/recipes'));
+        const main = (await page.getByRole('main').boundingBox())?.width ?? 0;
+
+        // At 1280 the two names do not span the column: the control is under half the main width (bs §4.3).
+        expect(await widthOf('Recipes')).toBeLessThan(main / 2);
+
+        await page.setViewportSize({ width: 320, height: 700 });
+        const narrowMain = (await page.getByRole('main').boundingBox())?.width ?? 0;
+
+        // On a phone it fills the row, each segment at least 136 px (W-25).
+        expect(await widthOf('Recipes')).toBeGreaterThan(narrowMain - 4);
+    });
+});

@@ -150,6 +150,8 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = [], activationOffse
                     setPendingJump(id);
                 }
             },
+            // Native fields hold no registry entry, so none can be found by id; the section heading takes the cook.
+            scrollToField: () => false,
             headingLayout: (event: LayoutReport) => {
                 const { y, height } = event.nativeEvent.layout;
                 setHeadingBottom(y + height);

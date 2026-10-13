@@ -6,11 +6,11 @@
     "coverage": {
         "components": 6,
         "implementations": 12,
-        "props": 74,
+        "props": 76,
         "documentedComponents": 6,
         "implementationsWithModuleDoc": 12,
         "implementationsWithComponentDoc": 10,
-        "documentedProps": 54,
+        "documentedProps": 56,
         "classifiedComponents": 4,
         "componentsWithPatternTag": 4,
         "crossPlatformComponents": 6
@@ -43,7 +43,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/account/src/danger/AccountEraseDialog.tsx",
                     "dir": "packages/apps/commise/features/account/src/danger",
-                    "moduleDoc": "@commise/features-account/danger/AccountEraseDialog — the WEB account-erasure dialog (CR-002 / U4b).\n\nA controlled `Dialog` built on `@radix-ui/react-dialog` — Radix owns focus-trapping, Escape-to-dismiss,\nbackdrop-click dismiss, and the `role=\"dialog\"` + `aria-labelledby`/`aria-describedby` wiring from its\n`Title`/`Description` parts, so this leaf only supplies the Commise visual language, the donate election,\nand the phrase gate. `onOpenChange(false)` (Escape + backdrop) maps onto the same `onCancel` the explicit\nCancel button uses — one exit path, not two.\n\nThe confirm action is enabled ONLY when {@link confirmsErasurePhrase} accepts the typed phrase and no\nsubmit is in flight — the SAME predicate the native leaf uses, so the two platforms gate identically and\nneither can enable a confirmation the server would `400`.",
+                    "moduleDoc": "@commise/features-account/danger/AccountEraseDialog — the WEB account-erasure dialog (CR-002 / U4b).\n\nA controlled `Dialog` built on `@radix-ui/react-dialog` — Radix owns focus-trapping, Escape-to-dismiss,\nbackdrop-click dismiss, and the `role=\"dialog\"` + `aria-labelledby`/`aria-describedby` wiring from its\n`Title`/`Description` parts, so this leaf only supplies the Commise visual language, the donate election,\nand the phrase gate. `onOpenChange(false)` (Escape + backdrop) maps onto the same `onCancel` the explicit\nCancel button uses — one exit path, not two.\n\nThe confirm action is enabled ONLY when {@link confirmsErasurePhrase} accepts the typed phrase and no\nsubmit is in flight — the SAME predicate the native leaf uses, so the two platforms gate identically and\nneither can enable a confirmation the server would `400`.\n\nThe frame and type roles are the Close dialog's (`@commise/ui` `ConfirmDialog`): a `rounded-lg` `paper-overlay`\npanel, a `section-title` title, a `body` / `inkMuted` description, the design-system `Input` and buttons. The\nwarning is not painted red end to end; a `dangerText` glyph stands beside it, and its words already say\n\"permanently\" and \"cannot be undone\", so colour is never the only cue (`buildSpec.md` §10). It stays a Radix\n`Dialog`, not the `AlertDialog` under `ConfirmDialog`, because it holds a form (the donate election and the phrase).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -353,7 +353,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/DisplayNameSheet.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/DisplayNameSheet — the display-name sheet (web): \"What should we call\nyou?\", one field and Save (`buildSpec.md` §9.1).\n\nThe name can show publicly as an author handle, so this sheet is the only place the app asks for it and it saves\nonly when Save is pressed (or Enter in the field) — never on close and never from the prefill alone. Controlled and\nstateless: the page owns the draft, the gate (`canSaveDisplayName`) and the write.",
+                    "moduleDoc": "@commise/features-account/profile/DisplayNameSheet — the display-name sheet (web): \"What should we call\nyou?\", one field and Save (`buildSpec.md` §9.1).\n\nThe name can show publicly as an author handle, so this sheet is the only place the app asks for it and it saves\nonly when Save is pressed (or Enter in the field) — never on close and never from the prefill alone. Controlled and\nstateless: the page owns the draft, the gate (`canSaveDisplayName`) and the write.\n\nThe field stops at its limit (a hard `maxLength`: the name is a public handle), so from 80 % of it a counter says how\nclose the cook is (W-26). The counter is NOT a live region (it would speak on every key); a separate polite one says\nonce that the limit is reached.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -454,7 +454,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/DisplayNameSheet.native.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/DisplayNameSheet — the display-name sheet (native): \"What should we call\nyou?\", one field and Save (`buildSpec.md` §9.1).\n\nThe name can show publicly as an author handle, so this sheet is the only place the app asks for it and it saves\nonly when Save is pressed (or Return in the field) — never on close and never from the prefill alone. Controlled and\nstateless: the page owns the draft, the gate (`canSaveDisplayName`) and the write.",
+                    "moduleDoc": "@commise/features-account/profile/DisplayNameSheet — the display-name sheet (native): \"What should we call\nyou?\", one field and Save (`buildSpec.md` §9.1).\n\nThe name can show publicly as an author handle, so this sheet is the only place the app asks for it and it saves\nonly when Save is pressed (or Return in the field) — never on close and never from the prefill alone. Controlled and\nstateless: the page owns the draft, the gate (`canSaveDisplayName`) and the write.\n\nThe field stops at its limit (a hard `maxLength`: the name is a public handle), so from 80 % of it a counter says how\nclose the cook is (W-26). The counter is NOT a live region (it would speak on every key); a separate polite one says\nonce that the limit is reached.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -716,6 +716,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "avatar",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native only: the host's own avatar control, drawn in place of the initials disc in the ready state, so the page\nhas ONE avatar and the photo and the initials cannot disagree (A-025). Web ignores it and draws the disc.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
                             "name": "initials",
                             "type": "string",
                             "typeDetail": null,
@@ -755,11 +764,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileHeader.native.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar\ndisc, the display name and the email (`buildSpec.md` §9.1, §3.8). The cook's photo (`AvatarField`) stays an app-level\nnative control; this block draws the disc.\n\nThree states, never a blocked page: loading is a skeleton, ready is the name and email, failed shows the `user`\nglyph and says so with a Try again control. Colour comes from the theme at render.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar,\nthe display name and the email (`buildSpec.md` §9.1, §3.8). The cook's photo control (`AvatarField`) stays an\napp-level native control; the host passes it as `avatar` and it replaces the initials disc, so there is one avatar.\n\nThree states, never a blocked page: loading is a skeleton, ready is the name and email, failed shows the `user`\nglyph and says so with a Try again control. Colour comes from the theme at render.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar"
+                            "text": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar,"
                         },
                         {
                             "name": "pattern",
@@ -771,6 +780,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "avatar",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native only: the host's own avatar control, drawn in place of the initials disc in the ready state, so the page\nhas ONE avatar and the photo and the initials cannot disagree (A-025). Web ignores it and draws the disc.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
                         {
                             "name": "initials",
                             "type": "string",

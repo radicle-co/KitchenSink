@@ -28,15 +28,29 @@ const VARIANTS: readonly CardVariant[] = ['grid', 'row', 'compact'];
 
 describe.each(VARIANTS)('RecipeCard (web, %s) — what every variant keeps', (variant) => {
     it('names the card by its title, and shows the title as a heading', () => {
-        renderCard(<RecipeCard variant={variant} recipe={model({ title: 'Herb Risotto' })} />);
+        renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={model({ title: 'Herb Risotto' })} />);
 
         expect(screen.getByRole('article', { name: 'Herb Risotto' })).toBeTruthy();
         expect(screen.getByRole('heading', { level: 3, name: 'Herb Risotto' })).toBeTruthy();
     });
 
+    it.each([2, 3] as const)(
+        'draws the title at the heading level it is told (%s), so the outline has no skipped level',
+        (level) => {
+            renderCard(<RecipeCard variant={variant} headingLevel={level} recipe={model({ title: 'Herb Risotto' })} />);
+
+            expect(screen.getByRole('heading', { level, name: 'Herb Risotto' })).toBeTruthy();
+            expect(screen.queryAllByRole('heading')).toHaveLength(1);
+        },
+    );
+
     it('keeps the cover photo out of the accessibility tree, so the title is said once', () => {
         const { container } = renderCard(
-            <RecipeCard variant={variant} recipe={model({ coverPhotoUrl: 'https://cdn/x.jpg', ratingCount: 0 })} />,
+            <RecipeCard
+                headingLevel={3}
+                variant={variant}
+                recipe={model({ coverPhotoUrl: 'https://cdn/x.jpg', ratingCount: 0 })}
+            />,
         );
 
         expect(container.querySelector('img[src="https://cdn/x.jpg"]')?.getAttribute('alt')).toBe('');
@@ -45,19 +59,19 @@ describe.each(VARIANTS)('RecipeCard (web, %s) — what every variant keeps', (va
 
     it('names the PRO badge for a premium recipe, and draws none otherwise', () => {
         const { unmount } = renderCard(
-            <RecipeCard variant={variant} recipe={model({ usesPremiumCapability: true })} />,
+            <RecipeCard headingLevel={3} variant={variant} recipe={model({ usesPremiumCapability: true })} />,
         );
 
         expect(screen.getByLabelText('Premium recipe')).toBeTruthy();
         unmount();
 
-        renderCard(<RecipeCard variant={variant} recipe={model({ usesPremiumCapability: false })} />);
+        renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={model({ usesPremiumCapability: false })} />);
 
         expect(screen.queryByLabelText('Premium recipe')).toBeNull();
     });
 
     it('is inert with no onSelect and no href: no link and no button', () => {
-        renderCard(<RecipeCard variant={variant} recipe={model({ title: 'Herb Risotto' })} />);
+        renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={model({ title: 'Herb Risotto' })} />);
 
         expect(screen.queryByRole('link')).toBeNull();
         expect(screen.queryByRole('button')).toBeNull();
@@ -67,6 +81,7 @@ describe.each(VARIANTS)('RecipeCard (web, %s) — what every variant keeps', (va
         const onSelect = vi.fn();
         renderCard(
             <RecipeCard
+                headingLevel={3}
                 variant={variant}
                 recipe={model({ id: 'rec_42', title: 'Herb Risotto' })}
                 href="/en/recipes/rec_42"
@@ -89,6 +104,7 @@ describe.each(VARIANTS)('RecipeCard (web, %s) — what every variant keeps', (va
         const onSelect = vi.fn();
         renderCard(
             <RecipeCard
+                headingLevel={3}
                 variant={variant}
                 recipe={model({ id: 'rec_42' })}
                 href="/en/recipes/rec_42"
@@ -105,7 +121,12 @@ describe.each(VARIANTS)('RecipeCard (web, %s) — what every variant keeps', (va
     it('with onSelect and no href, is ONE button named by the title', () => {
         const onSelect = vi.fn();
         renderCard(
-            <RecipeCard variant={variant} recipe={model({ id: 'rec_7', title: 'Pasta' })} onSelect={onSelect} />,
+            <RecipeCard
+                headingLevel={3}
+                variant={variant}
+                recipe={model({ id: 'rec_7', title: 'Pasta' })}
+                onSelect={onSelect}
+            />,
         );
 
         const buttons = screen.getAllByRole('button');
@@ -117,7 +138,7 @@ describe.each(VARIANTS)('RecipeCard (web, %s) — what every variant keeps', (va
     });
 
     it('is a level-1 card in roles — paper, a divider hairline — and never glass (D12)', () => {
-        renderCard(<RecipeCard variant={variant} recipe={model({ title: 'Herb Risotto' })} />);
+        renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={model({ title: 'Herb Risotto' })} />);
         const card = screen.getByRole('article', { name: 'Herb Risotto' });
 
         expect(card.className).toContain('bg-paper');
@@ -130,13 +151,19 @@ describe.each(VARIANTS)('RecipeCard (web, %s) — what every variant keeps', (va
 
 describe('RecipeCard (web, grid) — the full CR-002 card', () => {
     it('lays out six rows, so the subgrid can align them across a grid row (an empty row keeps its track)', () => {
-        renderCard(<RecipeCard variant="grid" recipe={model({ title: 'Herb Risotto', tags: [] })} />);
+        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ title: 'Herb Risotto', tags: [] })} />);
 
         expect(screen.getByRole('article', { name: 'Herb Risotto' }).children).toHaveLength(6);
     });
 
     it('chips the cover with the status, and the total time in hours and minutes', () => {
-        renderCard(<RecipeCard variant="grid" recipe={model({ status: RecipeStatus.DRAFT, totalTimeMinutes: 330 })} />);
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="grid"
+                recipe={model({ status: RecipeStatus.DRAFT, totalTimeMinutes: 330 })}
+            />,
+        );
 
         expect(screen.getByText('Draft')).toBeTruthy();
         expect(screen.getByLabelText('330 minutes total time').textContent).toContain('5 h 30 min');
@@ -145,6 +172,7 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
     it('draws a published public recipe with no status chip on its cover', () => {
         renderCard(
             <RecipeCard
+                headingLevel={3}
                 variant="grid"
                 recipe={model({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PUBLIC })}
             />,
@@ -156,13 +184,13 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
 
     it('says the stated difficulty as a word beside its meter, and draws nothing when none was stated', () => {
         const { unmount } = renderCard(
-            <RecipeCard variant="grid" recipe={model({ difficulty: RecipeDifficulty.MEDIUM })} />,
+            <RecipeCard headingLevel={3} variant="grid" recipe={model({ difficulty: RecipeDifficulty.MEDIUM })} />,
         );
 
         expect(screen.getByText('Medium')).toBeTruthy();
         unmount();
 
-        renderCard(<RecipeCard variant="grid" recipe={model({ difficulty: undefined })} />);
+        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ difficulty: undefined })} />);
 
         for (const word of ['Easy', 'Medium', 'Hard']) {
             expect(screen.queryByText(word)).toBeNull();
@@ -170,14 +198,16 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
     });
 
     it('names a rated recipe’s stars and shows the short figure', () => {
-        renderCard(<RecipeCard variant="grid" recipe={model({ averageRating: 4.75, ratingCount: 12 })} />);
+        renderCard(
+            <RecipeCard headingLevel={3} variant="grid" recipe={model({ averageRating: 4.75, ratingCount: 12 })} />,
+        );
 
         const stars = screen.getByRole('img', { name: 'Rated 4.8 out of 5, 12 ratings' });
         expect(stars.textContent).toContain('4.8 (12)');
     });
 
     it('says an unrated recipe has no ratings, and draws no stars', () => {
-        renderCard(<RecipeCard variant="grid" recipe={model({ ratingCount: 0 })} />);
+        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ ratingCount: 0 })} />);
 
         expect(screen.getByText('No ratings yet')).toBeTruthy();
         expect(screen.queryByRole('img', { name: /Rated/u })).toBeNull();
@@ -186,6 +216,7 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
     it('renders the cuisine, the nutrition slot and the servings on the meta line', () => {
         renderCard(
             <RecipeCard
+                headingLevel={3}
                 variant="grid"
                 recipe={model({ cuisine: 'Moroccan', servings: 8 })}
                 nutrition={<span>612 cal</span>}
@@ -198,14 +229,18 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
     });
 
     it('renders no nutrition item at all when the slot is absent', () => {
-        renderCard(<RecipeCard variant="grid" recipe={model({ cuisine: undefined })} />);
+        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ cuisine: undefined })} />);
 
         expect(screen.queryByText(/cal/u)).toBeNull();
     });
 
     it('says the tags as one line of text with the rest counted, and names the full list', () => {
         renderCard(
-            <RecipeCard variant="grid" recipe={model({ tags: ['gluten-free', 'slow-cooked', 'braise', 'lamb'] })} />,
+            <RecipeCard
+                headingLevel={3}
+                variant="grid"
+                recipe={model({ tags: ['gluten-free', 'slow-cooked', 'braise', 'lamb'] })}
+            />,
         );
 
         const line = screen.getByText('gluten-free · slow-cooked · +2');
@@ -216,6 +251,7 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
     it('joins the version and the timestamp in the footer', () => {
         renderCard(
             <RecipeCard
+                headingLevel={3}
                 variant="grid"
                 recipe={model({
                     currentVersion: 12,
@@ -231,7 +267,7 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
 
 describe('RecipeCard (web, row) — the list row', () => {
     it('names the time and the servings on its meta line', () => {
-        renderCard(<RecipeCard variant="row" recipe={model({ totalTimeMinutes: 45, servings: 4 })} />);
+        renderCard(<RecipeCard headingLevel={3} variant="row" recipe={model({ totalTimeMinutes: 45, servings: 4 })} />);
 
         expect(screen.getByLabelText('45 minutes total time').textContent).toContain('45 min');
         expect(screen.getByLabelText('Serves 4').textContent).toContain('4');
@@ -241,7 +277,13 @@ describe('RecipeCard (web, row) — the list row', () => {
         [RecipeVisibility.PRIVATE, 'Private'],
         [RecipeVisibility.PUBLIC, 'Public'],
     ])('draws a published %s recipe’s visibility as a named glyph only', (visibility, name) => {
-        renderCard(<RecipeCard variant="row" recipe={model({ status: RecipeStatus.PUBLISHED, visibility })} />);
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="row"
+                recipe={model({ status: RecipeStatus.PUBLISHED, visibility })}
+            />,
+        );
 
         expect(screen.getByRole('img', { name })).toBeTruthy();
         expect(screen.queryByText(name)).toBeNull();
@@ -250,6 +292,7 @@ describe('RecipeCard (web, row) — the list row', () => {
     it('draws a draft as the Draft badge, never its visibility', () => {
         renderCard(
             <RecipeCard
+                headingLevel={3}
                 variant="row"
                 recipe={model({ status: RecipeStatus.DRAFT, visibility: RecipeVisibility.PUBLIC })}
             />,
@@ -260,7 +303,9 @@ describe('RecipeCard (web, row) — the list row', () => {
     });
 
     it('drops the tags and the version — the only variant that drops fields', () => {
-        renderCard(<RecipeCard variant="row" recipe={model({ tags: ['vegan'], currentVersion: 9 })} />);
+        renderCard(
+            <RecipeCard headingLevel={3} variant="row" recipe={model({ tags: ['vegan'], currentVersion: 9 })} />,
+        );
 
         expect(screen.queryByText('vegan')).toBeNull();
         expect(screen.queryByText(/v9/u)).toBeNull();
@@ -271,6 +316,7 @@ describe('RecipeCard (web, compact) — Home below 960', () => {
     it('is the cover and the title only: no rating, no meta line, no footer', () => {
         renderCard(
             <RecipeCard
+                headingLevel={3}
                 variant="compact"
                 recipe={model({ averageRating: 4, ratingCount: 3, cuisine: 'Thai', currentVersion: 4 })}
             />,
@@ -282,7 +328,7 @@ describe('RecipeCard (web, compact) — Home below 960', () => {
     });
 
     it('keeps the draft status chip on its cover (homeCardsA §4)', () => {
-        renderCard(<RecipeCard variant="compact" recipe={model({ status: RecipeStatus.DRAFT })} />);
+        renderCard(<RecipeCard headingLevel={3} variant="compact" recipe={model({ status: RecipeStatus.DRAFT })} />);
 
         expect(screen.getByText('Draft')).toBeTruthy();
     });
@@ -291,7 +337,7 @@ describe('RecipeCard (web, compact) — Home below 960', () => {
 describe('RecipeCard (web) — a custom arrangement', () => {
     it('renders the parts a surface arranges, inside the card', () => {
         renderCard(
-            <RecipeCard recipe={model({ title: 'Soup', ratingCount: 0 })}>
+            <RecipeCard headingLevel={3} recipe={model({ title: 'Soup', ratingCount: 0 })}>
                 <RecipeCard.Title />
                 <RecipeCard.Rating />
             </RecipeCard>,
@@ -323,6 +369,7 @@ describe('RecipeCard (web) — slots for a surface’s own controls', () => {
             const onCopy = vi.fn();
             renderCard(
                 <RecipeCard
+                    headingLevel={3}
                     variant={variant}
                     recipe={model({ id: 'rec_1', title: 'Herb Risotto' })}
                     href="/en/recipes/rec_1"
@@ -346,6 +393,7 @@ describe('RecipeCard (web) — slots for a surface’s own controls', () => {
     it('lifts the footer’s control above the link’s stretched hit area, so a press reaches it', () => {
         renderCard(
             <RecipeCard
+                headingLevel={3}
                 variant="compact"
                 recipe={model({ title: 'Herb Risotto' })}
                 href="/en/recipes/x"
@@ -361,6 +409,7 @@ describe('RecipeCard (web) — slots for a surface’s own controls', () => {
     it('replaces the own-recipe footer (version and timestamp) in the grid card’s sixth row', () => {
         renderCard(
             <RecipeCard
+                headingLevel={3}
                 variant="grid"
                 recipe={model({ title: 'Herb Risotto', currentVersion: 12 })}
                 footer={<span>@braise.club</span>}
@@ -376,6 +425,7 @@ describe('RecipeCard (web) — slots for a surface’s own controls', () => {
         const onMenu = vi.fn();
         renderCard(
             <RecipeCard
+                headingLevel={3}
                 variant="row"
                 recipe={model({ title: 'Herb Risotto' })}
                 href="/en/recipes/x"
@@ -399,8 +449,79 @@ describe('RecipeCard (web) — slots for a surface’s own controls', () => {
     });
 
     it('draws nothing extra when no slot is given', () => {
-        const { container } = renderCard(<RecipeCard variant="grid" recipe={model({ title: 'Herb Risotto' })} />);
+        const { container } = renderCard(
+            <RecipeCard headingLevel={3} variant="grid" recipe={model({ title: 'Herb Risotto' })} />,
+        );
 
         expect(container.querySelector('[data-card-footer]')).toBeNull();
+    });
+});
+
+const itemClasses = (label: string): readonly string[] => screen.getByLabelText(label).className.split(/\s+/u);
+
+describe('RecipeCard (web) — W-06: a one-line row is one line, and a separator only follows a visible item', () => {
+    it('sizes the meta line to exactly one line of its own type role, so a dropped item leaves no sliver', () => {
+        renderCard(<RecipeCard headingLevel={3} variant="row" recipe={model({ cuisine: 'Moroccan' })} />);
+        const line = screen.getByText('Moroccan').closest('[class*="overflow-hidden"]') as HTMLElement;
+
+        expect(line.className.split(/\s+/u)).toEqual(expect.arrayContaining(['h-lh', 'text-meta']));
+        expect(line.className.split(/\s+/u)).not.toContain('h-6');
+    });
+
+    it('draws the separator after a visible sibling, never `not-first` (an absent cuisine left it as a line-leading dot)', () => {
+        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ cuisine: undefined, servings: 4 })} />);
+        const classes = itemClasses('Serves 4');
+
+        expect(classes).toContain('[:not(:empty)~&]:before:content-[attr(data-sep)]');
+        expect(classes.filter((token) => token.startsWith('not-first:'))).toEqual([]);
+    });
+
+    it('caps the row’s cuisine at half the line and truncates it, so it gives way before the time and servings drop', () => {
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="row"
+                recipe={model({ cuisine: 'Mediterranean', totalTimeMinutes: 90 })}
+            />,
+        );
+        const item = screen.getByText('Mediterranean').parentElement as HTMLElement;
+
+        expect(item.className.split(/\s+/u)).toContain('max-w-1/2');
+        expect(screen.getByText('Mediterranean').className.split(/\s+/u)).toContain('truncate');
+    });
+});
+
+describe('RecipeCard (web, grid) — W-08: the cuisine overline never sits under the time chip', () => {
+    it('draws no overline on a cover that carries the time chip', () => {
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="grid"
+                recipe={model({ cuisine: 'French', totalTimeMinutes: 15, coverPhotoUrl: undefined })}
+            />,
+        );
+
+        // The meta line says it; the monogram must not say it again under the chip.
+        expect(screen.getAllByText('French')).toHaveLength(1);
+    });
+
+    it('keeps the overline on a cover with no time chip', () => {
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="grid"
+                recipe={model({ cuisine: 'French', totalTimeMinutes: 0, coverPhotoUrl: undefined })}
+            />,
+        );
+
+        expect(screen.getAllByText('French')).toHaveLength(2);
+    });
+
+    it('caps the status chip at half the cover, truncates its word, and keeps the word as its name', () => {
+        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ status: RecipeStatus.DRAFT })} />);
+        const chip = screen.getByText('Draft').parentElement as HTMLElement;
+
+        expect(chip.className.split(/\s+/u)).toContain('max-w-1/2');
+        expect(within(chip).getByText('Draft').className.split(/\s+/u)).toContain('truncate');
     });
 });

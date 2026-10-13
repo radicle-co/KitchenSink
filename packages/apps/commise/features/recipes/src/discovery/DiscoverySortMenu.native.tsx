@@ -1,6 +1,7 @@
 /**
  * @module @commise/features-recipes/discovery — the native sort control of Discover, the twin of the web leaf
- * (`docs/design/uiOverhaul/buildSpec.md` §4.5): a ghost `sm` button "Sort: {choice}" that opens a content-height sheet
+ * (`docs/design/uiOverhaul/buildSpec.md` §4.5): a ghost `sm` button showing the choice (named
+ * "Sort: {choice}") that opens a content-height sheet
  * of four radio rows with a check on the one in use. Choosing a sort closes the sheet.
  *
  * Presentational: it reports the chosen sort and holds only whether the menu is open.
@@ -24,11 +25,19 @@ export const DiscoverySortMenu: FC<RecipeDiscoverySortControl> = ({ active, onCh
     const discovery = useMessages(discoveryMessages);
     const { colors } = useTheme();
     const [open, setOpen] = useState(false);
+    const choice = discoverySortLabel(active, discovery);
 
     return (
         <>
-            <Button variant="ghost" size="sm" icon="chevronDown" onPress={() => setOpen(true)}>
-                {fillTemplate(discovery.sortButton, { choice: discoverySortLabel(active, discovery) })}
+            <Button
+                variant="ghost"
+                size="sm"
+                icon="chevronDown"
+                iconPlacement="end"
+                accessibilityLabel={fillTemplate(discovery.sortButton, { choice })}
+                onPress={() => setOpen(true)}
+            >
+                {choice}
             </Button>
             <Sheet
                 open={open}

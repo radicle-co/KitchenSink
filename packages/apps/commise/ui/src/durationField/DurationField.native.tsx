@@ -69,7 +69,9 @@ const styles = StyleSheet.create({
     group: { gap: nativeTokens.spacing[1] },
     label: nativeTokens.type.label,
     row: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    // The shared field geometry (the Input rules, spec §1.11), narrowed to a number's width.
-    box: { ...fieldGeometry, width: 80 },
-    unit: nativeTokens.type.meta,
+    // The shared field geometry (the Input rules, spec §1.11), narrowed to a number's width: an equal share of its cell
+    // rather than a fixed width, so the whole field fits the 136 dp a half-width cell has at 320 (build spec §7.4), with
+    // half the side padding so two digits still fit in it.
+    box: { ...fieldGeometry, flex: 1, minWidth: 0, paddingHorizontal: nativeTokens.spacing[2] },
+    unit: { ...nativeTokens.type.meta, flexShrink: 0 },
 });

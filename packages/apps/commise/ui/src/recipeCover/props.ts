@@ -18,6 +18,11 @@ export interface RecipeCoverProps {
     readonly photoUrl?: string;
     /** The shape the caller reserves, so nothing moves as the image loads. */
     readonly aspect: CoverAspect;
+    /**
+     * Whether the monogram may show its cuisine. A caller that lays a chip over the cover says `false`, because text
+     * never sits under a chip (§1.8). Defaults to `true`.
+     */
+    readonly overline?: boolean;
 }
 
 /** The height from which a monogram shows its cuisine, in px or points (§1.8). */

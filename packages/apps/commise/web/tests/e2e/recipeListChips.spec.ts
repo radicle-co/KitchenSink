@@ -68,3 +68,88 @@ test.describe('recipe list — timestamp + quick-filter chip (#2/#4)', () => {
         await expect(page.getByRole('link', { name: "Grandma's Pasta" })).toBeVisible();
     });
 });
+
+test.describe('recipe list chips — labels, clearing and untimed recipes (W-10, W-22, A-017)', () => {
+    test('names a stored lower-case facet in sentence case, and matches it by its raw value', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            tier: 'premium',
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000041',
+                    ownerId: viewerId,
+                    title: 'Oat Bake',
+                    dietaryFlags: ['dairy-free'],
+                }),
+            ],
+        });
+
+        await page.goto(route('/recipes'));
+        const chips = page.getByRole('group', { name: 'Quick filters' });
+
+        await expect(chips.getByRole('button', { name: /^Dairy-free/u })).toBeVisible();
+        await chips.getByRole('button', { name: /^Dairy-free/u }).click();
+        await expect(page.getByRole('link', { name: 'Oat Bake' })).toBeVisible();
+    });
+
+    test('a recipe with no stated time is not counted under "Under 30 min"', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            tier: 'premium',
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000042',
+                    ownerId: viewerId,
+                    title: 'Untimed Soup',
+                    totalTimeMinutes: 0,
+                }),
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000043',
+                    ownerId: viewerId,
+                    title: 'Quick Toast',
+                    totalTimeMinutes: 5,
+                }),
+            ],
+        });
+
+        await page.goto(route('/recipes'));
+
+        await expect(
+            page.getByRole('group', { name: 'Quick filters' }).getByRole('button', { name: /^Under 30 min 1$/u }),
+        ).toBeVisible();
+    });
+
+    test('after Clear filters at 320, the selected "All" chip is back in view', async ({ page }) => {
+        await page.setViewportSize({ width: 320, height: 700 });
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const cuisines = ['Moroccan', 'Italian', 'Peruvian', 'Thai', 'Greek', 'Korean'];
+        await mockRecipeApi(page, {
+            viewerId,
+            tier: 'premium',
+            recipes: cuisines.map((cuisine, index) =>
+                makeRecipeDetail({
+                    id: `ec000000-0000-4000-8000-0000000000${String(50 + index)}`,
+                    ownerId: viewerId,
+                    title: `${cuisine} dish`,
+                    cuisine,
+                }),
+            ),
+        });
+
+        await page.goto(route('/recipes'));
+        const chips = page.getByRole('group', { name: 'Quick filters' });
+
+        // Scroll the row to its far end and press a chip that exists only there, then search so nothing matches.
+        await chips.getByRole('button', { name: /^Peruvian/u }).scrollIntoViewIfNeeded();
+        await chips.getByRole('button', { name: /^Peruvian/u }).click();
+        await page.getByRole('searchbox', { name: 'Search your recipes' }).fill('zzzz');
+        await page.getByRole('button', { name: 'Clear filters' }).click();
+
+        await expect(chips.getByRole('button', { name: 'All' })).toBeInViewport();
+    });
+});

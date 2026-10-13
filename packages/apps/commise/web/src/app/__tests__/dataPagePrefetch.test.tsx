@@ -156,7 +156,7 @@ describe('[locale]/recipes/page.tsx SSR prefetch', () => {
         const listSpy = vi.spyOn(RecipeServiceClient.prototype, 'listRecipes');
 
         await expect(RecipesPage({ params: Promise.resolve({ locale: 'en' }) })).rejects.toThrow(
-            'NEXT_REDIRECT:/en/sign-in',
+            'NEXT_REDIRECT:/en/sign-in?redirect_url=%2Fen%2Frecipes',
         );
         expect(listSpy).not.toHaveBeenCalled();
     });
@@ -193,7 +193,7 @@ describe('[locale]/recipes/[id]/page.tsx SSR prefetch', () => {
         const detailSpy = vi.spyOn(RecipeServiceClient.prototype, 'getRecipeById');
 
         await expect(RecipeDetailPage({ params: Promise.resolve({ locale: 'en', id: RECIPE_ID }) })).rejects.toThrow(
-            'NEXT_REDIRECT:/en/sign-in',
+            `NEXT_REDIRECT:/en/sign-in?redirect_url=${encodeURIComponent(`/en/recipes/${RECIPE_ID}`)}`,
         );
         expect(detailSpy).not.toHaveBeenCalled();
     });
@@ -253,7 +253,7 @@ describe('[locale]/discover/page.tsx SSR prefetch', () => {
 
         await expect(
             DiscoverPage({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) }),
-        ).rejects.toThrow('NEXT_REDIRECT:/en/sign-in');
+        ).rejects.toThrow('NEXT_REDIRECT:/en/sign-in?redirect_url=%2Fen%2Fdiscover');
         expect(searchSpy).not.toHaveBeenCalled();
     });
 });
@@ -287,7 +287,7 @@ describe('[locale]/collections/page.tsx SSR prefetch', () => {
         const listSpy = vi.spyOn(RecipeServiceClient.prototype, 'listCollections');
 
         await expect(CollectionsPage({ params: Promise.resolve({ locale: 'en' }) })).rejects.toThrow(
-            'NEXT_REDIRECT:/en/sign-in',
+            'NEXT_REDIRECT:/en/sign-in?redirect_url=%2Fen%2Fcollections',
         );
         expect(listSpy).not.toHaveBeenCalled();
     });

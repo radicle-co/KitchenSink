@@ -3,13 +3,13 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 7,
-        "cross-platform-props-diverge": 14,
-        "missing-component-doc": 135,
+        "cross-platform-props-diverge": 16,
+        "missing-component-doc": 148,
         "missing-module-doc": 21,
-        "platform-singleton": 41,
-        "ref-api": 11,
-        "unclassified-layer": 93,
-        "undocumented-prop": 166
+        "platform-singleton": 46,
+        "ref-api": 13,
+        "unclassified-layer": 98,
+        "undocumented-prop": 169
     },
     "findings": [
         {
@@ -275,6 +275,17 @@
             ]
         },
         {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
+            "component": "designSystem/heroButton/HeroButton",
+            "sourcePath": "packages/apps/commise/ui/src/heroButton/HeroButton.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: disabled expanded href icon label onPress",
+                "native: disabled expanded href icon label onPress ref"
+            ]
+        },
+        {
             "rule": "ref-api",
             "severity": "violation",
             "component": "designSystem/input/Input",
@@ -301,6 +312,26 @@
             "sourcePath": "packages/apps/commise/ui/src/input/Stepper.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/input/TextArea",
+            "sourcePath": "packages/apps/commise/ui/src/input/TextArea.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/input/TextArea",
+            "sourcePath": "packages/apps/commise/ui/src/input/TextArea.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
         },
         {
             "rule": "unclassified-layer",
@@ -666,6 +697,16 @@
             ]
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/tooltip/Tooltip",
+            "sourcePath": "packages/apps/commise/ui/src/tooltip/Tooltip.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "featuresRecipes/actions/RecipeDeleteDialog",
@@ -681,6 +722,26 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/actions/RecipeUpsellSheet",
+            "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeUpsellSheet.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "open"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/actions/RecipeUpsellSheet",
+            "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeUpsellSheet.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "open"
             ]
         },
         {
@@ -1400,6 +1461,34 @@
             ]
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/dataSources/DataSourcesPushedPage",
+            "sourcePath": "packages/apps/commise/features/recipes/src/dataSources/DataSourcesPushedPage.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/dataSources/DataSourcesPushedScreen",
+            "sourcePath": "packages/apps/commise/features/recipes/src/dataSources/DataSourcesPushedScreen.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/dataSources/DataSourcesPushedScreen",
+            "sourcePath": "packages/apps/commise/features/recipes/src/dataSources/DataSourcesPushedScreen.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
             "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "featuresRecipes/dataSources/DataSourcesScreen",
@@ -1424,6 +1513,24 @@
             "component": "featuresRecipes/dataSources/DataSourcesScreen",
             "sourcePath": "packages/apps/commise/features/recipes/src/dataSources/DataSourcesScreen.tsx",
             "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/dataSources/DataSourcesStates",
+            "sourcePath": "packages/apps/commise/features/recipes/src/dataSources/DataSourcesStates.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "featuresRecipes/dataSources/DataSourcesStates",
+            "sourcePath": "packages/apps/commise/features/recipes/src/dataSources/DataSourcesStates.native.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },
         {
@@ -1607,9 +1714,25 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: back currentSection dataSourcesHref descriptionExpanded editHref headerActions marks onEditSection onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn servings unreachableRetry versionsHref viewerIsOwner",
-                "native: back currentSection dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions layout marks onEditSection onOpenDataSources onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn servings unreachableRetry versionsHref viewerIsOwner"
+                "web: back currentSection dataSourcesHref descriptionExpanded editHref headerActions heroControls marks onEditSection onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner",
+                "native: back bind currentSection dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks onEditSection onOpenDataSources onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner"
             ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/detail/RecipeDetailSkeleton",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailSkeleton.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/detail/RecipeDetailSkeleton",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailSkeleton.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
         },
         {
             "rule": "cross-platform-props-diverge",
@@ -2121,8 +2244,8 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/editor/EditorActionBar.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: busy fixLine label notice onPreview onPrimary pinned placeRef previewLabel primaryDisabled primaryLabel readyLine",
-                "native: busy fixLine label notice onPreview onPrimary previewLabel primaryDisabled primaryLabel readyLine"
+                "web: busy fixLine keyboardShown label notice onPreview onPrimary pinned placeRef previewLabel primaryDisabled primaryLabel readyLine",
+                "native: busy fixLine keyboardShown label notice onPreview onPrimary previewLabel primaryDisabled primaryLabel readyLine"
             ]
         },
         {
@@ -2230,6 +2353,26 @@
             "evidence": [
                 "body",
                 "secondary"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/editor/PublishLine",
+            "sourcePath": "packages/apps/commise/features/recipes/src/editor/PublishLine.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "line"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/editor/PublishLine",
+            "sourcePath": "packages/apps/commise/features/recipes/src/editor/PublishLine.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "line"
             ]
         },
         {
@@ -2532,22 +2675,23 @@
             ]
         },
         {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
+            "component": "featuresRecipes/form/ChipInput",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/ChipInput.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: hint id label onChange removeChipLabel values",
+                "native: addLabel hint id label onChange removeChipLabel values"
+            ]
+        },
+        {
             "rule": "unclassified-layer",
             "severity": "gap",
             "component": "featuresRecipes/form/ChipInput",
             "sourcePath": "packages/apps/commise/features/recipes/src/form/ChipInput.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/form/CuisineSelect",
-            "sourcePath": "packages/apps/commise/features/recipes/src/form/CuisineSelect.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "native"
-            ]
         },
         {
             "rule": "undocumented-prop",
@@ -3166,6 +3310,61 @@
         {
             "rule": "missing-component-doc",
             "severity": "gap",
+            "component": "featuresRecipes/versions/RecipeVersionListError",
+            "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/versions/RecipeVersionListError",
+            "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/versions/RecipeVersionListHeader",
+            "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListHeader.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/versions/RecipeVersionListHeader",
+            "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListHeader.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "backHref",
+                "onBack"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/versions/RecipeVersionListSkeleton",
+            "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListSkeleton.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/versions/RecipeVersionListSkeleton",
+            "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListSkeleton.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
             "component": "featuresRecipes/versions/VersionPreviewModal",
             "sourcePath": "packages/apps/commise/features/recipes/src/versions/VersionPreviewModal.native.tsx",
             "message": "the component declaration has no JSDoc summary",
@@ -3747,6 +3946,22 @@
         {
             "rule": "missing-component-doc",
             "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/edit/RecipeEditLoading",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/edit/loading.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/edit/RecipeEditLoading",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/edit/loading.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
             "component": "web/app/[locale]/recipes/[id]/RecipeDetailError",
             "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/error.tsx",
             "message": "the component declaration has no JSDoc summary",
@@ -3812,6 +4027,22 @@
             "evidence": [
                 "params"
             ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/versions/RecipeVersionsLoading",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/versions/loading.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/versions/RecipeVersionsLoading",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/versions/loading.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
         },
         {
             "rule": "missing-module-doc",
@@ -3951,16 +4182,6 @@
             "evidence": []
         },
         {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "web/app/[locale]/sign-in/[[...sign-in]]/SignInPage",
-            "sourcePath": "packages/apps/commise/web/src/app/[locale]/sign-in/[[...sign-in]]/page.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "params"
-            ]
-        },
-        {
             "rule": "missing-module-doc",
             "severity": "gap",
             "component": "web/app/[locale]/sign-up/[[...sign-up]]/SignUpPage",
@@ -3975,16 +4196,6 @@
             "sourcePath": "packages/apps/commise/web/src/app/[locale]/sign-up/[[...sign-up]]/page.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "web/app/[locale]/sign-up/[[...sign-up]]/SignUpPage",
-            "sourcePath": "packages/apps/commise/web/src/app/[locale]/sign-up/[[...sign-up]]/page.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "params"
-            ]
         },
         {
             "rule": "missing-component-doc",
@@ -4296,6 +4507,22 @@
             "evidence": []
         },
         {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "web/components/recipes/RecipeDetailRouteLoading",
+            "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeDetailRouteLoading.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "web/components/recipes/RecipeDetailRouteLoading",
+            "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeDetailRouteLoading.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
             "rule": "unclassified-layer",
             "severity": "gap",
             "component": "web/components/recipes/RecipeGridRouteLoading",
@@ -4320,6 +4547,22 @@
             "evidence": [
                 "useRef"
             ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "web/components/recipes/RecipeVersionsRouteLoading",
+            "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeVersionsRouteLoading.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "web/components/recipes/RecipeVersionsRouteLoading",
+            "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeVersionsRouteLoading.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
         },
         {
             "rule": "missing-component-doc",
@@ -4356,8 +4599,32 @@
         {
             "rule": "missing-component-doc",
             "severity": "gap",
+            "component": "mobile/components/auth/AuthCodeActions",
+            "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthCodeActions.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "mobile/components/auth/AuthCodeFields",
+            "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthCodeFields.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
             "component": "mobile/components/auth/AuthHeader",
             "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthHeader.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "mobile/components/auth/AuthSwitchLink",
+            "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthSwitchLink.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
         },

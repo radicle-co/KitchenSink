@@ -53,6 +53,7 @@ function makeDal(): DalMock {
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
+        memberSummaries: vi.fn().mockResolvedValue(new Map()),
         // Default: a valid row so tests that don't care about `lastPulledAt` specifically (most of the
         // pre-Task-3 cases below) don't have to wire it — `toCollectionResponse` always needs a real row.
         touchLastPulled: vi.fn().mockResolvedValue(makeCollectionRow({ id: CLONE_ID })),
@@ -72,6 +73,7 @@ function makeService(dal: DalMock): CollectionsService {
         dal as unknown as CollectionsDal,
         makeAuthorHandlesDal() as unknown as AuthorHandlesDal,
         { capture: vi.fn() } as unknown as AnalyticsService,
+        'https://cdn.test',
     );
 }
 

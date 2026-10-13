@@ -7,6 +7,7 @@ import { discoverySearchParams, filtersFromQueryString } from '@commise/features
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
+import { signInPathFor } from '@/lib/signInReturn';
 import { AppShell } from '@/components/app/AppShell';
 import { ShellBackToTop } from '@/components/app/ShellBackToTop';
 import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
@@ -65,12 +66,13 @@ export default async function DiscoverPage({
 }): Promise<React.ReactElement> {
     const { locale } = await params;
     const { userId, getToken } = await auth();
+    const search = toQueryString(await searchParams);
 
     if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+        redirect(signInPathFor(locale, `/${locale}/discover${search === '' ? '' : `?${search}`}`) as Route);
     }
 
-    const { filters, query } = filtersFromQueryString(toQueryString(await searchParams));
+    const { filters, query } = filtersFromQueryString(search);
 
     const queryClient = new QueryClient();
     const client = new RecipeServiceClient({

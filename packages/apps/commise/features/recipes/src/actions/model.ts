@@ -27,3 +27,15 @@ export interface RecipeDeleteDialogProps {
     /** Invoked when the user dismisses the dialog without deleting. */
     readonly onCancel: () => void;
 }
+
+/**
+ * Props for the Premium sheet a free-tier cook gets for "Private" in the recipe editor (build spec §6.4, §7.7 item 2):
+ * controlled and presentational, like the collection twin (`CollectionUpsellSheetProps`).
+ */
+export interface RecipeUpsellSheetProps {
+    readonly open: boolean;
+    /** Every close route calls this with `false`. */
+    readonly onOpenChange: (open: boolean) => void;
+    /** "See Premium". The subscription surface is not built yet (010), so the host closes the sheet. */
+    readonly onSeePremium: () => void;
+}

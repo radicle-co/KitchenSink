@@ -87,15 +87,49 @@ export function mergeRecentSearches(newer: readonly string[], older: readonly st
 }
 
 /**
+ * Whether one query is a prefix of the other, in either direction, ignoring case and surrounding whitespace. Equal
+ * queries are not partial of each other here: the de-duplication already folds them.
+ *
+ * @param previous - The query recorded before.
+ * @param query - The query being recorded.
+ * @returns `true` when typing or deleting letters turned one into the other.
+ */
+function isPartialOf(previous: string, query: string): boolean {
+    const before = dedupeKey(previous);
+    const after = dedupeKey(query);
+
+    return before !== after && (after.startsWith(before) || before.startsWith(after));
+}
+
+/**
  * Record a query that actually ran, at the front of the history.
+ *
+ * A pause in typing commits a PARTIAL query ("r" while typing "rice"), and that is not a search the cook meant to keep.
+ * So when the query the SAME session recorded just before is a prefix of this one, or this one of it, this one takes
+ * its place (A-027). Only that one entry: an older entry that shares the prefix was a search of its own, and a search
+ * stored by an earlier session is never `previous`, because the caller passes only what it recorded itself.
  *
  * @param existing - The current history, newest-first.
  * @param query - The query that ran; blank/whitespace-only is ignored.
+ * @param previous - The query this session recorded just before, if it recorded one.
  * @returns The updated history — or `existing` ITSELF (same reference) when there is nothing to record, so
  *   callers can treat an unchanged reference as "no write needed".
  */
-export function addRecentSearch(existing: readonly string[], query: string): readonly string[] {
-    return query.trim().length === 0 ? existing : mergeRecentSearches([query], existing);
+export function addRecentSearch(existing: readonly string[], query: string, previous?: string): readonly string[] {
+    if (query.trim().length === 0) {
+        return existing;
+    }
+
+    if (previous === undefined || !isPartialOf(previous, query)) {
+        return mergeRecentSearches([query], existing);
+    }
+
+    const replaced = dedupeKey(previous);
+
+    return mergeRecentSearches(
+        [query],
+        existing.filter((entry) => dedupeKey(entry) !== replaced),
+    );
 }
 
 /**

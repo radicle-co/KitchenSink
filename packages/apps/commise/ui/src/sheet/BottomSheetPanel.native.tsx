@@ -91,7 +91,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                 styles.sheet,
                 { backgroundColor: colors.paperOverlay },
                 sheetWidthStyle(width),
-                size === 'full' ? styles.full : styles.content,
+                size === 'content' ? styles.content : styles.full,
                 {
                     paddingLeft: sheetSideInsetPadding(width, insets.left),
                     paddingRight: sheetSideInsetPadding(width, insets.right),
@@ -105,6 +105,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                     <Text
                         ref={titleRef}
                         accessibilityRole="header"
+                        numberOfLines={1}
                         style={collapsed ? visuallyHidden : [styles.title, { color: colors.ink }]}
                     >
                         {title}

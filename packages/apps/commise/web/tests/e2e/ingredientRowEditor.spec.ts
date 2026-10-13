@@ -133,6 +133,27 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         expect(store.get(RECIPE_ID)?.ingredients[0]?.ingredientId).toBe(SALT_ID);
     });
 
+    // A-011 (UI walk 2026-10-13): the owner ruled "1 large" a fine measure, and the add field reads a size word as a unit,
+    // so the editor says nothing about it. A word that is neither a unit nor a size word still gets the note.
+    test('A-011: the Unit field has a visible label, and a size word draws no "Unrecognized unit" note', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, recipes: [savedRecipe(viewerId, garlicLine)] });
+        await mockFoodApi(page);
+
+        await openIngredientsSection(page);
+        const fields = await openIngredientEditor(page, 'Garlic');
+        const unit = fields.getByRole('combobox', { name: 'Unit' });
+
+        await expect(fields.getByText('Unit', { exact: true })).toBeVisible();
+        await unit.fill('large');
+        await expect(fields.getByText('Unrecognized unit')).toHaveCount(0);
+        await unit.fill('blorp');
+        await expect(fields.getByText('Unrecognized unit')).toBeVisible();
+    });
+
     test('row 1 Find a food: a line in the cook’s own wording gets a food from its own field', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);

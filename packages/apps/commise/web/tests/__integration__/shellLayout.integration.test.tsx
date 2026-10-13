@@ -32,7 +32,9 @@ describe('the web shell, composed', () => {
             </AppShell>,
         );
 
-        const [sidebarNav, tabBar] = screen.getAllByRole('navigation', { name: 'Main' });
+        // Two landmarks with two names (W-14): a screen-reader landmark list must tell them apart.
+        const sidebarNav = screen.getByRole('navigation', { name: 'Main' });
+        const tabBar = screen.getByRole('navigation', { name: 'Tabs' });
 
         expect(sidebarNav).toBeDefined();
         expect(tabBar?.hasAttribute('data-tab-bar')).toBe(true);

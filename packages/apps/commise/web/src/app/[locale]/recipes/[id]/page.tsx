@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
+import { signInPathFor } from '@/lib/signInReturn';
 import { AppShell } from '@/components/app/AppShell';
 import { RecipeDetailContainer } from '@/components/recipes/RecipeDetailContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
@@ -39,7 +40,7 @@ export default async function RecipeDetailPage({
     const { userId, getToken } = await auth();
 
     if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+        redirect(signInPathFor(locale, `/${locale}/recipes/${encodeURIComponent(id)}`) as Route);
     }
 
     const queryClient = new QueryClient();

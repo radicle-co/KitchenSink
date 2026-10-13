@@ -70,6 +70,7 @@ function makeDal(): DalMock {
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
+        memberSummaries: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
     };
@@ -83,6 +84,7 @@ function makeService(dal: DalMock): CollectionsService {
             applyRename: vi.fn(),
         } as unknown as AuthorHandlesDal,
         { capture: vi.fn() } as unknown as AnalyticsService,
+        'https://cdn.test',
     );
 }
 
@@ -137,6 +139,49 @@ describe('the published collection body is TRUE of what CollectionsService emits
         const result = await makeService(dal).listCollections(OWNER, { page: 1, pageSize: 20 });
 
         expect(collectionListResponseSchema.parse(result)).toEqual(result);
+    });
+
+    it('listCollections — the element REQUIRES recipeCount and a bounded coverPhotoUrls (W-11)', () => {
+        const element = {
+            id: COLLECTION_ID,
+            ownerId: OWNER,
+            name: 'Weeknight Dinners',
+            visibility: 'private',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        };
+        const page = (data: unknown[]): unknown => ({
+            data,
+            total: data.length,
+            page: 1,
+            pageSize: 20,
+            hasMore: false,
+        });
+        const cover = 'https://cdn.test/a.jpg';
+
+        expect(
+            collectionListResponseSchema.safeParse(page([{ ...element, recipeCount: 0, coverPhotoUrls: [] }])).success,
+        ).toBe(true);
+        expect(collectionListResponseSchema.safeParse(page([{ ...element, coverPhotoUrls: [] }])).success).toBe(false);
+        expect(collectionListResponseSchema.safeParse(page([{ ...element, recipeCount: 0 }])).success).toBe(false);
+        expect(
+            collectionListResponseSchema.safeParse(
+                page([{ ...element, recipeCount: 5, coverPhotoUrls: [cover, cover, cover, cover, cover] }]),
+            ).success,
+        ).toBe(false);
+    });
+
+    it('the single-collection body keeps recipeCount OPTIONAL and carries no covers (W-11 scope)', () => {
+        const single = collectionResponseSchema.parse({
+            id: COLLECTION_ID,
+            ownerId: OWNER,
+            name: 'Weeknight Dinners',
+            visibility: 'private',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        });
+
+        expect(single).not.toHaveProperty('coverPhotoUrls');
     });
 
     it('listCollections — an EMPTY page parses (the boundary a hopeful schema usually gets wrong)', async () => {

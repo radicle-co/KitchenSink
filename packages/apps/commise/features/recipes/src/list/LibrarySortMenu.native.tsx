@@ -1,6 +1,6 @@
 /**
- * @module @commise/features-recipes/list — the native sort control of My recipes: a ghost `sm` button "Sort: {choice}"
- * that opens a content-height sheet of radio rows, the chosen one checked — the native form of the web leaf's menu
+ * @module @commise/features-recipes/list — the native sort control of My recipes: a ghost `sm` button showing the choice (named
+ * "Sort: {choice}") that opens a content-height sheet of radio rows, the chosen one checked — the native form of the web leaf's menu
  * (`docs/design/uiOverhaul/buildSpec.md` §4.5 gives menus a native sheet). Choosing a sort closes the sheet.
  *
  * @pattern Adapter over the design-system `Sheet`, carrying a radio group
@@ -29,11 +29,21 @@ export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) 
     const { list } = useMessages(recipeMessages);
     const { colors } = useTheme();
     const [open, setOpen] = useState(false);
+    const choice = sortLabelOf(value, list);
 
     return (
         <>
-            <Button variant="ghost" size="sm" icon="chevronDown" onPress={() => setOpen(true)}>
-                {fillTemplate(list.sortButton, { choice: sortLabelOf(value, list) })}
+            {/* The visible label is the choice alone, so the result bar fits a narrow phone and the largest font scale; the
+                name keeps "Sort: …" and contains the visible text (SC 2.5.3). The chevron follows its word, as on web. */}
+            <Button
+                variant="ghost"
+                size="sm"
+                icon="chevronDown"
+                iconPlacement="end"
+                accessibilityLabel={fillTemplate(list.sortButton, { choice })}
+                onPress={() => setOpen(true)}
+            >
+                {choice}
             </Button>
             <Sheet
                 open={open}

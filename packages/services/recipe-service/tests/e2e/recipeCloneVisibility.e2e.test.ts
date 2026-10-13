@@ -114,8 +114,23 @@ describe('recipe clone + visibility (e2e, assembled app)', () => {
         // defaultCloneVisibility(user_created) = public — NOT a private draft.
         expect(body.visibility).toBe('public');
         expect(body.status).toBe('published');
-        // No explicit sourceAttribution on the seeded row -> clone attributes to the original owner id.
-        expect(body.sourceAttribution).toBe(`Cloned from ${OWNER}`);
+        // W-03: no explicit sourceAttribution on the seeded row -> the clone records NONE. Provenance is
+        // `clonedFromId`; a raw owner id in a display string reached Discover cards.
+        expect(body.sourceAttribution ?? null).toBeNull();
+        expect(JSON.stringify(body)).not.toContain('Cloned from');
+    });
+
+    it('W-03: cloning an IMPORTED recipe keeps its attribution verbatim', async () => {
+        const sourceId = await seedRecipe(OWNER, 'public', 'published', 'Imported Source');
+        await pool.query(
+            `UPDATE recipes SET source_type = 'imported_public', source_attribution = 'Chef A' WHERE id = $1`,
+            [sourceId],
+        );
+
+        const res = await clone(sourceId);
+
+        expect(res.status).toBe(201);
+        expect(((await res.json()) as RecipeBody).sourceAttribution).toBe('Chef A');
     });
 
     it('cloning a PRIVATE recipe you do not own: 404 RECIPE_NOT_FOUND (IDOR — indistinguishable from a missing id)', async () => {

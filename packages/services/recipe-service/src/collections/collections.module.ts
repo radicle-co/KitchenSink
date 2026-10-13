@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { DrizzleProvider } from '../database/database.module.js';
 import type { RecipeDrizzle } from '../database/client.js';
@@ -7,6 +8,7 @@ import { CollectionsController } from './collections.controller.js';
 import { CollectionsService } from './collections.service.js';
 import { CollectionsDal } from './dal/collections.dal.js';
 import { AnalyticsModule } from '../analytics/analytics.module.js';
+import { RECIPE_PHOTOS_CDN_URL } from '../recipes/recipes.tokens.js';
 
 /**
  * Collections module (T041). Owns user recipe collections and their membership: CRUD, the visibility
@@ -23,6 +25,11 @@ import { AnalyticsModule } from '../analytics/analytics.module.js';
     providers: [
         CollectionsService,
         CollectionsDal,
+        {
+            provide: RECIPE_PHOTOS_CDN_URL,
+            inject: [ConfigService],
+            useFactory: (config: ConfigService): string => config.getOrThrow<string>('CLOUDFRONT_URL'),
+        },
         {
             provide: AuthorHandlesDal,
             inject: [DrizzleProvider],

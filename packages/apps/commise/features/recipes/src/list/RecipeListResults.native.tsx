@@ -102,6 +102,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
     searchValue,
     onClearSearch,
     onClearFilters,
+    clearCount,
     onSelectRecipe,
     variant,
     chipOverflow,
@@ -156,6 +157,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
                     <View style={columns > 1 ? styles.gridCell : null}>
                         <RecipeCard
                             variant={variant}
+                            headingLevel={2}
                             recipe={item}
                             onSelect={onSelectRecipe}
                             nutrition={renderNutrition?.(item.id)}
@@ -188,7 +190,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
     return (
         <>
             {!collapsed && facets.facets.length > 0 && (
-                <ChipRow mode="filter" label={list.filtersLabel} overflow={chipOverflow}>
+                <ChipRow key={clearCount} mode="filter" label={list.filtersLabel} overflow={chipOverflow}>
                     <Chip
                         kind="filter"
                         label={list.filterAll}
@@ -277,7 +279,14 @@ const styles = StyleSheet.create({
         columnGap: nativeTokens.spacing[3],
         rowGap: nativeTokens.spacing[2],
     },
-    resultControls: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
+    // Wraps: at the largest font scale the sort and the view switch together are wider than the screen (A-028).
+    resultControls: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: nativeTokens.spacing[2],
+        flexShrink: 1,
+    },
     viewSwitch: { width: 112 },
     count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },

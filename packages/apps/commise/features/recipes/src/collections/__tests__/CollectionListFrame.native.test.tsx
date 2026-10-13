@@ -14,7 +14,12 @@ import { CollectionListFrame } from '../CollectionListFrame.native.js';
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
-    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+    return {
+        ...actual,
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        // jsdom has no layout, so react-native-web reports a 0 dp window; the frame's segments read it (W-25).
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: 840 }),
+    };
 });
 
 afterEach(cleanup);
@@ -100,6 +105,25 @@ describe('CollectionListFrame (native) — the floating create button (UI overha
         );
 
         expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(1);
+    });
+
+    it('takes the segments’ own width on a tablet, where a full-width bar reads as a header and not a switch (W-25)', () => {
+        render(
+            <CollectionListFrame
+                onCreate={noop}
+                headingFocusSignal={0}
+                segments={{
+                    current: 'collections',
+                    href: { mine: '/en/recipes', collections: '/en/collections' },
+                    onSelect: noop,
+                }}
+            >
+                <Text>boundary content</Text>
+            </CollectionListFrame>,
+        );
+
+        // The window is served at 840 dp, past the 600 dp threshold.
+        expect(getComputedStyle(screen.getByRole('tablist')).alignSelf).toBe('flex-start');
     });
 
     it('hides it during the first run, whose own start buttons take its place (buildSpec §3.4)', () => {

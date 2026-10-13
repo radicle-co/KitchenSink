@@ -47,8 +47,11 @@ export function indexAfterRemove(index: number, removed: number): number | undef
     return index > removed ? index - 1 : index;
 }
 
-/** A control that can take a requested focus: one step's ⋯, or Add step. */
-export type StepFocusTarget = { readonly kind: 'actions'; readonly index: number } | { readonly kind: 'add' };
+/** A control that can take a requested focus: one step's ⋯, one step's instruction field, or Add step. */
+export type StepFocusTarget =
+    | { readonly kind: 'actions'; readonly index: number }
+    | { readonly kind: 'field'; readonly index: number }
+    | { readonly kind: 'add' };
 
 /**
  * Where focus goes after the step at `index` is removed from `count` steps: the step that took its place, else the one

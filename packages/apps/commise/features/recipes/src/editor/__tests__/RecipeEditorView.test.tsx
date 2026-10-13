@@ -20,7 +20,12 @@ import { gutterOf } from '@commise/ui/container-class';
 
 import { EDITOR_GUTTER } from '../editorGutter.js';
 import { SectionPresenceContext } from '../sectionPresence.js';
-import { EDITOR_TOP_CHROME_IDS, type RecipeEditorViewProps } from '../frameProps.js';
+import {
+    EDITOR_ACTION_BAR_ID,
+    EDITOR_INDEX_ID,
+    EDITOR_TOP_CHROME_IDS,
+    type RecipeEditorViewProps,
+} from '../frameProps.js';
 import { RecipeEditorView } from '../RecipeEditorView.js';
 
 afterEach(cleanup);
@@ -252,7 +257,10 @@ describe('the action bar', () => {
 
         rerender(view(makeEditorResult({ values, publish, publishAttempted: true }), { onRefused }));
 
-        expect(screen.getByText('Fix 2 things to publish')).toBeTruthy();
+        // Two places by design (A-010b): the action bar's polite line, and the Ready line in Photos & publish, which
+        // says the same before Publish is ever pressed (its own tests are below).
+        const bar = screen.getByRole('group', { name: 'Recipe actions' }).parentElement;
+        expect(within(bar as HTMLElement).getByText('Fix 2 things to publish')).toBeTruthy();
         expect(screen.getAllByText('Fix 1 thing', { exact: true }).length).toBeGreaterThan(0);
     });
 
@@ -313,6 +321,81 @@ describe('the note about lines with no match (owner D20)', () => {
         render(view(makeEditorResult({ values: makeFilledRecipeFormValues() })));
 
         expect(screen.queryByText(/no match/u)).toBeNull();
+    });
+});
+
+/**
+ * A-010b (build spec §7.7 item 3): the Ready line is ALWAYS in Photos & publish, so the cook can read whether Publish
+ * will go through before pressing it. "Fix {n} things to publish" is a link to the first section that needs it.
+ */
+describe('the Ready line in Photos & publish (A-010b)', () => {
+    /** The section's own box: the nearest ancestor of the heading that also holds the section's body. */
+    const photosSection = (): HTMLElement => {
+        const body = screen.getByText('photos body');
+        let box: HTMLElement | null = screen.getByRole('heading', { name: 'Photos & publish' });
+
+        while (box !== null && !box.contains(body)) {
+            box = box.parentElement;
+        }
+
+        if (box === null) {
+            throw new Error('no photos section');
+        }
+
+        return box;
+    };
+
+    it('says "Ready to publish." for a recipe Publish would accept', () => {
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() })));
+
+        expect(within(photosSection()).getByText('Ready to publish.')).toBeTruthy();
+        expect(within(photosSection()).queryByRole('button', { name: /^Fix / })).toBeNull();
+    });
+
+    it('is there before Publish is ever pressed, for an empty new recipe: it says what to fix', () => {
+        render(view(makeEditorResult()));
+
+        expect(within(photosSection()).getByRole('button', { name: /^Fix \d+ things? to publish$/u })).toBeTruthy();
+        expect(within(photosSection()).queryByText('Ready to publish.')).toBeNull();
+    });
+
+    it('is a link to the first section that needs it: it takes focus to that section`s heading', async () => {
+        // jsdom lays nothing out and has no `scrollIntoView`; the jump needs one to call.
+        const original = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = vi.fn();
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues({ steps: [] }) })));
+
+        await userEvent.click(within(photosSection()).getByRole('button', { name: 'Fix 1 thing to publish' }));
+
+        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Steps' }));
+        Element.prototype.scrollIntoView = original;
+    });
+
+    it('is the quiet unmatched sentence when some lines have no match, once, not beside a second ready line', () => {
+        const values = makeFilledRecipeFormValues({
+            ingredients: withLineKeys([
+                {
+                    isUserEntered: false,
+                    ingredientId: '00000000-0000-4000-8000-000000000002',
+                    name: 'Kale',
+                    quantity: 1,
+                    resolutionStatus: FoodResolutionStatus.NOT_FOUND,
+                },
+            ]),
+        });
+        render(view(makeEditorResult({ values })));
+
+        expect(within(photosSection()).getAllByText(/^Ready to publish\./u)).toHaveLength(1);
+        expect(within(photosSection()).queryByText('Ready to publish.')).toBeNull();
+    });
+
+    it('shows no line for a published recipe: its primary is Save changes', () => {
+        render(
+            view(makeEditorResult({ lifecycle: 'published', values: makeFilledRecipeFormValues() }), { mode: 'edit' }),
+        );
+
+        expect(within(photosSection()).queryByText('Ready to publish.')).toBeNull();
+        expect(within(photosSection()).queryByRole('button', { name: /^Fix / })).toBeNull();
     });
 });
 
@@ -427,6 +510,34 @@ describe('the conflict view', () => {
         expect(screen.getByRole('heading', { name: 'This draft changed somewhere else' })).toBeTruthy();
         expect(screen.queryByRole('alert')).toBeNull();
     });
+
+    /**
+     * E9 (build spec §1.2, §10): a focused task's `<main>` gives no gutter, and the conflict view is drawn before the
+     * editor's frame, so on a phone its text ran to the screen's edge. The frame owns the gutter, as it does for the
+     * load and error states.
+     */
+    it('⛔ sits inside the editor`s page gutter, like the load and error states', () => {
+        const editor = makeEditorResult({
+            state: {
+                status: 'conflict',
+                theirs: {} as never,
+                draft: makeFilledRecipeFormValues(),
+                mergeSelections: {},
+                server: { versionNumber: 4, updatedAt: '2026-10-09T10:00:00.000Z', snapshot: {} as never },
+                mineSnapshot: {} as never,
+                diff: { rows: [], isEmpty: false } as never,
+                versionsBehind: 4,
+                neverPublished: true,
+                isResolving: false,
+            },
+        });
+        render(view(editor));
+
+        const heading = screen.getByRole('heading', { name: 'This draft changed somewhere else' });
+        const gutter = heading.closest(`.${EDITOR_GUTTER.split(' ')[0] ?? ''}`);
+
+        expect(gutter?.className.split(/\s+/u)).toEqual(expect.arrayContaining(EDITOR_GUTTER.split(' ')));
+    });
 });
 
 /**
@@ -531,6 +642,113 @@ describe('the action bar unpins past half the viewport (A1)', () => {
 
         expect(bar().className).toContain('sticky');
         expect(screen.getByRole('button', { name: /^Sections\. Current:/u })).toBeTruthy();
+    });
+});
+
+/**
+ * E4 (WCAG 2.2 SC 2.4.11; build spec §7.10): "scroll-padding-bottom = the ActionBar height + 16, scroll-padding-top = the
+ * header and section bar height". A focused control (Tab, Shift+Tab) is scrolled clear of the sticky chrome. A focused
+ * task has no tab bar, so the shell's own `scroll-padding-bottom` (keyed on the tab bar) does not apply to the editor.
+ * jsdom lays nothing out, so the test plays the browser: heights by element, and a `ResizeObserver` told when to report.
+ */
+describe('the document scrolls a focused control clear of the sticky chrome (E4)', () => {
+    const observers = new Set<() => void>();
+
+    class ResizeObserverStub {
+        private readonly report: () => void;
+
+        constructor(callback: ResizeObserverCallback) {
+            this.report = () => callback([], this);
+        }
+
+        observe(): void {
+            observers.add(this.report);
+        }
+
+        unobserve(): void {
+            observers.delete(this.report);
+        }
+
+        disconnect(): void {
+            observers.delete(this.report);
+        }
+    }
+
+    /** The header, the phone section bar and the action bar, each with the height the browser would give it. */
+    const layOut = (geometry: { readonly header: number; readonly index: number; readonly bar: number }): void => {
+        vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(844);
+        vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+            if (this.tagName === 'HEADER') {
+                return new DOMRect(0, 0, 390, geometry.header);
+            }
+
+            if (this.id === `${EDITOR_INDEX_ID}-bar`) {
+                return new DOMRect(0, geometry.header, 390, geometry.index);
+            }
+
+            return this.id === EDITOR_ACTION_BAR_ID
+                ? new DOMRect(0, 844 - geometry.bar, 390, geometry.bar)
+                : new DOMRect();
+        });
+    };
+
+    const reportSizes = (): void => {
+        act(() => {
+            for (const report of observers) {
+                report();
+            }
+        });
+    };
+
+    const root = (): CSSStyleDeclaration => document.documentElement.style;
+
+    afterEach(() => {
+        observers.clear();
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+    });
+
+    it('pads the top by the header and the section bar, and the foot by the measured bar plus 16 px', () => {
+        vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+        layOut({ header: 56, index: 44, bar: 72 });
+        render(view(makeEditorResult()));
+        reportSizes();
+
+        expect(root().scrollPaddingTop).toBe('100px');
+        expect(root().scrollPaddingBottom).toBe('88px');
+    });
+
+    it('follows the bar: the fix line and the notice make it taller', () => {
+        vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+        layOut({ header: 56, index: 44, bar: 72 });
+        render(view(makeEditorResult()));
+        reportSizes();
+        vi.restoreAllMocks();
+        layOut({ header: 56, index: 44, bar: 140 });
+        reportSizes();
+
+        expect(root().scrollPaddingBottom).toBe('156px');
+    });
+
+    it('asks nothing for the foot while the bar scrolls with the page, and asks again when it pins', () => {
+        vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+        layOut({ header: 56, index: 44, bar: 121 });
+        vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(300);
+        render(view(makeEditorResult()));
+        reportSizes();
+
+        expect(root().scrollPaddingBottom).toBe('');
+    });
+
+    it('⛔ puts the document back as it found it when the editor goes', () => {
+        vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+        layOut({ header: 56, index: 44, bar: 72 });
+        const { unmount } = render(view(makeEditorResult()));
+        reportSizes();
+        unmount();
+
+        expect(root().scrollPaddingTop).toBe('');
+        expect(root().scrollPaddingBottom).toBe('');
     });
 });
 

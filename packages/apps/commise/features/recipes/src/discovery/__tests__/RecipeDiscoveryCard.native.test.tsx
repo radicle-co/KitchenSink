@@ -24,6 +24,7 @@ function renderCard(over: Partial<RecipeDiscoveryCardProps> = {}) {
     const props: RecipeDiscoveryCardProps = {
         recipe: toRecipeCardModel(makeRecipe({ id: 'rec_1', title: 'Lamb Shoulder' })),
         variant: 'grid',
+        headingLevel: 3,
         authorHandle: 'braise.club',
         saveCopy: { kind: 'idle' },
         onSelect: vi.fn(),

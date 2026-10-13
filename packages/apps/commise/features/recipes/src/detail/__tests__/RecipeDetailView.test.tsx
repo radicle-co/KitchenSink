@@ -6,7 +6,7 @@
  * vs absent) — asserting on role/name/text so a missing section or a dropped branch fails.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render as renderUnscoped, screen, within } from '@testing-library/react';
+import { act, cleanup, render as renderUnscoped, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
@@ -1735,5 +1735,227 @@ describe('RecipeDetailView (web) — a failed refresh of what is on screen', () 
         rerender(viewWith(notice({ recoveries: 1 })));
 
         expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Mediterranean Grilled Lamb' }));
+    });
+});
+
+describe('RecipeDetailView (web) — the sticky switch (A-013, D1, D5)', () => {
+    /** The switch's slot: the ancestor of its navigation that is a direct child of the article. */
+    const slotOf = (): HTMLElement => {
+        const nav = screen.getByRole('navigation', { name: 'Recipe sections' });
+        const article = nav.closest('article') as HTMLElement;
+        let node: HTMLElement = nav;
+
+        while (node.parentElement !== article) {
+            node = node.parentElement as HTMLElement;
+        }
+
+        return node;
+    };
+
+    const renderPage = () =>
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail()}
+            />,
+        );
+
+    // The primitive's own root is `sticky`, but its only parent was a slot exactly as tall as the bar, so it had no
+    // room to travel and scrolled away. The element that must stick is the one that spans the whole article.
+    it('makes the slot — a child of the article — the sticky element, on the chrome layer', () => {
+        renderPage();
+
+        const classes = slotOf().className.split(' ');
+
+        expect(classes).toEqual(expect.arrayContaining(['sticky', 'top-0', 'z-20']));
+    });
+
+    it('hides the slot from a 720 px body, where both columns show', () => {
+        renderPage();
+
+        expect(slotOf().className.split(' ')).toContain('@min-[45rem]/detail:hidden');
+    });
+
+    it('lets the slot bleed to the window edge on a phone, so three labels and the toggle fit at 320', () => {
+        renderPage();
+
+        expect(slotOf().className.split(' ')).toContain('@max-[35.5rem]/detail:-mx-4');
+    });
+});
+
+describe('RecipeDetailView (web) — controls over the hero (A-014)', () => {
+    it('lays the caller’s hero controls over the photo, ahead of the title in the reading order', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb', photos: [makePhoto({ url: 'https://img.test/a.jpg' })] })}
+                heroControls={<button type="button">Back to My recipes</button>}
+            />,
+        );
+
+        const control = screen.getByRole('button', { name: 'Back to My recipes' });
+        const title = screen.getByRole('heading', { level: 1, name: 'Lamb' });
+
+        expect(control.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(control.closest('.absolute')).not.toBeNull();
+    });
+
+    it('draws no overlay when the caller passes none', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb' })}
+            />,
+        );
+
+        expect(document.querySelector('.absolute.inset-x-0.top-0.z-10')).toBeNull();
+    });
+});
+
+describe('RecipeDetailView (web) — the Screen on hint (D6)', () => {
+    const withWakeLock = async (run: () => Promise<void>): Promise<void> => {
+        Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
+        Object.defineProperty(navigator, 'wakeLock', {
+            value: { request: () => Promise.resolve({ released: false, release: () => Promise.resolve() }) },
+            configurable: true,
+        });
+
+        try {
+            await run();
+        } finally {
+            Reflect.deleteProperty(navigator, 'wakeLock');
+            Object.defineProperty(window, 'isSecureContext', { value: false, configurable: true });
+        }
+    };
+
+    const renderPage = () =>
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail()}
+                headerActions={<button type="button">Edit recipe</button>}
+            />,
+        );
+
+    it('shows the hint under the switch and under the action-row toggle, once', async () => {
+        await withWakeLock(async () => {
+            renderPage();
+
+            // Two positions, one per layout (the same CSS-swapped pairing as the toggle itself): one is hidden by CSS.
+            expect(screen.getAllByText(recipeMessages.en.detail.screenOnHint)).toHaveLength(2);
+        });
+    });
+
+    it('is gone after the cook uses the toggle', async () => {
+        await withWakeLock(async () => {
+            const user = userEvent.setup();
+            renderPage();
+
+            await user.click(screen.getAllByRole('switch', { name: 'Screen on' })[0] as HTMLElement);
+
+            expect(screen.queryByText(recipeMessages.en.detail.screenOnHint)).toBeNull();
+        });
+    });
+
+    it('is gone after the first scroll, and stays gone', async () => {
+        await withWakeLock(async () => {
+            renderPage();
+            expect(screen.getAllByText(recipeMessages.en.detail.screenOnHint)).toHaveLength(2);
+
+            act(() => {
+                window.dispatchEvent(new Event('scroll'));
+            });
+
+            expect(screen.queryByText(recipeMessages.en.detail.screenOnHint)).toBeNull();
+        });
+    });
+
+    it('never shows where the browser cannot keep the screen awake — a hint for an absent control is noise', () => {
+        renderPage();
+
+        expect(screen.queryByText(recipeMessages.en.detail.screenOnHint)).toBeNull();
+    });
+});
+
+describe('RecipeDetailView (web) — the stat strip with a missing cell (D8)', () => {
+    const strip = (recipe: ReturnType<typeof makeRecipeDetail>): HTMLElement => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={recipe}
+            />,
+        );
+
+        return document.querySelector('dl') as HTMLElement;
+    };
+
+    it('lays three cells in one row from a 360 px strip, instead of 2 × 2 with a hole', () => {
+        const classes = strip(
+            makeRecipeDetail({ prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 30, difficulty: undefined }),
+        ).className.split(' ');
+
+        expect(classes).toEqual(
+            expect.arrayContaining(['@min-[22.5rem]/stats:grid-flow-col', '@min-[22.5rem]/stats:auto-cols-fr']),
+        );
+        expect(classes).not.toContain('@min-[30rem]/stats:grid-flow-col');
+    });
+
+    it('makes the last cell of an odd count span the row where two fit a row', () => {
+        const classes = strip(
+            makeRecipeDetail({ prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 30, difficulty: undefined }),
+        ).className.split(' ');
+
+        expect(classes).toContain('@max-[22.5rem]/stats:[&>*:last-child:nth-child(odd)]:col-span-2');
+    });
+
+    it('keeps the 480 px rule for four cells (F7), with nothing spanning', () => {
+        const classes = strip(
+            makeRecipeDetail({ prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 30, difficulty: 'easy' }),
+        ).className.split(' ');
+
+        expect(classes).toContain('@min-[30rem]/stats:grid-flow-col');
+        expect(classes.some((name) => name.includes('col-span-2'))).toBe(false);
+    });
+});
+
+describe('RecipeDetailView (web) — the top block with and without a photo (P1)', () => {
+    /** The top grid's two children: the hero's wrapper, then the header. */
+    const topBlock = (recipe: ReturnType<typeof makeRecipeDetail>): { hero: string[]; header: string[] } => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={recipe}
+            />,
+        );
+        const grid = (document.querySelector('article') as HTMLElement).firstElementChild as HTMLElement;
+        const [hero, header] = Array.from(grid.children) as [HTMLElement, HTMLElement];
+
+        return { hero: hero.className.split(' '), header: header.className.split(' ') };
+    };
+
+    it('keeps the photo at the end, 7/12, with the header beside it, from a 960 body', () => {
+        const { hero, header } = topBlock(makeRecipeDetail({ photos: [makePhoto({ url: 'https://img.test/a.jpg' })] }));
+
+        expect(hero).toEqual(
+            expect.arrayContaining(['@min-[60rem]/detail:col-span-7', '@min-[60rem]/detail:col-start-6']),
+        );
+        expect(header).toContain('@min-[60rem]/detail:col-span-5');
+    });
+
+    // The 96 px monogram band in a 7/12 column beside a tall header left a large empty block under it. A band is a
+    // strip, not a picture: it takes the whole row, and the header sits under it.
+    it('lays the no-photo band across the whole row, with the header under it', () => {
+        const { hero, header } = topBlock(makeRecipeDetail({ photos: [] }));
+
+        expect(hero).toContain('@min-[60rem]/detail:col-span-12');
+        expect(hero).not.toContain('@min-[60rem]/detail:col-span-7');
+        expect(header).toContain('@min-[60rem]/detail:col-span-12');
+        expect(header).toContain('@min-[60rem]/detail:row-start-2');
     });
 });

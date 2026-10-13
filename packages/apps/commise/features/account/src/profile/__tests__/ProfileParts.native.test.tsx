@@ -78,6 +78,53 @@ describe('ProfileHeader (native)', () => {
     });
 });
 
+describe('ProfileHeader (native) — the avatar slot (A-025)', () => {
+    const ready = { status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com' } as const;
+
+    it('draws the host’s avatar INSTEAD of the initials disc, so the page has one avatar', () => {
+        render(<ProfileHeader read={ready} initials="EM" onRetry={noop} avatar={<span>Photo control</span>} />);
+
+        expect(screen.getByText('Photo control')).toBeTruthy();
+        expect(screen.queryByText('EM')).toBeNull();
+        expect(screen.getByText('Eliza Moreno')).toBeTruthy();
+        expect(screen.getByText('eliza@example.com')).toBeTruthy();
+    });
+
+    it('still draws the initials disc when the host passes no avatar', () => {
+        render(<ProfileHeader read={ready} initials="EM" onRetry={noop} />);
+
+        expect(screen.getByText('EM')).toBeTruthy();
+    });
+
+    it('ignores the slot while loading: the skeleton is unchanged', () => {
+        render(
+            <ProfileHeader
+                read={{ status: 'loading' }}
+                initials=""
+                onRetry={noop}
+                avatar={<span>Photo control</span>}
+            />,
+        );
+
+        expect(screen.getByRole('status', { name: 'Loading your profile' })).toBeTruthy();
+        expect(screen.queryByText('Photo control')).toBeNull();
+    });
+
+    it('ignores the slot when the read failed: the failed header is unchanged', () => {
+        render(
+            <ProfileHeader
+                read={{ status: 'failed' }}
+                initials=""
+                onRetry={noop}
+                avatar={<span>Photo control</span>}
+            />,
+        );
+
+        expect(screen.getByRole('alert').textContent).toContain('We couldn’t load your profile.');
+        expect(screen.queryByText('Photo control')).toBeNull();
+    });
+});
+
 describe('ProfileRow (native)', () => {
     const row = (overrides: Partial<ProfileRowProps> = {}): ProfileRowProps => ({
         label: 'Display name',
@@ -334,5 +381,56 @@ describe('DisplayNameSheet (native) — the length limit', () => {
         );
 
         expect(screen.getByLabelText('Display name').getAttribute('maxlength')).toBe(String(DISPLAY_NAME_MAX_LENGTH));
+    });
+});
+
+/**
+ * W-26 (native twin): a counter in the `caption` role from 80 characters, `dangerText` at the limit, and a polite live
+ * region that says the limit once.
+ */
+describe('DisplayNameSheet (native) — the length counter (W-26)', () => {
+    const withDraft = (draft: string) => (
+        <DisplayNameSheet
+            open
+            onOpenChange={noop}
+            draft={draft}
+            onDraftChange={noop}
+            canSave
+            saving={false}
+            failed={false}
+            onSave={noop}
+        />
+    );
+
+    it('shows no counter below 80 characters', () => {
+        render(withDraft('x'.repeat(79)));
+
+        expect(screen.queryByText(/\d+\/100/)).toBeNull();
+    });
+
+    it('shows “{n}/100” from 80 characters, in the muted caption colour', () => {
+        render(withDraft('x'.repeat(85)));
+
+        const shown = screen.getByText('85/100');
+        const plain = screen.getByText('Shown on recipes you publish.');
+
+        expect(shown.style.color).toBe(plain.style.color);
+    });
+
+    it('does not announce while the cook is under the limit', () => {
+        render(withDraft('x'.repeat(99)));
+
+        expect(document.querySelector('[aria-live="polite"]')?.textContent).toBe('');
+    });
+
+    it('turns the counter danger and announces the limit politely when it is reached', () => {
+        render(withDraft('x'.repeat(DISPLAY_NAME_MAX_LENGTH)));
+
+        expect(screen.getByText('100/100').style.color).not.toBe(
+            screen.getByText('Shown on recipes you publish.').style.color,
+        );
+        expect(document.querySelector('[aria-live="polite"]')?.textContent).toBe(
+            'That is the longest name we can take.',
+        );
     });
 });

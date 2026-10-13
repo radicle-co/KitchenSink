@@ -55,11 +55,30 @@ vi.mock('../../src/storage/editorDrafts.js', async () => {
     };
 });
 
-vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: () => ({ data: undefined }) }));
+// The photo uploader records the props the editor hands it, so the empty-state cover test below can read them.
+const uploader = vi.hoisted(() => ({ props: vi.fn() }));
+
+vi.mock('../../src/components/RecipePhotoUploader.js', () => ({
+    RecipePhotoUploader: (props: object) => {
+        uploader.props(props);
+
+        return null;
+    },
+}));
+
+/** The viewer's plan: undefined while the profile loads (the default), or a tier. */
+const profile = vi.hoisted(() => ({ tier: undefined as string | undefined }));
+
+vi.mock('../../src/hooks/useUserProfile.js', () => ({
+    useUserProfile: () => ({
+        data: profile.tier === undefined ? undefined : { account: { subscriptionTier: profile.tier } },
+    }),
+}));
 
 afterEach(() => {
     cleanup();
     auth.userId = 'user_cook';
+    profile.tier = undefined;
 });
 
 /** Render the screen under the real outbox, sending with `client`. */
@@ -155,6 +174,26 @@ describe('RecipeEditorScreen (native)', () => {
         expect(screen.getByDisplayValue('Stored Stew')).toBeTruthy();
     });
 
+    /**
+     * A-010 / buildSpec §7.7: the photos empty state previews the recipe's own generated cover, made from its TITLE and
+     * CUISINE. The screen must hand the uploader both, from the draft, or the preview is a blank tint.
+     */
+    it('hands the photo uploader the draft’s title and cuisine, for the empty-state cover', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ id: 'rec_1', title: 'Stored Stew', cuisine: 'French', status: RecipeStatus.DRAFT }),
+        );
+
+        renderScreen(client, { recipeId: 'rec_1' });
+        await screen.findByDisplayValue('Stored Stew');
+
+        await waitFor(() =>
+            expect(uploader.props).toHaveBeenCalledWith(
+                expect.objectContaining({ recipeId: 'rec_1', title: 'Stored Stew', cuisine: 'French' }),
+            ),
+        );
+    });
+
     it('publishes a complete draft through the outbox, then hands off to the recipe', async () => {
         const client = createFakeRecipeServiceClient();
         const draft = makeRecipeDetail({
@@ -175,7 +214,8 @@ describe('RecipeEditorScreen (native)', () => {
         });
 
         await waitFor(() => expect(update).toHaveBeenCalled());
-        await waitFor(() => expect(handlers.onFinished).toHaveBeenCalledWith('rec_1'));
+        // E8: the hand-off says how the editor finished, for the snackbar over the recipe the cook lands on.
+        await waitFor(() => expect(handlers.onFinished).toHaveBeenCalledWith('rec_1', 'firstPublish'));
         expect(update).toHaveBeenCalledTimes(1);
         expect(update.mock.calls[0]?.[1]).toMatchObject({ status: 'published', expectedVersion: 2 });
     });
@@ -209,8 +249,65 @@ describe('RecipeEditorScreen (native)', () => {
             fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
         });
 
-        await waitFor(() => expect(handlers.onFinished).toHaveBeenCalledWith('rec_1'));
+        // E8: the hand-off says how the editor finished, for the snackbar over the recipe the cook lands on.
+        await waitFor(() => expect(handlers.onFinished).toHaveBeenCalledWith('rec_1', 'firstPublish'));
         await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE));
+    });
+});
+
+/**
+ * E1 (build spec §6.4, §7.7 item 2): choosing Private did nothing for a free-tier cook, because no host passed
+ * `onPremiumRequired` and no recipe upsell existed. It opens the Premium sheet now; a Premium cook gets Private; and a
+ * profile that is still loading is not the free tier (§6.4 F8).
+ */
+describe('RecipeEditorScreen (native) — Private (E1)', () => {
+    const choosePrivate = (): void => {
+        fireEvent.click(screen.getByRole('radio', { name: /^Private/u }));
+    };
+
+    it('⛔ tells a free-tier cook why: the Premium sheet opens, and Public stays chosen', async () => {
+        profile.tier = 'free';
+        renderScreen(createFakeRecipeServiceClient());
+        await screen.findByRole('heading', { name: 'New recipe' });
+
+        choosePrivate();
+
+        expect(await screen.findByRole('heading', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
+        expect(screen.getByRole('radio', { name: /^Public/u, hidden: true }).getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('Not now closes the sheet and leaves the recipe public', async () => {
+        profile.tier = 'free';
+        renderScreen(createFakeRecipeServiceClient());
+        await screen.findByRole('heading', { name: 'New recipe' });
+        choosePrivate();
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Not now' }));
+
+        await waitFor(() => expect(screen.queryByRole('heading', { name: /Premium/u })).toBeNull());
+        expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('lets a Premium cook choose Private, with no sheet', async () => {
+        profile.tier = 'premium';
+        renderScreen(createFakeRecipeServiceClient());
+        await screen.findByRole('heading', { name: 'New recipe' });
+
+        choosePrivate();
+
+        expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
+        expect(screen.queryByRole('heading', { name: /Premium/u })).toBeNull();
+    });
+
+    it('⛔ never sends a loading profile to the upsell: no sheet until it settles', async () => {
+        profile.tier = undefined;
+        renderScreen(createFakeRecipeServiceClient());
+        await screen.findByRole('heading', { name: 'New recipe' });
+
+        choosePrivate();
+
+        expect(screen.queryByRole('heading', { name: /Premium/u })).toBeNull();
+        expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-checked')).toBe('true');
     });
 });
 

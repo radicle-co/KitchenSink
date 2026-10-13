@@ -44,6 +44,8 @@ export interface CollectionListMessages {
     readonly noMatch: string;
     /** A card's name: the collection's name and its visibility (contains `{name}` and `{visibility}`). */
     readonly cardLabel: string;
+    /** A card's name when the read carried the recipe count (contains `{name}`, `{count}` and `{visibility}`). */
+    readonly cardLabelCounted: string;
     /** A copy's attribution (contains `{handle}`). */
     readonly copiedFrom: string;
     readonly visibilityPublic: string;
@@ -371,6 +373,7 @@ export const collectionMessages: LocalizedMessages<CollectionMessages> = {
             clearSearch: 'Clear search',
             noMatch: 'No collections match “{query}”.',
             cardLabel: '{name}, {visibility}',
+            cardLabelCounted: '{name}, {count}, {visibility}',
             copiedFrom: 'Copied from @{handle}',
             visibilityPublic: 'Public',
             visibilityPrivate: 'Private',

@@ -44,6 +44,12 @@ export interface RouteSegmentedControlProps {
     readonly current: string;
     /** Go to a place. On web a plain click is handed here (the link's own navigation is cancelled). */
     readonly onSelect: (id: string) => void;
+    /**
+     * How the control takes the row: `share` (the default) fills it; `content` takes its segments' width, each at least
+     * 136; `adaptive` fills it in a narrow container (under 600) and takes its content's width from there, where two
+     * place names spanning the whole column read as a bar and not as a switch (`buildSpec.md` §4.3).
+     */
+    readonly width?: 'share' | 'content' | 'adaptive';
 }
 
 /** A presentation segment whose glyph stands alone, its label kept as its name. */

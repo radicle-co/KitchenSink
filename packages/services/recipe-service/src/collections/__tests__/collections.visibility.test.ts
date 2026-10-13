@@ -36,6 +36,7 @@ function makeDal(overrides: Partial<DalMock> = {}): DalMock {
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
+        memberSummaries: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         // Not exercised by visibility toggles — runs `fn` against a stub tx.
         transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
@@ -55,9 +56,14 @@ describe('CollectionsService.setVisibility (FR-010 / T140)', () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
         dal.update.mockResolvedValue(makeCollectionRow({ ownerId: OWNER, visibility }));
-        const service = new CollectionsService(dal as unknown as CollectionsDal, makeAuthorHandlesDal(), {
-            capture: vi.fn(),
-        } as unknown as AnalyticsService);
+        const service = new CollectionsService(
+            dal as unknown as CollectionsDal,
+            makeAuthorHandlesDal(),
+            {
+                capture: vi.fn(),
+            } as unknown as AnalyticsService,
+            'https://cdn.test',
+        );
 
         const result = await service.setVisibility(makeActingPrincipal(OWNER), 'c1', visibility);
 
@@ -68,9 +74,14 @@ describe('CollectionsService.setVisibility (FR-010 / T140)', () => {
     it('rejects an invalid visibility with INVALID_VISIBILITY before any DB write', async () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
-        const service = new CollectionsService(dal as unknown as CollectionsDal, makeAuthorHandlesDal(), {
-            capture: vi.fn(),
-        } as unknown as AnalyticsService);
+        const service = new CollectionsService(
+            dal as unknown as CollectionsDal,
+            makeAuthorHandlesDal(),
+            {
+                capture: vi.fn(),
+            } as unknown as AnalyticsService,
+            'https://cdn.test',
+        );
 
         await expect(service.setVisibility(makeActingPrincipal(OWNER), 'c1', 'unlisted')).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.INVALID_VISIBILITY,
@@ -81,9 +92,14 @@ describe('CollectionsService.setVisibility (FR-010 / T140)', () => {
     it('enforces ownership — a non-owner cannot change visibility', async () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: 'someone-else' }));
-        const service = new CollectionsService(dal as unknown as CollectionsDal, makeAuthorHandlesDal(), {
-            capture: vi.fn(),
-        } as unknown as AnalyticsService);
+        const service = new CollectionsService(
+            dal as unknown as CollectionsDal,
+            makeAuthorHandlesDal(),
+            {
+                capture: vi.fn(),
+            } as unknown as AnalyticsService,
+            'https://cdn.test',
+        );
 
         await expect(service.setVisibility(makeActingPrincipal(OWNER), 'c1', 'public')).rejects.toSatisfy(
             (err: unknown) => isRecipeDomainError(err) && err.code === RecipeErrorCode.NOT_OWNER,
@@ -96,9 +112,14 @@ describe('CollectionsService.updateCollection with a visibility patch', () => {
     it('rejects an invalid visibility in the patch (service is an INDEPENDENT enforcement point)', async () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
-        const service = new CollectionsService(dal as unknown as CollectionsDal, makeAuthorHandlesDal(), {
-            capture: vi.fn(),
-        } as unknown as AnalyticsService);
+        const service = new CollectionsService(
+            dal as unknown as CollectionsDal,
+            makeAuthorHandlesDal(),
+            {
+                capture: vi.fn(),
+            } as unknown as AnalyticsService,
+            'https://cdn.test',
+        );
 
         // The cast is the POINT of this test, not a workaround for it. The wire schema now narrows
         // `visibility` to `'public' | 'private'`, so `'bogus'` cannot arrive through the validation pipe —
@@ -117,9 +138,14 @@ describe('CollectionsService.updateCollection with a visibility patch', () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
         dal.update.mockResolvedValue(makeCollectionRow({ ownerId: OWNER, visibility: 'public' }));
-        const service = new CollectionsService(dal as unknown as CollectionsDal, makeAuthorHandlesDal(), {
-            capture: vi.fn(),
-        } as unknown as AnalyticsService);
+        const service = new CollectionsService(
+            dal as unknown as CollectionsDal,
+            makeAuthorHandlesDal(),
+            {
+                capture: vi.fn(),
+            } as unknown as AnalyticsService,
+            'https://cdn.test',
+        );
 
         const result = await service.updateCollection(makeActingPrincipal(OWNER), 'c1', { visibility: 'public' });
 

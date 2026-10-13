@@ -26,6 +26,8 @@ appId: io.commise.mobile
       element: 'Add an ingredient'
       direction: DOWN
       timeout: 20000
+# A-007 / E13: the field's label and its hint are drawn above it, and not only spoken.
+- assertVisible: 'Type the amount first, then pick the food. For example: 2 tbsp olive oil.'
 - tapOn: 'Add an ingredient'
 - inputText: '2 cups Flou'
 # The live reading: the amount and the known unit, then the food the search is asked for.

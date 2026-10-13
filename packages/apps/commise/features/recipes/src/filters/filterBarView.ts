@@ -14,6 +14,7 @@
  * @pattern Interpreter — `filterBarViewOf` reads each facet descriptor into the view its leaf draws (P9)
  */
 import { fillTemplate } from '../format/fillTemplate.js';
+import { sentenceCase } from '../format/sentenceCase.js';
 import type { FilterMessages } from './messages.js';
 import {
     TIME_BUCKETS_MINUTES,
@@ -113,10 +114,41 @@ export type FacetSlot =
 /** One filter in force, as a removable chip. */
 export interface AppliedFilterView {
     readonly key: string;
+    /** What the filter is: a facet's stored value as written, a time bound's sentence, or an ingredient's name. */
     readonly label: string;
-    /** The remove action's accessible name: "Remove {label} filter". */
-    readonly removeLabel: string;
+    /**
+     * Whether `label` is a facet's STORED value (a dietary flag, a cuisine, a tag), which a chip names in sentence case
+     * like the facet's own chip in the panel does (`appliedChipTextOf`). A time bound and an ingredient name already read
+     * as they should.
+     */
+    readonly facetValue: boolean;
     readonly action: FilterAction;
+}
+
+/** What an applied chip says, and what its remove control is named. */
+export interface AppliedChipText {
+    readonly label: string;
+    /** "Remove {label} filter": it contains the visible label (SC 2.5.3). */
+    readonly removeLabel: string;
+}
+
+/**
+ * The text of one applied chip. A stored facet value is named in sentence case, the same as its chip in the panel
+ * beside it (W-10: one facet must not read "vegan" in one place and "Vegan" in the next). Pure.
+ *
+ * @param entry - The applied filter.
+ * @param copy - The filter copy.
+ * @param locale - The viewer's locale, whose case rules apply.
+ * @returns The chip's label and its remove control's name.
+ */
+export function appliedChipTextOf(
+    entry: AppliedFilterView,
+    copy: Pick<FilterMessages, 'removeFilter'>,
+    locale: string,
+): AppliedChipText {
+    const label = entry.facetValue ? sentenceCase(entry.label, locale) : entry.label;
+
+    return { label, removeLabel: fillTemplate(copy.removeFilter, { filter: label }) };
 }
 
 /** What the view is read from: the search's facets, the active filter, and the typeahead's view state. */
@@ -271,10 +303,10 @@ const ingredientGroupOf = (
  * @returns One chip per active filter.
  */
 const appliedOf = (filters: RecipeFilterState, copy: FilterMessages): readonly AppliedFilterView[] => {
-    const applied = (key: string, label: string, action: FilterAction): AppliedFilterView => ({
+    const applied = (key: string, label: string, action: FilterAction, facetValue = false): AppliedFilterView => ({
         key,
         label,
-        removeLabel: fillTemplate(copy.removeFilter, { filter: label }),
+        facetValue,
         action,
     });
     const timeLabels: Readonly<Record<TimeBoundField, string>> = {
@@ -299,13 +331,13 @@ const appliedOf = (filters: RecipeFilterState, copy: FilterMessages): readonly A
     return [
         ...times,
         ...(filters.dietaryFlags ?? []).map((value) =>
-            applied(`dietaryFlags:${value}`, value, { kind: 'toggleFacet', dimension: 'dietaryFlags', value }),
+            applied(`dietaryFlags:${value}`, value, { kind: 'toggleFacet', dimension: 'dietaryFlags', value }, true),
         ),
         ...(filters.cuisine === undefined
             ? []
-            : [applied('cuisine', filters.cuisine, { kind: 'setCuisine', cuisine: undefined })]),
+            : [applied('cuisine', filters.cuisine, { kind: 'setCuisine', cuisine: undefined }, true)]),
         ...(filters.tags ?? []).map((value) =>
-            applied(`tags:${value}`, value, { kind: 'toggleFacet', dimension: 'tags', value }),
+            applied(`tags:${value}`, value, { kind: 'toggleFacet', dimension: 'tags', value }, true),
         ),
         ...(filters.ingredients ?? []).map((entry) =>
             applied(`ingredient:${entry.foodId}`, entry.name, { kind: 'removeIngredient', foodId: entry.foodId }),

@@ -3,8 +3,8 @@
  * w3/e4 per-file queue grid).
  *
  * The React Native leaf of `RecipePhotoManager` — same contract, RN
- * primitives. Renders the confirmed photos MERGED with any in-flight queue items across a fixed 3-column
- * grid, each queue cell carrying its own status badge (Queued / Uploading… / Upload failed, via
+ * primitives. Renders the confirmed photos MERGED with any in-flight queue items across a grid of 3 columns (4 from
+ * 600 of the grid's own measured width, buildSpec §7.7), each queue cell carrying its own status badge (Queued / Uploading… / Upload failed, via
  * `accessibilityRole` + visible text — never colour alone) plus Retry (only where the queue reports the
  * failure as `retryable`) and Remove, and the caller-supplied `addControl` (the native picker button), hidden
  * at the photo cap. Presentational only.
@@ -16,12 +16,15 @@
  * REQ-014 (per-file "which photo failed and why"): the generic status badge already names WHICH photo
  * (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage` (client
  * validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same field)
- * renders as a second, distinct line naming WHY, whenever the caller supplies one.
+ * renders as a second, distinct line naming WHY, whenever the caller supplies one — BELOW the tile, in flow (E6), never
+ * over the image. With no photo and no queued file it shows the recipe's generated cover and says it stands in (A-010).
  */
 import { useMessages } from '@commise/i18n/react';
-import type { FC } from 'react';
+import { nativeTokens } from '@commise/ui/native';
+import { RecipeCover } from '@commise/ui/recipe-cover';
 import { useTheme } from '@commise/ui/theme';
 import { Image } from 'expo-image';
+import { useState, type FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -31,6 +34,7 @@ import {
     isCoverPhoto,
     MAX_RECIPE_PHOTO_UPLOAD_MB,
     MAX_RECIPE_PHOTOS,
+    photoGridColumns,
     visibleQueueItems,
     type RecipePhotoManagerProps,
 } from './model.js';
@@ -47,6 +51,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     onSetCover,
     onReplacePhoto,
     addControl,
+    coverPreview,
 }) => {
     const m = useMessages(photoMessages);
     const { colors } = useTheme();
@@ -56,10 +61,15 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     const ink = { color: colors.ink };
     const pendingItems = visibleQueueItems(queueItems ?? []);
     const atCap = isAtPhotoCap(photos.length + pendingItems.length);
+    // The grid's own width, once laid out (buildSpec §7.7: 3 columns below 600, 4 from 600). Not the window's: the
+    // window is not the container, and until the first measure the grid holds the narrow reading.
+    const [gridWidth, setGridWidth] = useState<number | undefined>(undefined);
+    const cellWidth = CELL_WIDTH[photoGridColumns(gridWidth)];
 
     return (
         <View style={styles.container}>
-            <Text accessibilityRole="header" style={[styles.heading, ink]}>
+            {/* The section name: an H3 in the `label` role, muted — the Details groups' heading (buildSpec §7.7). */}
+            <Text accessibilityRole="header" style={[styles.heading, { color: colors.inkMuted }]}>
                 {m.heading}
             </Text>
 
@@ -82,15 +92,28 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
             ) : null}
 
             {photos.length === 0 && pendingItems.length === 0 ? (
-                <Text style={[styles.muted, { color: colors.inkMuted }]}>{m.emptyBody}</Text>
+                <View style={styles.empty}>
+                    {/* The cover this recipe shows without a photo (buildSpec §7.7). */}
+                    {coverPreview === undefined ? null : (
+                        <View style={styles.coverPreview}>
+                            <RecipeCover
+                                recipeId={coverPreview.recipeId}
+                                title={coverPreview.title}
+                                {...(coverPreview.cuisine === undefined ? {} : { cuisine: coverPreview.cuisine })}
+                                aspect="4:3"
+                            />
+                        </View>
+                    )}
+                    <Text style={[styles.muted, { color: colors.inkMuted }]}>{m.emptyBody}</Text>
+                </View>
             ) : (
-                <View style={styles.grid}>
+                <View style={styles.grid} onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}>
                     {photos.map((photo, index) => {
                         const removing = removingPhotoId === photo.id;
                         const isCover = isCoverPhoto(photos, photo.id);
 
                         return (
-                            <View key={photo.id} style={styles.cell}>
+                            <View key={photo.id} style={[styles.cell, { width: cellWidth }]}>
                                 <Image
                                     source={{ uri: photo.url }}
                                     accessibilityLabel={fillTemplate(m.photoAlt, { index: index + 1 })}
@@ -180,70 +203,82 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                   : m.queueStatusFailed;
 
                         return (
-                            <View key={item.fileId} style={styles.cell}>
-                                {item.previewUri !== undefined ? (
-                                    <Image
-                                        source={{ uri: item.previewUri }}
-                                        accessibilityLabel={fillTemplate(m.queuePhotoAlt, { fileName: item.fileName })}
-                                        cachePolicy="memory-disk"
-                                        style={styles.photo}
-                                    />
-                                ) : (
-                                    <View style={[styles.photo, { backgroundColor: colors.surfaceMuted }]} />
-                                )}
-                                <Text
-                                    accessibilityRole={item.status === 'failed' ? 'alert' : 'text'}
-                                    accessibilityLabel={statusWord}
-                                    style={[
-                                        styles.statusBadge,
-                                        item.status === 'failed'
-                                            ? { backgroundColor: colors.danger, color: colors.onAction }
-                                            : [chip, ink],
-                                    ]}
-                                >
-                                    {statusWord}
-                                </Text>
+                            <View key={item.fileId} style={{ width: cellWidth }}>
+                                {/* The FRAME holds the image and what is drawn on it. A failure's prose sits BELOW it
+                                    (E6), in flow on the page background, so its contrast never depends on the photo. */}
+                                <View style={styles.frame}>
+                                    {item.previewUri !== undefined ? (
+                                        <Image
+                                            source={{ uri: item.previewUri }}
+                                            accessibilityLabel={fillTemplate(m.queuePhotoAlt, {
+                                                fileName: item.fileName,
+                                            })}
+                                            cachePolicy="memory-disk"
+                                            style={styles.photo}
+                                        />
+                                    ) : (
+                                        <View style={[styles.photo, { backgroundColor: colors.surfaceMuted }]} />
+                                    )}
+                                    <Text
+                                        accessibilityRole={item.status === 'failed' ? 'alert' : 'text'}
+                                        accessibilityLabel={statusWord}
+                                        style={[
+                                            styles.statusBadge,
+                                            item.status === 'failed'
+                                                ? { backgroundColor: colors.danger, color: colors.onAction }
+                                                : [chip, ink],
+                                        ]}
+                                    >
+                                        {statusWord}
+                                    </Text>
+                                    {/* ⛔ `queued` is offered a Remove too — see the web leaf's note. On the CREATE
+                                    path every draft pick sits `queued` until the recipe exists, so without
+                                    this the photo chosen before the first save was the ONE field of the
+                                    editor a cook could not change their mind about. */}
+                                    {item.status === 'failed' || item.status === 'queued' ? (
+                                        <View style={styles.queueControls}>
+                                            {/* Retry only where it can plausibly succeed — the queue
+                                            re-validates on retry, so a client-rejected file (too large /
+                                            wrong type) would re-fail identically. See `retryable`. */}
+                                            {item.status === 'failed' && item.retryable ? (
+                                                <Pressable
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={fillTemplate(m.queueRetryLabel, {
+                                                        fileName: item.fileName,
+                                                    })}
+                                                    onPress={() => onRetryQueueItem?.(item.fileId)}
+                                                    style={[
+                                                        styles.queueControlButton,
+                                                        { backgroundColor: colors.paper },
+                                                    ]}
+                                                >
+                                                    <Text style={[styles.queueControlLabel, ink]}>{m.queueRetry}</Text>
+                                                </Pressable>
+                                            ) : null}
+                                            {/* Offered only when wired: a container withholds removal by not
+                                            wiring it, and an unwired Remove would do nothing. */}
+                                            {onRemoveQueueItem === undefined ? null : (
+                                                <Pressable
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={fillTemplate(m.queueRemoveLabel, {
+                                                        fileName: item.fileName,
+                                                    })}
+                                                    onPress={() => onRemoveQueueItem(item.fileId)}
+                                                    style={[
+                                                        styles.queueControlButton,
+                                                        { backgroundColor: colors.paper },
+                                                    ]}
+                                                >
+                                                    <Text style={[styles.queueControlLabel, ink]}>{m.remove}</Text>
+                                                </Pressable>
+                                            )}
+                                        </View>
+                                    ) : null}
+                                </View>
                                 {item.status === 'failed' && item.errorMessage !== undefined ? (
                                     <Text style={[styles.itemError, { color: colors.dangerText }]}>
                                         {item.errorMessage}
                                     </Text>
-                                ) : null}
-                                {/* ⛔ `queued` is offered a Remove too — see the web leaf's note. On the CREATE
-                                    path every draft pick sits `queued` until the recipe exists, so without
-                                    this the photo chosen before the first save was the ONE field of the
-                                    editor a cook could not change their mind about. */}
-                                {item.status === 'failed' || item.status === 'queued' ? (
-                                    <View style={styles.queueControls}>
-                                        {/* Retry only where it can plausibly succeed — the queue
-                                            re-validates on retry, so a client-rejected file (too large /
-                                            wrong type) would re-fail identically. See `retryable`. */}
-                                        {item.status === 'failed' && item.retryable ? (
-                                            <Pressable
-                                                accessibilityRole="button"
-                                                accessibilityLabel={fillTemplate(m.queueRetryLabel, {
-                                                    fileName: item.fileName,
-                                                })}
-                                                onPress={() => onRetryQueueItem?.(item.fileId)}
-                                                style={[styles.queueControlButton, { backgroundColor: colors.paper }]}
-                                            >
-                                                <Text style={[styles.queueControlLabel, ink]}>{m.queueRetry}</Text>
-                                            </Pressable>
-                                        ) : null}
-                                        {/* Offered only when wired: a container withholds removal by not
-                                            wiring it, and an unwired Remove would do nothing. */}
-                                        {onRemoveQueueItem === undefined ? null : (
-                                            <Pressable
-                                                accessibilityRole="button"
-                                                accessibilityLabel={fillTemplate(m.queueRemoveLabel, {
-                                                    fileName: item.fileName,
-                                                })}
-                                                onPress={() => onRemoveQueueItem(item.fileId)}
-                                                style={[styles.queueControlButton, { backgroundColor: colors.paper }]}
-                                            >
-                                                <Text style={[styles.queueControlLabel, ink]}>{m.remove}</Text>
-                                            </Pressable>
-                                        )}
-                                    </View>
                                 ) : null}
                             </View>
                         );
@@ -267,15 +302,22 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     );
 };
 
+/** A cell's share of the row at each column count: the gap between cells takes the rest. */
+const CELL_WIDTH = { 3: '31%', 4: '23%' } as const;
+
 const styles = StyleSheet.create({
     container: { gap: 12 },
-    heading: { fontSize: 18, fontWeight: '600' },
+    heading: nativeTokens.type.label,
+    empty: { gap: 12 },
+    coverPreview: { width: '100%', maxWidth: 320, borderRadius: 12, overflow: 'hidden' },
     muted: { fontSize: 13 },
     formatHint: { fontSize: 11 },
     error: { fontSize: 13 },
-    // Fixed 3-column grid (wireframe): each cell claims a third of the row, minus the inter-cell gap.
+    // Each cell claims its share of the row (`CELL_WIDTH`), minus the inter-cell gap.
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    cell: { position: 'relative', width: '31%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },
+    cell: { position: 'relative', aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },
+    // A queue cell's image box: square like a photo cell, but it does not hold the failure's message.
+    frame: { position: 'relative', aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },
     photo: { width: '100%', height: '100%' },
     statusBadge: {
         position: 'absolute',
@@ -287,14 +329,7 @@ const styles = StyleSheet.create({
         paddingVertical: 2,
         paddingHorizontal: 8,
     },
-    itemError: {
-        position: 'absolute',
-        top: 30,
-        left: 6,
-        right: 6,
-        fontSize: 10,
-        textAlign: 'center',
-    },
+    itemError: { marginTop: 4, paddingHorizontal: 2, fontSize: 11 },
     queueControls: { position: 'absolute', bottom: 6, left: 6, right: 6, flexDirection: 'row', gap: 6 },
     queueControlButton: {
         flex: 1,

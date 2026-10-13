@@ -65,6 +65,39 @@ describe('RecipeVersionList (native)', () => {
         expect(screen.getByText('Each time you save changes, the version before is kept here.')).toBeTruthy();
     });
 
+    it('says there are no earlier versions yet when the only version is the current one (D12)', () => {
+        renderList({ versions: [makeRecipeVersion({ versionNumber: 1 })], currentVersion: 1 });
+
+        expect(screen.getByText('No earlier versions yet')).toBeTruthy();
+        expect(screen.queryByText(versionList.currentBadge)).toBeNull();
+        expect(screen.queryByText(/^Version \d · Edited/u)).toBeNull();
+    });
+
+    it('draws no editor line and no raw change summary on a row (D12)', () => {
+        renderList({
+            versions: [
+                makeRecipeVersion({ versionNumber: 1 }),
+                makeRecipeVersion({ versionNumber: 2, editorHandle: 'chef', changeSummary: 'Updated' }),
+            ],
+            currentVersion: 2,
+        });
+
+        expect(screen.queryByText(/by @/u)).toBeNull();
+        expect(screen.queryByText('Updated')).toBeNull();
+    });
+
+    it('says a version saved a moment ago was edited now, never “0 minutes ago” (P6)', () => {
+        renderList({
+            versions: [
+                makeRecipeVersion({ versionNumber: 1, createdAt: '2026-04-01T09:00:00.000Z' }),
+                makeRecipeVersion({ versionNumber: 2, createdAt: '2026-04-12T08:59:40.000Z' }),
+            ],
+            currentVersion: 2,
+        });
+
+        expect(screen.getByText('Version 2 · Edited now')).toBeTruthy();
+    });
+
     it('lists the versions newest first with how long ago each was edited', () => {
         renderList({ versions: threeVersions, currentVersion: 3 });
 

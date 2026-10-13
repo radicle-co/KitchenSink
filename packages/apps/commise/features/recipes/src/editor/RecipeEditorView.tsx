@@ -30,6 +30,7 @@ import { EditorActionBar } from './EditorActionBar.js';
 import { EDITOR_GUTTER } from './editorGutter.js';
 import { EditorHeader } from './EditorHeader.js';
 import { FailureAlert } from './FailureAlert.js';
+import { PublishLine } from './PublishLine.js';
 import { ResumeNotice } from './ResumeNotice.js';
 import { UnmatchedNote } from './UnmatchedNote.js';
 import { EditorSection } from './EditorSection.js';
@@ -42,6 +43,7 @@ import {
 import { EDITOR_SECTIONS } from './sections.js';
 import { closingTabLosesWork } from './saveStatus.js';
 import { useEditorPage } from './useEditorPage.js';
+import { useEditorScrollPadding } from './useEditorScrollPadding.js';
 import { useUnloadGuard } from './useUnloadGuard.js';
 
 /** How far below the viewport's top the scroll spy's activation line sits: under the header and the index bar. */
@@ -58,21 +60,25 @@ export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
     if (editor.state.status === 'conflict') {
         const conflict = editor.state;
 
+        // The frame owns the page gutter (a focused task's `<main>` gives none): the conflict view is drawn before the
+        // frame, so it takes the gutter here, as the load and error states do (E9).
         return (
-            <RecipeConflictView
-                server={conflict.server}
-                {...(conflict.base === undefined ? {} : { base: conflict.base })}
-                diff={conflict.diff}
-                versionsBehind={conflict.versionsBehind}
-                neverPublished={conflict.neverPublished}
-                isResolving={conflict.isResolving}
-                selections={conflict.mergeSelections}
-                onSelectionsChange={editor.resolutions.setMergeSelections}
-                onKeepServer={editor.resolutions.keepServer}
-                onOverwrite={editor.resolutions.overwrite}
-                onMerge={editor.resolutions.merge}
-                onDiscardAndClose={editor.discardAndClose}
-            />
+            <div className={EDITOR_GUTTER}>
+                <RecipeConflictView
+                    server={conflict.server}
+                    {...(conflict.base === undefined ? {} : { base: conflict.base })}
+                    diff={conflict.diff}
+                    versionsBehind={conflict.versionsBehind}
+                    neverPublished={conflict.neverPublished}
+                    isResolving={conflict.isResolving}
+                    selections={conflict.mergeSelections}
+                    onSelectionsChange={editor.resolutions.setMergeSelections}
+                    onKeepServer={editor.resolutions.keepServer}
+                    onOverwrite={editor.resolutions.overwrite}
+                    onMerge={editor.resolutions.merge}
+                    onDiscardAndClose={editor.discardAndClose}
+                />
+            </div>
         );
     }
 
@@ -95,6 +101,8 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
     useUnloadGuard(
         closingTabLosesWork({ keep, status: editor.saveStatus, lifecycle: editor.lifecycle, values: editor.values }),
     );
+
+    useEditorScrollPadding({ pinned: !pinning.unpinned, height: pinning.footerHeight });
 
     const readInsets = useCallback(() => readChromeInsets(EDITOR_TOP_CHROME_IDS, EDITOR_ACTION_BAR_ID), []);
     const [firstAction, secondAction] = chrome.failure?.actions ?? [];
@@ -169,6 +177,11 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                                 {section === 'photos' && page.publishNote !== undefined && (
                                     <UnmatchedNote text={page.publishNote} />
                                 )}
+                                {section === 'photos' &&
+                                    page.publishNote === undefined &&
+                                    page.readyLine !== undefined && (
+                                        <PublishLine line={page.readyLine} onJump={page.goToSection} />
+                                    )}
                                 {sections[section]}
                             </EditorSection>
                         ))}

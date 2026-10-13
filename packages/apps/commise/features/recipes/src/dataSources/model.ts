@@ -112,7 +112,7 @@ export interface DataSourcesLoadErrorProps {
  */
 export type DataSourcesLoadErrorNativeProps = Omit<DataSourcesLoadErrorProps, 'failures'>;
 
-/** The way back from the web page, to Profile (`buildSpec.md` §9.2). The host owns the route and the router. */
+/** The way back from the page, to Profile (`buildSpec.md` §9.2). The host owns the route and the router. */
 export interface DataSourcesBack {
     /** The accessible name: "Back to Profile". */
     readonly label: string;
@@ -144,10 +144,25 @@ export interface DataSourcesPageProps {
 /** Props for the web `DataSourcesPage`: the shared props and the way back. */
 export interface DataSourcesPageWebProps extends DataSourcesPageProps, DataSourcesScreenProps {}
 
-/** Props for the native `DataSourcesPage`, a full-screen sheet. */
+/** Props for the native `DataSourcesPage`, a full-screen sheet (the recipe detail's, which has no stack to push onto). */
 export interface DataSourcesPageNativeProps extends DataSourcesPageProps {
     /** The sheet's one way out: Close, and Android back (§S16). */
     readonly onRequestClose: () => void;
+}
+
+/**
+ * Props for the native `DataSourcesPushedPage`: the page a stack pushes (A-026), with the web page's way back. `href`
+ * is web's and native ignores it.
+ */
+export interface DataSourcesPushedPageProps extends DataSourcesPageProps {
+    /** The way back, to the screen that pushed it ("Back to Profile"). */
+    readonly back: DataSourcesBack;
+}
+
+/** Props of the native pushed Data sources screen (the page on its read): the host owns the route and the way back. */
+export interface DataSourcesPushedScreenProps {
+    /** The way back, to the screen that pushed it ("Back to Profile"). The host names it and owns the navigator. */
+    readonly back: DataSourcesBack;
 }
 
 /** Props of the native Data sources screen (the sheet on its read). */

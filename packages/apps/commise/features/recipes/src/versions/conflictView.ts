@@ -133,8 +133,9 @@ export const formatServerCardHeading = (server: VersionConflictSide, messages: R
     fillTemplate(messages.serverCardHeading, { version: server.versionNumber });
 
 /**
- * The YOUR-version card's heading — "Your version (v{n})" when `base` is known, or the version-less
- * fallback when it was evicted from version history (wireframe gap #2). Pure.
+ * The YOUR-version card's heading — "Edited from v{n}" when `base` is known (the card shows the version the draft was
+ * edited FROM, so it is named for that, not as the draft's own save), or the version-less fallback when it was evicted
+ * from version history (wireframe gap #2). Pure.
  *
  * @param base - The 409's base side, or `undefined` when evicted.
  * @param messages - The localized conflict copy.

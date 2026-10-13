@@ -118,6 +118,20 @@ describe('AppliedFilters (web)', () => {
         expect(screen.queryByRole('button', { name: 'Clear all' })).toBeNull();
     });
 
+    it('names an applied stored facet value in sentence case, beside the same chip in the panel (W-10)', () => {
+        render(
+            inLocale(
+                <AppliedFilters
+                    view={viewOf({ dietaryFlags: ['vegan'] })}
+                    chipOverflow="scroll"
+                    onFilterAction={noop}
+                />,
+            ),
+        );
+
+        expect(screen.getByRole('button', { name: 'Remove Vegan filter' }).textContent).toContain('Vegan');
+    });
+
     it('offers Clear all from two applied filters', async () => {
         const user = userEvent.setup();
         const onFilterAction = vi.fn();

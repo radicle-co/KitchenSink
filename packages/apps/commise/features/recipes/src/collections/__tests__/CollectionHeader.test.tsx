@@ -166,6 +166,42 @@ describe('CollectionHeader (web) — placement in the document', () => {
     });
 });
 
+describe('CollectionHeader (web) — W-07: the meta line separates its groups with the locale separator, and never starts a line with it', () => {
+    const items = (): readonly HTMLElement[] => {
+        const line = screen.getByText('6 recipes').closest('p') as HTMLElement;
+
+        return [...line.querySelectorAll<HTMLElement>('[data-sep]')];
+    };
+
+    it('draws the locale’s separator from the item’s data, not a hard-coded dot', () => {
+        renderHeader({ sourceCollectionName: 'Dinners' });
+
+        expect(items().map((item) => item.getAttribute('data-sep'))).toEqual(['·', '·', '·']);
+
+        for (const item of items()) {
+            expect(item.className.split(/\s+/u)).toContain('before:content-[attr(data-sep)]');
+        }
+    });
+
+    it('hangs each separator in the item’s own start padding, so the clipped line start hides the one a wrap leaves first', () => {
+        renderHeader({ sourceCollectionName: 'Dinners' });
+        const line = screen.getByText('6 recipes').closest('p') as HTMLElement;
+
+        // The separator sits BEFORE its item, outside the item's content, at the item's start edge...
+        for (const item of items()) {
+            expect(item.className.split(/\s+/u)).toEqual(
+                expect.arrayContaining(['ps-3', 'before:absolute', 'before:start-0']),
+            );
+            expect(item.className.split(/\s+/u).filter((token) => token.startsWith('not-first:'))).toEqual([]);
+        }
+
+        // ...and the line is pulled one padding to the start inside a clipping box, so the first item of every line
+        // (whatever wrapped it there) has its separator outside what shows.
+        expect(line.className.split(/\s+/u)).toContain('-ms-3');
+        expect(line.parentElement?.className.split(/\s+/u)).toContain('overflow-hidden');
+    });
+});
+
 describe('CollectionHeader (web) — the ⋯ menu', () => {
     async function open(user: ReturnType<typeof userEvent.setup>) {
         await user.click(screen.getByRole('button', { name: 'More actions for Weeknight Dinners' }));
@@ -185,6 +221,31 @@ describe('CollectionHeader (web) — the ⋯ menu', () => {
             'Delete collection',
         ]);
         expect(screen.getByRole('separator')).toBeTruthy();
+    });
+
+    /** The Registry glyph an item drew, by its Lucide class (`lucide-pencil-line`). */
+    const glyphOf = (item: HTMLElement): readonly string[] =>
+        [...(item.querySelector('svg.lucide')?.classList ?? [])].filter((token) => /^lucide-./u.test(token));
+
+    it('draws a glyph on every item, from the one glyph list (A-020, §1.7)', async () => {
+        const user = userEvent.setup();
+        renderHeader({ visibility: RecipeVisibility.PRIVATE, sourceCollectionName: 'Dinners' });
+        const menu = await open(user);
+        const glyph = (name: string): readonly string[] => glyphOf(menu.getByRole('menuitem', { name }));
+
+        expect(glyph('Rename')).toContain('lucide-pencil-line');
+        expect(glyph('Make public')).toContain('lucide-globe');
+        expect(glyph('Save a copy')).toContain('lucide-copy-plus');
+        expect(glyph('Pull updates')).toContain('lucide-refresh-cw');
+        expect(glyph('Delete collection')).toContain('lucide-trash-2');
+    });
+
+    it('draws the lock on Make private', async () => {
+        const user = userEvent.setup();
+        renderHeader({ visibility: RecipeVisibility.PUBLIC });
+        const menu = await open(user);
+
+        expect(glyphOf(menu.getByRole('menuitem', { name: 'Make private' }))).toContain('lucide-lock');
     });
 
     it('offers Make private for a public collection', async () => {

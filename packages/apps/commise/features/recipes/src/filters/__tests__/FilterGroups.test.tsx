@@ -112,7 +112,7 @@ describe('FilterGroups (web) — chips', () => {
         const user = userEvent.setup();
         const { onFilterAction } = renderGroups({ facets });
 
-        await user.click(screen.getByRole('button', { name: 'vegan 4' }));
+        await user.click(screen.getByRole('button', { name: 'Vegan 4' }));
 
         expect(onFilterAction).toHaveBeenCalledWith({ kind: 'toggleFacet', dimension: 'dietaryFlags', value: 'vegan' });
     });
@@ -120,8 +120,8 @@ describe('FilterGroups (web) — chips', () => {
     it('marks a chosen chip pressed and leaves the others unpressed', () => {
         renderGroups({ facets, filters: { dietaryFlags: ['vegan'] } });
 
-        expect(screen.getByRole('button', { name: 'vegan 4' }).getAttribute('aria-pressed')).toBe('true');
-        expect(screen.getByRole('button', { name: 'gluten-free 2' }).getAttribute('aria-pressed')).toBe('false');
+        expect(screen.getByRole('button', { name: 'Vegan 4' }).getAttribute('aria-pressed')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Gluten-free 2' }).getAttribute('aria-pressed')).toBe('false');
     });
 
     it('sets the cuisine pressed', async () => {
@@ -150,11 +150,11 @@ describe('FilterGroups (web) — chips', () => {
 
         await user.click(screen.getByRole('button', { name: `Show all (${String(FACET_CHIP_LIMIT + 4)})` }));
 
-        expect(within(group).getAllByRole('button', { name: /^tag-/u })).toHaveLength(FACET_CHIP_LIMIT + 4);
+        expect(within(group).getAllByRole('button', { name: /^Tag-/u })).toHaveLength(FACET_CHIP_LIMIT + 4);
 
         await user.click(screen.getByRole('button', { name: 'Show fewer' }));
 
-        expect(within(group).getAllByRole('button', { name: /^tag-/u })).toHaveLength(FACET_CHIP_LIMIT);
+        expect(within(group).getAllByRole('button', { name: /^Tag-/u })).toHaveLength(FACET_CHIP_LIMIT);
     });
 
     it('offers no “Show all” for a group within the cap', () => {
@@ -195,6 +195,37 @@ describe('FilterGroups (web) — time', () => {
             field: 'maxTotalTime',
             minutes: undefined,
         });
+    });
+
+    it('says in sentence case what a stored lower-case facet value is, and still reports the raw value (W-10)', async () => {
+        const user = userEvent.setup();
+        const { onFilterAction } = renderGroups({ facets });
+        const chip = screen.getByRole('button', { name: 'Gluten-free 2' });
+
+        expect(chip.textContent).toContain('Gluten-free');
+
+        await user.click(chip);
+
+        expect(onFilterAction).toHaveBeenCalledWith({
+            kind: 'toggleFacet',
+            dimension: 'dietaryFlags',
+            value: 'gluten-free',
+        });
+    });
+
+    it('draws a chevron on the "More time filters" summary, so it reads as something to open (W-13)', () => {
+        renderGroups();
+        const summary = screen.getByText('More time filters').closest('summary') as HTMLElement;
+        const box = summary.querySelector('span[aria-hidden="true"]') as HTMLElement;
+
+        // Decorative: the summary's own text is its name, and the open state is the browser's.
+        expect(box.querySelector('svg.lucide-chevron-down')).not.toBeNull();
+        // It turns over while the disclosure is open, without a transition for a viewer who asked for none.
+        const classes = box.className.split(/\s+/u);
+
+        expect(classes).toEqual(
+            expect.arrayContaining(['group-open/more:rotate-180', 'motion-reduce:transition-none']),
+        );
     });
 
     it('keeps prep and cook time behind a shut disclosure until one is in force', () => {

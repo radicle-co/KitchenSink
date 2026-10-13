@@ -55,6 +55,38 @@ describe('addRecentSearch', () => {
     });
 });
 
+describe('addRecentSearch — A-027: a partial query typed this session is replaced, not kept', () => {
+    it('replaces the previous query of this session when the new one extends it ("r", then "rice")', () => {
+        expect(addRecentSearch(['r', 'pasta'], 'rice', 'r')).toEqual(['rice', 'pasta']);
+    });
+
+    it('replaces it when the new one is shorter (the cook deleted a letter)', () => {
+        expect(addRecentSearch(['rice', 'pasta'], 'ric', 'rice')).toEqual(['ric', 'pasta']);
+    });
+
+    it('compares ignoring case and surrounding whitespace', () => {
+        expect(addRecentSearch(['Ri', 'pasta'], ' RICE ', 'Ri')).toEqual(['RICE', 'pasta']);
+    });
+
+    it('keeps an unrelated previous query of this session', () => {
+        expect(addRecentSearch(['pasta'], 'risotto', 'pasta')).toEqual(['risotto', 'pasta']);
+    });
+
+    it('keeps a prefix from an EARLIER session: with no previous query this session, nothing is replaced', () => {
+        expect(addRecentSearch(['rice', 'pasta'], 'r', undefined)).toEqual(['r', 'rice', 'pasta']);
+    });
+
+    it('replaces only the previous query, never an older entry that happens to share the prefix', () => {
+        expect(addRecentSearch(['ri', 'rice', 'pasta'], 'rich', 'ri')).toEqual(['rich', 'rice', 'pasta']);
+    });
+
+    it('ignores a blank query without touching the list, whatever came before it', () => {
+        const existing = ['r'];
+
+        expect(addRecentSearch(existing, '  ', 'r')).toBe(existing);
+    });
+});
+
 describe('mergeRecentSearches', () => {
     it('keeps the newer list in front of the older one', () => {
         expect(mergeRecentSearches(['risotto'], ['pasta', 'lamb'])).toEqual(['risotto', 'pasta', 'lamb']);

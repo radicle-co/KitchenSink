@@ -28,7 +28,8 @@ async function landOnHome(page: Page): Promise<void> {
 
 /** Whether the one displayed primary navigation is pinned to the viewport's foot. */
 async function displayedNavIsBottomPinned(page: Page): Promise<boolean> {
-    const visibleNavs = page.getByRole('navigation', { name: 'Main' }).filter({ visible: true });
+    // The sidebar is "Main" and the bottom tab bar is "Tabs" (W-14); exactly one of the two is displayed at any width.
+    const visibleNavs = page.getByRole('navigation', { name: /^(?:Main|Tabs)$/ }).filter({ visible: true });
 
     await expect(visibleNavs, 'exactly one primary-nav landmark is displayed').toHaveCount(1);
 

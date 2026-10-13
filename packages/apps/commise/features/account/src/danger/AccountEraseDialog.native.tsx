@@ -18,6 +18,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { DialogFrame } from '@commise/ui/dialog-frame';
+import { Icon } from '@commise/ui/icon';
 import { TextInput } from '@commise/ui/text-input';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
@@ -52,7 +53,12 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
 
     return (
         <DialogFrame open={open} onRequestClose={onCancel} title={erase.title} role="dialog">
-            <Text style={[styles.warning, danger]}>{erase.warning}</Text>
+            {/* As the Close dialog's body: `inkMuted`, with the danger colour on a glyph and not on the whole sentence, so
+                colour is not the only cue (W-24; `buildSpec.md` §10). */}
+            <View style={styles.warningRow}>
+                <Icon name="triangleAlert" size={20} tone="dangerText" />
+                <Text style={[styles.warning, { color: colors.inkMuted }]}>{erase.warning}</Text>
+            </View>
             <Text style={body}>{erase.distinction}</Text>
 
             <Text accessibilityRole="header" style={[styles.sectionHeading, ink]}>
@@ -132,7 +138,8 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
 
 const styles = StyleSheet.create({
     sectionHeading: { fontSize: 16, fontWeight: '600', marginTop: 4 },
-    warning: { fontSize: 15, lineHeight: 22 },
+    warningRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+    warning: { flex: 1, fontSize: 15, lineHeight: 22 },
     body: { fontSize: 14, lineHeight: 20 },
     recipeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
     checkbox: { fontSize: 18 },

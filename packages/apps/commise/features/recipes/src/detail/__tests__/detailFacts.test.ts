@@ -19,6 +19,7 @@ import {
     ingredientRowName,
     ingredientRowStatuses,
     isLongDescription,
+    nutritionStatusLine,
 } from '../detailFacts.js';
 
 const { detail, duration, card, ingredientLineName, ingredientDetails } = recipeMessages.en;
@@ -181,7 +182,25 @@ describe('detailNativeLayoutOf', () => {
         { width: 719, columns: 'one', statsPerRow: 4 },
         { width: 720, columns: 'two', statsPerRow: 4 },
     ])('a $width pt body → $columns column(s), $statsPerRow stats a row', ({ width, columns, statsPerRow }) => {
-        expect(detailNativeLayoutOf(width)).toEqual({ columns, statsPerRow });
+        expect(detailNativeLayoutOf(width, 1)).toEqual({ columns, statsPerRow });
+    });
+
+    // A-028 (d): the strip's cells hold TEXT, so a bigger font needs a wider cell. A 4-up strip at font scale 2 gave
+    // ~65 pt cells in which "Medium" and a time wrapped. The width a cell has is what the font scale divides.
+    it.each([
+        { width: 360, fontScale: 1, statsPerRow: 4 },
+        { width: 360, fontScale: 1.1, statsPerRow: 2 },
+        { width: 359, fontScale: 1, statsPerRow: 2 },
+        { width: 640, fontScale: 1.5, statsPerRow: 4 },
+        { width: 640, fontScale: 2, statsPerRow: 2 },
+        { width: 720, fontScale: 2, statsPerRow: 4 },
+    ])('a $width pt body at font scale $fontScale → $statsPerRow stats a row', ({ width, fontScale, statsPerRow }) => {
+        expect(detailNativeLayoutOf(width, fontScale).statsPerRow).toBe(statsPerRow);
+    });
+
+    it('keeps the column rule in points: the font scale does not move the two-column breakpoint', () => {
+        expect(detailNativeLayoutOf(720, 2).columns).toBe('two');
+        expect(detailNativeLayoutOf(719, 0.85).columns).toBe('one');
     });
 });
 
@@ -230,25 +249,98 @@ describe('ingredientGroupRuns', () => {
 /**
  * F17 (`evaluateFinal.md`; `buildSpec.md` §6.7 "Nutrition unavailable"): a recipe whose lines count nothing showed
  * "0 / 0 g / 0 g / 0 g", which reads as a measured zero. Nothing counted shows "—" in each cell and one line.
+ *
+ * D2 (the UI walk): a recipe with NO lines is "complete" (the sum over nothing is 0), so it printed the zeros anyway.
+ * D11: the figures are grouped and rounded through `Intl`, as the card's calories are.
  */
 describe('nutritionCells', () => {
     const zero = { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, isComplete: false };
+    const oneLine = [makeIngredientView({ ingredientId: 'a' })];
 
     it('shows a dash in every cell when no line was counted', () => {
-        const { cells, noneCounted } = nutritionCells(zero, detail);
+        const { cells, noneCounted } = nutritionCells(zero, oneLine, detail, 'en-US');
 
         expect(cells.map((cell) => cell.value)).toEqual(['—', '—', '—', '—']);
         expect(noneCounted).toBe(true);
     });
 
     it('shows the figures when anything was counted, even a partial estimate', () => {
-        const { cells, noneCounted } = nutritionCells({ ...zero, calories: 120, proteinG: 4 }, detail);
+        const { cells, noneCounted } = nutritionCells(
+            { ...zero, calories: 120, proteinG: 4 },
+            oneLine,
+            detail,
+            'en-US',
+        );
 
         expect(cells.map((cell) => cell.value)).toEqual(['120', '4 g', '0 g', '0 g']);
         expect(noneCounted).toBe(false);
     });
 
-    it('keeps a measured zero for a complete recipe (water is 0 calories)', () => {
-        expect(nutritionCells({ ...zero, isComplete: true }, detail).cells[0]?.value).toBe('0');
+    it('keeps a measured zero for a complete recipe that HAS lines (water is 0 calories)', () => {
+        const { cells, noneCounted } = nutritionCells({ ...zero, isComplete: true }, oneLine, detail, 'en-US');
+
+        expect(cells[0]?.value).toBe('0');
+        expect(noneCounted).toBe(false);
+    });
+
+    it('counts nothing for a recipe with NO lines, though its sum is a "complete" zero (D2)', () => {
+        const { cells, noneCounted } = nutritionCells({ ...zero, isComplete: true }, [], detail, 'en-US');
+
+        expect(cells.map((cell) => cell.value)).toEqual(['—', '—', '—', '—']);
+        expect(noneCounted).toBe(true);
+    });
+
+    it('rounds and groups the figures for the locale (D11)', () => {
+        const figures = { calories: 1290.7, proteinG: 12.4, carbsG: 1287, fatG: 0.4, isComplete: true };
+
+        expect(nutritionCells(figures, oneLine, detail, 'en-US').cells.map((cell) => cell.value)).toEqual([
+            '1,291',
+            '12 g',
+            '1,287 g',
+            '0 g',
+        ]);
+        expect(nutritionCells(figures, oneLine, detail, 'de-DE').cells.map((cell) => cell.value)).toEqual([
+            '1.291',
+            '12 g',
+            '1.287 g',
+            '0 g',
+        ]);
+    });
+});
+
+/** A-015: ONE status line under the figures, never two that contradict each other. */
+describe('nutritionStatusLine', () => {
+    const REVIEW = 'One ingredient didn’t match its original wording.';
+
+    it('says nothing for a complete recipe with figures', () => {
+        expect(
+            nutritionStatusLine({ noneCounted: false, isComplete: true, reviewNotice: undefined }, detail),
+        ).toBeUndefined();
+    });
+
+    it('says the estimate is partial when some lines count and some do not', () => {
+        expect(nutritionStatusLine({ noneCounted: false, isComplete: false, reviewNotice: undefined }, detail)).toBe(
+            detail.nutritionPartial,
+        );
+    });
+
+    it('says no ingredient has a food when nothing was counted and nothing is withheld', () => {
+        expect(nutritionStatusLine({ noneCounted: true, isComplete: false, reviewNotice: undefined }, detail)).toBe(
+            detail.nutritionNoneCounted,
+        );
+    });
+
+    // The contradiction: every line withheld for review is NOT "no ingredient has a food" — each has one. The review
+    // notice already says what happened, so the status line stays out of its way.
+    it('adds nothing when nothing was counted BECAUSE every line is withheld: the review notice says it', () => {
+        expect(
+            nutritionStatusLine({ noneCounted: true, isComplete: false, reviewNotice: REVIEW }, detail),
+        ).toBeUndefined();
+    });
+
+    it('still says partial beside the review notice when only some lines are withheld', () => {
+        expect(nutritionStatusLine({ noneCounted: false, isComplete: false, reviewNotice: REVIEW }, detail)).toBe(
+            detail.nutritionPartial,
+        );
     });
 });

@@ -6,6 +6,7 @@ import { VIEW_MODE_KEY, viewModeFrom } from '@commise/features-recipes';
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
+import { signInPathFor } from '@/lib/signInReturn';
 import { AppShell } from '@/components/app/AppShell';
 import { ShellBackToTop } from '@/components/app/ShellBackToTop';
 import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
@@ -38,7 +39,7 @@ export default async function RecipesPage({
     const { userId, getToken } = await auth();
 
     if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+        redirect(signInPathFor(locale, `/${locale}/recipes`) as Route);
     }
 
     const queryClient = new QueryClient();

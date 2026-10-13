@@ -2,10 +2,11 @@
  * @module @commise/features-recipes/dataSources — native Data sources PAGE, a full-screen sheet (presentational; plan
  * R55, design §S16, §S18).
  *
- * The React Native twin of `DataSourcesPage.tsx`. Native has no router (`AppRoot` is a `useState` switch), and a sheet
- * returns the cook to the same place they opened it from, so the page is a `FullScreenSheet` on this platform: its
- * title and a 48 × 48 Close at the top end, then the two intro sentences and the read's state, which the host passes
- * as `children`, in one scrolling column. Close and Android back both reach `onRequestClose`, the sheet's one way out.
+ * The React Native twin of `DataSourcesPage.tsx` for a host with no stack to push a page onto: the recipe detail opens
+ * it over itself, and a sheet returns the cook to the same place. Profile pushes `DataSourcesPushedPage` instead (A-026).
+ * The page is a `FullScreenSheet` here: its title and a 48 × 48 Close at the top end, then the two intro sentences and
+ * the read's state, which the host passes as `children`, in one scrolling column. Close and Android back both reach
+ * `onRequestClose`, the sheet's one way out.
  *
  * Focus (§S16): once the sheet is presented, the reading cursor moves to the title, and again when
  * `headingFocusSignal` advances (a retry that took Try again away). Returning it to the control that opened the sheet

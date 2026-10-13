@@ -265,3 +265,54 @@ test.describe('the recipe page’s layout', () => {
         expect((ingredients?.y ?? 0) + (ingredients?.height ?? 0)).toBeLessThanOrEqual((steps?.y ?? 0) + 1);
     });
 });
+
+/**
+ * A-013 / D1 / D5 / D6: the section switch STAYS at the top while the page scrolls (it was a sticky bar inside a slot exactly
+ * as tall as itself, so it scrolled away), its three labels fit a 320 px window, and the Screen on hint is said once. Real
+ * layout only: jsdom has no scroll and no CSS.
+ */
+test.describe('the section switch below a 720 px body', () => {
+    test('stays in view at the top of the window after scrolling past the Steps heading', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await openRecipe(page);
+
+        await page.getByRole('heading', { level: 2, name: 'Steps' }).scrollIntoViewIfNeeded();
+        await page.mouse.wheel(0, 400);
+
+        const nav = page.getByRole('navigation', { name: 'Recipe sections' });
+        await expect(nav).toBeInViewport();
+        const box = await nav.boundingBox();
+        expect(box?.y ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
+    });
+
+    test('shows all three section links inside the bar at 320 px', async ({ page }) => {
+        await stubWakeLock(page);
+        await page.setViewportSize({ width: 320, height: 700 });
+        await openRecipe(page);
+
+        const nav = page.getByRole('navigation', { name: 'Recipe sections' });
+        const navBox = await nav.boundingBox();
+
+        for (const name of ['Ingredients', 'Steps', 'Nutrition']) {
+            const link = await nav.getByRole('link', { name }).boundingBox();
+
+            expect(link, name).not.toBeNull();
+            expect((link?.x ?? 0) + (link?.width ?? 0), `${name} ends inside the bar`).toBeLessThanOrEqual(
+                (navBox?.x ?? 0) + (navBox?.width ?? 0) + 0.5,
+            );
+        }
+    });
+
+    test('says what Screen on is once, and takes it back at the first scroll', async ({ page }) => {
+        await stubWakeLock(page);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await openRecipe(page);
+
+        const hint = page.getByText('Keeps the screen awake while you cook.');
+        await expect(hint).toBeVisible();
+
+        await page.mouse.wheel(0, 300);
+
+        await expect(hint).toHaveCount(0);
+    });
+});

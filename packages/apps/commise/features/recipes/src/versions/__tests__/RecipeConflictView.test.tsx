@@ -260,7 +260,7 @@ describe('RecipeConflictView (web) — two-column per-side summary cards (wirefr
         freezeClock();
         renderConflict({ base: distinctBase });
 
-        expect(screen.getByText('Your version (v5)')).toBeTruthy();
+        expect(screen.getByText('Edited from v5')).toBeTruthy();
         expect(screen.getByText('Saved: May 8, 2026, 10:00 AM')).toBeTruthy();
     });
 
@@ -269,7 +269,7 @@ describe('RecipeConflictView (web) — two-column per-side summary cards (wirefr
         renderConflict();
 
         const serverHeading = screen.getByText('Server version (v6)');
-        const yourHeading = screen.getByText('Your version (v5)');
+        const yourHeading = screen.getByText('Edited from v5');
 
         expect(serverHeading.compareDocumentPosition(yourHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
@@ -279,7 +279,7 @@ describe('RecipeConflictView (web) — two-column per-side summary cards (wirefr
         renderConflict({ base: undefined });
 
         expect(screen.getByText('Your version')).toBeTruthy();
-        expect(screen.queryByText('Your version (v5)')).toBeNull();
+        expect(screen.queryByText('Edited from v5')).toBeNull();
         // Only the SERVER card's Saved line is present — no fabricated one for the your-version card.
         expect(screen.getAllByText(/^Saved:/)).toHaveLength(1);
     });

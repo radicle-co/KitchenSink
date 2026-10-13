@@ -121,4 +121,20 @@ describe('useIngredientsPaste', () => {
         view.unmount();
         expect(hold.get()).toBe(false);
     });
+
+    it('⛔ tells the editor the hold was released once its lines have joined, and not when the paste unmounts', () => {
+        const hold = createPasteHold();
+        const released = vi.fn();
+        hold.onReleased(released);
+        const view = render({ submitting: true }, 0, false, hold);
+
+        double.current = paste({ reading: [] });
+        view.rerender();
+        expect(released).toHaveBeenCalledTimes(1);
+
+        double.current = paste({ reading: [{ key: 'l1', sourceLine: '2 cups flour', state: 'reading' }] });
+        view.rerender();
+        view.unmount();
+        expect(released).toHaveBeenCalledTimes(1);
+    });
 });

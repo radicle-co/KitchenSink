@@ -5,7 +5,7 @@
  *
  * Presentational: it draws the applied-filter chips and reports removals.
  */
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Chip, ChipRow } from '@commise/ui/chip';
 import { nativeTokens } from '@commise/ui/native';
@@ -13,6 +13,7 @@ import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { AppliedFiltersProps } from './filtersModel.js';
+import { appliedChipTextOf } from './filterBarView.js';
 import { filterMessages } from './messages.js';
 
 /** From this many applied filters, Clear all earns its place. */
@@ -20,6 +21,7 @@ const CLEAR_ALL_FROM = 2;
 
 export const AppliedFilters: FC<AppliedFiltersProps> = ({ view, chipOverflow, onFilterAction }) => {
     const m = useMessages(filterMessages);
+    const locale = useLocale();
 
     if (view.applied.length === 0) {
         return null;
@@ -28,15 +30,19 @@ export const AppliedFilters: FC<AppliedFiltersProps> = ({ view, chipOverflow, on
     return (
         <View style={styles.row}>
             <ChipRow mode="input" label={m.appliedLabel} overflow={chipOverflow}>
-                {view.applied.map((entry) => (
-                    <Chip
-                        key={entry.key}
-                        kind="input"
-                        label={entry.label}
-                        removeLabel={entry.removeLabel}
-                        onRemove={() => onFilterAction(entry.action)}
-                    />
-                ))}
+                {view.applied.map((entry) => {
+                    const text = appliedChipTextOf(entry, m, locale);
+
+                    return (
+                        <Chip
+                            key={entry.key}
+                            kind="input"
+                            label={text.label}
+                            removeLabel={text.removeLabel}
+                            onRemove={() => onFilterAction(entry.action)}
+                        />
+                    );
+                })}
             </ChipRow>
             {view.applied.length >= CLEAR_ALL_FROM ? (
                 <Button variant="ghost" size="sm" onPress={() => onFilterAction({ kind: 'clearAll' })}>

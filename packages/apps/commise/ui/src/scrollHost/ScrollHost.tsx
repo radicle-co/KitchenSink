@@ -222,6 +222,20 @@ export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activatio
                 window.history.replaceState(null, '', `#${id}`);
                 setHeld(id);
             },
+            scrollToField: (id) => {
+                const target = document.getElementById(id);
+
+                if (target === null) {
+                    return false;
+                }
+
+                // Centred: the sticky header and the action bar sit at the viewport's edges. Focus follows without a
+                // second scroll (SC 2.4.3), and no hash is recorded: a field is not an address.
+                target.scrollIntoView({ behavior: jumpBehavior(), block: 'center' });
+                target.focus({ preventScroll: true });
+
+                return true;
+            },
             headingLayout: () => undefined,
             sectionLayout: () => () => undefined,
             handle: NO_HANDLE,

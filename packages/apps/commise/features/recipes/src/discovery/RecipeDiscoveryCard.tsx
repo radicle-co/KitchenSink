@@ -21,6 +21,7 @@ import type { RecipeDiscoveryCardProps } from './model.js';
 export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
     recipe,
     variant,
+    headingLevel,
     authorHandle,
     sourceAttribution,
     saveCopy,
@@ -31,6 +32,7 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
 }) => (
     <RecipeCard
         variant={variant}
+        headingLevel={headingLevel}
         recipe={recipe}
         onSelect={onSelect}
         {...(href === undefined ? {} : { href })}

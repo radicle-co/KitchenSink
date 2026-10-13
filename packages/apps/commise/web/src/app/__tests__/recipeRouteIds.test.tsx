@@ -60,9 +60,10 @@ describe.each(pages)('%s — the id boundary', (_route, Page) => {
             ReturnType<typeof auth>
         >);
 
-        // Past the id boundary, a signed-out caller meets the existing auth gate.
+        // Past the id boundary, a signed-out caller meets the existing auth gate, which sends them to sign-in and
+        // carries the page they were on (W-01) — a path under this recipe's id.
         await expect(Page({ params: Promise.resolve({ locale: 'en', id }) })).rejects.toThrow(
-            'NEXT_REDIRECT:/en/sign-in',
+            new RegExp(`^NEXT_REDIRECT:/en/sign-in\\?redirect_url=%2Fen%2Frecipes%2F${id}`),
         );
     });
 });

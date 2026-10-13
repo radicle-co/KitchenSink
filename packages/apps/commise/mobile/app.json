@@ -46,6 +46,14 @@
             ],
             "expo-image",
             [
+                "expo-image-picker",
+                {
+                    "photosPermission": "Commise uses your photos so you can add pictures to your recipes.",
+                    "cameraPermission": "Commise uses your camera so you can take a picture for your recipe.",
+                    "microphonePermission": false
+                }
+            ],
+            [
                 "@clerk/expo",
                 {
                     "appleSignIn": false

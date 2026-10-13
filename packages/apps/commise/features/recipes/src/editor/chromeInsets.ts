@@ -53,3 +53,32 @@ export function readChromeInsets(topIds: readonly string[], barId: string): Popu
         viewportHeight,
     });
 }
+
+/** How far past the action bar's top a focused control stops: build spec §7.10, "the ActionBar height + 16". */
+export const FOCUS_CLEARANCE_PX = 16;
+
+/** What the document's `scroll-padding` asks for, in CSS px; 0 asks for none. */
+export interface ScrollPadding {
+    readonly top: number;
+    readonly bottom: number;
+}
+
+/**
+ * The scroll padding that keeps a focused control from sliding under the sticky chrome (WCAG 2.2 SC 2.4.11; build spec
+ * §7.10): above, the bottom edge of the header and the section bar stuck under it; below, the action bar's height and
+ * the clearance — but only while the bar holds the viewport's foot. A bar that scrolls with the page is content, not an
+ * overlay. Pure.
+ *
+ * @param measure - The top chrome's lowest bottom edge, whether the bar is pinned, and the bar's height.
+ * @returns The padding to ask of the document.
+ */
+export function scrollPaddingOf(measure: {
+    readonly topBottom: number;
+    readonly barPinned: boolean;
+    readonly barHeight: number;
+}): ScrollPadding {
+    return {
+        top: Math.max(0, measure.topBottom),
+        bottom: measure.barPinned && measure.barHeight > 0 ? measure.barHeight + FOCUS_CLEARANCE_PX : 0,
+    };
+}

@@ -45,6 +45,7 @@ function results(overrides: Partial<RecipeListResultsProps> = {}) {
                 searchValue=""
                 onClearSearch={noop}
                 onClearFilters={noop}
+                clearCount={0}
                 onSelectRecipe={noop}
                 onCreateRecipe={noop}
                 variant="row"
@@ -64,6 +65,26 @@ function results(overrides: Partial<RecipeListResultsProps> = {}) {
         </LocaleProvider>
     );
 }
+
+describe('RecipeListResults (web) — W-22: Clear filters brings the chip row back to its start', () => {
+    it('remounts the chip row when the host counts another clear, so the selected "All" is in view', () => {
+        const { rerender } = render(results({ clearCount: 0 }));
+        const before = screen.getByRole('group', { name: 'Quick filters' });
+
+        rerender(results({ clearCount: 1 }));
+
+        expect(screen.getByRole('group', { name: 'Quick filters' })).not.toBe(before);
+    });
+
+    it('keeps the SAME row on any other update, so a keyboard user pressing "All" in the row keeps their focus', () => {
+        const { rerender } = render(results({ clearCount: 2 }));
+        const before = screen.getByRole('group', { name: 'Quick filters' });
+
+        rerender(results({ clearCount: 2, searchValue: 'lamb' }));
+
+        expect(screen.getByRole('group', { name: 'Quick filters' })).toBe(before);
+    });
+});
 
 describe('RecipeListResults (web) — populated', () => {
     it('says how many recipes are on screen', () => {

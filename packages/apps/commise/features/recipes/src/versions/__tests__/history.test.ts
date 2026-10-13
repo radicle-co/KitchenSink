@@ -11,7 +11,7 @@ import {
     classifyRestoreError,
     findPriorVersion,
     formatChangedFieldNames,
-    formatVersionAttribution,
+    hasEarlierVersions,
     previewRestoreErrorMessage,
     restoreErrorMessage,
     sortVersionsDescending,
@@ -100,6 +100,19 @@ describe('changeSummaryForVersion (W6 Task 2)', () => {
     });
 });
 
+describe('hasEarlierVersions (D12)', () => {
+    const v = (versionNumber: number) => makeRecipeVersion({ versionNumber });
+
+    it.each([
+        ['no versions at all', [], 1, false],
+        ['only the current version', [v(3)], 3, false],
+        ['the current version and one before it', [v(2), v(3)], 3, true],
+        ['versions with gaps (ADR-0058), none of them current', [v(1), v(4)], 9, true],
+    ])('answers for %s', (_name, versions, current, expected) => {
+        expect(hasEarlierVersions(versions, current)).toBe(expected);
+    });
+});
+
 describe('formatChangedFieldNames (W6 Task 2)', () => {
     it('localizes and joins the changed field names, preserving declared order', () => {
         expect(formatChangedFieldNames(['title', 'steps'], conflict)).toBe('Title, Steps');
@@ -111,27 +124,6 @@ describe('formatChangedFieldNames (W6 Task 2)', () => {
 
     it('renders an empty string for no changed fields', () => {
         expect(formatChangedFieldNames([], conflict)).toBe('');
-    });
-});
-
-/**
- * REWRITTEN for the 2026-08-26 owner ruling on device attribution (no `deviceLabel`). The rendering is
- * editor-only, and it is asserted as a WHOLE string on purpose — nothing else pins the `by @` prefix and
- * the handle's position, so asserting merely "contains clara" here would let the format rot unnoticed.
- */
-describe('formatVersionAttribution (W6 Task 2)', () => {
-    it('renders exactly "by @{handle}" — the prefix, the sigil and the handle, with no suffix', () => {
-        expect(formatVersionAttribution('clara', versionList)).toBe('by @clara');
-    });
-
-    it('renders undefined when the editor is unknown (never "by @undefined")', () => {
-        expect(formatVersionAttribution(undefined, versionList)).toBeUndefined();
-    });
-
-    it('attributes to the handle it was GIVEN, not to a fixed one', () => {
-        // Guards the template's `{handle}` substitution: a formatter that ignored its argument and returned
-        // a constant would pass the case above and fail here.
-        expect(formatVersionAttribution('devon', versionList)).toBe('by @devon');
     });
 });
 

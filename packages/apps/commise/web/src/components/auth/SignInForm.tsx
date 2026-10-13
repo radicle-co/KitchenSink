@@ -21,9 +21,11 @@
  *   double-prefixes to `/pr-{N}/pr-{N}/` and strands the signed-in user. The OAuth/SSO-callback flow navigates it raw
  *   (its Next router is not wired during the callback page load), which drops the prefix to the bare root; that landing
  *   is re-homed onto the basePath by the bare-root redirect in `next.config.ts`. Do NOT prefix `forceRedirectUrl`.
- * - `forceRedirectUrl` is ALSO the sole guard against an open redirect: `clerkMiddleware`'s protected-route bounce
- *   appends `?redirect_url=<original path>`, and forcing the locale root ignores it. If return-to-original-route is
- *   ever added, validate that `redirect_url` is same-origin first.
+ * - `forceRedirectUrl` is ALSO the sole guard against an open redirect, so the sign-in page feeds it a PARSED value: the
+ *   `redirect_url` a protected page (or the `401` handler) sent, run through `safeReturnPath` (`lib/signInReturn`),
+ *   which accepts only an app-relative `/{locale}/…` path and falls back to the locale root. The destination is what
+ *   brings a signed-out deep link back after sign-in; this widget stays a dumb adapter and must never be handed a raw
+ *   query value.
  *
  * @pattern Adapter over Clerk's `<SignIn>` — the app's routing, copy and appearance as its props
  */

@@ -59,6 +59,7 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
                           segments: (
                               <SegmentedControl
                                   form="route"
+                                  width="adaptive"
                                   label={list.segmentsLabel}
                                   current={segments.current}
                                   segments={RECIPES_SEGMENTS.map((segment) => ({

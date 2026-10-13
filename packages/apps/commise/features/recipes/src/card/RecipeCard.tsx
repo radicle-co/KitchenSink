@@ -48,18 +48,42 @@ const STAR_PATH =
 
 /**
  * One line of items that never wraps: an item that does not fit moves to a second line, which the fixed height hides,
- * so items drop from the END (§4.1 "Items drop from the end"). Each item after the first draws the locale's separator
- * before itself, and an item whose content is empty (a nutrition slot that settled on nothing) hides with its separator.
+ * so items drop from the END (§4.1 "Items drop from the end").
  */
-const ONE_LINE = 'flex h-6 flex-wrap content-start items-center gap-x-1 overflow-hidden';
+const ONE_LINE = 'flex flex-wrap content-start items-center gap-x-1 overflow-hidden';
 
-/** One item of a {@link ONE_LINE} line. */
-const LINE_ITEM =
-    'inline-flex min-w-0 max-w-full items-center gap-1 empty:hidden not-first:before:text-ink-muted not-first:before:content-[attr(data-sep)]';
+/**
+ * A one-line row of TEXT: exactly one line of its own type role (`h-lh`, the `meta` leading), so the second line a
+ * dropped item wraps to is hidden entirely. The `h-6` it replaces was taller than the 19.6 px line and let the top
+ * 4 px of a dropped item show under it (W-06).
+ */
+const TEXT_LINE = `${ONE_LINE} h-lh text-meta text-ink-muted`;
+
+/** A one-line row that holds a badge, whose own 24 px (`min-h-6`) is the line. */
+const BADGE_LINE = `${ONE_LINE} h-6`;
+
+/**
+ * One item of a one-line row. It draws the locale's separator before itself only when a VISIBLE item precedes it
+ * (`[:not(:empty)~&]`), so a leading item that is absent or settled on nothing leaves no line-leading dot, and an item
+ * whose content is empty (a nutrition slot that settled on nothing) hides with its separator.
+ */
+const LINE_ITEM_BASE =
+    'inline-flex min-w-0 items-center gap-1 empty:hidden [:not(:empty)~&]:before:text-ink-muted [:not(:empty)~&]:before:content-[attr(data-sep)]';
+
+const LINE_ITEM = `${LINE_ITEM_BASE} max-w-full`;
+
+/**
+ * The cuisine of a list row: capped at half the line and truncated, so the cuisine gives way before the time and the
+ * servings drop (W-06). Wrapping alone cannot do it: a wrapping item keeps its full width and the NEXT item drops.
+ */
+const CUISINE_ITEM = `${LINE_ITEM_BASE} max-w-1/2`;
 
 /** The overlay chips on a cover: solid `photoChip`, `ink`, the `sm` radius (§4.1 row 1). */
 const COVER_CHIP =
     'inline-flex min-h-6 items-center gap-1 rounded-sm bg-photo-chip px-2 py-0.5 text-caption font-medium text-ink';
+
+/** The status chip's cap: half the cover, so it and the PRO badge never meet (W-08). */
+const STATUS_CHIP = `max-w-1/2 ${COVER_CHIP}`;
 
 const Star: FC<{ readonly filled: boolean; readonly extra: boolean }> = ({ filled, extra }) => (
     <svg
@@ -82,6 +106,8 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
     chips = 'all',
 }) => {
     const { recipe, cover } = useCardView();
+    // Text never sits under a chip (§1.8): a cover that draws the time chip says no cuisine of its own.
+    const drawsTimeChip = chips === 'all' && cover.time !== undefined;
 
     return (
         <div
@@ -91,13 +117,14 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
                 recipeId={recipe.id}
                 title={recipe.title}
                 aspect={aspect}
+                overline={!drawsTimeChip}
                 {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />
             {chips === 'all' && cover.status !== undefined && (
-                <span className={`absolute start-2 top-2 ${COVER_CHIP}`}>
+                <span className={`absolute start-2 top-2 ${STATUS_CHIP}`}>
                     <Icon name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'} size={16} />
-                    {cover.status.text}
+                    <span className="truncate">{cover.status.text}</span>
                 </span>
             )}
             {cover.pro !== undefined && (
@@ -125,6 +152,12 @@ interface CardActivation {
 }
 
 /**
+ * The heading level of the title, from the surface that knows where it sits in the page's outline. Module-private, and
+ * the Root always provides it, because its `headingLevel` prop is required.
+ */
+const HeadingLevelContext = createContext<2 | 3 | undefined>(undefined);
+
+/**
  * The card's one control, present when the card is actionable. Module-private: only the title reads it, so it is not a
  * third exported context.
  */
@@ -145,6 +178,8 @@ function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
 const CardTitle: FC = () => {
     const { recipe } = useCardView();
     const activation = useContext(CardActivationContext);
+    const level = useContext(HeadingLevelContext);
+    const Heading = level === 2 ? 'h2' : 'h3';
     const stretch = 'after:absolute after:inset-0 after:content-[""] focus-visible:outline-none';
 
     let content: ReactNode = recipe.title;
@@ -176,7 +211,7 @@ const CardTitle: FC = () => {
         );
     }
 
-    return <h3 className="line-clamp-2 text-card-title text-ink">{content}</h3>;
+    return <Heading className="line-clamp-2 text-card-title text-ink">{content}</Heading>;
 };
 
 /** Difficulty, then the rating: one line, the rating dropping first. */
@@ -184,7 +219,7 @@ const CardDifficultyRating: FC = () => {
     const { meta, separator } = useCardView();
 
     return (
-        <div className={ONE_LINE}>
+        <div className={BADGE_LINE}>
             {meta.difficulty !== undefined && (
                 <span data-sep={separator.trim()} className={LINE_ITEM}>
                     <DifficultyBadge level={meta.difficulty.level}>{meta.difficulty.label}</DifficultyBadge>
@@ -204,7 +239,7 @@ const CardMeta: FC = () => {
     const sep = separator.trim();
 
     return (
-        <div className={`${ONE_LINE} text-meta text-ink-muted`}>
+        <div className={TEXT_LINE}>
             {recipe.cuisine !== undefined && (
                 <span data-sep={sep} className={LINE_ITEM}>
                     <span className="truncate">{recipe.cuisine}</span>
@@ -282,9 +317,9 @@ const RowMeta: FC = () => {
     const sep = separator.trim();
 
     return (
-        <div className={`${ONE_LINE} text-meta text-ink-muted`}>
+        <div className={TEXT_LINE}>
             {recipe.cuisine !== undefined && (
-                <span data-sep={sep} className={LINE_ITEM}>
+                <span data-sep={sep} className={CUISINE_ITEM}>
                     <span className="truncate">{recipe.cuisine}</span>
                 </span>
             )}
@@ -311,7 +346,7 @@ const RowStatus: FC = () => {
     const sep = separator.trim();
 
     return (
-        <div className={ONE_LINE}>
+        <div className={BADGE_LINE}>
             {meta.difficulty !== undefined && (
                 <span data-sep={sep} className={LINE_ITEM}>
                     <DifficultyBadge level={meta.difficulty.level}>{meta.difficulty.label}</DifficultyBadge>
@@ -454,7 +489,7 @@ function activationOf(href: string | undefined, onSelect: ((id: string) => void)
 }
 
 const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
-    const { recipe, onSelect, href, nutrition = null } = props;
+    const { recipe, onSelect, href, nutrition = null, headingLevel } = props;
     const view = useRecipeCardView(recipe);
     const Arrangement = props.variant === undefined ? null : ARRANGEMENT[props.variant];
     const actionable = onSelect !== undefined || href !== undefined;
@@ -464,21 +499,23 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
         <RecipeCardViewContext.Provider value={view}>
             <RecipeCardNutritionContext.Provider value={nutrition}>
                 <CardActivationContext.Provider value={actionable ? activationOf(href, onSelect) : undefined}>
-                    <article
-                        aria-label={recipe.title}
-                        data-card-variant={variant}
-                        className={`relative h-full rounded-md border border-line-divider bg-paper text-start shadow-sm transition-shadow motion-reduce:transition-none ${
-                            actionable
-                                ? 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-canvas pointer-fine:hover:shadow-md active:scale-[0.98] motion-reduce:active:scale-100'
-                                : ''
-                        } ${SHELL_CLASS[variant]}`}
-                    >
-                        {Arrangement === null ? (
-                            props.children
-                        ) : (
-                            <Arrangement footer={props.footer} note={props.note} trailing={props.trailing} />
-                        )}
-                    </article>
+                    <HeadingLevelContext.Provider value={headingLevel}>
+                        <article
+                            aria-label={recipe.title}
+                            data-card-variant={variant}
+                            className={`relative h-full rounded-md border border-line-divider bg-paper text-start shadow-sm transition-shadow motion-reduce:transition-none ${
+                                actionable
+                                    ? 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-canvas pointer-fine:hover:shadow-md active:scale-[0.98] motion-reduce:active:scale-100'
+                                    : ''
+                            } ${SHELL_CLASS[variant]}`}
+                        >
+                            {Arrangement === null ? (
+                                props.children
+                            ) : (
+                                <Arrangement footer={props.footer} note={props.note} trailing={props.trailing} />
+                            )}
+                        </article>
+                    </HeadingLevelContext.Provider>
                 </CardActivationContext.Provider>
             </RecipeCardNutritionContext.Provider>
         </RecipeCardViewContext.Provider>

@@ -98,13 +98,9 @@ appId: io.commise.mobile
       direction: UP
       timeout: 20000
 
-# ⛔ ANCHORED ABOVE THE RECIPE TITLE. A Maestro selector matches the WHOLE string, and under three-button
-# navigation Android's system bar publishes a node named exactly `Back`, so a bare `tapOn: 'Back'` has TWO
-# matches and may tap the OS button — which pops the surface too, so the flow stays green having exercised
-# none of the app's own header. The app's control sits above the recipe title inside the detail's
-# ScrollView; the system bar sits at the bottom of the display and is above nothing.
-- tapOn:
-      text: 'Back'
-      above:
-          text: '${E2E_RECIPE_ASPARAGUS}'
+# The detail's Back is a disc over the hero photo, named for where it goes ("Back to My recipes"), so it is UNIQUE: under
+# three-button navigation Android's system bar publishes a node named exactly `Back`, and a Maestro selector matches the
+# WHOLE string, so this one can never resolve to the OS button (the reason the old text row had to be anchored above the
+# recipe title). It starts from the recipe list, so the parent is My recipes.
+- tapOn: 'Back to My recipes'
 - assertVisible: 'Recipes'

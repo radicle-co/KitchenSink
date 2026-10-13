@@ -27,7 +27,7 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
         await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Herb Blend');
         await page.getByLabel('Description').fill('A pantry-forward herb blend.');
-        await page.getByLabel('Cuisine').selectOption('French');
+        await page.getByLabel('Cuisine').fill('French');
         await setServings(page, 4);
         await fillTimes(page, { prepMinutes: 5 });
         await page.getByRole('radio', { name: 'Easy' }).click();
@@ -130,7 +130,7 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
         await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Held Create');
         await page.getByLabel('Description').fill('A pantry-forward herb blend.');
-        await page.getByLabel('Cuisine').selectOption('French');
+        await page.getByLabel('Cuisine').fill('French');
         await setServings(page, 4);
         await fillTimes(page, { prepMinutes: 5 });
         await page.getByRole('radio', { name: 'Easy' }).click();

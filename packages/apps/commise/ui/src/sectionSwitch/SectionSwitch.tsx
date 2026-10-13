@@ -47,7 +47,7 @@ export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, current
                                         scrollToSection(section.id);
                                         onJump?.(section.id);
                                     }}
-                                    className={`relative inline-flex min-h-11 items-center px-3 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
+                                    className={`relative inline-flex min-h-11 items-center px-2 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
                                         current ? 'text-ink' : 'text-ink-muted hover:text-ink'
                                     }`}
                                 >
@@ -55,7 +55,7 @@ export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, current
                                     {current && (
                                         <span
                                             aria-hidden="true"
-                                            className="absolute inset-x-3 bottom-0 h-[3px] rounded-full bg-here-bar"
+                                            className="absolute inset-x-2 bottom-0 h-[3px] rounded-full bg-here-bar"
                                         />
                                     )}
                                 </a>

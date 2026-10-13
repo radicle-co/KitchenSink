@@ -58,6 +58,13 @@ export interface LaneState {
     readonly discarding?: 'asking' | 'waiting';
     /** The editor was left (unmounted) while a Discard waited: it finishes with no hand-off, for nobody is there. */
     readonly left?: true;
+    /**
+     * The cook is leaving: the exit checkpoint ran (×, browser Back, a shell link, the unmount). The address bar stops
+     * following the recipe from then on — a create's answer that rewrites the URL meanwhile discards the leave's own
+     * navigation (E3). It lives here beside `closed`, for the same reason: the answer can arrive before React renders.
+     * Unlike `closed` it is taken back (`stayed`): StrictMode's development replay runs the unmount cleanup at mount.
+     */
+    readonly leaving?: true;
 }
 
 /** What happened to the lane. */
@@ -82,7 +89,9 @@ export type LaneEvent =
     | { readonly type: 'closed' }
     | { readonly type: 'discarding'; readonly phase: 'asking' | 'waiting' }
     | { readonly type: 'discardCancelled' }
-    | { readonly type: 'left' };
+    | { readonly type: 'left' }
+    | { readonly type: 'leaving' }
+    | { readonly type: 'stayed' };
 
 /** A lane with nothing outstanding. */
 export const EMPTY_LANE: LaneState = {};
@@ -195,6 +204,15 @@ export function laneReducer(state: LaneState, event: LaneEvent): LaneState {
 
         case 'left':
             return state.left === true ? state : { ...state, left: true };
+
+        case 'leaving':
+            return state.leaving === true ? state : { ...state, leaving: true };
+
+        case 'stayed': {
+            const { leaving: _stayed, ...rest } = state;
+
+            return state.leaving === true ? rest : state;
+        }
 
         default: {
             const unreachable: never = event;

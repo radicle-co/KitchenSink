@@ -70,3 +70,28 @@ appId: io.commise.mobile
       visible: 'New collection'
       timeout: 40000
 - assertNotVisible: 'Maestro undo collection'
+
+# W-23 (`buildSpec.md` §5.1 "sheet header truncate:1"): the picker's title "Add to {name}" is ONE line, however long the
+# collection's name. The title row is `numberOfLines={1}`, so a 60-character name ends in an ellipsis and never pushes
+# the Close control or the search field off screen. HERMETIC: it creates its own collection and deletes it.
+- tapOn: 'New collection'
+- tapOn: 'Name'
+- inputText: 'Maestro long collection name to prove a one line sheet title'
+- pressKey: Enter
+- extendedWaitUntil:
+      visible: 'More actions for Maestro long collection name to prove a one line sheet title'
+      timeout: 40000
+- tapOn: 'Add recipes'
+# Maestro reads the full string from the title, though the line shows an ellipsis. What it can prove: the title row
+# still leaves room for Close and the search field below it, both on screen.
+- assertVisible: 'Add to Maestro long collection name to prove a one line sheet title'
+- assertVisible: 'Close'
+- assertVisible: 'Search your recipes'
+- tapOn: 'Close'
+- tapOn: 'More actions for Maestro long collection name to prove a one line sheet title'
+- tapOn: 'Delete collection'
+- tapOn: 'Delete collection'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- assertNotVisible: 'Maestro long collection name to prove a one line sheet title'

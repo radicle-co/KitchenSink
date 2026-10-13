@@ -155,6 +155,7 @@ test.describe('account danger zone — closure vs erasure (CR-002/U4b)', () => {
         await expect.poll(() => isRoute(pathnameOf(page), '/sign-in'), { timeout: 20_000 }).toBe(true);
         await expect(page.getByRole('textbox', { name: /email/i })).toBeVisible({ timeout: 20_000 });
         await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
+        await expect(page.getByRole('navigation', { name: 'Tabs' })).toHaveCount(0);
         expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
     });
 });

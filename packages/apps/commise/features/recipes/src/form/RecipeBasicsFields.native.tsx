@@ -15,7 +15,9 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { ChipRow } from '@commise/ui/chip';
+import { Combobox } from '@commise/ui/combobox';
 import { DurationField } from '@commise/ui/duration-field';
+import { Icon } from '@commise/ui/icon';
 import { FieldLabel, Stepper, TextArea } from '@commise/ui/input';
 import { useContainerClass } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
@@ -28,10 +30,10 @@ import { formatDuration } from '../format/duration.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { ChipInput } from './ChipInput.native.js';
-import { CuisineSelect } from './CuisineSelect.native.js';
 import { readLimit, singleLine } from './fieldText.js';
 import { servingsErrorId, timesErrorId, titleErrorId } from './fieldErrorIds.js';
 import {
+    cuisineFieldId,
     describedByOf,
     descriptionCounterId,
     descriptionFieldId,
@@ -46,6 +48,7 @@ import { recipeFormMessages } from './messages.js';
 import { durationOfMinutes, minutesOfDuration } from './minutesDuration.js';
 import {
     applyDraftAction,
+    cuisineSuggestions,
     statedChoice,
     statedDifficultyOptions,
     statedMealTypeOptions,
@@ -122,8 +125,17 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
             increaseLabel={m.servingsIncrease}
         />
     );
-    const prep = durationField(m.prepTimeLabel, values.prepTimeMinutes, (prepTimeMinutes) => ({ prepTimeMinutes }));
-    const cook = durationField(m.cookTimeLabel, values.cookTimeMinutes, (cookTimeMinutes) => ({ cookTimeMinutes }));
+    // Two cells of one row at every width: the duration field fits the 136 dp a half cell has at 320 (build spec §7.4).
+    const prep = (
+        <View style={styles.cell}>
+            {durationField(m.prepTimeLabel, values.prepTimeMinutes, (prepTimeMinutes) => ({ prepTimeMinutes }))}
+        </View>
+    );
+    const cook = (
+        <View style={styles.cell}>
+            {durationField(m.cookTimeLabel, values.cookTimeMinutes, (cookTimeMinutes) => ({ cookTimeMinutes }))}
+        </View>
+    );
 
     const choiceRow = (label: string, row: ReactNode) => (
         <View style={styles.field}>
@@ -137,7 +149,28 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
 
     const cuisine = (
         <View style={wide ? styles.cell : null}>
-            <CuisineSelect value={values.cuisine} onChange={(next) => onChange({ ...values, cuisine: next })} />
+            {/* P3 (build spec §7.4): a Combobox over the curated list. The cuisine is a free string on the wire, so the
+                field holds what the cook typed or picked; the clear button empties it. */}
+            <Combobox
+                id={cuisineFieldId}
+                label={m.cuisineLabel}
+                listLabel={m.cuisineListLabel}
+                value={values.cuisine}
+                onValueChange={(cuisine) => onChange({ ...values, cuisine })}
+                groups={[
+                    {
+                        key: 'cuisines',
+                        options: cuisineSuggestions(values.cuisine).map((cuisine) => ({
+                            key: cuisine,
+                            label: cuisine,
+                        })),
+                    },
+                ]}
+                onSelect={(cuisine) => onChange({ ...values, cuisine })}
+                clear={{ label: m.cuisineClear, icon: <Icon name="x" size={20} tone="inkMuted" /> }}
+                countAnnouncement=""
+                openOnFocus
+            />
         </View>
     );
     const mealType = (
@@ -216,7 +249,7 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
                     ) : (
                         <>
                             {servings}
-                            <View style={styles.row}>
+                            <View style={styles.timesRow}>
                                 {prep}
                                 {cook}
                             </View>
@@ -278,6 +311,7 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
                         values={values.dietaryFlags}
                         onChange={(dietaryFlags) => onChange({ ...values, dietaryFlags })}
                         removeChipLabel={m.removeChipLabel}
+                        addLabel={m.addDietaryFlagLabel}
                     />
                     <ChipInput
                         id={tagsFieldId}
@@ -286,6 +320,7 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
                         values={values.tags}
                         onChange={(tags) => onChange({ ...values, tags })}
                         removeChipLabel={m.removeChipLabel}
+                        addLabel={m.addTagLabel}
                     />
                 </>,
             )}
@@ -305,4 +340,6 @@ const styles = StyleSheet.create({
     // Prep and cook (and, from 600, servings) side by side; each takes an equal share and may shrink.
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[4] },
     cell: { flex: 1, minWidth: 0 },
+    // Prep and cook below 600: two cells that share the line and never wrap.
+    timesRow: { flexDirection: 'row', gap: nativeTokens.spacing[4] },
 });

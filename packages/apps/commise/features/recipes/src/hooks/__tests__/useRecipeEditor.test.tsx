@@ -304,6 +304,73 @@ describe('a new recipe', () => {
  * the editor must still recognise it as its own, or the create's id and version are lost and every later update names
  * the wrong version.
  */
+describe('leaving the editor while the create is on the wire (E3)', () => {
+    /** Type a title and put the create on the wire, returning the ref it was minted under. */
+    async function createOnTheWire(view: ReturnType<typeof mount>): Promise<void> {
+        typeTitle(view.result);
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        view.port.claim(view.port.lastSeq());
+    }
+
+    it('⛔ does not move the URL to the created recipe once the cook has left: that replaceState discards the push', async () => {
+        const view = mount();
+
+        await createOnTheWire(view);
+        act(() => {
+            view.result.current.checkpoint('editorExit');
+        });
+        view.onRecipeRef.mockClear();
+
+        act(() => {
+            view.port.sync(
+                view.port.lastSeq(),
+                makeRecipeDetail({ id: 'rec_new', currentVersion: 1, status: RecipeStatus.DRAFT }),
+            );
+        });
+        await settle();
+
+        // The server facts still move (the draft follows the id), only the address bar stops following.
+        expect(view.result.current.recipeId).toBe('rec_new');
+        expect(view.onRecipeRef).not.toHaveBeenCalled();
+    });
+
+    it('does not mint a URL ref for input that arrives after the leave', async () => {
+        const view = mount();
+
+        act(() => {
+            view.result.current.checkpoint('editorExit');
+        });
+        act(() => {
+            view.result.current.setField('description', 'Creamy.');
+        });
+        act(() => {
+            vi.advanceTimersByTime(DEVICE_SAVE_IDLE_MS);
+        });
+        await settle();
+
+        expect(view.onRecipeRef).not.toHaveBeenCalled();
+    });
+
+    it('still follows the created recipe while the cook stays: the exit-less checkpoints are unchanged', async () => {
+        const view = mount();
+
+        await createOnTheWire(view);
+        view.onRecipeRef.mockClear();
+        act(() => {
+            view.port.sync(
+                view.port.lastSeq(),
+                makeRecipeDetail({ id: 'rec_new', currentVersion: 1, status: RecipeStatus.DRAFT }),
+            );
+        });
+        await settle();
+
+        expect(view.onRecipeRef).toHaveBeenCalledExactlyOnceWith('rec_new');
+    });
+});
+
 describe('an answer that lands before the editor recorded the write', () => {
     it('is still adopted as the outstanding write`s answer', async () => {
         const { result, port, drafts } = mount();
@@ -1340,12 +1407,51 @@ describe('paste and the create', () => {
         expect(port.submitExclusive).not.toHaveBeenCalled();
 
         // No render in between: the hold is read when the checkpoint runs, not copied into the editor's state.
-        hold.set(false);
+        // REWRITTEN for A-021: letting go of the hold now runs the checkpoint it deferred, so the create goes out at the
+        // release (the next section change used to send it). One create, not two: the release IS the checkpoint.
         act(() => {
-            result.current.checkpoint('sectionChange');
+            hold.set(false);
         });
         await settle();
         expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+    });
+
+    /**
+     * A-021: a paste whose lines join as no rows leaves the draft as it was, so nothing re-arms the idle timer; the create
+     * the hold deferred then waited for the next blur, section change or exit. Letting go of the hold runs the checkpoint.
+     */
+    it('⛔ creates a titled draft when the hold lets go, though the paste joined no rows and the draft did not change', async () => {
+        const hold = createPasteHold();
+        const { result, port } = mount({}, hold);
+
+        typeTitle(result);
+        hold.set(true);
+        act(() => {
+            result.current.checkpoint('fieldBlur');
+        });
+        await settle();
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+
+        // The paste's lines joined nothing: no draft change, only the release.
+        act(() => {
+            hold.set(false);
+        });
+        await settle();
+
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+    });
+
+    it('does not create from a release while the draft is below the floor (no title)', async () => {
+        const hold = createPasteHold();
+        const { port } = mount({}, hold);
+
+        hold.set(true);
+        act(() => {
+            hold.set(false);
+        });
+        await settle();
+
+        expect(port.submitExclusive).not.toHaveBeenCalled();
     });
 
     it('a published recipe offers no paste', () => {

@@ -1,7 +1,7 @@
 /**
- * @module @commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar
- * disc, the display name and the email (`buildSpec.md` §9.1, §3.8). The cook's photo (`AvatarField`) stays an app-level
- * native control; this block draws the disc.
+ * @module @commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar,
+ * the display name and the email (`buildSpec.md` §9.1, §3.8). The cook's photo control (`AvatarField`) stays an
+ * app-level native control; the host passes it as `avatar` and it replaces the initials disc, so there is one avatar.
  *
  * Three states, never a blocked page: loading is a skeleton, ready is the name and email, failed shows the `user`
  * glyph and says so with a Try again control. Colour comes from the theme at render.
@@ -20,7 +20,7 @@ import { profileMessages } from './messages.js';
 import type { ProfileHeaderProps } from './props.js';
 
 /** The identity block. */
-export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry }) => {
+export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry, avatar }) => {
     const t = useMessages(profileMessages);
     const { colors } = useTheme();
 
@@ -54,19 +54,21 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry 
         case 'ready':
             return (
                 <View style={styles.row}>
-                    <View
-                        aria-hidden
-                        style={[
-                            styles.disc,
-                            { backgroundColor: initials === '' ? colors.surfaceMuted : colors.action },
-                        ]}
-                    >
-                        {initials === '' ? (
-                            <Icon name="user" size={24} tone="inkMuted" />
-                        ) : (
-                            <Text style={[styles.initials, { color: colors.onAction }]}>{initials}</Text>
-                        )}
-                    </View>
+                    {avatar ?? (
+                        <View
+                            aria-hidden
+                            style={[
+                                styles.disc,
+                                { backgroundColor: initials === '' ? colors.surfaceMuted : colors.action },
+                            ]}
+                        >
+                            {initials === '' ? (
+                                <Icon name="user" size={24} tone="inkMuted" />
+                            ) : (
+                                <Text style={[styles.initials, { color: colors.onAction }]}>{initials}</Text>
+                            )}
+                        </View>
+                    )}
                     <View style={styles.text}>
                         {read.displayName === '' ? null : (
                             <Text style={[styles.name, { color: colors.ink }]}>{read.displayName}</Text>

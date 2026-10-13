@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { chromeInsetsOf, readChromeInsets } from '../chromeInsets.js';
+import { chromeInsetsOf, FOCUS_CLEARANCE_PX, readChromeInsets, scrollPaddingOf } from '../chromeInsets.js';
 
 describe('chromeInsetsOf', () => {
     it.each([
@@ -78,5 +78,30 @@ describe('readChromeInsets', () => {
         place('header', new DOMRect(0, 0, 1280, 56));
 
         expect(readChromeInsets(['header', 'index-bar', 'index-strip'], 'bar')).toEqual({ top: 56, bottom: 0 });
+    });
+});
+
+/**
+ * E4 (WCAG 2.2 SC 2.4.11; build spec §7.10): the browser scrolls a focused control into view, and the sticky header,
+ * the section bar and the action bar are drawn over the page, so the scroll must stop short of them.
+ */
+describe('scrollPaddingOf', () => {
+    it('clears the top chrome, and a pinned bar plus the clearance', () => {
+        expect(scrollPaddingOf({ topBottom: 100, barPinned: true, barHeight: 72 })).toEqual({
+            top: 100,
+            bottom: 72 + FOCUS_CLEARANCE_PX,
+        });
+    });
+
+    it('asks nothing for a bar that scrolls with the page: it is in the flow, not over it', () => {
+        expect(scrollPaddingOf({ topBottom: 100, barPinned: false, barHeight: 72 })).toEqual({ top: 100, bottom: 0 });
+    });
+
+    it('asks nothing before the chrome is measured', () => {
+        expect(scrollPaddingOf({ topBottom: 0, barPinned: true, barHeight: 0 })).toEqual({ top: 0, bottom: 0 });
+    });
+
+    it('never asks for a negative top (a band scrolled out of view)', () => {
+        expect(scrollPaddingOf({ topBottom: -40, barPinned: true, barHeight: 72 }).top).toBe(0);
     });
 });

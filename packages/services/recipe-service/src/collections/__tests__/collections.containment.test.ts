@@ -51,6 +51,7 @@ function harness() {
         removeRecipe: vi.fn(),
         listRecipes: vi.fn().mockResolvedValue([]),
         previewMembershipIds: vi.fn(),
+        memberSummaries: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
     } satisfies DalMock;
@@ -59,6 +60,7 @@ function harness() {
         dal as unknown as CollectionsDal,
         { findHandle: vi.fn().mockResolvedValue(undefined), applyRename: vi.fn() } as unknown as AuthorHandlesDal,
         analytics as unknown as AnalyticsService,
+        'https://cdn.test',
     );
 
     return { dal, analytics, service };

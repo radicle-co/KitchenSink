@@ -7,7 +7,12 @@ import { StyleSheet } from 'react-native';
 
 /** The recipe page's native layout styles. */
 export const detailStyles = StyleSheet.create({
-    container: { gap: nativeTokens.spacing[6], paddingBottom: nativeTokens.spacing[6] },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque fill here occludes
+    // the whole canvas and restores the flat page the wireframes never had.
+    scroll: { flex: 1, backgroundColor: 'transparent' },
+    // The page's scroll content. The bottom padding clears the device's navigation bar, so the foot-of-screen controls
+    // — the delete dialog's confirm button when it opens — can be scrolled fully into view.
+    container: { gap: nativeTokens.spacing[6], paddingBottom: 120 },
     top: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
     overline: { ...nativeTokens.type.overline },
     groupHeading: { paddingTop: nativeTokens.spacing[2] },
@@ -35,7 +40,12 @@ export const detailStyles = StyleSheet.create({
     statValue: { ...nativeTokens.type.figureStat },
     actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
     description: { alignItems: 'flex-start', gap: nativeTokens.spacing[1] },
-    column: { gap: nativeTokens.spacing[8], paddingHorizontal: nativeTokens.spacing[4] },
+    // One section (or the run of closing blocks) as a direct child of the scroll content: the page's one 16 gutter,
+    // and the 8 that makes the 24 content gap between top blocks the 32 between sections.
+    sectionBlock: { paddingHorizontal: nativeTokens.spacing[4], marginTop: nativeTokens.spacing[2] },
+    // Blocks stacked with a section's gap and NO gutter of their own: the gutter belongs to whatever holds them.
+    stack: { gap: nativeTokens.spacing[8] },
+    hint: { alignSelf: 'flex-start' },
     twoColumns: {
         flexDirection: 'row',
         alignItems: 'flex-start',
@@ -43,7 +53,7 @@ export const detailStyles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[4],
     },
     ingredientsColumn: { flex: 5 },
-    stepsColumn: { flex: 7, paddingHorizontal: 0 },
+    stepsColumn: { flex: 7 },
     section: { gap: nativeTokens.spacing[3] },
     headingRow: {
         flexDirection: 'row',

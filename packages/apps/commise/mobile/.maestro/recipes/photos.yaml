@@ -10,8 +10,10 @@ appId: io.commise.mobile
 # `launchImageLibraryAsync` opens native OS chrome (the system photo library / permission sheet); Maestro
 # cannot reliably drive that (OS version/locale/permission-state dependent), and no flow in this suite taps
 # OS chrome — there is no precedent for it here, and starting one would make this flow flaky by construction.
-# Tapping "Add photo" is intentionally skipped for the same reason: it would leave the OS picker open with no
-# scripted way to dismiss it, stranding every flow that runs after this one in CI.
+# Choosing a source in the Add photos sheet is intentionally skipped for the same reason: "Take photo" and "Choose
+# from library" both hand over to OS chrome (the camera, the photo library, the permission prompt), which would
+# strand every flow that runs after this one in CI. Tapping "Add photos" itself IS driven (A-010): it opens OUR sheet,
+# which Maestro can read and close.
 #
 # The recommended path to close this gap end-to-end is a build-flag test double for `expo-image-picker` (an
 # E2E-only Expo config swaps in a fake that returns a fixed asset without opening the real picker), which
@@ -66,14 +68,26 @@ appId: io.commise.mobile
 # reaches it by scrolling — no step to walk to. It renders only for a stored recipe (photos attach to a server id),
 # which the seeded lamb is.
 #
-# Anchored on "Add photo" — the LAST element of the manager block — not on "Photos": the section index names the
+# Anchored on "Add photos" — the LAST element of the manager block — not on "Photos": the section index names the
 # section too, so a scroll anchored there could settle without ever moving (the same wrong-anchor trap `rating.yaml`
-# fell into). Reaching "Add photo" puts the whole manager, empty state included, on screen.
+# fell into). Reaching "Add photos" puts the whole manager, empty state included, on screen.
 - scrollUntilVisible:
-      element: 'Add photo'
+      element: 'Add photos'
       direction: DOWN
       # ⚠️ 60 s, not 20: the one-page editor puts Photos below every step, and at speed 40 the lamb's four steps
       # outlast 20 s on the swiftshader AVD (measured 2026-10-09: two runs stopped at Step 4).
       timeout: 60000
-- assertVisible: 'No photos yet.'
-- assertVisible: 'Add photo'
+# A-010 (buildSpec §7.7): the empty state previews the recipe's own cover and says what happens.
+# ⚠️ Maestro reads the text as a REGEX, so the question mark is escaped: unescaped, `photo?` makes the "o" optional and
+# the literal "?" on screen would not match.
+- assertVisible: 'No photo\? This cover is used instead. Add one any time.'
+- assertVisible: 'Add photos'
+
+# A-010: Add photos is a secondary button that opens a sheet with the two sources. The sheet is ours, so it can be
+# read and closed without touching OS chrome; the choices are asserted, never tapped.
+- tapOn: 'Add photos'
+- assertVisible: 'Take photo'
+- assertVisible: 'Choose from library'
+- tapOn: 'Close add photos'
+- assertNotVisible: 'Take photo'
+- assertVisible: 'Add photos'

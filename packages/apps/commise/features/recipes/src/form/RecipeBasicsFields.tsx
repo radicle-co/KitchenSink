@@ -14,6 +14,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { ChipRow } from '@commise/ui/chip';
+import { Combobox } from '@commise/ui/combobox';
 import { DurationField } from '@commise/ui/duration-field';
 import { FieldLabel, Stepper, TextArea } from '@commise/ui/input';
 import type { FC, FocusEvent, KeyboardEvent, ReactNode } from 'react';
@@ -36,13 +37,12 @@ import {
     titleCounterId,
     titleFieldId,
 } from './fieldIds.js';
-import { field } from './formSectionStyles.js';
 import { DESCRIPTION_COUNTER_FROM, DESCRIPTION_MAX_LENGTH, TITLE_COUNTER_FROM, TITLE_MAX_LENGTH } from './limits.js';
 import { recipeFormMessages } from './messages.js';
 import { durationOfMinutes, minutesOfDuration } from './minutesDuration.js';
 import {
     applyDraftAction,
-    cuisineOptions,
+    cuisineSuggestions,
     statedChoice,
     statedDifficultyOptions,
     statedMealTypeOptions,
@@ -186,8 +186,8 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
             </Group>
 
             <Group heading={m.groups.timeAndServings}>
-                {/* Wraps rather than overflows: a cell never shrinks below its duration boxes (`min-w-fit`), so where two
-                    do not fit side by side the second takes the next line, as on native. */}
+                {/* Servings takes a line of its own below 600 (`basis-full`), which is what the wrap is for. Prep and cook are
+                    two cells of the next line at every width: the duration field fits the 136 px a half cell has at 320. */}
                 <div className="flex flex-wrap gap-4">
                     <div className="basis-full @regular/main:min-w-fit @regular/main:flex-1 @regular/main:basis-0">
                         <Stepper
@@ -201,12 +201,12 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
                             increaseLabel={m.servingsIncrease}
                         />
                     </div>
-                    <div className="min-w-fit flex-1">
+                    <div className="min-w-0 flex-1">
                         {durationField(m.prepTimeLabel, values.prepTimeMinutes, (prepTimeMinutes) => ({
                             prepTimeMinutes,
                         }))}
                     </div>
-                    <div className="min-w-fit flex-1">
+                    <div className="min-w-0 flex-1">
                         {durationField(m.cookTimeLabel, values.cookTimeMinutes, (cookTimeMinutes) => ({
                             cookTimeMinutes,
                         }))}
@@ -229,21 +229,28 @@ export const RecipeBasicsFields: FC<RecipeEditorSectionProps> = ({ values, error
 
             <Group heading={m.groups.kindOfDish}>
                 <div className="grid grid-cols-1 gap-4 @regular/main:grid-cols-2">
-                    <div className="flex flex-col gap-1">
-                        <FieldLabel forId={cuisineFieldId} label={m.cuisineLabel} />
-                        <select
-                            id={cuisineFieldId}
-                            value={values.cuisine}
-                            onChange={(event) => onChange({ ...values, cuisine: event.target.value })}
-                            className={field}
-                        >
-                            {cuisineOptions(values.cuisine, m).map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    {/* P3 (build spec §7.4): a Combobox over the curated list. The cuisine is a free string on the wire,
+                        so the field holds what the cook typed or picked; Escape clears it. */}
+                    <Combobox
+                        id={cuisineFieldId}
+                        label={m.cuisineLabel}
+                        listLabel={m.cuisineListLabel}
+                        value={values.cuisine}
+                        onValueChange={(cuisine) => onChange({ ...values, cuisine })}
+                        groups={[
+                            {
+                                key: 'cuisines',
+                                options: cuisineSuggestions(values.cuisine).map((cuisine) => ({
+                                    key: cuisine,
+                                    label: cuisine,
+                                })),
+                            },
+                        ]}
+                        onSelect={(cuisine) => onChange({ ...values, cuisine })}
+                        onAbandon={() => onChange({ ...values, cuisine: '' })}
+                        countAnnouncement=""
+                        openOnFocus
+                    />
                     <div className="flex flex-col gap-1">
                         {/* The row is named by the same words; the visible label is not read twice. */}
                         <span aria-hidden="true" className="text-label text-ink-muted">

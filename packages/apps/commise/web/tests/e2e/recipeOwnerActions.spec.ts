@@ -155,7 +155,7 @@ test.describe('recipe-detail owner actions', () => {
         const trigger = page.getByRole('button', { name: `More actions for ${RECIPE_TITLE}` });
         const panel = page.getByRole('menu');
         // The sidebar shares the name and is hidden below 840 px; the visible one is the tab bar.
-        const bar = page.getByRole('navigation', { name: 'Main' }).filter({ visible: true });
+        const bar = page.getByRole('navigation', { name: 'Tabs' }).filter({ visible: true });
 
         // Measure the panel once, then park the trigger where a panel placed BELOW it would still fit inside the
         // viewport but end under the bar. Only a panel that knows the bar's extent flips above from there: this is the

@@ -210,7 +210,7 @@ test.describe('recipe search (T110)', () => {
 
         // FILTER — selecting the vegan chip narrows the set to vegan recipes. The non-vegan lamb disappearing
         // is the assertion that matters: it can only happen if `dietaryFlags=vegan` actually reached the API.
-        const veganChip = filtersPanel(page).getByRole('button', { name: 'vegan 1' });
+        const veganChip = filtersPanel(page).getByRole('button', { name: 'Vegan 1' });
         await expect(veganChip).toHaveAttribute('aria-pressed', 'false');
         await veganChip.click();
 

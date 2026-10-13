@@ -1,0 +1,28 @@
+appId: io.commise.mobile
+---
+# The recipe page's Back and ⋯ are discs over the hero photo (A-014 / D7; `docs/design/uiOverhaul/buildSpec.md` §3.5,
+# §6.1), and Back is NAMED FOR WHERE IT GOES — "Back to My recipes" here, because this flow opens the recipe from the list.
+#
+# ⛔ NEVER A BARE `Back`. Under three-button navigation Android's system bar publishes a node named exactly `Back`, and a
+# Maestro selector matches the WHOLE string, so a bare `tapOn: 'Back'` may tap the OS button — which pops the screen too,
+# so the flow stays green having exercised none of the app's control. The disc's name is unique, so no anchor is needed.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+
+# Both discs are on the hero, at the top of the page, before any scroll.
+- assertVisible: 'Back to My recipes'
+- assertVisible: 'More actions for .*'
+
+# The disc goes back to the list.
+- tapOn: 'Back to My recipes'
+- assertVisible: 'Recipes'
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      timeout: 20000

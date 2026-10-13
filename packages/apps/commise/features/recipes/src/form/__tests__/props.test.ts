@@ -7,7 +7,7 @@
  */
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { classifyUnit, normalizeUnit, RECIPE_MEAL_TYPES, RecipeDifficulty } from '@kitchensink/recipe-core';
+import { classifyUnit, CUISINES, normalizeUnit, RECIPE_MEAL_TYPES, RecipeDifficulty } from '@kitchensink/recipe-core';
 
 import { mintedLineKey, seedLineKey } from '../lineKey.js';
 import { makeRecipeFormValues, withLineKeys, withLineKey } from '../../__fixtures__/index.js';
@@ -27,6 +27,7 @@ import {
     mealTypeOptions,
     quantityInputValue,
     removeChipAt,
+    cuisineSuggestions,
     unitClassNote,
     unresolvedLineNote,
     visibilityChoice,
@@ -725,6 +726,17 @@ describe('U25 / U35 — unitClassNote', () => {
         expect(unitClassNote(m, unit)).toBeUndefined();
     });
 
+    // A-011: `classifyUnit` answers `unknown` for a size word (it feeds gram conversion and must keep doing so), but the
+    // add field reads a size word as a unit and the owner ruled "1 large" a fine measure. The NOTE leaves it alone.
+    it.each(['large', 'Small', 'MEDIUM'])('says nothing about the size word %j', (unit) => {
+        expect(classifyUnit(unit)).toBe('unknown');
+        expect(unitClassNote(m, unit)).toBeUndefined();
+    });
+
+    it('still notes a word that is neither a unit nor a size word', () => {
+        expect(unitClassNote(m, 'blorp')).toBe(noteMessages.ingredientUnitUnknownNote);
+    });
+
     it.each(['T', 't', 'T.', 't.'])('marks the case-sensitive %j as canonical — no note (U35)', (unit) => {
         expect(unitClassNote(m, unit)).toBeUndefined();
     });
@@ -1194,5 +1206,21 @@ describe('visibilityChoice', () => {
         ['private', 'private', true, undefined],
     ] as const)('from %s, choosing %s (can go private: %s) gives %o', (current, chosen, canGoPrivate, expected) => {
         expect(visibilityChoice(current, chosen, canGoPrivate)).toEqual(expected);
+    });
+});
+
+describe('P3 — cuisineSuggestions', () => {
+    it('suggests the whole curated list, in order, for an empty or blank field', () => {
+        expect(cuisineSuggestions('')).toEqual([...CUISINES]);
+        expect(cuisineSuggestions('   ')).toEqual([...CUISINES]);
+    });
+
+    it('narrows to the cuisines that contain the text, without regard to case, keeping the curated order', () => {
+        expect(cuisineSuggestions('AN')).toEqual(CUISINES.filter((cuisine) => cuisine.toLowerCase().includes('an')));
+        expect(cuisineSuggestions('  fre ')).toEqual(['French']);
+    });
+
+    it('suggests nothing for a custom cuisine: it is held as typed, never corrected', () => {
+        expect(cuisineSuggestions('Grandma’s Secret Blend')).toEqual([]);
     });
 });

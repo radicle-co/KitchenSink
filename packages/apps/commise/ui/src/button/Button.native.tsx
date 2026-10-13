@@ -94,6 +94,7 @@ export const Button: FC<ButtonProps> = (props) => {
         busy = false,
         accessibilityLabel,
         width = 'auto',
+        iconPlacement = 'start',
         focusRequested = false,
         onFocusRequestHandled,
     } = props;
@@ -110,18 +111,21 @@ export const Button: FC<ButtonProps> = (props) => {
     const height = visualHeightOf(size);
     const geometry: ViewStyle = { minHeight: height, borderRadius: height / 2 };
 
+    const glyph: ReactNode =
+        busy || icon !== undefined ? (
+            <View style={styles.glyph} aria-hidden>
+                {busy || icon === undefined ? (
+                    <ActivityIndicator color={theme.colors[foreground]} />
+                ) : (
+                    <Icon name={icon} size={20} tone={foreground} />
+                )}
+            </View>
+        ) : null;
     const content: ReactNode = (
         <>
-            {busy || icon !== undefined ? (
-                <View style={styles.glyph} aria-hidden>
-                    {busy || icon === undefined ? (
-                        <ActivityIndicator color={theme.colors[foreground]} />
-                    ) : (
-                        <Icon name={icon} size={20} tone={foreground} />
-                    )}
-                </View>
-            ) : null}
+            {iconPlacement === 'start' ? glyph : null}
             <Text style={[styles.label, { color: theme.colors[foreground] }]}>{children}</Text>
+            {iconPlacement === 'end' ? glyph : null}
         </>
     );
 

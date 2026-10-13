@@ -28,6 +28,10 @@
  *   Native's `TextInput` reports no Escape key (`onKeyPress` carries Enter, Backspace and typed characters), so a
  *   native entry is abandoned through `cancel` or the host's back intercept.
  *
+ * The field is the house text field (`docs/design/uiOverhaul/buildSpec.md` §7.4): a visible `FieldLabel` above it, which
+ * focuses the field when pressed, with the hint under the label, and the shared rectangle geometry (`fieldStyle.ts`),
+ * not an underline. The leading glyph sits inside the rectangle.
+ *
  * One ref, for what has no declarative form: the field, for `.focus()` and the caret on a host's focus request, and as
  * the node a reveal request hands the host to measure.
  *
@@ -41,6 +45,8 @@ import { FieldRevealContext } from '../fieldReveal/fieldRevealContext.js';
 import { ScrollerDragContext } from '../fieldReveal/scrollerDrag.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
+import { FIELD_PADDING, fieldGeometry, fieldPaint } from '../input/fieldStyle.js';
+import { FieldLabel } from '../input/FieldLabel.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
@@ -82,7 +88,9 @@ const StatusLine: FC<{ readonly line: ComboboxStatus; readonly loadingIcon: Reac
 
 /** The combobox. */
 export const Combobox: FC<ComboboxProps> = ({
+    id,
     label,
+    labelVisibility = 'visible',
     listLabel,
     value,
     onValueChange,
@@ -97,6 +105,7 @@ export const Combobox: FC<ComboboxProps> = ({
     alertAnnouncement = '',
     onFocus,
     cancel,
+    trailingAction,
     clear,
     leadingIcon,
     hint,
@@ -105,10 +114,13 @@ export const Combobox: FC<ComboboxProps> = ({
     focusRequested = false,
     onFocusRequestHandled,
     listRequested = false,
+    openOnFocus = false,
     alertOccurrence,
 }) => {
     const [open, setOpen] = useState(false);
-    const { colors, wash } = useTheme();
+    const theme = useTheme();
+    const { colors, wash } = theme;
+    const labelShown = labelVisibility === 'visible';
     // Whether the field's last blur closed an open list: the list a blur closes is reopened by the field's next focus
     // (below), while a close the field chose — a pick — and a focus no list ever followed stay shut. A refocus on
     // standing text must not strand the panel closed: on native the input method, the reveal's scroll and an
@@ -200,49 +212,61 @@ export const Combobox: FC<ComboboxProps> = ({
     );
 
     return (
-        <View>
+        <View style={styles.root}>
+            {labelShown && <FieldLabel forId={id} label={label} {...(hint === undefined ? {} : { hint })} />}
             <View style={styles.fieldRow}>
-                {leadingIcon !== undefined && (
-                    // Decorative: hidden from VoiceOver and TalkBack, as the field's name says what it does.
-                    <View aria-hidden importantForAccessibility="no-hide-descendants" style={styles.leadingIcon}>
-                        {leadingIcon}
-                    </View>
-                )}
-                <TextInput
-                    ref={field}
-                    role="combobox"
-                    accessibilityLabel={label}
-                    accessibilityHint={hint}
-                    aria-expanded={listShown}
-                    aria-invalid={invalid || undefined}
-                    autoCorrect={false}
-                    placeholder={placeholder}
-                    placeholderTextColor={colors.inkMuted}
-                    value={value}
-                    onChangeText={(text) => {
-                        onValueChange(text);
-                        setOpen(true);
-                    }}
-                    onFocus={() => {
-                        onFocus?.();
-
-                        if (closedByBlur.current && value !== '') {
+                <View style={styles.fieldBox}>
+                    {leadingIcon !== undefined && (
+                        // Decorative: hidden from VoiceOver and TalkBack, as the field's name says what it does.
+                        <View aria-hidden importantForAccessibility="no-hide-descendants" style={styles.leadingIcon}>
+                            {leadingIcon}
+                        </View>
+                    )}
+                    <TextInput
+                        ref={field}
+                        nativeID={id}
+                        role="combobox"
+                        accessibilityLabel={label}
+                        // React Native has no `aria-describedby`, so the hint a screen reader speaks on focus is the
+                        // field's own, drawn caption or not. The caption is for sighted users; a screen reader meets
+                        // it as a text node beside the label, and hears the hint again here.
+                        accessibilityHint={hint}
+                        aria-expanded={listShown}
+                        aria-invalid={invalid || undefined}
+                        autoCorrect={false}
+                        placeholder={placeholder}
+                        placeholderTextColor={colors.inkMuted}
+                        value={value}
+                        onChangeText={(text) => {
+                            onValueChange(text);
                             setOpen(true);
-                        }
+                        }}
+                        onFocus={() => {
+                            onFocus?.();
 
-                        closedByBlur.current = false;
-                    }}
-                    onBlur={() => {
-                        closedByBlur.current = open;
-                        setOpen(false);
-                    }}
-                    // The submit key chooses nothing: the keyboard and the list stay up, and the host says why.
-                    submitBehavior="submit"
-                    onSubmitEditing={() => {
-                        onSubmitWithoutChoice?.();
-                    }}
-                    style={[styles.field, { borderBottomColor: colors.inkMuted, color: colors.ink }]}
-                />
+                            if (openOnFocus || (closedByBlur.current && value !== '')) {
+                                setOpen(true);
+                            }
+
+                            closedByBlur.current = false;
+                        }}
+                        onBlur={() => {
+                            closedByBlur.current = open;
+                            setOpen(false);
+                        }}
+                        // The submit key chooses nothing: the keyboard and the list stay up, and the host says why.
+                        submitBehavior="submit"
+                        onSubmitEditing={() => {
+                            onSubmitWithoutChoice?.();
+                        }}
+                        style={[
+                            styles.field,
+                            fieldPaint(theme, invalid),
+                            leadingIcon === undefined ? null : styles.fieldWithIcon,
+                        ]}
+                    />
+                </View>
+                {trailingAction}
                 {clear !== undefined && value !== '' && (
                     <Pressable
                         accessibilityRole="button"
@@ -307,17 +331,16 @@ export const Combobox: FC<ComboboxProps> = ({
     );
 };
 
+/** Where the text starts when a glyph sits inside the rectangle: the padding, the 16 dp glyph and a gap. */
+const TEXT_START_WITH_ICON_DP = FIELD_PADDING + 16 + nativeTokens.spacing[2];
+
 const styles = StyleSheet.create({
+    root: { gap: nativeTokens.spacing[1] },
     fieldRow: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
-    field: {
-        flex: 1,
-        minWidth: 0,
-        minHeight: TARGET_DP,
-        borderBottomWidth: 1,
-        // `inkMuted` (applied at render), not a divider: the underline says the field is editable, so it owes 3:1.
-        paddingHorizontal: nativeTokens.spacing[1],
-        fontSize: nativeTokens.fontSize.bodyMd,
-    },
+    fieldBox: { flex: 1, minWidth: 0, justifyContent: 'center' },
+    // The shared rectangle (`fieldGeometry`: 12 radius, 1 dp edge, 48 tall). Colour is painted at render.
+    field: { ...fieldGeometry, flex: 1, minWidth: 0 },
+    fieldWithIcon: { paddingStart: TEXT_START_WITH_ICON_DP },
     list: {
         marginTop: LIST_MARGIN_DP,
         borderRadius: nativeTokens.radius.md,
@@ -330,7 +353,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     iconButton: { minWidth: TARGET_DP, minHeight: TARGET_DP, alignItems: 'center', justifyContent: 'center' },
-    leadingIcon: { flexShrink: 0 },
+    leadingIcon: { position: 'absolute', start: FIELD_PADDING, zIndex: 1 },
     textButton: {
         minWidth: TARGET_DP,
         minHeight: TARGET_DP,

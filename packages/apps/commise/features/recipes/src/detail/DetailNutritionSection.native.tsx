@@ -8,7 +8,7 @@
  * Presentational: props → JSX. The one effect it owns is the screen-reader cursor: the Data sources sheet returns it to
  * the link that opened it (§S16).
  */
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { useTheme } from '@commise/ui/theme';
 import { hasCatalogNutrition, hasUserEnteredIngredients } from '@kitchensink/recipe-core';
@@ -23,7 +23,7 @@ import {
     staleNutritionNotice,
     type RecipeDetailBodyNativeProps,
 } from './model.js';
-import { nutritionCells } from './detailFacts.js';
+import { nutritionCells, nutritionStatusLine } from './detailFacts.js';
 import { NutritionFigure } from './NutritionFigure.native.js';
 
 /** Props for {@link DetailNutritionSection}. */
@@ -42,12 +42,13 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
     returnFocusSignal,
 }) => {
     const { detail } = useMessages(recipeMessages);
+    const locale = useLocale();
     const { colors } = useTheme();
     const sourcesLinkRef = useScreenReaderFocusOnSignal<View>(returnFocusSignal);
     const muted = { color: colors.inkMuted };
     const { nutrition } = recipe;
     // "—" in each cell and one line when nothing was counted (§6.7, F17), shared with web.
-    const cells = nutritionCells(nutrition, detail);
+    const cells = nutritionCells(nutrition, recipe.ingredients, detail, locale);
     // Facts about the READ, from the stored figure — not the serving count on screen.
     const rangeNotice = rangeDerivedNotice(nutrition, {
         low: detail.nutritionRangeDerivedLow,
@@ -55,6 +56,10 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
     });
     const staleNotice = staleNutritionNotice(nutrition, detail.nutritionStale);
     const reviewNotice = needsReviewNotice(recipe.ingredients, detail);
+    const statusLine = nutritionStatusLine(
+        { noneCounted: cells.noneCounted, isComplete: nutrition.isComplete, reviewNotice },
+        detail,
+    );
 
     return (
         <View style={styles.section}>
@@ -66,11 +71,7 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                     <NutritionFigure key={cell.label} label={cell.label} value={cell.value} />
                 ))}
             </View>
-            {cells.noneCounted ? (
-                <Text style={[styles.caption, muted]}>{detail.nutritionNoneCounted}</Text>
-            ) : (
-                !nutrition.isComplete && <Text style={[styles.caption, muted]}>{detail.nutritionPartial}</Text>
-            )}
+            {statusLine !== undefined && <Text style={[styles.caption, muted]}>{statusLine}</Text>}
             {rangeNotice !== undefined && <Text style={[styles.caption, muted]}>{rangeNotice}</Text>}
             {staleNotice !== undefined && <Text style={[styles.caption, muted]}>{staleNotice}</Text>}
             {reviewNotice !== undefined && (

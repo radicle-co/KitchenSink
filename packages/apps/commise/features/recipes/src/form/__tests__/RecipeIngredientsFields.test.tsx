@@ -179,6 +179,21 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
         expect(screen.getByRole('combobox', { name: editor.ingredients.addLabel })).toBeTruthy();
     });
 
+    // A-007 / E13 (build spec §7.4: "Every field has a visible FieldLabel. Placeholders are examples only"): the name and
+    // the amount-first hint are DRAWN, not only spoken.
+    it('EMPTY: draws the add field’s label and its hint where the cook can read them', () => {
+        renderLeaf({ values: valuesWith([]) });
+
+        const label = screen.getByText(editor.ingredients.addLabel, { selector: 'label' });
+        const hint = screen.getByText(editor.ingredients.addHint);
+
+        expect(label.getAttribute('for')).toBe(screen.getByRole('combobox', { name: editor.ingredients.addLabel }).id);
+        expect(hint.closest('.sr-only')).toBeNull();
+        expect(
+            screen.getByRole('combobox', { name: editor.ingredients.addLabel }).getAttribute('placeholder'),
+        ).toBeNull();
+    });
+
     it('POPULATED: one list named "Ingredients", one item per line, each read amount first', () => {
         renderLeaf({
             values: valuesWith(
@@ -990,6 +1005,43 @@ describe('RecipeIngredientsFields (web) — pasted lines (build spec §7.5.1 "Re
 
         rerender(leafElement({ paste: { ...PASTE, reading: [], onOpen } }));
         expect(screen.queryByRole('button', { name: editor.ingredients.pasteList })).toBeNull();
+    });
+
+    // P4 (build spec §7.5.4): "In the empty section it is a secondary button beside the add field." Below a 600 container
+    // it goes UNDER the field instead (§7.12, translate the job, not the layout), so the field keeps its width at 320.
+    describe('P4 — where Paste a list sits in the empty section', () => {
+        const pasteButton = (): HTMLElement => screen.getByRole('button', { name: editor.ingredients.pasteList });
+        const addField = (): HTMLElement => screen.getByRole('combobox', { name: editor.ingredients.addLabel });
+        /** The row the input sits in: the input's wrapper's parent. */
+        const fieldRow = (): HTMLElement | null => addField().parentElement?.parentElement ?? null;
+
+        it('comes AFTER the add field in reading order, at every width', () => {
+            for (const container of ['narrow', 'regular'] as const) {
+                layout.container = container;
+                const { unmount } = render(
+                    leafElement({ values: valuesWith([]), paste: { ...PASTE, reading: [], onOpen: noop } }),
+                );
+
+                expect(
+                    addField().compareDocumentPosition(pasteButton()) & Node.DOCUMENT_POSITION_FOLLOWING,
+                ).toBeTruthy();
+                unmount();
+            }
+        });
+
+        it('from 600 sits in the add field’s own row, beside the input', () => {
+            layout.container = 'regular';
+            render(leafElement({ values: valuesWith([]), paste: { ...PASTE, reading: [], onOpen: noop } }));
+
+            expect(fieldRow()?.contains(pasteButton())).toBe(true);
+        });
+
+        it('below 600 sits under the field, so the field keeps its width', () => {
+            layout.container = 'narrow';
+            render(leafElement({ values: valuesWith([]), paste: { ...PASTE, reading: [], onOpen: noop } }));
+
+            expect(fieldRow()?.contains(pasteButton())).toBe(false);
+        });
     });
 
     it('⛔ the paste gate is unchanged: a new, empty group does not hide Paste a list', async () => {

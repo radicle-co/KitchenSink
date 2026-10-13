@@ -117,3 +117,39 @@ for (const colorScheme of ['light', 'dark'] as const) {
         });
     });
 }
+
+test.describe('recipe cards — W-06: a one-line meta row is exactly one line', () => {
+    test('the list row’s meta line is as tall as its line-height, so no dropped item shows under it', async ({
+        page,
+    }) => {
+        await page.setViewportSize({ width: 320, height: 800 });
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            tier: 'premium',
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000061',
+                    ownerId: viewerId,
+                    title: 'Lamb',
+                    cuisine: 'Mediterranean',
+                    totalTimeMinutes: 330,
+                }),
+            ],
+        });
+        await page.goto(route('/recipes'));
+        const card = page.getByRole('article', { name: 'Lamb' });
+        await expect(card).toHaveAttribute('data-card-variant', 'row');
+
+        const line = card
+            .getByText('Mediterranean')
+            .locator('xpath=ancestor::div[contains(@class,"overflow-hidden")][1]');
+        const box = await line.boundingBox();
+        const lineHeight = await line.evaluate((element) => Number.parseFloat(getComputedStyle(element).lineHeight));
+
+        expect(Math.abs((box?.height ?? 0) - lineHeight), 'the line box is one line tall').toBeLessThan(1);
+        // The cuisine yields before the figures do: the time stays on screen at 320.
+        await expect(card.getByLabel(/minutes total time/u)).toBeVisible();
+    });
+});

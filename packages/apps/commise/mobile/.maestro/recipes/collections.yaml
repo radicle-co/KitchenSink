@@ -63,6 +63,10 @@ appId: io.commise.mobile
 - tapOn: 'Done · 1 added'
 - assertNotVisible: 'Add to Maestro test collection'
 
+# A-016: the member's row draws its TITLE. The row put its trailing ⋯ control beside a link that had been given no
+# width, so the title and meta drew in none — the member was there, named only to a screen reader.
+- assertVisible: '${E2E_RECIPE_LAMB}'
+
 # RENAME. The ⋯ menu's Rename opens the rename sheet, filled in with the current name.
 - tapOn: 'More actions for Maestro test collection'
 - tapOn: 'Rename'

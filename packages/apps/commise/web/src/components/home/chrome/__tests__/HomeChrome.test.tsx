@@ -29,7 +29,8 @@ afterEach(cleanup);
 const renderChrome = ({
     focusedTask = false,
     collapsed = false,
-}: { focusedTask?: boolean; collapsed?: boolean } = {}) =>
+    syncNotice,
+}: { focusedTask?: boolean; collapsed?: boolean; syncNotice?: ReactNode } = {}) =>
     render(
         <SidebarPreferenceProvider collapsed={collapsed}>
             <ScrollHost>
@@ -40,6 +41,7 @@ const renderChrome = ({
                     activeId="home"
                     profile={{ status: 'ready', name: 'Eliza' }}
                     focusedTask={focusedTask}
+                    {...(syncNotice === undefined ? {} : { syncNotice })}
                     newRecipe={(railed): ReactNode => <button type="button">{railed ? 'rail' : 'New recipe'}</button>}
                 >
                     <h1>Page</h1>
@@ -103,6 +105,64 @@ describe('HomeChrome (web)', () => {
         const main = screen.getByRole('main').className.split(/\s+/u);
 
         expect(main.filter((utility) => /^(?:\S+:)?(?:px|pt)-/u.test(utility))).toStrictEqual([]);
+    });
+
+    /**
+     * E21: the editor's action bar is `sticky bottom-0` inside its form column, so it already takes its own place in the
+     * flow. A bottom padding on `<main>` left 96 px of canvas under it at the end of the page.
+     */
+    it('⛔ reserves nothing at the foot of a focused task: its own bar owns the foot', () => {
+        renderChrome({ focusedTask: true });
+
+        const main = screen.getByRole('main').className.split(/\s+/u);
+
+        expect(main.filter((utility) => /^(?:\S+:)?pb-/u.test(utility))).toStrictEqual([]);
+    });
+
+    it('keeps the foot reserved for the tab bar and the floating button on every other page', () => {
+        renderChrome();
+
+        expect(screen.getByRole('main').className).toContain('pb-[calc(var(--bottom-chrome)+6.5rem)]');
+    });
+
+    /**
+     * P5: the sync notice rendered above the whole shell, so going offline pushed the sidebar and the page down together.
+     * Build spec §3.8: it sits at the top of `<main>`, sticky from 840.
+     */
+    describe('the sync notice (P5)', () => {
+        const notice = <div role="status" aria-label="Sync status" />;
+
+        it('⛔ renders at the top of <main>, before the page, and nowhere in the sidebar', () => {
+            renderChrome({ syncNotice: notice });
+            const main = screen.getByRole('main');
+            const region = screen.getByRole('status', { name: 'Sync status' });
+
+            expect(main.contains(region)).toBe(true);
+            expect(region.compareDocumentPosition(screen.getByRole('heading', { name: 'Page' }))).toBe(
+                Node.DOCUMENT_POSITION_FOLLOWING,
+            );
+            // The sidebar's box (the `nav:flex` wrapper of the first navigation) holds none of it.
+            expect(screen.getAllByRole('navigation')[0]?.parentElement?.contains(region)).toBe(false);
+        });
+
+        it('sticks to the top of <main> from nav on a page, and scrolls away on a focused task', () => {
+            const { unmount } = renderChrome({ syncNotice: notice });
+            expect(screen.getByRole('status', { name: 'Sync status' }).parentElement?.className).toContain(
+                'nav:sticky',
+            );
+            unmount();
+
+            renderChrome({ focusedTask: true, syncNotice: notice });
+            expect(screen.getByRole('status', { name: 'Sync status' }).parentElement?.className).not.toContain(
+                'sticky',
+            );
+        });
+
+        it('draws nothing extra when the shell is given none', () => {
+            renderChrome();
+
+            expect(screen.queryByRole('status')).toBeNull();
+        });
     });
 
     it('keeps the page gutter and top padding on every other page', () => {

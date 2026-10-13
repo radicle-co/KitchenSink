@@ -28,6 +28,8 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       visible: 'Paste a list'
       timeout: 20000
+# P4: Paste a list comes after the add field in reading order, and is under it on a phone: the field is on screen above it.
+- assertVisible: 'Add an ingredient'
 - tapOn: 'Paste a list'
 - assertVisible: 'Ingredient lines'
 - tapOn: 'Ingredient lines'

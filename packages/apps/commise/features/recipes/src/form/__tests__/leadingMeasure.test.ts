@@ -294,6 +294,87 @@ const COMMA_SHAPES: readonly Case[] = [
     },
 ];
 
+/**
+ * E15 (the walk, 2026-10-13): "3 garlic cloves" stored amount 3, no unit, and the food, so the cook's "cloves" vanished.
+ * The reader reads a unit only right after the amount, so a COUNT unit the cook put after the food is lifted into the
+ * unit, from a closed list, and never when it is the spice ("2 whole cloves").
+ */
+const TRAILING_COUNT_UNITS: readonly Case[] = [
+    {
+        typed: '3 garlic cloves',
+        reading: { quantity: exact(3), unit: 'clove', search: 'garlic', preparation: '', measureText: '3 cloves' },
+        why: 'a count unit after the food is the unit, and the food search loses it',
+    },
+    {
+        typed: '1 garlic clove',
+        reading: { quantity: exact(1), unit: 'clove', search: 'garlic', preparation: '', measureText: '1 clove' },
+        why: 'the singular lifts too',
+    },
+    {
+        typed: '4 bread slices, toasted',
+        reading: {
+            quantity: exact(4),
+            unit: 'slice',
+            search: 'bread',
+            preparation: 'toasted',
+            measureText: '4 slices',
+        },
+        why: 'slice is on the list, and the preparation after the comma is unchanged',
+    },
+    {
+        typed: '2 cinnamon sticks',
+        reading: { quantity: exact(2), unit: 'stick', search: 'cinnamon', preparation: '', measureText: '2 sticks' },
+        why: 'stick is on the list',
+    },
+    {
+        typed: '2 whole cloves',
+        reading: { quantity: exact(2), unit: '', search: 'whole cloves', preparation: '', measureText: '2' },
+        why: '⛔ the spice: `whole` before `cloves` keeps it a food search',
+    },
+    {
+        typed: '2 ground cloves',
+        reading: { quantity: exact(2), unit: '', search: 'ground cloves', preparation: '', measureText: '2' },
+        why: '⛔ the spice again: `ground` before `cloves`',
+    },
+    {
+        typed: '3 cloves garlic',
+        reading: { quantity: exact(3), unit: 'clove', search: 'garlic', preparation: '', measureText: '3 cloves' },
+        why: 'the unit in its usual place is unchanged',
+    },
+    {
+        typed: '3 cloves',
+        reading: { quantity: exact(3), unit: 'clove', search: '', preparation: '', measureText: '3 cloves' },
+        why: 'the count unit as the whole search is the unit in its usual place, unchanged',
+    },
+    {
+        typed: 'garlic cloves',
+        reading: { quantity: ABSENT_QUANTITY, unit: '', search: 'garlic cloves', preparation: '', measureText: '' },
+        why: 'with no amount nothing is lifted: there is no measure to put the unit in',
+    },
+    {
+        typed: '3 large garlic cloves',
+        reading: {
+            quantity: exact(3),
+            unit: 'large',
+            search: 'garlic cloves',
+            preparation: '',
+            measureText: '3 large',
+        },
+        why: 'a unit already read in its usual place is not displaced by a second one',
+    },
+    {
+        typed: '2 eggs',
+        reading: { quantity: exact(2), unit: '', search: 'eggs', preparation: '', measureText: '2' },
+        why: 'a food that is not a count unit is untouched',
+    },
+];
+
+describe('readLeadingMeasure — a count unit after the food (E15)', () => {
+    it.each(TRAILING_COUNT_UNITS)('reads "$typed" — $why', ({ typed, reading }) => {
+        expect(readLeadingMeasure(typed)).toEqual(reading);
+    });
+});
+
 describe('readLeadingMeasure — the comma inside an amount', () => {
     it.each(COMMA_SHAPES)('reads "$typed" — $why', ({ typed, reading }) => {
         expect(readLeadingMeasure(typed)).toEqual(reading);

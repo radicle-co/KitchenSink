@@ -23,14 +23,14 @@ import { recipeMessages } from '../messages.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
-import { formatQuantity, isLineFoodRemoved } from './model.js';
+import { formatAmount, isLineFoodRemoved } from './model.js';
 
 /** The native checkable ingredient row. */
 export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, checked, allRemoved, onToggle }) => {
     const { detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
     const locale = useLocale();
     const { colors, wash } = useTheme();
-    const amount = formatQuantity(ingredient.quantity, locale, ingredient.unit);
+    const amount = formatAmount(ingredient.quantity, locale, ingredient.unit);
     const parts = variantPartTexts(ingredient.variant?.parts);
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
     const textColour = { color: checked ? colors.inkMuted : colors.ink };

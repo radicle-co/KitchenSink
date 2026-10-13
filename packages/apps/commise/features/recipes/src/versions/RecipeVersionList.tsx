@@ -3,10 +3,12 @@
  *
  * Controlled, presentational: the `LargeTitleHeader` ("Version history", the recipe as its subtitle, Back to recipe),
  * then the versions newest first. Each row reads "Version 12 · Edited 2 days ago", what it changed against the version
- * before it ("Initial version" for the first), the editor, and a ⋯ menu: Preview · Restore this version · Compare
- * with current. The current version is marked and has no menu — there is nothing to restore or compare. While a
- * restore is in flight its row says so and every menu is unavailable. Empty: the clock glyph, "No earlier versions
- * yet", why, and Back to recipe. It fetches nothing; the composing app wires the history read and the restore.
+ * before it ("Initial version" for the first), and a ⋯ menu: Preview · Restore this version · Compare with current. (Not
+ * the editor's handle, which is their display name, nor the server's raw change summary: §6.6 draws neither.) The
+ * current version is marked and has no menu — there is nothing to restore or compare. While a
+ * restore is in flight its row says so and every menu is unavailable. Empty — a recipe with only its current version
+ * is empty too: the clock glyph, "No earlier versions yet", why, and Back to recipe. It fetches nothing; the composing
+ * app wires the history read and the restore.
  *
  * @pattern Humble Object — props → JSX; the row menu's entries are decided here from the wired callbacks only
  */
@@ -23,7 +25,7 @@ import {
     type RecipeVersionListProps,
     changeSummaryForVersion,
     formatChangedFieldNames,
-    formatVersionAttribution,
+    hasEarlierVersions,
     restoreErrorMessage,
     sortVersionsDescending,
 } from './history.js';
@@ -101,7 +103,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                     {restoreErrorText}
                 </p>
             )}
-            {versions.length === 0 ? (
+            {!hasEarlierVersions(versions, currentVersion) ? (
                 <div className="flex flex-col items-center gap-3 py-10 text-center">
                     <span className="text-ink-muted">
                         <Icon name="clock" size={48} />
@@ -118,7 +120,6 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                 <ul className="flex flex-col divide-y divide-line-divider">
                     {sortVersionsDescending(versions).map((version) => {
                         const isCurrent = version.versionNumber === currentVersion;
-                        const attribution = formatVersionAttribution(version.editorHandle, versionList);
                         const { hasPrior, changedFields } = changeSummaryForVersion(versions, version);
 
                         return (
@@ -142,12 +143,6 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                                 })}
                                             </span>
                                         )
-                                    )}
-                                    {attribution !== undefined && (
-                                        <span className="text-meta text-ink-muted">{attribution}</span>
-                                    )}
-                                    {version.changeSummary !== undefined && version.changeSummary.length > 0 && (
-                                        <span className="text-meta text-ink-muted">{version.changeSummary}</span>
                                     )}
                                     {restoringVersion === version.versionNumber && (
                                         <span role="status" className="text-meta text-ink-muted">

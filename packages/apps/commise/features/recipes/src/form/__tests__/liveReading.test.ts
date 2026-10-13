@@ -28,6 +28,18 @@ describe('liveReadingOf', () => {
         });
     });
 
+    // E15: a count unit typed after the food is shown and spoken as the unit it is, and not dropped into the food.
+    it('reads a count unit typed after the food as the unit: "3 garlic cloves"', () => {
+        expect(liveReadingOf('3 garlic cloves', 'en', COPY)).toEqual({
+            shown: '3 cloves · garlic',
+            spoken: 'Amount 3, unit clove, food garlic.',
+        });
+        expect(liveReadingOf('2 whole cloves', 'en', COPY)).toEqual({
+            shown: '2 · whole cloves',
+            spoken: 'Amount 2, food whole cloves.',
+        });
+    });
+
     it('names only the parts the text states', () => {
         expect(liveReadingOf('2 eggs', 'en', COPY)).toEqual({ shown: '2 · eggs', spoken: 'Amount 2, food eggs.' });
         expect(liveReadingOf('salt, to taste', 'en', COPY)).toEqual({

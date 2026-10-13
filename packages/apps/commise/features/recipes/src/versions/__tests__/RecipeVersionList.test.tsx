@@ -88,6 +88,28 @@ describe('RecipeVersionList (web) — empty state', () => {
     });
 });
 
+describe('RecipeVersionList (web) — a recipe with only its current version (D12)', () => {
+    // "Version 1 · Current version" under a heading of "Version history" promised a history there was not. With nothing
+    // earlier than the current version the page says so, and the way back is the one action.
+    it('says there are no earlier versions yet, and lists nothing, when the only version is the current one', () => {
+        renderList({ versions: [makeRecipeVersion({ versionNumber: 1 })], currentVersion: 1, onBack: vi.fn() });
+
+        expect(screen.getByRole('heading', { name: 'No earlier versions yet' })).toBeTruthy();
+        expect(screen.queryByRole('listitem')).toBeNull();
+        expect(screen.queryByText(versionList.currentBadge)).toBeNull();
+    });
+
+    it('lists the history as soon as one earlier version exists', () => {
+        renderList({
+            versions: [makeRecipeVersion({ versionNumber: 1 }), makeRecipeVersion({ versionNumber: 2 })],
+            currentVersion: 2,
+        });
+
+        expect(screen.queryByRole('heading', { name: 'No earlier versions yet' })).toBeNull();
+        expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    });
+});
+
 describe('RecipeVersionList (web) — rows', () => {
     it('lists the versions newest first, each with its number and how long ago it was edited', () => {
         renderList({ versions: threeVersions, currentVersion: 3 });
@@ -112,13 +134,35 @@ describe('RecipeVersionList (web) — rows', () => {
         expect(within(oldest as HTMLElement).getByText(versionList.initialVersion)).toBeTruthy();
     });
 
-    it('renders the editor handle as plain text, never as markup', () => {
+    // D12 (rewritten from "renders the editor handle as plain text"): a row is "Version N · Edited …", what it changed,
+    // and ⋯ — build spec §6.6. The editor's handle is the display name (it reads "by @Test coauthor"), and the server's
+    // `changeSummary` is raw English ("Updated"), so neither belongs on the row.
+    it('draws no editor line and no raw change summary on a row', () => {
         renderList({
-            versions: [makeRecipeVersion({ versionNumber: 1, editorHandle: '<b>chef</b>' })],
-            currentVersion: 1,
+            versions: [
+                makeRecipeVersion({ versionNumber: 1 }),
+                makeRecipeVersion({ versionNumber: 2, editorHandle: '<b>chef</b>', changeSummary: 'Updated' }),
+            ],
+            currentVersion: 2,
         });
 
-        expect(screen.getByText('by @<b>chef</b>')).toBeTruthy();
+        expect(screen.queryByText(/by @/u)).toBeNull();
+        expect(screen.queryByText('Updated')).toBeNull();
+        expect(screen.queryByText(/<b>chef<\/b>/u)).toBeNull();
+    });
+
+    it('says a version saved a moment ago was edited now, never “0 minutes ago”', () => {
+        renderList({
+            versions: [
+                makeRecipeVersion({ versionNumber: 1, createdAt: '2026-04-01T09:00:00.000Z' }),
+                makeRecipeVersion({ versionNumber: 2, createdAt: '2026-04-12T08:59:40.000Z' }),
+            ],
+            currentVersion: 2,
+        });
+
+        const [newest] = screen.getAllByRole('listitem');
+
+        expect(newest?.querySelector('[data-row-title]')?.textContent).toBe('Version 2 · Edited now');
     });
 
     it('marks the current version and offers it no ⋯ menu — nothing to restore or compare', () => {

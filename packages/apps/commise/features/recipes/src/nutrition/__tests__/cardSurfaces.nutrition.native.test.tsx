@@ -83,6 +83,7 @@ const SURFACES: readonly (readonly [string, (render: RenderRecipeNutrition) => R
                 searchValue=""
                 onClearSearch={noop}
                 onClearFilters={noop}
+                clearCount={0}
                 variant="row"
                 chipOverflow="scroll"
                 facets={{ facets: [], onToggle: noop, onClear: noop }}

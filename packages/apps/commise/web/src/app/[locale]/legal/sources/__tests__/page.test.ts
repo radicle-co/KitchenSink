@@ -50,7 +50,7 @@ describe('/legal/sources metadata', () => {
     // §S19 chose US English, as the page itself says "License".
     it('says, in English, what the page is, with the US spelling', async () => {
         await expect(route.generateMetadata(paramsFor('en'))).resolves.toEqual({
-            title: 'Data sources | Commise',
+            title: 'Data sources · Commise',
             description: 'The food databases behind the nutrition figures, and their licenses',
         });
     });

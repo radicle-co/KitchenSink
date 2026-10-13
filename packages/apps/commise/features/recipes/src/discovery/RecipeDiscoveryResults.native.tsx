@@ -152,6 +152,7 @@ export const RecipeDiscoveryResults: FC<RecipeDiscoveryResultsProps> = ({
                         <RecipeDiscoveryCard
                             recipe={toRecipeCardModel(item.recipe)}
                             variant={cardVariant}
+                            headingLevel={2}
                             authorHandle={item.recipe.authorHandle}
                             sourceAttribution={item.recipe.sourceAttribution}
                             saveCopy={saveCopy.stateOf(item.recipe.id)}

@@ -20,6 +20,8 @@ export type PushedParamList = {
     RecipeVersions: { readonly recipeId: string };
     CollectionDetail: { readonly collectionId: string };
     Profile: undefined;
+    /** Food data sources: a page pushed from Profile (A-026), not a modal over it. */
+    DataSources: undefined;
 };
 
 /** A place in the Recipes tab's segments. */

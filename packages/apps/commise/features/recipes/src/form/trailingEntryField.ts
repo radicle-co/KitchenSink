@@ -20,6 +20,7 @@ import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientEntry } from '../hooks/useIngredientEntry.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { entryComboboxOf, type EntryComboboxCopy } from './entryCombobox.js';
+import { ingredientAddFieldId } from './fieldIds.js';
 import type { RecipeFormMessages } from './messages.js';
 import type { SourceNaming } from './progressiveNotes.js';
 import { chooseEntryOption } from './rowEntryField.js';
@@ -97,9 +98,9 @@ export const trailingEntryFieldOf = (
     );
 
     return {
+        id: ingredientAddFieldId,
         label: input.label,
         listLabel: fillTemplate(copy.form.ingredientSuggestionsLabel, { number: input.nextNumber }),
-        placeholder: input.label,
         value: text,
         onValueChange: (next) => {
             input.onTextChange();

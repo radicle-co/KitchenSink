@@ -18,7 +18,9 @@
  * @pattern Composition root binding the signed-in profile read and the app-wide capability set to the pure
  *     `HomeChrome` shell — the one place chrome learns who is signed in and what is deployed.
  */
+import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { SyncNoticeHost } from '@commise/query/sync-notice-host';
 import { RECIPE_HOME_WIDGET_CAPABILITY, RecipeCreateButton } from '@commise/features-recipes';
 import type { HomeNavItemId } from '@commise/features-core';
 import { ScrollHost } from '@commise/ui/scroll-host';
@@ -73,6 +75,7 @@ export const AppShell: FC<AppShellProps> = ({
     children,
 }) => {
     const { home } = useMessages(webMessages);
+    const offline = useMessages(offlineNoticeMessages);
     const locale = useLocale();
     const router = useRouter();
     const profile = profileEntryOf(useUserProfile());
@@ -95,6 +98,8 @@ export const AppShell: FC<AppShellProps> = ({
                 activeId={activeId}
                 profile={profile}
                 focusedTask={focusedTask}
+                // §3.8: the connectivity notice sits at the top of `<main>`, not above the whole shell (P5).
+                syncNotice={<SyncNoticeHost copy={offline} />}
                 // The sidebar's New recipe opens the empty editor in one tap (`buildSpec.md` §3.4, slice 8).
                 newRecipe={(collapsed) => (
                     <RecipeCreateButton

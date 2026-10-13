@@ -394,6 +394,21 @@ function pasteHeld(ctx: EditorContext): boolean {
 
 // ── The device draft ─────────────────────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Tell the host which ref the editor is keyed by, so the address follows the recipe — only while the cook is still on
+ * the editor. Once the exit checkpoint has run the host navigates away, and a `replaceState` here would discard that
+ * navigation (E3: Next patches it into a restore).
+ *
+ * @sideEffect Calls the host's `onRecipeRef`.
+ */
+function followRecipe(ctx: EditorContext, ref: string): void {
+    if (ctx.lane.get().leaving === true) {
+        return;
+    }
+
+    ctx.opts.onRecipeRef?.(ref);
+}
+
 /** The ref the draft is kept under, minted on the first input of a new recipe (A4). @sideEffect */
 function ensureRef(ctx: EditorContext): string {
     const { server } = ctx.core.get();
@@ -404,7 +419,7 @@ function ensureRef(ctx: EditorContext): string {
 
     const minted = mintLocalRef('recipe');
     ctx.core.dispatch({ type: 'refMinted', ref: minted });
-    ctx.opts.onRecipeRef?.(minted);
+    followRecipe(ctx, minted);
 
     return minted;
 }
@@ -688,7 +703,7 @@ function adoptServerFacts(ctx: EditorContext, detail: RecipeDetail, sent: Recipe
     ctx.core.dispatch({ type: 'written', detail, sent });
 
     if (previousRef !== undefined && isLocalRef(previousRef)) {
-        ctx.opts.onRecipeRef?.(detail.id);
+        followRecipe(ctx, detail.id);
     }
 
     if (previousRef !== undefined) {
@@ -1419,6 +1434,33 @@ function useDiscardBound(ctx: EditorContext, discarding: boolean): void {
     }, [discarding]);
 }
 
+/**
+ * A paste let go of its hold: run the checkpoint it deferred (A-021). The lines a paste joins change the draft, which
+ * re-arms the idle timers; a paste that joins NO rows (headings, measure-only lines) changes nothing, so without this
+ * the create it held waited for the next blur, section change or exit.
+ *
+ * @sideEffect Subscribes to the shared paste hold, and runs a `checkpointIdle` checkpoint on its release.
+ */
+function useReleasedPasteHold(ctx: EditorContext, hold: PasteHold | undefined): void {
+    const released = useEffectEvent((): void => {
+        runCheckpoint(ctx, 'checkpointIdle');
+    });
+
+    useEffect(() => hold?.onReleased(() => released()), [hold]);
+}
+
+/**
+ * The editor is on screen: whatever leave the lane recorded is taken back. A real unmount never reaches this again;
+ * StrictMode's development replay does (cleanup, then setup), and it must not leave the address bar frozen.
+ *
+ * @sideEffect Moves the lane.
+ */
+function useStayed(lane: LaneStore<Settlement>): void {
+    useEffect(() => {
+        lane.dispatch({ type: 'stayed' });
+    }, [lane]);
+}
+
 /** The idle timers: the device draft after a pause, a never-published draft's server checkpoint after a longer one. */
 function useIdleTimers(ctx: EditorContext, draft: RecipeFormValues, armed: boolean): void {
     const writeDeviceNow = useEffectEvent((): void => {
@@ -1537,6 +1579,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     const persistedKeys = useMemo(() => persistedLineKeysOf(serverValues?.ingredients ?? []), [serverValues]);
 
     useSettlements(ctx, opts.port);
+    useStayed(stores.lane);
+    useReleasedPasteHold(ctx, opts.pasteHold);
     useDiscardBound(ctx, lane.discarding !== undefined);
     useIdleTimers(ctx, core.draft, core.touched && view.status !== 'done');
     useCommandRunner(ctx, core, view.outstanding);
@@ -1583,6 +1627,10 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         setField,
         dispatch,
         checkpoint: (trigger) => {
+            if (trigger === 'editorExit') {
+                stores.lane.dispatch({ type: 'leaving' });
+            }
+
             runCheckpoint(ctx, trigger);
         },
         publish: (pendingEntryText) => finish(ctx, pendingEntryText, 'publish'),

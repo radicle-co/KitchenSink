@@ -68,6 +68,23 @@ describe('RecipeCover (web) — a monogram', () => {
         expect(container.textContent).toBe('L');
     });
 
+    it('draws no overline when told the cover carries a chip over it (W-08), and still shows the letter', () => {
+        const { queryByText, getByText } = render(
+            <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" overline={false} />,
+        );
+
+        expect(queryByText('French')).toBeNull();
+        expect(getByText('L')).toBeTruthy();
+    });
+
+    it('keeps the overline by default, so a caller that says nothing sees no change', () => {
+        const { getByText } = render(
+            <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" />,
+        );
+
+        expect(getByText('French')).toBeTruthy();
+    });
+
     it('is a size container, so the letter and the overline read the cover’s own height', () => {
         const { container } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="1:1" />);
 

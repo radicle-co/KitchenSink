@@ -441,7 +441,7 @@ for (const [scheme, colors] of THEMES) {
                         .first();
                     await expect(firstCard).toBeVisible();
                     const card = await firstCard.boundingBox();
-                    const tabBar = page.getByRole('navigation', { name: 'Main' }).filter({ visible: true });
+                    const tabBar = page.getByRole('navigation', { name: 'Tabs' }).filter({ visible: true });
                     const barTop = width < 840 ? ((await tabBar.boundingBox())?.y ?? heightOf(width)) : heightOf(width);
                     expect((card?.y ?? 0) + (card?.height ?? 0)).toBeLessThanOrEqual(barTop);
 

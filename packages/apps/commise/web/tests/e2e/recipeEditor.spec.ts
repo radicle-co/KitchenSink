@@ -467,3 +467,131 @@ test.describe('leaving the one-page editor and coming back', () => {
         expect(writes.filter((write) => write.method === 'POST')).toHaveLength(1);
     });
 });
+
+// A-012/E24 (B1 item 5): the Preview is a page-sized sheet from `sm`, not the 85% centred dialog: the whole visible
+// height, and up to the detail column (72 rem = 1152 px). `size="page"` in `@commise/ui/sheet`.
+test.describe('the editor Preview sheet at 1280', () => {
+    test('is as tall as the viewport and as wide as the detail column, under the preview banner', async ({ page }) => {
+        await signInWithTicket(page);
+        await page.setViewportSize({ width: 1280, height: 800 });
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+
+        await page.goto(route('/recipes/new'));
+        await page.getByLabel('Title').fill('E2E Preview Soup');
+        await page.getByRole('button', { name: 'Preview', exact: true }).click();
+
+        const dialog = page.getByRole('dialog', { name: 'Preview' });
+        await expect(dialog).toBeVisible();
+        await expect(dialog.getByText('Preview. This is how it looks to others.')).toBeVisible();
+
+        const box = await dialog.boundingBox();
+        expect(box).not.toBeNull();
+        // The 85% dialog was 680 px here; a page is the viewport (sub-pixel slack).
+        expect(Math.abs((box?.height ?? 0) - 800)).toBeLessThanOrEqual(1);
+        // Wider than the house `max-w-lg` dialog (512), capped at the detail column (1152).
+        expect(box?.width ?? 0).toBeGreaterThan(512);
+        expect(box?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1152 + 1);
+    });
+});
+
+// B1 (UI walk 2026-10-13): the editor's form fields. Written to run against the same mocked recipe API as above; not run
+// here (the sandbox's Clerk instance is shared with CI).
+test.describe('the editor form fields (A-007, A-008, A-009, E15, P3, P4)', () => {
+    test.beforeEach(async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+    });
+
+    test('A-007: the add-ingredient field has a visible label and hint, and is a rectangle, not an underline', async ({
+        page,
+    }) => {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.goto(route('/recipes/new'));
+
+        const field = page.getByRole('combobox', { name: 'Add an ingredient' });
+        await expect(page.getByText('Add an ingredient', { exact: true })).toBeVisible();
+        await expect(
+            page.getByText('Type the amount first, then pick the food. For example: 2 tbsp olive oil.'),
+        ).toBeVisible();
+        await expect(field).toBeVisible();
+
+        const radius = await field.evaluate((node) => getComputedStyle(node).borderTopLeftRadius);
+        const bottomEdge = await field.evaluate((node) => getComputedStyle(node).borderBottomWidth);
+        const topEdge = await field.evaluate((node) => getComputedStyle(node).borderTopWidth);
+        expect(radius).toBe('12px');
+        expect(topEdge).toBe('1px');
+        expect(bottomEdge).toBe('1px');
+    });
+
+    test('E15: "3 garlic cloves" reads as 3 cloves of garlic', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.goto(route('/recipes/new'));
+
+        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('3 garlic cloves');
+
+        await expect(page.getByText('3 cloves · garlic')).toBeVisible();
+    });
+
+    test('P4: from 600 Paste a list sits beside the add field, level with the input; at 320 it is under it', async ({
+        page,
+    }) => {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.goto(route('/recipes/new'));
+
+        const field = page.getByRole('combobox', { name: 'Add an ingredient' });
+        const paste = page.getByRole('button', { name: 'Paste a list' });
+        const wideField = await field.boundingBox();
+        const widePaste = await paste.boundingBox();
+        expect(
+            Math.abs(
+                (wideField?.y ?? 0) +
+                    (wideField?.height ?? 0) / 2 -
+                    ((widePaste?.y ?? 0) + (widePaste?.height ?? 0) / 2),
+            ),
+        ).toBeLessThanOrEqual(2);
+
+        await page.setViewportSize({ width: 320, height: 800 });
+        const narrowField = await field.boundingBox();
+        const narrowPaste = await paste.boundingBox();
+        expect(narrowPaste?.y ?? 0).toBeGreaterThan((narrowField?.y ?? 0) + (narrowField?.height ?? 0) - 1);
+    });
+
+    test('A-008: Add step moves focus into the new step, so typing lands there and adds no more steps', async ({
+        page,
+    }) => {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.goto(route('/recipes/new'));
+
+        const before = await page.getByRole('textbox', { name: /^Step \d+$/u }).count();
+        await page.getByRole('button', { name: 'Add step' }).click();
+        await page.keyboard.type('Fold in the cheese');
+
+        const steps = page.getByRole('textbox', { name: /^Step \d+$/u });
+        await expect(steps).toHaveCount(before + 1);
+        await expect(steps.last()).toHaveValue('Fold in the cheese');
+    });
+
+    test('A-009: Prep time and Cook time share a line at 320', async ({ page }) => {
+        await page.setViewportSize({ width: 320, height: 800 });
+        await page.goto(route('/recipes/new'));
+
+        const prep = await page.getByRole('group', { name: 'Prep time' }).boundingBox();
+        const cook = await page.getByRole('group', { name: 'Cook time' }).boundingBox();
+
+        expect(Math.abs((prep?.y ?? 0) - (cook?.y ?? Number.POSITIVE_INFINITY))).toBeLessThanOrEqual(1);
+        expect((cook?.x ?? 0) + (cook?.width ?? 0)).toBeLessThanOrEqual(320);
+    });
+
+    test('P3: Cuisine is a combobox over the curated list: type to narrow, pick one', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.goto(route('/recipes/new'));
+
+        const cuisine = page.getByRole('combobox', { name: 'Cuisine' });
+        await cuisine.fill('fre');
+        await page.getByRole('option', { name: 'French' }).click();
+
+        await expect(cuisine).toHaveValue('French');
+    });
+});

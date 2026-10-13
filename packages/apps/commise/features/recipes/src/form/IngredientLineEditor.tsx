@@ -98,12 +98,9 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                     )}
                 </div>
             </div>
-            <div className="flex w-28 flex-col gap-1">
-                {/* The combobox is named by its own label; this is the same word, drawn (2.5.3). */}
-                <span aria-hidden="true" className="text-label text-ink-muted">
-                    {m.rowUnitLabel}
-                </span>
+            <div className="w-32">
                 <Combobox
+                    id={view.ids.unit}
                     label={m.rowUnitLabel}
                     listLabel={m.rowUnitListLabel}
                     value={view.unit}

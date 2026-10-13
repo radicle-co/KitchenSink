@@ -376,6 +376,69 @@ describe('useDeleteRecipe', () => {
     });
 });
 
+describe('useDeleteRecipe — A-022: deleting a copy forgets that it was saved', () => {
+    /** The source recipe each remaining saved-copy record was made from. */
+    const savedSources = (queryClient: ReturnType<typeof renderMutation>['queryClient']): unknown[] =>
+        queryClient
+            .getMutationCache()
+            .findAll({ mutationKey: SAVE_COPY_MUTATION_KEY })
+            .map((mutation) => mutation.state.variables);
+
+    it('removes the saved-copy record of the copy it deleted, and only that one', async () => {
+        const { result, client, queryClient } = renderMutation(() => ({
+            clone: useCloneRecipe(),
+            remove: useDeleteRecipe(),
+        }));
+        vi.spyOn(client, 'cloneRecipe')
+            .mockResolvedValueOnce(makeRecipeDetail({ id: 'copy_of_a' }))
+            .mockResolvedValueOnce(makeRecipeDetail({ id: 'copy_of_b' }));
+        vi.spyOn(client, 'deleteRecipe').mockResolvedValue(undefined);
+
+        act(() => result.current.clone.mutate('rec_a'));
+        await waitFor(() => expect(result.current.clone.isSuccess).toBe(true));
+        act(() => result.current.clone.mutate('rec_b'));
+        await waitFor(() => expect(savedSources(queryClient)).toHaveLength(2));
+        await waitFor(() => expect(result.current.clone.isSuccess).toBe(true));
+
+        act(() => result.current.remove.mutate('copy_of_a'));
+        await waitFor(() => expect(result.current.remove.isSuccess).toBe(true));
+
+        expect(savedSources(queryClient)).toEqual(['rec_b']);
+    });
+
+    it('keeps the record when the delete fails, because the copy still exists', async () => {
+        const { result, client, queryClient } = renderMutation(() => ({
+            clone: useCloneRecipe(),
+            remove: useDeleteRecipe(),
+        }));
+        vi.spyOn(client, 'cloneRecipe').mockResolvedValue(makeRecipeDetail({ id: 'copy_of_a' }));
+        vi.spyOn(client, 'deleteRecipe').mockRejectedValue(new ForbiddenError('Not the owner', 'NOT_OWNER'));
+
+        act(() => result.current.clone.mutate('rec_a'));
+        await waitFor(() => expect(result.current.clone.isSuccess).toBe(true));
+        act(() => result.current.remove.mutate('copy_of_a'));
+        await waitFor(() => expect(result.current.remove.isError).toBe(true));
+
+        expect(savedSources(queryClient)).toEqual(['rec_a']);
+    });
+
+    it('leaves the records alone when the deleted recipe was never a saved copy', async () => {
+        const { result, client, queryClient } = renderMutation(() => ({
+            clone: useCloneRecipe(),
+            remove: useDeleteRecipe(),
+        }));
+        vi.spyOn(client, 'cloneRecipe').mockResolvedValue(makeRecipeDetail({ id: 'copy_of_a' }));
+        vi.spyOn(client, 'deleteRecipe').mockResolvedValue(undefined);
+
+        act(() => result.current.clone.mutate('rec_a'));
+        await waitFor(() => expect(result.current.clone.isSuccess).toBe(true));
+        act(() => result.current.remove.mutate('my_own_recipe'));
+        await waitFor(() => expect(result.current.remove.isSuccess).toBe(true));
+
+        expect(savedSources(queryClient)).toEqual(['rec_a']);
+    });
+});
+
 describe('useCloneRecipe', () => {
     it('keys the mutation under SAVE_COPY_MUTATION_KEY and keeps it for the session, so a card can show "Saved a copy"', async () => {
         // A card derives its filled state from `useMutationState` over this key. With the default five-minute

@@ -223,6 +223,17 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
         expect(screen.getByLabelText(editor.ingredients.addLabel)).toBeTruthy();
     });
 
+    // A-007 / E13 (build spec §7.4): the name and the amount-first hint are DRAWN, and pressing the label focuses the field.
+    it('EMPTY: draws the add field’s label and its hint, and the label focuses the field', () => {
+        renderLeaf({ values: valuesWith([]) });
+
+        expect(screen.getByText(editor.ingredients.addHint)).toBeTruthy();
+
+        fireEvent.click(screen.getByText(editor.ingredients.addLabel));
+
+        expect(document.activeElement).toBe(screen.getByLabelText(editor.ingredients.addLabel));
+    });
+
     it('POPULATED: one list, unnamed (the section says "Ingredients", N1), one item per line, read amount first', () => {
         renderLeaf({
             values: valuesWith(
@@ -774,6 +785,41 @@ describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", 
 
         expect(screen.getByText(en.rowStateWaitingForConnection)).toBeTruthy();
         expect(screen.queryByText(en.rowStateReading)).toBeNull();
+    });
+
+    // P4 (build spec §7.5.4): beside the add field from a 600 content width, under it below that (§7.12).
+    describe('P4 — where Paste a list sits in the empty section', () => {
+        const pasteButton = (): HTMLElement => screen.getByRole('button', { name: editor.ingredients.pasteList });
+        const addField = (): HTMLElement => screen.getByLabelText(editor.ingredients.addLabel);
+        /** The row the input sits in: the input's box's parent. */
+        const fieldRow = (): HTMLElement | null => addField().parentElement?.parentElement ?? null;
+        const paste = { ...PASTE, reading: [], onOpen: vi.fn() };
+
+        it('comes AFTER the add field in reading order, at every width', () => {
+            for (const container of ['narrow', 'regular'] as const) {
+                layout.container = container;
+                const { unmount } = render(leafElement({ values: valuesWith([]), paste }));
+
+                expect(
+                    addField().compareDocumentPosition(pasteButton()) & Node.DOCUMENT_POSITION_FOLLOWING,
+                ).toBeTruthy();
+                unmount();
+            }
+        });
+
+        it('from 600 sits in the add field’s own row, beside the input', () => {
+            layout.container = 'regular';
+            render(leafElement({ values: valuesWith([]), paste }));
+
+            expect(fieldRow()?.contains(pasteButton())).toBe(true);
+        });
+
+        it('below 600 sits under the field, so the field keeps its width', () => {
+            layout.container = 'narrow';
+            render(leafElement({ values: valuesWith([]), paste }));
+
+            expect(fieldRow()?.contains(pasteButton())).toBe(false);
+        });
     });
 
     it('the empty section offers Paste a list; a section with lines does not', () => {

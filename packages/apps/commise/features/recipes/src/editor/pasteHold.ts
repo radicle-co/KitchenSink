@@ -15,22 +15,52 @@
 export interface PasteHold {
     /** Whether a paste is being sent or its lines are still joining. Read when a checkpoint runs. */
     readonly get: () => boolean;
-    /** The paste says whether it is joining, where its own state changes. */
+    /**
+     * The paste says whether it is joining, where its own state changes. Letting go of a hold that was taken tells the
+     * listeners (A-021).
+     */
     readonly set: (pending: boolean) => void;
+    /** The paste went away: the hold is cleared without telling anyone, for there is nobody left to checkpoint for. */
+    readonly discard: () => void;
+    /**
+     * Hear the hold being let go of, so the editor can run the checkpoint the hold deferred: a paste whose lines join as
+     * no rows leaves the draft unchanged, and nothing else would re-arm it.
+     *
+     * @returns The unsubscribe.
+     */
+    readonly onReleased: (listener: () => void) => () => void;
 }
 
 /**
  * A paste hold, not holding.
  *
- * @returns The hold. @sideEffect Its `set` changes what every later `get` answers.
+ * @returns The hold. @sideEffect Its `set` changes what every later `get` answers, and may call a listener.
  */
 export function createPasteHold(): PasteHold {
     let pending = false;
+    const listeners = new Set<() => void>();
 
     return {
         get: () => pending,
         set: (next) => {
+            const released = pending && !next;
             pending = next;
+
+            if (released) {
+                for (const listener of [...listeners]) {
+                    listener();
+                }
+            }
+        },
+        discard: () => {
+            pending = false;
+        },
+        onReleased: (listener) => {
+            listeners.add(listener);
+
+            return () => {
+                listeners.delete(listener);
+            };
         },
     };
 }

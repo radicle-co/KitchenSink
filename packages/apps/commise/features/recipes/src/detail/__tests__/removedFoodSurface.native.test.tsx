@@ -91,7 +91,7 @@ describe('RecipeDetailView (native) — one ingredient whose food was withdrawn'
         // heading, which is what puts it in front of a reader working down the list.
         render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={oneRemoved()} />);
 
-        const heading = screen.getByText(en.ingredientsHeading);
+        const heading = screen.getByRole('heading', { name: en.ingredientsHeading });
         const note = screen.getByRole('note');
 
         expect(heading.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -27,17 +27,13 @@ import { useState, type FC, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
+import { sentenceCase } from '../format/sentenceCase.js';
 import { recipeMessages } from '../messages.js';
 import { recipeNutritionMessages } from '../nutrition/messages.js';
 import { type DetailsTextMessages, caloriesLabel, dialogViewOf, variantOptionName } from './detailsText.js';
 import type { VariantRow } from './groupVariants.js';
 import type { VariantDetailsDialogProps } from './props.js';
 import { VariantOption } from './VariantOption.native.js';
-
-/** A text with its first letter in upper case, as the web leaf's `first-letter:uppercase` draws it. Pure. */
-function capitalised(text: string, locale: string): string {
-    return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
-}
 
 export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, foodName, details, onDismissed }) => {
     const locale = useLocale();
@@ -210,7 +206,7 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                                         index === 0 && state.plan.headless.length === 0 ? styles.firstHeader : null,
                                     ]}
                                 >
-                                    {capitalised(group.key, locale)}
+                                    {sentenceCase(group.key, locale)}
                                 </Text>
                                 {group.rows.map(optionFor)}
                             </View>
@@ -236,7 +232,7 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
             footer={footer}
         >
             <View style={styles.head}>
-                <Text style={[styles.foodName, ink]}>{capitalised(foodName, locale)}</Text>
+                <Text style={[styles.foodName, ink]}>{sentenceCase(foodName, locale)}</Text>
                 <View style={styles.introRow}>
                     <Text style={[styles.intro, muted]}>{copy.intro}</Text>
                     {state.name === 'combined' && <Text style={[styles.caption, muted]}>{copy.caloriesBasis}</Text>}

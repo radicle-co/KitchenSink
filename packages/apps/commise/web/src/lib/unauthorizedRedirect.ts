@@ -159,7 +159,8 @@ export function resetUnauthorizedRecovery(): void {
 }
 
 /**
- * The sign-in URL to bounce to, carrying the originating path so a future return-to feature has it. Pure.
+ * The sign-in URL to bounce to, carrying the originating path so the sign-in page can send the visitor back to it
+ * (`safeReturnPath`, `lib/signInReturn`, which also strips the basePath this path carries). Pure.
  *
  * `/sign-in` is deliberately locale-LESS: `middleware.ts` locale-negotiates it (preserving the query) to
  * `/{locale}/sign-in`, so this helper never has to know the viewer's locale. `withBasePath` is a no-op in

@@ -116,4 +116,25 @@ describe('CollectionListFrame (web) — the segments', () => {
 
         expect(onSelect).toHaveBeenCalledWith('mine');
     });
+
+    it('lets the segments fill a narrow container and take their content’s width from 600 (W-25)', () => {
+        render(
+            <CollectionListFrame
+                onCreate={noop}
+                headingFocusSignal={0}
+                segments={{
+                    current: 'collections',
+                    href: { mine: '/en/recipes', collections: '/en/collections' },
+                    onSelect: noop,
+                }}
+            >
+                <p>boundary content</p>
+            </CollectionListFrame>,
+        );
+        const track = screen.getByRole('link', { name: 'Collections' }).parentElement as HTMLElement;
+
+        expect(track.className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(['w-full', '@regular/main:inline-flex', '@regular/main:w-auto']),
+        );
+    });
 });

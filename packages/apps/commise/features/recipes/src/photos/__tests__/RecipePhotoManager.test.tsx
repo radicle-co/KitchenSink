@@ -42,9 +42,68 @@ describe('RecipePhotoManager (web) — chrome + empty', () => {
         expect(screen.getByRole('heading', { name: 'Photos' })).toBeTruthy();
     });
 
-    it('shows the empty message when there are no photos', () => {
+    /**
+     * A-010 (buildSpec §7.7): the section name is an H3 in the `label` role, muted — the same group heading the
+     * Details section draws — not a display-face heading of its own. The old test pinned no style at all.
+     */
+    it('draws the heading as an H3 in the label role, muted (not the display face)', () => {
+        renderManager();
+
+        const heading = screen.getByRole('heading', { name: 'Photos', level: 3 });
+        expect(heading.className).toContain('text-label');
+        expect(heading.className).toContain('text-ink-muted');
+        expect(heading.className).not.toContain('font-display');
+        expect(heading.className).not.toContain('text-heading');
+    });
+});
+
+/**
+ * A-010 (buildSpec §7.7): with no photo the section previews the recipe's own cover and says what happens, in place of
+ * the old bare "No photos yet." — which told the cook nothing about what the recipe looks like without one.
+ * Replaces the old 'shows the empty message' case.
+ */
+describe('RecipePhotoManager (web) — empty state (A-010)', () => {
+    const coverPreview = { recipeId: 'rec_1', title: 'Lemon tart' } as const;
+
+    it('says the cover is used instead and that a photo can be added any time', () => {
+        renderManager({ photos: [], coverPreview });
+
+        expect(screen.getByText('No photo? This cover is used instead. Add one any time.')).toBeTruthy();
+        expect(screen.queryByText('No photos yet.')).toBeNull();
+    });
+
+    it('previews the recipe’s own cover — its monogram, tinted by its id', () => {
+        const { container } = render(
+            <RecipePhotoManager
+                photos={[]}
+                onRemovePhoto={noop}
+                coverPreview={{ recipeId: 'rec_1', title: 'Lemon tart' }}
+            />,
+        );
+
+        expect(screen.getByText('L')).toBeTruthy();
+        expect(container.querySelector('[class*="bg-cover-"]')).not.toBeNull();
+    });
+
+    it('shows the copy alone when no preview is supplied', () => {
         renderManager({ photos: [] });
-        expect(screen.getByText('No photos yet.')).toBeTruthy();
+
+        expect(screen.getByText('No photo? This cover is used instead. Add one any time.')).toBeTruthy();
+        expect(document.querySelector('[class*="bg-cover-"]')).toBeNull();
+    });
+
+    it('shows no empty state once there is a photo', () => {
+        renderManager({ photos: threePhotos, coverPreview });
+
+        expect(screen.queryByText('No photo? This cover is used instead. Add one any time.')).toBeNull();
+        expect(screen.queryByText('L')).toBeNull();
+    });
+
+    it('shows no empty state while a pick is waiting in the queue — that cell is the photo', () => {
+        renderManager({ photos: [], coverPreview, queueItems: [makeQueueItem({ fileId: 1, status: 'queued' })] });
+
+        expect(screen.queryByText('No photo? This cover is used instead. Add one any time.')).toBeNull();
+        expect(screen.queryByText('L')).toBeNull();
     });
 });
 
@@ -58,14 +117,23 @@ describe('RecipePhotoManager (web) — populated', () => {
         expect(screen.getByRole('button', { name: 'Remove photo 3' })).toBeTruthy();
     });
 
-    it('lays the photo grid out two-up at base and three-up from sm (U5 — 360px fit)', () => {
+    /**
+     * buildSpec §7.7 rules 3 columns, 4 from 600 — and from 600 of the CONTAINER, not the viewport, because the editor
+     * sits beside a rail from 840 px so the viewport says nothing about the width the grid has. jsdom evaluates no
+     * container query, so this pins the classes; `recipePhotos.spec.ts` measures the real columns.
+     *
+     * ⚠️ DEPARTURE FROM §7.7, recorded: below 480 px of container the web grid stays two-up. §7.7's per-tile ⋯ menu is
+     * what lets a 3-up tile at 320 hold one control; until it replaces the inline Cover, Remove and Replace controls, a
+     * tile under about 130 px cannot hold the Cover badge and the Remove pill without them overlapping.
+     */
+    it('lays the photo grid out two-up, three-up from 480 px and four-up from 600 px of its own container', () => {
         renderManager({ photos: threePhotos });
 
-        // Three 1/3-width cells are too narrow to tap at 360px, so the grid is two-up at base and restores the
-        // original three-up at `sm:` — tablet/desktop unchanged.
         const list = screen.getByRole('list');
-        expect(list.className).toContain('grid-cols-2');
-        expect(list.className).toContain('sm:grid-cols-3');
+        expect(list.className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(['grid-cols-2', '@min-[480px]:grid-cols-3', '@min-[600px]:grid-cols-4']),
+        );
+        expect(list.parentElement?.className).toContain('@container');
     });
 
     it('renders confirmed-photo images lazy-loaded with an explicit dimension ratio (B7)', () => {
@@ -181,6 +249,9 @@ describe('RecipePhotoManager (web) — per-photo cover selection (U6)', () => {
         // The badge lives inside the first photo's list item — not the second or third.
         const firstItem = within(screen.getByRole('list')).getAllByRole('listitem')[0];
         expect(within(firstItem!).getByText('Cover')).toBeTruthy();
+        const items = within(screen.getByRole('list')).getAllByRole('listitem');
+        expect(within(items[1]!).queryByText('Cover')).toBeNull();
+        expect(within(items[2]!).queryByText('Cover')).toBeNull();
     });
 
     it('renders one radio-semantic "Set as cover" control per photo, indexed, with only the first checked', () => {
@@ -242,10 +313,13 @@ describe('RecipePhotoManager (web) — per-photo replace (U6)', () => {
 });
 
 describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
-    it('renders the confirmed photos in a fixed 3-column grid', () => {
-        renderManager({ photos: threePhotos });
+    it('renders the queue cells in the same grid as the confirmed photos', () => {
+        renderManager({
+            photos: threePhotos,
+            queueItems: [makeQueueItem({ fileId: 1, status: 'queued' })],
+        });
 
-        expect(screen.getByRole('list').className).toContain('grid-cols-3');
+        expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(4);
     });
 
     it('renders a queue-preview image lazy-loaded (B7)', () => {
@@ -344,6 +418,36 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         // Generic badge names WHICH photo failed (via its Retry/Remove labels); this text names WHY.
         expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
         expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
+    });
+
+    /**
+     * E6 (A-010): the message used to be drawn ON the preview image, so its contrast depended on the photo. It sits
+     * below the tile now, on the page background, in `dangerText`. The frame (the box holding the image, the status
+     * badge and the buttons) must not contain it, and it must not be absolutely placed back over the image.
+     */
+    it('draws a failed item’s message BELOW the tile, not over the image (E6)', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'burnt.png',
+                    status: 'failed',
+                    previewUri: 'blob:burnt.png',
+                    errorMessage: 'That photo is larger than 5 MB.',
+                }),
+            ],
+        });
+
+        const image = screen.getByRole('img', { name: 'Photo burnt.png' });
+        const frame = image.parentElement as HTMLElement;
+        const message = screen.getByText('That photo is larger than 5 MB.');
+
+        expect(frame.contains(message)).toBe(false);
+        expect(within(screen.getByRole('listitem')).getByText('That photo is larger than 5 MB.')).toBe(message);
+        expect(message.className).not.toContain('absolute');
+        expect(message.className).toContain('text-danger-text');
+        // The frame keeps the Retry/Remove controls and the status badge; only the prose left it.
+        expect(within(frame).getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
     });
 
     it('renders no error line for a failed item with no errorMessage', () => {

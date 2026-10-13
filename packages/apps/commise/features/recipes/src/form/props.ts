@@ -10,6 +10,7 @@
 import {
     classifyUnit,
     CUISINES,
+    isSizeWord,
     RECIPE_MEAL_TYPES,
     RecipeDifficulty,
     UNIT_VOCABULARY,
@@ -532,33 +533,20 @@ export const statedChoice = <T extends string>(
     value: string | null,
 ): T | undefined => options.find((option) => option.value === value)?.value;
 
-/** One selectable cuisine choice in the dropdown/picker. `''` is the explicit "no cuisine stated" choice. */
-export interface CuisineOption {
-    /** The wire value this option sets (`''` clears the field). */
-    readonly value: string;
-    /** The visible/accessible label for this option. */
-    readonly label: string;
-}
-
 /**
- * The ordered cuisine dropdown/picker options (w3/e5): an explicit "no cuisine" clear option, THEN — only
- * when `currentCuisine` is a non-blank value not already in the curated {@link CUISINES} list — that exact
- * custom value (so an existing recipe's non-curated cuisine stays selected/visible instead of silently
- * disappearing), THEN the curated list itself. Shared by both platform leaves so the option set, order, and
- * custom-value handling cannot drift between web's `<select>` and native's picker. Pure.
+ * The cuisines the Cuisine field suggests for what the cook has typed: the curated {@link CUISINES} whose name contains
+ * the text, in the curated order, without regard to case; the whole list for an empty field. The wire type is a free
+ * string and `CUISINES` only a display list, so a cuisine not in it is not an error and is never suggested away: the
+ * field holds exactly what the cook typed or picked. Shared by both platform leaves, so the list and its narrowing
+ * cannot drift between them. Pure.
  *
- * @param currentCuisine - The form's current `cuisine` value (may be blank, curated, or custom).
- * @param messages - The resolved form messages for the active locale.
- * @returns The picker options in display order.
+ * @param typed - The field's text.
+ * @returns The suggestions, in display order.
  */
-export const cuisineOptions = (currentCuisine: string, messages: RecipeFormMessages): CuisineOption[] => {
-    const isCustom = currentCuisine !== '' && !(CUISINES as readonly string[]).includes(currentCuisine);
+export const cuisineSuggestions = (typed: string): readonly string[] => {
+    const needle = typed.trim().toLowerCase();
 
-    return [
-        { value: '', label: messages.cuisineUnsetOption },
-        ...(isCustom ? [{ value: currentCuisine, label: currentCuisine }] : []),
-        ...CUISINES.map((cuisine) => ({ value: cuisine, label: cuisine })),
-    ];
+    return needle === '' ? CUISINES : CUISINES.filter((cuisine) => cuisine.toLowerCase().includes(needle));
 };
 
 /**
@@ -659,12 +647,16 @@ export const removeChipAt = (list: readonly string[], index: number): string[] =
  * @param messages - The localized form copy.
  * @param unit - The unit as the cook wrote it; an absent or empty unit is a UNITLESS line, not an
  *   unrecognised one, and carries no note.
- * @returns The note, or `undefined` when the unit is canonical or absent.
+ * @returns The note, or `undefined` when the unit is canonical, a size word, or absent.
  */
 export const unitClassNote = (messages: RecipeFormMessages, unit?: string): string | undefined => {
     const written = unit?.trim() ?? '';
 
-    if (written === '') {
+    // ⛔ A size word (`large`, `small`, `medium`) is a measure the cook may state: the owner ruled "1 large" a fine
+    // measure, and the add field's reader (`leadingMeasure.ts`) reads the same word as a unit, so two authorities must
+    // not disagree. The check is HERE and not in `classifyUnit`, which feeds gram conversion and must keep answering
+    // `unknown` for a word that has no weight.
+    if (written === '' || isSizeWord(written)) {
         return undefined;
     }
 

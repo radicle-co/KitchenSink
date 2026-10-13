@@ -9,50 +9,37 @@
  * - `fab` (the default): the design system's floating `CreateFab`, with its rules (it shrinks on scroll, hides with the
  *   keyboard and in first run, and is gone from 840 px);
  * - `sidebar`: the expanded web sidebar's full-width primary "New recipe" (§3.2);
- * - `rail`: the collapsed sidebar's 56 px round icon button, named by its label, with a tooltip on hover and on focus
- *   that stays while hovered and that Escape dismisses (SC 1.4.13). The tooltip is for sight only; the name carries it.
+ * - `rail`: the collapsed sidebar's 56 px round icon button, named by its label, with the design system's `Tooltip` on
+ *   hover and on focus that stays while hovered and that Escape dismisses (SC 1.4.13). The tooltip is for sight only; the
+ *   name carries it.
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { CreateFab } from '@commise/ui/create-fab';
 import { Icon } from '@commise/ui/icon';
-import { useState, type FC } from 'react';
+import { Tooltip } from '@commise/ui/tooltip';
+import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
 import type { RecipeCreateButtonProps } from './createButtonProps.js';
 
-/** The collapsed rail's form. */
-const RailButton: FC<{ readonly label: string; readonly onPress: () => void }> = ({ label, onPress }) => {
-    const [tipDismissed, setTipDismissed] = useState(false);
-
-    return (
-        <span className="group relative inline-flex" onMouseLeave={() => setTipDismissed(false)}>
-            <button
-                type="button"
-                aria-label={label}
-                onClick={onPress}
-                onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
-                        setTipDismissed(true);
-                    }
-                }}
-                onBlur={() => setTipDismissed(false)}
-                className="inline-flex size-14 items-center justify-center rounded-full bg-action text-on-action transition-colors hover:bg-action-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2"
-            >
-                <Icon name="plus" size={24} />
-            </button>
-            <span
-                aria-hidden="true"
-                data-dismissed={tipDismissed ? 'true' : 'false'}
-                className={`pointer-events-auto absolute start-full top-1/2 z-50 ms-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-inverse px-2 py-1 text-caption text-inverse-ink ${
-                    tipDismissed ? '' : 'group-hover:block group-has-[:focus-visible]:block'
-                }`}
-            >
-                {label}
-            </span>
-        </span>
-    );
-};
+/**
+ * The collapsed rail's form. The tooltip is the design system's, in a portal: the rail clips anything past its edge, and
+ * the in-flow tip this replaced was a 4 px sliver on hover and invisible on focus (W-02). Its hover, focus-visible,
+ * Escape and hoverable rules (SC 1.4.13) are the primitive's.
+ */
+const RailButton: FC<{ readonly label: string; readonly onPress: () => void }> = ({ label, onPress }) => (
+    <Tooltip label={label} side="end">
+        <button
+            type="button"
+            aria-label={label}
+            onClick={onPress}
+            className="inline-flex size-14 items-center justify-center rounded-full bg-action text-on-action transition-colors hover:bg-action-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2"
+        >
+            <Icon name="plus" size={24} />
+        </button>
+    </Tooltip>
+);
 
 /** "New recipe": one tap opens the editor. */
 export const RecipeCreateButton: FC<RecipeCreateButtonProps> = ({ onCreateRecipe, appearance = 'fab', firstRun }) => {

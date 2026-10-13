@@ -11,7 +11,7 @@
  * @pattern Composite — the title, meta, description and actions of one collection
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { ActionMenu } from '@commise/ui/action-menu';
+import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
@@ -70,22 +70,31 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
             {detail.addRecipeCta}
         </Button>
     );
+    const pullItem: ActionMenuItem = {
+        id: 'pull',
+        label: copy.pullUpdates,
+        icon: 'refreshCw',
+        onSelect: onPullUpdates,
+    };
+    const items: readonly ActionMenuItem[] = [
+        { id: 'rename', label: copy.rename, icon: 'pencilLine', onSelect: onRename },
+        {
+            id: 'visibility',
+            label: isPublic ? copy.makePrivate : copy.makePublic,
+            // The glyph names the visibility the item MOVES TO, as the meta line's names the one it has.
+            icon: isPublic ? 'lock' : 'globe',
+            onSelect: onToggleVisibility,
+        },
+        { id: 'saveCopy', label: copy.saveCopy, icon: 'copyPlus', onSelect: onSaveCopy },
+        ...(isCopy ? [pullItem] : []),
+    ];
     const menu = (
         <ActionMenu
             triggerLabel={fillTemplate(copy.moreActions, { name })}
             title={name}
             closeLabel={copy.close}
-            items={[
-                { id: 'rename', label: copy.rename, onSelect: onRename },
-                {
-                    id: 'visibility',
-                    label: isPublic ? copy.makePrivate : copy.makePublic,
-                    onSelect: onToggleVisibility,
-                },
-                { id: 'saveCopy', label: copy.saveCopy, onSelect: onSaveCopy },
-                ...(isCopy ? [{ id: 'pull', label: copy.pullUpdates, onSelect: onPullUpdates }] : []),
-            ]}
-            destructiveItem={{ id: 'delete', label: copy.delete, onSelect: onDelete }}
+            items={items}
+            destructiveItem={{ id: 'delete', label: copy.delete, icon: 'trash', onSelect: onDelete }}
         />
     );
 

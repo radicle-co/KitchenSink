@@ -16,6 +16,7 @@
 import { NAV_ITEM_GLYPH, initialsFor, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
 import { AvatarDisc } from '@commise/ui/avatar';
 import { Icon } from '@commise/ui/icon';
+import { Tooltip } from '@commise/ui/tooltip';
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { JSX, ReactNode } from 'react';
@@ -44,6 +45,32 @@ export interface HomeSidebarProps {
 /** A 44 px row's shape, shared by the destinations and the profile row. */
 const ROW_CLASS =
     'flex min-h-11 items-center gap-3 rounded-md px-3 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
+
+/**
+ * A collapsed row's visual label. The rail is 80 px and clips anything past its edge, so the label is the design
+ * system's portalled `Tooltip` (W-02). Expanded, the row draws its own words and there is nothing to add. The row keeps
+ * its accessible name either way; the tip is for sight only.
+ *
+ * @param props - Whether the rail is collapsed, the words, and the row.
+ * @returns The row, wrapped for collapsed.
+ */
+function RailTip({
+    collapsed,
+    label,
+    children,
+}: {
+    readonly collapsed: boolean;
+    readonly label: string;
+    readonly children: ReactNode;
+}): JSX.Element {
+    return collapsed ? (
+        <Tooltip label={label} side="end" fill>
+            {children}
+        </Tooltip>
+    ) : (
+        <>{children}</>
+    );
+}
 
 /**
  * The web sidebar.
@@ -92,55 +119,63 @@ export function HomeSidebar({
                     }
 
                     return (
-                        <Link
-                            key={item.id}
-                            href={href}
-                            aria-label={collapsed ? label : undefined}
-                            aria-current={active ? 'page' : undefined}
-                            className={`${ROW_CLASS} relative ${collapsed ? 'justify-center' : ''} ${
-                                active
-                                    ? 'bg-action/10 font-semibold text-ink'
-                                    : 'text-ink-muted hover:bg-ink/6 hover:text-ink'
-                            }`}
-                        >
-                            <span
-                                aria-hidden="true"
-                                className={`absolute inset-y-2 start-0 w-[3px] rounded-e-full ${active ? 'bg-here-bar' : ''}`}
-                            />
-                            <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
-                            {collapsed ? null : <span>{label}</span>}
-                        </Link>
+                        <RailTip key={item.id} collapsed={collapsed} label={label}>
+                            <Link
+                                href={href}
+                                aria-label={collapsed ? label : undefined}
+                                aria-current={active ? 'page' : undefined}
+                                className={`${ROW_CLASS} relative ${collapsed ? 'justify-center' : ''} ${
+                                    active
+                                        ? 'bg-action/10 font-semibold text-ink'
+                                        : 'text-ink-muted hover:bg-ink/6 hover:text-ink'
+                                }`}
+                            >
+                                <span
+                                    aria-hidden="true"
+                                    className={`absolute inset-y-2 start-0 w-[3px] rounded-e-full ${active ? 'bg-here-bar' : ''}`}
+                                />
+                                <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
+                                {collapsed ? null : <span>{label}</span>}
+                            </Link>
+                        </RailTip>
                     );
                 })}
             </nav>
 
             <div className="mx-3 my-3 border-t border-line-divider" />
 
-            <Link
-                href={`/${locale}/profile` as Route}
-                aria-label={profileLabel}
-                className={`${ROW_CLASS} mx-3 text-ink hover:bg-ink/6 ${collapsed ? 'justify-center' : ''}`}
-            >
-                <AvatarDisc status={profile.status} initials={initialsFor(profile.name)} />
-                {collapsed ? null : (
-                    <span className="min-w-0 truncate">{profile.name ?? chrome.profileButtonNoName}</span>
-                )}
-            </Link>
+            <RailTip collapsed={collapsed} label={profileLabel}>
+                <Link
+                    href={`/${locale}/profile` as Route}
+                    aria-label={profileLabel}
+                    className={`${ROW_CLASS} mx-3 text-ink hover:bg-ink/6 ${collapsed ? 'justify-center' : ''}`}
+                >
+                    <AvatarDisc status={profile.status} initials={initialsFor(profile.name)} />
+                    {collapsed ? null : (
+                        <span className="min-w-0 truncate">{profile.name ?? chrome.profileButtonNoName}</span>
+                    )}
+                </Link>
+            </RailTip>
 
-            <button
-                type="button"
-                onClick={onToggleCollapse}
-                aria-expanded={!collapsed}
-                aria-label={collapsed ? chrome.expandNav : undefined}
-                className={`${ROW_CLASS} mx-3 mb-3 mt-auto text-ink-muted hover:bg-ink/6 hover:text-ink ${
-                    collapsed ? 'justify-center' : ''
-                }`}
-            >
-                <span className={`inline-flex ${collapsed ? 'rotate-180' : ''}`}>
-                    <Icon name="chevronsLeft" size={24} />
-                </span>
-                {collapsed ? null : <span>{chrome.collapseNav}</span>}
-            </button>
+            {/* The foot: `mt-auto` is on a wrapper of its own, because the Tooltip's wrapper would otherwise take the margin. */}
+            <div className="mt-auto">
+                <RailTip collapsed={collapsed} label={chrome.expandNav}>
+                    <button
+                        type="button"
+                        onClick={onToggleCollapse}
+                        aria-expanded={!collapsed}
+                        aria-label={collapsed ? chrome.expandNav : undefined}
+                        className={`${ROW_CLASS} mx-3 mb-3 text-ink-muted hover:bg-ink/6 hover:text-ink ${
+                            collapsed ? 'justify-center' : ''
+                        }`}
+                    >
+                        <span className={`inline-flex ${collapsed ? 'rotate-180' : ''}`}>
+                            <Icon name="chevronsLeft" size={24} />
+                        </span>
+                        {collapsed ? null : <span>{chrome.collapseNav}</span>}
+                    </button>
+                </RailTip>
+            </div>
         </div>
     );
 }

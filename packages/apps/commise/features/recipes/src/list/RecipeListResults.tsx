@@ -100,6 +100,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
     searchValue,
     onClearSearch,
     onClearFilters,
+    clearCount,
     onSelectRecipe,
     hrefOf,
     variant,
@@ -135,6 +136,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
                             batch, so the figures cost one request and land together. */}
                         <RecipeCard
                             variant={variant}
+                            headingLevel={2}
                             recipe={recipe}
                             onSelect={onSelectRecipe}
                             {...(hrefOf === undefined ? {} : { href: hrefOf(recipe.id) })}
@@ -158,7 +160,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
     return (
         <>
             {facets.facets.length > 0 && (
-                <ChipRow mode="filter" label={list.filtersLabel} overflow={chipOverflow}>
+                <ChipRow key={clearCount} mode="filter" label={list.filtersLabel} overflow={chipOverflow}>
                     <Chip
                         kind="filter"
                         label={list.filterAll}

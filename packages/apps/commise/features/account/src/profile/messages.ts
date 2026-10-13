@@ -37,6 +37,10 @@ export interface ProfileMessages {
     readonly namePrompt: string;
     /** The hint under the display-name field: where the name shows. */
     readonly nameHint: string;
+    /** The counter under the field near its limit; `{count}` and `{max}` are filled in ("85/100"). */
+    readonly nameCounter: string;
+    /** Said once, politely, when the cook has typed the longest name the field takes. */
+    readonly nameLimitReached: string;
     /** The sheet's primary action. */
     readonly save: string;
     /** The primary action while the save is in flight. */
@@ -82,6 +86,8 @@ export const profileMessages: LocalizedMessages<ProfileMessages> = {
         email: 'Email',
         namePrompt: 'What should we call you?',
         nameHint: 'Shown on recipes you publish.',
+        nameCounter: '{count}/{max}',
+        nameLimitReached: 'That is the longest name we can take.',
         save: 'Save',
         saving: 'Saving…',
         saved: 'Saved.',

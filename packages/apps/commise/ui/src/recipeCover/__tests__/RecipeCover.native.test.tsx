@@ -84,6 +84,17 @@ describe('RecipeCover (native) — a monogram', () => {
         expect(screen.getByText('French')).toBeTruthy();
     });
 
+    it('shows no overline when told the cover carries a chip over it, however tall (W-08)', () => {
+        const { container } = render(
+            <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" overline={false} />,
+        );
+
+        layOut(container.firstElementChild as Element, 360, 270);
+
+        expect(screen.queryByText('French')).toBeNull();
+        expect(screen.getByText('L')).toBeTruthy();
+    });
+
     it('shows no overline without a cuisine, however tall', () => {
         const { container } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="band" />);
 

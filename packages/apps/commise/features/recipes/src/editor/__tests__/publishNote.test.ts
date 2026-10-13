@@ -11,7 +11,7 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { makeFilledRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../../form/values.js';
 import { editorMessages } from '../messages.js';
-import { publishNoteOf } from '../publishNote.js';
+import { publishNoteOf, readyLineOf } from '../publishNote.js';
 
 const m = editorMessages.en;
 const RESOLVED = {
@@ -74,5 +74,56 @@ describe('publishNoteOf', () => {
         const values = makeFilledRecipeFormValues({ ingredients: withLineKeys([unmatched('2')]) });
 
         expect(note(values, { published: true })).toBeUndefined();
+    });
+});
+
+/**
+ * A-010b (build spec §7.7 item 3): the Ready line is ALWAYS in Photos & publish — "Ready to publish." or "Fix {n}
+ * things to publish." — and the second is a link to the first section that needs it. The note above stays the quiet
+ * sentence about unmatched lines; this is the line that answers "can I publish?" for every draft.
+ */
+describe('readyLineOf', () => {
+    const line = (values: RecipeFormValues, over: { pending?: string; published?: boolean } = {}) =>
+        readyLineOf({ values, pendingEntryText: over.pending ?? '', published: over.published ?? false }, m, 'en');
+
+    it('says "Ready to publish." for a recipe Publish would accept', () => {
+        expect(line(makeFilledRecipeFormValues({ ingredients: withLineKeys([RESOLVED]) }))).toEqual({
+            kind: 'ready',
+            text: 'Ready to publish.',
+        });
+    });
+
+    it('is still ready while some lines have no match: Publish stays enabled (D20)', () => {
+        const values = makeFilledRecipeFormValues({ ingredients: withLineKeys([RESOLVED, unmatched('2')]) });
+
+        expect(line(values)?.kind).toBe('ready');
+    });
+
+    it('says how many things to fix, and names the first section that needs it', () => {
+        const values = makeFilledRecipeFormValues({ title: '', steps: [], ingredients: withLineKeys([RESOLVED]) });
+
+        expect(line(values)).toEqual({ kind: 'fix', text: 'Fix 2 things to publish', section: 'details' });
+    });
+
+    it('uses the singular for one thing', () => {
+        const values = makeFilledRecipeFormValues({ title: '', ingredients: withLineKeys([RESOLVED]) });
+
+        expect(line(values)).toEqual({ kind: 'fix', text: 'Fix 1 thing to publish', section: 'details' });
+    });
+
+    it('counts text typed in the add field but not added as a thing to fix, in Ingredients', () => {
+        const values = makeFilledRecipeFormValues({ ingredients: withLineKeys([RESOLVED]) });
+
+        expect(line(values, { pending: 'flour' })).toEqual({
+            kind: 'fix',
+            text: 'Fix 1 thing to publish',
+            section: 'ingredients',
+        });
+    });
+
+    it('has no line for a published recipe: its primary is Save changes, and "publish" is not what it does', () => {
+        expect(line(makeFilledRecipeFormValues({ ingredients: withLineKeys([RESOLVED]) }), { published: true })).toBe(
+            undefined,
+        );
     });
 });

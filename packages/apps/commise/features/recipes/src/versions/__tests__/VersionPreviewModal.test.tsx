@@ -216,6 +216,37 @@ describe('VersionPreviewModal (web) — populated version', () => {
     });
 });
 
+// D12: the preview showed the title, the times and the ingredients, and not the steps. A preview that leaves out the
+// method cannot tell a cook whether this is the version they want back.
+describe('VersionPreviewModal (web) — the version’s steps (D12)', () => {
+    const withSteps = makeVersion({
+        snapshot: makeSnapshot({
+            steps: [
+                makeStep({ id: 's2', stepNumber: 2, instruction: 'Drain and toss with the sauce.' }),
+                makeStep({ id: 's1', stepNumber: 1, instruction: 'Boil the pasta.' }),
+            ],
+        }),
+    });
+
+    it('lists the steps under their own heading, in step order, numbered', () => {
+        render(<VersionPreviewModal {...baseProps({ version: withSteps })} />);
+
+        expect(screen.getByText('Steps at v10')).toBeTruthy();
+        const steps = screen.getAllByText(/^(Boil the pasta\.|Drain and toss with the sauce\.)$/u);
+        expect(steps.map((node) => node.textContent)).toEqual(['Boil the pasta.', 'Drain and toss with the sauce.']);
+        expect(screen.getByText('1.')).toBeTruthy();
+        expect(screen.getByText('2.')).toBeTruthy();
+    });
+
+    it('draws no steps heading for a version that had no steps', () => {
+        render(
+            <VersionPreviewModal {...baseProps({ version: makeVersion({ snapshot: makeSnapshot({ steps: [] }) }) })} />,
+        );
+
+        expect(screen.queryByText('Steps at v10')).toBeNull();
+    });
+});
+
 describe('VersionPreviewModal (web) — restoring (W6 Task 5)', () => {
     /**
      * REWRITTEN from native `disabled`: the control the cook just pressed goes busy, and a real browser drops focus

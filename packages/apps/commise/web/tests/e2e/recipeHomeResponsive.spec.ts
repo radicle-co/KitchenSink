@@ -242,10 +242,10 @@ test.describe('recipe/home responsive — 375px phone (U5)', () => {
 
         await expectNoHorizontalOverflow(page);
 
-        // The nav is named "Main" on every rendering (sidebar/tab bar/drawer); `getByRole` excludes hidden
-        // elements from the a11y tree, so at 375px the desktop sidebar (display:none via `lg:flex`/`hidden`)
-        // and the closed drawer drop out and the ONLY visible "Main" nav is the bottom tab bar.
-        const tabBar = page.getByRole('navigation', { name: 'Main' });
+        // The bottom tab bar is the nav named "Tabs" (the sidebar is "Main", W-14); `getByRole` excludes hidden
+        // elements from the a11y tree, so at 375px the desktop sidebar (display:none) drops out and "Tabs" is the
+        // only primary nav present.
+        const tabBar = page.getByRole('navigation', { name: 'Tabs' });
         await expect(tabBar).toBeVisible();
         const box = await tabBar.boundingBox();
         expect(box).not.toBeNull();
@@ -318,8 +318,8 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         await page.goto(route('/'));
         await expect(page.getByRole('region', { name: 'Home' })).toBeVisible();
 
-        // The tab bar is display:none from 840 (excluded from the a11y tree), so the only visible "Main" nav at 1280px
-        // is the sidebar's (slice 3). The nav landmark holds only the three destinations, so it is the RAIL around it
+        // The tab bar ("Tabs") is display:none from 840 (excluded from the a11y tree), so the only visible primary nav at
+        // 1280px is the sidebar's, "Main" (slice 3). The nav landmark holds only the three destinations, so it is the RAIL around it
         // that proves the shape: a tall left column, never a short bottom bar.
         const nav = page.getByRole('navigation', { name: 'Main' });
         await expect(nav).toBeVisible();

@@ -142,6 +142,19 @@ describe('Sheet (native)', () => {
         expect(appliedStyle(title as Element, 'font-size')).toBe('17px');
     });
 
+    // W-23 (bs §5.1 "sheet header truncate:1"): a long title never wraps to a second line. `numberOfLines={1}` is what
+    // react-native-web compiles to a no-wrap, clipped, ellipsised line (and to one native line on a device).
+    it('keeps a long title on one line, ending in an ellipsis', () => {
+        const long = 'Add to Weeknight dinners for the whole family and any guests who drop by';
+
+        renderSheet({ title: long });
+
+        const title = screen.getByRole('heading', { name: long });
+
+        expect(appliedStyle(title, 'white-space')).toBe('nowrap');
+        expect(appliedStyle(title, 'text-overflow')).toBe('ellipsis');
+    });
+
     it('is a modal dialog', () => {
         renderSheet();
 
@@ -403,6 +416,14 @@ describe('Sheet (native)', () => {
             renderSheet({ size: 'content' });
             expect(appliedStyle(dialog(), 'height')).toBeUndefined();
             expect(appliedStyle(dialog(), 'max-height')).toBe('100%');
+        });
+
+        // E24: `page` is a web size (the preview is a page from `sm`). A phone sheet is already as wide as the window
+        // allows, so on native it IS the full-height sheet; accepting the size keeps the two prop types identical.
+        it('takes the available height at size page, as full does', () => {
+            renderSheet({ size: 'page' });
+            expect(appliedStyle(dialog(), 'height')).toBe('100%');
+            expect(appliedStyle(dialog(), 'max-height')).toBeUndefined();
         });
 
         it('does not animate while reduce motion is on or unknown, and slides when it is off', () => {

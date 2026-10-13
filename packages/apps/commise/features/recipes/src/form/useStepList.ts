@@ -8,7 +8,8 @@
  * revealed set is keyed by index and re-keyed in the same handler that moves or removes a step (`./stepIndex.ts`).
  *
  * It also holds where focus goes after a ⋯ Move or Remove (SC 2.4.3): the menu returns focus to the trigger at the
- * position it was opened from, which after a move is another step's, and after removing the last step is gone. A
+ * position it was opened from, which after a move is another step's, and after removing the last step is gone. And
+ * after Add step, where it goes to the new step's field (build spec §7.6), so the cook types straight into it. A
  * request is a LEVEL the control lowers once it has taken focus (`ActionMenu`'s and `Button`'s `focusRequested`).
  *
  * @pattern Headless hook — the commands and the disclosure, with no markup; each leaf renders them its own way
@@ -46,6 +47,8 @@ export interface StepList {
     readonly add: () => void;
     /** A step's ⋯ focus request. */
     readonly actionsFocus: (index: number) => StepFocusRequest;
+    /** A step's instruction field's focus request: raised for the step Add step just appended. */
+    readonly fieldFocus: (index: number) => StepFocusRequest;
     /** Add step's focus request. */
     readonly addFocus: StepFocusRequest;
 }
@@ -98,9 +101,16 @@ export function useStepList({ values, onChange }: Pick<RecipeFormSectionProps, '
             setFocus(focusAfterRemove(index, values.steps.length));
             onChange(applyDraftAction(values, { kind: 'removeAt', field: 'steps', index }));
         },
-        add: () => onChange(applyDraftAction(values, { kind: 'addStep' })),
+        add: () => {
+            setFocus({ kind: 'field', index: values.steps.length });
+            onChange(applyDraftAction(values, { kind: 'addStep' }));
+        },
         actionsFocus: (index) => ({
             requested: focus?.kind === 'actions' && focus.index === index,
+            onHandled: handled,
+        }),
+        fieldFocus: (index) => ({
+            requested: focus?.kind === 'field' && focus.index === index,
             onHandled: handled,
         }),
         addFocus: { requested: focus?.kind === 'add', onHandled: handled },

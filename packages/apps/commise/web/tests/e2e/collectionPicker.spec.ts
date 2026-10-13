@@ -169,6 +169,40 @@ for (const scheme of ['light', 'dark'] as const) {
             await expect(sheet.getByText('No recipes match your search')).toBeVisible();
         });
 
+        // W-23 (`buildSpec.md` §5.1 "sheet header truncate:1"): "Add to {name}" with a 60-character collection name is
+        // ONE line at the narrowest width, ending in an ellipsis; the dialog is still named by the full string.
+        test('keeps the title on one line at 320 for a 60-character collection name', async ({ page }) => {
+            const name = 'Weeknight dinners for the whole family and every guest too!!';
+            expect(name).toHaveLength(60);
+
+            await page.setViewportSize({ width: 320, height: 640 });
+            await signInWithTicket(page);
+            const viewerId = await readViewerAppId(page);
+            await mockRecipeApi(page, {
+                viewerId,
+                recipes: [makeRecipeDetail({ id: RECIPE_IDS.soup, ownerId: viewerId, title: 'Lentil Soup' })],
+                collections: [makeCollection({ id: 'col_long', ownerId: viewerId, name })],
+            });
+
+            await page.goto(route('/collections/col_long'));
+            await page.getByRole('button', { name: 'Add recipes' }).first().click();
+
+            const sheet = page.getByRole('dialog', { name: `Add to ${name}` });
+            await expect(sheet).toBeVisible();
+
+            const title = sheet.getByRole('heading', { name: `Add to ${name}` });
+            const box = await title.boundingBox();
+            const lineHeight = await title.evaluate((element) =>
+                Number.parseFloat(getComputedStyle(element).lineHeight),
+            );
+            expect(box).not.toBeNull();
+            // One line: the box is a single line-height tall (sub-pixel slack), though the text needs more width.
+            expect(box?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(lineHeight + 1);
+            expect(await title.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+            // Close stays on screen beside the clipped title.
+            await expect(sheet.getByRole('button', { name: /^Close/u })).toBeInViewport();
+        });
+
         test('says there are no recipes yet, and keeps Done reachable', async ({ page }) => {
             await signInWithTicket(page);
             const viewerId = await readViewerAppId(page);

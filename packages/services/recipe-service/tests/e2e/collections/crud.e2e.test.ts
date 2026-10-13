@@ -62,7 +62,12 @@ describe('Collections CRUD + membership (integration)', () => {
     beforeAll(() => {
         pool = new pg.Pool({ connectionString: roleDb.appUrl });
         db = createRecipeDrizzle(pool);
-        service = new CollectionsService(new CollectionsDal(db), new AuthorHandlesDal(db), new AnalyticsService(db));
+        service = new CollectionsService(
+            new CollectionsDal(db),
+            new AuthorHandlesDal(db),
+            new AnalyticsService(db),
+            'https://cdn.e2e.test',
+        );
     });
 
     afterAll(async () => {

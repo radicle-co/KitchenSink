@@ -4,7 +4,8 @@
  * suite — down to the callbacks the routes wire, so what is asserted is the NAVIGATION:
  *
  * - three tabs and no "Soon" tab; switching tabs keeps each tab's stack; a second tap on the active tab pops to root;
- * - Profile is pushed onto the CURRENT tab from the avatar;
+ * - Profile is pushed onto the CURRENT tab from the avatar, and Data sources is pushed from Profile (A-026: a page
+ *   with Back to Profile, not a modal over it);
  * - a focused task sits above the tabs, so the tab bar hides by construction;
  * - the rules the deleted hand-made `RecipesScreen` stack carried, each at its new home (a new recipe opens with the
  *   list beneath it; a delete returns to the tab's root), and Paste ingredients opening the editor at Ingredients with
@@ -164,7 +165,16 @@ vi.mock('../../src/screens/CollectionDetailScreen.js', () => ({
 }));
 vi.mock('../../src/screens/RecipeVersionsScreen.js', () => ({ RecipeVersionsScreen: () => stub('Versions', {}) }));
 vi.mock('../../src/screens/profile.js', () => ({
-    ProfileScreen: (props: { onBack: () => void }) => stub('Profile screen', { 'Leave profile': props.onBack }),
+    ProfileScreen: (props: { onBack: () => void; onOpenDataSources: () => void }) =>
+        stub('Profile screen', { 'Leave profile': props.onBack, 'Open data sources': props.onOpenDataSources }),
+}));
+// The page itself has its own suite; here it is the callback the route wires, and the back control's name.
+vi.mock('@commise/features-recipes/data-sources/mobile', () => ({
+    DataSourcesPushedScreen: (props: { back: { label: string; parent: string; onPress: () => void } }) =>
+        stub('Data sources screen', {
+            [props.back.label]: props.back.onPress,
+            [`Parent ${props.back.parent}`]: undefined,
+        }),
 }));
 // Slice 7: one editor screen for create and edit; the stubs keep their old names so the flows below read the same.
 vi.mock('../../src/screens/RecipeEditorScreen.js', () => ({
@@ -172,15 +182,18 @@ vi.mock('../../src/screens/RecipeEditorScreen.js', () => ({
         recipeId?: string;
         section?: string;
         openPaste?: boolean;
-        onFinished: (id: string) => void;
+        onFinished: (id: string, outcome: string) => void;
         onClose: () => void;
     }) =>
         props.recipeId === undefined
             ? stub(props.openPaste === true ? `Create wizard, pasting at ${props.section ?? 'top'}` : 'Create wizard', {
-                  Publish: () => props.onFinished('fresh'),
+                  Publish: () => props.onFinished('fresh', 'firstPublish'),
                   Cancel: props.onClose,
               })
-            : stub(`Edit ${props.recipeId}`, { 'Cancel edit': props.onClose }),
+            : stub(`Edit ${props.recipeId}`, {
+                  'Cancel edit': props.onClose,
+                  'Save changes': () => props.onFinished(props.recipeId ?? '', 'changesSaved'),
+              }),
 }));
 vi.mock('../../src/screens/CollectionFormScreen.js', () => ({
     CollectionFormScreen: () => stub('Collection form', {}),
@@ -312,6 +325,32 @@ describe('Profile, from the avatar', () => {
         expect(showing('Profile screen')).toBe(false);
         expect(showing('Home screen')).toBe(true);
     });
+
+    // A-026: Data sources used to open as a full-screen modal with ×, hiding the tab bar. It is a pushed page now.
+    it('pushes Data sources from Profile as a page with Back to Profile, keeping the tab bar', () => {
+        renderRoot();
+        press('Avatar');
+
+        press('Open data sources');
+
+        expect(showing('Data sources screen')).toBe(true);
+        expect(tabBar()).not.toBeNull();
+        expect(tab('Home').getAttribute('aria-selected')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Back to Profile' })).toBeTruthy();
+    });
+
+    it('pops Data sources back to Profile, and Profile back to where it was opened', () => {
+        renderRoot();
+        press('Avatar');
+        press('Open data sources');
+
+        press('Back to Profile');
+        expect(showing('Data sources screen')).toBe(false);
+        expect(showing('Profile screen')).toBe(true);
+
+        press('Leave profile');
+        expect(showing('Home screen')).toBe(true);
+    });
 });
 
 describe('focused tasks', () => {
@@ -337,6 +376,41 @@ describe('focused tasks', () => {
 
         press('Back');
         expect(showing('My recipes list')).toBe(true);
+    });
+
+    /**
+     * E8 (build spec §7.8): the snackbar host sits above the stack, so a route can say how the editor finished after it
+     * has left, and the message is on screen over the recipe the cook lands on.
+     */
+    it('⛔ says "Recipe published." over the new recipe, once the editor has gone', () => {
+        renderRoot();
+
+        press('New recipe');
+        press('Publish');
+
+        expect(showing('Detail fresh')).toBe(true);
+        expect(screen.getByText('Recipe published.')).toBeTruthy();
+    });
+
+    it('says "Changes saved." after Save changes, over the recipe the cook was editing', () => {
+        renderRoot();
+
+        fireEvent.click(tab('Recipes'));
+        press('Open Pasta');
+        press('Save a copy');
+        press('Save changes');
+
+        expect(screen.getByText('Changes saved.')).toBeTruthy();
+    });
+
+    it('says nothing for a plain ×: nothing was published or saved', () => {
+        renderRoot();
+
+        press('New recipe');
+        press('Cancel');
+
+        expect(screen.queryByText('Recipe published.')).toBeNull();
+        expect(screen.queryByText('Changes saved.')).toBeNull();
     });
 
     it('Paste ingredients opens the new editor at Ingredients with its paste sheet up, above the tabs (slice 8)', () => {

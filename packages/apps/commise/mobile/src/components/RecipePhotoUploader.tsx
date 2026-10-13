@@ -6,6 +6,12 @@
  * drives the shared, single-flight `useRecipePhotoUpload` headless hook (CP-6/P3, B24) once per file,
  * sequentially, while the grid shows each file's own status.
  *
+ * **Add photos (A-010).** The add control is a secondary `Button` that opens a sheet of two sources, "Take photo" and
+ * "Choose from library". The chosen source is HELD until the sheet has gone and the picker is launched at its
+ * `onDismissed` — iOS shows one modal at a time, so a picker opened under a sliding sheet never appears (the rule
+ * `ActionMenu` keeps for its chosen item). The camera asks for its permission first and says so, in words, when it is
+ * refused or the device has none; the library asks for nothing. Replace stays on the library.
+ *
  * Upload flow, on a picked asset: read the asset's bytes as a Blob, then enqueue `{ blob, fileName,
  * contentType, fileSize, previewUri: asset.uri }` (the asset's own URI doubles as the grid thumbnail while
  * queued/uploading/failed — no extra copy needed on this platform, unlike the web leaf's `createObjectURL`).
@@ -33,11 +39,16 @@ import {
     RecipePhotoManager,
     fillTemplate,
     isAtPhotoCap,
+    photoMessages,
     visibleQueueItems,
     type RecipeFormPhoto,
 } from '@commise/features-recipes';
 import { useRecipePhotoUpload, useRecipePhotoUploadQueue, type DraftPhotoPick } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
+import { Icon, type IconName } from '@commise/ui/icon';
+import { nativeTokens } from '@commise/ui/native';
+import { Sheet } from '@commise/ui/sheet';
 import { useTheme } from '@commise/ui/theme';
 import {
     useDeleteRecipePhoto,
@@ -46,7 +57,7 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { Pressable, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
 
@@ -92,6 +103,41 @@ export interface RecipePhotoUploaderProps {
      * empty then, because every pick before the create goes to `onPick`.
      */
     readonly onRemoveDraft?: (index: number) => void;
+    /**
+     * The recipe's title, for the cover the empty state previews (buildSpec §7.7: its first letter). Optional: until
+     * the screen supplies it the preview shows the cover's tint without a letter.
+     */
+    readonly title?: string;
+    /** The recipe's cuisine, shown on the previewed cover where it is tall enough. */
+    readonly cuisine?: string;
+}
+
+/** Where a photo comes from — the two choices the Add photos sheet offers. */
+type PhotoSource = 'camera' | 'library';
+
+/** One row of the Add photos sheet: a glyph and a label, at the sheet-row height (buildSpec §7.10: 56). */
+function SourceRow({
+    icon,
+    label,
+    onChoose,
+}: {
+    readonly icon: IconName;
+    readonly label: string;
+    readonly onChoose: () => void;
+}): JSX.Element {
+    const { colors, wash } = useTheme();
+
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            onPress={onChoose}
+            style={({ pressed }) => [styles.sourceRow, pressed && { backgroundColor: wash }]}
+        >
+            <Icon name={icon} size={24} />
+            <Text style={[styles.sourceLabel, { color: colors.ink }]}>{label}</Text>
+        </Pressable>
+    );
 }
 
 /**
@@ -106,9 +152,11 @@ export function RecipePhotoUploader({
     pendingDrafts = [],
     externalError,
     onRemoveDraft,
+    title,
+    cuisine,
 }: RecipePhotoUploaderProps): JSX.Element {
     const { recipePhotos: t } = useMessages(mobileMessages);
-    const { colors } = useTheme();
+    const photoCopy = useMessages(photoMessages);
     // `''` disables the query (`enabled: id.length > 0`) — a create has no photos to list yet.
     const photosQuery = useRecipePhotos(recipeId ?? '');
     const deletePhoto = useDeleteRecipePhoto();
@@ -135,6 +183,11 @@ export function RecipePhotoUploader({
     // Tracks the picker-launch + local-blob-read window, BEFORE `enqueue()` ever runs — see the re-entrancy
     // guard in the module doc above.
     const [picking, setPicking] = useState(false);
+    // The Add photos sheet (A-010): open or not, the source the cook chose, and a request to give the button
+    // back its focus when the sheet closes with nothing chosen.
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const [chosenSource, setChosenSource] = useState<PhotoSource | undefined>(undefined);
+    const [buttonFocusRequested, setButtonFocusRequested] = useState(false);
     // The caller's own error wins: it describes the action the cook just took and explains why nothing
     // appeared, where the local slots describe older, already-badged failures.
     const errorMessage = externalError ?? replaceErrorMessage ?? removeErrorMessage ?? pickErrorMessage;
@@ -142,7 +195,7 @@ export function RecipePhotoUploader({
     // The delete mutation carries its target in `variables`; busy only that row while its deletion is pending.
     const removingPhotoId = deletePhoto.isPending ? (deletePhoto.variables?.photoId ?? null) : null;
 
-    // Pick an image, then enqueue it onto the upload queue — the queue drives the presign → PUT-to-S3 →
+    // Pick an image (from `source`), then enqueue it onto the upload queue — the queue drives the presign → PUT-to-S3 →
     // confirm sequence itself. A canceled pick is a silent no-op. `picking` spans ONLY the picker-launch +
     // blob-read window (never the upload itself), so a second tap while a PREVIOUS pick is still resolving
     // can't launch `expo-image-picker` a second time concurrently — but a tap while a PREVIOUS upload is
@@ -150,23 +203,43 @@ export function RecipePhotoUploader({
     // `onUploaded` is the optional post-commit continuation carried on the enqueued file (see
     // `useRecipePhotoUploadQueue`): the queue runs it once, only after this file's confirm has landed. Add
     // passes none; Replace passes the "now delete the photo you replaced" step.
-    const addPhoto = async (onUploaded?: () => void): Promise<void> => {
-        if (picking) {
-            // Already mid-flight (picker open, or reading the blob) — a second tap is a no-op.
-            return;
-        }
-
-        setPicking(true);
+    //
+    // ⛔ The CALLER sets `picking` before calling: the sheet's choice sets it at the press, so the button already
+    // reads busy while the sheet slides away (the picker opens only after that, see `onSheetDismissed`), and a tap
+    // in that gap does nothing. This function resets it, whatever happens.
+    const runPick = async (source: PhotoSource, onUploaded?: () => void): Promise<void> => {
+        setPickErrorMessage(undefined);
 
         try {
             // Load the native picker lazily (on first use). `expo-image-picker` pulls in `expo-modules-core`,
             // which can only be evaluated inside the native runtime — deferring the import keeps it out of
             // the module graph until the user actually taps Add, and out of environments lacking that runtime.
             const ImagePicker = await import('expo-image-picker');
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                quality: 0.8,
-            });
+            const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 };
+            let result: Awaited<ReturnType<typeof ImagePicker.launchImageLibraryAsync>>;
+
+            if (source === 'camera') {
+                // The camera needs the cook's say-so; the library does not (the system picker hands over only what
+                // they choose). A refusal is said out loud, with the way out — never a silent no-op.
+                try {
+                    const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+                    if (!permission.granted) {
+                        setPickErrorMessage(photoCopy.cameraDenied);
+
+                        return;
+                    }
+
+                    result = await ImagePicker.launchCameraAsync(options);
+                } catch {
+                    // A device with no camera (a simulator) rejects here rather than answering `canceled`.
+                    setPickErrorMessage(photoCopy.cameraUnavailable);
+
+                    return;
+                }
+            } else {
+                result = await ImagePicker.launchImageLibraryAsync(options);
+            }
 
             if (result.canceled) {
                 return;
@@ -180,8 +253,6 @@ export function RecipePhotoUploader({
 
             const contentType = asset.mimeType ?? 'image/jpeg';
             const fileName = asset.fileName ?? 'photo.jpg';
-
-            setPickErrorMessage(undefined);
 
             let blob: Blob;
 
@@ -274,8 +345,42 @@ export function RecipePhotoUploader({
             return;
         }
 
+        // Already mid-flight (a picker open, or a blob being read) — a second press is a no-op.
+        if (picking) {
+            return;
+        }
+
         setReplaceErrorMessage(undefined);
-        void addPhoto(() => removePhoto(photoId));
+        setPicking(true);
+        // Replace stays on the library: it swaps one photo for another that already exists, and the sheet's
+        // choice is for adding.
+        void runPick('library', () => removePhoto(photoId));
+    };
+
+    // The sheet's choice. It is HELD until the sheet has gone and runs at `onSheetDismissed`: iOS shows one modal at
+    // a time, so a picker launched while the sheet is still on screen (or sliding out) never opens — the same rule
+    // `ActionMenu` keeps for a chosen item. `picking` is set at the press so the button reads busy through the gap.
+    const chooseSource = (source: PhotoSource): void => {
+        if (picking || chosenSource !== undefined) {
+            return;
+        }
+
+        setPicking(true);
+        setChosenSource(source);
+        setSheetOpen(false);
+    };
+
+    const onSheetDismissed = (): void => {
+        if (chosenSource === undefined) {
+            // Closed with nothing chosen: nothing was launched, and the cursor goes back to the button.
+            setButtonFocusRequested(true);
+
+            return;
+        }
+
+        const source = chosenSource;
+        setChosenSource(undefined);
+        void runPick(source);
     };
 
     // Offered only where a pick can land: in the recipe's own queue, or in the caller's draft. See `onPick`.
@@ -283,62 +388,94 @@ export function RecipePhotoUploader({
     // Offered only where every cell's Remove does something. See `onRemoveDraft`.
     const canRemoveCells = pendingDrafts.length === 0 || onRemoveDraft !== undefined;
 
+    // A-010: a real secondary button that opens the sheet of sources. `busy` is the pick window's only affordance — the
+    // label never changes and the picker is a system screen — so it must reach assistive tech as busy (and, via the
+    // Button, disabled), not leave a screen-reader user with "Add photos" and nothing else. The Sheet is rendered
+    // below, outside the manager, so a photo cap reached mid-dismissal cannot unmount it before the held choice runs.
     const addControl = (
-        <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t.addLabel}
-            // The `disabled` half already reaches the DOM (react-native-web derives `aria-disabled` from the
-            // `disabled` PROP below); `busy` did not, because RNW projects `accessibilityState` for nothing
-            // (#123). That matters most here: the pick window has NO other affordance at all — the label never
-            // changes, no spinner renders, and the picker is a system sheet — so `aria-busy` is the only thing
-            // separating "the picker is opening" from "this button is dead". It is RN's own first-class ALIAS
-            // for `accessibilityState.busy`, so it is device-correct too; omitted when idle.
-            accessibilityState={{ busy: picking, disabled: picking }}
-            aria-busy={picking || undefined}
-            disabled={picking}
-            onPress={() => void addPhoto()}
+        <Button
+            variant="secondary"
+            icon="imagePlus"
+            busy={picking}
+            onPress={() => setSheetOpen(true)}
+            focusRequested={buttonFocusRequested}
+            onFocusRequestHandled={() => setButtonFocusRequested(false)}
         >
-            {/* Painted from `ink` (D15): unpainted, it drew React Native's default black on the dark canvas. */}
-            <Text style={{ color: colors.ink }}>{t.addLabel}</Text>
-        </Pressable>
+            {photoCopy.addPhotos}
+        </Button>
     );
 
     return (
-        <RecipePhotoManager
-            photos={photos}
-            onRemovePhoto={removePhoto}
-            removingPhotoId={removingPhotoId}
-            uploading={uploader.uploading}
-            errorMessage={errorMessage}
-            queueItems={[
-                // Draft picks first: they were chosen before anything in the queue, and negative ids cannot
-                // collide with the queue's own monotonic positive ones.
-                ...pendingDrafts.map((photo, index) => ({
-                    fileId: -(index + 1),
-                    fileName: photo.fileName,
-                    status: 'queued' as const,
-                    retryable: false,
-                })),
-                ...queue.items,
-            ]}
-            onRetryQueueItem={queue.retry}
-            {...(canRemoveCells
-                ? {
-                      onRemoveQueueItem: (fileId: number) => {
-                          // Negative ids are draft picks; positive ones are the queue's. See `onRemoveDraft`.
-                          if (fileId >= 0) {
-                              queue.remove(fileId);
+        <>
+            <RecipePhotoManager
+                photos={photos}
+                onRemovePhoto={removePhoto}
+                removingPhotoId={removingPhotoId}
+                uploading={uploader.uploading}
+                errorMessage={errorMessage}
+                queueItems={[
+                    // Draft picks first: they were chosen before anything in the queue, and negative ids cannot
+                    // collide with the queue's own monotonic positive ones.
+                    ...pendingDrafts.map((photo, index) => ({
+                        fileId: -(index + 1),
+                        fileName: photo.fileName,
+                        status: 'queued' as const,
+                        retryable: false,
+                    })),
+                    ...queue.items,
+                ]}
+                onRetryQueueItem={queue.retry}
+                {...(canRemoveCells
+                    ? {
+                          onRemoveQueueItem: (fileId: number) => {
+                              // Negative ids are draft picks; positive ones are the queue's. See `onRemoveDraft`.
+                              if (fileId >= 0) {
+                                  queue.remove(fileId);
 
-                              return;
-                          }
+                                  return;
+                              }
 
-                          onRemoveDraft?.(-fileId - 1);
-                      },
-                  }
-                : {})}
-            onSetCover={setCover}
-            onReplacePhoto={replacePhoto}
-            {...(canPick ? { addControl } : {})}
-        />
+                              onRemoveDraft?.(-fileId - 1);
+                          },
+                      }
+                    : {})}
+                onSetCover={setCover}
+                onReplacePhoto={replacePhoto}
+                {...(canPick ? { addControl } : {})}
+                coverPreview={{
+                    recipeId: recipeId ?? '',
+                    title: title ?? '',
+                    ...(cuisine === undefined ? {} : { cuisine }),
+                }}
+            />
+            <Sheet
+                open={sheetOpen}
+                onOpenChange={setSheetOpen}
+                onDismissed={onSheetDismissed}
+                title={photoCopy.addPhotosSheetTitle}
+                closeLabel={photoCopy.addPhotosSheetClose}
+                size="content"
+            >
+                <View collapsable={false}>
+                    <SourceRow icon="camera" label={photoCopy.takePhoto} onChoose={() => chooseSource('camera')} />
+                    <SourceRow
+                        icon="image"
+                        label={photoCopy.chooseFromLibrary}
+                        onChoose={() => chooseSource('library')}
+                    />
+                </View>
+            </Sheet>
+        </>
     );
 }
+
+const styles = StyleSheet.create({
+    sourceRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: nativeTokens.spacing[2],
+        minHeight: 56,
+        paddingHorizontal: nativeTokens.spacing[2],
+    },
+    sourceLabel: nativeTokens.type.body,
+});

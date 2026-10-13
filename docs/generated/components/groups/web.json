@@ -4,13 +4,13 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 80,
-        "implementations": 80,
-        "props": 102,
-        "documentedComponents": 77,
-        "implementationsWithModuleDoc": 61,
+        "components": 84,
+        "implementations": 84,
+        "props": 103,
+        "documentedComponents": 81,
+        "implementationsWithModuleDoc": 65,
         "implementationsWithComponentDoc": 60,
-        "documentedProps": 66,
+        "documentedProps": 69,
         "classifiedComponents": 35,
         "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
@@ -767,6 +767,43 @@
             ]
         },
         {
+            "id": "web/app/[locale]/recipes/[id]/edit/RecipeEditLoading",
+            "name": "RecipeEditLoading",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/edit",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeEditLoading",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/edit/loading.tsx",
+                    "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/edit",
+                    "moduleDoc": "Loading boundary for the recipe-editor route segment (`/[locale]/recipes/[id]/edit`). Its parent segment's boundary is the\nrecipe page's skeleton, which is the wrong shape for the editor; until the editor has a skeleton of its own, this keeps\nthe shared text fallback the segment had before the parent changed.",
+                    "moduleTags": [],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "compiler-fallback",
+                    "exportKind": "default",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "web/app/[locale]/recipes/[id]/RecipeDetailError",
             "name": "RecipeDetailError",
             "group": "web",
@@ -843,7 +880,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/loading.tsx",
                     "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]",
-                    "moduleDoc": "Loading boundary for the recipe-detail route segment (`/[locale]/recipes/[id]`, B18). Delegates to the\nshared {@link RouteLoadingState}.",
+                    "moduleDoc": "Loading boundary for the recipe-detail route segment (`/[locale]/recipes/[id]`, B18, D3). This segment settles into the\nrecipe page, so its boundary reserves that page's shape — the same skeleton the page's own query boundary shows — rather\nthan a line of text the page then reflows past. Its two child segments, which settle into other things, have their own.",
                     "moduleTags": [],
                     "description": "",
                     "tags": [],
@@ -897,6 +934,43 @@
                             "declaredIn": null
                         }
                     ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/app/[locale]/recipes/[id]/versions/RecipeVersionsLoading",
+            "name": "RecipeVersionsLoading",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/versions",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeVersionsLoading",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/versions/loading.tsx",
+                    "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/versions",
+                    "moduleDoc": "Loading boundary for the version-history route segment (`/[locale]/recipes/[id]/versions`, D3). Its parent segment's\nboundary is the recipe page's skeleton, which is the wrong shape here; this one is the history's, the same the page's\nown query boundary shows.",
+                    "moduleTags": [],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "compiler-fallback",
+                    "exportKind": "default",
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -1163,21 +1237,11 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/sign-in/[[...sign-in]]",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "The sign-in page. The routing, redirect and sign-up-link rules live with the widget they govern, in `SignInForm`.",
+                    "description": "The sign-in page. The routing, redirect and sign-up-link rules live with the widget they govern, in `SignInForm`.\n\nWhere a completed sign-in lands is the `redirect_url` the protected page sent (W-01), parsed by `safeReturnPath`: a\nvalue it refuses is NOT forwarded and the visitor lands on the locale root. The sign-up link carries the same\ndestination, so registering does not lose it.",
                     "tags": [],
-                    "detectedBy": "react-docgen-typescript",
+                    "detectedBy": "compiler-fallback",
                     "exportKind": "default",
-                    "props": [
-                        {
-                            "name": "params",
-                            "type": "Promise<{ locale: string; }>",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -1210,21 +1274,11 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/sign-up/[[...sign-up]]",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "The sign-up page. The routing and redirect rules live with the widget they govern, in `SignUpForm`.",
+                    "description": "The sign-up page. The routing and redirect rules live with the widget they govern, in `SignUpForm`. The\n`redirect_url` the visitor arrived with is parsed by `safeReturnPath` and carried both ways (see the sign-in page).",
                     "tags": [],
-                    "detectedBy": "react-docgen-typescript",
+                    "detectedBy": "compiler-fallback",
                     "exportKind": "default",
-                    "props": [
-                        {
-                            "name": "params",
-                            "type": "Promise<{ locale: string; }>",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
-                        }
-                    ],
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -2284,7 +2338,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/auth/SignInForm.tsx",
                     "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "components/auth/SignInForm — Clerk's `<SignIn>` for the sign-in page, themed for the browser's scheme\n(`docs/design/uiOverhaul/buildSpec.md` §8; D15).\n\nThe sign-in surface IS the front door (FR-045a): nothing stands in front of it, and the \"Create an account\" link it\nrenders from `signUpUrl` is the ONLY route to registration, so the appearance keeps it on one line. Its wording and the\nbrand line are Clerk localization, which Clerk takes on its provider (`lib/clerkLocalization`), not on this widget.\n\nWhy a client component: Clerk's `variables` cannot read a CSS custom property, so the appearance is built for the\nscheme `useColorScheme` reports (the page's server render reads light and the client corrects it). Every other colour\nis a role class and needs no scheme.\n\nThe routing notes below are the page's, moved with the widget they describe:\n- `routing=\"hash\"`: Clerk derives its path from `usePathname()` (basePath-STRIPPED), so under a preview basePath\n  (`/pr-{N}`) path routing cannot reconcile and renders an empty widget. Hash routing drives the multi-step flow\n  through the URL fragment, independent of basePath.\n- `signUpUrl` is a page LOCATOR consumed as-is, so the caller passes it WITH the basePath. `forceRedirectUrl` runs\n  through Next's router, which already prepends the basePath, so it is passed BARE; a pre-prefixed value\n  double-prefixes to `/pr-{N}/pr-{N}/` and strands the signed-in user. The OAuth/SSO-callback flow navigates it raw\n  (its Next router is not wired during the callback page load), which drops the prefix to the bare root; that landing\n  is re-homed onto the basePath by the bare-root redirect in `next.config.ts`. Do NOT prefix `forceRedirectUrl`.\n- `forceRedirectUrl` is ALSO the sole guard against an open redirect: `clerkMiddleware`'s protected-route bounce\n  appends `?redirect_url=<original path>`, and forcing the locale root ignores it. If return-to-original-route is\n  ever added, validate that `redirect_url` is same-origin first.",
+                    "moduleDoc": "components/auth/SignInForm — Clerk's `<SignIn>` for the sign-in page, themed for the browser's scheme\n(`docs/design/uiOverhaul/buildSpec.md` §8; D15).\n\nThe sign-in surface IS the front door (FR-045a): nothing stands in front of it, and the \"Create an account\" link it\nrenders from `signUpUrl` is the ONLY route to registration, so the appearance keeps it on one line. Its wording and the\nbrand line are Clerk localization, which Clerk takes on its provider (`lib/clerkLocalization`), not on this widget.\n\nWhy a client component: Clerk's `variables` cannot read a CSS custom property, so the appearance is built for the\nscheme `useColorScheme` reports (the page's server render reads light and the client corrects it). Every other colour\nis a role class and needs no scheme.\n\nThe routing notes below are the page's, moved with the widget they describe:\n- `routing=\"hash\"`: Clerk derives its path from `usePathname()` (basePath-STRIPPED), so under a preview basePath\n  (`/pr-{N}`) path routing cannot reconcile and renders an empty widget. Hash routing drives the multi-step flow\n  through the URL fragment, independent of basePath.\n- `signUpUrl` is a page LOCATOR consumed as-is, so the caller passes it WITH the basePath. `forceRedirectUrl` runs\n  through Next's router, which already prepends the basePath, so it is passed BARE; a pre-prefixed value\n  double-prefixes to `/pr-{N}/pr-{N}/` and strands the signed-in user. The OAuth/SSO-callback flow navigates it raw\n  (its Next router is not wired during the callback page load), which drops the prefix to the bare root; that landing\n  is re-homed onto the basePath by the bare-root redirect in `next.config.ts`. Do NOT prefix `forceRedirectUrl`.\n- `forceRedirectUrl` is ALSO the sole guard against an open redirect, so the sign-in page feeds it a PARSED value: the\n  `redirect_url` a protected page (or the `401` handler) sent, run through `safeReturnPath` (`lib/signInReturn`),\n  which accepts only an app-relative `/{locale}/…` path and falls back to the locale root. The destination is what\n  brings a signed-out deep link back after sign-in; this widget stays a dumb adapter and must never be handed a raw\n  query value.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2351,7 +2405,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/auth/SignUpForm.tsx",
                     "dir": "packages/apps/commise/web/src/components/auth",
-                    "moduleDoc": "components/auth/SignUpForm — Clerk's `<SignUp>` for the sign-up page, themed for the browser's scheme\n(`docs/design/uiOverhaul/buildSpec.md` §8; D15). Sign-up asks for email and password, plus Google; username and the\nfirst and last name are off in the Clerk dashboard, so there is nothing to configure here.\n\nThe routing is the sign-in form's (see `SignInForm`): hash routing under the preview basePath, `signInUrl` WITH the\nbasePath, `forceRedirectUrl` BARE — a pre-prefixed redirect double-prefixes to `/pr-{N}/pr-{N}/` and strands the\nnow-signed-in user on a blank sign-up (\"<SignUp/> cannot render when a user is already signed in\").",
+                    "moduleDoc": "components/auth/SignUpForm — Clerk's `<SignUp>` for the sign-up page, themed for the browser's scheme\n(`docs/design/uiOverhaul/buildSpec.md` §8; D15). The spec is email and password, plus Google, with the username and\nthe first and last name OFF. That is Clerk dashboard configuration, not code: this widget has no say in which fields\nthe form asks for, and the sandbox instance has been seen collecting all three — so what a visitor is asked for is\nwhatever the instance is set to, not what this file implies.\n\nThe routing is the sign-in form's (see `SignInForm`): hash routing under the preview basePath, `signInUrl` WITH the\nbasePath, `forceRedirectUrl` BARE — a pre-prefixed redirect double-prefixes to `/pr-{N}/pr-{N}/` and strands the\nnow-signed-in user on a blank sign-up (\"<SignUp/> cannot render when a user is already signed in\"). Like sign-in's,\nthe redirect is a PARSED destination (`safeReturnPath`), never a raw query value.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2498,6 +2552,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The profile read, for the sidebar's profile row.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx"
+                        },
+                        {
+                            "name": "syncNotice",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The connectivity and unsynced-work notice (build spec §3.8). It sits at the top of `<main>`, sticky from `nav`, so\nit never pushes the sidebar down; on a focused task it scrolls away with the page, under the task's own header.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx"
                         }
                     ],
@@ -3992,7 +4055,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeDetailContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Container for the recipe-detail route: reads a single recipe under a suspense boundary and renders the\nshared, presentational `RecipeDetailView` once it settles, plus the recipe-action building blocks below it —\nowner-only delete (T068) and visibility (T074), and a public-recipe clone (T075). The fetch-state\naffordances belong to the boundary, not the building blocks: `Suspense` renders the loading status, the error\nboundary renders a distinct not-found message (no retry) or the generic error with a retry that refetches, and\nboth are localized through the web dictionary (`useMessages`).\n\n`/recipes/[id]` is server-prefetched, so the boundary is `ClientQueryBoundary` with the prefetched detail key: a\nsuccessful prefetch ships the recipe in the server HTML, a failed one ships the loading status and the browser\nreads after hydration (B19). The settled view is keyed on the id, so a `/recipes/A` → `/recipes/B` navigation\n(which the App Router serves from the SAME mounted container) remounts it — every mutation, the delete dialog and\nthe cooking progress start fresh for B, and nothing of A's can leak onto it.\n\nRemote state stays in TanStack Query — this component derives its view from the query, never copying the\nrecipe into local state; the only local state is the ephemeral delete-dialog open flag. The mutations are\nowned by the recipe-service hooks (`useDeleteRecipe` / `useSetRecipeVisibility` / `useCloneRecipe`), which\ninvalidate the relevant caches; the container only wires the blocks' callbacks to them and handles\npost-success navigation.\n\nA single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from the recipe's `ownerId`\nkey — the app-user ULID read off Clerk's `external_id` session claim, the SAME claim the recipe service\nuses as the owner key (see `IDENTITY_SYNC_PENDING_CODE`) — plus `useUserProfile`'s subscription tier. Every\nownership/clone/tier gate below reads from that ONE `Viewer` through the shared `isOwner`/`canClone`/\n`canGoPrivate` policy predicates, the SAME predicates the mobile detail screen evaluates, so the two\nplatforms can never diverge on a gate (this closes D7, where the clone gate previously disagreed: web\nignored ownership while mobile checked it). Free-tier owners see the private option disabled with a\nlocalized upgrade reason; the tier read fails safe (gated OFF) while the profile is still loading or absent.\n\nThe recipe page (build spec §6): a back link to the list above the meta line; the action row's primary — Edit\nrecipe for the owner, Save a copy for another cook who may clone — beside the ⋯ menu, whose entries come from the\nshared `detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); and the rating block in the\nview's `rating` slot, under the nutrition. The cook's marks, the serving scale and Screen on are bound by the view\nitself; this container reads the marks only to offer Clear checks.",
+                    "moduleDoc": "Container for the recipe-detail route: reads a single recipe under a suspense boundary and renders the\nshared, presentational `RecipeDetailView` once it settles, plus the recipe-action building blocks below it —\nowner-only delete (T068) and visibility (T074), and a public-recipe clone (T075). The fetch-state\naffordances belong to the boundary, not the building blocks: `Suspense` renders the loading status, the error\nboundary renders a distinct not-found message (no retry) or the generic error with a retry that refetches, and\nboth are localized through the web dictionary (`useMessages`).\n\n`/recipes/[id]` is server-prefetched, so the boundary is `ClientQueryBoundary` with the prefetched detail key: a\nsuccessful prefetch ships the recipe in the server HTML, a failed one ships the loading status and the browser\nreads after hydration (B19). The settled view is keyed on the id, so a `/recipes/A` → `/recipes/B` navigation\n(which the App Router serves from the SAME mounted container) remounts it — every mutation, the delete dialog and\nthe cooking progress start fresh for B, and nothing of A's can leak onto it.\n\nRemote state stays in TanStack Query — this component derives its view from the query, never copying the\nrecipe into local state; the only local state is the ephemeral delete-dialog open flag. The mutations are\nowned by the recipe-service hooks (`useDeleteRecipe` / `useSetRecipeVisibility` / `useCloneRecipe`), which\ninvalidate the relevant caches; the container only wires the blocks' callbacks to them and handles\npost-success navigation.\n\nA single `Viewer` (P4, `@kitchensink/recipe-core`) is built once per render from the recipe's `ownerId`\nkey — the app-user ULID read off Clerk's `external_id` session claim, the SAME claim the recipe service\nuses as the owner key (see `IDENTITY_SYNC_PENDING_CODE`) — plus `useUserProfile`'s subscription tier. Every\nownership/clone/tier gate below reads from that ONE `Viewer` through the shared `isOwner`/`canClone`/\n`canGoPrivate` policy predicates, the SAME predicates the mobile detail screen evaluates, so the two\nplatforms can never diverge on a gate (this closes D7, where the clone gate previously disagreed: web\nignored ownership while mobile checked it). Free-tier owners see the private option disabled with a\nlocalized upgrade reason; the tier read fails safe (gated OFF) while the profile is still loading or absent.\n\nThe recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another cook\nwho may clone; Back and the ⋯ menu, whose entries come from the shared `detailMenuOf` (Version history, Make\nprivate/public, Clear checks, then Delete); and the rating block in the view's `rating` slot, under the nutrition.\nBelow 840 (where the tab bar replaces the sidebar) Back and ⋯ are discs over the hero photo; from 840 Back is the\neyebrow link above the meta line and ⋯ sits in the action row. Both placements are drawn and one is hidden by a\nVIEWPORT query (`nav:`), the same pairing the view uses for Screen on. The cook's marks, the serving scale and\nScreen on are bound by the view itself; this container reads the marks only to offer Clear checks.",
                     "moduleTags": [],
                     "description": "The live recipe-detail container: the read boundary around the settled view.",
                     "tags": [
@@ -4022,6 +4085,53 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/recipes/RecipeDetailRouteLoading",
+            "name": "RecipeDetailRouteLoading",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/recipes",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeDetailRouteLoading",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeDetailRouteLoading.tsx",
+                    "dir": "packages/apps/commise/web/src/components/recipes",
+                    "moduleDoc": "components/recipes/RecipeDetailRouteLoading — the recipe page's loading state, localized: the shared\n{@link RecipeDetailSkeleton} (D3; `buildSpec.md` §6.7) under the one name the page's own boundary uses.\n\nBoth `recipes/[id]/loading.tsx` (a segment's server render resolving) and `RecipeDetailContainer`'s boundary (its query\nresolving) render THIS, so the swap from one to the other moves nothing. A `loading.tsx` cannot read the dictionary on\nits own, which is why this client component exists.\n\nPure `props → JSX` (no props).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/recipes/RecipeDetailRouteLoading — the recipe page's loading state, localized: the shared"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "returns",
+                            "text": "The page-shaped skeleton, named \"Loading recipe\"."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -4382,7 +4492,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipePhotoUploaderContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "The upload orchestration the shared `RecipePhotoManager` block deliberately omits (it is presentational\nand holds no fetching or DOM/file APIs). This container owns the recipe-photo lifecycle for the web app:\nit reads the photos via `useRecipePhotos`, supplies the block's `addControl` (an accessible label wrapping\na hidden, `multiple` `<input type=\"file\">`), and on a file selection ENQUEUES every picked file onto\n`useRecipePhotoUploadQueue` (w3/e4) — the layer that drives the shared, single-flight `useRecipePhotoUpload`\nheadless hook (CP-6/P3, B24) once per file, sequentially, while the grid shows each file's own status.\nRemove wires the per-photo control to `useDeleteRecipePhoto`, busying just the row whose deletion is in\nflight; the queue's own `retry`/`remove` handle a queued/failed FILE (not yet a confirmed photo).\n\nRemote state stays in TanStack Query; `confirm → invalidateRecipeProjections` still runs exactly once per\nsuccessful upload, from inside `useRecipePhotoUpload` — this container and the queue layer above it never\nreimplement that call. The web-specific bits neither hook owns: acquiring `File`s from the DOM `change`\nevent, minting a per-file preview object URL (revoked once a file is no longer pending — removed, or\nfolded into the confirmed `photos` list on success), and resetting the input so the same file can be\nre-picked after being removed from the queue.\n\nEvery picked file also passes through the queue's client-side pre-validation (REQ-011 size, REQ-012 MIME\nallowlist) — this container's only involvement is supplying the two localized rejection strings; the\nadmission check itself lives in `useRecipePhotoUploadQueue`.\n\n**Replace is upload-first (U6, cancel-safe).** A second, single-select hidden input serves the per-photo\n\"Replace\" control, and the original photo is deleted only from the replacement's `onUploaded` continuation\n— never up-front. See the `handleReplacePhoto` comment for the full ordering + the at-cap refusal.\n\n**A pick past the cap is refused whole.** `<input multiple>` cannot bound how many files a cook chooses, so one\npick can carry more than the recipe has room for. The queue admits the batch whole or refuses it whole\n(`admitPhotoBatch`); on a refusal this container revokes every preview URL it minted for the pick — those files\nnever became queue items, so the ledger below would never see them — and says how many would fit.",
+                    "moduleDoc": "The upload orchestration the shared `RecipePhotoManager` block deliberately omits (it is presentational\nand holds no fetching or DOM/file APIs). This container owns the recipe-photo lifecycle for the web app:\nit reads the photos via `useRecipePhotos`, supplies the block's `addControl` (a secondary \"Add photos\" button\nthat opens a hidden, `multiple` `<input type=\"file\">`), and on a file selection ENQUEUES every picked file onto\n`useRecipePhotoUploadQueue` (w3/e4) — the layer that drives the shared, single-flight `useRecipePhotoUpload`\nheadless hook (CP-6/P3, B24) once per file, sequentially, while the grid shows each file's own status.\nRemove wires the per-photo control to `useDeleteRecipePhoto`, busying just the row whose deletion is in\nflight; the queue's own `retry`/`remove` handle a queued/failed FILE (not yet a confirmed photo).\n\nRemote state stays in TanStack Query; `confirm → invalidateRecipeProjections` still runs exactly once per\nsuccessful upload, from inside `useRecipePhotoUpload` — this container and the queue layer above it never\nreimplement that call. The web-specific bits neither hook owns: acquiring `File`s from the DOM `change`\nevent, minting a per-file preview object URL (revoked once a file is no longer pending — removed, or\nfolded into the confirmed `photos` list on success), and resetting the input so the same file can be\nre-picked after being removed from the queue.\n\nEvery picked file also passes through the queue's client-side pre-validation (REQ-011 size, REQ-012 MIME\nallowlist) — this container's only involvement is supplying the two localized rejection strings; the\nadmission check itself lives in `useRecipePhotoUploadQueue`.\n\n**Replace is upload-first (U6, cancel-safe).** A second, single-select hidden input serves the per-photo\n\"Replace\" control, and the original photo is deleted only from the replacement's `onUploaded` continuation\n— never up-front. See the `handleReplacePhoto` comment for the full ordering + the at-cap refusal.\n\n**A pick past the cap is refused whole.** `<input multiple>` cannot bound how many files a cook chooses, so one\npick can carry more than the recipe has room for. The queue admits the batch whole or refuses it whole\n(`admitPhotoBatch`); on a refusal this container revokes every preview URL it minted for the pick — those files\nnever became queue items, so the ledger below would never see them — and says how many would fit.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -4404,12 +4514,30 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "cuisine",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The recipe's cuisine, shown on the previewed cover where it is tall enough.",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipePhotoUploaderContainer.tsx"
+                        },
+                        {
                             "name": "recipeId",
                             "type": "string",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "The recipe whose photos this manages (from the `[id]` route segment).",
+                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipePhotoUploaderContainer.tsx"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The recipe's title, for the cover the empty state previews (buildSpec §7.7: its first letter). Optional: until a\ncaller supplies it the preview shows the cover's tint without a letter.",
                             "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipePhotoUploaderContainer.tsx"
                         }
                     ],
@@ -4528,6 +4656,53 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/recipes/RecipeVersionsRouteLoading",
+            "name": "RecipeVersionsRouteLoading",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/recipes",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeVersionsRouteLoading",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeVersionsRouteLoading.tsx",
+                    "dir": "packages/apps/commise/web/src/components/recipes",
+                    "moduleDoc": "components/recipes/RecipeVersionsRouteLoading — the version history's loading state, localized: the shared\n{@link RecipeVersionListSkeleton} (D3; `buildSpec.md` §6.6 \"Loading: 3 skeleton rows\") with its way back to the recipe.\n\nBoth `recipes/[id]/versions/loading.tsx` and `RecipeVersionsContainer`'s boundary render THIS, so the swap moves\nnothing. It reads the route's own params, as the container does, because a `loading.tsx` is given none.\n\nPure `props → JSX` (no props); the navigation is the router's.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "components/recipes/RecipeVersionsRouteLoading — the version history's loading state, localized: the shared"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [
+                        {
+                            "name": "returns",
+                            "text": "The header, one polite status and three placeholder rows."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
                         "orchestration": false
                     }
                 }

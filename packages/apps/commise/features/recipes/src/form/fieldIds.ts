@@ -58,3 +58,14 @@ export const ingredientEditorFieldId = (key: string, field: IngredientEditorFiel
 
 /** The inline group-name field (build spec §7.5.5: "+ Add a group" and Rename group). */
 export const groupNameFieldId = 'recipe-ingredient-group-name';
+
+/** The trailing add field of the Ingredients section: one is on screen at a time, in whichever group it sits. */
+export const ingredientAddFieldId = 'recipe-ingredient-add';
+
+/**
+ * A row's food-name field while its food search is open, by its line's key. Pure.
+ *
+ * @param key - The line's key.
+ * @returns The id.
+ */
+export const ingredientNameFieldId = (key: string): string => `recipe-ingredient-${key}-name`;

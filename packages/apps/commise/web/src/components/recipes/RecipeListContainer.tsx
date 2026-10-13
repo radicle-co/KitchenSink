@@ -194,11 +194,12 @@ const SettledRecipeList: FC<SettledRecipeListProps> = ({
 }) => {
     const { list } = useMessages(recipeMessages);
     const query = useSuspenseInfiniteQuery(read);
+    const [clearCount, setClearCount] = useState(0);
     const refreshNotice = useRefreshNotice(query, { onRecovered });
     const library = useMemo(() => query.data.pages.flatMap((chunk) => chunk.data), [query.data.pages]);
     const facets = useMemo(
-        () => libraryFacetsOf(library, searchValue, activeFacets, list.filterQuick),
-        [library, searchValue, activeFacets, list.filterQuick],
+        () => libraryFacetsOf(library, searchValue, activeFacets, list.filterQuick, locale),
+        [library, searchValue, activeFacets, list.filterQuick, locale],
     );
     const recipes = useMemo(
         () => narrowLibrary(library, searchValue, activeFacets).map(toRecipeListItem),
@@ -218,7 +219,11 @@ const SettledRecipeList: FC<SettledRecipeListProps> = ({
             state={libraryStateOf({ visibleCount: recipes.length, searchValue, activeFacets })}
             searchValue={searchValue}
             onClearSearch={onClearSearch}
-            onClearFilters={() => onActiveFacetsChange(() => [])}
+            clearCount={clearCount}
+            onClearFilters={() => {
+                setClearCount((count) => count + 1);
+                onActiveFacetsChange(() => []);
+            }}
             onSelectRecipe={onSelectRecipe}
             hrefOf={(id) => `/${locale}/recipes/${id}`}
             variant={variant}

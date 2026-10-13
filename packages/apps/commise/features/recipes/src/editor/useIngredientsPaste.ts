@@ -78,12 +78,12 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
     const { hold } = options;
 
     // A layout effect: the hold is current once this state commits, before any passive effect or event can run a
-    // checkpoint. A paste that goes away holds nothing.
+    // checkpoint. A paste that goes away holds nothing, and tells nobody (there is no editor left to checkpoint).
     // @sideEffect Writes the shared paste hold.
     useLayoutEffect(() => {
         hold.set(pending);
     }, [hold, pending]);
-    useLayoutEffect(() => () => hold.set(false), [hold]);
+    useLayoutEffect(() => () => hold.discard(), [hold]);
 
     return {
         view: {

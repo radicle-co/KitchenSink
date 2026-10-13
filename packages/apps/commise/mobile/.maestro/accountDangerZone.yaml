@@ -18,6 +18,13 @@ appId: io.commise.mobile
 
 # Cross into the Profile page, then down to the danger zone at its foot.
 - tapOn: 'Profile.*'
+
+# A-025: the header carries the ONE avatar (the photo control, named by what it does) and the Account group ends in the
+# read-only Email row. The old "Profile photo" card, a second avatar, is gone.
+- assertVisible: 'Change photo'
+- assertNotVisible: 'Profile photo'
+- assertVisible: 'Email'
+
 - scrollUntilVisible:
       element: 'Erase my data'
       direction: DOWN

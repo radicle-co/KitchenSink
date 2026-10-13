@@ -4,10 +4,14 @@
  * A custom Clerk sign-in form (the app ships its own UI, not Clerk's hosted screens) built on the design
  * system: the `@commise/ui` {@link Button} (with its real `busy` spinner) + tokenized {@link Input}, all copy
  * from `mobileMessages` (no hard-coded English), every field label associated for assistive tech, and the
- * form wrapped in a `SafeAreaView` + `KeyboardAvoider` so the keyboard never occludes the inputs. It
- * mirrors the web `<SignIn>` flow the custom form must otherwise reproduce: `signIn.create` →
- * `signIn.password`, and — when the instance requires new-device verification — an email-code step
- * (`sendCode` → a `oneTimeCode` field → `verifyCode`) before `setActive`.
+ * form wrapped in a `SafeAreaView` + `KeyboardAvoider` so the keyboard never occludes the inputs.
+ *
+ * The password is the FIRST factor and is always sent: ONE `signIn.password({ identifier, password })` call. A wrong
+ * password fails there with Clerk's own message and no code is sent. Only after a correct password does Clerk
+ * answer `needs_client_trust` (a new device) or `needs_second_factor`; the email code that follows is the SECOND
+ * factor (`signIn.mfa.sendEmailCode` → a `oneTimeCode` field → `signIn.mfa.verifyEmailCode`) before `setActive`.
+ * The passwordless first-factor strategy (`signIn.emailCode.*`) is deliberately never used: it signs a user in
+ * with the mailbox alone (A-001).
  */
 import { useClerk, useSignIn } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
@@ -20,9 +24,13 @@ import type { JSX } from 'react';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Sentry from '@sentry/react-native';
 
 import { authFailureMessage } from '../auth/authFailureMessage.js';
+import { AuthCodeActions } from '../components/auth/AuthCodeActions.js';
+import { AuthCodeFields } from '../components/auth/AuthCodeFields.js';
 import { AuthHeader } from '../components/auth/AuthHeader.js';
+import { AuthSwitchLink } from '../components/auth/AuthSwitchLink.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 export interface LoginScreenProps {
@@ -37,47 +45,83 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [code, setCode] = useState('');
-    // 'credentials' → email+password; 'code' → the instance requires an email-code factor to finish.
+    // 'credentials' → email+password; 'code' → a correct password, and the email-code SECOND factor finishes it.
     const [step, setStep] = useState<'credentials' | 'code'>('credentials');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
 
-    const signInCopy = { networkError: t.networkError, fallback: t.signInFailed };
+    const copyFor = (fallback: string) => ({
+        networkError: t.networkError,
+        emailRequired: t.emailRequired,
+        emailInvalid: t.emailInvalid,
+        fallback,
+    });
+    const signInCopy = copyFor(t.signInFailed);
 
-    // Complete the sign-in when Clerk reports it is done, or advance to the email-code step when the
-    // instance requires new-device verification (mirrors the web <SignIn> flow, which the custom mobile
-    // form must otherwise handle itself). Returns true when the sign-in is fully complete.
-    async function resolveStatus(): Promise<boolean> {
+    const codeCopy = copyFor(t.sendCodeFailed);
+
+    // Send the second-factor email code. Returns true when a code is on its way.
+    async function sendSecondFactorCode(): Promise<boolean> {
         if (!signIn) {
             return false;
         }
 
-        if (signIn.status === 'complete' && signIn.createdSessionId) {
-            await setActive({ session: signIn.createdSessionId });
+        const sendResult = await signIn.mfa.sendEmailCode();
 
-            return true;
-        }
-
-        if (signIn.status === 'needs_first_factor') {
-            const sendResult = await signIn.emailCode.sendCode({ emailAddress: email });
-
-            if (sendResult.error) {
-                setError(
-                    authFailureMessage(sendResult.error, { networkError: t.networkError, fallback: t.sendCodeFailed }),
-                );
-
-                return false;
-            }
-
-            setStep('code');
-            setError(null);
+        if (sendResult.error) {
+            setError(authFailureMessage(sendResult.error, codeCopy));
 
             return false;
         }
 
-        setError(t.additionalVerification);
+        return true;
+    }
 
-        return false;
+    // The status is one this form cannot finish (a factor it does not implement): say so, and tell Sentry so a new
+    // requirement is noticed rather than only lived through by the user.
+    function reportUnsupportedStatus() {
+        if (!signIn) {
+            return;
+        }
+
+        Sentry.captureMessage('Native sign-in reached a status it cannot finish', {
+            level: 'warning',
+            extra: { status: signIn.status, secondFactors: signIn.supportedSecondFactors.map((f) => f.strategy) },
+        });
+        setError(t.additionalVerification);
+    }
+
+    // Start the session once Clerk reports the sign-in complete; otherwise it is a status this form cannot finish.
+    async function finishSignIn() {
+        if (signIn?.status === 'complete' && signIn.createdSessionId) {
+            await setActive({ session: signIn.createdSessionId });
+
+            return;
+        }
+
+        reportUnsupportedStatus();
+    }
+
+    // After a correct password: finish a complete sign-in, or — for Client Trust (a new device) or a second factor
+    // — send the email code and show the code step.
+    async function resolveStatus() {
+        if (!signIn) {
+            return;
+        }
+
+        const needsSecondFactor = signIn.status === 'needs_client_trust' || signIn.status === 'needs_second_factor';
+        const offersEmailCode = signIn.supportedSecondFactors.some((factor) => factor.strategy === 'email_code');
+
+        if (needsSecondFactor && offersEmailCode) {
+            if (await sendSecondFactorCode()) {
+                setStep('code');
+                setError(null);
+            }
+
+            return;
+        }
+
+        await finishSignIn();
     }
 
     async function handleSignIn() {
@@ -85,28 +129,25 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
             return;
         }
 
+        // Trimmed: an Android keyboard appends a space after autocomplete, and Clerk reads that as a different address.
+        const identifier = email.trim();
+
+        if (identifier === '') {
+            setError(t.emailRequired);
+
+            return;
+        }
+
         setBusy(true);
         setError(null);
 
         try {
-            const createResult = await signIn.create({ identifier: email });
+            const pwResult = await signIn.password({ identifier, password });
 
-            if (createResult.error) {
-                setError(authFailureMessage(createResult.error, signInCopy));
+            if (pwResult.error) {
+                setError(authFailureMessage(pwResult.error, signInCopy));
 
                 return;
-            }
-
-            // If the first factor is already email_code (passwordless / new device), the create above
-            // may land directly on needs_first_factor without a password attempt.
-            if (signIn.status !== 'needs_first_factor') {
-                const pwResult = await signIn.password({ password });
-
-                if (pwResult.error) {
-                    setError(authFailureMessage(pwResult.error, signInCopy));
-
-                    return;
-                }
             }
 
             await resolveStatus();
@@ -115,6 +156,28 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
         } finally {
             setBusy(false);
         }
+    }
+
+    async function handleResend() {
+        setBusy(true);
+        setError(null);
+
+        try {
+            await sendSecondFactorCode();
+        } catch (e) {
+            setError(authFailureMessage(e, codeCopy));
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    // `reset` only clears Clerk's local sign-in state (no network call), so it needs no busy state.
+    async function handleStartOver() {
+        await signIn?.reset();
+        setStep('credentials');
+        setCode('');
+        setPassword('');
+        setError(null);
     }
 
     async function handleVerifyCode() {
@@ -126,17 +189,17 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
         setError(null);
 
         try {
-            const result = await signIn.emailCode.verifyCode({ code });
+            const result = await signIn.mfa.verifyEmailCode({ code });
 
             if (result.error) {
-                setError(authFailureMessage(result.error, { networkError: t.networkError, fallback: t.verifyFailed }));
+                setError(authFailureMessage(result.error, copyFor(t.verifyFailed)));
 
                 return;
             }
 
-            await resolveStatus();
+            await finishSignIn();
         } catch (e) {
-            setError(authFailureMessage(e, { networkError: t.networkError, fallback: t.verifyFailed }));
+            setError(authFailureMessage(e, copyFor(t.verifyFailed)));
         } finally {
             setBusy(false);
         }
@@ -182,23 +245,13 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
                             </View>
                         </View>
                     ) : (
-                        <View style={styles.fields}>
-                            <Text style={[nativeTokens.type.body, { color: colors.inkMuted }]}>{t.codePrompt}</Text>
-                            <View style={styles.field}>
-                                <FieldLabel forId="signin-code" label={t.codeLabel} />
-                                <Input
-                                    id="signin-code"
-                                    placeholder={t.codePlaceholder}
-                                    value={code}
-                                    onChangeText={setCode}
-                                    inputMode="numeric"
-                                    autoComplete="one-time-code"
-                                    enterKeyHint="done"
-                                    disabled={busy}
-                                    onSubmit={() => void handleVerifyCode()}
-                                />
-                            </View>
-                        </View>
+                        <AuthCodeFields
+                            id="signin-code"
+                            value={code}
+                            onChangeText={setCode}
+                            busy={busy}
+                            onSubmit={() => void handleVerifyCode()}
+                        />
                     )}
 
                     {error ? (
@@ -216,12 +269,15 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
                         {onCredentials ? t.signInAction : t.verifyAction}
                     </Button>
 
-                    <View style={styles.toggle}>
-                        <Text style={[nativeTokens.type.meta, { color: colors.inkMuted }]}>{t.noAccountPrompt}</Text>
-                        <Button variant="secondary" icon="userPlus" onPress={onSignUp}>
-                            {t.signUpLink}
-                        </Button>
-                    </View>
+                    {onCredentials ? (
+                        <AuthSwitchLink prompt={t.noAccountPrompt} label={t.signUpLink} onPress={onSignUp} />
+                    ) : (
+                        <AuthCodeActions
+                            busy={busy}
+                            onResend={() => void handleResend()}
+                            onStartOver={() => void handleStartOver()}
+                        />
+                    )}
                 </ScrollView>
             </KeyboardAvoider>
         </SafeAreaView>
@@ -243,5 +299,4 @@ const styles = StyleSheet.create({
     },
     fields: { gap: nativeTokens.spacing[3] },
     error: { ...nativeTokens.type.meta },
-    toggle: { alignItems: 'flex-start', gap: nativeTokens.spacing[2] },
 });

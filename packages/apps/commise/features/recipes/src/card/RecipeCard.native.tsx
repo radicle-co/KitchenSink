@@ -16,7 +16,10 @@
  * clip on the content view inside it.
  *
  * One line that runs out of room: native has no `:empty`, so the meta line spaces its items with a gap rather than the
- * web's middots — a nutrition slot that settles on nothing would otherwise leave an orphan separator.
+ * web's middots — a nutrition slot that settles on nothing would otherwise leave an orphan separator. A one-line row is a
+ * wrapping row of EXACTLY one line's height (`./oneLine.ts`, scaled by the OS font scale), so an item that does not fit
+ * wraps to a second line that is fully hidden. The row's cuisine is capped at half the line and truncates, so it gives
+ * way before the time and the servings drop (W-06).
  *
  * @pattern Compound Component — a Root carrying the view in context, and parts each surface arranges
  * @pattern Registry — the variant's default arrangement, keyed by the closed variant union
@@ -28,11 +31,12 @@ import { PressScale } from '@commise/ui/press-scale';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { useTheme } from '@commise/ui/theme';
-import { useContext, type FC, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { createContext, useContext, type FC, type ReactNode } from 'react';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import type { CardVariant } from './cardVariant.js';
 import { STAR_COUNT } from './model.js';
+import { badgeLineHeightOf, metaLineHeightOf } from './oneLine.js';
 import {
     RecipeCardNutritionContext,
     RecipeCardViewContext,
@@ -40,6 +44,24 @@ import {
     type RecipeCardProps,
 } from './recipeCardContext.js';
 import { useRecipeCardView } from './useRecipeCardView.js';
+
+/**
+ * The OS font scale, read once by the Root. Module-private: only the one-line rows read it, and the card's view stays a
+ * pure derivation of the model that does not depend on the device.
+ */
+const FontScaleContext = createContext(1);
+
+/**
+ * One line of a card: a wrapping row of exactly one line's height.
+ *
+ * @param props.kind - `meta` for text and icons, `badge` for a row holding a badge.
+ */
+const OneLine: FC<{ readonly kind: 'meta' | 'badge'; readonly children: ReactNode }> = ({ kind, children }) => {
+    const fontScale = useContext(FontScaleContext);
+    const height = kind === 'meta' ? metaLineHeightOf(fontScale) : badgeLineHeightOf(fontScale);
+
+    return <View style={[styles.oneLine, { height }]}>{children}</View>;
+};
 
 /** A cover chip: solid `photoChip`, `ink`, the `sm` radius. */
 const CoverChip: FC<{ readonly children: ReactNode; readonly label?: string }> = ({ children, label }) => {
@@ -60,6 +82,8 @@ const CoverChip: FC<{ readonly children: ReactNode; readonly label?: string }> =
 const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) => {
     const { recipe, cover } = useCardView();
     const { colors } = useTheme();
+    // Text never sits under a chip (§1.8): a cover that draws the time chip says no cuisine of its own.
+    const drawsTimeChip = !thumbnail && cover.time !== undefined;
 
     return (
         <View style={thumbnail ? styles.thumbnail : styles.cover}>
@@ -67,14 +91,17 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
                 recipeId={recipe.id}
                 title={recipe.title}
                 aspect={thumbnail ? '1:1' : '4:3'}
+                overline={!drawsTimeChip}
                 {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />
             {!thumbnail && cover.status !== undefined && (
                 <View style={styles.topStart}>
-                    <CoverChip>
+                    <CoverChip label={cover.status.text}>
                         <Icon name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'} size={16} tone="ink" />
-                        <Text style={[styles.caption, { color: colors.ink }]}>{cover.status.text}</Text>
+                        <Text numberOfLines={1} style={[styles.caption, styles.shrink, { color: colors.ink }]}>
+                            {cover.status.text}
+                        </Text>
                     </CoverChip>
                 </View>
             )}
@@ -144,12 +171,12 @@ const CardDifficultyRating: FC = () => {
     const { meta } = useCardView();
 
     return (
-        <View style={styles.oneLine}>
+        <OneLine kind="badge">
             {meta.difficulty !== undefined && (
                 <DifficultyBadge level={meta.difficulty.level}>{meta.difficulty.label}</DifficultyBadge>
             )}
             <CardRating />
-        </View>
+        </OneLine>
     );
 };
 
@@ -161,7 +188,7 @@ const CardMeta: FC = () => {
     const text = [styles.meta, { color: colors.inkMuted }];
 
     return (
-        <View style={styles.oneLine}>
+        <OneLine kind="meta">
             {recipe.cuisine !== undefined && (
                 <Text numberOfLines={1} style={[text, styles.shrink]}>
                     {recipe.cuisine}
@@ -171,7 +198,7 @@ const CardMeta: FC = () => {
             <Text accessibilityLabel={meta.servingsLabel} style={text}>
                 {meta.servingsText}
             </Text>
-        </View>
+        </OneLine>
     );
 };
 
@@ -229,9 +256,9 @@ const RowMeta: FC = () => {
     const text = [styles.meta, { color: colors.inkMuted }];
 
     return (
-        <View style={styles.oneLine}>
+        <OneLine kind="meta">
             {recipe.cuisine !== undefined && (
-                <Text numberOfLines={1} style={[text, styles.shrink]}>
+                <Text numberOfLines={1} style={[text, styles.cuisineCap]}>
                     {recipe.cuisine}
                 </Text>
             )}
@@ -246,7 +273,7 @@ const RowMeta: FC = () => {
                 <Text style={[text, styles.figure]}>{recipe.servings}</Text>
             </View>
             {nutrition}
-        </View>
+        </OneLine>
     );
 };
 
@@ -256,7 +283,7 @@ const RowStatus: FC = () => {
     const { colors } = useTheme();
 
     return (
-        <View style={styles.oneLine}>
+        <OneLine kind="badge">
             {meta.difficulty !== undefined && (
                 <DifficultyBadge level={meta.difficulty.level}>{meta.difficulty.label}</DifficultyBadge>
             )}
@@ -274,7 +301,7 @@ const RowStatus: FC = () => {
             <Text numberOfLines={1} style={[styles.caption, styles.trailing, { color: colors.inkMuted }]}>
                 {badges.timestamp}
             </Text>
-        </View>
+        </OneLine>
     );
 };
 
@@ -310,17 +337,21 @@ const GridArrangement: FC<ArrangementSlots> = ({ link, footer }) => (
 
 const RowArrangement: FC<ArrangementSlots> = ({ link, note, trailing }) => (
     <View style={styles.row}>
-        {link(
-            <View style={styles.rowLink}>
-                <CardCover thumbnail />
-                <View style={styles.rowText}>
-                    <CardTitle />
-                    <RowMeta />
-                    <RowStatus />
-                    {note === undefined ? null : <NoteLine>{note}</NoteLine>}
-                </View>
-            </View>,
-        )}
+        {/* The link's `PressScale fill` is `alignSelf: stretch`, which in a ROW stretches height and not width: without
+            this box a card with its own trailing control gave the link no width, and the title and meta drew in none. */}
+        <View style={styles.rowLinkBox}>
+            {link(
+                <View style={styles.rowLink}>
+                    <CardCover thumbnail />
+                    <View style={styles.rowText}>
+                        <CardTitle />
+                        <RowMeta />
+                        <RowStatus />
+                        {note === undefined ? null : <NoteLine>{note}</NoteLine>}
+                    </View>
+                </View>,
+            )}
+        </View>
         {trailing === undefined ? null : <View style={styles.trailingBox}>{trailing}</View>}
     </View>
 );
@@ -374,6 +405,7 @@ const CardSurface: FC<{ readonly children: ReactNode }> = ({ children }) => {
 const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
     const { recipe, onSelect, nutrition = null } = props;
     const view = useRecipeCardView(recipe);
+    const { fontScale } = useWindowDimensions();
     const Arrangement = props.variant === undefined ? null : ARRANGEMENT[props.variant];
     const ownControls = props.footer !== undefined || props.trailing !== undefined;
     const select = (node: ReactNode): ReactNode =>
@@ -408,7 +440,9 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
     return (
         <RecipeCardViewContext.Provider value={view}>
             <RecipeCardNutritionContext.Provider value={nutrition}>
-                {ownControls ? surface : select(surface)}
+                <FontScaleContext.Provider value={fontScale}>
+                    {ownControls ? surface : select(surface)}
+                </FontScaleContext.Provider>
             </RecipeCardNutritionContext.Provider>
         </RecipeCardViewContext.Provider>
     );
@@ -442,7 +476,8 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.md,
         overflow: 'hidden',
     },
-    topStart: { position: 'absolute', top: nativeTokens.spacing[2], start: nativeTokens.spacing[2] },
+    // Half the cover at most, so the status chip and PRO never meet at a large font scale (W-08, A-028).
+    topStart: { position: 'absolute', top: nativeTokens.spacing[2], start: nativeTokens.spacing[2], maxWidth: '50%' },
     topEnd: { position: 'absolute', top: nativeTokens.spacing[2], end: nativeTokens.spacing[2] },
     topEndTight: { position: 'absolute', top: nativeTokens.spacing[1], end: nativeTokens.spacing[1] },
     bottomStart: { position: 'absolute', bottom: nativeTokens.spacing[2], start: nativeTokens.spacing[2] },
@@ -471,6 +506,7 @@ const styles = StyleSheet.create({
     compactFooterBox: { paddingHorizontal: nativeTokens.spacing[3], paddingBottom: nativeTokens.spacing[3] },
     row: { flexDirection: 'row', gap: nativeTokens.spacing[3], padding: nativeTokens.spacing[3], minHeight: 96 },
     rowLink: { flexDirection: 'row', gap: nativeTokens.spacing[3], flex: 1, minWidth: 0 },
+    rowLinkBox: { flex: 1, minWidth: 0 },
     trailingBox: {
         alignItems: 'flex-start',
         marginVertical: -nativeTokens.spacing[1],
@@ -481,18 +517,19 @@ const styles = StyleSheet.create({
     meta: { ...nativeTokens.type.meta },
     caption: { ...nativeTokens.type.caption },
     figure: { fontVariant: ['tabular-nums', 'lining-nums'] },
-    // One line: an item that does not fit wraps to a second line that the fixed height hides, so items drop from the end.
+    // One line: an item that does not fit wraps to a second line that the row's height (`OneLine`) hides entirely, so
+    // items drop from the end.
     oneLine: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         alignItems: 'center',
         columnGap: nativeTokens.spacing[2],
-        height: 24,
         overflow: 'hidden',
     },
     wrapLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
     lineBox: { minHeight: 18 },
     shrink: { flexShrink: 1 },
+    cuisineCap: { flexShrink: 1, maxWidth: '50%' },
     iconItem: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
     trailing: { marginStart: 'auto', flexShrink: 1 },
     stars: { flexDirection: 'row', alignItems: 'center', gap: 1 },

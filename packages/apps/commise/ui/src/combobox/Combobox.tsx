@@ -45,8 +45,12 @@
  *   own scroll, so the page under it stays put.
  * - ⛔ No transition classes, so `prefers-reduced-motion` has nothing to suppress.
  *
- * A host's focus request needs the field's node, for `.focus()` and the caret, which have no declarative form. It is
- * floating-ui's reference node, which floating-ui holds in state, so this leaf holds no ref of its own.
+ * The field is the house text field (`docs/design/uiOverhaul/buildSpec.md` §7.4): a visible `FieldLabel` above it with
+ * the hint under that label, and the `FIELD_CLASS` rectangle, not an underline. The list is anchored to a box around the
+ * input and the line the host draws under it (`belowField`), so it opens below that line and never covers it (E14).
+ *
+ * A host's focus request needs the input's node, for `.focus()` and the caret, which have no declarative form. It is
+ * held in state through a callback ref, as floating-ui holds its reference node, so this leaf holds no `useRef`.
  *
  * @pattern Adapter over downshift useCombobox
  * @pattern Adapter over @floating-ui/react-dom
@@ -67,9 +71,12 @@ import {
 } from '@floating-ui/react-dom';
 import { compute } from 'compute-scroll-into-view';
 import { useCombobox, type UseComboboxState, type UseComboboxStateChangeOptions } from 'downshift';
-import { Fragment, useContext, useEffect, useId, useState, type FC, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useContext, useEffect, useState, type FC, type KeyboardEvent, type ReactNode } from 'react';
 
 import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
+import { FIELD_CLASS } from '../input/fieldClass.js';
+import { FieldLabel } from '../input/FieldLabel.js';
+import { fieldHintId } from '../input/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.js';
 import { PopupInsetsContext, type PopupInsetsReader } from '../popupInsets/popupInsetsContext.js';
 import { VariantPartsLine } from '../variantPartsLine/VariantPartsLine.js';
@@ -287,7 +294,9 @@ const reduceComboboxState = (
 
 /** The combobox. */
 export const Combobox: FC<ComboboxProps> = ({
+    id,
     label,
+    labelVisibility = 'visible',
     listLabel,
     value,
     onValueChange,
@@ -303,6 +312,7 @@ export const Combobox: FC<ComboboxProps> = ({
     onFocus,
     onAbandon,
     cancel,
+    trailingAction,
     leadingIcon,
     hint,
     belowField,
@@ -311,9 +321,11 @@ export const Combobox: FC<ComboboxProps> = ({
     focusRequested = false,
     onFocusRequestHandled,
     listRequested = false,
+    openOnFocus = false,
     alertOccurrence,
 }) => {
-    const hintId = useId();
+    const hintId = fieldHintId(id);
+    const [inputNode, setInputNode] = useState<HTMLInputElement | null>(null);
     const readInsets = useContext(PopupInsetsContext);
     const [activeKey, setActiveKey] = useState<string | undefined>(undefined);
 
@@ -323,6 +335,7 @@ export const Combobox: FC<ComboboxProps> = ({
         index >= 0 && index < options.length ? options[index].key : undefined;
 
     const { isOpen, getInputProps, getMenuProps, getItemProps, openMenu, closeMenu } = useCombobox<ComboboxOption>({
+        inputId: id,
         items: options,
         itemToString: (option) => option?.label ?? '',
         inputValue: value,
@@ -359,7 +372,7 @@ export const Combobox: FC<ComboboxProps> = ({
         placement,
         isPositioned,
         middlewareData,
-    } = useFloating<HTMLInputElement>({
+    } = useFloating<HTMLDivElement>({
         open: popupShown,
         placement: keptPlacement ?? 'bottom-start',
         strategy: 'fixed',
@@ -419,14 +432,14 @@ export const Combobox: FC<ComboboxProps> = ({
     // A request is taken once the field's node exists; the hook reads the host's callback and list request as they are
     // when it is taken, so neither re-runs a request.
     useFocusRequest(
-        focusRequested && fieldNode !== null,
+        focusRequested && inputNode !== null,
         () => {
-            if (fieldNode === null) {
+            if (inputNode === null) {
                 return;
             }
 
-            fieldNode.focus();
-            fieldNode.setSelectionRange(fieldNode.value.length, fieldNode.value.length);
+            inputNode.focus();
+            inputNode.setSelectionRange(inputNode.value.length, inputNode.value.length);
 
             if (listRequested) {
                 openMenu();
@@ -472,26 +485,33 @@ export const Combobox: FC<ComboboxProps> = ({
         }
     };
 
+    const labelShown = labelVisibility === 'visible';
     const describedByIds = [
         ...(hint === undefined ? [] : [hintId]),
         ...(describedBy === undefined ? [] : [describedBy]),
     ];
 
     const inputProps = getInputProps({
-        ref: setReference,
+        ref: setInputNode,
         'aria-label': label,
         'aria-describedby': describedByIds.length === 0 ? undefined : describedByIds.join(' '),
         'aria-invalid': invalid || undefined,
         type: 'text',
         placeholder,
-        onFocus,
+        onFocus: () => {
+            onFocus?.();
+
+            if (openOnFocus) {
+                openMenu();
+            }
+        },
         onKeyDown,
         onChange: (event) => {
             onValueChange(event.currentTarget.value);
             setActiveKey(undefined);
         },
-        className:
-            'min-w-0 flex-1 border-b border-line-control bg-transparent px-1 py-2 text-body-md text-ink outline-none placeholder:text-ink-muted focus-visible:border-focus-ring focus-visible:ring-2 focus-visible:ring-focus-ring',
+        // The leading glyph sits inside the rectangle, so the text starts after it.
+        className: `min-w-0 flex-1 text-ink ${FIELD_CLASS}${leadingIcon === undefined ? '' : ' ps-11'}`,
     });
     const activeDescendant = inputProps['aria-activedescendant'];
     // The listbox mounts only while it has options; downshift is told so, and checks its ref only when it does.
@@ -520,32 +540,42 @@ export const Combobox: FC<ComboboxProps> = ({
     );
 
     return (
-        <div>
-            <div className="flex items-center gap-2">
-                {leadingIcon !== undefined && (
-                    <span aria-hidden className="inline-flex shrink-0 text-ink-muted">
-                        {leadingIcon}
-                    </span>
-                )}
-                <input
-                    {...inputProps}
-                    aria-expanded={listShown}
-                    aria-controls={listShown ? inputProps['aria-controls'] : undefined}
-                    aria-activedescendant={activeDescendant === '' ? undefined : activeDescendant}
-                />
-                {cancel !== undefined && (
-                    <button
-                        type="button"
-                        aria-label={cancel.name}
-                        onClick={cancel.onPress}
-                        className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                    >
-                        {cancel.text}
-                    </button>
-                )}
+        <div className="flex flex-col gap-1">
+            {labelShown && <FieldLabel forId={id} label={label} {...(hint === undefined ? {} : { hint })} />}
+            {/* The popup's reference: the input AND the line under it, so the list opens below that line (E14). */}
+            <div ref={setReference} className="flex flex-col">
+                <div className="flex items-center gap-2">
+                    <div className="relative flex min-w-0 flex-1 items-center">
+                        {leadingIcon !== undefined && (
+                            <span
+                                aria-hidden
+                                className="pointer-events-none absolute start-4 inline-flex text-ink-muted"
+                            >
+                                {leadingIcon}
+                            </span>
+                        )}
+                        <input
+                            {...inputProps}
+                            aria-expanded={listShown}
+                            aria-controls={listShown ? inputProps['aria-controls'] : undefined}
+                            aria-activedescendant={activeDescendant === '' ? undefined : activeDescendant}
+                        />
+                    </div>
+                    {trailingAction}
+                    {cancel !== undefined && (
+                        <button
+                            type="button"
+                            aria-label={cancel.name}
+                            onClick={cancel.onPress}
+                            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        >
+                            {cancel.text}
+                        </button>
+                    )}
+                </div>
+                {belowField}
             </div>
-            {belowField}
-            {hint !== undefined && (
+            {!labelShown && hint !== undefined && (
                 <span id={hintId} className="sr-only">
                     {hint}
                 </span>

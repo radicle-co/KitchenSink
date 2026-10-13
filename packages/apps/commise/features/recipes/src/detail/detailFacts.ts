@@ -8,6 +8,7 @@
 import type { Locale } from '@commise/i18n';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail, type RecipeIngredientView } from '@kitchensink/recipe-core';
 
+import { formatCalories } from '../card/model.js';
 import { formatDuration } from '../format/duration.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type {
@@ -253,35 +254,73 @@ const NO_FIGURE = '—';
 
 /**
  * The four per-serving figures (calories, protein, carbs, fat). A partial estimate that counted NOTHING — every figure
- * zero, not complete — shows "—" in each cell: "0 / 0 g" read as a measured zero (F17). A complete recipe keeps its
- * zeros, which are measurements. Pure.
+ * zero, not complete — shows "—" in each cell: "0 / 0 g" read as a measured zero (F17). A recipe with NO lines counts
+ * nothing too: its sum over nothing is a "complete" zero, and the same dashes are the honest cell (D2). A complete
+ * recipe WITH lines keeps its zeros, which are measurements. Pure.
+ *
+ * The figures are whole numbers grouped for the locale (D11), through the card's own `formatCalories`: the server's
+ * rounding to one decimal is not for the reader.
  *
  * @param nutrition - The stored per-serving figures.
+ * @param ingredients - The recipe's lines: none means nothing could have been counted.
  * @param detail - The detail copy (labels and the grams template).
+ * @param locale - The active locale.
  * @returns The cells, in order, and whether nothing was counted.
  */
 export function nutritionCells(
     nutrition: Pick<RecipeDetail['nutrition'], 'calories' | 'proteinG' | 'carbsG' | 'fatG' | 'isComplete'>,
+    ingredients: readonly RecipeIngredientView[],
     detail: RecipeDetailMessages,
+    locale: Locale,
 ): NutritionCells {
     const noneCounted =
-        !nutrition.isComplete &&
-        nutrition.calories === 0 &&
-        nutrition.proteinG === 0 &&
-        nutrition.carbsG === 0 &&
-        nutrition.fatG === 0;
+        ingredients.length === 0 ||
+        (!nutrition.isComplete &&
+            nutrition.calories === 0 &&
+            nutrition.proteinG === 0 &&
+            nutrition.carbsG === 0 &&
+            nutrition.fatG === 0);
     const grams = (value: number): string =>
-        noneCounted ? NO_FIGURE : fillTemplate(detail.gramsUnit, { grams: value });
+        noneCounted ? NO_FIGURE : fillTemplate(detail.gramsUnit, { grams: formatCalories(value, locale) });
 
     return {
         noneCounted,
         cells: [
-            { label: detail.caloriesLabel, value: noneCounted ? NO_FIGURE : String(nutrition.calories) },
+            {
+                label: detail.caloriesLabel,
+                value: noneCounted ? NO_FIGURE : formatCalories(nutrition.calories, locale),
+            },
             { label: detail.proteinLabel, value: grams(nutrition.proteinG) },
             { label: detail.carbsLabel, value: grams(nutrition.carbsG) },
             { label: detail.fatLabel, value: grams(nutrition.fatG) },
         ],
     };
+}
+
+/**
+ * The ONE line under the nutrition figures that says why they are what they are (A-015). Pure.
+ *
+ * Nothing counted and nothing withheld → no ingredient has a food. Some counted and some did not → partial. Nothing
+ * counted BECAUSE the lines are withheld for review → nothing here: "no ingredient has a food" is false (each has one),
+ * and the review notice, drawn beside it, already says what happened. The page used to print both.
+ *
+ * @param state - Whether nothing was counted, whether the estimate is complete, and the review notice if there is one.
+ * @param detail - The detail copy.
+ * @returns The line, or `undefined` when there is none to add.
+ */
+export function nutritionStatusLine(
+    state: {
+        readonly noneCounted: boolean;
+        readonly isComplete: boolean;
+        readonly reviewNotice: string | undefined;
+    },
+    detail: Pick<RecipeDetailMessages, 'nutritionNoneCounted' | 'nutritionPartial'>,
+): string | undefined {
+    if (state.noneCounted) {
+        return state.reviewNotice === undefined ? detail.nutritionNoneCounted : undefined;
+    }
+
+    return state.isComplete ? undefined : detail.nutritionPartial;
 }
 
 /** One status badge on an ingredient row. */
@@ -349,13 +388,18 @@ const TWO_BY_TWO_STRIP = 360;
 /**
  * The native page's layout for a body width — the thresholds the web leaf reads through container queries. Pure.
  *
+ * The column count is in points. The stat strip's cells hold text, so the strip is judged by the width a cell has in
+ * UNITS OF TEXT: the body width over the font scale (A-028 d). At font scale 2 a 360 pt strip is a 180-unit one.
+ *
  * @param bodyWidth - The width the page's content gets, in points (the window less its gutters).
+ * @param fontScale - The OS font scale (1 at the default size). Required: a default would silently assert "default
+ *     text size" for a caller that had not thought about it.
  * @returns Its columns, and how many stat cells fit a row.
  */
-export function detailNativeLayoutOf(bodyWidth: number): DetailNativeLayout {
+export function detailNativeLayoutOf(bodyWidth: number, fontScale: number): DetailNativeLayout {
     const columns = bodyWidth >= TWO_COLUMN_BODY ? 'two' : 'one';
     // In two columns the strip sits in the full-width top, so only the one-column width can fall below 360.
-    const statsPerRow = bodyWidth < TWO_BY_TWO_STRIP ? 2 : 4;
+    const statsPerRow = bodyWidth / fontScale < TWO_BY_TWO_STRIP ? 2 : 4;
 
     return { columns, statsPerRow };
 }

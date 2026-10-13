@@ -51,6 +51,7 @@ test.describe('signing out leaves the authenticated shell (U3)', () => {
         // The regression this exists for: nothing authenticated survives. No app nav shell, and no sign-out
         // control (which would mean the shell re-rendered for a session that no longer exists).
         await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
+        await expect(page.getByRole('navigation', { name: 'Tabs' })).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
 
         // Guards the double-prefix class (a target manually prefixed AND run through the prefix-aware router).

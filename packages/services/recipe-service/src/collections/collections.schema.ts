@@ -232,16 +232,38 @@ const collectionResponseShape = collectionSchema.extend({
  * The `Collection` wire body: `POST /collections`, `PATCH /collections/{id}`, `POST /collections/{id}/clone`, and
  * each element of the list envelope.
  *
- * `recipeCount` (inherited from recipe-core) is present on single-collection reads and absent on list reads — the
- * server genuinely omits it there rather than sending `0`, so optional is the honest declaration.
+ * `recipeCount` (inherited from recipe-core) is optional here: a create/patch/clone body does not compute it. The list
+ * element is {@link collectionListItemSchema}, which requires it.
  */
 export const collectionResponseSchema = collectionResponseShape.readonly();
 
 /** The `Collection` wire body. */
 export type CollectionResponse = z.infer<typeof collectionResponseSchema>;
 
+/** How many member covers a collection card shows (buildSpec §5.1: a 2x2 album). */
+const COLLECTION_COVER_LIMIT = 4;
+
+/**
+ * One element of the `GET /api/v1/collections` list: the collection body plus what its CARD shows about its members
+ * (W-11). Both fields are REQUIRED here, unlike the single-collection body: this read always computes them, and a
+ * collection with no members is `0` and `[]` rather than absent, so a client never has to tell "none" from "not sent".
+ *
+ * Both count and covers are scoped to what the CALLER may read — a private or draft member of someone else's
+ * recipe never counts and never shows, exactly as in the open collection.
+ */
+export const collectionListItemSchema = collectionResponseShape
+    .extend({
+        recipeCount: z.number().int().nonnegative(),
+        /** Absolute CDN URLs of up to four members' cover photos, in the order the members were added. */
+        coverPhotoUrls: z.array(z.string().url()).max(COLLECTION_COVER_LIMIT).readonly(),
+    })
+    .readonly();
+
+/** One collection in the list. */
+export type CollectionListItem = z.infer<typeof collectionListItemSchema>;
+
 /** The `GET /api/v1/collections` body — a page of collections. */
-export const collectionListResponseSchema = paginatedResponseSchema(collectionResponseSchema);
+export const collectionListResponseSchema = paginatedResponseSchema(collectionListItemSchema);
 
 /** A page of collections. */
 export type CollectionListResponse = z.infer<typeof collectionListResponseSchema>;

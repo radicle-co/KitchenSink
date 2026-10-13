@@ -36,6 +36,12 @@ export interface AuthSurfaceMessages {
     readonly signUpPrompt: string;
     /** The sign-in footer's link, the only way to register; Clerk's `actionLink`. */
     readonly signUpAction: string;
+    /** Shown under the sign-in identifier field when it is submitted empty. */
+    readonly emailRequired: string;
+    /** Shown under the sign-in identifier field when what was typed is not an email address. */
+    readonly emailInvalid: string;
+    /** Shown when no account has the email address that was typed. */
+    readonly accountNotFound: string;
 }
 
 /** The shape of the web auth surface's copy. */
@@ -55,6 +61,9 @@ export const authMessages: LocalizedMessages<AuthMessages> = {
             brandLine: 'Your recipes, in one place.',
             signUpPrompt: 'New to Commise?',
             signUpAction: 'Create an account',
+            emailRequired: 'Enter your email address.',
+            emailInvalid: 'Enter a valid email address.',
+            accountNotFound: 'We couldn’t find an account with that email address.',
         },
         session: {
             eraseSignOutFailed:

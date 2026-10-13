@@ -47,6 +47,11 @@ interface RecentSearchesState {
     /** Whether the stored history has been read yet — gates every write (see the module doc's race note). */
     readonly hydrated: boolean;
     readonly queries: readonly string[];
+    /**
+     * The query THIS session recorded last, if any. It lets a later query replace a partial one typed just before it
+     * (A-027) without ever replacing a search an earlier session stored.
+     */
+    readonly lastRecorded?: string;
 }
 
 type RecentSearchesAction =
@@ -62,18 +67,18 @@ function recentSearchesReducer(state: RecentSearchesState, action: RecentSearche
         case 'hydrate':
             // Anything recorded before the read resolved is NEWER than what was on disk, so it stays in
             // front; merging (rather than replacing) is what keeps both sides.
-            return { hydrated: true, queries: mergeRecentSearches(state.queries, action.queries) };
+            return { ...state, hydrated: true, queries: mergeRecentSearches(state.queries, action.queries) };
 
         case 'record': {
-            const queries = addRecentSearch(state.queries, action.query);
+            const queries = addRecentSearch(state.queries, action.query, state.lastRecorded);
 
             // `addRecentSearch` returns the SAME reference when there is nothing to record, so an unchanged
             // state object here means no re-render and no write.
-            return queries === state.queries ? state : { ...state, queries };
+            return queries === state.queries ? state : { ...state, queries, lastRecorded: action.query };
         }
 
         case 'clear':
-            return state.queries.length === 0 ? state : { ...state, queries: [] };
+            return state.queries.length === 0 ? state : { hydrated: state.hydrated, queries: [] };
         default:
             return state;
     }

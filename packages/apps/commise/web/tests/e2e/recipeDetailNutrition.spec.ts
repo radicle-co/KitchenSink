@@ -81,3 +81,67 @@ test.describe('recipe-detail nutrition freshness', () => {
         await expect(page.getByText(STALE_NOTICE)).toHaveCount(0);
     });
 });
+
+/**
+ * A-015 / D2 / D11 (`buildSpec.md` §6.7 "Nutrition unavailable"): a recipe with no ingredients shows a dash in each cell and one
+ * line, never four zeros; and the figures a reader sees are whole, grouped numbers.
+ */
+test.describe('recipe-detail nutrition states', () => {
+    test('a title-only draft shows four dashes and one line — never zeros', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            tier: 'premium',
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000033',
+                    ownerId: viewerId,
+                    title: 'Title-Only Draft',
+                    ingredients: [],
+                    steps: [],
+                    nutrition: { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, isComplete: true, freshness: 'fresh' },
+                }),
+            ],
+        });
+
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000033'));
+        await expect(page.getByRole('heading', { level: 1, name: 'Title-Only Draft' })).toBeVisible();
+
+        const nutrition = page.getByRole('region', { name: NUTRITION_REGION });
+        await expect(nutrition.getByText('—', { exact: true })).toHaveCount(4);
+        await expect(nutrition.getByText('0', { exact: true })).toHaveCount(0);
+        await expect(nutrition.getByText('Not counted yet: no ingredient has a food.')).toHaveCount(1);
+    });
+
+    test('groups and rounds the figures for the reader', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            tier: 'premium',
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000034',
+                    ownerId: viewerId,
+                    title: 'Big Number Stew',
+                    nutrition: {
+                        calories: 1290.7,
+                        proteinG: 12.4,
+                        carbsG: 1287,
+                        fatG: 0.4,
+                        isComplete: true,
+                        freshness: 'fresh',
+                    },
+                }),
+            ],
+        });
+
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000034'));
+
+        const nutrition = page.getByRole('region', { name: NUTRITION_REGION });
+        await expect(nutrition.getByText('1,291', { exact: true })).toBeVisible();
+        await expect(nutrition.getByText('1,287 g', { exact: true })).toBeVisible();
+        await expect(nutrition.getByText('12 g', { exact: true })).toBeVisible();
+    });
+});

@@ -41,6 +41,25 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 
+# E1 (UI walk 2026-10-13; build spec §6.4, §7.7 item 2) — the editor's own visibility choice, PREMIUM path. Private is a
+# real choice for this signer: it selects, with no Premium sheet. The FREE-tier leg (Private opens "Private recipes are
+# part of Premium.") has no on-device check for the reason above — the fixture contract provides no free-tier signer —
+# and is covered by `RecipeEditorScreen.native.test.tsx` and the web Playwright suite. Leaving by × keeps nothing the
+# next flow can meet: every flow is reseeded, and a draft with no title never reaches the server.
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- scrollUntilVisible:
+      element: 'Only you can see it'
+      direction: DOWN
+      timeout: 30000
+- tapOn: 'Only you can see it'
+- assertNotVisible: 'Private recipes are part of Premium.'
+- assertVisible:
+      text: 'Private'
+      checked: true
+- tapOn: 'Close editor'
+- assertVisible: 'Recipes'
+
 # The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the owned recipe rather
 # than a `when: visible` guard that would silently SKIP when it is below the fold (the list scrolls).
 - scrollUntilVisible:

@@ -18,6 +18,7 @@
  */
 import {
     RecipeVersionList,
+    RecipeVersionListSkeleton,
     VersionCompareView,
     VersionPreviewModal,
     classifyRestoreError,
@@ -36,7 +37,6 @@ import { useSuspenseQueries } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { LoadingState } from '../components/LoadingState.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 /** Props for {@link RecipeVersionsScreen}. */
@@ -63,7 +63,7 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
                 <Text>{t.back}</Text>
             </Pressable>
             <QueryBoundary
-                loading={<LoadingState label={t.versionsLoading} />}
+                loading={<RecipeVersionListSkeleton label={t.versionsLoading} />}
                 renderError={({ resetErrorBoundary }) => (
                     <View style={styles.center}>
                         <Text accessibilityRole="alert">{t.versionsError}</Text>
@@ -78,6 +78,14 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
             </QueryBoundary>
         </View>
     );
+}
+
+/** What a restore does beyond restoring. */
+interface RestoreOptions {
+    /** Runs once the restore has landed (the preview closes). */
+    readonly onRestored?: () => void;
+    /** Whether the snackbar that follows offers Undo. False for the restore an Undo makes. */
+    readonly undoable?: boolean;
 }
 
 /**
@@ -122,8 +130,11 @@ function RecipeVersionsView({ recipeId }: Pick<RecipeVersionsScreenProps, 'recip
     /** Shared restore trigger for BOTH the list's row action and the preview modal's Restore action — same
      *  mutation, same B17 conflict-refetch; `onRestored` (only supplied from the preview modal) additionally
      *  closes the modal once the restore actually lands. A restore makes a NEW version, so it asks no confirmation:
-     *  the snackbar's Undo restores the version that was current before, which makes another (§6.6). */
-    const restoreVersion = (versionNumber: number, onRestored?: () => void): void => {
+     *  the snackbar's Undo restores the version that was current before, which makes another (§6.6). That second
+     *  restore is the Undo's own and says what it did WITHOUT an Undo of its own (`undoable: false`): offering one would
+     *  be a loop of restores each undoing the last. */
+    const restoreVersion = (versionNumber: number, options: RestoreOptions = {}): void => {
+        const { onRestored, undoable = true } = options;
         const wasCurrent = recipe.data.currentVersion;
 
         restore.mutate(
@@ -133,7 +144,14 @@ function RecipeVersionsView({ recipeId }: Pick<RecipeVersionsScreenProps, 'recip
                     onRestored?.();
                     snackbar.show({
                         message: versionList.restored.replace('{version}', String(versionNumber)),
-                        action: { label: versionList.undo, onAction: () => restoreVersion(wasCurrent) },
+                        ...(undoable
+                            ? {
+                                  action: {
+                                      label: versionList.undo,
+                                      onAction: () => restoreVersion(wasCurrent, { undoable: false }),
+                                  },
+                              }
+                            : {}),
                     });
                 },
                 // On a conflict the local history + current version are stale — refetch so the viewer sees
@@ -187,7 +205,9 @@ function RecipeVersionsView({ recipeId }: Pick<RecipeVersionsScreenProps, 'recip
                 locale={locale}
                 {...(restoreError === undefined ? {} : { restoreError })}
                 onCancel={() => setPreviewTarget(null)}
-                onRestore={(versionNumber) => restoreVersion(versionNumber, () => setPreviewTarget(null))}
+                onRestore={(versionNumber) =>
+                    restoreVersion(versionNumber, { onRestored: () => setPreviewTarget(null) })
+                }
             />
             <VersionCompareView
                 open={compareDiff !== undefined}

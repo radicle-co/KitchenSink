@@ -16,10 +16,12 @@ import { RecipeCollectionAddedVia, recipeVisibilitySchema, type RecipeVisibility
 import { assertNotContained } from '../common/containment.error.js';
 import type { ActingPrincipal } from '../auth/principal.js';
 import { toPageEnvelope } from '../common/pagination.js';
+import { resolveCdnUrl } from '../photos/photoView.js';
+import { RECIPE_PHOTOS_CDN_URL } from '../recipes/recipes.tokens.js';
 import type { CollectionRow } from '../database/schema/collections.js';
 import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { AnalyticsService } from '../analytics/analytics.service.js';
-import { CollectionsDal } from './dal/collections.dal.js';
+import { COLLECTION_COVER_LIMIT, CollectionsDal } from './dal/collections.dal.js';
 import { isRecipeViewableBy } from '../recipes/domain/recipeVisibility.js';
 import { recipeRowToDomain } from '../recipes/mappers/recipeRowToDomain.js';
 import {
@@ -32,6 +34,7 @@ import {
 import { computePullDiff, pullDiffsAgree } from './domain/pullDiff.js';
 import type {
     CloneCollectionRequest,
+    CollectionListItem,
     CollectionListResponse,
     CollectionRecipeMembershipResponse,
     CollectionResponse,
@@ -85,6 +88,8 @@ export class CollectionsService {
         // Required, not optional: every construction site must decide what analytics receives (the
         // 015 plan's compile-error philosophy for load-bearing new collaborators).
         @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
+        // The CDN base a member's cover key resolves against — the one the recipe reads use (`RECIPE_PHOTOS_CDN_URL`).
+        @Inject(RECIPE_PHOTOS_CDN_URL) private readonly photosCdnUrl: string,
     ) {}
 
     /**
@@ -122,9 +127,25 @@ export class CollectionsService {
         const limit = page.pageSize;
         const offset = (page.page - 1) * page.pageSize;
         const { rows, total } = await this.dal.listByOwner(ownerId, limit, offset);
+        // The caller owns every collection listed, so they are the viewer the member summary is scoped to.
+        const summaries = await this.dal.memberSummaries(
+            rows.map((row) => row.id),
+            ownerId,
+        );
+        const data = rows.map((row): CollectionListItem => {
+            const summary = summaries.get(row.id);
+
+            return {
+                ...toCollectionResponse(row),
+                recipeCount: summary?.recipeCount ?? 0,
+                coverPhotoUrls: (summary?.coverKeys ?? [])
+                    .slice(0, COLLECTION_COVER_LIMIT)
+                    .map((key) => resolveCdnUrl(this.photosCdnUrl, key)),
+            };
+        });
 
         return {
-            data: rows.map((row) => toCollectionResponse(row)),
+            data,
             ...toPageEnvelope({ total, page: page.page, pageSize: page.pageSize, rowCount: rows.length }),
         };
     }

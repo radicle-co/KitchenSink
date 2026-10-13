@@ -29,11 +29,13 @@
  * ignored ownership while mobile checked it). Free-tier owners see the private option disabled with a
  * localized upgrade reason; the tier read fails safe (gated OFF) while the profile is still loading or absent.
  *
- * The recipe page (build spec §6): a back link to the list above the meta line; the action row's primary — Edit
- * recipe for the owner, Save a copy for another cook who may clone — beside the ⋯ menu, whose entries come from the
- * shared `detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); and the rating block in the
- * view's `rating` slot, under the nutrition. The cook's marks, the serving scale and Screen on are bound by the view
- * itself; this container reads the marks only to offer Clear checks.
+ * The recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another cook
+ * who may clone; Back and the ⋯ menu, whose entries come from the shared `detailMenuOf` (Version history, Make
+ * private/public, Clear checks, then Delete); and the rating block in the view's `rating` slot, under the nutrition.
+ * Below 840 (where the tab bar replaces the sidebar) Back and ⋯ are discs over the hero photo; from 840 Back is the
+ * eyebrow link above the meta line and ⋯ sits in the action row. Both placements are drawn and one is hidden by a
+ * VIEWPORT query (`nav:`), the same pairing the view uses for Screen on. The cook's marks, the serving scale and
+ * Screen on are bound by the view itself; this container reads the marks only to offer Clear checks.
  */
 import { useAuth } from '@clerk/nextjs';
 import {
@@ -42,9 +44,14 @@ import {
     RecipeRatingDisplay,
     RecipeRatingInput,
     detailMenuOf,
+    editorMessages,
+    FINISHED_OUTCOME_PARAM,
+    finishedNoticeOf,
     isUnreachableRecovery,
+    parseFinishedOutcome,
     ratingModeFor,
     recipeActionMessages,
+    recipeMessages,
     useCookMarks,
     type DetailMenuItem,
     type RecipeRatingError,
@@ -53,8 +60,10 @@ import { useMessages } from '@commise/i18n/react';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
 import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button';
+import { HeroButton } from '@commise/ui/hero-button';
 import { Icon } from '@commise/ui/icon';
 import { ScrollHost, useScrollHost } from '@commise/ui/scroll-host';
+import { useSnackbar } from '@commise/ui/snackbar';
 import { RecipeVisibility, canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import {
@@ -68,14 +77,14 @@ import {
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { useState, type ComponentProps, type FC } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState, type ComponentProps, type FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { dataSourcesHref } from '@/components/app/dataSourcesHref';
+import { RecipeDetailRouteLoading } from '@/components/recipes/RecipeDetailRouteLoading';
 import { RecipeLoadError } from '@/components/recipes/RecipeLoadError';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeDetailContainer}. */
 export interface RecipeDetailContainerProps {
@@ -104,7 +113,6 @@ function readViewerId(sessionClaims: unknown): string | undefined {
  * @returns The boundary rendering the loading status, a not-found or retrying error, or the settled detail.
  */
 export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) => {
-    const { recipes } = useMessages(webMessages);
     const client = useRecipeServiceClient();
     // Built ONCE and handed to both sides, so the key the boundary checks for a prefetch and the read it gates can
     // never drift apart.
@@ -113,11 +121,7 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
     return (
         <ClientQueryBoundary
             prefetchedKeys={[detail.queryKey]}
-            loading={
-                <p role="status" aria-label={recipes.detail.loadingLabel} className="py-8 text-body text-ink-muted">
-                    {recipes.detail.loadingLabel}
-                </p>
-            }
+            loading={<RecipeDetailRouteLoading />}
             renderError={({ error, resetErrorBoundary }) => (
                 <RecipeLoadError error={error} onRetry={resetErrorBoundary} />
             )}
@@ -185,7 +189,36 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     // The view binds the cook's marks itself; the ⋯ menu reads the same marks to offer Clear checks.
     const marks = useCookMarks(id);
     const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
+    const { detail: detailCopy } = useMessages(recipeMessages);
+    const editorCopy = useMessages(editorMessages);
+    const snackbar = useSnackbar();
+    const finished = parseFinishedOutcome(useSearchParams().get(FINISHED_OUTCOME_PARAM));
+    const finishedNotice = finished === undefined ? undefined : finishedNoticeOf(finished, editorCopy);
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+    // E8: the editor finished and navigated here with `?done=<outcome>`. Say it once, then take the parameter off the
+    // address WITHOUT a navigation (`history.replaceState`, which the App Router folds into its own state), so a reload
+    // or a copied link does not say it again. The parameter is the reader's to forge: only the three spellings count.
+    //
+    // The ADDRESS is the latch: this runs again whenever the snackbar host hands out a new handle (it does, every render),
+    // and what stops it saying the same thing twice is that the address no longer carries the parameter.
+    //
+    // @sideEffect Shows a snackbar and rewrites the address bar.
+    useEffect(() => {
+        if (finishedNotice === undefined) {
+            return;
+        }
+
+        const url = new URL(window.location.href);
+
+        if (!url.searchParams.has(FINISHED_OUTCOME_PARAM)) {
+            return;
+        }
+
+        snackbar.show({ message: finishedNotice });
+        url.searchParams.delete(FINISHED_OUTCOME_PARAM);
+        window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    }, [finishedNotice, snackbar]);
 
     const recipe = query.data;
     const viewerId = readViewerId(sessionClaims);
@@ -263,13 +296,17 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
         }
     };
 
-    const moreActions =
+    // The ⋯ menu is drawn twice — a disc over the hero below 840, a plain trigger in the action row from 840 — so it is
+    // built by appearance. Each instance keeps its own open state, and the hidden one is `display: none`, so it is
+    // neither focusable nor announced.
+    const moreActions = (appearance: 'plain' | 'disc') =>
         menu.items.length > 0 || menu.destructive !== undefined ? (
             <ActionMenu
                 triggerLabel={moreMenu.triggerFor.replace('{title}', recipe.title)}
                 title={moreMenu.title}
                 closeLabel={moreMenu.close}
                 items={menu.items.map(menuItem)}
+                appearance={appearance}
                 {...(menu.destructive === undefined
                     ? {}
                     : {
@@ -282,6 +319,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                       })}
             />
         ) : null;
+    const hasMenu = menu.items.length > 0 || menu.destructive !== undefined;
     const primary = viewerIsOwner ? (
         <Link href={`/${locale}/recipes/${id}/edit` as Route} className={buttonSurfaceClass('primary')}>
             <Icon name="pencilLine" size={20} />
@@ -302,12 +340,14 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
         </Button>
     ) : null;
     const headerActions =
-        primary === null && moreActions === null ? undefined : (
+        primary === null && !hasMenu ? undefined : (
             <>
                 {primary}
-                {moreActions}
+                <span className="hidden nav:contents">{moreActions('plain')}</span>
             </>
         );
+    const backHref = `/${locale}/recipes`;
+    const backLabel = detailCopy.backTo.replace('{parent}', detailActions.backToRecipes);
 
     return (
         <>
@@ -324,14 +364,29 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                     refreshNotice={refreshNotice}
                     unreachableRetry={unreachableRetry}
                     headerActions={headerActions}
+                    heroControls={
+                        <>
+                            <span className="nav:hidden">
+                                <HeroButton
+                                    icon="chevronLeft"
+                                    label={backLabel}
+                                    href={backHref}
+                                    onPress={() => router.push(backHref as Route)}
+                                />
+                            </span>
+                            {hasMenu ? <span className="nav:hidden">{moreActions('disc')}</span> : null}
+                        </>
+                    }
                     back={
-                        <Link
-                            href={`/${locale}/recipes` as Route}
-                            className={`${buttonSurfaceClass('ghost', 'sm')} ${GHOST_EDGE_CLASS} self-start`}
-                        >
-                            <Icon name="chevronLeft" size={16} />
-                            {detailActions.backToRecipes}
-                        </Link>
+                        <span className="hidden nav:contents">
+                            <Link
+                                href={backHref as Route}
+                                className={`${buttonSurfaceClass('ghost', 'sm')} ${GHOST_EDGE_CLASS} self-start`}
+                            >
+                                <Icon name="chevronLeft" size={16} />
+                                {detailActions.backToRecipes}
+                            </Link>
+                        </span>
                     }
                     rating={
                         // Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);

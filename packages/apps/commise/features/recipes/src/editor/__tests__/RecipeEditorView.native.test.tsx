@@ -56,6 +56,18 @@ function PresenceProbe({ name }: { readonly name: string }): ReactElement {
     return <Text>{`${name}: ${useContext(SectionPresenceContext) ? 'here' : 'away'}`}</Text>;
 }
 
+/** Whether the action bar lies inside the box that holds every section: the scroller's content. */
+function barInContent(): boolean {
+    const last = screen.getByRole('heading', { name: 'Photos & publish' });
+    let box: HTMLElement | null = screen.getByRole('heading', { name: 'Details' });
+
+    while (box !== null && !box.contains(last)) {
+        box = box.parentElement;
+    }
+
+    return box?.contains(screen.getByRole('group', { name: 'Recipe actions' })) === true;
+}
+
 function view(editor: UseRecipeEditorResult, over: Partial<RecipeEditorViewProps> = {}): ReactElement {
     return (
         <LocaleProvider locale="en">
@@ -187,7 +199,9 @@ describe('the native editor', () => {
         const values = makeFilledRecipeFormValues({ title: '' });
         render(view(makeEditorResult({ values, publishAttempted: true })));
 
-        expect(screen.getByText('Fix 1 thing to publish')).toBeTruthy();
+        // Two places by design (A-010b): the action bar's polite line, and the Ready line in Photos & publish.
+        const bar = screen.getByRole('group', { name: 'Recipe actions' }).parentElement;
+        expect(within(bar as HTMLElement).getByText('Fix 1 thing to publish')).toBeTruthy();
     });
 
     it('a never-published draft`s conflict replaces the form, in the draft`s words', () => {
@@ -228,6 +242,30 @@ describe('the native editor', () => {
         expect(screen.getByRole('button', { name: 'Close editor' })).toBeTruthy();
     });
 
+    /**
+     * A-006: with the keyboard up the bar is the scroller's last item, not a pinned strip above the keys (§7.1 "the
+     * section bar hides and the ActionBar unpins"): about 330 dp is left for the form, and a pinned bar took more.
+     */
+    it('⛔ unpins the action bar into the scroller while the keyboard is open (phones)', () => {
+        render(view(makeEditorResult()));
+        expect(barInContent()).toBe(false);
+        cleanup();
+
+        keyboard.shown = true;
+        render(view(makeEditorResult()));
+
+        expect(barInContent()).toBe(true);
+        expect(screen.getAllByRole('group', { name: 'Recipe actions' })).toHaveLength(1);
+    });
+
+    it('keeps the action bar pinned on a wide layout with the keyboard open: the rail sits beside the form there', () => {
+        win.width = 1100;
+        keyboard.shown = true;
+        render(view(makeEditorResult()));
+
+        expect(barInContent()).toBe(false);
+    });
+
     it('draws nothing once the editor has handed off', () => {
         const { container } = render(view(makeEditorResult({ state: { status: 'done' } })));
 
@@ -239,6 +277,35 @@ describe('the native editor', () => {
  * Each section tells the leaves inside it whether it is the section the cook is in (`SectionPresenceContext`), so an
  * event that lands in a section the cook is not in is a state, not an interruption (E2). The page opens in Details.
  */
+/**
+ * A-010b (build spec §7.7 item 3): the Ready line is always in Photos & publish — "Ready to publish." for a recipe
+ * Publish would accept, "Fix {n} things to publish" (a button to the first section that needs it) otherwise.
+ */
+describe('the Ready line in Photos & publish (A-010b)', () => {
+    it('says "Ready to publish." for a recipe Publish would accept', () => {
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() })));
+
+        expect(screen.getByText('Ready to publish.')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /^Fix / })).toBeNull();
+    });
+
+    it('is there before Publish is ever pressed for an empty new recipe: a button saying what to fix', () => {
+        render(view(makeEditorResult()));
+
+        expect(screen.getByRole('button', { name: /^Fix \d+ things? to publish$/u })).toBeTruthy();
+        expect(screen.queryByText('Ready to publish.')).toBeNull();
+    });
+
+    it('shows no line for a published recipe: its primary is Save changes', () => {
+        render(
+            view(makeEditorResult({ lifecycle: 'published', values: makeFilledRecipeFormValues() }), { mode: 'edit' }),
+        );
+
+        expect(screen.queryByText('Ready to publish.')).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Fix / })).toBeNull();
+    });
+});
+
 describe('the note about lines with no match (owner D20)', () => {
     const SENTENCE = 'Ready to publish. 1 ingredient has no match, so its nutrition is left out.';
     const withUnmatched = () =>

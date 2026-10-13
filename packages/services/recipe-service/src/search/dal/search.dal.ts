@@ -30,6 +30,7 @@ import type { RecipeSearchFacets, RecipeSearchQuery } from '../search.schema.js'
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE } from '../../common/pagination.js';
+import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
 import { communityOf, readableBy } from '../../recipes/dal/recipePredicates.js';
 import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipeRowToDomain.js';
 import { resolveCdnUrl } from '../../photos/photoView.js';
@@ -99,11 +100,11 @@ export interface RecipeSearchFilters {
     readonly dietaryFlags?: readonly string[];
     /** Require ALL of these tags (array containment). */
     readonly tags?: readonly string[];
-    /** Upper bound on `prep_time_minutes` (rows with unknown prep time are excluded). */
+    /** Upper bound on `prep_time_minutes` (rows with no stated prep time — stored as 0 — are excluded). */
     readonly maxPrepTime?: number;
-    /** Upper bound on `cook_time_minutes` (rows with unknown cook time are excluded). */
+    /** Upper bound on `cook_time_minutes` (rows with no stated cook time — stored as 0 — are excluded). */
     readonly maxCookTime?: number;
-    /** Upper bound on `total_time_minutes` (rows with unknown total time are excluded). */
+    /** Upper bound on `total_time_minutes` (rows with no stated total time — stored as 0 — are excluded). */
     readonly maxTotalTime?: number;
     /**
      * Require the recipe to have a line bound to ANY of these ROOT food ids, or to any of these VARIANT ids — the
@@ -175,7 +176,8 @@ interface RawRecipeSearchRow {
 interface RawFacetRow {
     [column: string]: unknown;
     facet: string;
-    value: string;
+    /** `null` for the total-time group an untimed recipe forms; {@link groupFacets} drops it. */
+    value: string | null;
     count: number | string;
 }
 
@@ -282,6 +284,37 @@ function rankExpr(query: string | undefined): SQL {
     return query === undefined ? sql`0` : sql`ts_rank(search_vector, plainto_tsquery('english', ${query}))`;
 }
 
+/** The three duration columns of `recipes`. */
+type TimeColumn = 'prep_time_minutes' | 'cook_time_minutes' | 'total_time_minutes';
+
+/** Each duration column as a fixed SQL fragment: a closed set of literals, so nothing is ever spliced from a value. */
+const TIME_COLUMN_SQL: Readonly<Record<TimeColumn, SQL>> = {
+    prep_time_minutes: sql`prep_time_minutes`,
+    cook_time_minutes: sql`cook_time_minutes`,
+    total_time_minutes: sql`total_time_minutes`,
+};
+
+/**
+ * The stored value meaning "no time stated". The column is NOT NULL and the editor writes 0 for an unset duration
+ * (buildSpec §6.1: a missing time hides its cell, never "0 min"), so 0 is the one sentinel every time rule below
+ * reads — a bound ("under 30 min"), a facet bucket and the Quickest order — rather than each spelling it. It is a
+ * LITERAL and not a bound parameter: the facet's `CASE` sits in both the SELECT and the GROUP BY, where two bound
+ * parameters are two different expressions to Postgres.
+ */
+const UNSTATED_TIME_SQL: SQL = sql`0`;
+
+/** `column = 0`: the recipe stated no such time. Pure. */
+function isUnstatedTime(column: TimeColumn): SQL {
+    return sql`${TIME_COLUMN_SQL[column]} = ${UNSTATED_TIME_SQL}`;
+}
+
+/** `column > 0 AND column <= max`: a STATED time within the bound — an untimed recipe is never "quick". Pure. */
+function withinStatedTime(column: TimeColumn, max: number): SQL {
+    const name = TIME_COLUMN_SQL[column];
+
+    return sql`${name} > ${UNSTATED_TIME_SQL} AND ${name} <= ${max}`;
+}
+
 /**
  * The page-ordering SQL for each supported sort key, as a key → order-expression map (each builder gets
  * the text query, which relevance needs to reference the `rank` alias). Adding a new sort — `newest`,
@@ -294,8 +327,11 @@ const SORT_ORDER_BUILDERS: Record<RecipeSearchSortBy, (query: string | undefined
     // Relevance (default): rank-first when a query is present, otherwise newest-first.
     [RecipeSearchSortBy.RELEVANCE]: (query) =>
         query === undefined ? sql`created_at DESC` : sql`rank DESC, created_at DESC`,
-    // Quickest (W8-a.9): ascending total time; NULLS never occur (total_time is NOT NULL), created_at tiebreak.
-    [RecipeSearchSortBy.QUICKEST]: () => sql`total_time_minutes ASC, created_at DESC`,
+    // Quickest (W8-a.9): ascending total time, created_at tiebreak. The column is NOT NULL and the editor stores 0
+    // for "no time stated", so the untimed rows are sorted LAST by an explicit leading key (A-017) — a 0 is not
+    // the quickest recipe, it is the one that never said.
+    [RecipeSearchSortBy.QUICKEST]: () =>
+        sql`(${isUnstatedTime('total_time_minutes')}) ASC, total_time_minutes ASC, created_at DESC`,
     // Most-cloned (W8-a.9): order by the number of recipes cloned FROM this one — a correlated COUNT over
     // `cloned_from_id` (already indexed by idx_recipes_cloned_from). created_at is the tiebreak so the common
     // all-zero case (nothing cloned yet) still pages deterministically newest-first.
@@ -325,9 +361,11 @@ export const TOTAL_TIME_BUCKETS = ['0-15', '16-30', '31-60', '61+'] as const;
 /**
  * The SQL `CASE` mapping `total_time_minutes` → a {@link TOTAL_TIME_BUCKETS} id — the SINGLE source for the
  * bucket boundaries, embedded in both the facet SELECT and its GROUP BY so they cannot drift. Mutually
- * exclusive (each row lands in exactly one bucket), so the bucket counts sum to the sample size.
+ * exclusive: each row lands in exactly one bucket, and an untimed recipe (A-017) lands in the NULL one, which
+ * {@link groupFacets} drops — so the counts sum to the number of recipes that STATED a time.
  */
 const totalTimeBucketExpr = sql`CASE
+    WHEN ${isUnstatedTime('total_time_minutes')} THEN NULL
     WHEN total_time_minutes <= 15 THEN '0-15'
     WHEN total_time_minutes <= 30 THEN '16-30'
     WHEN total_time_minutes <= 60 THEN '31-60'
@@ -342,6 +380,11 @@ function groupFacets(rows: RawFacetRow[]): RecipeSearchFacets {
     const totalTime: RecipeFacetCount[] = [];
 
     for (const row of rows) {
+        // The untimed recipes' NULL total-time group is not a bucket (A-017).
+        if (row.value === null) {
+            continue;
+        }
+
         const bucket: RecipeFacetCount = { value: row.value, count: Number(row.count) };
 
         if (row.facet === 'dietary_flags') {
@@ -407,15 +450,7 @@ export class SearchDal {
         const pageResult = await this.db.execute<RawRecipeSearchRow>(sql`
             SELECT ${RECIPE_COLUMNS}, cp.cover_photo_key, ${rank} AS rank
             FROM recipes
-            LEFT JOIN LATERAL (
-                -- Serve the small thumbnail rendition when present, else the full-size original
-                -- (FOLLOW-UP-CR-001-A). Pre-thumbnail rows have thumbnail_key NULL → fall back to s3_key.
-                SELECT COALESCE(p.thumbnail_key, p.s3_key) AS cover_photo_key
-                FROM recipe_photos p
-                WHERE p.recipe_id = recipes.id
-                ORDER BY p.sort_order, p.created_at, p.id
-                LIMIT 1
-            ) cp ON true
+            LEFT JOIN ${coverPhotoLateral()} ON true
             WHERE ${where}
             ORDER BY ${orderBy}
             LIMIT ${pageSize} OFFSET ${offset}
@@ -515,15 +550,15 @@ export class SearchDal {
         }
 
         if (filters.maxPrepTime !== undefined) {
-            conditions.push(sql`prep_time_minutes <= ${filters.maxPrepTime}`);
+            conditions.push(withinStatedTime('prep_time_minutes', filters.maxPrepTime));
         }
 
         if (filters.maxCookTime !== undefined) {
-            conditions.push(sql`cook_time_minutes <= ${filters.maxCookTime}`);
+            conditions.push(withinStatedTime('cook_time_minutes', filters.maxCookTime));
         }
 
         if (filters.maxTotalTime !== undefined) {
-            conditions.push(sql`total_time_minutes <= ${filters.maxTotalTime}`);
+            conditions.push(withinStatedTime('total_time_minutes', filters.maxTotalTime));
         }
 
         const { foodFilter } = filters;

@@ -45,6 +45,13 @@ describe('DiscoveryFooter (web) — the author', () => {
         expect(screen.getByText('From Serious Eats')).toBeTruthy();
     });
 
+    it('never says “From” without a source: a copy has neither a handle nor an attribution (W-03)', () => {
+        footer({ kind: 'idle' }, { authorHandle: undefined, sourceAttribution: undefined });
+
+        expect(screen.queryByText(/From/u)).toBeNull();
+        expect(screen.getByRole('button', { name: 'Save a copy of Pasta' })).toBeTruthy();
+    });
+
     it('says nothing about an author it does not have, and still offers the button', () => {
         footer({ kind: 'idle' }, { authorHandle: undefined });
 

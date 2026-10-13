@@ -8,6 +8,7 @@
 import type { ReactNode } from 'react';
 
 import type { Locale } from '@commise/i18n';
+import type { ScrollBind } from '@commise/ui/scroll-host';
 import { spokenVariantParts } from '@commise/ui/variant-parts-line';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { servingsRange } from '@kitchensink/recipe-core/scaling';
@@ -46,7 +47,13 @@ import type {
     RecipeDurationMessages,
 } from '../messages.js';
 import type { RefreshNoticeControl, RetryControl } from '../refresh/model.js';
-import { lineAmountName, snapshotLineAmountName, variantPartTexts, type NameableLine } from './lineName.js';
+import {
+    lineAmountName,
+    snapshotLineAmountName,
+    unitForQuantity,
+    variantPartTexts,
+    type NameableLine,
+} from './lineName.js';
 
 /**
  * Separates the two bounds of a stated range (`2–3 cups`).
@@ -82,6 +89,7 @@ const RANGE_SEPARATOR = '–';
  * | `range`  | `{ low: 2, high: 3 }`, `'cups'` | `2–3 cups`  |
  * | `absent` | `—`, `'pinch'`                | `pinch`     |
  *
+ *
  * ⛔ An ABSENT quantity renders NO number — not `0`, not `1` (R40). "Butter the size of an egg" states no
  * amount, and printing one would put a figure in front of a cook that their recipe never contained. With no
  * unit either, the result is the empty string; a caller composing `"{quantity} {name}"` must trim.
@@ -110,6 +118,22 @@ export const formatQuantity = (quantity: IngredientQuantity, locale: Locale, uni
 };
 
 /**
+ * {@link formatQuantity} for an amount SHOWN beside a line on the recipe page: a WORD unit takes the plural of the amount
+ * it follows (`1.5 cups`, `2 tablespoons`), a symbol (`tbsp`, `g`) does not (D11). Pure.
+ *
+ * Kept apart from {@link formatQuantity} on purpose: that one prints the unit AS THE COOK WROTE IT, which is what the
+ * editor row and the parsed-line preview must keep showing, so their text matches what is in the field. The detail page
+ * is read, not edited, and it rescales the amounts, which is when "1.5 cup" appears.
+ *
+ * @param quantity - The ingredient quantity value object.
+ * @param locale - The active BCP-47 locale.
+ * @param unit - The optional unit of measure.
+ * @returns The amount and its unit, as a reader sees them.
+ */
+export const formatAmount = (quantity: IngredientQuantity, locale: Locale, unit?: string): string =>
+    formatQuantity(quantity, locale, unit === undefined || unit === '' ? unit : unitForQuantity(unit, quantity));
+
+/**
  * A detail row in one string — `2 tbsp Olive oil`, `2 tbsp Private ingredient` — the row checkbox's accessible
  * name. Pure.
  *
@@ -127,8 +151,8 @@ export const lineSummary = (
     `${formatQuantity(line.quantity, locale, line.unit)} ${lineAmountName(line, line.quantity, line.unit, labels)}`.trim();
 
 /**
- * The read view's ingredient checkbox name (`docs/design/ingredientSpecialization.md` §S5): {@link lineSummary} on a
- * root-bound line, and on a variant-bound line the same with every part after the name, comma-joined for a screen
+ * The read view's ingredient checkbox name (`docs/design/ingredientSpecialization.md` §S5): {@link lineSummary}, with the
+ * amount as the page shows it ({@link formatAmount}), on a root-bound line, and on a variant-bound line the same with every part after the name, comma-joined for a screen
  * reader (R27). Pure.
  *
  * @param line - The line as the detail read returns it.
@@ -145,12 +169,13 @@ export const ingredientCheckLabel = (
 ): string => {
     const parts = variantPartTexts(line.variant?.parts);
 
+    // The amount as a reader sees it (`formatAmount`), because the name must contain the visible text (SC 2.5.3).
     if (parts === undefined) {
-        return lineSummary(line, locale, labels);
+        return `${formatAmount(line.quantity, locale, line.unit)} ${lineAmountName(line, line.quantity, line.unit, labels)}`.trim();
     }
 
     return fillTemplate(withDetails, {
-        quantity: formatQuantity(line.quantity, locale, line.unit),
+        quantity: formatAmount(line.quantity, locale, line.unit),
         food: lineAmountName(line, line.quantity, line.unit, labels),
         parts: spokenVariantParts(parts),
     }).trim();
@@ -860,6 +885,18 @@ export interface RecipeDetailViewProps {
     readonly headerActions?: ReactNode;
     /** The back link above the meta line (web), e.g. "‹ My recipes". Absent draws none. */
     readonly back?: ReactNode;
+    /**
+     * The controls that sit ON the hero photo: Back and ⋯ as `HeroButton` discs (`buildSpec.md` §3.5, §6.1; D12). The
+     * hero lays them over its top edge, first in the reading order. Absent lays none. The caller owns what they do and
+     * where they are hidden (web shows them below an 840 px viewport; native always).
+     */
+    readonly heroControls?: ReactNode;
+    /**
+     * Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert and the delete
+     * dialog, which must scroll with the page (and clear the foot of the screen) rather than sit outside it. Web ignores
+     * it: its containers keep these as siblings of the view.
+     */
+    readonly scrollFooter?: ReactNode;
     /** The rating block under the nutrition: the input for another cook, the read-only average for the owner. */
     readonly rating?: ReactNode;
     /** Optional notice for a failed refresh of the recipe on screen — both platforms. Absent ⇒ no notice. */
@@ -916,6 +953,11 @@ export interface DetailMarks {
 export interface DetailScreenOn {
     readonly on: boolean;
     readonly onChange: (on: boolean) => void;
+    /**
+     * The one-time hint (`buildSpec.md` §6.3), present only while it should show: the shell holds whether the cook has
+     * used the toggle or scrolled, and the body draws it under the toggle's bar. Absent draws nothing.
+     */
+    readonly hint?: string;
 }
 
 /**
@@ -948,6 +990,12 @@ export interface RecipeDetailBodyProps extends RecipeDetailViewProps {
  * so the shell cannot leave the link inert.
  */
 export interface RecipeDetailBodyNativeProps extends RecipeDetailBodyProps {
+    /**
+     * The page's ONE scroller's binding, from the `ScrollHost` the shell mounts. The body renders the `ScrollView`
+     * itself because React Native's sticky header sticks only a DIRECT child of the scroller's content, and the scroll
+     * spy reads each section's `onLayout` y, which is relative to its parent (`@commise/ui/scroll-host`).
+     */
+    readonly bind: ScrollBind;
     /** Open the Data sources sheet. */
     readonly onOpenDataSources: () => void;
     /** Advances each time the sheet closes. */

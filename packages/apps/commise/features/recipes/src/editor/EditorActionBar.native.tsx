@@ -29,12 +29,23 @@ export const EditorActionBar: FC<EditorActionBarProps> = ({
     fixLine,
     readyLine,
     notice,
+    keyboardShown = false,
 }) => {
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
 
     return (
-        <View style={[styles.bar, { paddingBottom: Math.max(nativeTokens.spacing[3], insets.bottom) }]}>
+        <View
+            style={[
+                styles.bar,
+                // The keyboard covers the system navigation bar, so its inset would be a dead band above the keys.
+                {
+                    paddingBottom: keyboardShown
+                        ? nativeTokens.spacing[3]
+                        : Math.max(nativeTokens.spacing[3], insets.bottom),
+                },
+            ]}
+        >
             <ChromeSurface edge="top" />
             {notice}
             <LiveRegion politeness="polite" style={[styles.fix, { color: colors.dangerText }]}>

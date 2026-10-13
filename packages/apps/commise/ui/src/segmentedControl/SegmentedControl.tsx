@@ -23,12 +23,12 @@ import type { FC } from 'react';
 import { Icon } from '../icon/Icon.js';
 import { isModifiedClick } from '../routeLink/isModifiedClick.js';
 import type { RouteSegmentedControlProps, SegmentedControlProps } from './props.js';
-import { segmentClass, trackClass, type SegmentWidth } from './segmentClass.js';
+import { routeSegmentClass, segmentClass, trackClass, type SegmentWidth } from './segmentClass.js';
 
 /** A route control: places, as links. */
-const RouteControl: FC<RouteSegmentedControlProps> = ({ label, segments, current, onSelect }) => (
+const RouteControl: FC<RouteSegmentedControlProps> = ({ label, segments, current, onSelect, width = 'share' }) => (
     <nav aria-label={label}>
-        <div className={trackClass()}>
+        <div className={trackClass(width)}>
             {segments.map((segment) => {
                 const isCurrent = segment.id === current;
                 const state = { 'aria-current': isCurrent ? ('page' as const) : undefined };
@@ -39,7 +39,7 @@ const RouteControl: FC<RouteSegmentedControlProps> = ({ label, segments, current
                         type="button"
                         {...state}
                         onClick={() => onSelect(segment.id)}
-                        className={segmentClass(isCurrent)}
+                        className={routeSegmentClass(isCurrent, width)}
                     >
                         {segment.label}
                     </button>
@@ -56,7 +56,7 @@ const RouteControl: FC<RouteSegmentedControlProps> = ({ label, segments, current
                             event.preventDefault();
                             onSelect(segment.id);
                         }}
-                        className={segmentClass(isCurrent)}
+                        className={routeSegmentClass(isCurrent, width)}
                     >
                         {segment.label}
                     </a>

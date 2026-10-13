@@ -97,11 +97,14 @@ describe('RecipeVersionsScreen — loading and error', () => {
         return client;
     }
 
-    it('announces WHAT is loading and captions it visibly (no bare spinner)', () => {
+    // D3 (rewritten from "a named progressbar"): the pending state is the history's shape — its title and three placeholder
+    // rows — with the caption shown and spoken once.
+    it('captions what is loading ONCE, under the history’s own title (D3)', () => {
         renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, pendingClient());
 
-        expect(screen.getByRole('progressbar', { name: t.versionsLoading })).toBeTruthy();
-        expect(screen.getByText(t.versionsLoading)).toBeTruthy();
+        expect(screen.getAllByText(t.versionsLoading)).toHaveLength(1);
+        expect(screen.getByRole('heading', { name: recipeVersionMessages.en.versionList.heading })).toBeTruthy();
+        expect(screen.queryByRole('progressbar')).toBeNull();
     });
 
     it('keeps Back while loading, so the wait is never a one-way street', () => {
@@ -151,7 +154,7 @@ describe('RecipeVersionsScreen — loading and error', () => {
         renderVersions(<RecipeVersionsScreen recipeId="" onBack={vi.fn()} />, client);
 
         expect(screen.getByRole('alert')).toBeTruthy();
-        expect(screen.queryByRole('progressbar', { name: t.versionsLoading })).toBeNull();
+        expect(screen.queryByText(t.versionsLoading)).toBeNull();
         expect(versionsSpy).not.toHaveBeenCalled();
         expect(recipeSpy).not.toHaveBeenCalled();
     });
@@ -415,5 +418,22 @@ describe('RecipeVersionsScreen — restore says so, with Undo (§6.6)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
         await vi.waitFor(() => expect(restoreSpy).toHaveBeenLastCalledWith('rec_1', 2));
+    });
+
+    // D12: Undo is itself a restore, which used to say "Restored version 2." with ANOTHER Undo — an undo loop.
+    it('says what an Undo restored, and offers no second Undo', async () => {
+        const client = readyClient();
+        vi.spyOn(client, 'restoreRecipeVersion').mockResolvedValue({
+            recipe: makeRecipeDetail({ currentVersion: 3 }),
+            restoredFromVersion: 1,
+            currentVersion: 3,
+        });
+        await renderReady(client);
+
+        chooseRowAction(1, 'Restore this version');
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        expect(await screen.findByText('Restored version 2.')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
     });
 });

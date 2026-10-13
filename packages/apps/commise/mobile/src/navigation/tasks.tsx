@@ -10,6 +10,9 @@
  *
  * @pattern Adapter — route params and navigator intents → each screen's callback props
  */
+import { editorMessages, finishedNoticeOf, type FinishedOutcome } from '@commise/features-recipes';
+import { useMessages } from '@commise/i18n/react';
+import { useSnackbar } from '@commise/ui/snackbar';
 import type { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useCallback, type JSX } from 'react';
 
@@ -30,6 +33,19 @@ function useLeaveSubscription(
 }
 
 /**
+ * Tell the cook how the editor finished (E8; build spec §7.8). The snackbar host sits above the stack, so the message
+ * survives the editor leaving and shows over the recipe the cook lands on.
+ *
+ * @returns A function to call with the outcome. @sideEffect Shows a snackbar.
+ */
+function useFinishedNotice(): (outcome: FinishedOutcome) => void {
+    const { show } = useSnackbar();
+    const copy = useMessages(editorMessages);
+
+    return useCallback((outcome) => show({ message: finishedNoticeOf(outcome, copy) }), [copy, show]);
+}
+
+/**
  * Create a recipe in the one-page editor (slice 7). Once published, its detail opens on the Recipes tab with the list
  * BENEATH it (`initial: false`), so Back lands on the list rather than dead-ending.
  */
@@ -39,17 +55,19 @@ function RecipeCreateRoute({ navigation, route }: TaskProps<'RecipeCreate'>): JS
     const toRecipes = (): void =>
         navigation.popTo('Tabs', { screen: 'recipes', params: { screen: 'RecipesRoot', pop: true } });
     const subscribeToLeave = useLeaveSubscription(navigation);
+    const tell = useFinishedNotice();
 
     return (
         <RecipeEditorScreen
             {...(route.params?.section === undefined ? {} : { section: route.params.section })}
             openPaste={route.params?.paste === true}
-            onFinished={(recipeId) =>
+            onFinished={(recipeId, outcome) => {
                 navigation.popTo('Tabs', {
                     screen: 'recipes',
                     params: { screen: 'RecipeDetail', params: { recipeId }, initial: false },
-                })
-            }
+                });
+                tell(outcome);
+            }}
             onClose={() => navigation.goBack()}
             onDiscarded={toRecipes}
             subscribeToLeave={subscribeToLeave}
@@ -60,12 +78,16 @@ function RecipeCreateRoute({ navigation, route }: TaskProps<'RecipeCreate'>): JS
 /** Edit a recipe in the one-page editor; publishing, saving changes or closing returns to where it was opened. */
 function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.Element {
     const subscribeToLeave = useLeaveSubscription(navigation);
+    const tell = useFinishedNotice();
 
     return (
         <RecipeEditorScreen
             recipeId={route.params.recipeId}
             {...(route.params.section === undefined ? {} : { section: route.params.section })}
-            onFinished={() => navigation.goBack()}
+            onFinished={(_recipeId, outcome) => {
+                navigation.goBack();
+                tell(outcome);
+            }}
             onClose={() => navigation.goBack()}
             onDiscarded={() =>
                 navigation.popTo('Tabs', { screen: 'recipes', params: { screen: 'RecipesRoot', pop: true } })

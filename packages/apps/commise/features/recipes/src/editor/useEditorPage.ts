@@ -18,8 +18,9 @@ import { useEffect, useEffectEvent, useState } from 'react';
 
 import { editorChromeOf, type EditorChrome, type FailureActionKind } from './editorChrome.js';
 import type { FailureAction, RecipeEditorViewProps } from './frameProps.js';
+import { firstInvalidFieldOf } from './gate.js';
 import { editorMessages, type EditorMessages } from './messages.js';
-import { publishNoteOf } from './publishNote.js';
+import { publishNoteOf, readyLineOf, type ReadyLine } from './publishNote.js';
 import { sectionIndexEntries, type SectionIndexEntries } from './sectionIndexEntries.js';
 import { EDITOR_SECTIONS, isEditorSectionId, type EditorSectionId } from './sections.js';
 import { newlyComplete, sectionStatusesOf, type SectionStatuses } from './sectionStatus.js';
@@ -39,6 +40,10 @@ export interface EditorPage {
     readonly chrome: EditorChrome;
     /** "Ready to publish. {n} ingredients have no match…" (owner D20), for the action bar and Photos & publish. */
     readonly publishNote: string | undefined;
+    /** "Ready to publish." or "Fix {n} things to publish": always in Photos & publish (§7.7 item 3). */
+    readonly readyLine: ReadyLine | undefined;
+    /** Take the reader to a section: the Ready line's link. */
+    readonly goToSection: (section: EditorSectionId) => void;
     readonly entries: SectionIndexEntries;
     /** The section the reader is in (the scroll spy's), `details` before it reports. */
     readonly current: EditorSectionId;
@@ -85,7 +90,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
     const entries = sectionIndexEntries({ statuses, guided, current, messages: m, locale });
     const [confirming, setConfirming] = useState(false);
     const { checkpoint } = editor;
-    const { scrollToSection } = host;
+    const { scrollToSection, scrollToField } = host;
 
     // A deep link's section, once, on mount (blueprint A16: read on mount; it never reaches the server). A later prop
     // is not a deep link.
@@ -152,6 +157,14 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
                 scrollToSection(outcome.section);
             }
 
+            // §7.8: focus goes to the first invalid FIELD. The section's heading, which the jump focused, stays the
+            // answer where the error has no single field (native has none to find by id either).
+            const field = firstInvalidFieldOf(outcome.errors, editor.values);
+
+            if (field !== undefined) {
+                scrollToField(field);
+            }
+
             onRefused?.(outcome);
         }
     };
@@ -183,6 +196,12 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
             m,
             locale,
         ),
+        readyLine: readyLineOf(
+            { values: editor.values, pendingEntryText, published: editor.lifecycle === 'published' },
+            m,
+            locale,
+        ),
+        goToSection: scrollToSection,
         entries,
         current,
         announcement: { text: announced.text, n: announced.n },

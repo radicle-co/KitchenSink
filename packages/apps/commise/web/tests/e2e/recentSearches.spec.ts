@@ -102,3 +102,28 @@ test.describe('discovery recent searches (U7)', () => {
         await expect(page.getByRole('region', { name: 'Recent searches' })).toHaveCount(0);
     });
 });
+
+test.describe('discovery recent searches — A-027: a pause while typing is not a search', () => {
+    test('typing "rice" with a pause after each letter leaves one entry, "rice"', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [makeRecipeDetail({ id: E2E_RECIPE_IDS.pasta, ownerId: 'usr_other', title: 'Rice Bowl' })],
+        });
+
+        await page.goto(route('/discover'));
+        await expect(page.getByRole('heading', { name: 'Trending' })).toBeVisible();
+
+        const searchBox = page.getByRole('searchbox', { name: 'Search recipes' });
+        await searchBox.click();
+        // 300 ms between letters is longer than the 250 ms debounce, so each prefix is committed as a query.
+        await searchBox.pressSequentially('rice', { delay: 300 });
+        await expect(page.getByText('1 recipe for “rice”', { exact: true })).toBeVisible();
+        await searchBox.fill('');
+
+        const recents = page.getByRole('region', { name: 'Recent searches' });
+        await expect(recents.getByRole('button', { name: 'Search for “rice”' })).toBeVisible();
+        await expect(recents.getByRole('button', { name: /^Search for “(r|ri|ric)”$/u })).toHaveCount(0);
+    });
+});

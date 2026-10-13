@@ -32,7 +32,8 @@ import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { renderWithRecipeClient, utilityContrast } from '@commise/test-utils';
+import { renderWithRecipeClient } from '@commise/test-utils';
+import { buttonSurfaceClass } from '@commise/ui/button';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import type { ReactElement } from 'react';
 
@@ -111,6 +112,19 @@ describe('RecipeVersionsContainer', () => {
         expect(screen.getByRole('status', { name: 'Loading version history' })).toBeInTheDocument();
     });
 
+    // D3: the pending state is the history's shape — the header the settled list draws, and three placeholder rows — not a
+    // line of text under a floating link.
+    it('draws the loading state as the settled list’s header over three placeholder rows (D3)', () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
+        vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
+
+        const { container } = renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+
+        expect(screen.getByRole('heading', { level: 1, name: 'Version history' })).toBeInTheDocument();
+        expect(container.querySelectorAll('[data-skeleton-row]')).toHaveLength(3);
+    });
+
     it('announces the loading label as the live region CONTENT, not only its aria-label', () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
@@ -140,12 +154,17 @@ describe('RecipeVersionsContainer', () => {
 
         expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t load the version history/i);
         expect(versionsSpy).toHaveBeenCalledTimes(1);
+        // D13: the failed state keeps the history's header and wears the design-system button, not a raw one.
+        expect(screen.getByRole('heading', { level: 1, name: 'Version history' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Try again' }).className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(buttonSurfaceClass('secondary').split(/\s+/u)),
+        );
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
 
         // A retry that re-rendered the cached failure would leave the alert up with one call; the boundary's query
         // reset makes it a real second request, and the history renders.
-        expect(await screen.findByRole('heading', { name: 'Version history' })).toBeInTheDocument();
+        expect(await screen.findByText('Current version')).toBeInTheDocument();
         expect(versionsSpy).toHaveBeenCalledTimes(2);
     });
 
@@ -198,7 +217,7 @@ describe('RecipeVersionsContainer', () => {
             renderVersions(<RecipeVersionsContainer recipeId="" />, client);
 
             expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: 'Back to recipe' })).toBeInTheDocument();
+            expect(screen.getAllByRole('link', { name: 'Back to recipe' }).length).toBeGreaterThan(0);
         });
     });
 
@@ -213,8 +232,8 @@ describe('RecipeVersionsContainer', () => {
 
         renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
-        expect(await screen.findByRole('heading', { name: 'Version history' })).toBeInTheDocument();
-        expect(screen.getByText('Current version')).toBeInTheDocument();
+        // The pending state shows the same title (no layout shift), so the list is what is waited for.
+        expect(await screen.findByText('Current version')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'More actions for version 1' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'More actions for version 2' })).toBeInTheDocument();
         // The current version (3) has nothing to restore or compare, so no menu.
@@ -344,7 +363,7 @@ describe('RecipeVersionsContainer', () => {
 
             renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
-            expect(screen.getByRole('button', { name: 'Back to recipe' })).toBeInTheDocument();
+            expect(screen.getAllByRole('link', { name: 'Back to recipe' }).length).toBeGreaterThan(0);
         });
 
         it('renders a Back to recipe control on error', async () => {
@@ -355,7 +374,7 @@ describe('RecipeVersionsContainer', () => {
             renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
 
             expect(await screen.findByRole('alert')).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: 'Back to recipe' })).toBeInTheDocument();
+            expect(screen.getAllByRole('link', { name: 'Back to recipe' }).length).toBeGreaterThan(0);
         });
 
         it('navigates to the recipe from the loading state’s Back control', async () => {
@@ -365,36 +384,23 @@ describe('RecipeVersionsContainer', () => {
             vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
 
             renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
-            await user.click(screen.getByRole('button', { name: 'Back to recipe' }));
+            await user.click(screen.getAllByRole('link', { name: 'Back to recipe' })[0] as HTMLElement);
 
             expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
         });
 
-        it('keeps the Back to recipe control WCAG-AA legible AT REST AND ON HOVER', () => {
-            const client = createFakeRecipeServiceClient();
-            vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
-            vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
+        it('draws the SAME Back controls once the history has loaded as it did while loading — no second one', async () => {
+            const pending = createFakeRecipeServiceClient();
+            vi.spyOn(pending, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
+            vi.spyOn(pending, 'getRecipeById').mockReturnValue(new Promise(() => {}));
+            const { unmount } = renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, pending);
+            const whileLoading = screen.getAllByRole('link', { name: 'Back to recipe' }).length;
+            unmount();
 
-            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, readyTwoVersionsClient());
+            await screen.findByText('Current version');
 
-            // The loading/error branches' ONLY route back to the recipe: a bare text button that paints a
-            // seafoam tint under the pointer. Seafoam is 4.02:1 bare and 3.57:1 on that hover tint — both under
-            // the 4.5:1 body floor (SC 1.4.3) — so both states are measured. See the palette JSDoc in
-            // `@commise/ui` for when seafoam is still the right token.
-            const back = screen.getByRole('button', { name: 'Back to recipe' });
-
-            expect(utilityContrast(back.className), 'Back to recipe at rest').toBeGreaterThanOrEqual(4.5);
-            expect(
-                utilityContrast(back.className, { variant: 'hover' }),
-                'Back to recipe on hover (a seafoam/10 tint appears)',
-            ).toBeGreaterThanOrEqual(4.5);
-        });
-
-        it('renders exactly one Back control in the populated state', async () => {
-            const client = readyTwoVersionsClient();
-            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
-
-            expect(await screen.findAllByRole('button', { name: 'Back to recipe' })).toHaveLength(1);
+            expect(screen.getAllByRole('link', { name: 'Back to recipe' })).toHaveLength(whileLoading);
         });
     });
 
@@ -633,6 +639,26 @@ describe('RecipeVersionsContainer', () => {
             await user.click(screen.getByRole('button', { name: 'Undo' }));
 
             await vi.waitFor(() => expect(restoreSpy).toHaveBeenLastCalledWith('rec_1', 2));
+        });
+
+        // D12: Undo is itself a restore, which used to say "Restored version 2." with ANOTHER Undo — an undo loop. The
+        // restore an Undo makes says what happened and offers nothing: the cook who wants the other version has the
+        // history in front of them.
+        it('says what an Undo restored, and offers no second Undo', async () => {
+            const user = userEvent.setup();
+            const client = readyTwoVersionsClient();
+            vi.spyOn(client, 'restoreRecipeVersion').mockResolvedValue({
+                recipe: makeRecipeDetail({ currentVersion: 3 }),
+                restoredFromVersion: 1,
+                currentVersion: 3,
+            });
+
+            renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+            await chooseRowAction(user, 1, 'Restore this version');
+            await user.click(await screen.findByRole('button', { name: 'Undo' }));
+
+            expect(await screen.findByText('Restored version 2.')).toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
         });
     });
 });

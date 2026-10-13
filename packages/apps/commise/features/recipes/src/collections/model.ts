@@ -12,7 +12,7 @@ import type { ReactNode } from 'react';
 import type { PullDiff } from '@kitchensink/recipe-service-client';
 // Imported (not merely re-exported) because the props below reference both by name, and an `export … from`
 // re-export does not bring a name into this module's scope.
-import type { CollectionResponse, CollectionWithRecipesResponse } from '@kitchensink/schema-recipe';
+import type { CollectionListItem, CollectionResponse, CollectionWithRecipesResponse } from '@kitchensink/schema-recipe';
 
 import type { RecipeListRefreshControl, RecipesSegmentControl } from '../list/model.js';
 import type { RefreshNoticeControl } from '../refresh/model.js';
@@ -78,12 +78,47 @@ export interface CollectionListFrameProps {
 }
 
 /**
+ * What a collection CARD reads off a collection of the list read: the wire body, plus the covers the list element adds
+ * (W-11). The field is derived from the contract's own list element rather than restated, and optional so a card still
+ * draws from a body that carries none — it falls back to the tint.
+ */
+export type CollectionCardSource = CollectionResponse & Partial<Pick<CollectionListItem, 'coverPhotoUrls'>>;
+
+/** How many photos make the 2 × 2 album (`buildSpec.md` §5.1). */
+export const COLLECTION_ALBUM_PHOTOS = 4;
+
+/** What a collection card's cover draws. */
+export type CollectionCardCover =
+    | { readonly kind: 'tint' }
+    | { readonly kind: 'single'; readonly url: string }
+    | { readonly kind: 'album'; readonly urls: readonly string[] };
+
+/**
+ * What a card's cover draws for the photos its first members have (`buildSpec.md` §5.1): none → the collection's tint;
+ * one to three → the first fills the box; four → the 2 × 2 album. Pure.
+ *
+ * @param photoUrls - The members' cover photos, if the read carried them.
+ * @returns The cover.
+ */
+export function cardCoverOf(photoUrls: readonly string[] | undefined): CollectionCardCover {
+    const [first] = photoUrls ?? [];
+
+    if (first === undefined || photoUrls === undefined) {
+        return { kind: 'tint' };
+    }
+
+    return photoUrls.length >= COLLECTION_ALBUM_PHOTOS
+        ? { kind: 'album', urls: photoUrls.slice(0, COLLECTION_ALBUM_PHOTOS) }
+        : { kind: 'single', url: first };
+}
+
+/**
  * Props for the collection list's RESULTS — what renders inside the suspense boundary once the read has settled: the
  * refresh notice, then the empty state or the rows, then the load-more control. It performs NO data fetching.
  */
 export interface CollectionListResultsProps {
     /** The visible collections — the loaded ones after the search. The wire body, for the copy's attribution. */
-    readonly collections: readonly CollectionResponse[];
+    readonly collections: readonly CollectionCardSource[];
     /** How many collections are loaded: the count the result bar says, and whether the search shows (from six). */
     readonly total: number;
     /** Invoked with a collection id when a card is activated. */

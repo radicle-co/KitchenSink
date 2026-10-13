@@ -12,7 +12,8 @@ import type { LocalizedMessages } from '@commise/i18n';
 export interface PhotoMessages {
     /** Section heading for the photo manager. */
     readonly heading: string;
-    /** Body copy of the empty state (no photos yet). */
+    /** Body copy of the empty state, under the recipe's own cover preview (buildSpec §7.7): says the generated cover
+     *  stands in and that a photo can be added any time. */
     readonly emptyBody: string;
     /** Accessible alt text for a photo thumbnail (contains `{index}`, so each photo is uniquely named). */
     readonly photoAlt: string;
@@ -52,13 +53,29 @@ export interface PhotoMessages {
     readonly replaceLabel: string;
     /** Visible label of the replace action. */
     readonly replace: string;
+    /** Visible label and accessible name of the secondary "Add photos" button (A-010, buildSpec §7.7). */
+    readonly addPhotos: string;
+    /** Title of the native sheet the Add photos button opens. */
+    readonly addPhotosSheetTitle: string;
+    /** Accessible name of the native sheet's Close control. */
+    readonly addPhotosSheetClose: string;
+    /** The native sheet's camera choice. */
+    readonly takePhoto: string;
+    /** The native sheet's library choice. */
+    readonly chooseFromLibrary: string;
+    /** Shown when the camera could not be opened at all (a device without one, or the system refused): says so and
+     *  points at the library. */
+    readonly cameraUnavailable: string;
+    /** Shown when the cook refuses (or has switched off) the camera permission: says why nothing opened and where
+     *  else a photo can come from. */
+    readonly cameraDenied: string;
 }
 
 /** The photo manager copy, per locale. `en` is required; other locales extend the same shape. */
 export const photoMessages: LocalizedMessages<PhotoMessages> = {
     en: {
         heading: 'Photos',
-        emptyBody: 'No photos yet.',
+        emptyBody: 'No photo? This cover is used instead. Add one any time.',
         photoAlt: 'Recipe photo {index}',
         remove: 'Remove',
         removing: 'Removing…',
@@ -77,5 +94,12 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         setCoverLabel: 'Set photo {index} as cover',
         replaceLabel: 'Replace photo {index}',
         replace: 'Replace',
+        addPhotos: 'Add photos',
+        addPhotosSheetTitle: 'Add photos',
+        addPhotosSheetClose: 'Close add photos',
+        takePhoto: 'Take photo',
+        chooseFromLibrary: 'Choose from library',
+        cameraUnavailable: 'The camera did not open. Try again, or choose a photo from your library.',
+        cameraDenied: 'Camera access is off. Turn it on in your phone’s settings, or choose a photo from your library.',
     },
 };

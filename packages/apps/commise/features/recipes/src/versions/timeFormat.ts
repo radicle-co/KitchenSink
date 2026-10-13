@@ -40,8 +40,9 @@ export const formatVersionTimestamp = (isoDateTime: string, locale: Locale): str
  * (library-first — never hand-rolled pluralization/wording; mirrors `formatHomeDate`'s split of "the caller
  * reads the clock, this module only formats an instant"). Buckets to the largest whole unit that has elapsed
  * at least once — minutes, then hours, then days — floored, so e.g. 90 elapsed seconds reads as "1 minute
- * ago", not "90 seconds ago". An instant within the same minute (or, degenerately, in the future — clock
- * skew) reads as "0 minutes ago". Pure — the caller supplies `now`.
+ * ago", not "90 seconds ago". Under a minute (or, degenerately, in the future — clock skew) it reads as the locale's
+ * word for now ("now"), never "0 minutes ago" (P6). `numeric: 'auto'` lets the locale use its own words where it has
+ * them ("yesterday" for one day). Pure — the caller supplies `now`.
  *
  * @param isoDateTime - The past instant to render, in ISO 8601.
  * @param now - The current instant, supplied by the caller (its own `new Date()` read is the side effect).
@@ -50,11 +51,11 @@ export const formatVersionTimestamp = (isoDateTime: string, locale: Locale): str
  */
 export const formatRelativeTimeAgo = (isoDateTime: string, now: Date, locale: Locale): string => {
     const elapsedSeconds = Math.max(0, Math.floor((now.getTime() - new Date(isoDateTime).getTime()) / 1000));
-    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'always' });
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
 
     const [amount, unit]: [number, Intl.RelativeTimeFormatUnit] =
         elapsedSeconds < 60
-            ? [0, 'minute']
+            ? [0, 'second']
             : elapsedSeconds < 3600
               ? [Math.floor(elapsedSeconds / 60), 'minute']
               : elapsedSeconds < 86400
@@ -62,8 +63,8 @@ export const formatRelativeTimeAgo = (isoDateTime: string, now: Date, locale: Lo
                 : [Math.floor(elapsedSeconds / 86400), 'day'];
 
     // `-amount` even at `amount === 0`: `Intl.RelativeTimeFormat` reads the SIGN, not the magnitude, to pick
-    // "ago" vs. "in" — `format(0, 'minute')` renders "in 0 minutes" (treated as the future direction), while
-    // `format(-0, 'minute')` renders "0 minutes ago". A sub-minute-old server side must still read "ago", not
-    // "in 0 minutes", so this always negates (JS's `-0` is a distinct, valid float from `0`).
+    // "ago" vs. "in" — a positive zero is the future direction. At zero seconds `auto` answers the word for now, which
+    // has no direction; every other bucket is a past one and must read "ago", so this always negates (JS's `-0` is a
+    // distinct, valid float from `0`).
     return rtf.format(-amount, unit);
 };

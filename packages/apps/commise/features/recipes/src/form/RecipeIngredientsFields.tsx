@@ -44,7 +44,10 @@ import type { SectionAddView } from './useIngredientGroups.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
 
 /** The one add field, with its reading, its notices and its sentences (§7.5.3). */
-const AddField: FC<{ readonly model: IngredientsFieldsModel }> = ({ model }) => {
+const AddField: FC<{ readonly model: IngredientsFieldsModel; readonly trailingAction?: ReactNode }> = ({
+    model,
+    trailingAction,
+}) => {
     const { trailing } = model;
 
     return (
@@ -65,6 +68,7 @@ const AddField: FC<{ readonly model: IngredientsFieldsModel }> = ({ model }) => 
                 }
                 leadingIcon={<Icon name="plus" size={16} />}
                 loadingIcon={<Icon name="search" size={16} />}
+                {...(trailingAction === undefined ? {} : { trailingAction })}
             />
             <p role="status" className="sr-only">
                 {trailing.readingSpoken}
@@ -116,6 +120,17 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     const { authoredFood, details } = rowEditor;
     // §7.5.2: the row editor is a sheet below a 600 container and inline from 600.
     const inline = useMainContainerClass() !== 'narrow';
+    // The add field when no run holds it: the empty section, or a list whose rows are all being read.
+    const addFieldHere =
+        model.sections.length === 0 && !model.emptyGroups.some((group) => group.addHere.kind === 'field');
+    // §7.5.4: Paste a list is offered in the empty section only.
+    const pasteButton =
+        paste?.onOpen !== undefined && model.sections.length === 0 && reading.length === 0 ? (
+            <Button variant="secondary" icon="clipboardPaste" onPress={paste.onOpen}>
+                {editor.pasteList}
+            </Button>
+        ) : null;
+    const pasteBesideField = pasteButton !== null && addFieldHere && inline;
     const rows = model.sections.flatMap((section) => section.rows);
     // The sheet keeps its row while it closes; the key is kept, never the row object.
     const sheetKey = useLastDefined(model.openRow?.line.key);
@@ -228,18 +243,11 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     <GroupFoot add={group.addHere} model={model} />
                 </div>
             ))}
-            {paste?.onOpen !== undefined && model.sections.length === 0 && reading.length === 0 && (
-                // §7.5.4: in the empty section, Paste a list sits beside the add field as a secondary button.
-                <div className="flex">
-                    <Button variant="secondary" icon="clipboardPaste" onPress={paste.onOpen}>
-                        {editor.pasteList}
-                    </Button>
-                </div>
-            )}
             {/* The add field when no run holds it: the empty section, or a list whose rows are all being read. */}
-            {model.sections.length === 0 && !model.emptyGroups.some((group) => group.addHere.kind === 'field') && (
-                <AddField model={model} />
-            )}
+            {addFieldHere && <AddField model={model} {...(pasteBesideField ? { trailingAction: pasteButton } : {})} />}
+            {/* §7.5.4: in the empty section, Paste a list is a secondary button beside the add field from a 600
+                container, and under it below that, so the field keeps its width (§7.12). */}
+            {pasteButton !== null && !pasteBesideField && <div className="flex">{pasteButton}</div>}
             {/* §7.5.5: "+ Add a group" at the section's foot; an ungrouped recipe shows no other group chrome. */}
             <div className="flex flex-col gap-2">
                 {model.addGroup.field === undefined ? (

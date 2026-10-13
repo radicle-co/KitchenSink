@@ -56,6 +56,7 @@ export const RecipeBrowseRailResults: FC<RecipeBrowseRailResultsProps> = ({
                     <RecipeDiscoveryCard
                         recipe={toRecipeCardModel(entry.recipe)}
                         variant="grid"
+                        headingLevel={3}
                         authorHandle={entry.recipe.authorHandle}
                         sourceAttribution={entry.recipe.sourceAttribution}
                         saveCopy={saveCopy.stateOf(entry.recipe.id)}

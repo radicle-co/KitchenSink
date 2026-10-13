@@ -1,11 +1,19 @@
+import { role } from '@commise/ui/colors';
 import { test, expect } from '@playwright/test';
 import { clerk, setupClerkTestingToken } from '@clerk/testing/playwright';
 
-import { route, isHome, isRoute, hasDoublePrefix, pathnameOf } from './utils/basePath';
+import { LOCALE, route, isHome, isRoute, hasDoublePrefix, pathnameOf } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
 import { clerkPrimarySubmit } from './utils/clerkForm';
 import { submitClerkEmailCode } from './utils/clerkEmailCode';
 import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from './utils/testUser';
+
+/** `#RRGGBB` → the `rgb(r, g, b)` spelling a computed style uses. */
+function rgb(hex: string): string {
+    const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+
+    return `rgb(${r}, ${g}, ${b})`;
+}
 
 test.describe('sign-in flow', () => {
     test('signing in through the form lands on the home page (single basePath prefix)', async ({ page }) => {
@@ -73,6 +81,21 @@ test.describe('sign-in flow', () => {
         expect(
             await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
         ).toBeLessThanOrEqual(0);
+
+        // W-16: Clerk painted the new-device notice's words in its own orange (2.8:1 on beige) until the warning alert got
+        // role colours: the label is `ink` on the `attentionTint` wash (`ui/src/clerk.ts`, measured per scheme in its unit
+        // suite). The computed colour is the only thing that sees a third-party renderer. It rides on this test because
+        // reaching the code step SENDS a code, and a second test doing so would spend the shared verification budget.
+        // ⚠️ Not run when written: the notice is found as the code step's `alert`; confirm that role in a live render.
+        const wordsColour = await page.getByRole('alert').evaluate((element) => {
+            const holder = [element, ...element.querySelectorAll('*')].find((node) =>
+                [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && child.textContent?.trim()),
+            );
+
+            return holder === undefined ? '' : getComputedStyle(holder).color;
+        });
+
+        expect(wordsColour).toBe(rgb(role.ink));
     });
 
     test('a signed-in user visiting /sign-in is redirected to home', async ({ page }) => {
@@ -102,4 +125,48 @@ test.describe('sign-in flow', () => {
         await page.goto(route('/profile'));
         await expect(page).toHaveURL(/sign-in|sign-up/);
     });
+
+    // W-01 (`buildSpec.md` §8: "a signed-out deep link returns to its destination after sign-in"). Before this every
+    // protected page redirected to a bare /sign-in and the sign-in page forced the locale root, so the destination was
+    // gone before sign-in began. These spend NO email-code verification (`emailCodeBudget.test.ts`): the two halves are
+    // proved separately, the way the suite signs in everywhere else.
+    test('a signed-out deep link is sent to sign-in carrying its destination, and the sign-up link carries it too', async ({
+        page,
+    }) => {
+        await setupClerkTestingToken({ page });
+
+        await page.goto(route('/collections'));
+
+        await expect.poll(() => isRoute(pathnameOf(page), '/sign-in'), { timeout: 20_000 }).toBe(true);
+        // The page sends its own BARE path (Next prepends any preview basePath), never an absolute URL.
+        expect(new URL(page.url()).searchParams.getAll('redirect_url')).toEqual([`/${LOCALE}/collections`]);
+
+        // The only way to register must not lose where the visitor was going — once: a second `redirect_url` (Clerk adding
+        // its own) would be a repeated parameter, which the sign-up page refuses, sending the visitor to the locale root.
+        const href = await page.getByRole('link', { name: 'Create an account' }).getAttribute('href');
+
+        expect(new URL(href ?? '', page.url()).searchParams.getAll('redirect_url')).toEqual([`/${LOCALE}/collections`]);
+    });
+
+    test('a completed sign-in lands on the destination in redirect_url', async ({ page }) => {
+        await signInWithTicket(page);
+
+        // A session is live, so `<SignIn>` goes straight to its `forceRedirectUrl`: the page reads `redirect_url`.
+        await page.goto(`${route('/sign-in')}?redirect_url=${encodeURIComponent(route('/collections'))}`);
+
+        await expect.poll(() => isRoute(pathnameOf(page), '/collections'), { timeout: 15_000 }).toBe(true);
+        expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
+    });
+
+    // The destination is attacker-controlled input: only an app path in this locale may be honoured.
+    for (const hostile of ['//evil.example/en', 'https://evil.example/en', '/\\evil.example', '/de/collections']) {
+        test(`a hostile redirect_url (${hostile}) lands on home, never off the app`, async ({ page }) => {
+            await signInWithTicket(page);
+
+            await page.goto(`${route('/sign-in')}?redirect_url=${encodeURIComponent(hostile)}`);
+
+            await expect.poll(() => isHome(pathnameOf(page)), { timeout: 15_000 }).toBe(true);
+            expect(new URL(page.url()).hostname).not.toBe('evil.example');
+        });
+    }
 });

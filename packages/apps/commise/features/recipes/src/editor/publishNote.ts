@@ -17,8 +17,8 @@
 import { validateRecipeForm } from '../form/validate.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { pluralOf, type EditorMessages } from './messages.js';
-import { firstSectionWithErrors } from './sections.js';
-import { lineNeedsAttention } from './sectionStatus.js';
+import { EDITOR_SECTIONS, firstSectionWithErrors, type EditorSectionId } from './sections.js';
+import { lineNeedsAttention, sectionStatusesOf } from './sectionStatus.js';
 
 /** What the note is derived from. */
 export interface PublishNoteInput {
@@ -49,4 +49,48 @@ export function publishNoteOf(input: PublishNoteInput, messages: EditorMessages,
     const unmatched = input.values.ingredients.filter(lineNeedsAttention).length;
 
     return unmatched === 0 ? undefined : pluralOf(messages.readyUnmatched, unmatched, locale);
+}
+
+/**
+ * The Ready line of Photos & publish (build spec §7.7 item 3): "Ready to publish.", or "Fix {n} things to publish." with
+ * the first section that needs it, which the line links to.
+ */
+export type ReadyLine =
+    | { readonly kind: 'ready'; readonly text: string }
+    | { readonly kind: 'fix'; readonly text: string; readonly section: EditorSectionId };
+
+/**
+ * The Ready line, present for every draft: the one answer to "can I publish?". The count is the section index's own
+ * ("Fix before publishing" counts), derived as if Publish had been pressed, so the line, the index and the action
+ * bar's polite line agree. ⛔ The unmatched-lines sentence ({@link publishNoteOf}) is not repeated here: where it
+ * applies it IS the ready line, drawn in its own quiet style above this one's place.
+ *
+ * @param input - The draft, the uncommitted entry text and whether the recipe is published.
+ * @param messages - The editor's copy.
+ * @param locale - The active BCP-47 locale, which chooses the plural form.
+ * @returns The line, or `undefined` for a published recipe, whose primary is Save changes and not Publish. Pure.
+ */
+export function readyLineOf(input: PublishNoteInput, messages: EditorMessages, locale: string): ReadyLine | undefined {
+    if (input.published) {
+        return undefined;
+    }
+
+    const section = firstSectionWithErrors(validateRecipeForm(input.values, input.pendingEntryText));
+
+    if (section === undefined) {
+        return { kind: 'ready', text: messages.ready };
+    }
+
+    const statuses = sectionStatusesOf({
+        values: input.values,
+        pendingEntryText: input.pendingEntryText,
+        publishAttempted: true,
+    });
+    const fixes = EDITOR_SECTIONS.reduce((sum, id) => {
+        const status = statuses[id];
+
+        return sum + (status.kind === 'fix' ? status.count : 0);
+    }, 0);
+
+    return { kind: 'fix', text: pluralOf(messages.fixCount, Math.max(1, fixes), locale), section };
 }

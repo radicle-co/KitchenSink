@@ -86,8 +86,10 @@
         "./avatar": "./src/avatar/index.ts",
         "./avatar-props": "./src/avatar/props.ts",
         "./back-to-top": "./src/backToTop/index.ts",
+        "./tooltip": "./src/tooltip/index.ts",
         "./chrome-surface": "./src/chromeSurface/index.ts",
         "./create-fab": "./src/createFab/index.ts",
+        "./hero-button": "./src/heroButton/index.ts",
         "./photo-control": "./src/photoControl/index.ts",
         "./large-title-header": "./src/largeTitleHeader/index.ts",
         "./scroll-host": "./src/scrollHost/index.ts"

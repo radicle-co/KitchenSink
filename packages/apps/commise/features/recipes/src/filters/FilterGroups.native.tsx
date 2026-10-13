@@ -16,8 +16,9 @@
  *
  * @pattern Visitor — an exhaustive switch over the group view's kinds
  */
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { Chip, ChipRow } from '@commise/ui/chip';
+import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { SearchField } from '@commise/ui/search-field';
@@ -27,6 +28,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useIngredientPressLanding } from '../hooks/useIngredientPressLanding.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { sentenceCase } from '../format/sentenceCase.js';
 import { recipeMessages } from '../messages.js';
 import { FACET_CHIP_LIMIT, visibleChipsOf, type FacetGroupView } from './filterBarView.js';
 import type { FilterGroupsProps } from './filtersModel.js';
@@ -54,6 +56,7 @@ const GroupFrame: FC<{ readonly name: string; readonly children: ReactNode }> = 
 
 export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingredientSearch, onFilterAction }) => {
     const m = useMessages(filterMessages);
+    const locale = useLocale();
     const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
     const { colors } = useTheme();
     const searchId = useId();
@@ -91,12 +94,12 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
 
                 return (
                     <GroupFrame name={group.label}>
-                        <ChipRow mode="filter" label={group.label} overflow={chipOverflow}>
+                        <ChipRow mode="filter" label={group.label} overflow={chipOverflow} surface="overlay">
                             {shown.map(({ chip, action }) => (
                                 <Chip
                                     key={chip.value}
                                     kind="filter"
-                                    label={chip.value}
+                                    label={sentenceCase(chip.value, locale)}
                                     selected={chip.selected}
                                     {...(chip.count === undefined ? {} : { count: chip.count })}
                                     onPress={() => onFilterAction(action)}
@@ -127,6 +130,7 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
                             mode="choice"
                             label={group.label}
                             overflow={chipOverflow}
+                            surface="overlay"
                             options={group.options.map(({ value, label }) => ({ value, label }))}
                             value={group.value}
                             onChange={(next) => {
@@ -240,6 +244,10 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
                                 style={styles.disclosure}
                             >
                                 <Text style={[styles.label, { color: colors.ink }]}>{slot.label}</Text>
+                                {/* The disclosure's affordance (§4.4): a chevron that turns over while the group is open. */}
+                                <View aria-hidden style={open ? styles.chevronOpen : null}>
+                                    <Icon name="chevronDown" size={20} tone="inkMuted" />
+                                </View>
                             </Pressable>
                             {open ? (
                                 <View style={styles.groups}>
@@ -272,5 +280,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[1],
     },
     option: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[3] },
-    disclosure: { minHeight: 44, justifyContent: 'center' },
+    disclosure: {
+        minHeight: 44,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: nativeTokens.spacing[2],
+    },
+    chevronOpen: { transform: [{ rotate: '180deg' }] },
 });

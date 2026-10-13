@@ -45,16 +45,83 @@ describe('RecipeCreateButton (web)', () => {
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
 
-    it('the rail form names itself by its label and shows it as a tooltip that Escape dismisses (SC 1.4.13)', async () => {
-        const user = userEvent.setup();
-        render(<RecipeCreateButton appearance="rail" onCreateRecipe={vi.fn()} />);
-        const button = screen.getByRole('button', { name: 'New recipe' });
-        const tip = button.parentElement?.querySelector(':scope > span[aria-hidden="true"]');
+    // W-02: the tip was an in-flow `absolute start-full` span inside the rail, whose `overflow-y-auto` also clips x — a 4 px
+    // sliver on hover, nothing on focus. It is the design system's portalled Tooltip now, so no ancestor can cut it.
+    describe('the rail form’s tooltip (SC 1.4.13)', () => {
+        /** The portalled tip, which lives on `document.body` and is hidden from assistive technology. */
+        const tip = (): HTMLElement | null => document.body.querySelector('[data-tooltip]');
 
-        button.focus();
-        await user.keyboard('{Escape}');
+        const renderRail = (): HTMLElement => {
+            render(
+                <div data-rail="" style={{ overflow: 'hidden', width: 80 }}>
+                    <RecipeCreateButton appearance="rail" onCreateRecipe={vi.fn()} />
+                </div>,
+            );
 
-        expect(tip?.textContent).toBe('New recipe');
-        expect(tip?.getAttribute('data-dismissed')).toBe('true');
+            return screen.getByRole('button', { name: 'New recipe' });
+        };
+
+        it('draws no tip at rest, and none inside the button’s own wrapper', () => {
+            const button = renderRail();
+
+            expect(tip()).toBeNull();
+            expect(button.parentElement?.querySelector(':scope > [aria-hidden="true"]')).toBeNull();
+        });
+
+        it('shows the label beside the button on hover, OUTSIDE the clipping rail', async () => {
+            const user = userEvent.setup();
+            const button = renderRail();
+
+            await user.hover(button);
+
+            expect(tip()?.textContent).toBe('New recipe');
+            expect(tip()?.closest('[data-rail]')).toBeNull();
+            expect(tip()?.getAttribute('data-placement')).toBe('right');
+        });
+
+        it('shows on keyboard focus too, which the clipped tip never did', async () => {
+            const user = userEvent.setup();
+            const button = renderRail();
+
+            await user.tab();
+
+            expect(document.activeElement).toBe(button);
+            expect(tip()?.textContent).toBe('New recipe');
+        });
+
+        it('is dismissed by Escape without the pointer moving', async () => {
+            const user = userEvent.setup();
+            const button = renderRail();
+
+            await user.hover(button);
+            expect(tip()).not.toBeNull();
+
+            await user.keyboard('{Escape}');
+
+            expect(tip()).toBeNull();
+        });
+
+        it('leaves the button’s name to the button: the tip adds no second name for a screen reader', async () => {
+            const user = userEvent.setup();
+            const button = renderRail();
+
+            await user.hover(button);
+
+            expect(screen.getAllByText('New recipe')).toHaveLength(1);
+            expect(button.getAttribute('aria-describedby')).toBeNull();
+            expect(tip()?.getAttribute('aria-hidden')).toBe('true');
+        });
+
+        it.each(['fab', 'sidebar'] as const)(
+            'the %s form has no tooltip, because its label is drawn',
+            async (appearance) => {
+                const user = userEvent.setup();
+                render(<RecipeCreateButton appearance={appearance} onCreateRecipe={vi.fn()} />);
+
+                await user.hover(screen.getByRole('button', { name: 'New recipe' }));
+
+                expect(tip()).toBeNull();
+            },
+        );
     });
 });

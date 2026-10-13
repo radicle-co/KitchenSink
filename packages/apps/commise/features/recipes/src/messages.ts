@@ -385,6 +385,19 @@ export interface RecipeDetailMessages {
     readonly nutritionLink: string;
     /** The ghost link in the footer facts that opens the version history. */
     readonly versionHistory: string;
+    /**
+     * The Back control over the hero photo, naming where it goes (contains `{parent}`; `buildSpec.md` §3.5). ⛔ Never a
+     * bare "Back": Android's own navigation bar publishes a node with exactly that name.
+     */
+    readonly backTo: string;
+    /** The parent's name when the recipe was opened from Home. */
+    readonly parentHome: string;
+    /** The parent's name when the recipe was opened from Discover. */
+    readonly parentDiscover: string;
+    /** The parent's name when the recipe was opened from a collection. */
+    readonly parentCollection: string;
+    /** The parent's name when the recipe was opened from another recipe (a copy just saved). */
+    readonly parentRecipe: string;
 }
 
 /**
@@ -1022,6 +1035,11 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             sectionsLabel: 'Recipe sections',
             nutritionLink: 'Nutrition',
             versionHistory: 'Version history',
+            backTo: 'Back to {parent}',
+            parentHome: 'Home',
+            parentDiscover: 'Discover',
+            parentCollection: 'Collection',
+            parentRecipe: 'Recipe',
         },
         card: {
             proBadge: 'PRO',

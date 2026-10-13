@@ -38,6 +38,23 @@ function renderField(overrides: Partial<DurationFieldProps> = {}) {
 const hours = (): HTMLInputElement => screen.getByLabelText<HTMLInputElement>('Step 1 timer, hours');
 const minutes = (): HTMLInputElement => screen.getByLabelText<HTMLInputElement>('Step 1 timer, minutes');
 
+describe('DurationField (native) — a 136 px cell (A-009)', () => {
+    // A-009 (build spec §7.4: "below 600, Prep and Cook sit side by side, about 136 px each at 320"): two boxes at a fixed
+    // 80 dp plus their units are about 220 dp, which wrapped Cook onto its own line. The boxes share the room instead.
+    it('has no fixed box width: the boxes share the room the cell gives them, and still hold two digits', () => {
+        renderField();
+
+        for (const box of [hours(), minutes()]) {
+            const style = getComputedStyle(box);
+
+            expect(style.width).not.toBe('80px');
+            expect(style.flexGrow).toBe('1');
+            expect(style.minWidth).toBe('0px');
+            expect(style.paddingLeft).toBe('8px');
+        }
+    });
+});
+
 describe('DurationField (native)', () => {
     it('is one group named by its visible label', () => {
         renderField();

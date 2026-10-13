@@ -46,7 +46,7 @@ test.describe('recipe CRUD (T079)', () => {
         // Details.
         await page.getByLabel('Title').fill('E2E Ratatouille');
         await page.getByLabel('Description').fill('A rustic roasted vegetable stew.');
-        await page.getByLabel('Cuisine').selectOption('French');
+        await page.getByLabel('Cuisine').fill('French');
         await setServings(page, 4);
         await fillTimes(page, { prepMinutes: 15, cookMinutes: 30 });
         // State a difficulty (FR-001b) — the picker is a chip row of radios; select Hard.
@@ -69,6 +69,9 @@ test.describe('recipe CRUD (T079)', () => {
 
         // VIEW — landed on the new recipe's detail.
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille' })).toBeVisible();
+        // E8 (build spec §7.8): the editor says how it finished. The detail page reads the `?done=` the editor sets
+        // (the detail half is the recipe page's own), says it once, and removes the parameter.
+        await expect(page.getByText('Recipe published.')).toBeVisible();
         const createdId = new URL(page.url()).pathname.split('/recipes/')[1]?.split('/')[0];
         expect(createdId).toBeTruthy();
 
@@ -108,6 +111,7 @@ test.describe('recipe CRUD (T079)', () => {
         await expect(page.getByRole('radio', { name: 'Hard' })).not.toBeChecked();
         await page.getByRole('button', { name: 'Save changes' }).click();
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille (edited)' })).toBeVisible();
+        await expect(page.getByText('Changes saved.')).toBeVisible();
 
         // The clear persisted: re-opening the editor shows no difficulty chosen, never the stale Hard.
         await openRecipeEditor(page, createdId ?? '');

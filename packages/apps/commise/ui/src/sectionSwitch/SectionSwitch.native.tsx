@@ -60,7 +60,14 @@ const styles = StyleSheet.create({
         borderBottomWidth: StyleSheet.hairlineWidth,
     },
     links: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
-    link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[3] },
+    link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
     label: { ...nativeTokens.type.label },
-    hereBar: { position: 'absolute', bottom: 0, start: 12, end: 12, height: 3, borderRadius: 2 },
+    hereBar: {
+        position: 'absolute',
+        bottom: 0,
+        start: nativeTokens.spacing[2],
+        end: nativeTokens.spacing[2],
+        height: 3,
+        borderRadius: 2,
+    },
 });

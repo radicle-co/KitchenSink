@@ -251,6 +251,8 @@ export interface WebMessages {
     readonly pageMetadata: {
         readonly dataSources: PageMetadataMessages;
         readonly profile: PageMetadataMessages;
+        readonly signIn: PageMetadataMessages;
+        readonly signUp: PageMetadataMessages;
     };
 }
 
@@ -285,7 +287,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 wordmark: 'Commise',
                 logoAlt: 'Commise',
                 primaryNavLabel: 'Main',
-                tabNavLabel: 'Main',
+                tabNavLabel: 'Tabs',
                 pageTitles: {
                     home: 'Home',
                     recipes: 'Recipes',
@@ -385,10 +387,15 @@ export const webMessages: LocalizedMessages<WebMessages> = {
         },
         pageMetadata: {
             dataSources: {
-                title: 'Data sources | Commise',
+                title: 'Data sources · Commise',
                 description: 'The food databases behind the nutrition figures, and their licenses',
             },
-            profile: { title: 'Profile | Commise', description: 'Your user profile' },
+            profile: { title: 'Profile · Commise', description: 'Your user profile' },
+            signIn: { title: 'Sign in · Commise', description: 'Sign in to your Commise account' },
+            signUp: {
+                title: 'Create your account · Commise',
+                description: 'Create a Commise account to keep your recipes in one place',
+            },
         },
     },
 };

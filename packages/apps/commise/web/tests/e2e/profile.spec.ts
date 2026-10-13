@@ -137,6 +137,26 @@ test.describe('the display name', () => {
         await expect.poll(() => patches).toEqual([{ displayName: 'a'.repeat(100) }]);
     });
 
+    // W-26: the cut is no longer silent. A counter appears from 80 characters and says the limit when it is reached.
+    test('shows a length counter from 80 characters, and says so when the limit is reached', async ({ page }) => {
+        await openProfile(page);
+
+        await page.getByRole('button', { name: /Display name/ }).click();
+
+        const dialog = page.getByRole('dialog', { name: 'What should we call you?' });
+        const field = dialog.getByRole('textbox', { name: 'Display name' });
+
+        await field.fill('a'.repeat(79));
+        await expect(dialog.getByText(/^\d+\/100$/)).toHaveCount(0);
+
+        await field.fill('a'.repeat(85));
+        await expect(dialog.getByText('85/100')).toBeVisible();
+
+        await field.fill('a'.repeat(100));
+        await expect(dialog.getByText('100/100')).toBeVisible();
+        await expect(dialog.getByRole('status')).toHaveText('That is the longest name we can take.');
+    });
+
     test('closing the sheet saves nothing', async ({ page }) => {
         const { patches } = await openProfile(page);
 

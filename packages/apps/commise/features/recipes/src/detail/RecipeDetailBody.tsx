@@ -46,7 +46,19 @@ import {
     ingredientGroupRuns,
     isLongDescription,
     nutritionCells,
+    nutritionStatusLine,
 } from './detailFacts.js';
+import {
+    BODY_GRID,
+    DETAIL_ARTICLE,
+    DETAIL_TOP_GRID,
+    HEADER_BESIDE_PHOTO,
+    HEADER_UNDER_BAND,
+    HERO_BAND_CELL,
+    HERO_PHOTO_CELL,
+    INGREDIENTS_COLUMN,
+    STEPS_COLUMN,
+} from './detailLayoutClasses.js';
 import { IngredientCheckRow } from './IngredientCheckRow.js';
 import { NutritionFigure } from './NutritionFigure.js';
 import {
@@ -75,20 +87,52 @@ type Href = ComponentProps<typeof Link>['href'];
 /** Screen on in the action row: from a 720 px body only (below it, it is in the section switch). */
 const ACTION_ROW_SCREEN_ON = 'hidden @min-[45rem]/detail:ms-auto @min-[45rem]/detail:inline-flex';
 
-/** The section switch: below a 720 px body only, where the two sections do not show side by side. */
-const SECTION_SWITCH_SLOT = '@min-[45rem]/detail:hidden';
+/**
+ * The section switch: below a 720 px body only, where the two sections do not show side by side.
+ *
+ * ⛔ THE SLOT IS THE STICKY ELEMENT, not the bar inside it: a sticky element travels only within its parent, and this
+ * slot used to be exactly as tall as the bar, so the bar scrolled away with it (D1). As a child of the article it
+ * travels the whole page. On a phone it bleeds to the window edge (the main gutter is 16 there), so the three labels and
+ * the toggle fit a 320 px window (D5).
+ */
+const SECTION_SWITCH_SLOT = 'sticky top-0 z-20 @max-[35.5rem]/detail:-mx-4 @min-[45rem]/detail:hidden';
 
-/** The body: one column, two from a 720 px body. */
-const BODY_GRID =
-    'flex flex-col gap-10 @min-[45rem]/detail:grid @min-[45rem]/detail:grid-cols-12 @min-[45rem]/detail:gap-8';
+/** The hint under the switch bar: below a 720 px body only, where it sits under the bar and not the action row. */
+const HINT_UNDER_SWITCH = 'text-caption text-ink-muted @min-[45rem]/detail:hidden';
 
-/** The ingredients: 5/12 from a 720 px body, sticky under the chrome with a scroll of their own. */
-const INGREDIENTS_COLUMN =
-    'flex flex-col gap-3 @min-[45rem]/detail:sticky @min-[45rem]/detail:top-20 @min-[45rem]/detail:col-span-5 ' +
-    '@min-[45rem]/detail:max-h-[calc(100dvh-6rem)] @min-[45rem]/detail:self-start @min-[45rem]/detail:overflow-y-auto';
+/** The hint under the action-row toggle: from a 720 px body only. */
+const HINT_UNDER_ACTION_ROW = 'hidden text-caption text-ink-muted @min-[45rem]/detail:block';
 
-/** The steps, nutrition, rating and footer facts: 7/12 from a 720 px body. */
-const STEPS_COLUMN = 'flex min-w-0 flex-col gap-10 @min-[45rem]/detail:col-span-7';
+/**
+ * The stat strip's grid. Two cells to a row until the strip is wide enough for one row: 480 px for four cells (F7), 360
+ * for three, which is why a three-cell strip no longer shows a hole. Written whole: Tailwind finds a class only when it
+ * appears whole in the source.
+ */
+const STAT_STRIP_BASE =
+    'grid grid-cols-2 gap-x-2 gap-y-1 rounded-lg border border-line-divider bg-paper px-1 py-1 shadow-sm';
+const STAT_STRIP_ONE_ROW_FROM_480 =
+    '@min-[30rem]/stats:auto-cols-fr @min-[30rem]/stats:grid-flow-col @min-[30rem]/stats:grid-cols-none';
+const STAT_STRIP_ONE_ROW_FROM_360 =
+    '@min-[22.5rem]/stats:auto-cols-fr @min-[22.5rem]/stats:grid-flow-col @min-[22.5rem]/stats:grid-cols-none';
+
+/** Where two cells share a row, the last of an odd count takes the row instead of leaving a hole beside it (D8). */
+const STAT_STRIP_ODD_LAST_SPANS_BELOW_480 = '@max-[30rem]/stats:[&>*:last-child:nth-child(odd)]:col-span-2';
+const STAT_STRIP_ODD_LAST_SPANS_BELOW_360 = '@max-[22.5rem]/stats:[&>*:last-child:nth-child(odd)]:col-span-2';
+
+/** The grid classes for a strip of `count` cells. Pure. */
+const statStripClass = (count: number): string => {
+    const oneRowFrom360 = count === 3;
+    const spansWhenOdd = oneRowFrom360 ? STAT_STRIP_ODD_LAST_SPANS_BELOW_360 : STAT_STRIP_ODD_LAST_SPANS_BELOW_480;
+
+    return [
+        STAT_STRIP_BASE,
+        oneRowFrom360 ? STAT_STRIP_ONE_ROW_FROM_360 : STAT_STRIP_ONE_ROW_FROM_480,
+        // An even count fills its rows; the rule would match nothing, so it is not emitted.
+        count % 2 === 1 ? spansWhenOdd : '',
+    ]
+        .filter((part) => part !== '')
+        .join(' ');
+};
 
 /** A section heading: `sectionTitle`, focusable for a jump, and clear of the sticky switch when jumped to. */
 const SECTION_HEADING = 'scroll-mt-28 text-section-title text-ink focus:outline-none';
@@ -107,6 +151,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     recipe,
     headerActions,
     back,
+    heroControls,
     rating,
     servings,
     onServingsChange,
@@ -125,6 +170,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     const { detail, duration, card } = useMessages(recipeMessages);
     const locale = useLocale();
     const owner = viewerIsOwner === true;
+    const noPhoto = recipe.photos.length === 0;
     // A retry from the refresh notice that succeeds removes the button the viewer pressed, so focus goes to the title.
     const titleRef = useFocusOnSignal<HTMLHeadingElement>(refreshNotice?.recoveries ?? 0);
     // Plan 002 R2 — ONE notice per recipe for the lines food could not be asked about, read from the STORED lines.
@@ -152,7 +198,11 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     const scaled = scaleRecipeForServings(recipe, servings);
     const stats = detailStatCells(scaled, recipe.difficulty, { detail, duration, card });
     const meta = detailMetaItems(recipe, owner, detail);
-    const nutrition = nutritionCells(recipe.nutrition, detail);
+    const nutrition = nutritionCells(recipe.nutrition, recipe.ingredients, detail, locale);
+    const statusLine = nutritionStatusLine(
+        { noneCounted: nutrition.noneCounted, isComplete: recipe.nutrition.isComplete, reviewNotice },
+        detail,
+    );
     const ratingLine = detailRatingLine(recipe, owner, locale, { detail, card });
     const tags = [...recipe.dietaryFlags, ...recipe.tags];
     const editSectionHref = (section: string): Href | undefined =>
@@ -163,18 +213,19 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     return (
         // No gutter of its own and no centring: `<main>` owns the page gutter (16 below 600, `buildSpec.md` §1.2), and
         // content is left-aligned to it (§1.3). A second `px-4` drew a 32 px phone gutter on this page alone (F15).
-        <article aria-label={recipe.title} className="@container/detail flex w-full max-w-detail flex-col gap-6 pb-10">
-            <div className="flex flex-col gap-4 @min-[60rem]/detail:grid @min-[60rem]/detail:grid-cols-12 @min-[60rem]/detail:gap-x-8">
+        <article aria-label={recipe.title} className={DETAIL_ARTICLE}>
+            <div className={DETAIL_TOP_GRID}>
                 {/* The hero IS the carousel, so the cover shows once (F2). From a 960 body it sits at the END, 7/12. */}
-                <div className="@min-[60rem]/detail:col-span-7 @min-[60rem]/detail:col-start-6 @min-[60rem]/detail:row-start-1">
+                <div className={noPhoto ? HERO_BAND_CELL : HERO_PHOTO_CELL}>
                     <RecipeHero
                         recipeId={recipe.id}
                         title={recipe.title}
                         {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                         photos={recipe.photos}
+                        {...(heroControls === undefined ? {} : { overlay: heroControls })}
                     />
                 </div>
-                <header className="flex min-w-0 flex-col gap-3 @min-[60rem]/detail:col-span-5 @min-[60rem]/detail:col-start-1 @min-[60rem]/detail:row-start-1">
+                <header className={`flex min-w-0 flex-col gap-3 ${noPhoto ? HEADER_UNDER_BAND : HEADER_BESIDE_PHOTO}`}>
                     {back}
                     {meta.length > 0 && (
                         <p className="flex flex-wrap gap-x-2 text-overline text-ink-muted">
@@ -226,9 +277,9 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     {stats.length > 0 && (
                         <div className="@container/stats">
                             {/* A container query styles a container's DESCENDANTS, never the container itself, so the strip's width is
-                            read from this wrapper: 2 × 2 below a 480 px strip, one row of cells from it. At 360 a 435 px title
+                            read from this wrapper: 2 × 2 below a 480 px strip (360 for three cells), one row of cells from it. At 360 a 435 px title
                             column gave four ~100 px cells, which wrapped "5 h 30 / min" and cut "Medium" (F7). */}
-                            <dl className="grid grid-cols-2 gap-x-2 gap-y-1 rounded-lg border border-line-divider bg-paper px-1 py-1 shadow-sm @min-[30rem]/stats:auto-cols-fr @min-[30rem]/stats:grid-flow-col @min-[30rem]/stats:grid-cols-none">
+                            <dl className={statStripClass(stats.length)}>
                                 {stats.map((cell) => (
                                     <div key={cell.id} className="flex flex-col-reverse gap-1 px-3 py-2">
                                         <dt className="text-caption text-ink-muted">{cell.label}</dt>
@@ -257,6 +308,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             </span>
                         </div>
                     )}
+                    {screenOn.hint === undefined ? null : <p className={HINT_UNDER_ACTION_ROW}>{screenOn.hint}</p>}
                     {recipe.description !== '' && (
                         <div className="flex flex-col items-start gap-1">
                             <p
@@ -313,6 +365,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     }
                 />
             </div>
+
+            {screenOn.hint === undefined ? null : <p className={HINT_UNDER_SWITCH}>{screenOn.hint}</p>}
 
             <div className={BODY_GRID}>
                 {/* From 720 the ingredients stay beside the steps, sticky, with their own scroll (§6.1). */}
@@ -456,11 +510,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             ))}
                         </dl>
                         <div className="flex flex-col gap-1 text-caption text-ink-muted">
-                            {nutrition.noneCounted ? (
-                                <p>{detail.nutritionNoneCounted}</p>
-                            ) : (
-                                !recipe.nutrition.isComplete && <p>{detail.nutritionPartial}</p>
-                            )}
+                            {statusLine !== undefined && <p>{statusLine}</p>}
                             {/* R38 and KTD-3b: two more admissions about the figures; both can be true at once. */}
                             {rangeNotice !== undefined && <p>{rangeNotice}</p>}
                             {staleNotice !== undefined && <p>{staleNotice}</p>}

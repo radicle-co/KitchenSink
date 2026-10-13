@@ -63,6 +63,7 @@ const Host: FC<HostProps> = ({ initial = '', onSubmit, ...overrides }) => {
             }}
         >
             <Combobox
+                id="add-ingredient"
                 label="Add an ingredient"
                 listLabel="Food suggestions"
                 value={value}
@@ -127,6 +128,96 @@ describe('Combobox (web) — a leading glyph (`docs/design/rowEditorOpenDecision
         expect(wrapper?.getAttribute('aria-hidden')).toBe('true');
         expect(screen.queryByRole('img', { name: 'plus' })).toBeNull();
         expect(wrapper?.compareDocumentPosition(field()) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+});
+
+describe('Combobox (web) — a visible label, a visible hint and the house rectangle (A-007, E13; build spec §7.4)', () => {
+    it('draws the label above the field and names the field by it: a placeholder is never the label (SC 3.3.2)', () => {
+        render(<Host placeholder="2 tbsp olive oil" />);
+        const label = screen.getByText('Add an ingredient', { selector: 'label' });
+
+        expect(label.getAttribute('for')).toBe(field().id);
+        expect(field().id).toBe('add-ingredient');
+        expect(label.compareDocumentPosition(field()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('draws the hint as a visible caption under the label, and the field is described by it', () => {
+        render(<Host hint="Type the amount first, then pick the food." describedBy="row-note" />);
+        const hint = screen.getByText('Type the amount first, then pick the food.');
+
+        expect(hint.closest('.sr-only')).toBeNull();
+        expect(hint.id).toBe('add-ingredient-hint');
+        expect((field().getAttribute('aria-describedby') ?? '').split(' ')).toEqual([hint.id, 'row-note']);
+    });
+
+    it('with the label hidden, the name stays on the field and the hint is read but not drawn', () => {
+        render(<Host labelVisibility="hidden" hint="Type to search foods." />);
+
+        expect(screen.queryByText('Add an ingredient', { selector: 'label' })).toBeNull();
+        expect(field().getAttribute('aria-label')).toBe('Add an ingredient');
+        expect(screen.getByText('Type to search foods.').closest('.sr-only')).not.toBeNull();
+        expect(field().getAttribute('aria-describedby')).toBe('add-ingredient-hint');
+    });
+
+    it('is the house rectangle, not an underline: a 12 px edge on all four sides, 48 px tall', () => {
+        render(<Host />);
+        const classes = field().className.split(/\s+/);
+
+        expect(classes).toEqual(expect.arrayContaining(['rounded-md', 'border', 'border-line-control', 'min-h-12']));
+        expect(classes).not.toContain('border-b');
+    });
+
+    it('⛔ names the field once: no aria-labelledby that points at nothing', () => {
+        render(<Host />);
+        const labelledBy = field().getAttribute('aria-labelledby');
+
+        expect(labelledBy === null || document.getElementById(labelledBy) !== null).toBe(true);
+    });
+
+    it('keeps the leading glyph inside the rectangle, before the text', () => {
+        render(<Host leadingIcon={<svg role="img" aria-label="plus" />} />);
+        const glyph = screen.getByLabelText('plus', { selector: 'svg' });
+
+        expect(field().parentElement?.contains(glyph)).toBe(true);
+        expect(field().className.split(/\s+/)).toContain('ps-11');
+    });
+});
+
+describe('Combobox (web) — opening the list when the field takes focus (P3: a pick-list the cook can browse)', () => {
+    it('opens the list as the field takes focus, with nothing active and nothing chosen', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        render(<Host initial="f" openOnFocus onSelect={onSelect} />);
+
+        await user.tab();
+
+        expect(field()).toBe(document.activeElement);
+        expect(screen.getByRole('listbox', { name: 'Food suggestions' })).toBeTruthy();
+        expect(field().getAttribute('aria-activedescendant')).toBeNull();
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it('opens nothing on focus unless the host asks', async () => {
+        const user = userEvent.setup();
+        render(<Host initial="f" />);
+
+        await user.tab();
+
+        expect(screen.queryByRole('listbox')).toBeNull();
+    });
+});
+
+describe('Combobox (web) — a host’s action beside the field (build spec §7.5.4)', () => {
+    it('draws it in the field’s own row, after the input, so it lines up with the input and not the label', () => {
+        render(<Host trailingAction={<button type="button">Paste a list</button>} hint="Type the amount first." />);
+        const action = screen.getByRole('button', { name: 'Paste a list' });
+        const row = field().parentElement?.parentElement;
+
+        expect(row?.contains(action)).toBe(true);
+        expect(field().compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(screen.getByText('Add an ingredient', { selector: 'label' }).parentElement?.contains(action)).toBe(
+            false,
+        );
     });
 });
 
@@ -1126,6 +1217,8 @@ describe('Combobox (web) — where the list is placed (2.4.11, §8e; `docs/desig
             readonly left?: number;
             readonly viewportWidth?: number;
             readonly content?: number;
+            /** The height of the line the host draws under the field (`belowField`), inside the same reference box. */
+            readonly belowFieldHeight?: number;
         } = {},
     ): void => {
         const fieldWidth = field.width ?? FIELD.width;
@@ -1133,9 +1226,23 @@ describe('Combobox (web) — where the list is placed (2.4.11, §8e; `docs/desig
 
         vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(VIEWPORT_HEIGHT);
         vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(field.viewportWidth ?? 1024);
+        // The popup is anchored to the box that holds the input AND the line under it (E14), so any element that holds the
+        // input without holding the popup reports the input's box plus that line.
         vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-            return this.getAttribute('role') === 'combobox'
-                ? new DOMRect(field.left ?? FIELD.left, fieldTop, fieldWidth, FIELD.height)
+            if (this.getAttribute('role') === 'combobox') {
+                return new DOMRect(field.left ?? FIELD.left, fieldTop, fieldWidth, FIELD.height);
+            }
+
+            const holdsField = this.querySelector('[role="combobox"]') !== null;
+            const holdsPopup = this.querySelector('[role="listbox"]') !== null;
+
+            return holdsField && !holdsPopup
+                ? new DOMRect(
+                      field.left ?? FIELD.left,
+                      fieldTop,
+                      fieldWidth,
+                      FIELD.height + (field.belowFieldHeight ?? 0),
+                  )
                 : new DOMRect(0, 0, 0, 0);
         });
         const isPopup = (node: HTMLElement): boolean => node.querySelector('[role="listbox"]') !== null;
@@ -1247,6 +1354,22 @@ describe('Combobox (web) — where the list is placed (2.4.11, §8e; `docs/desig
             expect(popupBox(600).top).toBeGreaterThanOrEqual(200 + FIELD.height);
         });
         expect(popupBox(600).bottom).toBeLessThanOrEqual(VIEWPORT_HEIGHT - 300 - 8);
+    });
+
+    // E14: the reading line sits under the input, inside the reference box, so the list opens under the line and never
+    // over it.
+    it('⛔ anchors the list to the field AND the line under it, so it never covers that line', async () => {
+        const user = userEvent.setup();
+        const fieldTop = 100;
+        const belowFieldHeight = 24;
+        layOut(fieldTop, { belowFieldHeight });
+        render(<Host belowField={<span>Reads as 2 tbsp olive oil</span>} />);
+
+        await user.type(field(), 'f');
+
+        await waitFor(() => {
+            expect(popupBox().top).toBeGreaterThanOrEqual(fieldTop + FIELD.height + belowFieldHeight);
+        });
     });
 
     // floating-ui keeps an option's derivable closure from the render that first passed it, so a reader captured there

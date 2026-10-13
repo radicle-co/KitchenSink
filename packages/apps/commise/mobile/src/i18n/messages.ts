@@ -101,6 +101,10 @@ export interface MobileMessages {
         readonly signInAction: string;
         /** Primary verification submit label. */
         readonly verifyAction: string;
+        /** Code-step control that sends a fresh verification code. */
+        readonly resendCodeAction: string;
+        /** Code-step control that abandons the sign-in attempt and returns to the credentials. */
+        readonly startOverAction: string;
         /** Primary create-account submit label. */
         readonly createAccountAction: string;
         /** Prompt beside the link that toggles from sign-in to sign-up. */
@@ -111,6 +115,10 @@ export interface MobileMessages {
         readonly haveAccountPrompt: string;
         /** Label of the link that toggles from sign-up to sign-in. */
         readonly signInLink: string;
+        /** Said when the email field is empty (also the wording for Clerk's "missing identifier"). */
+        readonly emailRequired: string;
+        /** Said when the email is not a valid address (also the wording for Clerk's "identifier is invalid"). */
+        readonly emailInvalid: string;
         /** Localized fallback when a sign-in fails without a Clerk-supplied message. */
         readonly signInFailed: string;
         /** Localized fallback when a sign-up fails without a Clerk-supplied message. */
@@ -341,11 +349,15 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             codePrompt: 'Enter the verification code sent to your email.',
             signInAction: 'Sign in',
             verifyAction: 'Verify',
+            resendCodeAction: 'Send a new code',
+            startOverAction: 'Start over',
             createAccountAction: 'Create account',
             noAccountPrompt: 'New to Commise?',
             signUpLink: 'Create an account',
             haveAccountPrompt: 'Already have an account?',
             signInLink: 'Sign in',
+            emailRequired: 'Enter your email address.',
+            emailInvalid: 'Enter a valid email address.',
             signInFailed: 'We couldn’t sign you in. Please try again.',
             signUpFailed: 'We couldn’t create your account. Please try again.',
             verifyFailed: 'We couldn’t verify that code. Please try again.',

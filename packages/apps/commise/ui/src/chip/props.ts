@@ -53,8 +53,17 @@ export interface ChipOption {
     readonly label: string;
 }
 
+/**
+ * The surface a scrolling row sits on: the page (`canvas`, the default) or a sheet (`overlay`). The native row ends in a
+ * fade into the colour behind it, so it must know which, or the fade shows as a stripe. The web row masks its end and
+ * ignores this.
+ */
+export type ChipRowSurface = 'canvas' | 'overlay';
+
 /** A row of filter or input chips that the screen places itself. */
 export interface ChipGroupRowProps {
+    /** The surface behind the row; see {@link ChipRowSurface}. */
+    readonly surface?: ChipRowSurface;
     readonly mode: 'filter' | 'input';
     /** The group's accessible name. */
     readonly label: string;
@@ -67,6 +76,8 @@ export interface ChipGroupRowProps {
 /** A row that is one choice among its options. */
 export interface ChoiceRowProps {
     readonly mode: 'choice';
+    /** The surface behind the row; see {@link ChipRowSurface}. */
+    readonly surface?: ChipRowSurface;
     /** The group's accessible name. */
     readonly label: string;
     /** One line that scrolls inside itself, or wrapped lines. */

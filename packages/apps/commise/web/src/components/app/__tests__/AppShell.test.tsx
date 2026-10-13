@@ -6,7 +6,8 @@
  * The viewer-profile hook is mocked; the locale comes from a provider.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
+import { onlineManager } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { useSnackbar } from '@commise/ui/snackbar';
 import type { JSX } from 'react';
@@ -151,6 +152,31 @@ describe('AppShell — the snackbar host', () => {
 
         await user.click(screen.getByRole('button', { name: 'Remove' }));
 
-        expect(screen.getByRole('status').textContent).toBe('Removed Pasta');
+        // The shell now holds two status regions (P5): the snackbar's, and the sync notice's, empty while online.
+        expect(screen.getAllByRole('status').map((region) => region.textContent)).toContain('Removed Pasta');
+    });
+});
+
+/**
+ * P5 (build spec §3.8): the connectivity notice lives at the top of `<main>`. It used to be mounted by the providers
+ * above the whole document, so going offline pushed the sidebar and the page down together.
+ */
+describe('AppShell — the sync notice', () => {
+    afterEach(() => {
+        act(() => {
+            onlineManager.setOnline(true);
+        });
+    });
+
+    it('⛔ shows the offline notice inside <main>, not above the shell', () => {
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+        renderShell('recipes');
+
+        const notice = screen.getByRole('status', { name: 'Sync status' });
+
+        expect(within(screen.getByRole('main')).getByText('You’re offline')).toBeTruthy();
+        expect(screen.getByRole('main').contains(notice)).toBe(true);
     });
 });

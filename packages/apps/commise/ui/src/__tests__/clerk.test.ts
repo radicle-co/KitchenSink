@@ -14,7 +14,7 @@
  * This file REPLACES the earlier one, which measured hex values taken off an object of concrete colours: that shape is
  * gone (it could paint one theme only), so its assertions are re-derived here against the shape that exists.
  */
-import { wcagContrast } from 'culori';
+import { parse, wcagContrast } from 'culori';
 import { describe, expect, it } from 'vitest';
 
 import { CLERK_CSS_LAYER, clerkAppearanceFor } from '../clerk.js';
@@ -57,6 +57,26 @@ const colour = (scheme: ColorSchemeName, role: Role | undefined): string => {
     return themeFor(scheme).colors[role];
 };
 
+/**
+ * A translucent fill (`rgba(r, g, b, a)`) as the opaque colour it paints over a backdrop. `wcagContrast` ignores alpha,
+ * so a tinted alert has to be flattened before its label can be measured on it.
+ */
+function flatten(fill: string, backdrop: string, opacity?: number): string {
+    const top = parse(fill);
+    const under = parse(backdrop);
+
+    if (top === undefined || under === undefined) {
+        throw new Error(`cannot flatten "${fill}" over "${backdrop}"`);
+    }
+
+    const alpha = opacity ?? top.alpha ?? 1;
+    const mix = (a: number, b: number): number => Math.round((a * alpha + b * (1 - alpha)) * 255);
+    const { r: tr, g: tg, b: tb } = top as { r: number; g: number; b: number };
+    const { r: ur, g: ug, b: ub } = under as { r: number; g: number; b: number };
+
+    return `rgb(${mix(tr, ur)}, ${mix(tg, ug)}, ${mix(tb, ub)})`;
+}
+
 describe.each(SCHEMES)('clerkAppearanceFor(%s) — variables', (scheme) => {
     const { variables } = clerkAppearanceFor(scheme);
 
@@ -89,6 +109,14 @@ describe.each(SCHEMES)('clerkAppearanceFor(%s) — variables', (scheme) => {
         expect(wcagContrast(variables.colorDanger, variables.colorBackground)).toBeGreaterThanOrEqual(AA_TEXT);
     });
 
+    // W-16: Clerk painted the new-device notice in its own default orange (2.8:1 on beige) because no `colorWarning`
+    // was passed, and the interface did not list one.
+    it('paints a warning message legibly on the form background, in the attention role', () => {
+        expect(variables.colorWarning).toBe(themeFor(scheme).colors.attention);
+        expect(wcagContrast(variables.colorWarning, variables.colorBackground)).toBeGreaterThanOrEqual(AA_TEXT);
+        expect(wcagContrast(variables.colorWarning, themeFor(scheme).colors.canvas)).toBeGreaterThanOrEqual(AA_TEXT);
+    });
+
     it('takes every colour from the scheme’s theme, not from a literal', () => {
         const { colors } = themeFor(scheme);
 
@@ -118,7 +146,6 @@ describe.each(SCHEMES)('clerkAppearanceFor(%s) — elements measured through the
         ['field action', 'formFieldAction'],
         ['footer action text', 'footerActionText'],
         ['footer action link', 'footerActionLink'],
-        ['alert text', 'alertText'],
         ['resend code link', 'formResendCodeLink'],
         ['identity edit button', 'identityPreviewEditButton'],
     ] as const)('reads the %s on both surfaces', (_what, key) => {
@@ -130,6 +157,46 @@ describe.each(SCHEMES)('clerkAppearanceFor(%s) — elements measured through the
                 `${key} on ${surface}`,
             ).toBeGreaterThanOrEqual(AA_TEXT);
         }
+    });
+
+    // W-16: the notice's own tint and label. A warning alert must not wear the danger look it used to inherit from
+    // the bare `alert` key, and its label is measured on the tint it is painted over (flattened onto each surface).
+    it.each([
+        ['danger', 'alert__danger', 'alertText__danger', 'dangerText'],
+        ['warning', 'alert__warning', 'alertText__warning', 'ink'],
+    ] as const)('reads a %s alert label on its own tint, on both surfaces', (_kind, alertKey, textKey, label) => {
+        const alert = classesOf(elements[alertKey]);
+        const fill = colour(scheme, roleOfClass(alert, 'bg'));
+        /** `bg-danger/10` states its own opacity; `bg-attention-tint` is already translucent in the role. */
+        const opacity = /^bg-[a-z-]+\/(\d+)$/.exec(alert.find((name) => name.startsWith('bg-')) ?? '')?.[1];
+
+        expect(roleOfClass(classesOf(elements[textKey]), 'text')).toBe(label);
+
+        for (const surface of surfaces) {
+            const painted = flatten(
+                fill,
+                colour(scheme, surface),
+                opacity === undefined ? undefined : Number(opacity) / 100,
+            );
+
+            expect(
+                wcagContrast(colour(scheme, label), painted),
+                `${textKey} on ${alertKey} over ${surface}`,
+            ).toBeGreaterThanOrEqual(AA_TEXT);
+        }
+    });
+
+    it('keeps the bare alert key to shape, so no variant inherits another variant’s colour', () => {
+        const base = classesOf(elements.alert);
+
+        expect(base.filter((name) => /^(?:bg|border|text)-(?:danger|attention)/.test(name))).toEqual([]);
+        expect(classesOf(elements.alertText).filter((name) => /^text-(?:danger|attention|ink)/.test(name))).toEqual([]);
+    });
+
+    it('tints a warning alert with the attention roles and a danger alert with the danger roles', () => {
+        expect(roleOfClass(classesOf(elements.alert__warning), 'bg')).toBe('attentionTint');
+        expect(roleOfClass(classesOf(elements.alert__warning), 'border')).toBe('attention');
+        expect(roleOfClass(classesOf(elements.alert__danger), 'bg')).toBe('danger');
     });
 
     it('reads the field text on the field fill', () => {
@@ -227,9 +294,17 @@ describe('clerkAppearanceFor — layout and behaviour', () => {
         );
     });
 
+    // W-17: with BOTH halves unbreakable the pair could not wrap inside the 272 px column at 320, and the link ended
+    // 2 px past the card. Only the link — the only way to register — stays whole; the pair wraps between the two.
     it('never breaks the sign-up / sign-in link across lines, because it is the only way to register', () => {
         expect(classesOf(appearance.elements.footerActionLink)).toContain('whitespace-nowrap');
-        expect(classesOf(appearance.elements.footerActionText)).toContain('whitespace-nowrap');
+    });
+
+    it('lets the lead-in text wrap and drops the link to its own line when the pair does not fit (1.4.10)', () => {
+        expect(classesOf(appearance.elements.footerActionText)).not.toContain('whitespace-nowrap');
+        expect(classesOf(appearance.elements.footerAction)).toEqual(
+            expect.arrayContaining(['flex', 'flex-wrap', 'justify-center', 'gap-x-1']),
+        );
     });
 
     // F20 (`evaluateFinal.md`): Clerk's own rule caps an input at `max-height: 2.25rem`, so `h-12` drew 36 px, and

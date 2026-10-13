@@ -189,6 +189,40 @@ describe('ScrollHost (web)', () => {
         expect(window.location.hash).toBe('#a');
     });
 
+    /**
+     * E7 (build spec §7.8): a refused Publish takes the cook to the first invalid FIELD, not just its section. The field
+     * is centred (the sticky chrome sits at both edges) and takes focus.
+     */
+    it('scrolls a field into view and focuses it; answers whether it found one', () => {
+        const api = renderHost();
+        const field = document.createElement('input');
+        field.id = 'recipe-title';
+        document.body.append(field);
+        field.scrollIntoView = vi.fn();
+
+        const found = api().scrollToField('recipe-title');
+
+        expect(found).toBe(true);
+        expect(field.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+        expect(document.activeElement).toBe(field);
+        expect(api().scrollToField('no-such-field')).toBe(false);
+        field.remove();
+    });
+
+    it('does not record a hash for a field: only a section is addressable', () => {
+        const api = renderHost();
+        window.history.replaceState(null, '', '/page');
+        const field = document.createElement('input');
+        field.id = 'recipe-title';
+        document.body.append(field);
+        field.scrollIntoView = vi.fn();
+
+        api().scrollToField('recipe-title');
+
+        expect(window.location.hash).toBe('');
+        field.remove();
+    });
+
     it('holds no scroller handle on web', () => {
         expect(renderHost()().handle.current).toBeNull();
     });

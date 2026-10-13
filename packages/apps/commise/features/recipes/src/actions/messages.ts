@@ -61,6 +61,18 @@ export interface RecipeActionMessages {
     readonly saveCopy: RecipeSaveCopyMessages;
     /** Copy for the recipe page's action row and ⋯ menu (build spec §6.1, §6.4). */
     readonly detailActions: RecipeDetailActionMessages;
+    /** Copy for the Premium sheet "Private" opens for a free-tier cook (build spec §6.4, §7.7). */
+    readonly upsell: RecipeUpsellMessages;
+}
+
+/** The Premium sheet for "Private": the plain fact, then two equal choices (DSA Art. 25). */
+export interface RecipeUpsellMessages {
+    readonly title: string;
+    readonly body: string;
+    readonly seePremium: string;
+    readonly notNow: string;
+    /** The sheet's Close control name. */
+    readonly close: string;
 }
 
 /** Saving a copy from a card: the control's names, the snackbar that follows, and the failure (build spec §4.1). */
@@ -136,6 +148,13 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             clearChecks: 'Clear checks',
             deleteRecipe: 'Delete recipe',
             backToRecipes: 'My recipes',
+        },
+        upsell: {
+            title: 'Private recipes are part of Premium.',
+            body: 'Public recipes are free. Premium lets you keep a recipe to yourself.',
+            seePremium: 'See Premium',
+            notNow: 'Not now',
+            close: 'Close',
         },
     },
 };

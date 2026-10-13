@@ -38,7 +38,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { useMessages } from '@commise/i18n/react';
 import { OfflineReadNoticeProvider } from '@commise/query/offline';
-import { SyncNoticeHost } from '@commise/query/sync-notice-host';
 import { recipeSender } from '@commise/query/recipe-sender';
 import { useQuerySessionScope } from '@commise/query/session-scope';
 import { RecipeWriteCacheObserver } from '@commise/query/recipe-write-cache';
@@ -154,14 +153,12 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
                     wiping the recipe editor mid-flow. Six Playwright shards that passed on the previous
                     commit failed on it. A conditional here cannot be made safe; there must not be one.
 
-                    ⛔ AND `SyncNoticeHost` STAYS INSIDE the provider. `syncNoticeState.ts` has a branch that
-                    exists ONLY for offline-with-zero-pending (`offlineBodyNone`), because the owner's bar is
-                    BOTH halves — tell the cook they are offline AND what has not synced — and public recipe
-                    pages are readable signed out, so a signed-out visitor must still get the first half.
-                    Hoisting it ABOVE the provider would hand everyone the NOT_MOUNTED default's
-                    `pendingCount: 0` and silently kill the syncing body for signed-in cooks. */}
+                    ⛔ `SyncNoticeHost` IS NOT MOUNTED HERE (P5, build spec §3.8). It renders an in-flow block, and this
+                    provider wraps the whole document above the shell, so a notice here pushed the sidebar down with
+                    the page. `AppShell` mounts it at the top of `<main>`, which is inside this provider, so it still
+                    reads the queue and still gets the signed-out half. The cost: a page without the shell (sign-in,
+                    sign-up) shows no connectivity notice. */}
                 <SyncProvider subject={userId ?? undefined} send={send} store={webDeviceStore}>
-                    <SyncNoticeHost copy={offline} />
                     {/* Slice 7: the outbox's recipe writes reach the cache, and the editor's device draft, whether or
                         not the editor that queued them is still open. */}
                     <RecipeWriteCacheObserver />

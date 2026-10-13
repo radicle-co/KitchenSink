@@ -62,10 +62,12 @@ describe('two-column per-side summary cards (wireframe gap #2)', () => {
         expect(formatServerCardHeading(server, conflict)).toBe('Server version (v6)');
     });
 
-    it('formatYourCardHeading renders "Your version (v{n})" when base is known', () => {
+    // E18: the card shows the version the cook's draft was edited FROM, beside "Your version: local unsaved changes", so
+    // "Your version (v5)" read as the draft's own save. It is named for what it is.
+    it('formatYourCardHeading renders "Edited from v{n}" when base is known', () => {
         const base = makeVersionConflictSide({ versionNumber: 5 });
 
-        expect(formatYourCardHeading(base, conflict)).toBe('Your version (v5)');
+        expect(formatYourCardHeading(base, conflict)).toBe('Edited from v5');
     });
 
     it('formatYourCardHeading falls back to the version-less heading when base is undefined (evicted)', () => {

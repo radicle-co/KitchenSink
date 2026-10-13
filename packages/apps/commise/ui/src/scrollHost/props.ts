@@ -80,6 +80,14 @@ export interface ScrollHostApi {
      * line.
      */
     readonly scrollToSection: (id: string) => void;
+    /**
+     * Scroll a field to the middle of the viewport (the sticky chrome sits at both edges) and focus it: where a refused
+     * Publish takes the cook (build spec §7.8). Unlike a section it is not addressable, so no hash is recorded.
+     *
+     * @returns Whether a field with that id was found. Native holds no field registry, so it always answers `false`
+     *     and the caller falls back to the section's heading.
+     */
+    readonly scrollToField: (id: string) => boolean;
     /** The heading's layout report (native). Inert on web, which finds the heading by `headingId`. */
     readonly headingLayout: (event: LayoutReport) => void;
     /** A section's layout report (native). Inert on web, which finds sections by id. */

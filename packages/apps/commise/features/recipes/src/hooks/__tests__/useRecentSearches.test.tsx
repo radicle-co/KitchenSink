@@ -116,6 +116,45 @@ describe('useRecentSearches — recording a committed query', () => {
         expect(store.value).toBe(serializeRecentSearches(['risotto', 'pasta']));
     });
 
+    it('collapses the partial queries of one typing run into the one the cook finished on (A-027)', async () => {
+        const store = makeFakeStore();
+        const { result, rerender } = renderHook(({ query }) => useRecentSearches(query, store), {
+            initialProps: { query: 'r' },
+        });
+
+        await waitFor(() => expect(result.current.queries).toEqual(['r']));
+        rerender({ query: 'ri' });
+        await waitFor(() => expect(result.current.queries).toEqual(['ri']));
+        rerender({ query: 'rice' });
+
+        await waitFor(() => expect(result.current.queries).toEqual(['rice']));
+        await waitFor(() => expect(store.value).toBe(serializeRecentSearches(['rice'])));
+    });
+
+    it('does not collapse into a search stored by an earlier session', async () => {
+        const store = makeFakeStore(serializeRecentSearches(['rice']));
+        const { result, rerender } = renderHook(({ query }) => useRecentSearches(query, store), {
+            initialProps: { query: '' },
+        });
+
+        await waitFor(() => expect(result.current.queries).toEqual(['rice']));
+        rerender({ query: 'r' });
+
+        await waitFor(() => expect(result.current.queries).toEqual(['r', 'rice']));
+    });
+
+    it('still records two unrelated searches of one session', async () => {
+        const store = makeFakeStore();
+        const { result, rerender } = renderHook(({ query }) => useRecentSearches(query, store), {
+            initialProps: { query: 'pasta' },
+        });
+
+        await waitFor(() => expect(result.current.queries).toEqual(['pasta']));
+        rerender({ query: 'risotto' });
+
+        await waitFor(() => expect(result.current.queries).toEqual(['risotto', 'pasta']));
+    });
+
     it('de-duplicates case-insensitively rather than growing the list', async () => {
         const store = makeFakeStore(serializeRecentSearches(['pasta', 'risotto']));
         const { result, rerender } = renderHook(({ query }) => useRecentSearches(query, store), {

@@ -14,6 +14,7 @@ import { makeCatalogFoodOption, progressiveFoodView } from '../../__fixtures__/f
 import { COMPLETE_FRAME, catalogResult, databaseFrame } from '../../__fixtures__/progressiveFrames.js';
 import type { LineCommitTarget } from '../../hooks/lineCommit.js';
 import { recipeMessages } from '../../messages.js';
+import { ingredientAddFieldId } from '../fieldIds.js';
 import { recipeFormMessages } from '../messages.js';
 import {
     trailingEntryFieldOf,
@@ -71,20 +72,25 @@ const input = (over: Partial<TrailingEntryFieldInput> = {}): TrailingEntryFieldI
 });
 
 describe('trailingEntryFieldOf', () => {
-    it('is named “Add an ingredient”, shows that as its placeholder, and names its list for the next line (item 3)', () => {
-        expect(trailingEntryFieldOf(input(), COPY)).toMatchObject({
+    // Rewritten for A-007/E13 (build spec §7.4: "Placeholders are examples only"): the name is now drawn as the field's
+    // visible label with its hint under it, so repeating it as the placeholder would say the same thing twice.
+    it('is named “Add an ingredient” by a visible label, has no placeholder, and names its list for the next line (item 3)', () => {
+        const props = trailingEntryFieldOf(input(), COPY);
+
+        expect(props).not.toHaveProperty('placeholder');
+        expect(props).not.toHaveProperty('labelVisibility');
+        expect(props).toMatchObject({
+            id: ingredientAddFieldId,
             label: 'Add an ingredient',
-            placeholder: 'Add an ingredient',
             listLabel: 'Food suggestions for ingredient 4',
             hint: 'Type the amount first, then pick the food. For example: 2 tbsp olive oil.',
             value: '  kale ',
         });
     });
 
-    it('in a group it is named for that group, its placeholder too (build spec §7.11 `ingredients.addToGroup`)', () => {
+    it('in a group it is named for that group (build spec §7.11 `ingredients.addToGroup`)', () => {
         expect(trailingEntryFieldOf(input({ label: 'Add to Sauce' }), COPY)).toMatchObject({
             label: 'Add to Sauce',
-            placeholder: 'Add to Sauce',
         });
     });
 

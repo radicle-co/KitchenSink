@@ -30,6 +30,9 @@ export interface ActionMenuItem {
     readonly onSelect: () => void;
 }
 
+/** How the menu's trigger looks. */
+export type ActionMenuAppearance = 'plain' | 'disc';
+
 /** Props for the `ActionMenu` leaves (web and native). */
 export interface ActionMenuProps {
     /** The trigger's accessible name. ⛔ It names its row ("Actions for {food}"), never a bare "More". */
@@ -50,6 +53,11 @@ export interface ActionMenuProps {
     readonly focusRequested?: boolean;
     /** Called once the trigger has taken a requested focus; the host clears its request here. */
     readonly onFocusRequestHandled?: () => void;
+    /**
+     * How the trigger looks. `plain` (the default) is the bare ⋯ of a row; `disc` is the round `photoChip` control the
+     * recipe page lays over its hero photo (D12, `HeroButton`). The menu itself is the same.
+     */
+    readonly appearance?: ActionMenuAppearance;
     /**
      * Work on the row is in flight, so its actions are unavailable: the trigger is `aria-disabled`, stays focusable and
      * opens nothing (`docs/design/ingredientStatusExplanation.md`, "Busy and disabled", rule 2).

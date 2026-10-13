@@ -79,6 +79,11 @@ export interface EditorActionBarProps {
     readonly readyLine?: string;
     /** An alert about a parked write, shown above the controls. */
     readonly notice?: ReactNode;
+    /**
+     * The on-screen keyboard is up (native only, A-006): it covers the system navigation bar, so the bar stops padding
+     * for it. The web bar ignores this.
+     */
+    readonly keyboardShown?: boolean;
 }
 
 /** Props for `ResumeNotice`. */

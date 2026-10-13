@@ -28,14 +28,17 @@ import {
     editorMessages,
     RecipeEditorView,
     RecipePreviewSheet,
+    RecipeUpsellSheet,
     RecipeIngredientsFields,
     RecipeInstructionsFields,
     RecipeVisibilityField,
     useDeviceDraft,
+    usePrivateChoice,
     useRecipeEditorSession,
     type DraftStore,
     type EditorNavigation,
     type EditorSectionId,
+    type FinishedOutcome,
 } from '@commise/features-recipes';
 import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -65,8 +68,8 @@ export interface RecipeEditorScreenProps {
     readonly section?: EditorSectionId;
     /** Open Paste a list at once: Home's first-run Paste ingredients (build spec §7.5.4). A new recipe only. */
     readonly openPaste?: boolean;
-    /** The recipe was published, or its changes saved: show it. */
-    readonly onFinished: (recipeId: string) => void;
+    /** The recipe was published, or its changes saved: show it, and say which (E8). */
+    readonly onFinished: (recipeId: string, outcome: FinishedOutcome) => void;
     /** × , or the cook kept the server's copy: go back where the editor was opened. */
     readonly onClose: () => void;
     /** A never-published recipe was discarded: go to My recipes. */
@@ -209,6 +212,15 @@ function RecipeEditorSession({
     });
     const { editor, paste } = session;
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
+    // E1: Private for a free-tier cook opens the Premium sheet; a profile still loading is not the free tier (§6.4 F8).
+    const privateChoice = usePrivateChoice({
+        profile:
+            profile.data !== undefined || profile.isError
+                ? { status: 'settled', mayGoPrivate: canGoPrivate(viewer) }
+                : { status: 'loading' },
+        values: editor.values,
+        onChange: editor.setValues,
+    });
 
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
         details: (
@@ -246,11 +258,18 @@ function RecipeEditorSession({
         ),
         photos: (
             <>
-                {editor.recipeId === undefined ? null : <RecipePhotoUploader recipeId={editor.recipeId} />}
+                {editor.recipeId === undefined ? null : (
+                    <RecipePhotoUploader
+                        recipeId={editor.recipeId}
+                        title={editor.values.title}
+                        cuisine={editor.values.cuisine}
+                    />
+                )}
                 <RecipeVisibilityField
                     values={editor.values}
                     onChange={editor.setValues}
-                    canGoPrivate={canGoPrivate(viewer)}
+                    canGoPrivate={privateChoice.canGoPrivate}
+                    onPremiumRequired={privateChoice.onPremiumRequired}
                 />
             </>
         ),
@@ -291,6 +310,7 @@ function RecipeEditorSession({
                 recipe={session.preview.recipe}
                 onClose={session.preview.hide}
             />
+            <RecipeUpsellSheet {...privateChoice.sheet} />
         </>
     );
 }

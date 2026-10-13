@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 
+import { signInPathFor } from '@/lib/signInReturn';
 import { getDictionary } from '@/i18n/getDictionary';
 
 import { SourcesContent } from './SourcesContent';
@@ -24,7 +25,7 @@ export default async function DataSourcesRoute({ params }: { params: Promise<{ l
     const { userId } = await auth();
 
     if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+        redirect(signInPathFor(locale, `/${locale}/legal/sources`) as Route);
     }
 
     return <SourcesContent />;

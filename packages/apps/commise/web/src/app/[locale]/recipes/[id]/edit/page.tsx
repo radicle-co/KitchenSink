@@ -2,6 +2,7 @@ import type { Route } from 'next';
 import { auth } from '@clerk/nextjs/server';
 import { notFound, redirect } from 'next/navigation';
 
+import { signInPathFor } from '@/lib/signInReturn';
 import { AppShell } from '@/components/app/AppShell';
 import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContainer';
 import { isRecipeRouteId } from '@/lib/recipeRouteId';
@@ -32,7 +33,7 @@ export default async function EditRecipePage({
     const { userId } = await auth();
 
     if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+        redirect(signInPathFor(locale, `/${locale}/recipes/${encodeURIComponent(id)}/edit`) as Route);
     }
 
     return (

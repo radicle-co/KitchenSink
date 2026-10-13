@@ -29,6 +29,7 @@
  */
 import {
     editorMessages,
+    FINISHED_OUTCOME_PARAM,
     IngredientsNutritionFoot,
     nextEditorOpening,
     pendingIngredientIds,
@@ -37,11 +38,13 @@ import {
     PasteStepsControl,
     RecipeEditorView,
     RecipePreviewSheet,
+    RecipeUpsellSheet,
     RecipeIngredientsFields,
     RecipeInstructionsFields,
     RecipeVisibilityField,
     sectionFromHash,
     useDeviceDraft,
+    usePrivateChoice,
     useRecipeEditorSession,
     type DraftStore,
     type EditorNavigation,
@@ -336,7 +339,10 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     const viewer = makeViewer({ id: userId ?? undefined, subscriptionTier: profile.data?.account.subscriptionTier });
     // The session's navigation port, on the Next router.
     const navigation: EditorNavigation = {
-        finished: (recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route),
+        // E8: how the editor finished goes to the recipe page in a one-shot parameter (a snackbar raised here would die
+        // with this page's shell). The page reads it, says it once, and removes it.
+        finished: (recipeId, outcome) =>
+            router.push(`/${locale}/recipes/${recipeId}?${FINISHED_OUTCOME_PARAM}=${outcome}` as Route),
         leftForRecipe: (recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route),
         discarded: () => router.push(`/${locale}/recipes` as Route),
     };
@@ -352,6 +358,15 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     });
     const { editor, paste } = session;
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
+    // E1: Private for a free-tier cook opens the Premium sheet; a profile still loading is not the free tier (§6.4 F8).
+    const privateChoice = usePrivateChoice({
+        profile:
+            profile.data !== undefined || profile.isError
+                ? { status: 'settled', mayGoPrivate: canGoPrivate(viewer) }
+                : { status: 'loading' },
+        values: editor.values,
+        onChange: editor.setValues,
+    });
 
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
         details: (
@@ -389,11 +404,18 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
         ),
         photos: (
             <>
-                {editor.recipeId === undefined ? null : <RecipePhotoUploaderContainer recipeId={editor.recipeId} />}
+                {editor.recipeId === undefined ? null : (
+                    <RecipePhotoUploaderContainer
+                        recipeId={editor.recipeId}
+                        title={editor.values.title}
+                        cuisine={editor.values.cuisine}
+                    />
+                )}
                 <RecipeVisibilityField
                     values={editor.values}
                     onChange={editor.setValues}
-                    canGoPrivate={canGoPrivate(viewer)}
+                    canGoPrivate={privateChoice.canGoPrivate}
+                    onPremiumRequired={privateChoice.onPremiumRequired}
                 />
             </>
         ),
@@ -438,6 +460,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
                 recipe={session.preview.recipe}
                 onClose={session.preview.hide}
             />
+            <RecipeUpsellSheet {...privateChoice.sheet} />
         </>
     );
 };

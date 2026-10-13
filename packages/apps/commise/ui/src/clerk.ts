@@ -58,6 +58,7 @@ interface ClerkVariables {
     readonly colorNeutral: string;
     readonly colorDanger: string;
     readonly colorSuccess: string;
+    readonly colorWarning: string;
     readonly colorModalBackdrop: string;
     readonly fontFamily: string;
     readonly fontFamilyButtons: string;
@@ -110,6 +111,8 @@ export function clerkAppearanceFor(scheme: ColorSchemeName) {
             colorNeutral: colors.ink,
             colorDanger: colors.dangerText,
             colorSuccess: colors.actionText,
+            // The `attention` role: Clerk's own orange measured 2.8:1 on the beige card (the new-device notice, W-16).
+            colorWarning: colors.attention,
             colorModalBackdrop: colors.scrim,
             fontFamily: fonts.body,
             fontFamilyButtons: fonts.body,
@@ -154,11 +157,21 @@ export function clerkAppearanceFor(scheme: ColorSchemeName) {
             socialButtonsBlockButton:
                 'h-12 rounded-full border border-line-control bg-paper text-label normal-case text-ink shadow-none ' +
                 'hover:bg-ink/6',
-            // The cross-link is the ONLY way to register (FR-045a), so its text never breaks across lines.
-            footerActionText: 'whitespace-nowrap text-meta text-ink-muted',
+            // The cross-link is the ONLY way to register (FR-045a), so the LINK never breaks across lines. The lead-in
+            // may: with both halves unbreakable the pair overran the 272 px column at 320 (W-17), so the row wraps
+            // BETWEEN them and the link drops to its own line.
+            footerAction: 'flex flex-wrap justify-center gap-x-1',
+            footerActionText: 'text-meta text-ink-muted',
             footerActionLink: 'whitespace-nowrap text-meta font-medium text-action-text hover:underline',
-            alert: 'rounded-xl border border-danger/40 bg-danger/10',
-            alertText: 'text-meta text-danger-text',
+            // An alert's SHAPE is the bare key; its colour belongs to the variant Clerk also names it with
+            // (`AlertId`), because two colour utilities on one element are ranked by Tailwind's emission order and
+            // not by their order in the string. A variant Clerk does not name falls back to its own look.
+            alert: 'rounded-xl border',
+            alert__danger: 'border-danger/40 bg-danger/10',
+            alert__warning: 'border-attention/40 bg-attention-tint',
+            alertText: 'text-meta',
+            alertText__danger: 'text-danger-text',
+            alertText__warning: 'text-ink',
             identityPreviewEditButton: 'text-action-text',
             formResendCodeLink: 'text-action-text',
         },

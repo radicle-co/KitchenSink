@@ -187,4 +187,19 @@ describe('laneReducer — a record another editor queued, and a Discard that wai
         expect(closed.closed).toBe(true);
         expect(laneReducer(closed, { type: 'discarding', phase: 'asking' })).toBe(closed);
     });
+
+    it('records a leave, and takes it back when the editor turns out to be on screen (StrictMode replay)', () => {
+        const leaving = laneReducer(EMPTY_LANE, { type: 'leaving' });
+
+        expect(leaving.leaving).toBe(true);
+        expect(laneReducer(leaving, { type: 'leaving' })).toBe(leaving);
+        expect(laneReducer(leaving, { type: 'stayed' })).toStrictEqual({});
+        expect(laneReducer(EMPTY_LANE, { type: 'stayed' })).toBe(EMPTY_LANE);
+    });
+
+    it('a leave survives the editor closing: the address must not move after a hand-off either', () => {
+        const state = laneReducer(laneReducer(EMPTY_LANE, { type: 'leaving' }), { type: 'closed' });
+
+        expect(state).toStrictEqual({ leaving: true, closed: true });
+    });
 });

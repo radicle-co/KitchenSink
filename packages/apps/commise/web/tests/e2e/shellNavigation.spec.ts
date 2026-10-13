@@ -29,8 +29,11 @@ async function signedIn(page: Page, count = 2): Promise<void> {
     await mockRecipeApi(page, { viewerId, tier: 'premium', recipes });
 }
 
-/** The one primary navigation that is displayed. */
-const visibleNav = (page: Page) => page.getByRole('navigation', { name: 'Main' }).filter({ visible: true });
+/**
+ * The one primary navigation that is displayed: the sidebar is named "Main" and the bottom tab bar "Tabs" (W-14), and
+ * CSS shows exactly one of them at any width.
+ */
+const visibleNav = (page: Page) => page.getByRole('navigation', { name: /^(?:Main|Tabs)$/u }).filter({ visible: true });
 
 for (const colorScheme of ['light', 'dark'] as const) {
     test.describe(`the shell (${colorScheme})`, () => {
@@ -102,6 +105,57 @@ for (const colorScheme of ['light', 'dark'] as const) {
             await page.getByRole('button', { name: 'Expand sidebar' }).click();
             await expect(page.getByRole('button', { name: 'Collapse' })).toBeVisible();
             await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(256);
+        });
+
+        // W-02: the rail is `overflow-y-auto`, which clips x too, so the in-flow tip was a 4 px sliver on hover and nothing
+        // on focus. The label is a portalled tooltip now (SC 1.4.13): shown by hover and by keyboard focus, beside the rail
+        // and wholly on screen, dismissed by Escape, and it stays while the pointer is over it.
+        // ⚠️ Not run when written; the tip is aria-hidden, so it is found by its text rather than by a role.
+        test('shows the collapsed rail’s New recipe tooltip beside the rail, fully visible, on hover and on focus', async ({
+            page,
+        }) => {
+            await page.setViewportSize({ width: 1280, height: 900 });
+            await signedIn(page);
+            await page.goto(route('/'));
+            await page.getByRole('button', { name: 'Collapse' }).click();
+
+            const rail = page.locator('[data-collapsed="true"]');
+            const button = page.getByRole('button', { name: 'New recipe' }).filter({ visible: true });
+            // The tip is `aria-hidden` and drawn in a portal, so it has no role to ask for.
+            const tip = page.locator('[data-tooltip]');
+            const railBox = await rail.boundingBox();
+
+            await button.hover();
+            await expect(tip).toBeVisible();
+
+            const box = await tip.boundingBox();
+            const viewport = page.viewportSize();
+
+            expect(box, 'the tip has a layout box').not.toBeNull();
+            // Not a sliver (it was 4 px): the whole label, and reaching past the rail's edge, inside the window. The tip's
+            // box begins at the control (it is joined by padding), so it is its RIGHT edge that clears the rail.
+            expect(box?.width ?? 0).toBeGreaterThan(60);
+            expect((box?.x ?? 0) + (box?.width ?? 0)).toBeGreaterThan((railBox?.x ?? 0) + (railBox?.width ?? 0));
+            expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0);
+
+            // Hoverable (SC 1.4.13): the pointer can cross onto the tip and it stays.
+            await tip.hover();
+            await expect(tip).toBeVisible();
+
+            // Dismissible: Escape hides it without the pointer moving.
+            await page.keyboard.press('Escape');
+            await expect(tip).toBeHidden();
+
+            // Keyboard focus shows it too, with the pointer elsewhere (the clipped tip never appeared on focus).
+            await page.mouse.move(640, 600);
+            await expect(tip).toBeHidden();
+            await button.focus();
+            await page.keyboard.press('Shift+Tab');
+            await page.keyboard.press('Tab');
+            await expect(button).toBeFocused();
+            await expect(tip).toBeVisible();
+            await page.keyboard.press('Escape');
+            await expect(tip).toBeHidden();
         });
 
         test('puts the floating New recipe right after the H1 in DOM order, on a phone', async ({ page }) => {

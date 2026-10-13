@@ -14,7 +14,6 @@
  */
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { accountDangerMessages } from '@commise/features-account/danger';
@@ -34,11 +33,7 @@ vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
     const actual = await importOriginal<typeof import('react-native')>();
 
-    return {
-        ...withSystemScheme(actual),
-        // react-native-web implements no `sendAccessibilityEvent`: the contract (which node, when) is what is asserted.
-        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
-    };
+    return withSystemScheme(actual);
 });
 
 const { signOutAndVerify, clerkUser } = vi.hoisted(() => ({
@@ -61,21 +56,41 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRequestAccountErasure: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
 }));
 
-// The photo control reaches the device picker and an upload; here it is a stub that "uploads" one URL on press.
+// The photo control reaches the device picker and an upload; here it is a stub that "uploads" one URL on press, and
+// can report a failed pick the way the real one does.
 vi.mock('../../src/components/account/AvatarField.js', () => ({
-    AvatarField: ({ onChange, value }: { onChange: (url: string) => void; value: string }) =>
-        createElement(
-            'button',
-            { type: 'button', 'data-photo': value, onClick: () => onChange('https://cdn.example/new.png') },
-            'Pick photo',
-        ),
-}));
-
-// The sheet reads a food-service endpoint; here it is a stub that can be closed.
-vi.mock('@commise/features-recipes/data-sources/mobile', () => ({
-    DataSourcesScreen: ({ onRequestClose }: { onRequestClose: () => void }) =>
-        createElement('div', { role: 'dialog', 'aria-label': 'Data sources sheet' }, [
-            createElement('button', { key: 'c', type: 'button', onClick: onRequestClose }, 'Close sources'),
+    AvatarField: ({
+        onChange,
+        onError,
+        value,
+        initials,
+    }: {
+        onChange: (url: string) => void;
+        onError: (message: string | undefined) => void;
+        value: string;
+        initials: string;
+    }) =>
+        createElement('span', {}, [
+            createElement(
+                'button',
+                {
+                    key: 'pick',
+                    type: 'button',
+                    'data-photo': value,
+                    'data-initials': initials,
+                    onClick: () => {
+                        // The real control clears the earlier failure the moment a new pick starts.
+                        onError(undefined);
+                        onChange('https://cdn.example/new.png');
+                    },
+                },
+                'Pick photo',
+            ),
+            createElement(
+                'button',
+                { key: 'fail', type: 'button', onClick: () => onError('Photo pick failed') },
+                'Fail photo',
+            ),
         ]),
 }));
 
@@ -115,10 +130,10 @@ const loading = { data: undefined, isError: false, refetch } as unknown as Profi
 const failed = { data: undefined, isError: true, refetch } as unknown as ProfileQuery;
 
 /** Render the page where the app does: under the snackbar host. */
-function renderProfile(onBack = vi.fn()) {
+function renderProfile(onBack = vi.fn(), onOpenDataSources = vi.fn()) {
     render(
         <SnackbarHost>
-            <ProfileScreen onBack={onBack} />
+            <ProfileScreen onBack={onBack} onOpenDataSources={onOpenDataSources} />
         </SnackbarHost>,
     );
 
@@ -164,14 +179,36 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         expect(onBack).toHaveBeenCalledTimes(1);
     });
 
-    it('shows the email once, in the header, and the display-name row in the Account group', () => {
+    // A-025: the Email row is back (buildSpec §9.1 draws it, and web has it). The header's email line is the identity
+    // block's own; the row is the read-only fact in the Account group.
+    it('shows the display-name row and a read-only Email row in the Account group, the address also in the header', () => {
         renderProfile();
 
         const account = screen.getByRole('button', { name: t.displayName });
         expect(account.textContent).toContain('Eliza Moreno');
-        // The header carries the address; a read-only Email row would repeat it (evaluateFinal.md).
-        expect(screen.getAllByText('eliza@example.com')).toHaveLength(1);
-        expect(screen.queryByText(t.email)).toBeNull();
+        expect(screen.getByText(t.email)).toBeTruthy();
+        expect(screen.getAllByText('eliza@example.com')).toHaveLength(2);
+        // Read-only: the Email row is not a control.
+        expect(screen.queryByRole('button', { name: t.email })).toBeNull();
+    });
+
+    it('draws ONE avatar: the photo control stands in the header, with no “Profile photo” card or initials disc', () => {
+        renderProfile();
+
+        expect(screen.getAllByRole('button', { name: 'Pick photo' })).toHaveLength(1);
+        expect(screen.queryByText(mobileMessages.en.profile.avatarLabel)).toBeNull();
+        // The initials disc is the photo control's fallback, not a second disc beside it.
+        expect(screen.queryByText('EM')).toBeNull();
+        // It stands in the header row, beside the name and the address (not in the Account group's card).
+        const photoControl = screen.getByRole('button', { name: 'Pick photo' });
+        const email = screen.getAllByText('eliza@example.com')[0] as HTMLElement;
+        expect(photoControl.parentElement?.parentElement).toBe(email.parentElement?.parentElement);
+    });
+
+    it('hands the photo control the cook’s initials as its no-photo fallback', () => {
+        renderProfile();
+
+        expect(screen.getByRole('button', { name: 'Pick photo' }).getAttribute('data-initials')).toBe('EM');
     });
 
     it('holds Preferences with the data sources row, sign out, and the danger zone with both hints', () => {
@@ -204,32 +241,20 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         expect(screen.queryByText(/shortcut/i)).toBeNull();
     });
 
-    it('opens the data sources sheet from its row and closes it back', () => {
-        renderProfile();
+    // A-026: the row hands off to the navigator, which pushes the Data sources PAGE. The screen no longer mounts it.
+    it('hands the data sources row to the navigator, and mounts no sheet or dialog of its own', () => {
+        const onOpenDataSources = vi.fn();
+        renderProfile(vi.fn(), onOpenDataSources);
 
         fireEvent.click(screen.getByRole('button', { name: t.dataSources }));
-        expect(screen.getByRole('dialog', { name: 'Data sources sheet' })).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Close sources' }));
-        expect(screen.queryByRole('dialog', { name: 'Data sources sheet' })).toBeNull();
+        expect(onOpenDataSources).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('dialog')).toBeNull();
     });
 
-    // §10 "Dialogs and sheets": focus returns to the trigger. It used to, through the settings link's own signal.
-    it('returns the screen-reader cursor to the data sources row once its sheet closes', () => {
-        renderProfile();
-        vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
-
-        fireEvent.click(screen.getByRole('button', { name: t.dataSources }));
-        expect(AccessibilityInfo.sendAccessibilityEvent).not.toHaveBeenCalled();
-
-        fireEvent.click(screen.getByRole('button', { name: 'Close sources' }));
-
-        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(1);
-        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
-            screen.getByRole('button', { name: t.dataSources }),
-            'focus',
-        );
-    });
+    // Coverage moved: the sheet-close focus return this suite used to pin (the row's `focusSignal`) is now the stack's
+    // own restore on pop, which jsdom cannot see. It is pinned on device by `.maestro/dataSources.yaml` (Back to Profile,
+    // then the row is on screen again) and the route push/pop by `RootNavigator.native.test.tsx`.
 });
 
 describe('ProfileScreen — states', () => {
@@ -239,6 +264,7 @@ describe('ProfileScreen — states', () => {
 
         expect(screen.getByRole('status', { name: t.loading })).toBeTruthy();
         expect(screen.queryByRole('button', { name: t.displayName })).toBeNull();
+        expect(screen.queryByText(t.email)).toBeNull();
         expect(screen.getByRole('button', { name: t.signOut })).toBeTruthy();
         expect(screen.getByRole('button', { name: erase.trigger })).toBeTruthy();
     });
@@ -252,6 +278,8 @@ describe('ProfileScreen — states', () => {
         expect(refetch).toHaveBeenCalledTimes(1);
 
         expect(screen.queryByRole('button', { name: t.displayName })).toBeNull();
+        expect(screen.queryByText(t.email)).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Pick photo' })).toBeNull();
         fireEvent.click(screen.getByRole('button', { name: t.signOut }));
         expect(signOutAndVerify).toHaveBeenCalledTimes(1);
         expect(screen.getByRole('button', { name: close.trigger })).toBeTruthy();
@@ -377,6 +405,23 @@ describe('ProfileScreen — the photo (native-only AvatarField)', () => {
         // A picked photo is its own explicit act: it is written alone, never with the name.
         expect(mutate).toHaveBeenCalledTimes(1);
         expect(mutate.mock.calls[0]?.[0]).toEqual({ avatarUrl: 'https://cdn.example/new.png' });
+    });
+
+    it('says so in one alert when the picker reports a failed pick, and clears it on the next pick', () => {
+        renderProfile();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Fail photo' }));
+        expect(screen.getByRole('alert').textContent).toBe('Photo pick failed');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Pick photo' }));
+        expect(screen.queryByText('Photo pick failed')).toBeNull();
+    });
+
+    it('says the photo could not be saved when the write itself failed', () => {
+        setMutation({ isError: true });
+        renderProfile();
+
+        expect(screen.getByRole('alert').textContent).toBe(mobileMessages.en.profile.avatarUploadError);
     });
 
     it('is not offered while the profile has not loaded', () => {

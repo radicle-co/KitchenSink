@@ -468,7 +468,11 @@ describe('RecipeServiceClient — collections', () => {
     });
 
     it('listCollections GETs /api/v1/collections with pagination and returns the page (200)', async () => {
-        const page = makePaginatedResponse([makeCollection()], { page: 3, pageSize: 10 });
+        // W-11: a list element also carries what its card shows about its members, and the contract requires both.
+        const page = makePaginatedResponse([{ ...makeCollection(), recipeCount: 3, coverPhotoUrls: [] }], {
+            page: 3,
+            pageSize: 10,
+        });
         const fetchMock = stubFetch(200, page);
 
         const result = await makeClient(fetchMock).listCollections({ page: 3, pageSize: 10 });

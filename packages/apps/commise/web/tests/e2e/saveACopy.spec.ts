@@ -116,3 +116,45 @@ for (const scheme of ['light', 'dark'] as const) {
         });
     });
 }
+
+test.describe('Save a copy from Discover — A-022: deleting the copy frees the card', () => {
+    test('the card offers Save a copy again once the copy is deleted', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [
+                makeRecipeDetail({
+                    id: E2E_RECIPE_IDS.paella,
+                    ownerId: 'usr_other',
+                    title: 'Seafood Paella',
+                    visibility: 'public',
+                }),
+            ],
+        });
+
+        // One page session throughout: "saved" lives in the client's mutation cache, which a full navigation drops.
+        await page.goto(route('/discover'));
+        await page.getByRole('searchbox', { name: 'Search recipes' }).fill('paella');
+        await expect(page.getByText('1 recipe for “paella”', { exact: true })).toBeVisible();
+        await page.getByRole('button', { name: 'Save a copy of Seafood Paella' }).click();
+        await expect(page.getByRole('button', { name: 'Saved a copy of Seafood Paella' })).toBeVisible();
+
+        // Open the copy from My recipes and delete it.
+        await page.getByRole('link', { name: 'Recipes' }).first().click();
+        await page.getByRole('link', { name: 'Seafood Paella' }).first().click();
+        await page.getByRole('button', { name: /^More actions for /u }).click();
+        await page.getByRole('menuitem', { name: 'Delete recipe' }).click();
+        await page
+            .getByRole('alertdialog', { name: 'Delete this recipe?' })
+            .getByRole('button', { name: 'Delete recipe' })
+            .click();
+        await expect(page).toHaveURL(/\/recipes(?:\?|$)/);
+
+        // Back on Discover the control is idle again, and a second copy is possible.
+        await page.getByRole('link', { name: 'Discover' }).first().click();
+        await page.getByRole('searchbox', { name: 'Search recipes' }).fill('paella');
+        await expect(page.getByText('1 recipe for “paella”', { exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Save a copy of Seafood Paella' })).toBeVisible();
+    });
+});

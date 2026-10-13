@@ -20,18 +20,24 @@
  * recipe after clone). Remote state stays in the query cache — this screen derives its view state from it.
  *
  * The recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another
- * cook who may clone — beside the ⋯ menu, whose entries come from the shared `detailMenuOf` (Version history, Make
- * private/public, Clear checks, then Delete); the rating block goes in the view's `rating` slot, under the nutrition.
- * The cook's marks, the serving scale and Screen on are bound by the view itself; this screen reads the marks only to
- * offer Clear checks.
+ * cook who may clone; Back and the ⋯ menu are discs over the hero photo, the menu's entries coming from the shared
+ * `detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); the rating block goes in the
+ * view's `rating` slot, under the nutrition. The cook's marks, the serving scale, Screen on and the page's scroller
+ * are bound by the view itself; this screen reads the marks only to offer Clear checks, and hands the view what must
+ * scroll with the page (the failed-visibility alert and the delete dialog) as its `scrollFooter`.
+ *
+ * Back is named for where it goes ("Back to Discover"), read from the navigator's stack read-only: the tab stacks
+ * and their routes are the navigator's, and this screen only looks at the route below it.
  */
 import {
     RecipeDeleteDialog,
+    RecipeDetailSkeleton,
     RecipeDetailView,
     RecipeRatingDisplay,
     RecipeRatingInput,
     detailMenuOf,
     isUnreachableRecovery,
+    recipeMessages,
     ratingModeFor,
     recipeActionMessages,
     useCookMarks,
@@ -43,6 +49,7 @@ import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
+import { HeroButton } from '@commise/ui/hero-button';
 import { Icon } from '@commise/ui/icon';
 import { useTheme } from '@commise/ui/theme';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
@@ -54,13 +61,13 @@ import {
     useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
+import { NavigationContext } from '@react-navigation/native';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { RecipeVisibility, canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import type { JSX } from 'react';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useContext, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { LoadingState } from '../components/LoadingState.js';
 import { mobileMessages } from '../i18n/messages.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 
@@ -89,11 +96,12 @@ export interface RecipeDetailScreenProps {
 export function RecipeDetailScreen(props: RecipeDetailScreenProps): JSX.Element {
     const { recipeId, onBack } = props;
     const { recipes: t } = useMessages(mobileMessages);
-    const back = <BackAffordance label={t.back} onBack={onBack} />;
+    const backLabel = useBackLabel();
+    const back = <BackAffordance label={backLabel} onBack={onBack} />;
 
     return (
         <QueryBoundary
-            loading={<LoadingState label={t.detailLoading} />}
+            loading={<RecipeDetailSkeleton label={t.detailLoading} />}
             renderError={({ error, resetErrorBoundary }) =>
                 isNotFoundError(error) ? (
                     <View style={styles.center}>
@@ -141,6 +149,51 @@ function BackAffordance({
 }
 
 /**
+ * The name of the screen below this one in the stack, as the Back control says it ("Back to Discover").
+ *
+ * @param previous - The route below this screen, if the stack has one.
+ * @param detail - The recipe page's copy.
+ * @param myRecipes - The name of the recipe list ("My recipes").
+ * @returns The parent's name. A deep link, whose stack holds nothing below, goes to the recipe list. Pure.
+ */
+function backParentOf(
+    previous: string | undefined,
+    detail: { parentHome: string; parentDiscover: string; parentCollection: string; parentRecipe: string },
+    myRecipes: string,
+): string {
+    switch (previous) {
+        case 'HomeRoot':
+            return detail.parentHome;
+        case 'DiscoverRoot':
+            return detail.parentDiscover;
+        case 'CollectionDetail':
+            return detail.parentCollection;
+        case 'RecipeDetail':
+            return detail.parentRecipe;
+        default:
+            return myRecipes;
+    }
+}
+
+/**
+ * The Back control's accessible name: "Back to {parent}", the parent read off the navigator's stack.
+ *
+ * ⛔ Never the bare "Back": Android's own navigation bar publishes a node with exactly that name.
+ *
+ * @returns The name.
+ */
+function useBackLabel(): string {
+    const { detail } = useMessages(recipeMessages);
+    const { detailActions } = useMessages(recipeActionMessages);
+    // Read-only, and absent outside a navigator (a test, a story): no route below means the recipe list.
+    const navigation = useContext(NavigationContext);
+    const state = navigation?.getState();
+    const previous = state?.routes[state.index - 1]?.name;
+
+    return detail.backTo.replace('{parent}', backParentOf(previous, detail, detailActions.backToRecipes));
+}
+
+/**
  * The detail once its read has settled: the shared view plus every action wired to its mutation.
  *
  * @param props - The recipe id plus optional navigation and lifecycle callbacks.
@@ -159,7 +212,6 @@ function SettledRecipeDetail({
         throw new Error('A recipe detail needs a recipe id.');
     }
 
-    const { recipes: t } = useMessages(mobileMessages);
     const client = useRecipeServiceClient();
     const query = useSuspenseQuery(recipeQueries(client).detail(recipeId));
     // A failed refresh of the recipe on screen keeps it (a suspense read throws only when it has no data) and is
@@ -173,6 +225,7 @@ function SettledRecipeDetail({
     const marks = useCookMarks(recipeId);
     const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
     const theme = useTheme();
+    const { recipes: t } = useMessages(mobileMessages);
     const profile = useUserProfile();
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
@@ -180,14 +233,14 @@ function SettledRecipeDetail({
     const setRating = useSetRecipeRating();
     const deleteRating = useDeleteRecipeRating();
     const [deleteOpen, setDeleteOpen] = useState(false);
-    const back = <BackAffordance label={t.back} onBack={onBack} />;
+    const backLabel = useBackLabel();
 
     // Wait for the viewer profile too before rendering the detail. Owner-gated UI (edit/delete/visibility actions)
     // and the rating mode are derived from `profile` (the viewer id + tier); rendering before it lands would paint
     // the detail WITHOUT the owner actions and then pop them in — shifting the layout mid-interaction. A signed-out
     // viewer's profile query is disabled, so its `isLoading` is false and this never hangs for a guest.
     if (profile.isLoading) {
-        return <LoadingState label={t.detailLoading} />;
+        return <RecipeDetailSkeleton label={t.detailLoading} />;
     }
 
     const recipe = query.data;
@@ -263,6 +316,7 @@ function SettledRecipeDetail({
                 title={moreMenu.title}
                 closeLabel={moreMenu.close}
                 items={menu.items.map(menuItem)}
+                appearance="disc"
                 {...(menu.destructive === undefined
                     ? {}
                     : {
@@ -289,13 +343,15 @@ function SettledRecipeDetail({
             {detailActions.saveCopy}
         </Button>
     ) : null;
-    const headerActions =
-        primary === null && moreActions === null ? undefined : (
-            <>
-                {primary}
-                {moreActions}
-            </>
-        );
+    // The row's primary; Back and ⋯ are discs over the photo, always (§6.1, §3.5). An empty View keeps ⋯ at the end when
+    // there is no Back to its start.
+    const headerActions = primary ?? undefined;
+    const heroControls = (
+        <>
+            {onBack === undefined ? <View /> : <HeroButton icon="chevronLeft" label={backLabel} onPress={onBack} />}
+            {moreActions}
+        </>
+    );
 
     // The stars the input pre-selects: the server's `viewerRating` (DA4 — `useSetRecipeRating` /
     // `useDeleteRecipeRating` patch this optimistically in the cache on `onMutate`, so it never flickers back
@@ -303,69 +359,63 @@ function SettledRecipeDetail({
     const selectedStars = recipe.viewerRating;
 
     return (
-        // ScrollView, not View: the recipe body exceeds the viewport on any real recipe.
-        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-            {back}
-            <RecipeDetailView
-                recipe={recipe}
-                viewerIsOwner={viewerIsOwner}
-                refreshNotice={refreshNotice}
-                unreachableRetry={unreachableRetry}
-                headerActions={headerActions}
-                onEditSection={() => onEdit?.(recipeId)}
-                {...(viewerIsOwner ? { onViewVersions: () => onViewVersions?.(recipeId) } : {})}
-                rating={
-                    // Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);
-                    // everyone else gets the interactive input. The own-recipe gate lives HERE, not in a mode prop.
-                    ratingMode === 'own' ? (
-                        <RecipeRatingDisplay
-                            {...(recipe.averageRating === undefined ? {} : { average: recipe.averageRating })}
-                            ratingCount={recipe.ratingCount}
-                        />
-                    ) : (
-                        <RecipeRatingInput
-                            {...(recipe.averageRating === undefined ? {} : { average: recipe.averageRating })}
-                            ratingCount={recipe.ratingCount}
-                            {...(selectedStars === undefined ? {} : { selectedStars })}
-                            pending={setRating.isPending || deleteRating.isPending}
-                            {...(ratingErrorKind === undefined ? {} : { error: ratingErrorKind })}
-                            onRate={(stars) => setRating.mutate({ id: recipeId, input: { stars } })}
-                            onRemove={() => deleteRating.mutate(recipeId)}
-                        />
-                    )
-                }
-            />
+        <RecipeDetailView
+            recipe={recipe}
+            viewerIsOwner={viewerIsOwner}
+            refreshNotice={refreshNotice}
+            unreachableRetry={unreachableRetry}
+            headerActions={headerActions}
+            heroControls={heroControls}
+            onEditSection={() => onEdit?.(recipeId)}
+            {...(viewerIsOwner ? { onViewVersions: () => onViewVersions?.(recipeId) } : {})}
+            rating={
+                // Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);
+                // everyone else gets the interactive input. The own-recipe gate lives HERE, not in a mode prop.
+                ratingMode === 'own' ? (
+                    <RecipeRatingDisplay
+                        {...(recipe.averageRating === undefined ? {} : { average: recipe.averageRating })}
+                        ratingCount={recipe.ratingCount}
+                    />
+                ) : (
+                    <RecipeRatingInput
+                        {...(recipe.averageRating === undefined ? {} : { average: recipe.averageRating })}
+                        ratingCount={recipe.ratingCount}
+                        {...(selectedStars === undefined ? {} : { selectedStars })}
+                        pending={setRating.isPending || deleteRating.isPending}
+                        {...(ratingErrorKind === undefined ? {} : { error: ratingErrorKind })}
+                        onRate={(stars) => setRating.mutate({ id: recipeId, input: { stars } })}
+                        onRemove={() => deleteRating.mutate(recipeId)}
+                    />
+                )
+            }
+            scrollFooter={
+                <>
+                    {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently. */}
+                    {setVisibility.error !== null && (
+                        <Text accessibilityRole="alert" style={{ color: theme.colors.dangerText }}>
+                            {visibilityCopy.error}
+                        </Text>
+                    )}
 
-            {/* B17 — a failed visibility change snaps back to the query's value; say so rather than fail silently. */}
-            {setVisibility.error !== null && (
-                <Text accessibilityRole="alert" style={[styles.error, { color: theme.colors.dangerText }]}>
-                    {visibilityCopy.error}
-                </Text>
-            )}
-
-            {viewerIsOwner && (
-                <RecipeDeleteDialog
-                    recipeTitle={recipe.title}
-                    open={deleteOpen}
-                    deleting={deleteRecipe.isPending}
-                    // B17 — a failed delete left the dialog open with no explanation; surface an honest
-                    // reason inside it. Cleared on the next attempt (and on recipe switch).
-                    error={deleteRecipe.error !== null}
-                    onConfirm={() => deleteRecipe.mutate(recipeId, { onSuccess: () => onDeleted?.() })}
-                    onCancel={() => setDeleteOpen(false)}
-                />
-            )}
-        </ScrollView>
+                    {viewerIsOwner && (
+                        <RecipeDeleteDialog
+                            recipeTitle={recipe.title}
+                            open={deleteOpen}
+                            deleting={deleteRecipe.isPending}
+                            // B17 — a failed delete left the dialog open with no explanation; surface an honest
+                            // reason inside it. Cleared on the next attempt (and on recipe switch).
+                            error={deleteRecipe.error !== null}
+                            onConfirm={() => deleteRecipe.mutate(recipeId, { onSuccess: () => onDeleted?.() })}
+                            onCancel={() => setDeleteOpen(false)}
+                        />
+                    )}
+                </>
+            }
+        />
     );
 }
 
 const styles = StyleSheet.create({
-    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
-    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
-    container: { flex: 1, backgroundColor: 'transparent' },
-    // Generous bottom padding so the foot-of-screen controls — including the inline delete dialog's confirm
-    // button when it opens — clear the device's navigation bar and can be fully scrolled into view.
-    content: { paddingBottom: 120 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     backButton: {
         alignSelf: 'flex-start',
@@ -377,5 +427,4 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
     },
     backLabel: { fontWeight: '500', fontSize: 15 },
-    error: { paddingHorizontal: 16 },
 });

@@ -6,7 +6,7 @@
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { makeCollection } from '@kitchensink/recipe-core/testing';
@@ -263,5 +263,63 @@ describe("CollectionListResults (native) — the scroll host's bind", () => {
         fireEvent.scroll(boundScroller(bind), { target: { scrollTop: 240 } });
 
         expect(bind.onScroll).toHaveBeenCalled();
+    });
+});
+
+describe('CollectionListResults (native) — W-11: the card says how many recipes and shows the first photos', () => {
+    const photo = (n: number): string => `https://cdn.example/photo-${String(n)}.jpg`;
+    const withCard = (recipeCount: number | undefined, coverPhotoUrls: readonly string[] | undefined) => ({
+        ...makeCollection({ id: 'col_1', name: 'Weeknight Dinners', visibility: 'private' }),
+        ...(recipeCount === undefined ? {} : { recipeCount }),
+        ...(coverPhotoUrls === undefined ? {} : { coverPhotoUrls }),
+    });
+    const photosIn = (element: HTMLElement): readonly (string | null)[] =>
+        [...element.querySelectorAll('img')].map((image) => image.getAttribute('src'));
+
+    it('says "12 recipes" beside the visibility, and names the link "{name}, {count}, {visibility}"', () => {
+        renderList({ collections: [withCard(12, [])] });
+        const link = screen.getByRole('link', { name: 'Weeknight Dinners, 12 recipes, Private' });
+
+        expect(within(link).getByText('12 recipes')).toBeTruthy();
+        expect(within(link).getByText('Private')).toBeTruthy();
+    });
+
+    it('says "1 recipe" for one', () => {
+        renderList({ collections: [withCard(1, [])] });
+
+        expect(screen.getByText('1 recipe')).toBeTruthy();
+    });
+
+    it('says no count when the read carried none, rather than a made-up 0', () => {
+        renderList({ collections: [withCard(undefined, undefined)] });
+
+        expect(screen.queryByText(/recipe$/u)).toBeNull();
+        expect(screen.getByRole('link', { name: 'Weeknight Dinners, Private' })).toBeTruthy();
+    });
+
+    it('lays four photos out as a 2 × 2 album', () => {
+        renderList({ collections: [withCard(9, [photo(1), photo(2), photo(3), photo(4)])] });
+        const link = screen.getByRole('link');
+
+        expect(photosIn(link)).toEqual([photo(1), photo(2), photo(3), photo(4)]);
+    });
+
+    it.each([1, 2, 3])('fills the box with the first photo when there are %s', (count) => {
+        renderList({
+            collections: [
+                withCard(
+                    count,
+                    Array.from({ length: count }, (_unused, i) => photo(i + 1)),
+                ),
+            ],
+        });
+
+        expect(photosIn(screen.getByRole('link'))).toEqual([photo(1)]);
+    });
+
+    it('draws the tinted monogram when no member has a photo', () => {
+        renderList({ collections: [withCard(3, [])] });
+
+        expect(photosIn(screen.getByRole('link'))).toEqual([]);
     });
 });

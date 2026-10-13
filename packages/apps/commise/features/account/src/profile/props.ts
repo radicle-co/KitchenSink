@@ -54,6 +54,11 @@ export interface ProfileHeaderProps {
     readonly initials: string;
     /** Retry the read (the failed state). */
     readonly onRetry: () => void;
+    /**
+     * Native only: the host's own avatar control, drawn in place of the initials disc in the ready state, so the page
+     * has ONE avatar and the photo and the initials cannot disagree (A-025). Web ignores it and draws the disc.
+     */
+    readonly avatar?: ReactNode;
 }
 
 /** The display-name sheet. */

@@ -39,6 +39,42 @@ describe('IngredientCheckRow (web)', () => {
         expect(row.textContent).toContain('trimmed of excess fat');
     });
 
+    // P7: the amount was `text-figure-inline`, a class the theme never emits, so it drew in regular weight with
+    // proportional figures. Weight 600 and tabular, lining numerals are written as the utilities that exist.
+    it('draws the amount at weight 600 in tabular, lining figures', () => {
+        render(
+            <ul>
+                <IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />
+            </ul>,
+        );
+
+        const amount = screen.getByText('2 kg');
+
+        expect(amount.className.split(' ')).toEqual(
+            expect.arrayContaining(['font-semibold', 'tabular-nums', 'lining-nums']),
+        );
+        expect(amount.className).not.toContain('text-figure-inline');
+    });
+
+    // D11: a scaled amount read "1.5 cup". The visible text and the checkbox's name carry the same plural (SC 2.5.3).
+    it('pluralises a word unit for a scaled amount, in the visible text AND the name', () => {
+        const flour = makeIngredientView({
+            ingredientId: 'ing_f',
+            quantity: { kind: 'exact', value: 1.5 },
+            unit: 'cup',
+            name: 'flour',
+        });
+        render(
+            <ul>
+                <IngredientCheckRow ingredient={flour} checked={false} allRemoved={false} onToggle={vi.fn()} />
+            </ul>,
+        );
+
+        const row = screen.getByRole('checkbox', { name: '1.5 cups flour' });
+
+        expect(row.textContent).toContain('1.5 cups');
+    });
+
     it('reports a press on the row with the line’s key', () => {
         const onToggle = vi.fn();
         render(

@@ -1,0 +1,61 @@
+appId: io.commise.mobile
+---
+# E8 (UI walk 2026-10-13; build spec §7.8): the editor says how it finished. "Recipe published." over the recipe after a
+# publish, "Changes saved." over the recipe after Save changes. The snackbar host sits above the stack, so the message
+# survives the editor leaving. ("Add to a collection" waits for the chooser sheet, §6.4.)
+#
+# Every flow is reseeded before it runs, so the recipe this publishes does not outlive it.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: 'Maestro Feedback Soup'
+
+# One ingredient declared as written (no food service needed) and one step: the least a recipe needs to publish.
+- scrollUntilVisible:
+      element: 'Add an ingredient'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Tomato'
+- runFlow:
+      file: common/scrollOpenList.yaml
+      env:
+          TARGET: 'Use .*Tomato.* as written.*'
+- tapOn:
+      text: 'Use .*Tomato.* as written.*'
+- scrollUntilVisible:
+      element: 'Edit Tomato'
+      direction: UP
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- inputText: 'Simmer.'
+
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Feedback Soup.*'
+      timeout: 40000
+- assertVisible: 'Recipe published.'
+
+# A published recipe's primary is Save changes.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Close editor'
+- tapOn: 'Title'
+- inputText: ' two'
+- tapOn: 'Save changes'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Feedback Soup.*'
+      timeout: 40000
+- assertVisible: 'Changes saved.'

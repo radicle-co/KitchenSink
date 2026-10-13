@@ -261,13 +261,13 @@ describe('the recipe field groups (native) — the unit’s class, in the row ed
         const sheet = openEditor('Edit 2 cups Onion', 'Onion');
 
         expect(within(sheet).queryByText('Cook’s measure')).toBeNull();
-        expect(within(sheet).queryByText('Unrecognised unit')).toBeNull();
+        expect(within(sheet).queryByText('Unrecognized unit')).toBeNull();
     });
 
     it.each([
         ['handful', 'Cook’s measure'],
-        ['blorp', 'Unrecognised unit'],
-        ['zq', 'Unrecognised unit'],
+        ['blorp', 'Unrecognized unit'],
+        ['zq', 'Unrecognized unit'],
     ])('the unit %j says "%s", and the field keeps it', (unit, note) => {
         renderForm({ values: withUnit(unit) });
 
@@ -277,13 +277,34 @@ describe('the recipe field groups (native) — the unit’s class, in the row ed
         expect((within(sheet).getByLabelText(en.rowUnitLabel) as HTMLInputElement).value).toBe(unit);
     });
 
+    // A-011: the owner ruled "1 large" a fine measure and the add field reads size words as units, so the editor must
+    // not tell the cook that the same word is unrecognized.
+    it.each(['large', 'small', 'medium'])('a size word %j is a measure the cook may state: no note', (unit) => {
+        renderForm({ values: withUnit(unit) });
+
+        const sheet = openEditor(`Edit 2 ${unit} Onion`, 'Onion');
+
+        expect((within(sheet).getByLabelText(en.rowUnitLabel) as HTMLInputElement).value).toBe(unit);
+        expect(within(sheet).queryByText('Unrecognized unit')).toBeNull();
+    });
+
+    it('the Unit field wears the same FieldLabel as Amount and Preparation: pressing the label focuses it', () => {
+        renderForm({ values: withUnit('cups') });
+
+        const sheet = openEditor('Edit 2 cups Onion', 'Onion');
+
+        fireEvent.click(within(sheet).getByText(en.rowUnitLabel));
+
+        expect(document.activeElement).toBe(within(sheet).getByLabelText(en.rowUnitLabel));
+    });
+
     it.each(['T', 't'])('the case-sensitive unit %j is ordinary and kept byte-for-byte (U35)', (unit) => {
         renderForm({ values: withUnit(unit, 'Butter') });
 
         const sheet = openEditor(`Edit 2 ${unit} Butter`, 'Butter');
 
         expect((within(sheet).getByLabelText(en.rowUnitLabel) as HTMLInputElement).value).toBe(unit);
-        expect(within(sheet).queryByText('Unrecognised unit')).toBeNull();
+        expect(within(sheet).queryByText('Unrecognized unit')).toBeNull();
     });
 });
 

@@ -19,7 +19,7 @@ import { RecipeCollectionAddedVia } from '@kitchensink/recipe-core';
 import { collectionMemberRecipeSchema, collectionWithRecipesResponseSchema } from '@kitchensink/schema-recipe';
 
 import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
-import type { CollectionMemberRecipe, CollectionWithRecipes } from '../model.js';
+import { cardCoverOf, type CollectionMemberRecipe, type CollectionWithRecipes } from '../model.js';
 
 /** A member recipe carrying its provenance, typed as the model's alias so a drift fails the typecheck too. */
 const member: CollectionMemberRecipe = makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' });
@@ -93,5 +93,23 @@ describe('CollectionWithRecipes — contract parity', () => {
 
         expect(parsed.sourceOwnerHandle).toBeUndefined();
         expect(parsed.lastPulledAt).toBeUndefined();
+    });
+});
+
+describe('cardCoverOf (W-11, buildSpec §5.1)', () => {
+    const urls = (count: number): readonly string[] =>
+        Array.from({ length: count }, (_unused, i) => `https://cdn/${String(i)}.jpg`);
+
+    it.each([[undefined], [[]]])('is the collection’s tint when no member has a photo (%j)', (photos) => {
+        expect(cardCoverOf(photos)).toEqual({ kind: 'tint' });
+    });
+
+    it.each([1, 2, 3])('lets the first photo fill the box when there are %s', (count) => {
+        expect(cardCoverOf(urls(count))).toEqual({ kind: 'single', url: 'https://cdn/0.jpg' });
+    });
+
+    it('is the 2 × 2 album from four photos, and never shows a fifth', () => {
+        expect(cardCoverOf(urls(4))).toEqual({ kind: 'album', urls: urls(4) });
+        expect(cardCoverOf(urls(6))).toEqual({ kind: 'album', urls: urls(4) });
     });
 });

@@ -17,7 +17,18 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 
-# ── SCREEN ON ── at the end of the action row, off on each visit.
+# ── SECTION SWITCH ── below a 720 pt body the page has a sticky bar of links, and Screen on lives in it as its glyph
+# (`docs/design/uiOverhaul/buildSpec.md` §6.2). The one-time hint says what the glyph is until the cook scrolls.
+- assertVisible: 'Keeps the screen awake while you cook.'
+- assertVisible: 'Steps'
+- tapOn: 'Nutrition'
+- assertVisible: 'Nutrition \(per serving\)'
+# The bar is STICKY: after jumping to the foot of the page it is still on screen, so the next jump needs no scrolling back.
+- assertVisible: 'Ingredients'
+- tapOn: 'Ingredients'
+- assertNotVisible: 'Keeps the screen awake while you cook.'
+
+# ── SCREEN ON ── icon-only in the section switch, off on each visit.
 - scrollUntilVisible:
       element: 'Screen on'
       direction: DOWN

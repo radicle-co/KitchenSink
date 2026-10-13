@@ -22,8 +22,10 @@ export interface RecipeFormMessages {
     readonly charCounterTemplate: string;
     /** Accessible label for the cuisine field. */
     readonly cuisineLabel: string;
-    /** The cuisine dropdown/picker's explicit "no cuisine stated" option label (w3/e5). */
-    readonly cuisineUnsetOption: string;
+    /** The cuisine suggestion list's accessible name. */
+    readonly cuisineListLabel: string;
+    /** NATIVE: the cuisine field's clear button. The web field clears with Escape. */
+    readonly cuisineClear: string;
     /** Group label for the difficulty radio group (FR-001b). */
     readonly difficultyLabel: string;
     /** Difficulty option: easy. */
@@ -64,8 +66,10 @@ export interface RecipeFormMessages {
     readonly tagsHint: string;
     /** Accessible label template for a chip's remove control (contains `{value}`; U6). */
     readonly removeChipLabel: string;
-    /** Accessible label template for the native chip input's Add control (contains `{field}`; U6). */
-    readonly addChipLabel: string;
+    /** The native tags field's Add control: one whole sentence-case string, not a template around a field name. */
+    readonly addTagLabel: string;
+    /** The native dietary-flags field's Add control, as {@link addTagLabel}. */
+    readonly addDietaryFlagLabel: string;
     /** Accessible label for the dietary-flags field. */
     readonly dietaryFlagsLabel: string;
     /** Accessible label for the servings field. */
@@ -492,7 +496,8 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         descriptionLabel: 'Description',
         charCounterTemplate: '{count}/{max}',
         cuisineLabel: 'Cuisine',
-        cuisineUnsetOption: 'No cuisine',
+        cuisineListLabel: 'Cuisine suggestions',
+        cuisineClear: 'Clear cuisine',
         difficultyLabel: 'Difficulty',
         difficultyEasy: 'Easy',
         difficultyMedium: 'Medium',
@@ -512,7 +517,8 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         tagsLabel: 'Tags',
         tagsHint: 'Type and press Enter',
         removeChipLabel: 'Remove {value}',
-        addChipLabel: 'Add {field}',
+        addTagLabel: 'Add a tag',
+        addDietaryFlagLabel: 'Add a dietary flag',
         dietaryFlagsLabel: 'Dietary flags',
         servingsLabel: 'Servings',
         servingsDecrease: 'Fewer servings',
@@ -537,7 +543,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         ingredientsHeading: 'Ingredients',
         ingredientNameLabel: 'Ingredient {number} name',
         ingredientUnitSubjectiveNote: 'Cook\u2019s measure',
-        ingredientUnitUnknownNote: 'Unrecognised unit',
+        ingredientUnitUnknownNote: 'Unrecognized unit',
         ingredientStatusPanelCloseLabel: 'Close details for {food}',
         ingredientNoFoodNote: 'No food chosen — this line won’t be saved. Remove it and add it from the search above.',
         noIngredients: 'No ingredients yet. Add your first ingredient.',

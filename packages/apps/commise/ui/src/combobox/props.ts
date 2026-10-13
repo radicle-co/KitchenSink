@@ -69,8 +69,19 @@ export interface ComboboxClear {
 
 /** Props for the `Combobox` leaves (web and native). */
 export interface ComboboxProps {
-    /** The text field's accessible name. */
+    /**
+     * The field's id: the target of its visible label, and the prefix of its hint's id (`fieldHintId`). Unique on the
+     * page. On native it is the field's `nativeID`, which a press on the label focuses.
+     */
+    readonly id: string;
+    /** The text field's accessible name, and its visible label unless {@link labelVisibility} is `hidden`. */
     readonly label: string;
+    /**
+     * Whether the label shows above the field. Defaults to `visible`: every field has a visible label (SC 3.3.2). A
+     * field a row already names in its own words, such as the food search inside a row, passes `hidden`: the label stays
+     * its accessible name and its hint is still read, but neither is drawn.
+     */
+    readonly labelVisibility?: 'visible' | 'hidden';
     /** The suggestion list's accessible name. */
     readonly listLabel: string;
     /** The controlled text. */
@@ -146,6 +157,12 @@ export interface ComboboxProps {
     readonly onAbandon?: () => void;
     /** A `Cancel` button at the field's trailing end. */
     readonly cancel?: ComboboxCancel;
+    /**
+     * A control the host puts beside the field, in the field's own row after the input (the empty Ingredients section's
+     * Paste a list, build spec §7.5.4). It lines up with the input, not with the label above it. The host draws it,
+     * names it and owns what it does; the primitive only places it.
+     */
+    readonly trailingAction?: ReactNode;
     /** NATIVE ONLY: a clear button, shown while the field holds text. */
     readonly clear?: ComboboxClear;
     /**
@@ -154,7 +171,10 @@ export interface ComboboxProps {
      * does.
      */
     readonly leadingIcon?: ReactNode;
-    /** A hint that describes the field (WCAG 3.3.2). */
+    /**
+     * A hint that describes the field (WCAG 3.3.2). Drawn as a caption under the visible label; with the label hidden
+     * it is read and not drawn.
+     */
     readonly hint?: string;
     /**
      * A line the host draws directly under the field, before the list (the ingredient add field's live reading, build
@@ -172,6 +192,12 @@ export interface ComboboxProps {
     readonly focusRequested?: boolean;
     /** Called once the field has taken a requested focus; the host clears its request here. */
     readonly onFocusRequestHandled?: () => void;
+    /**
+     * The list opens whenever the field takes focus, so a field over a short fixed list (the recipe's cuisine) can be
+     * browsed without typing first. Opening chooses nothing and activates nothing (3.2.2). Without it the list opens only
+     * when the cook types or presses Down.
+     */
+    readonly openOnFocus?: boolean;
     /**
      * With {@link focusRequested}: the list opens as the field takes focus, so the cook can choose a food without
      * editing the text first (a refused save that points at this field, `docs/design/rowEditorOpenDecisions.md` R7). It

@@ -176,6 +176,29 @@ describe('CollectionHeader (native) — the ⋯ menu', () => {
         ]);
     });
 
+    /** The glyph an item drew: the stand-in publishes the Lucide name it was drawn with. */
+    const glyphOf = (item: HTMLElement): string | undefined =>
+        item.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName'];
+
+    it('draws a glyph on every item, from the one glyph list (A-020, §1.7)', () => {
+        renderHeader({ visibility: RecipeVisibility.PRIVATE, sourceCollectionName: 'Dinners' });
+        const menu = open();
+        const glyph = (name: string): string | undefined => glyphOf(menu.getByRole('menuitem', { name }));
+
+        expect(glyph('Rename')).toBe('pencil-line');
+        expect(glyph('Make public')).toBe('globe');
+        expect(glyph('Save a copy')).toBe('copy-plus');
+        expect(glyph('Pull updates')).toBe('refresh-cw');
+        expect(glyph('Delete collection')).toBe('trash');
+    });
+
+    it('draws the lock on Make private', () => {
+        renderHeader({ visibility: RecipeVisibility.PUBLIC });
+        const menu = open();
+
+        expect(glyphOf(menu.getByRole('menuitem', { name: 'Make private' }))).toBe('lock');
+    });
+
     it('offers Make private for a public collection', () => {
         renderHeader({ visibility: RecipeVisibility.PUBLIC });
         const menu = open();

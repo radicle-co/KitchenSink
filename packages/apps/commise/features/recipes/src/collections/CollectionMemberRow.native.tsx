@@ -52,6 +52,7 @@ export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({
         return (
             <RecipeCard
                 variant="row"
+                headingLevel={2}
                 recipe={recipe}
                 onSelect={onSelect}
                 nutrition={nutrition}
@@ -64,6 +65,7 @@ export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({
     return (
         <RecipeCard
             variant={variant}
+            headingLevel={2}
             recipe={recipe}
             onSelect={onSelect}
             nutrition={nutrition}

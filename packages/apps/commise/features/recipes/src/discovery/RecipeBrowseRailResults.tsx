@@ -33,15 +33,16 @@ export const RecipeBrowseRailResults: FC<RecipeBrowseRailResultsProps> = ({
     return (
         <RailTrack>
             {results.map((entry) => (
-                // A six-row grid: the grid card is a subgrid of six rows, and a flex rail gave it no grid to borrow
+                // A one-column, six-row grid: the grid card is a subgrid of six rows, and a flex rail gave it no grid to borrow
                 // them from, so its cover collapsed to a strip on web (F6).
                 <li
                     key={entry.recipe.id}
-                    className="grid w-[clamp(240px,78%,256px)] shrink-0 snap-start grid-rows-[repeat(6,auto)]"
+                    className="grid w-[clamp(240px,78%,256px)] shrink-0 snap-start grid-cols-[minmax(0,1fr)] grid-rows-[repeat(6,auto)]"
                 >
                     <RecipeDiscoveryCard
                         recipe={toRecipeCardModel(entry.recipe)}
                         variant="grid"
+                        headingLevel={3}
                         authorHandle={entry.recipe.authorHandle}
                         sourceAttribution={entry.recipe.sourceAttribution}
                         saveCopy={saveCopy.stateOf(entry.recipe.id)}

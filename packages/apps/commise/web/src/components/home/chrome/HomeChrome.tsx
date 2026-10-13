@@ -43,6 +43,11 @@ export interface HomeChromeProps {
      * wrong affordance, so the bar is suppressed rather than restacked.
      */
     readonly focusedTask?: boolean;
+    /**
+     * The connectivity and unsynced-work notice (build spec §3.8). It sits at the top of `<main>`, sticky from `nav`, so
+     * it never pushes the sidebar down; on a focused task it scrolls away with the page, under the task's own header.
+     */
+    readonly syncNotice?: ReactNode;
     readonly children: ReactNode;
 }
 
@@ -60,6 +65,7 @@ export function HomeChrome({
     profile,
     newRecipe,
     focusedTask = false,
+    syncNotice,
     children,
 }: HomeChromeProps): JSX.Element {
     const { collapsed, toggle } = useSidebarPreference();
@@ -92,12 +98,27 @@ export function HomeChrome({
                 className={`@container/main min-w-0 flex-1 ${
                     focusedTask
                         ? // The task's frame runs edge to edge and owns its gutter: `main`'s gutter and top padding drew the
-                          // editor as an inset card (F15). Its own bar owns the foot, so `main` clears that instead.
-                          'pb-[calc(6rem+env(safe-area-inset-bottom))]'
+                          // editor as an inset card (F15). Its own bar is `sticky` in the form column, so it already
+                          // takes its place in the flow and pads the safe area itself: `main` reserves nothing (E21).
+                          ''
                         : 'px-4 pt-6 medium:px-6 nav:px-8 nav:pb-8 pb-[calc(var(--bottom-chrome)+6.5rem)]'
                 }`}
             >
-                <PopupInsetsContext value={readInsets}>{children}</PopupInsetsContext>
+                <PopupInsetsContext value={readInsets}>
+                    {syncNotice === undefined ? null : (
+                        // The notice carries its own side padding; `main`'s gutter already provides it on a page.
+                        <div
+                            className={
+                                focusedTask
+                                    ? ''
+                                    : 'nav:sticky nav:top-0 nav:z-10 [&_[role=status]]:px-0 [&_[role=status]>div]:mb-4'
+                            }
+                        >
+                            {syncNotice}
+                        </div>
+                    )}
+                    {children}
+                </PopupInsetsContext>
             </main>
 
             {focusedTask ? null : (

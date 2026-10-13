@@ -26,6 +26,7 @@ import { makeIngredient } from '../../versions/__fixtures__/index.js';
 import { MAX_SCALED_SERVINGS, MIN_SCALED_SERVINGS } from '@kitchensink/recipe-core/scaling';
 
 import {
+    formatAmount,
     formatIngredientLine,
     formatQuantity,
     ingredientCheckLabel,
@@ -84,6 +85,55 @@ describe('formatQuantity — an exact quantity', () => {
 
     it('formats a fractional quantity with a unit correctly for en-US', () => {
         expect(formatQuantity(exact(2.5), 'en-US', 'cups')).toBe('2.5 cups');
+    });
+});
+
+// D11: a scaled amount read "1.5 cup". A unit that is a WORD takes the plural of the amount it follows; an abbreviation
+// ("tbsp", "g", "oz") is a symbol and does not.
+describe('formatAmount — the plural of a word unit (D11)', () => {
+    it.each([
+        [1.5, 'cup', '1.5 cups'],
+        [2, 'cup', '2 cups'],
+        [0.5, 'cup', '0.5 cup'],
+        [1, 'cup', '1 cup'],
+        [2, 'tablespoon', '2 tablespoons'],
+        [3, 'pinch', '3 pinches'],
+        [2, 'fluid ounce', '2 fluid ounces'],
+        [2, 'clove', '2 cloves'],
+        [2, 'handful', '2 handfuls'],
+    ])('%s of the word unit %j reads %j', (value, unit, shown) => {
+        expect(formatAmount(exact(value), 'en-US', unit)).toBe(shown);
+    });
+
+    it.each(['tbsp', 'tsp', 'g', 'kg', 'mg', 'oz', 'lb', 'ml'])('leaves the abbreviation %j alone', (unit) => {
+        expect(formatAmount(exact(2), 'en-US', unit)).toBe(`2 ${unit}`);
+    });
+
+    it('leaves a unit that is already plural, and one it does not know, as the cook wrote it', () => {
+        expect(formatAmount(exact(2), 'en-US', 'cups')).toBe('2 cups');
+        expect(formatAmount(exact(2), 'en-US', 'bunch')).toBe('2 bunch');
+        expect(formatAmount(exact(2), 'en-US', 'large')).toBe('2 large');
+    });
+
+    it('pluralises a RANGE, which states no one', () => {
+        expect(formatAmount(range(2, 3), 'en-US', 'cup')).toBe('2–3 cups');
+        expect(formatAmount(range(0.5, 1), 'en-US', 'cup')).toBe('0.5–1 cups');
+    });
+
+    it('keeps the cook’s capitals', () => {
+        expect(formatAmount(exact(2), 'en-US', 'Cup')).toBe('2 Cups');
+    });
+
+    it('leaves a unit that names no amount at all alone, never "2 to tastes"', () => {
+        expect(formatAmount(exact(2), 'en-US', 'to taste')).toBe('2 to taste');
+    });
+});
+
+describe('formatAmount vs formatQuantity (D11)', () => {
+    // The editor and the parsed-line preview print the unit as typed; only the read page pluralises it.
+    it('leaves formatQuantity printing the unit exactly as the cook wrote it', () => {
+        expect(formatQuantity(exact(2), 'en-US', 'cup')).toBe('2 cup');
+        expect(formatQuantity(range(2, 3), 'en-US', 'cup')).toBe('2–3 cup');
     });
 });
 
@@ -190,6 +240,16 @@ describe('servingsAnnouncement', () => {
 
         expect(servingsAnnouncement(huge, huge, copy, 'en')).toBe(`${huge} servings, maximum`);
         expect(servingsAnnouncement(huge - 1, huge, copy, 'en')).toBe(`${huge - 1} servings`);
+    });
+});
+
+describe('ingredientCheckLabel — the amount as the page shows it (D11, SC 2.5.3)', () => {
+    const { ingredientLineName: names, ingredientDetails: template } = recipeMessages.en;
+
+    it('names a scaled row with the plural its visible text carries, so the name contains the label', () => {
+        const line = makeIngredientView({ name: 'flour', quantity: exact(1.5), unit: 'cup' });
+
+        expect(ingredientCheckLabel(line, 'en', names, template.checkLabelWithDetails)).toBe('1.5 cups flour');
     });
 });
 

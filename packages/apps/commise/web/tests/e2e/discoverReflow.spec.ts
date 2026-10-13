@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { route } from './utils/basePath';
-import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -41,3 +41,56 @@ for (const width of WIDTHS) {
         expect(scrollWidth).toBe(width);
     });
 }
+
+test.describe('Discover rail cards — W-03: a long attribution cannot widen a card', () => {
+    test('every rail card stays within 256 px, with a 60-character unbroken attribution', async ({ page }) => {
+        await page.setViewportSize({ width: 840, height: 900 });
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000071',
+                    ownerId: 'usr_other',
+                    title: 'Imported Stew',
+                    visibility: 'public',
+                    sourceAttribution: 'A'.repeat(60),
+                }),
+            ],
+        });
+
+        await page.goto(route('/discover'));
+        const card = page.getByRole('article', { name: 'Imported Stew' }).first();
+        await expect(card).toBeVisible();
+
+        const widths = await page
+            .getByRole('article')
+            .evaluateAll((cards) => cards.map((element) => Math.round(element.getBoundingClientRect().width)));
+
+        for (const width of widths) {
+            expect(width).toBeLessThanOrEqual(256);
+        }
+    });
+
+    test('no card says "Cloned from" a raw id', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [
+                makeRecipeDetail({
+                    id: 'ec000000-0000-4000-8000-000000000072',
+                    ownerId: 'usr_other',
+                    title: 'Copied Stew',
+                    visibility: 'public',
+                }),
+            ],
+        });
+
+        await page.goto(route('/discover'));
+        await expect(page.getByRole('article', { name: 'Copied Stew' }).first()).toBeVisible();
+
+        await expect(page.getByText(/Cloned from/u)).toHaveCount(0);
+    });
+});

@@ -11,11 +11,12 @@
 import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
 import { MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LocaleProvider } from '@commise/i18n/react';
+import { role as roleStyle } from '@commise/ui/colors';
 
 import { FilterGroups } from '../FilterGroups.native.js';
 import { FACET_CHIP_LIMIT, filterBarViewOf } from '../filterBarView.js';
@@ -41,6 +42,13 @@ interface Props {
 }
 
 function renderGroups({ facets = {}, filters = EMPTY_RECIPE_FILTERS, ingredientSearch = idleSearch }: Props = {}) {
+    return renderGroupsWith('wrap', { facets, filters, ingredientSearch });
+}
+
+function renderGroupsWith(
+    chipOverflow: 'wrap' | 'scroll',
+    { facets = {}, filters = EMPTY_RECIPE_FILTERS, ingredientSearch = idleSearch }: Props,
+) {
     const onFilterAction = vi.fn();
     const view = filterBarViewOf({ facets, filters, viewState: ingredientSearch.viewState }, copy);
 
@@ -48,7 +56,7 @@ function renderGroups({ facets = {}, filters = EMPTY_RECIPE_FILTERS, ingredientS
         <LocaleProvider locale="en">
             <FilterGroups
                 view={view}
-                chipOverflow="wrap"
+                chipOverflow={chipOverflow}
                 ingredientSearch={ingredientSearch}
                 onFilterAction={onFilterAction}
             />
@@ -96,7 +104,7 @@ describe('FilterGroups (native) — chips', () => {
     it('presses a chip as a toggle, reporting the action it asks for', () => {
         const { onFilterAction } = renderGroups({ facets });
 
-        fireEvent.click(screen.getByRole('checkbox', { name: 'vegan 4' }));
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Vegan 4' }));
 
         expect(onFilterAction).toHaveBeenCalledWith({ kind: 'toggleFacet', dimension: 'dietaryFlags', value: 'vegan' });
     });
@@ -104,8 +112,8 @@ describe('FilterGroups (native) — chips', () => {
     it('marks a chosen chip checked and leaves the others unchecked', () => {
         renderGroups({ facets, filters: { dietaryFlags: ['vegan'] } });
 
-        expect(screen.getByRole('checkbox', { name: 'vegan 4' }).getAttribute('aria-checked')).toBe('true');
-        expect(screen.getByRole('checkbox', { name: 'gluten-free 2' }).getAttribute('aria-checked')).toBe('false');
+        expect(screen.getByRole('checkbox', { name: 'Vegan 4' }).getAttribute('aria-checked')).toBe('true');
+        expect(screen.getByRole('checkbox', { name: 'Gluten-free 2' }).getAttribute('aria-checked')).toBe('false');
     });
 
     it('sets the cuisine pressed', () => {
@@ -167,6 +175,53 @@ describe('FilterGroups (native) — time', () => {
             field: 'maxTotalTime',
             minutes: undefined,
         });
+    });
+
+    it('says in sentence case what a stored lower-case facet value is, and still reports the raw value (W-10)', () => {
+        const { onFilterAction } = renderGroups({ facets });
+        const chip = screen.getByRole('checkbox', { name: 'Gluten-free 2' });
+
+        expect(chip.textContent).toContain('Gluten-free');
+
+        fireEvent.click(chip);
+
+        expect(onFilterAction).toHaveBeenCalledWith({
+            kind: 'toggleFacet',
+            dimension: 'dietaryFlags',
+            value: 'gluten-free',
+        });
+    });
+
+    it('draws a chevron on the "More time filters" button that turns over while it is open (W-13)', () => {
+        renderGroups();
+        const disclosure = screen.getByRole('button', { name: 'More time filters' });
+        // The outer hidden box is the one that turns; the glyph's own hidden wrapper sits inside it.
+        const chevronBox = () => disclosure.querySelector('[aria-hidden="true"]') as HTMLElement;
+
+        expect(chevronBox().querySelector('[data-icon-name="chevron-down"]')).not.toBeNull();
+        expect(getComputedStyle(chevronBox()).transform).not.toContain('rotate(180deg)');
+
+        fireEvent.click(disclosure);
+        expect(getComputedStyle(chevronBox()).transform).toContain('rotate(180deg)');
+    });
+
+    it('fades a scrolling facet row into the sheet’s surface, not the page’s (the filters live on a sheet)', () => {
+        renderGroupsWith('scroll', { facets });
+        const row = screen.getByRole('group', { name: 'Dietary' });
+        const handlers = [...row.querySelectorAll<HTMLElement>('*'), row]
+            .filter((node) => (node as HTMLElement & { __reactLayoutHandler?: unknown }).__reactLayoutHandler)
+            .sort((a, b) => (a.contains(b) ? -1 : 1));
+
+        for (const [index, node] of handlers.entries()) {
+            const handler = (node as HTMLElement & { __reactLayoutHandler: (event: unknown) => void })
+                .__reactLayoutHandler;
+
+            act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width: index === 0 ? 200 : 900, height: 36 } } }));
+        }
+
+        const fade = row.parentElement?.querySelector<HTMLElement>('[data-commise-stub="linear-gradient"]');
+
+        expect(fade?.dataset['colors']?.endsWith(`|${roleStyle.paperOverlay}`)).toBe(true);
     });
 
     it('keeps prep and cook time behind a shut disclosure until pressed', () => {

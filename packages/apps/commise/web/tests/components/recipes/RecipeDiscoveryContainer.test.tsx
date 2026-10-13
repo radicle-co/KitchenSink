@@ -280,7 +280,7 @@ describe('RecipeDiscoveryContainer — URL criteria', () => {
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
 
         await openFilters(userEvent.setup());
-        const chip = await screen.findByRole('button', { name: 'vegan 2' });
+        const chip = await screen.findByRole('button', { name: 'Vegan 2' });
         expect(chip.getAttribute('aria-pressed')).toBe('true');
         expect(searchSpy).toHaveBeenCalledWith({
             scope: 'community',
@@ -301,7 +301,7 @@ describe('RecipeDiscoveryContainer — URL criteria', () => {
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
 
         await openFilters(user);
-        await user.click(await screen.findByRole('button', { name: 'vegan 2' }));
+        await user.click(await screen.findByRole('button', { name: 'Vegan 2' }));
 
         expect(replaceState).toHaveBeenLastCalledWith(null, '', '/en/discover?dietaryFlags=vegan');
     });
@@ -887,7 +887,7 @@ describe('RecipeDiscoveryContainer — a newer search pending behind the results
         await waitFor(() => expect(pendingBar()).not.toBeNull());
         await openFilters(user);
 
-        expect(screen.getByRole('button', { name: 'vegan 2' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Vegan 2' })).toBeInTheDocument();
     });
 
     it('says the newer search failed beside the previous results, which stay, keeping the typed term', async () => {

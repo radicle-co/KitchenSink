@@ -35,6 +35,39 @@ describe('RecipePreviewSheet', () => {
         expect(within(dialog).getByRole('heading', { level: 1, name: 'Braised lamb' })).toBeTruthy();
     });
 
+    // A-012/E24: the preview is a PAGE from `sm` (the whole visible height, up to the detail column), not the
+    // picker's 85% dialog. `full` is the picker's size and stays as it was.
+    it('is a page-sized sheet: the whole visible height from sm, up to the detail column', () => {
+        render(
+            <LocaleProvider locale="en">
+                <CookMarksTestProvider>
+                    <RecipePreviewSheet open recipe={recipe} onClose={vi.fn()} />
+                </CookMarksTestProvider>
+            </LocaleProvider>,
+        );
+
+        const classes = screen.getByRole('dialog').className.split(/\s+/u);
+
+        expect(classes).toContain('sm:h-[var(--sheet-visible-height,100dvh)]');
+        expect(classes).toContain('sm:max-w-6xl');
+        expect(classes).not.toContain('sm:h-[85vh]');
+    });
+
+    it('draws the banner as a tinted block', () => {
+        render(
+            <LocaleProvider locale="en">
+                <CookMarksTestProvider>
+                    <RecipePreviewSheet open recipe={recipe} onClose={vi.fn()} />
+                </CookMarksTestProvider>
+            </LocaleProvider>,
+        );
+
+        const banner = screen.getByText('Preview. This is how it looks to others.');
+
+        expect(banner.className).toContain('bg-surface-muted');
+        expect(banner.className).toContain('rounded-md');
+    });
+
     it('closes through its close control', () => {
         const onClose = vi.fn();
         render(

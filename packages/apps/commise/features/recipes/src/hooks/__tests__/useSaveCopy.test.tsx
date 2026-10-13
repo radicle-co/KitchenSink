@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { makeRecipeDetail } from '@kitchensink/recipe-core/testing';
-import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
+import { RecipeServiceProvider, useDeleteRecipe } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
@@ -19,9 +19,13 @@ import { useSaveCopy } from '../useSaveCopy.js';
 /** A recipe-id control that reports its copy state as text and saves on press. */
 const Probe: FC<{ readonly ids: readonly string[]; readonly onEdit: (copyId: string) => void }> = ({ ids, onEdit }) => {
     const copy = useSaveCopy(onEdit);
+    const remove = useDeleteRecipe();
 
     return (
         <>
+            <button type="button" onClick={() => remove.mutate('copy-a')}>
+                delete the copy
+            </button>
             {ids.map((id) => (
                 <button key={id} type="button" onClick={() => copy.save(id)}>
                     {`${id}: ${copy.stateOf(id).kind}`}
@@ -34,6 +38,7 @@ const Probe: FC<{ readonly ids: readonly string[]; readonly onEdit: (copyId: str
 function renderProbe(clone: (id: string) => Promise<RecipeDetail>, onEdit: (copyId: string) => void = vi.fn()) {
     const client = createFakeRecipeServiceClient();
     const cloneRecipe = vi.spyOn(client, 'cloneRecipe').mockImplementation(clone);
+    const deleteRecipe = vi.spyOn(client, 'deleteRecipe').mockResolvedValue(undefined);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 
     render(
@@ -46,7 +51,7 @@ function renderProbe(clone: (id: string) => Promise<RecipeDetail>, onEdit: (copy
         </QueryClientProvider>,
     );
 
-    return { cloneRecipe, onEdit };
+    return { cloneRecipe, deleteRecipe, onEdit };
 }
 
 const press = (name: string): void => {
@@ -73,6 +78,21 @@ describe('useSaveCopy', () => {
         await act(async () => resolve(makeRecipeDetail({ id: 'copy-a' })));
 
         await screen.findByRole('button', { name: 'a: saved' });
+        expect(screen.getByRole('button', { name: 'b: idle' })).toBeTruthy();
+    });
+
+    // A-022: "saved" is derived from the clone mutation, which lives for the session, so a card kept saying "Saved a copy"
+    // for a copy that no longer existed.
+    it('goes back to idle when the copy it made is deleted, so the card offers Save a copy again', async () => {
+        const { deleteRecipe } = renderProbe(() => Promise.resolve(makeRecipeDetail({ id: 'copy-a' })));
+
+        press('a: idle');
+        await screen.findByRole('button', { name: 'a: saved' });
+
+        press('delete the copy');
+
+        await screen.findByRole('button', { name: 'a: idle' });
+        expect(deleteRecipe).toHaveBeenCalledWith('copy-a');
         expect(screen.getByRole('button', { name: 'b: idle' })).toBeTruthy();
     });
 

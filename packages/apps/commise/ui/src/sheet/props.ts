@@ -37,8 +37,12 @@ export interface SheetProps {
     readonly describedBy?: readonly string[];
     /** The accessible name of the icon-only close control. House form: "Close {thing}". */
     readonly closeLabel: string;
-    /** `content`: as tall as its content, up to the available height. `full`: always the available height. */
-    readonly size: 'content' | 'full';
+    /**
+     * `content`: as tall as its content, up to the available height. `full`: always the available height (web: an 85%
+     * dialog from `sm`). `page`: a page-sized sheet: the available height at every width, and on web from `sm` as wide
+     * as the detail column (72 rem). Native has no wider-than-phone variant, so there it is the same as `full`.
+     */
+    readonly size: 'content' | 'full' | 'page';
     /** Pinned under the title, outside the scroll region. ⛔ With a toolbar, `children` holds no text input. */
     readonly toolbar?: SheetToolbar;
     /** The scroll region. */

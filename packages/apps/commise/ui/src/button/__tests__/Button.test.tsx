@@ -352,3 +352,30 @@ describe('Button (web) — a focus request', () => {
         expect(handled).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('Button (web) — iconPlacement (A-018)', () => {
+    it('draws the glyph BEFORE the label by default', () => {
+        render(
+            <Button variant="ghost" icon="chevronDown">
+                Sort
+            </Button>,
+        );
+        const button = screen.getByRole('button', { name: 'Sort' });
+
+        expect(button.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
+        expect(button.lastElementChild?.textContent).toBe('Sort');
+    });
+
+    it('draws the glyph AFTER the label with iconPlacement="end", still decorative', () => {
+        render(
+            <Button variant="ghost" icon="chevronDown" iconPlacement="end">
+                Sort
+            </Button>,
+        );
+        const button = screen.getByRole('button', { name: 'Sort' });
+
+        expect(button.firstElementChild?.textContent).toBe('Sort');
+        expect(button.lastElementChild?.getAttribute('aria-hidden')).toBe('true');
+        expect(button.lastElementChild?.querySelector('svg.lucide')).not.toBeNull();
+    });
+});

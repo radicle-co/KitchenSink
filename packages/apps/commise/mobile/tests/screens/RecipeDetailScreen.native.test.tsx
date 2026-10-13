@@ -13,6 +13,7 @@ import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { QueryClient } from '@tanstack/react-query';
 import { useState, type ReactElement } from 'react';
 import { AccessibilityInfo } from 'react-native';
+import { NavigationContext } from '@react-navigation/native';
 
 import { computedContrast, renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { palette, tint } from '@commise/ui';
@@ -122,19 +123,22 @@ beforeEach(() => {
 });
 
 describe('RecipeDetailScreen — loading state', () => {
-    it('shows the localized loading indicator while the query is loading', () => {
+    it('shows the localized loading caption while the query is loading', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        expect(screen.getByLabelText('Loading recipe…')).toBeTruthy();
+        expect(screen.getByText('Loading recipe…')).toBeTruthy();
     });
 
-    it('announces WHAT is loading and captions it visibly (no bare spinner)', () => {
-        render(<RecipeDetailScreen recipeId="rec_1" />);
+    // D3 (rewritten from "a named progressbar and a caption"): the pending state is the page's SHAPE — a 4:3 hero, the title,
+    // the stat strip and the section rows — so nothing moves when the recipe lands. The caption is still shown and spoken
+    // once, politely; the blocks are decorative.
+    it('captions what is loading ONCE, over the page-shaped placeholder (D3)', () => {
+        const { container } = render(<RecipeDetailScreen recipeId="rec_1" />);
 
         const label = mobileMessages.en.recipes.detailLoading;
-        // A named `progressbar`, not an anonymous spinning shape — and the same context shown on screen.
-        expect(screen.getByRole('progressbar', { name: label })).toBeTruthy();
-        expect(screen.getByText(label)).toBeTruthy();
+        expect(screen.getAllByText(label)).toHaveLength(1);
+        expect(screen.queryByRole('progressbar')).toBeNull();
+        expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
     });
 
     it('keeps loading while the recipe is ready but the viewer profile is still in flight', () => {
@@ -150,7 +154,7 @@ describe('RecipeDetailScreen — loading state', () => {
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        expect(screen.getByLabelText('Loading recipe…')).toBeTruthy();
+        expect(screen.getByText('Loading recipe…')).toBeTruthy();
         expect(screen.queryByRole('heading', { name: 'Weeknight Pasta' })).toBeNull();
     });
 });
@@ -284,6 +288,30 @@ describe('RecipeDetailScreen — error state', () => {
         expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     });
 
+    it('keeps a labelled way back on the error and not-found screens, which have no photo to put a disc on', async () => {
+        vi.spyOn(client, 'getRecipeById').mockRejectedValue(new NotFoundError());
+        const onBack = vi.fn();
+
+        render(<RecipeDetailScreen recipeId="rec_1" onBack={onBack} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Back to My recipes' }));
+
+        expect(onBack).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the way back’s label WCAG-AA legible on the screen’s sand background', async () => {
+        vi.spyOn(client, 'getRecipeById').mockRejectedValue(new NotFoundError());
+
+        render(<RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        // A bare text control on the screen container's `sand` background: seafoam scored 3.73:1 there, under
+        // the 4.5:1 body floor (SC 1.4.3). Web's equivalent back control takes the same token (§14).
+        const label = within(await screen.findByRole('button', { name: 'Back to My recipes' })).getByText(
+            'Back to My recipes',
+        );
+
+        expect(computedContrast(label, { surface: palette.sand }), 'back control label').toBeGreaterThanOrEqual(4.5);
+    });
+
     it('shows the generic error, with a way out, for an id that cannot name a recipe', () => {
         const getRecipe = vi.spyOn(client, 'getRecipeById');
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -308,32 +336,64 @@ describe('RecipeDetailScreen — ready state', () => {
         expect(screen.queryByRole('alert')).toBeNull();
     });
 
-    it('renders and wires the back affordance only when onBack is provided', () => {
+    /**
+     * A-014 / D7 (rewritten from "a text Back row above the page"): Back is a 44 pt DISC over the hero photo, named for
+     * where it goes. ⛔ Never the bare "Back": Android's own navigation bar publishes a node with exactly that name, so a
+     * selector or a screen-reader rotor could not tell the two apart.
+     */
+    it('draws Back as a disc over the hero, named for its parent, only when onBack is provided', () => {
         seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
         const onBack = vi.fn();
 
         const { rerender } = render(<RecipeDetailScreen recipeId="rec_1" onBack={onBack} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+        const back = screen.getByRole('button', { name: 'Back to My recipes' });
+        fireEvent.click(back);
+
         expect(onBack).toHaveBeenCalledTimes(1);
-        // F22 (`buildSpec.md` §3.5): Back draws the `chevron-left` glyph beside its word.
-        expect(
-            screen.getByRole('button', { name: 'Back' }).querySelector('[data-icon-name="chevron-left"]'),
-        ).not.toBeNull();
+        expect(back.querySelector('[data-icon-name="chevron-left"]')).not.toBeNull();
+        expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+        // Over the photo: before the title in the reading order.
+        const title = screen.getByRole('heading', { name: 'Weeknight Pasta' });
+        expect(back.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
         rerender(withFoodClient(<RecipeDetailScreen recipeId="rec_1" />));
-        expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Back/u })).toBeNull();
     });
 
-    it('keeps the back affordance’s label WCAG-AA legible on the screen’s sand background', () => {
+    /** A navigator whose stack holds `routes`, the screen being the last. */
+    const stackOf = (...routes: string[]) =>
+        ({
+            getState: () => ({ index: routes.length - 1, routes: routes.map((name) => ({ name })) }),
+        }) as never;
+
+    it.each([
+        ['HomeRoot', 'Back to Home'],
+        ['RecipesRoot', 'Back to My recipes'],
+        ['DiscoverRoot', 'Back to Discover'],
+        ['CollectionDetail', 'Back to Collection'],
+        ['RecipeDetail', 'Back to Recipe'],
+    ])('names the screen the cook came from: %s → “%s”', (previous, name) => {
         seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
 
-        render(<RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />);
+        render(
+            <NavigationContext.Provider value={stackOf(previous, 'RecipeDetail')}>
+                <RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />
+            </NavigationContext.Provider>,
+        );
 
-        // A bare text control on the screen container's `sand` background: seafoam scored 3.73:1 there, under
-        // the 4.5:1 body floor (SC 1.4.3). Web's equivalent back control takes the same token (§14).
-        const label = within(screen.getByRole('button', { name: 'Back' })).getByText('Back');
+        expect(screen.getByRole('button', { name })).toBeTruthy();
+    });
 
-        expect(computedContrast(label, { surface: palette.sand }), 'back control label').toBeGreaterThanOrEqual(4.5);
+    it('falls back to My recipes when the stack has nothing below it (a deep link)', () => {
+        seedRecipe(makeRecipeDetail({ title: 'Weeknight Pasta' }));
+
+        render(
+            <NavigationContext.Provider value={stackOf('RecipeDetail')}>
+                <RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />
+            </NavigationContext.Provider>,
+        );
+
+        expect(screen.getByRole('button', { name: 'Back to My recipes' })).toBeTruthy();
     });
 
     it('hides owner actions (including the More menu) from a non-owner', () => {
@@ -402,11 +462,27 @@ describe('RecipeDetailScreen — owner actions', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         const edit = screen.getByRole('button', { name: 'Edit recipe' });
-        const ingredients = screen.getByText('Ingredients');
+        const ingredients = screen.getByRole('heading', { name: 'Ingredients' });
         const more = screen.getByRole('button', { name: /^More actions for /u });
 
         expect(edit.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(more.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    /** A-014 / D7: ⋯ is the second disc over the hero photo, after Back, before the title. */
+    it('draws the ⋯ trigger as a disc over the hero, named for the recipe, ahead of the title', () => {
+        render(<RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        const more = screen.getByRole('button', { name: /^More actions for /u });
+        const back = screen.getByRole('button', { name: 'Back to My recipes' });
+        const title = screen.getByRole('heading', { name: 'Weeknight Pasta' });
+
+        const probe = document.createElement('div');
+        probe.style.backgroundColor = role.photoChip;
+
+        expect(getComputedStyle(more).backgroundColor).toBe(probe.style.backgroundColor);
+        expect(back.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(more.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('confirms and runs a delete from the menu’s destructive action, then navigates away', () => {
@@ -663,7 +739,8 @@ describe('RecipeDetailScreen — Save a copy', () => {
 
         const copy = screen.getByRole('button', { name: 'Save a copy' });
         expect(
-            copy.compareDocumentPosition(screen.getByText('Ingredients')) & Node.DOCUMENT_POSITION_FOLLOWING,
+            copy.compareDocumentPosition(screen.getByRole('heading', { name: 'Ingredients' })) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
     });
 

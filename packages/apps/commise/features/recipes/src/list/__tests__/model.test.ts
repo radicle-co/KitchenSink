@@ -81,6 +81,12 @@ describe('isQuickRecipe (L4 "Quick (<30m)" chip)', () => {
         expect(isQuickRecipe(1)).toBe(true);
     });
 
+    // A-017: the editor stores 0 for a time the cook never stated, and the spec's rule is "a missing time hides its cell,
+    // never 0 min" (§6.1): an untimed recipe is not a quick one.
+    it('is false for 0, which is how the editor stores a time nobody stated', () => {
+        expect(isQuickRecipe(0)).toBe(false);
+    });
+
     it('is false at and above the threshold (the wireframe reads "<30m", not "<=30m")', () => {
         expect(isQuickRecipe(QUICK_TIME_THRESHOLD_MINUTES)).toBe(false);
         expect(isQuickRecipe(45)).toBe(false);
@@ -118,12 +124,14 @@ describe('matchesListFacet', () => {
 
 describe('filterChipLabel', () => {
     it('renders the localized quick label for the QUICK_TIME_FACET sentinel', () => {
-        expect(filterChipLabel(QUICK_TIME_FACET, 'Quick (<30m)')).toBe('Quick (<30m)');
+        expect(filterChipLabel(QUICK_TIME_FACET, 'Quick (<30m)', 'en')).toBe('Quick (<30m)');
     });
 
     it('passes every other facet value through unchanged (dietary flags/cuisine are free-text data, not copy)', () => {
-        expect(filterChipLabel('Vegetarian', 'Quick (<30m)')).toBe('Vegetarian');
-        expect(filterChipLabel('Italian', 'Quick (<30m)')).toBe('Italian');
+        expect(filterChipLabel('Vegetarian', 'Quick (<30m)', 'en')).toBe('Vegetarian');
+        expect(filterChipLabel('Italian', 'Quick (<30m)', 'en')).toBe('Italian');
+        // W-10: a stored dietary flag is lower case; its chip is sentence case, and only the label changes.
+        expect(filterChipLabel('dairy-free', 'Quick (<30m)', 'en')).toBe('Dairy-free');
     });
 });
 

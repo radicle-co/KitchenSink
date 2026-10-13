@@ -215,6 +215,7 @@ recipes:recipes/servingScale
 recipes:recipes/detailCooking
 recipes:recipes/deferredCalories
 recipes:recipes/emptyLibrary
+recipes:recipes/editorGuided
 recipes:recipes/searchNavigation
 recipes:recipes/edit
 recipes:recipes/versions
@@ -237,12 +238,15 @@ recipes:recipes/createEntry
 recipes:recipes/systemBackGuard
 recipes:recipes/editorSections
 recipes:recipes/create
+recipes:recipes/publishFeedback
 recipes:recipes/pasteList
+recipes:recipes/pasteListSettle
 recipes:recipes/quantityRange
 recipes:recipes/preparationGroups
 recipes:recipes/ingredientGroups
 recipes:recipes/addIngredientLoop
 recipes:recipes/addIngredientLine
+recipes:recipes/addStepFocus
 recipes:recipes/ingredientUnmatched
 recipes:recipes/ingredientNutritionPanel
 recipes:recipes/ingredientRemove
@@ -350,6 +354,7 @@ recipes/servingScale=37
 recipes/detailCooking=51
 recipes/deferredCalories=32
 recipes/emptyLibrary=30
+recipes/editorGuided=30
 recipes/searchNavigation=157
 recipes/edit=157
 recipes/versions=146
@@ -372,9 +377,12 @@ recipes/createEntry=29
 recipes/systemBackGuard=180
 recipes/editorSections=59
 recipes/create=127
+recipes/publishFeedback=90
 recipes/pasteList=57
+recipes/pasteListSettle=120
 recipes/quantityRange=159
 recipes/addIngredientLoop=87
+recipes/addStepFocus=45
 recipes/ingredientUnmatched=75
 recipes/ingredientNutritionPanel=85
 recipes/ingredientRemove=88
@@ -430,7 +438,7 @@ MAESTRO_DRIVER_PORT="${MAESTRO_DRIVER_PORT:-7001}"
 # Maestro's on-device driver. It reinstalls this every invocation, so removing it between flows costs nothing.
 MAESTRO_DRIVER_PACKAGE="dev.mobile.maestro"
 
-EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary "
+EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary recipes/editorGuided "
 
 # Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.
 #

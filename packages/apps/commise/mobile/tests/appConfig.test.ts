@@ -67,3 +67,27 @@ describe('app.json expo plugins', () => {
         expect(props).toMatchObject({ appleSignIn: false });
     });
 });
+
+/**
+ * The recipe photo uploader's "Take photo" (A-010, UI walk 2026-10-13) needs the camera and the photo library, and
+ * nothing else. `expo-image-picker`'s plugin writes a microphone usage string on iOS and keeps `RECORD_AUDIO` on Android
+ * unless `microphonePermission` is `false`; the app records no video, so asking for the microphone is a permission the
+ * app does not use (least privilege, and an App Review question for nothing). A native build is needed for any of it.
+ */
+describe('app.json expo-image-picker', () => {
+    const entry = findPlugin('expo-image-picker');
+    const props = Array.isArray(entry) ? (entry[1] as Record<string, unknown>) : {};
+
+    it('is registered with props (not as a bare string), so its usage strings are ours', () => {
+        expect(Array.isArray(entry)).toBe(true);
+    });
+
+    it('explains the photo library and the camera in plain words', () => {
+        expect(props['photosPermission']).toEqual(expect.stringMatching(/photos/iu));
+        expect(props['cameraPermission']).toEqual(expect.stringMatching(/camera/iu));
+    });
+
+    it('asks for no microphone: the app takes pictures, not video', () => {
+        expect(props['microphonePermission']).toBe(false);
+    });
+});

@@ -61,10 +61,12 @@ describe('the locale root auth gate (front door)', () => {
     it('sends a SIGNED-OUT caller straight to the sign-in form', async () => {
         mockSignedOut();
 
+        // Sign-in is the target, and it carries the destination (W-01): the locale root, so a signed-in visitor
+        // lands on Home again.
         await expect(HomePage({ params: Promise.resolve({ locale: 'en' }) })).rejects.toThrow(
-            'NEXT_REDIRECT:/en/sign-in',
+            'NEXT_REDIRECT:/en/sign-in?redirect_url=%2Fen',
         );
-        expect(mockedRedirect).toHaveBeenCalledWith('/en/sign-in');
+        expect(mockedRedirect).toHaveBeenCalledWith('/en/sign-in?redirect_url=%2Fen');
     });
 
     it('never routes a signed-out caller through an interstitial landing surface', async () => {
@@ -76,7 +78,7 @@ describe('the locale root auth gate (front door)', () => {
         await expect(HomePage({ params: Promise.resolve({ locale: 'en' }) })).rejects.toThrow(/NEXT_REDIRECT/);
 
         const targets = mockedRedirect.mock.calls.map(([url]) => url);
-        expect(targets).toEqual(['/en/sign-in']);
+        expect(targets).toEqual(['/en/sign-in?redirect_url=%2Fen']);
     });
 
     it('renders Home for a SIGNED-IN caller, without redirecting', async () => {

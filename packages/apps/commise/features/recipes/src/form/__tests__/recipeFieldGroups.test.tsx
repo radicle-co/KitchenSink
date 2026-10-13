@@ -356,13 +356,13 @@ describe('the recipe field groups (web) — the unit’s class, in the row edito
         const sheet = await openEditor(user, 'Edit 2 cups Onion');
 
         expect(within(sheet).queryByText('Cook’s measure')).toBeNull();
-        expect(within(sheet).queryByText('Unrecognised unit')).toBeNull();
+        expect(within(sheet).queryByText('Unrecognized unit')).toBeNull();
     });
 
     it.each([
         ['a SUBJECTIVE unit as a cook’s measure', 'handful', 'Cook’s measure'],
-        ['an UNKNOWN unit as unrecognised, still ACCEPTED, never invalid', 'blorp', 'Unrecognised unit'],
-        ['a short unknown unit too (the U35 ruling covers T and t, not the alphabet)', 'zq', 'Unrecognised unit'],
+        ['an UNKNOWN unit as unrecognised, still ACCEPTED, never invalid', 'blorp', 'Unrecognized unit'],
+        ['a short unknown unit too (the U35 ruling covers T and t, not the alphabet)', 'zq', 'Unrecognized unit'],
     ])('marks %s, and describes the field with it', async (_case, unit, note) => {
         const user = userEvent.setup();
         renderForm({ values: withUnit(unit) });
@@ -375,6 +375,30 @@ describe('the recipe field groups (web) — the unit’s class, in the row edito
         expect(field.getAttribute('aria-invalid')).toBeNull();
     });
 
+    // A-011: the owner ruled "1 large" a fine measure and the add field reads size words as units, so the editor must
+    // not tell the cook that the same word is unrecognized.
+    it.each(['large', 'small', 'medium'])('a size word %j is a measure the cook may state: no note', async (unit) => {
+        const user = userEvent.setup();
+        renderForm({ values: withUnit(unit) });
+
+        const sheet = await openEditor(user, `Edit 2 ${unit} Onion`);
+
+        expect((unitField(sheet) as HTMLInputElement).value).toBe(unit);
+        expect(within(sheet).queryByText('Unrecognized unit')).toBeNull();
+        expect((unitField(sheet) as HTMLInputElement).getAttribute('aria-describedby') ?? '').not.toContain('note');
+    });
+
+    it('the Unit field wears the same visible label as Amount and Preparation, and the label names it', async () => {
+        const user = userEvent.setup();
+        renderForm({ values: withUnit('cups') });
+
+        const sheet = await openEditor(user, 'Edit 2 cups Onion');
+        const label = within(sheet).getByText(en.rowUnitLabel, { selector: 'label' });
+
+        expect(label.getAttribute('for')).toBe(unitField(sheet).id);
+        expect(within(sheet).getByText(en.rowAmountLabel, { selector: 'label' })).toBeTruthy();
+    });
+
     it.each(['T', 't'])('the case-sensitive unit %j is ordinary and kept byte-for-byte (U35)', async (unit) => {
         const user = userEvent.setup();
         renderForm({ values: withUnit(unit, 'Butter') });
@@ -382,7 +406,7 @@ describe('the recipe field groups (web) — the unit’s class, in the row edito
         const sheet = await openEditor(user, `Edit 2 ${unit} Butter`);
 
         expect((unitField(sheet) as HTMLInputElement).value).toBe(unit);
-        expect(within(sheet).queryByText('Unrecognised unit')).toBeNull();
+        expect(within(sheet).queryByText('Unrecognized unit')).toBeNull();
         expect(within(sheet).queryByText('Cook’s measure')).toBeNull();
     });
 });

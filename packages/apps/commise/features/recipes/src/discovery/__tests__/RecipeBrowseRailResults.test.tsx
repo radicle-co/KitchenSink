@@ -69,6 +69,9 @@ describe('RecipeBrowseRailResults (web)', () => {
             // geometry is `overhaulLayout.spec.ts`'s.)
             expect(item.className.split(' ')).toEqual(expect.arrayContaining(['grid', 'grid-rows-[repeat(6,auto)]']));
             expect(item.className).toContain('snap-start');
+            // W-03: an `auto` grid column takes the card's min-content, which includes a nowrap footer line, and grew a
+            // rail card to 520 px. A column that cannot exceed the item fixes it.
+            expect(item.className.split(' ')).toContain('grid-cols-[minmax(0,1fr)]');
             expect(item.querySelector('[data-card-variant="grid"]')).not.toBeNull();
         }
     });

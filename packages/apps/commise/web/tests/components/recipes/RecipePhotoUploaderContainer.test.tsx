@@ -389,3 +389,113 @@ describe('RecipePhotoUploaderContainer', () => {
         expect(screen.queryByLabelText('Add photo')).not.toBeInTheDocument();
     });
 });
+
+/**
+ * A-010 (buildSpec §7.7, SC 2.1.1): the add control was a `<label>` around a hidden input — no tab stop, no button
+ * chrome, so a keyboard user could not add a photo at all. It is a real secondary button now; the hidden input keeps
+ * the name "Add photo" (it is how a file is handed to the page, and what the specs upload through), and the button
+ * reaches it by clicking it.
+ */
+describe('RecipePhotoUploaderContainer — the Add photos button (A-010)', () => {
+    it('is a button by role, named "Add photos"', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+
+        const button = await screen.findByRole('button', { name: 'Add photos' });
+        expect(button).toBeVisible();
+        // A secondary Button draws its glyph beside the label: the glyph is decorative and never the name.
+        expect(button.querySelector('svg')).not.toBeNull();
+    });
+
+    it('is reached by Tab', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        const button = await screen.findByRole('button', { name: 'Add photos' });
+
+        await user.tab();
+
+        expect(button).toHaveFocus();
+    });
+
+    it('opens the file picker — it clicks the hidden multi-select input', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        const input = await screen.findByLabelText('Add photo');
+        const opened = vi.spyOn(input as HTMLInputElement, 'click');
+
+        await user.click(screen.getByRole('button', { name: 'Add photos' }));
+
+        expect(opened).toHaveBeenCalledTimes(1);
+        expect(input).toHaveAttribute('type', 'file');
+        expect(input).toHaveAttribute('multiple');
+    });
+
+    it('opens the picker from the keyboard (Enter and Space)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        const opened = vi.spyOn((await screen.findByLabelText('Add photo')) as HTMLInputElement, 'click');
+
+        await user.tab();
+        await user.keyboard('{Enter}');
+        await user.keyboard(' ');
+
+        expect(opened).toHaveBeenCalledTimes(2);
+    });
+
+    it('is not offered at the photo cap, and the hidden input goes with it', async () => {
+        const client = createFakeRecipeServiceClient();
+        const full = Array.from({ length: 10 }, (_, index) =>
+            makeRecipePhoto({ id: `photo_${index + 1}`, order: index + 1 }),
+        );
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(full);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        await screen.findByRole('img', { name: 'Recipe photo 10' });
+
+        expect(screen.queryByRole('button', { name: 'Add photos' })).not.toBeInTheDocument();
+    });
+});
+
+/** A-010 (§7.7): with no photo the section previews this recipe's own cover and says what happens. */
+describe('RecipePhotoUploaderContainer — the empty state (A-010)', () => {
+    it('says the cover is used instead, with the recipe’s cover beside it', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" title="Lemon tart" />, client);
+
+        expect(await screen.findByText('No photo? This cover is used instead. Add one any time.')).toBeInTheDocument();
+        expect(screen.getByText('L')).toBeInTheDocument();
+    });
+
+    it('still previews a cover — its tint — before the title is known', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
+
+        const { container } = renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        await screen.findByText('No photo? This cover is used instead. Add one any time.');
+
+        expect(container.querySelector('[class*="bg-cover-"]')).not.toBeNull();
+    });
+
+    it('shows no empty state when the recipe has a photo', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto()]);
+
+        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" title="Lemon tart" />, client);
+        await screen.findByRole('img', { name: 'Recipe photo 1' });
+
+        expect(screen.queryByText('No photo? This cover is used instead. Add one any time.')).not.toBeInTheDocument();
+    });
+});

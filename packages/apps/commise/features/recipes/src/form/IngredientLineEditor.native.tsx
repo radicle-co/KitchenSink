@@ -95,10 +95,8 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                     </View>
                 </View>
                 <View style={[styles.cell, styles.unit]}>
-                    <Text aria-hidden style={[styles.label, { color: colors.inkMuted }]}>
-                        {m.rowUnitLabel}
-                    </Text>
                     <Combobox
+                        id={view.ids.unit}
                         label={m.rowUnitLabel}
                         listLabel={m.rowUnitListLabel}
                         value={view.unit}
@@ -172,7 +170,6 @@ const styles = StyleSheet.create({
     unit: { width: 112 },
     prep: { minWidth: 160, flexGrow: 1, flexBasis: 160 },
     to: { ...nativeTokens.type.body },
-    label: { ...nativeTokens.type.label },
     row: { flexDirection: 'row', flexWrap: 'wrap' },
     caption: { ...nativeTokens.type.caption },
     disclosure: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start' },

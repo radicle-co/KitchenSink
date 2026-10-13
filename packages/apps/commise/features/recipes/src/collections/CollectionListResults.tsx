@@ -19,13 +19,18 @@ import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { SearchField } from '@commise/ui/search-field';
-import type { CollectionResponse } from '@kitchensink/schema-recipe';
 import { useId, type FC, type MouseEvent } from 'react';
 
 import { formatRecipeCount } from '../list/model.js';
+import { recipeMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
-import { COLLECTION_SEARCH_FROM, type CollectionListResultsProps } from './model.js';
+import {
+    COLLECTION_SEARCH_FROM,
+    cardCoverOf,
+    type CollectionCardSource,
+    type CollectionListResultsProps,
+} from './model.js';
 
 /** Two columns on a phone, `auto-fill` of at least 15 rem from a 600 container. */
 const GRID_CLASS =
@@ -41,26 +46,75 @@ function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
     return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
 
-/** One album card: the cover, the name (two lines), the visibility as glyph and word, and a copy's credit. */
+/**
+ * A card's cover (`buildSpec.md` §5.1): the first four members' photos as a 2 × 2 album with 2 px gaps, the first photo
+ * filling the box when there are one to three, the collection's tint and monogram when there are none. The photos are
+ * decoration — the card's name says what the collection is.
+ */
+const CollectionCover: FC<{ readonly collection: CollectionCardSource }> = ({ collection }) => {
+    const cover = cardCoverOf(collection.coverPhotoUrls);
+
+    if (cover.kind === 'album') {
+        return (
+            <div data-album="" className="grid grid-cols-2 gap-0.5">
+                {cover.urls.map((url, index) => (
+                    <RecipeCover
+                        key={url + String(index)}
+                        recipeId={`${collection.id}:${String(index)}`}
+                        title={collection.name}
+                        aspect="1:1"
+                        photoUrl={url}
+                    />
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <RecipeCover
+            recipeId={collection.id}
+            title={collection.name}
+            aspect="1:1"
+            {...(cover.kind === 'single' ? { photoUrl: cover.url } : {})}
+        />
+    );
+};
+
+/** One album card: the cover, the name (two lines), the count and visibility, and a copy's credit. */
 const CollectionCard: FC<{
-    readonly collection: CollectionResponse;
+    readonly collection: CollectionCardSource;
     readonly href: string | undefined;
     readonly onSelect: (id: string) => void;
 }> = ({ collection, href, onSelect }) => {
-    const { list } = useMessages(collectionMessages);
+    const { list, detail } = useMessages(collectionMessages);
+    const { card } = useMessages(recipeMessages);
+    const locale = useLocale();
     const visibility = collection.visibility === 'public' ? list.visibilityPublic : list.visibilityPrivate;
+    // The count is on the list read (W-11); a body that carries none says none, never a made-up 0.
+    const count =
+        collection.recipeCount === undefined
+            ? undefined
+            : formatRecipeCount(
+                  collection.recipeCount,
+                  { one: detail.recipeCountOne, other: detail.recipeCountOther },
+                  locale,
+              );
     const stretch = 'after:absolute after:inset-0 after:content-[""] focus-visible:outline-none';
 
     return (
         <article
-            aria-label={fillTemplate(list.cardLabel, { name: collection.name, visibility })}
+            aria-label={
+                count === undefined
+                    ? fillTemplate(list.cardLabel, { name: collection.name, visibility })
+                    : fillTemplate(list.cardLabelCounted, { name: collection.name, count, visibility })
+            }
             className="relative flex h-full flex-col rounded-md border border-line-divider bg-paper shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-canvas pointer-fine:hover:shadow-md active:scale-[0.98] motion-reduce:active:scale-100"
         >
             <div className="overflow-hidden rounded-t-md">
-                <RecipeCover recipeId={collection.id} title={collection.name} aspect="1:1" />
+                <CollectionCover collection={collection} />
             </div>
             <div className="flex flex-col gap-1 p-3">
-                <h3 className="line-clamp-2 text-card-title text-ink">
+                <h2 className="line-clamp-2 text-card-title text-ink">
                     {href === undefined ? (
                         <button
                             type="button"
@@ -83,10 +137,18 @@ const CollectionCard: FC<{
                             {collection.name}
                         </a>
                     )}
-                </h3>
-                <p className="inline-flex items-center gap-1 text-meta text-ink-muted">
-                    <Icon name={collection.visibility === 'public' ? 'globe' : 'lock'} size={16} />
-                    {visibility}
+                </h2>
+                <p className="flex flex-wrap items-center gap-x-1 text-meta text-ink-muted">
+                    {count === undefined ? null : (
+                        <>
+                            <span>{count}</span>
+                            <span aria-hidden="true">{card.separator.trim()}</span>
+                        </>
+                    )}
+                    <span className="inline-flex items-center gap-1">
+                        <Icon name={collection.visibility === 'public' ? 'globe' : 'lock'} size={16} />
+                        {visibility}
+                    </span>
                 </p>
                 {collection.sourceOwnerHandle === undefined ? null : (
                     <p className="truncate text-caption text-ink-muted">

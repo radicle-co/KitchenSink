@@ -174,3 +174,11 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       visible: 'More actions for version 3'
       timeout: 30000
+
+# UNDO — restores the version that was current before (3), and that restore says what it did WITHOUT offering Undo
+# again: an undo of an undo would be a loop of restores each reversing the last (D12).
+- tapOn: 'Undo'
+- extendedWaitUntil:
+      visible: 'Restored version 3.'
+      timeout: 30000
+- assertNotVisible: 'Undo'

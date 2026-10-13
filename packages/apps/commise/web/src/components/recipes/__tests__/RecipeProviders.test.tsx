@@ -700,19 +700,15 @@ describe('RecipeProviders (web) — the sync queue mount', () => {
     });
 
     /**
-     * ⛔ THE OFFLINE NOTICE SURVIVES THE GATE, and this test exists because that regression already happened
-     * once. Gating the queue on `userId` dragged `SyncNoticeHost` inside the signed-in branch on the
-     * reasoning that "a signed-out visitor has nothing to sync". `syncNoticeState.ts` disproves it: a branch
-     * exists ONLY for offline-with-zero-pending (`offlineBodyNone`), because the owner's bar is BOTH halves
-     * — tell the cook they are offline AND what has not synced. The first half needs no queue, and public
-     * recipe pages are readable signed out, so the notice became dead copy for every anonymous visitor.
+     * ⛔ THE PROVIDERS NO LONGER DRAW THE SYNC NOTICE (P5, build spec §3.8). They wrap the whole document above the shell,
+     * and the notice is an in-flow block, so going offline pushed the sidebar and the page down together. `AppShell`
+     * mounts it at the top of `<main>` (its own test), inside these providers, so it still reads the queue.
      *
-     * ⛔ AND THE HOST IS MOUNTED TWICE ON PURPOSE. Hoisting it above the conditional would look like the
-     * obvious de-duplication and would be wrong: outside a provider `useSyncQueue()` returns the
-     * NOT_MOUNTED default, whose `pendingCount` is 0 for EVERYONE, silently killing the `syncing` body for
-     * signed-in cooks. Anyone "tidying" the duplication must make this test fail first.
+     * REPLACES the test that pinned the notice here for a SIGNED-OUT viewer. The thing it guarded — the notice must not
+     * ride the `userId` gate — is intact: the host reads `useIsOffline()`, which needs no queue and no user. What went is
+     * the notice on pages without the shell (sign-in, sign-up), accepted in `RecipeProviders`.
      */
-    it('⛔ still shows the offline notice to a SIGNED-OUT viewer, which needs no queue', async () => {
+    it('⛔ renders no sync notice of its own, offline or not: the shell places it', async () => {
         useAuthMock.mockReturnValue({ getToken: vi.fn().mockResolvedValue('tok'), userId: null });
         act(() => {
             onlineManager.setOnline(false);
@@ -725,7 +721,9 @@ describe('RecipeProviders (web) — the sync queue mount', () => {
                 </RecipeProviders>,
             );
 
-            await waitFor(() => expect(screen.getByText(/offline/iu)).toBeTruthy());
+            expect(await screen.findByText('child')).toBeTruthy();
+            expect(screen.queryByRole('status', { name: 'Sync status' })).toBeNull();
+            expect(screen.queryByText(/offline/iu)).toBeNull();
         } finally {
             act(() => {
                 onlineManager.setOnline(true);

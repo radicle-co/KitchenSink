@@ -4,6 +4,7 @@
  * a new dependency each render, so the screen removed and re-added its `beforeRemove` listener every time the route
  * re-rendered. A real native stack; the editor screen is a stub that records what it is handed.
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { act, cleanup, render } from '@testing-library/react';
@@ -42,9 +43,12 @@ describe('taskScreens', () => {
             const Stack = createNativeStackNavigator<RootStackParamList>();
 
             render(
-                <NavigationContainer initialState={{ routes: [{ name, params }] }}>
-                    <Stack.Navigator>{taskScreens(Stack)}</Stack.Navigator>
-                </NavigationContainer>,
+                // The routes tell the cook how the editor finished (E8), through the snackbar host above the stack.
+                <SnackbarHost>
+                    <NavigationContainer initialState={{ routes: [{ name, params }] }}>
+                        <Stack.Navigator>{taskScreens(Stack)}</Stack.Navigator>
+                    </NavigationContainer>
+                </SnackbarHost>,
             );
             await act(async () => {
                 await Promise.resolve();

@@ -179,3 +179,57 @@ describe('RecipeDetailView (native) — a line the verification gate contradicte
         expect(screen.getByRole('note').textContent).toBe(en.needsReviewNoticeOne);
     });
 });
+
+/**
+ * A-015 / D2 (the UI walk): the section printed TWO notes that contradict each other when every line was withheld —
+ * "no ingredient has a food" (false: each has one) beside "didn't match their original wording" — and printed zeros for a
+ * recipe with no lines at all. One line says what happened.
+ */
+describe('RecipeDetailView (native) — ONE note under the nutrition figures', () => {
+    const allWithheld = () =>
+        makeRecipeDetail({
+            nutrition: makeNutrition({ calories: 0, proteinG: 0, carbsG: 0, fatG: 0, isComplete: false }),
+            ingredients: [
+                makeIngredientView({
+                    ingredientId: 'a',
+                    name: 'Plain flour',
+                    resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+                }),
+                makeIngredientView({
+                    ingredientId: 'b',
+                    name: 'Salt',
+                    resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+                }),
+            ],
+        });
+
+    const renderRecipe = (recipe: ReturnType<typeof makeRecipeDetail>) =>
+        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={recipe} />);
+
+    it('says the review sentence and NOT "no ingredient has a food" when every line is withheld', () => {
+        renderRecipe(allWithheld());
+
+        expect(screen.getByText(en.needsReviewNoticeMany.replace('{count}', '2'))).toBeTruthy();
+        expect(screen.queryByText(en.nutritionNoneCounted)).toBeNull();
+        expect(screen.queryByText(en.nutritionPartial)).toBeNull();
+    });
+
+    it('shows the dashes for every cell in that state', () => {
+        renderRecipe(allWithheld());
+
+        expect(screen.getAllByText('—')).toHaveLength(4);
+    });
+
+    it('draws dashes and the one "no ingredient has a food" line for a recipe with no lines, never zeros', () => {
+        renderRecipe(
+            makeRecipeDetail({
+                ingredients: [],
+                nutrition: makeNutrition({ calories: 0, proteinG: 0, carbsG: 0, fatG: 0, isComplete: true }),
+            }),
+        );
+
+        expect(screen.getAllByText('—')).toHaveLength(4);
+        expect(screen.getAllByText(en.nutritionNoneCounted)).toHaveLength(1);
+        expect(screen.queryByText('0')).toBeNull();
+    });
+});

@@ -489,7 +489,7 @@ describe('RecipeDiscoveryScreen — a newer search pending behind the results on
         await vi.waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ query: 'lamb' })));
         fireEvent.click(screen.getByRole('button', { name: /^Filters/ }));
 
-        expect(await screen.findByRole('checkbox', { name: 'vegan 2' })).toBeTruthy();
+        expect(await screen.findByRole('checkbox', { name: 'Vegan 2' })).toBeTruthy();
         expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
     });
 

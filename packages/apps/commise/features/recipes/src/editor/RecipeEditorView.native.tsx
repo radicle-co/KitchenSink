@@ -44,6 +44,7 @@ import { RecipeConflictView } from '../versions/RecipeConflictView.js';
 import { EditorActionBar } from './EditorActionBar.js';
 import { EditorHeader } from './EditorHeader.js';
 import { FailureAlert } from './FailureAlert.js';
+import { PublishLine } from './PublishLine.js';
 import { ResumeNotice } from './ResumeNotice.js';
 import { UnmatchedNote } from './UnmatchedNote.js';
 import { EditorSection } from './EditorSection.js';
@@ -101,6 +102,9 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
     const gutter = gutterOf(useWindowDimensions().width);
     const pinning = usePinnedFooter();
     const keyboardShown = useKeyboardShown();
+    // §7.1 "Keyboard open (phones): the section bar hides and the ActionBar unpins" (A-006): the bar then scrolls with the
+    // form as its last item, so the keys leave the form every pixel they can. Beside the rail (wide) the form is tall.
+    const unpinned = pinning.unpinned || (keyboardShown && !wide);
     // The field reveal reads the host's ONE scroller rather than holding a second handle to it (blueprint A7).
     const [revealScroller] = useState(() => ({
         get current() {
@@ -132,6 +136,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
             onPrimary={page.finish}
             primaryDisabled={chrome.primary.disabled || props.pastePending === true}
             busy={chrome.primary.busy}
+            keyboardShown={keyboardShown}
             {...(chrome.fixLine === undefined ? {} : { fixLine: chrome.fixLine })}
             {...(page.publishNote === undefined ? {} : { readyLine: page.publishNote })}
             notice={
@@ -240,18 +245,23 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                             {section === 'photos' && page.publishNote !== undefined ? (
                                                 <UnmatchedNote text={page.publishNote} />
                                             ) : null}
+                                            {section === 'photos' &&
+                                            page.publishNote === undefined &&
+                                            page.readyLine !== undefined ? (
+                                                <PublishLine line={page.readyLine} onJump={page.goToSection} />
+                                            ) : null}
                                             {sections[section]}
                                         </EditorSection>
                                     </View>
                                 ))}
                                 {/* Past the limit only: the bar as the content's last item. */}
-                                {pinning.unpinned ? <View onLayout={pinning.onFooterLayout}>{actionBar}</View> : null}
+                                {unpinned ? <View onLayout={pinning.onFooterLayout}>{actionBar}</View> : null}
                                 {reveal.spacer === null ? null : <RevealSpacer {...reveal.spacer} />}
                             </ScrollView>
                         </ScrollerDragContext.Provider>
                     </FieldRevealContext.Provider>
                 </View>
-                {pinning.unpinned ? null : <View onLayout={pinning.onFooterLayout}>{actionBar}</View>}
+                {unpinned ? null : <View onLayout={pinning.onFooterLayout}>{actionBar}</View>}
             </View>
             {chrome.discard === undefined ? null : (
                 <ConfirmDialog

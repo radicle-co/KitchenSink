@@ -891,6 +891,88 @@
             ],
             "type": "object"
         },
+        "collectionListItemSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "coverPhotoUrls": {
+                    "items": {
+                        "format": "uri",
+                        "type": "string"
+                    },
+                    "maxItems": 4,
+                    "readOnly": true,
+                    "type": "array"
+                },
+                "createdAt": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "type": "string"
+                },
+                "description": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "id": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "lastPulledAt": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "type": "string"
+                },
+                "name": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "ownerId": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "recipeCount": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "sourceCollectionId": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "sourceCollectionName": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "sourceOwnerHandle": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "type": "string"
+                },
+                "visibility": {
+                    "enum": [
+                        "public",
+                        "private"
+                    ],
+                    "type": "string"
+                }
+            },
+            "readOnly": true,
+            "required": [
+                "id",
+                "ownerId",
+                "name",
+                "visibility",
+                "createdAt",
+                "updatedAt",
+                "recipeCount",
+                "coverPhotoUrls"
+            ],
+            "type": "object"
+        },
         "collectionListResponseSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -899,6 +981,15 @@
                     "items": {
                         "additionalProperties": false,
                         "properties": {
+                            "coverPhotoUrls": {
+                                "items": {
+                                    "format": "uri",
+                                    "type": "string"
+                                },
+                                "maxItems": 4,
+                                "readOnly": true,
+                                "type": "array"
+                            },
                             "createdAt": {
                                 "format": "date-time",
                                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
@@ -962,7 +1053,9 @@
                             "name",
                             "visibility",
                             "createdAt",
-                            "updatedAt"
+                            "updatedAt",
+                            "recipeCount",
+                            "coverPhotoUrls"
                         ],
                         "type": "object"
                     },

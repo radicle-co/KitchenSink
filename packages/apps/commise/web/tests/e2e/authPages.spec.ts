@@ -4,6 +4,7 @@ import type { Locator } from '@playwright/test';
 import { setupClerkTestingToken } from '@clerk/testing/playwright';
 
 import { route, isRoute, hasDoublePrefix, pathnameOf } from './utils/basePath';
+import { clerkPrimarySubmit } from './utils/clerkForm';
 
 // The auth pages must actually MOUNT the Clerk widget under a preview basePath (a bare shell with only
 // the <title> is the classic "Clerk derives its path from the basePath-stripped pathname" failure),
@@ -13,7 +14,8 @@ test.describe('auth pages render and cross-link under the preview basePath', () 
         await setupClerkTestingToken({ page });
         await page.goto(route('/sign-in'));
 
-        await expect(page).toHaveTitle(/Commise/);
+        // W-15 (SC 2.4.2): "{page} · Commise", not the bare brand every route used to share.
+        await expect(page).toHaveTitle('Sign in · Commise');
         await expect(page.getByRole('heading', { name: 'Sign in to Commise' })).toBeVisible();
         await expect(page.getByLabel(/email/i)).toBeVisible();
     });
@@ -22,7 +24,7 @@ test.describe('auth pages render and cross-link under the preview basePath', () 
         await setupClerkTestingToken({ page });
         await page.goto(route('/sign-up'));
 
-        await expect(page).toHaveTitle(/Commise/);
+        await expect(page).toHaveTitle('Create your account · Commise');
         await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
         await expect(page.getByLabel(/email/i)).toBeVisible();
     });
@@ -166,9 +168,18 @@ test.describe('the sign-in surface', () => {
             ).toBeLessThanOrEqual(0);
 
             const link = await page.getByRole('link', { name: 'Create an account' }).boundingBox();
+            const prompt = await page.getByText('New to Commise?').boundingBox();
 
             // One line: a link that wrapped would be at least two line-heights tall (a 14 px line is ~20 px).
             expect(link?.height ?? Number.POSITIVE_INFINITY).toBeLessThan(32);
+
+            // W-17 (SC 1.4.10): the pair used to be two unbreakable words and ended 2 px past the card. Both halves
+            // are on screen now — the lead-in may wrap, and the link drops to its own line if the pair does not fit.
+            for (const box of [link, prompt]) {
+                expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+                expect((box?.x ?? Number.POSITIVE_INFINITY) + (box?.width ?? 0)).toBeLessThanOrEqual(320);
+            }
+
             // The photograph is `display: none` here, and a phone must not download it all the same.
             expect(photoRequests).toEqual([]);
         });
@@ -208,3 +219,33 @@ for (const [scheme, colors] of [
         });
     });
 }
+
+// A-004 / W-20: Clerk showed the API's own words for a bad identifier ("You have to use email address or username.",
+// "Identifier is invalid."), which name a username the product does not offer. The app replaces the identifier field's
+// errors (`lib/clerkLocalization`); every other error keeps Clerk's copy.
+// ⚠️ Not run when written. The Clerk error codes behind the three keys are PROBABLE, not observed (the strings are server
+// messages that appear nowhere in the repo), so if one of these fails, read `errors[0].code` for that submit against
+// the sandbox instance and correct the key in `clerkLocalization.ts` rather than loosening the assertion.
+test.describe('the sign-in identifier errors', () => {
+    test.beforeEach(async ({ page }) => {
+        await setupClerkTestingToken({ page });
+        await page.goto(route('/sign-in'));
+    });
+
+    test('asks for the email address when the field is submitted empty', async ({ page }) => {
+        await clerkPrimarySubmit(page).click();
+
+        await expect(page.getByText('Enter your email address.')).toBeVisible();
+        // Clerk's own words for it name a username, which the product does not offer. (The field's LABEL still says
+        // "or username" until the dashboard change of W-05, so only the error is looked for.)
+        await expect(page.getByText(/You have to use email address or username/i)).toHaveCount(0);
+    });
+
+    test('asks for a valid email address when what was typed is not one', async ({ page }) => {
+        await page.getByRole('textbox', { name: /email/i }).fill('not an email');
+        await clerkPrimarySubmit(page).click();
+
+        await expect(page.getByText('Enter a valid email address.')).toBeVisible();
+        await expect(page.getByText(/Identifier is invalid/i)).toHaveCount(0);
+    });
+});

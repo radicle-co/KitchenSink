@@ -83,7 +83,36 @@ export interface RecipePhotoManagerProps {
     readonly onReplacePhoto?: (photoId: string) => void;
     /** The platform image-acquisition control (web file input / native picker button); hidden at the cap. */
     readonly addControl?: ReactNode;
+    /**
+     * The recipe whose cover the empty state previews (buildSpec §7.7): with no photo, the recipe shows the generated
+     * cover its cards draw, and this is what that cover is made from. Omitted, the empty state is its copy alone.
+     * `title` may be empty (the cover then shows its tint without a letter).
+     */
+    readonly coverPreview?: RecipeCoverPreview;
 }
+
+/** What the empty state needs to draw a recipe's generated cover. */
+export interface RecipeCoverPreview {
+    /** The recipe's id, which picks the cover's tint. */
+    readonly recipeId: string;
+    /** The recipe's title, whose first letter the cover shows. */
+    readonly title: string;
+    /** The cuisine, shown under the letter on a cover tall enough. */
+    readonly cuisine?: string;
+}
+
+/** The container width from which the photo grid goes from three columns to four (buildSpec §7.7), in px. */
+export const PHOTO_GRID_WIDE_FROM = 600;
+
+/**
+ * How many columns the photo grid has at a measured width (buildSpec §7.7: "3 columns below 600, 4 above").
+ *
+ * @param width - The grid's own laid-out width, or `undefined` before it has been measured.
+ * @returns Four from {@link PHOTO_GRID_WIDE_FROM}, else three. An unmeasured grid takes the narrow reading, which is
+ *   the safe one at every width: a too-wide tile never overflows. Pure.
+ */
+export const photoGridColumns = (width: number | undefined): 3 | 4 =>
+    width !== undefined && width >= PHOTO_GRID_WIDE_FROM ? 4 : 3;
 
 /**
  * Whether `photoId` is the recipe's cover photo. The cover is the LOWEST-sort-order photo — the same rule the

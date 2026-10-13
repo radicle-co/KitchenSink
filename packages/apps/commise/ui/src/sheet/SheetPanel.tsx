@@ -66,7 +66,7 @@ export const SheetPanel: FC<SheetPanelProps> = ({
                     <Dialog.Title
                         id={titleId}
                         tabIndex={-1}
-                        className={collapsed ? 'sr-only' : 'text-bar-title text-ink outline-none'}
+                        className={collapsed ? 'sr-only' : 'truncate text-bar-title text-ink outline-none'}
                     >
                         {title}
                     </Dialog.Title>

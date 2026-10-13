@@ -16,8 +16,13 @@ import { FIELD_CLASS } from '../input/fieldClass.js';
 import { durationBoxes, durationFromBoxes } from './duration.js';
 import type { DurationFieldProps } from './props.js';
 
-/** The box chrome: the shared field surface (the Input rules, spec §1.11), narrowed to a number's width. */
-const box = `w-20 text-ink ${FIELD_CLASS}`;
+/**
+ * The box chrome: the shared field surface (the Input rules, spec §1.11), narrowed to a number's width. Each box takes
+ * an equal share of its cell (`flex-1`) rather than a fixed width, so the whole field fits the 136 px a
+ * half-width cell has at 320 (build spec §7.4), and gives back half the surface's side padding (`px-2!`: `FIELD_CLASS`
+ * sets `px-4`, and the stylesheet's emission order would decide a plain clash) so two digits still fit in it.
+ */
+const box = `min-w-0 flex-1 px-2! text-ink ${FIELD_CLASS}`;
 
 export const DurationField: FC<DurationFieldProps> = ({
     label,

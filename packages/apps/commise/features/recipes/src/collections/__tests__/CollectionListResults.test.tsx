@@ -249,3 +249,88 @@ describe('CollectionListResults (web) — a failed refresh of the rows on screen
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('CollectionListResults (web) — W-11: the card says how many recipes and shows the first photos', () => {
+    const photo = (n: number): string => `https://cdn.example/photo-${String(n)}.jpg`;
+    const withCard = (recipeCount: number | undefined, coverPhotoUrls: readonly string[] | undefined) => ({
+        ...makeCollection({ id: 'col_1', name: 'Weeknight Dinners', visibility: 'private' }),
+        ...(recipeCount === undefined ? {} : { recipeCount }),
+        ...(coverPhotoUrls === undefined ? {} : { coverPhotoUrls }),
+    });
+    const card = () => screen.getByRole('article');
+    const photosIn = (element: HTMLElement): readonly (string | null)[] =>
+        [...element.querySelectorAll('img')].map((image) => image.getAttribute('src'));
+
+    it('says "12 recipes" beside the visibility, and names the link "{name}, {count}, {visibility}"', () => {
+        renderList({ collections: [withCard(12, [])] });
+
+        expect(screen.getByRole('article', { name: 'Weeknight Dinners, 12 recipes, Private' })).toBeTruthy();
+        expect(within(card()).getByText('12 recipes')).toBeTruthy();
+        expect(within(card()).getByText('Private')).toBeTruthy();
+    });
+
+    it('says "1 recipe" for one, and "0 recipes" for none', () => {
+        renderList({ collections: [withCard(1, [])] });
+
+        expect(within(card()).getByText('1 recipe')).toBeTruthy();
+
+        cleanup();
+        renderList({ collections: [withCard(0, [])] });
+
+        expect(within(card()).getByText('0 recipes')).toBeTruthy();
+    });
+
+    it('says no count when the read carried none, rather than a made-up 0', () => {
+        renderList({ collections: [withCard(undefined, undefined)] });
+
+        expect(within(card()).queryByText(/recipe/u)).toBeNull();
+        expect(screen.getByRole('article', { name: 'Weeknight Dinners, Private' })).toBeTruthy();
+    });
+
+    it('lays four photos out as a 2 × 2 album with 2 px gaps', () => {
+        renderList({ collections: [withCard(9, [photo(1), photo(2), photo(3), photo(4)])] });
+        const images = photosIn(card());
+
+        expect(images).toEqual([photo(1), photo(2), photo(3), photo(4)]);
+        const album = card().querySelector('img')?.closest('[data-album]') as HTMLElement;
+
+        expect(album.className.split(/\s+/u)).toEqual(expect.arrayContaining(['grid', 'grid-cols-2', 'gap-0.5']));
+    });
+
+    it.each([1, 2, 3])('fills the box with the first photo when there are %s', (count) => {
+        renderList({
+            collections: [
+                withCard(
+                    count,
+                    Array.from({ length: count }, (_unused, i) => photo(i + 1)),
+                ),
+            ],
+        });
+
+        expect(photosIn(card())).toEqual([photo(1)]);
+    });
+
+    it('draws the tinted monogram when no member has a photo', () => {
+        renderList({ collections: [withCard(3, [])] });
+
+        expect(photosIn(card())).toEqual([]);
+        expect(within(card()).getByText('W')).toBeTruthy();
+    });
+
+    it('keeps every photo out of the accessibility tree: the name says the collection', () => {
+        renderList({ collections: [withCard(9, [photo(1), photo(2), photo(3), photo(4)])] });
+
+        for (const image of card().querySelectorAll('img')) {
+            expect(image.getAttribute('alt')).toBe('');
+        }
+    });
+});
+
+describe('CollectionListResults (web) — W-09: a card title is an H2 under the page title', () => {
+    it('draws each collection’s name as a level-2 heading', () => {
+        renderList({ collections: threeCollections });
+
+        expect(screen.getByRole('heading', { level: 2, name: 'Holiday Baking' })).toBeTruthy();
+        expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+    });
+});

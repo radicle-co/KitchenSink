@@ -3,8 +3,8 @@
 /**
  * The upload orchestration the shared `RecipePhotoManager` block deliberately omits (it is presentational
  * and holds no fetching or DOM/file APIs). This container owns the recipe-photo lifecycle for the web app:
- * it reads the photos via `useRecipePhotos`, supplies the block's `addControl` (an accessible label wrapping
- * a hidden, `multiple` `<input type="file">`), and on a file selection ENQUEUES every picked file onto
+ * it reads the photos via `useRecipePhotos`, supplies the block's `addControl` (a secondary "Add photos" button
+ * that opens a hidden, `multiple` `<input type="file">`), and on a file selection ENQUEUES every picked file onto
  * `useRecipePhotoUploadQueue` (w3/e4) — the layer that drives the shared, single-flight `useRecipePhotoUpload`
  * headless hook (CP-6/P3, B24) once per file, sequentially, while the grid shows each file's own status.
  * Remove wires the per-photo control to `useDeleteRecipePhoto`, busying just the row whose deletion is in
@@ -33,13 +33,14 @@
  * @pattern Orchestration container over the `useRecipePhotoUploadQueue` hook — it owns the DOM file-input Facade and
  *     the Object-URL lifecycle ledger that the presentational `RecipePhotoManager` deliberately omits.
  */
-import { RecipePhotoManager, fillTemplate } from '@commise/features-recipes';
+import { RecipePhotoManager, fillTemplate, photoMessages } from '@commise/features-recipes';
 import {
     useRecipePhotoUpload,
     useRecipePhotoUploadQueue,
     type RecipePhotoQueueFile,
 } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import {
     useDeleteRecipePhoto,
@@ -55,6 +56,13 @@ import { webMessages } from '@/i18n/messages';
 export interface RecipePhotoUploaderContainerProps {
     /** The recipe whose photos this manages (from the `[id]` route segment). */
     readonly recipeId: string;
+    /**
+     * The recipe's title, for the cover the empty state previews (buildSpec §7.7: its first letter). Optional: until a
+     * caller supplies it the preview shows the cover's tint without a letter.
+     */
+    readonly title?: string;
+    /** The recipe's cuisine, shown on the previewed cover where it is tall enough. */
+    readonly cuisine?: string;
 }
 
 /**
@@ -63,8 +71,9 @@ export interface RecipePhotoUploaderContainerProps {
  * @param props - The recipe id whose photos to manage.
  * @returns The shared photo-manager block wired to the presign → PUT → confirm upload queue + delete mutation.
  */
-export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps> = ({ recipeId }) => {
+export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps> = ({ recipeId, title, cuisine }) => {
     const { recipes } = useMessages(webMessages);
+    const photoCopy = useMessages(photoMessages);
     const photosQuery = useRecipePhotos(recipeId);
     const deletePhoto = useDeleteRecipePhoto();
     const reorderPhotos = useReorderRecipePhotos();
@@ -262,11 +271,25 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
         );
     };
 
+    // A-010 (SC 2.1.1): a real secondary button that opens the file dialog. It used to be a `<label>` around the hidden
+    // input, which has no tab stop, so a keyboard user could not add a photo. The input stays — it is how a file
+    // reaches the page, and what specs hand files to — named `addLabel` so that stays true; it is `hidden`, so
+    // assistive tech meets the button alone.
     const addControl = (
-        <label>
-            {recipes.photos.addLabel}
-            <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={handleFileChange} />
-        </label>
+        <>
+            <Button variant="secondary" icon="imagePlus" onPress={() => inputRef.current?.click()}>
+                {photoCopy.addPhotos}
+            </Button>
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                aria-label={recipes.photos.addLabel}
+                onChange={handleFileChange}
+            />
+        </>
     );
 
     return (
@@ -283,6 +306,7 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
                 onSetCover={handleSetCover}
                 onReplacePhoto={handleReplacePhoto}
                 addControl={addControl}
+                coverPreview={{ recipeId, title: title ?? '', ...(cuisine === undefined ? {} : { cuisine }) }}
             />
             {/* The replacement picker lives OUTSIDE the block (which hides `addControl` at the cap) so it is
                 never conditionally unmounted mid-flow; it is named for assistive tech, never visible. */}

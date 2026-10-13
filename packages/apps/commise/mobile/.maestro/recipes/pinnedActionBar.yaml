@@ -81,7 +81,7 @@ appId: io.commise.mobile
 
 # And at the very END of the page — the last section's last control — the bar is still there.
 - scrollUntilVisible:
-      element: 'Add photo'
+      element: 'Add photos'
       direction: DOWN
       timeout: 30000
 - assertVisible: 'Preview'
@@ -94,6 +94,24 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Close preview'
 - assertVisible: 'Close editor'
+
+# A-006 (UI walk 2026-10-13; build spec §7.1 "Keyboard open (phones): the section bar hides and the ActionBar unpins").
+# With a field focused and the keyboard up, the bar is no longer pinned above the keys: it is the page's last item, and
+# the section bar is gone, so the form gets every pixel the keyboard leaves. jsdom cannot see a keyboard; the component
+# tiers prove the structure (`RecipeEditorView.native.test.tsx`, `EditorActionBar.native.test.tsx`), this proves it on a
+# real device. The keyboard is closed again by the next tap, never by `hideKeyboard` (a BACK event on Android).
+- scrollUntilVisible:
+      element: 'Title'
+      direction: UP
+      timeout: 30000
+- tapOn: 'Title'
+- assertNotVisible:
+      text: 'Sections\. Current: .*'
+- scrollUntilVisible:
+      element: 'Save changes'
+      direction: DOWN
+      timeout: 30000
+- assertVisible: 'Preview'
 
 # Leave the recipe as found: throw the device changes away through the header's menu. A published recipe's item is
 # 'Discard changes', and the recipe stays as it was last saved; the editor returns to the detail.

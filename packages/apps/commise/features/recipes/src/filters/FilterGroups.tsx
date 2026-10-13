@@ -20,14 +20,16 @@
  * @pattern Visitor — an exhaustive switch over the group view's kinds
  * @pattern Adapter over the DOM focus API — `focusIfLost` and `useFocusOnSignal`, driven by presses
  */
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { Chip, ChipRow } from '@commise/ui/chip';
 import { focusIfLost, useFocusOnSignal } from '@commise/ui/dialog-focus';
+import { Icon } from '@commise/ui/icon';
 import { SearchField } from '@commise/ui/search-field';
 import { useEffect, useId, useState, type FC, type ReactElement, type ReactNode } from 'react';
 
 import { useIngredientPressLanding } from '../hooks/useIngredientPressLanding.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { sentenceCase } from '../format/sentenceCase.js';
 import { recipeMessages } from '../messages.js';
 import { FACET_CHIP_LIMIT, visibleChipsOf, type FacetGroupView } from './filterBarView.js';
 import type { FilterGroupsProps } from './filtersModel.js';
@@ -51,6 +53,7 @@ const GroupFrame: FC<{ readonly name: string; readonly children: ReactNode }> = 
 
 export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingredientSearch, onFilterAction }) => {
     const m = useMessages(filterMessages);
+    const locale = useLocale();
     // The FR-010a minimum copy is shared by all four ingredient-search surfaces — see its message doc.
     const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
     const searchId = useId();
@@ -101,7 +104,7 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
                                 <Chip
                                     key={chip.value}
                                     kind="filter"
-                                    label={chip.value}
+                                    label={sentenceCase(chip.value, locale)}
                                     selected={chip.selected}
                                     {...(chip.count === undefined ? {} : { count: chip.count })}
                                     onPress={() => onFilterAction(action)}
@@ -243,6 +246,13 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
                         <details key={slot.id} open={slot.open} className="group/more flex flex-col gap-3">
                             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-md text-label text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
                                 {slot.label}
+                                {/* The disclosure's affordance (§4.4): a chevron that turns over while the group is open. */}
+                                <span
+                                    aria-hidden="true"
+                                    className="inline-flex shrink-0 text-ink-muted transition-transform group-open/more:rotate-180 motion-reduce:transition-none"
+                                >
+                                    <Icon name="chevronDown" size={20} />
+                                </span>
                             </summary>
                             <div className="flex flex-col gap-5 pt-1">
                                 {slot.groups.map((entry) => (

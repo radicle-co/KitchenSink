@@ -230,7 +230,7 @@ test.describe('Argos visual-regression baselines — phone (FR-044 parity)', () 
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
         // At 390px the desktop sidebar is `display:none`, so the only visible "Main" nav is the bottom tab
         // bar — the phone-specific chrome this baseline exists to hold.
-        await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+        await expect(page.getByRole('navigation', { name: 'Tabs' })).toBeVisible();
         await assertBrandWebfonts(page);
 
         await captureBaseline(page, 'recipe-library-phone');

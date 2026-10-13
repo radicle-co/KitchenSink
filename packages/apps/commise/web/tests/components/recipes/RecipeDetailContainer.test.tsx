@@ -33,6 +33,7 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buttonSurfaceClass } from '@commise/ui/button';
+import { SnackbarHost } from '@commise/ui/snackbar';
 
 import { CookMarksProvider } from '@commise/features-recipes';
 import { renderWithRecipeClient, withFoodClient as withFoodClientOnly } from '@commise/test-utils';
@@ -46,15 +47,22 @@ import { makeRecipeDetail } from './__fixtures__/recipeFixtures';
  * scope (blueprint A13). The marks are kept in the tab's `sessionStorage`, which is cleared after every test.
  */
 const withFoodClient = (ui: ReactElement): ReactElement =>
-    withFoodClientOnly(<CookMarksProvider subject="user_test">{ui}</CookMarksProvider>);
+    withFoodClientOnly(
+        <SnackbarHost>
+            <CookMarksProvider subject="user_test">{ui}</CookMarksProvider>
+        </SnackbarHost>,
+    );
 
-const { useAuthMock, useUserProfileMock, pushMock, setRatingMutateMock, deleteRatingMutateMock } = vi.hoisted(() => ({
-    useAuthMock: vi.fn(),
-    useUserProfileMock: vi.fn(),
-    pushMock: vi.fn(),
-    setRatingMutateMock: vi.fn(),
-    deleteRatingMutateMock: vi.fn(),
-}));
+const { useAuthMock, useUserProfileMock, pushMock, setRatingMutateMock, deleteRatingMutateMock, searchState } =
+    vi.hoisted(() => ({
+        useAuthMock: vi.fn(),
+        useUserProfileMock: vi.fn(),
+        pushMock: vi.fn(),
+        setRatingMutateMock: vi.fn(),
+        deleteRatingMutateMock: vi.fn(),
+        /** The page's query string, as `useSearchParams` reads it (E8: `?done=`). */
+        searchState: { value: '' },
+    }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@kitchensink/recipe-service-client/hooks')>()),
@@ -77,6 +85,7 @@ vi.mock('@/hooks/useUserProfile', () => ({
 vi.mock('next/navigation', () => ({
     useParams: () => ({ locale: 'en', id: 'rec_1' }),
     useRouter: () => ({ push: pushMock }),
+    useSearchParams: () => new URLSearchParams(searchState.value),
 }));
 
 vi.mock('@clerk/nextjs', () => ({
@@ -519,8 +528,8 @@ describe('RecipeDetailContainer', () => {
         });
     });
 
-    describe('back (§6.1)', () => {
-        it('renders a back link to the recipe list on the ghost DS surface', async () => {
+    describe('back (§6.1, §3.5)', () => {
+        it('renders a back link to the recipe list on the ghost DS surface, from an 840 px viewport', async () => {
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ id: 'rec_1' }));
 
@@ -529,6 +538,134 @@ describe('RecipeDetailContainer', () => {
             const back = await screen.findByRole('link', { name: 'My recipes' });
             expect(back).toHaveAttribute('href', '/en/recipes');
             expect(back.className).toContain(buttonSurfaceClass('ghost', 'sm'));
+            // Below 840 the hero's disc is Back; the eyebrow link shows from there (a VIEWPORT query: the sidebar replaces
+            // the tab bar at 840, not at a container width).
+            expect(back.closest('[class*="nav:contents"]')?.className.split(' ')).toContain('hidden');
+        });
+
+        // A-014 / D7: Back is a 44 px disc over the hero photo below 840, NAMED for its parent — never the bare "Back".
+        it('draws Back as a disc link over the hero below 840, named for its parent', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ id: 'rec_1', title: 'Lamb' }));
+
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+
+            const disc = await screen.findByRole('link', { name: 'Back to My recipes' });
+            const title = screen.getByRole('heading', { level: 1, name: 'Lamb' });
+
+            expect(disc).toHaveAttribute('href', '/en/recipes');
+            expect(disc.className.split(' ')).toContain('bg-photo-chip');
+            expect(disc.closest('.absolute')).not.toBeNull();
+            expect(disc.closest('[class*="nav:hidden"]')).not.toBeNull();
+            expect(disc.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(screen.queryByRole('link', { name: 'Back' })).not.toBeInTheDocument();
+        });
+
+        it('navigates with the app’s router when the disc is pressed', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ id: 'rec_1' }));
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+
+            await user.click(await screen.findByRole('link', { name: 'Back to My recipes' }));
+
+            expect(pushMock).toHaveBeenCalledWith('/en/recipes');
+        });
+    });
+
+    describe('the ⋯ menu over the hero (A-014)', () => {
+        it('is a disc over the hero below 840 AND stays in the action row from 840, each named for the recipe', async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, title: 'Lamb' }),
+            );
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+
+            const triggers = await screen.findAllByRole('button', { name: 'More actions for Lamb' });
+            const [disc, inRow] = triggers as [HTMLElement, HTMLElement];
+
+            expect(triggers).toHaveLength(2);
+            expect(disc.className.split(' ')).toContain('bg-photo-chip');
+            expect(disc.closest('.absolute')).not.toBeNull();
+            expect(disc.closest('[class*="nav:hidden"]')).not.toBeNull();
+            expect(inRow.className.split(' ')).not.toContain('bg-photo-chip');
+            expect(inRow.closest('[class*="nav:contents"]')?.className.split(' ')).toContain('hidden');
+        });
+
+        it('opens the same menu from either', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID }));
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+
+            const [disc] = await screen.findAllByRole('button', { name: /^More actions for /u });
+            await user.click(disc as HTMLElement);
+
+            expect(screen.getByRole('menuitem', { name: 'Delete recipe' })).toBeInTheDocument();
+        });
+    });
+
+    // E8: the editor finishes by navigating here with `?done=<outcome>`. The page says it once, in a snackbar that lives in
+    // the app shell (one raised before the navigation would die with the old page), and removes the parameter, so a reload
+    // or a shared link does not say it again.
+    describe('how the editor finished (E8)', () => {
+        const renderDone = async () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ id: 'rec_1', title: 'Lamb' }));
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+            await screen.findByRole('heading', { level: 1, name: 'Lamb' });
+        };
+
+        const arriveWith = (query: string): void => {
+            searchState.value = query;
+            window.history.replaceState(null, '', `/en/recipes/rec_1${query === '' ? '' : `?${query}`}`);
+        };
+
+        afterEach(() => {
+            searchState.value = '';
+            window.history.replaceState(null, '', '/');
+        });
+
+        it.each([
+            ['firstPublish', 'Recipe published.'],
+            ['published', 'Recipe published.'],
+            ['changesSaved', 'Changes saved.'],
+        ])('says “%s” once, as a status', async (outcome, words) => {
+            arriveWith(`done=${outcome}`);
+
+            await renderDone();
+
+            expect((await screen.findByText(words)).closest('[role="status"]')).not.toBeNull();
+        });
+
+        it('removes the parameter from the address without a navigation, keeping any other', async () => {
+            const replace = vi.spyOn(window.history, 'replaceState');
+            arriveWith('tab=2&done=published');
+
+            await renderDone();
+
+            await vi.waitFor(() => expect(window.location.search).toBe('?tab=2'));
+            expect(replace).toHaveBeenCalledWith(null, '', expect.stringContaining('/en/recipes/rec_1'));
+            expect(pushMock).not.toHaveBeenCalled();
+        });
+
+        it.each(['', 'done=', 'done=deleted', 'done=PUBLISHED', 'done=published%20'])(
+            'says nothing for the address “?%s”, which is the reader’s to forge',
+            async (query) => {
+                arriveWith(query);
+
+                await renderDone();
+
+                expect(screen.queryByText(/changes saved|recipe published/i)).not.toBeInTheDocument();
+            },
+        );
+
+        it('leaves an unrecognised parameter in the address', async () => {
+            arriveWith('done=deleted');
+
+            await renderDone();
+
+            expect(window.location.search).toBe('?done=deleted');
         });
     });
 
@@ -545,7 +682,7 @@ describe('RecipeDetailContainer', () => {
 
             expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
 
-            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
 
             // The dialog's confirm repeats the trigger's verb (spec §6.5), so it is found inside the dialog.
@@ -566,7 +703,7 @@ describe('RecipeDetailContainer', () => {
             vi.spyOn(client, 'deleteRecipe').mockRejectedValue(new Error('network down'));
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
-            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Delete recipe' }));
             await user.click(
                 within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete recipe' }),
@@ -671,7 +808,7 @@ describe('RecipeDetailContainer', () => {
             expect(edit).toHaveAttribute('href', '/en/recipes/rec_1/edit');
             expect(edit.className).toBe(buttonSurfaceClass('primary'));
 
-            await user.click(screen.getByRole('button', { name: /^More actions for /u }));
+            await user.click(screen.getAllByRole('button', { name: /^More actions for /u })[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Version history' }));
 
             await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1/versions'));
@@ -697,7 +834,7 @@ describe('RecipeDetailContainer', () => {
 
             const edit = await screen.findByRole('link', { name: 'Edit recipe' });
             const ingredients = screen.getByRole('region', { name: 'Ingredients' });
-            const more = screen.getByRole('button', { name: /^More actions for /u });
+            const more = screen.getAllByRole('button', { name: /^More actions for /u })[0] as HTMLElement;
 
             expect(edit.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
             expect(more.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -749,7 +886,7 @@ describe('RecipeDetailContainer', () => {
             await user.click(row);
             expect(row).toHaveAttribute('aria-checked', 'true');
 
-            await user.click(screen.getByRole('button', { name: /^More actions for /u }));
+            await user.click(screen.getAllByRole('button', { name: /^More actions for /u })[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Clear checks' }));
 
             await vi.waitFor(() => expect(row).toHaveAttribute('aria-checked', 'false'));
@@ -764,7 +901,7 @@ describe('RecipeDetailContainer', () => {
                     makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
                 );
 
-            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
@@ -775,7 +912,7 @@ describe('RecipeDetailContainer', () => {
             const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
             vi.spyOn(client, 'setRecipeVisibility').mockRejectedValue(new Error('network down'));
 
-            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
             expect(
@@ -791,7 +928,7 @@ describe('RecipeDetailContainer', () => {
             useUserProfileMock.mockReturnValue(profileWithTier(tier));
             renderOwnerDetail();
 
-            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
 
             expect(screen.queryByRole('menuitem', { name: 'Make private' }) !== null).toBe(offered);
         });
@@ -801,7 +938,7 @@ describe('RecipeDetailContainer', () => {
             useUserProfileMock.mockReturnValue({ data: undefined });
             renderOwnerDetail();
 
-            await user.click(await screen.findByRole('button', { name: /^More actions for /u }));
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
 
             expect(screen.queryByRole('menuitem', { name: 'Make private' })).not.toBeInTheDocument();
         });

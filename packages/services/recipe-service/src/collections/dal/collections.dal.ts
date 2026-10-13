@@ -19,7 +19,7 @@
  * only to its `recipe_collections` junction rows (FK `ON DELETE CASCADE`), never to the `recipes`.
  */
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, getTableColumns, sql } from 'drizzle-orm';
+import { and, count, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 
 import { DrizzleProvider, type RecipeDrizzle } from '../../database/database.module.js';
 import {
@@ -30,7 +30,8 @@ import {
     type RecipeCollectionRow,
 } from '../../database/schema/collections.js';
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
-import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipePredicates.js';
+import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
+import { activeRecipe, readableBy } from '../../recipes/dal/recipePredicates.js';
 import { withTransaction, type RecipeTx, type Writer } from '../../database/unitOfWork.js';
 import { collectionLimitReachedError } from '../collections.errors.js';
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
@@ -68,6 +69,17 @@ export interface UpdateCollectionRow {
 export interface CollectionPage {
     readonly rows: CollectionRow[];
     readonly total: number;
+}
+
+/** How many member covers a collection card shows (the 2x2 mosaic of buildSpec §5.1). */
+export const COLLECTION_COVER_LIMIT = 4;
+
+/** What a collection's card shows about its members, as the VIEWER may see them. */
+export interface CollectionMemberSummary {
+    /** Members the viewer may read (non-tombstoned, public-or-own, published-or-own). */
+    readonly recipeCount: number;
+    /** Photo keys of up to {@link COLLECTION_COVER_LIMIT} members that have one, in membership order. */
+    readonly coverKeys: readonly string[];
 }
 
 @Injectable()
@@ -132,6 +144,67 @@ export class CollectionsDal {
         const total = await this.countCollections(ownerId);
 
         return { rows, total };
+    }
+
+    /**
+     * The member count and cover keys of each given collection, scoped to what `viewerId` may read — the SAME
+     * predicate as {@link listRecipes} ({@link readableBy}), so a card can never count or show a member the open
+     * collection would hide (another cook's private or draft recipe, a tombstone). Two reads, however many
+     * collections: one grouped COUNT, one ranked cover pick.
+     *
+     * A collection with no readable members is ABSENT from the map; the caller defaults it to zero.
+     *
+     * @param collectionIds - The page's collection ids (empty → no statement).
+     * @param viewerId - The requesting principal's app-user ULID.
+     * @sideEffect Reads `recipe_collections`, `recipes` and `recipe_photos`.
+     */
+    public async memberSummaries(
+        collectionIds: readonly string[],
+        viewerId: string,
+    ): Promise<ReadonlyMap<string, CollectionMemberSummary>> {
+        if (collectionIds.length === 0) {
+            return new Map();
+        }
+
+        const inCollections = inArray(recipeCollections.collectionId, [...collectionIds]);
+        const counts = await this.db.execute<{ collection_id: string; member_count: number | string }>(sql`
+            SELECT ${recipeCollections.collectionId} AS collection_id, count(*)::int AS member_count
+            FROM recipe_collections
+            JOIN recipes ON recipes.id = ${recipeCollections.recipeId}
+            WHERE ${inCollections} AND ${readableBy(viewerId)}
+            GROUP BY ${recipeCollections.collectionId}
+        `);
+        // Only members WITH a photo take a slot, so a collection of four photo-less recipes and one photographed
+        // one still shows that photo; the rank is per collection, in the order the members were added.
+        const covers = await this.db.execute<{ collection_id: string; cover_key: string }>(sql`
+            SELECT collection_id, cover_key
+            FROM (
+                SELECT ${recipeCollections.collectionId} AS collection_id, cp.cover_photo_key AS cover_key,
+                    row_number() OVER (
+                        PARTITION BY ${recipeCollections.collectionId}
+                        ORDER BY ${recipeCollections.addedAt}, ${recipeCollections.recipeId}
+                    ) AS member_rank
+                FROM recipe_collections
+                JOIN recipes ON recipes.id = ${recipeCollections.recipeId}
+                JOIN ${coverPhotoLateral()} ON true
+                WHERE ${inCollections} AND ${readableBy(viewerId)}
+            ) ranked
+            WHERE member_rank <= ${COLLECTION_COVER_LIMIT}
+            ORDER BY collection_id, member_rank
+        `);
+
+        const coverKeysBy = new Map<string, string[]>();
+
+        for (const row of covers.rows) {
+            coverKeysBy.set(row.collection_id, [...(coverKeysBy.get(row.collection_id) ?? []), row.cover_key]);
+        }
+
+        return new Map(
+            counts.rows.map((row) => [
+                row.collection_id,
+                { recipeCount: Number(row.member_count), coverKeys: coverKeysBy.get(row.collection_id) ?? [] },
+            ]),
+        );
     }
 
     /**
@@ -416,15 +489,10 @@ export class CollectionsDal {
 
     /**
      * The viewer-scoped collection-membership predicate (C-007 tombstone + the W8-a.3 read boundary). The
-     * RULE lives once in the predicate helpers ({@link activeRecipe}/{@link viewableBy}/{@link publishedOrOwnedBy});
+     * RULE lives once in the predicate helpers (`activeRecipe`/`viewableBy`/`publishedOrOwnedBy`);
      * this composes them for `listRecipes` and the preview read so both enforce the identical scope. Pure.
      */
     private membershipPredicate(collectionId: string, viewerId: string) {
-        return and(
-            eq(recipeCollections.collectionId, collectionId),
-            activeRecipe(),
-            viewableBy(viewerId),
-            publishedOrOwnedBy(viewerId),
-        );
+        return and(eq(recipeCollections.collectionId, collectionId), readableBy(viewerId));
     }
 }

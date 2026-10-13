@@ -31,6 +31,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useContext, useRef, useState, type FC } from 'react';
 
 import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
+import { HERO_DISC_CLASS } from '../heroButton/HeroButton.js';
 import { Icon } from '../icon/Icon.js';
 import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
 import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
@@ -38,6 +39,10 @@ import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
 /** The space the menu keeps from the viewport's edge, and from the page's chrome. */
 const EDGE = 8;
+
+/** The bare ⋯ of a row: 44 px, with a hover wash. */
+const PLAIN_TRIGGER_CLASS =
+    'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
 
 /** An item: a 44 px row, highlighted in `pearl`. */
 const ITEM =
@@ -62,6 +67,7 @@ export const ActionMenu: FC<ActionMenuProps> = ({
     destructiveItem,
     focusRequested = false,
     onFocusRequestHandled,
+    appearance = 'plain',
     unavailable = false,
 }) => {
     const [open, setOpen] = useState(false);
@@ -94,7 +100,7 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                 ref={triggerNode}
                 aria-label={triggerLabel}
                 aria-disabled={unavailable || undefined}
-                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${BUSY_CONTROL_CLASS}`}
+                className={`${appearance === 'disc' ? HERO_DISC_CLASS : PLAIN_TRIGGER_CLASS} ${BUSY_CONTROL_CLASS}`}
             >
                 <Icon name="ellipsis" size={24} />
             </DropdownMenu.Trigger>
@@ -120,7 +126,10 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                     ))}
                     {shown.destructiveItem === undefined ? null : (
                         <>
-                            <DropdownMenu.Separator className="my-1 h-px bg-line-divider" />
+                            {/* A divider separates two groups; a destructive action with no group above it has none. */}
+                            {shown.items.length === 0 ? null : (
+                                <DropdownMenu.Separator className="my-1 h-px bg-line-divider" />
+                            )}
                             <MenuItem item={shown.destructiveItem} tone="text-danger-text" onChoose={setHeldKey} />
                         </>
                     )}

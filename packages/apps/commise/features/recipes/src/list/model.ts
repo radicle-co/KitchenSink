@@ -17,6 +17,7 @@ import type { RecipeListSortBy } from '@kitchensink/recipe-service-client';
 import type { CardVariant, ListViewMode } from '../card/cardVariant.js';
 import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { sentenceCase } from '../format/sentenceCase.js';
 import type { RecipeListMessages } from '../messages.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';
 import type { RefreshNoticeControl } from '../refresh/model.js';
@@ -98,12 +99,15 @@ export const QUICK_TIME_FACET = 'quick' as const;
 export const QUICK_TIME_THRESHOLD_MINUTES = 30;
 
 /**
- * Whether a recipe qualifies for the "Quick (<30m)" chip. Pure.
+ * Whether a recipe qualifies for the "Quick (<30m)" chip. A total time of 0 is how the editor stores a time nobody
+ * stated (`buildSpec.md` §1.11 "0 or absent = absent"), so an untimed recipe is not a quick one — the server's time
+ * filter and facet read 0 the same way (A-017). Pure.
  *
- * @param totalTimeMinutes - The recipe's total time in minutes.
- * @returns `true` when strictly under {@link QUICK_TIME_THRESHOLD_MINUTES}.
+ * @param totalTimeMinutes - The recipe's total time in minutes; 0 means none was stated.
+ * @returns `true` when stated and strictly under {@link QUICK_TIME_THRESHOLD_MINUTES}.
  */
-export const isQuickRecipe = (totalTimeMinutes: number): boolean => totalTimeMinutes < QUICK_TIME_THRESHOLD_MINUTES;
+export const isQuickRecipe = (totalTimeMinutes: number): boolean =>
+    totalTimeMinutes > 0 && totalTimeMinutes < QUICK_TIME_THRESHOLD_MINUTES;
 
 /** The subset of a recipe DTO the list's quick-filter chips read — dietary flags, cuisine, and total time. */
 export interface RecipeFacetSource {
@@ -128,16 +132,19 @@ export const matchesListFacet = (recipe: RecipeFacetSource, facet: string): bool
         : recipe.dietaryFlags.includes(facet) || recipe.cuisine === facet;
 
 /**
- * The visible label for a quick-filter chip. Dietary-flag and cuisine facets ARE their own label (real,
- * user-authored data — never translated). The {@link QUICK_TIME_FACET} sentinel is not user data, so it maps
- * to the caller's localized copy instead of leaking the internal token. Pure.
+ * The visible label for a quick-filter chip. Dietary-flag and cuisine facets are their own label (real,
+ * user-authored data — never translated), set in sentence case (`buildSpec.md` §4.3: the value is stored lower case,
+ * its chip is not); the value itself stays raw, because the filter matches it literally. The
+ * {@link QUICK_TIME_FACET} sentinel is not user data, so it maps to the caller's localized copy instead of leaking the
+ * internal token. Pure.
  *
  * @param facet - The facet value the chip represents.
  * @param quickLabel - The localized "Quick (<30m)" copy, rendered when `facet` is {@link QUICK_TIME_FACET}.
+ * @param locale - The viewer's locale, whose case rules set the label.
  * @returns The chip's visible label.
  */
-export const filterChipLabel = (facet: string, quickLabel: string): string =>
-    facet === QUICK_TIME_FACET ? quickLabel : facet;
+export const filterChipLabel = (facet: string, quickLabel: string, locale: string): string =>
+    facet === QUICK_TIME_FACET ? quickLabel : sentenceCase(facet, locale);
 
 /**
  * Whether the viewer has NARROWED the list — an active search term, or at least one active quick-filter chip.
@@ -306,6 +313,12 @@ export interface RecipeListResultsProps extends RecipeCreateDestinations {
     readonly searchValue: string;
     readonly onClearSearch: () => void;
     readonly onClearFilters: () => void;
+    /**
+     * How many times the no-match "Clear filters" has run. It is the chip row's `key`: a row the viewer scrolled keeps
+     * its offset across the clear and hides the selected "All", so the clear remounts it at its start (W-22). Only that
+     * button counts — the in-row "All" chip must not, since a remount would drop the keyboard focus it holds.
+     */
+    readonly clearCount: number;
     readonly onSelectRecipe: (id: string) => void;
     /** Where a recipe lives, which makes each card a real link on web. Native ignores it. */
     readonly hrefOf?: (id: string) => string;

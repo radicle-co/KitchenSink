@@ -1,6 +1,7 @@
 # The Profile walk and the Data sources sheet (curated plan R55, U25; design §S16): a signed-in cook opens the Display
 # name sheet and closes it unsaved, then opens Data sources from Profile, finds USDA and Ciqual with their licence links,
-# and closes it back to where they were.
+# and goes back to where they were. Data sources is a PAGE pushed onto the Profile stack (A-026), not a modal: it has a
+# Back to Profile control, not a Close ×, and keeps the tab bar.
 #
 # The sheet reads `GET /api/v1/foods/sources` from food-service directly (plan 002 S5, `EXPO_PUBLIC_FOOD_API_URL`).
 #
@@ -26,7 +27,7 @@ appId: io.commise.mobile
       direction: DOWN
 - tapOn: 'Food data sources'
 
-# The sheet: its title, both intro sentences, and the sources a stored value cites.
+# The page: its title, both intro sentences, and the sources a stored value cites.
 - assertVisible: 'Data sources'
 - assertVisible: 'The nutrition figures in this app come from these public food databases.'
 # Each card is headed by its PUBLISHER (§9.2), whose wording is the service's, so the flow finds a card by its licence link.
@@ -39,6 +40,9 @@ appId: io.commise.mobile
       direction: DOWN
 - assertVisible: 'Licence Ouverte / Open Licence 2.0, license for Ciqual'
 
-# Close returns the cook to Profile.
-- tapOn: 'Close data sources'
+# Back to Profile returns the cook to Profile. The control is named "Back to Profile", never the bare `Back` that the
+# Android three-button nav bar also publishes (see `recipes/systemBackGuard.yaml`), so a full-match selector cannot
+# resolve to the OS button. The row is on screen again because the navigator restores the page it popped to.
+- tapOn: 'Back to Profile'
+- assertNotVisible: 'The nutrition figures in this app come from these public food databases.'
 - assertVisible: 'Food data sources'

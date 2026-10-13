@@ -12,6 +12,9 @@
  *   recipe-core's `classifyUnit` knows it, and stored as `normalizeUnit` spells it. "Known" has ONE authority:
  *   `parse-ingredient`'s second vocabulary is refused here (A1 rejection 2; `recipe-import-core`'s `ingredientLine.ts`
  *   records the `T.`/`t.` disagreement two vocabularies produced).
+ * - **A count unit after the food** ("3 garlic cloves") is lifted into the unit when no unit follows the amount, so the
+ *   cook's word is not lost into the food search. A closed list ({@link TRAILING_COUNT_UNITS}), never when the word is
+ *   the whole search, and never when a spice word stands before `cloves` ("2 whole cloves" is the spice, a food search).
  * - **A comma inside an amount** is a decimal point when one or two digits follow it (`1,5 kg`), and groups thousands
  *   only in the `1,000` / `12,345` / `1,000,000` shape. Any other comma inside digits is ambiguous, and no amount is read.
  * - **The preparation** is what follows the first comma that is not inside a number (`1,000 g`, `1,5 kg`).
@@ -201,6 +204,42 @@ const isKnownUnit = (token: string): boolean => classifyUnit(token) !== 'unknown
 /** Whether `token` can stand in the unit position after an amount: a known unit, or a size word ("1 large onion"). Pure. */
 const isStatedUnit = (token: string): boolean => isKnownUnit(token) || isSizeWord(token);
 
+/**
+ * The count units a cook may put AFTER the food ("3 garlic cloves", "4 bread slices"), as `normalizeUnit` spells them.
+ * Closed on purpose: a unit that names a measure of its own (`cup`, `g`) is stated before the food, and a word outside
+ * this list is a food ("2 eggs"). Each is a unit whose count the food shares ("garlic" is counted in "cloves").
+ */
+const TRAILING_COUNT_UNITS: ReadonlySet<string> = new Set(['clove', 'slice', 'stick', 'piece']);
+
+/** The words that, before `cloves`, make it the spice and not a count of garlic: "2 whole cloves" stays a food search. */
+const SPICE_QUALIFIERS: ReadonlySet<string> = new Set(['whole', 'ground', 'dried', 'powdered']);
+
+/**
+ * A count unit that ends the food search, lifted out of it: "garlic cloves" → unit `clove`, search `garlic`. Pure.
+ *
+ * @param searchTokens - The food search's words, after the amount.
+ * @returns The unit, as the cook wrote the word and as `normalizeUnit` spells it, and the search without it; or
+ *     `undefined` when the search does not end in a count unit, is only that word, or names the spice.
+ */
+function trailingCountUnit(
+    searchTokens: readonly string[],
+): { readonly written: string; readonly unit: string; readonly search: readonly string[] } | undefined {
+    const written = searchTokens.at(-1);
+    const before = searchTokens.at(-2);
+
+    if (written === undefined || before === undefined) {
+        return undefined;
+    }
+
+    const unit = normalizeUnit(written);
+
+    if (!TRAILING_COUNT_UNITS.has(unit) || (unit === 'clove' && SPICE_QUALIFIERS.has(before.toLowerCase()))) {
+        return undefined;
+    }
+
+    return { written, unit, search: searchTokens.slice(0, -1) };
+}
+
 /** A unit read from the tokens, and how many tokens it took. */
 interface UnitRead {
     readonly unit: string;
@@ -276,11 +315,24 @@ export function readLeadingMeasure(text: string): LeadingMeasureReading {
     const searchStart = unit !== undefined && tokens[measureEnd]?.toLowerCase() === 'of' ? measureEnd + 1 : measureEnd;
     // A glued `200g` is one typed token for two read ones, so the typed measure is one token shorter.
     const typedMeasure = typedTokens.slice(0, glued ? measureEnd - 1 : measureEnd).join(' ');
+    const search = tokens.slice(searchStart);
+    // No unit after the amount: a count unit the cook put after the food is still their unit ("3 garlic cloves").
+    const lifted = unit === undefined ? trailingCountUnit(search) : undefined;
+
+    if (lifted !== undefined) {
+        return {
+            quantity: quantityOf(amount),
+            unit: lifted.unit,
+            search: lifted.search.join(' '),
+            preparation,
+            measureText: [typedMeasure, lifted.written].join(' '),
+        };
+    }
 
     return {
         quantity: quantityOf(amount),
         unit: unit?.unit ?? '',
-        search: tokens.slice(searchStart).join(' '),
+        search: search.join(' '),
         preparation,
         measureText: typedMeasure,
     };

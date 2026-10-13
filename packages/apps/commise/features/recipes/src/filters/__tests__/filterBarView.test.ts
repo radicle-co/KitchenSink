@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     FACET_CHIP_LIMIT,
+    appliedChipTextOf,
     filterBarViewOf,
     visibleChipsOf,
     type FacetChipView,
@@ -322,14 +323,17 @@ describe('filterBarViewOf — the Filters button, Clear all and the applied chip
             copy,
         );
 
-        expect(view.applied.map((entry) => [entry.label, entry.removeLabel])).toEqual([
-            ['Under 30 min', 'Remove Under 30 min filter'],
-            ['Prep: under 15 min', 'Remove Prep: under 15 min filter'],
-            ['vegan', 'Remove vegan filter'],
-            ['Thai', 'Remove Thai filter'],
-            ['quick', 'Remove quick filter'],
-            ['Flour', 'Remove Flour filter'],
+        // W-10: a stored facet value is named in sentence case on its chip and in its remove name; the time bounds and
+        // the ingredient (a catalogue name) are already as they should read, and stay untouched.
+        expect(view.applied.map((entry) => [appliedChipTextOf(entry, copy, 'en')])).toEqual([
+            [{ label: 'Under 30 min', removeLabel: 'Remove Under 30 min filter' }],
+            [{ label: 'Prep: under 15 min', removeLabel: 'Remove Prep: under 15 min filter' }],
+            [{ label: 'Vegan', removeLabel: 'Remove Vegan filter' }],
+            [{ label: 'Thai', removeLabel: 'Remove Thai filter' }],
+            [{ label: 'Quick', removeLabel: 'Remove Quick filter' }],
+            [{ label: 'Flour', removeLabel: 'Remove Flour filter' }],
         ]);
+        expect(view.applied.map((entry) => entry.facetValue)).toEqual([false, false, true, true, true, false]);
         expect(view.applied.map((entry) => entry.action)).toEqual([
             { kind: 'setTimeBound', field: 'maxTotalTime', minutes: undefined },
             { kind: 'setTimeBound', field: 'maxPrepTime', minutes: undefined },

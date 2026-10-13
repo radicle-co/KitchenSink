@@ -17,11 +17,14 @@
  *     rather than in the screen so one platform cannot ship the page with any of them inert.
  */
 import { useKeepAwake } from '@commise/ui/keep-awake';
+import { ScrollHost, type ScrollBind } from '@commise/ui/scroll-host';
 import { nativeTokens } from '@commise/ui/native';
+import { useMessages } from '@commise/i18n/react';
 import { useState, type FC } from 'react';
 import { useWindowDimensions } from 'react-native';
 
 import { DataSourcesScreen } from '../dataSources/DataSourcesScreen.native.js';
+import { recipeMessages } from '../messages.js';
 import { detailNativeLayoutOf } from './detailFacts.js';
 import { RecipeDetailBody } from './RecipeDetailBody.native.js';
 import { useCookMarks } from './useCookMarks.js';
@@ -31,12 +34,28 @@ import type { RecipeDetailViewProps } from './model.js';
 /** The page's gutters on each side, in points. */
 const GUTTER = nativeTokens.spacing[4];
 
-/** The native orchestration shell of the recipe page. */
-export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => {
+/** The sections the switch links to, in page order. */
+const DETAIL_SECTIONS = ['ingredients', 'steps', 'nutrition'] as const;
+
+/** Where the scroll spy's activation line sits below the top of the scroller: under the sticky 48 pt section switch. */
+const ACTIVATION_OFFSET_PT = 48;
+
+/** The native orchestration shell of the recipe page: the scroll host, and the page under it. */
+export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => (
+    <ScrollHost sections={DETAIL_SECTIONS} activationOffset={ACTIVATION_OFFSET_PT}>
+        {(bind) => <RecipeDetailPage {...props} bind={bind} />}
+    </ScrollHost>
+);
+
+/** The page, under its `ScrollHost`, with the scroller's binding. */
+const RecipeDetailPage: FC<RecipeDetailViewProps & { readonly bind: ScrollBind }> = ({ bind, ...props }) => {
     const scale = useServingScale(props.recipe.id, props.recipe.servings);
     const marks = useCookMarks(props.recipe.id);
-    const { width } = useWindowDimensions();
+    const { width, fontScale } = useWindowDimensions();
+    const { detail } = useMessages(recipeMessages);
     const [screenOn, setScreenOn] = useState(false);
+    // The one-time hint (§6.3): shown until the cook uses the toggle or scrolls. Held per visit, in no storage.
+    const [hintSeen, setHintSeen] = useState(false);
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
     const [sourcesOpen, setSourcesOpen] = useState(false);
     const [sourcesClosed, setSourcesClosed] = useState(0);
@@ -47,13 +66,28 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => {
         <>
             <RecipeDetailBody
                 {...props}
+                // The first scroll is the cook getting on with the recipe: the hint has done its job.
+                bind={{
+                    ...bind,
+                    onScroll: (event) => {
+                        bind.onScroll(event);
+                        setHintSeen(true);
+                    },
+                }}
                 servings={scale.servings}
                 onServingsChange={scale.setServings}
                 marks={marks}
-                screenOn={{ on: screenOn, onChange: setScreenOn }}
+                screenOn={{
+                    on: screenOn,
+                    onChange: (on) => {
+                        setScreenOn(on);
+                        setHintSeen(true);
+                    },
+                    ...(hintSeen ? {} : { hint: detail.screenOnHint }),
+                }}
                 descriptionExpanded={descriptionExpanded}
                 onToggleDescription={() => setDescriptionExpanded((expanded) => !expanded)}
-                layout={detailNativeLayoutOf(width - 2 * GUTTER)}
+                layout={detailNativeLayoutOf(width - 2 * GUTTER, fontScale)}
                 onOpenDataSources={() => setSourcesOpen(true)}
                 dataSourcesReturnFocusSignal={sourcesClosed}
             />

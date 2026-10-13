@@ -34,6 +34,7 @@ import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks'
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CookMarksTestProvider, idleDetailBodyState } from '../../__fixtures__/cookMarks.js';
+import { ScrollHost } from '@commise/ui/scroll-host';
 import { heldKeepAwakeTags } from '@commise/ui/testing/expo-keep-awake';
 
 /** Every detail renders inside the session’s cook-marks scope, as each app root mounts it. */
@@ -1123,6 +1124,10 @@ describe('RecipeDetailView (native) — the current step is tellable from the ot
  * viewer CAN clone — so an owner never saw it, and `sourceUrl` reached nobody on either platform.
  */
 describe('RecipeDetailView (native) — recipe source', () => {
+    /** The page's links other than the section switch's (which are `link`s too, in a navigation). */
+    const contentLinks = (): HTMLElement[] =>
+        screen.queryAllByRole('link').filter((link) => link.closest('[role="navigation"]') === null);
+
     it('renders the source link for a recipe that has one, with no viewer context at all', () => {
         render(
             <RecipeDetailView
@@ -1135,7 +1140,7 @@ describe('RecipeDetailView (native) — recipe source', () => {
         );
 
         // The link is labelled by the VERIFIED host; the untrusted attribution renders beside it as text.
-        expect(screen.getByRole('link').textContent).toBe('www.seriouseats.com');
+        expect(contentLinks().map((link) => link.textContent)).toEqual(['www.seriouseats.com']);
         expect(screen.getByText('Serious Eats')).toBeTruthy();
     });
 
@@ -1148,14 +1153,14 @@ describe('RecipeDetailView (native) — recipe source', () => {
         );
 
         expect(screen.getByText('Grandma’s cookbook')).toBeTruthy();
-        expect(screen.queryByRole('link')).toBeNull();
+        expect(contentLinks()).toEqual([]);
     });
 
     it('renders NO source affordance for a recipe that has none', () => {
         render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({})} />);
 
         expect(screen.queryByText('Source')).toBeNull();
-        expect(screen.queryByRole('link')).toBeNull();
+        expect(contentLinks()).toEqual([]);
     });
 });
 
@@ -1188,16 +1193,21 @@ describe('RecipeDetailView (native) — serving scale', () => {
     /** Render the PURE body at an explicit serving count — the ratio cases, with no store involved. */
     const renderAt = (servings: number) =>
         render(
-            <RecipeDetailBody
-                unreachableRetry={idleUnreachableRetry}
-                recipe={scalable()}
-                servings={servings}
-                onServingsChange={vi.fn()}
-                onOpenDataSources={vi.fn()}
-                dataSourcesReturnFocusSignal={0}
-                layout={{ columns: 'one', statsPerRow: 4 }}
-                {...idleDetailBodyState}
-            />,
+            <ScrollHost>
+                {(bind) => (
+                    <RecipeDetailBody
+                        unreachableRetry={idleUnreachableRetry}
+                        recipe={scalable()}
+                        servings={servings}
+                        onServingsChange={vi.fn()}
+                        onOpenDataSources={vi.fn()}
+                        dataSourcesReturnFocusSignal={0}
+                        layout={{ columns: 'one', statsPerRow: 4 }}
+                        bind={bind}
+                        {...idleDetailBodyState}
+                    />
+                )}
+            </ScrollHost>,
         );
 
     it('opens at the serving count the recipe was created with', () => {

@@ -1,0 +1,30 @@
+appId: io.commise.mobile
+---
+# A-005 + E17 (UI walk 2026-10-13; build spec §7.2 "Guided progress"; owner decision D1). An account that has never
+# published is guided in the editor: "0 of 4 done" on the section bar, and "Start here" on Details. The guidance used to
+# read the library from the CACHE only, so an editor opened from Home (where the library was never read) was not guided
+# for exactly the cooks it exists for. The editor now reads the library itself.
+#
+# Runs against an EMPTY library, like `emptyLibrary.yaml` (see EMPTY_LIBRARY_FLOWS in tests/e2e/runMaestroFlows.sh), and
+# mutates nothing: it opens the editor and types nothing. The next flow's reset restores the seed.
+- runFlow: ../auth/signinHome.yaml
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'Your recipe box is empty'
+      timeout: 40000
+- tapOn: 'Add your first recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 30000
+
+# The bar's visible suffix, then Details' own start hint in the section sheet.
+- extendedWaitUntil:
+      visible: '.*0 of 4 done.*'
+      timeout: 30000
+- tapOn:
+      text: 'Sections\. Current: .*'
+- extendedWaitUntil:
+      visible: 'Close sections'
+      timeout: 20000
+- assertVisible: 'Start here'
+- tapOn: 'Close sections'

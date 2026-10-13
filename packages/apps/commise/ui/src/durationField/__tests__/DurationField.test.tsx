@@ -102,6 +102,20 @@ describe('DurationField (web)', () => {
         expect(screen.getByText('min').getAttribute('aria-hidden')).toBe('true');
     });
 
+    // A-009 (build spec §7.4: "below 600, Prep and Cook sit side by side, about 136 px each at 320"): two boxes at a
+    // fixed 80 px plus their units are about 220 px, which wrapped Cook onto its own line. The boxes share the room
+    // the cell gives them instead, and give back padding so a two-digit number still fits in 136 px.
+    it('fits a 136 px cell: the boxes have no fixed width and share the room, with the tighter number padding', () => {
+        renderField();
+
+        for (const box of [hours(), minutes()]) {
+            const classes = box.className.split(/\s+/u);
+
+            expect(classes).not.toContain('w-20');
+            expect(classes).toEqual(expect.arrayContaining(['min-w-0', 'flex-1', 'px-2!']));
+        }
+    });
+
     // UI-overhaul slice 2: the boxes take the Input rules (`FIELD_CLASS`) rather than a geometry of their own.
     it('draws each box on the shared field surface, and the label in the FieldLabel role', () => {
         renderField();

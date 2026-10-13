@@ -12,7 +12,9 @@ import {
     DISPLAY_NAME_MAX_LENGTH,
     canSaveDisplayName,
     displayNameDraftOf,
+    formatNameCounter,
     givenNameOf,
+    nameCounterOf,
     profileReadOf,
 } from '../model.js';
 
@@ -137,5 +139,39 @@ describe('DISPLAY_NAME_MAX_LENGTH — the identity contract’s limit', () => {
         expect(
             patchUserMeRequestSchema.safeParse({ displayName: 'a'.repeat(DISPLAY_NAME_MAX_LENGTH + 1) }).success,
         ).toBe(false);
+    });
+});
+
+/**
+ * W-26: the display-name field has a hard `maxLength`, so a paste past it was cut with nothing saying so. A counter says
+ * how close the cook is, from 80 % of the limit (build spec §5.1 pattern for bounded fields), and the limit itself.
+ */
+describe('nameCounterOf (W-26)', () => {
+    it('says nothing below 80 characters', () => {
+        expect(nameCounterOf('')).toBeUndefined();
+        expect(nameCounterOf('x'.repeat(79))).toBeUndefined();
+    });
+
+    it('counts from 80 characters up to the limit', () => {
+        expect(nameCounterOf('x'.repeat(80))).toEqual({ count: 80, max: DISPLAY_NAME_MAX_LENGTH, atLimit: false });
+        expect(nameCounterOf('x'.repeat(99))).toEqual({ count: 99, max: DISPLAY_NAME_MAX_LENGTH, atLimit: false });
+    });
+
+    it('flags the limit at the maximum length', () => {
+        expect(nameCounterOf('x'.repeat(DISPLAY_NAME_MAX_LENGTH))).toEqual({
+            count: DISPLAY_NAME_MAX_LENGTH,
+            max: DISPLAY_NAME_MAX_LENGTH,
+            atLimit: true,
+        });
+    });
+
+    it('counts the text as typed, spaces included, because that is what the field’s limit counts', () => {
+        expect(nameCounterOf(`${' '.repeat(40)}${'x'.repeat(40)}`)?.count).toBe(80);
+    });
+});
+
+describe('formatNameCounter (W-26)', () => {
+    it('fills the template’s {count} and {max}', () => {
+        expect(formatNameCounter('{count}/{max}', { count: 85, max: 100, atLimit: false })).toBe('85/100');
     });
 });

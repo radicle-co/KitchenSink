@@ -349,6 +349,8 @@ export interface RecipeDiscoveryCardProps {
     readonly recipe: RecipeCardModel;
     /** `grid` from a 600 container, `compact` below it; a Discover rail card is always `grid`. */
     readonly variant: 'grid' | 'compact';
+    /** The title's heading level: 2 under the page's title (results), 3 under a rail's heading. */
+    readonly headingLevel: 2 | 3;
     /** The author's handle (`@handle`), when the recipe carries one. */
     readonly authorHandle?: string;
     /** Human-readable provenance for an imported recipe, when present. */

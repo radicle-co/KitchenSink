@@ -31,6 +31,7 @@ export const RecentRecipeGrid: FC<RecentRecipeGridProps> = ({ recipes, variant, 
                 >
                     <RecipeCard
                         variant={variant}
+                        headingLevel={3}
                         recipe={recipe}
                         {...(onSelectRecipe === undefined ? {} : { onSelect: onSelectRecipe })}
                         nutrition={renderNutrition?.(recipe.id)}

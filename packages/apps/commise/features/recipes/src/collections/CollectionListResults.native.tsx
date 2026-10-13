@@ -18,16 +18,21 @@ import { RecipeCover } from '@commise/ui/recipe-cover';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { SearchField } from '@commise/ui/search-field';
 import { useTheme } from '@commise/ui/theme';
-import type { CollectionResponse } from '@kitchensink/schema-recipe';
 import { FlashList } from '@shopify/flash-list';
 import { useId, type FC } from 'react';
 import { RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { libraryGridColumnsOf } from '../card/cardGridLayout.js';
 import { formatRecipeCount } from '../list/model.js';
+import { recipeMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
-import { COLLECTION_SEARCH_FROM, type CollectionListResultsProps } from './model.js';
+import {
+    COLLECTION_SEARCH_FROM,
+    cardCoverOf,
+    type CollectionCardSource,
+    type CollectionListResultsProps,
+} from './model.js';
 
 export const CollectionListResults: FC<CollectionListResultsProps> = ({
     collections,
@@ -138,30 +143,87 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
     );
 };
 
-/** One album card: the cover, the name (two lines), the visibility as glyph and word, and a copy's credit. */
-const CollectionCard: FC<{ readonly collection: CollectionResponse; readonly onSelect: (id: string) => void }> = ({
+/**
+ * A card's cover (`buildSpec.md` §5.1): the first four members' photos as a 2 × 2 album with 2 pt gaps, the first photo
+ * filling the box when there are one to three, the collection's tint and monogram when there are none.
+ */
+const CollectionCover: FC<{ readonly collection: CollectionCardSource }> = ({ collection }) => {
+    const cover = cardCoverOf(collection.coverPhotoUrls);
+
+    if (cover.kind === 'album') {
+        return (
+            <View style={styles.album}>
+                {cover.urls.map((url, index) => (
+                    <View key={url + String(index)} style={styles.albumTile}>
+                        <RecipeCover
+                            recipeId={`${collection.id}:${String(index)}`}
+                            title={collection.name}
+                            aspect="1:1"
+                            photoUrl={url}
+                        />
+                    </View>
+                ))}
+            </View>
+        );
+    }
+
+    return (
+        <RecipeCover
+            recipeId={collection.id}
+            title={collection.name}
+            aspect="1:1"
+            {...(cover.kind === 'single' ? { photoUrl: cover.url } : {})}
+        />
+    );
+};
+
+/** One album card: the cover, the name (two lines), the count and visibility, and a copy's credit. */
+const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly onSelect: (id: string) => void }> = ({
     collection,
     onSelect,
 }) => {
-    const { list } = useMessages(collectionMessages);
+    const { list, detail } = useMessages(collectionMessages);
+    const { card } = useMessages(recipeMessages);
     const { colors } = useTheme();
+    const locale = useLocale();
     const visibility = collection.visibility === 'public' ? list.visibilityPublic : list.visibilityPrivate;
+    // The count is on the list read (W-11); a body that carries none says none, never a made-up 0.
+    const count =
+        collection.recipeCount === undefined
+            ? undefined
+            : formatRecipeCount(
+                  collection.recipeCount,
+                  { one: detail.recipeCountOne, other: detail.recipeCountOther },
+                  locale,
+              );
 
     return (
         <PressScale
             accessibilityRole="link"
-            accessibilityLabel={fillTemplate(list.cardLabel, { name: collection.name, visibility })}
+            accessibilityLabel={
+                count === undefined
+                    ? fillTemplate(list.cardLabel, { name: collection.name, visibility })
+                    : fillTemplate(list.cardLabelCounted, { name: collection.name, count, visibility })
+            }
             width="fill"
             onPress={() => onSelect(collection.id)}
         >
             <View style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
                 <View style={styles.clip}>
-                    <RecipeCover recipeId={collection.id} title={collection.name} aspect="1:1" />
+                    <CollectionCover collection={collection} />
                     <View style={styles.cardBody}>
                         <Text numberOfLines={2} style={[styles.cardTitle, { color: colors.ink }]}>
                             {collection.name}
                         </Text>
                         <View style={styles.meta}>
+                            {count === undefined ? null : (
+                                <>
+                                    <Text style={[styles.metaText, { color: colors.inkMuted }]}>{count}</Text>
+                                    <Text accessible={false} style={[styles.metaText, { color: colors.inkMuted }]}>
+                                        {card.separator.trim()}
+                                    </Text>
+                                </>
+                            )}
                             <Icon
                                 name={collection.visibility === 'public' ? 'globe' : 'lock'}
                                 size={16}
@@ -205,7 +267,9 @@ const styles = StyleSheet.create({
     clip: { borderRadius: nativeTokens.radius.md, overflow: 'hidden' },
     cardBody: { padding: nativeTokens.spacing[3], gap: nativeTokens.spacing[1] },
     cardTitle: { ...nativeTokens.type.cardTitle },
-    meta: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
+    meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[1] },
+    album: { flexDirection: 'row', flexWrap: 'wrap', gap: 2 },
+    albumTile: { flexBasis: '49%', flexGrow: 1 },
     metaText: { ...nativeTokens.type.meta },
     caption: { ...nativeTokens.type.caption },
 });

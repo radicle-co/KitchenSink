@@ -7,7 +7,6 @@
  * and is easy to miss, so the control is the visible way. There is no add-on-blur here: no design-system field reports
  * its blur on native, so what is typed stays in the field until it is added.
  */
-import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Chip, ChipRow } from '@commise/ui/chip';
 import { FieldLabel, Input, fieldHintId } from '@commise/ui/input';
@@ -17,7 +16,6 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
-import { recipeFormMessages } from './messages.js';
 import { addChips, removeChipAt, splitAtCommas } from './props.js';
 
 /** Props for {@link ChipInput}. */
@@ -34,11 +32,12 @@ export interface ChipInputProps {
     readonly onChange: (next: string[]) => void;
     /** A chip's accessible name template (contains `{value}`). */
     readonly removeChipLabel: string;
+    /** The Add button's text: one whole sentence-case string for this field ("Add a tag"). */
+    readonly addLabel: string;
 }
 
 /** The native tag and dietary-flag chip input. */
-export const ChipInput: FC<ChipInputProps> = ({ id, label, hint, values, onChange, removeChipLabel }) => {
-    const m = useMessages(recipeFormMessages);
+export const ChipInput: FC<ChipInputProps> = ({ id, label, hint, values, onChange, removeChipLabel, addLabel }) => {
     const [draft, setDraft] = useState('');
 
     const commit = (tokens: readonly string[], rest: string): void => {
@@ -86,7 +85,7 @@ export const ChipInput: FC<ChipInputProps> = ({ id, label, hint, values, onChang
             {/* Under the field, not beside it: at 320 pt a label beside the field would wrap or squeeze it. */}
             <View style={styles.add}>
                 <Button variant="ghost" icon="plus" onPress={() => commit([draft], '')}>
-                    {fillTemplate(m.addChipLabel, { field: label })}
+                    {addLabel}
                 </Button>
             </View>
         </View>

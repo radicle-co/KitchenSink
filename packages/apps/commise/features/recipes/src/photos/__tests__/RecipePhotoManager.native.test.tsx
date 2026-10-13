@@ -4,11 +4,12 @@
  * and the add-control/cap boundary — so the two platform renders cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { Pressable, Text } from 'react-native';
 
 import { role, roleDark } from '@commise/ui/colors';
+import { nativeTokens } from '@commise/ui/native';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { makePhoto, makeQueueItem } from '../../__fixtures__/index.js';
@@ -53,10 +54,137 @@ describe('RecipePhotoManager (native) — chrome + empty', () => {
         renderManager();
         expect(screen.getByRole('heading', { name: 'Photos' })).toBeTruthy();
     });
+});
 
-    it('shows the empty message when there are no photos', () => {
+/**
+ * A-010 (buildSpec §7.7): with no photo the section previews the recipe's own cover and says what happens, in place of
+ * the old bare "No photos yet." Replaces the old 'shows the empty message' case; the web leaf pins the same cases.
+ */
+describe('RecipePhotoManager (native) — empty state (A-010)', () => {
+    const coverPreview = { recipeId: 'rec_1', title: 'Lemon tart' } as const;
+
+    it('says the cover is used instead and that a photo can be added any time', () => {
+        renderManager({ photos: [], coverPreview });
+
+        expect(screen.getByText('No photo? This cover is used instead. Add one any time.')).toBeTruthy();
+        expect(screen.queryByText('No photos yet.')).toBeNull();
+    });
+
+    it('previews the recipe’s own cover — its monogram', () => {
+        renderManager({ photos: [], coverPreview });
+
+        expect(screen.getByText('L')).toBeTruthy();
+    });
+
+    it('shows the copy alone when no preview is supplied', () => {
         renderManager({ photos: [] });
-        expect(screen.getByText('No photos yet.')).toBeTruthy();
+
+        expect(screen.getByText('No photo? This cover is used instead. Add one any time.')).toBeTruthy();
+        expect(screen.queryByText('L')).toBeNull();
+    });
+
+    it('shows no empty state once there is a photo', () => {
+        renderManager({ photos: threePhotos, coverPreview });
+
+        expect(screen.queryByText('No photo? This cover is used instead. Add one any time.')).toBeNull();
+        expect(screen.queryByText('L')).toBeNull();
+    });
+
+    it('shows no empty state while a pick is waiting in the queue — that cell is the photo', () => {
+        renderManager({ photos: [], coverPreview, queueItems: [makeQueueItem({ fileId: 1, status: 'queued' })] });
+
+        expect(screen.queryByText('No photo? This cover is used instead. Add one any time.')).toBeNull();
+        expect(screen.queryByText('L')).toBeNull();
+    });
+});
+
+/** Report a laid-out width to a view, the way react-native-web's ResizeObserver does (jsdom lays nothing out). */
+function layOut(element: Element, width: number): void {
+    const handler = (element as Element & { __reactLayoutHandler?: (event: unknown) => void }).__reactLayoutHandler;
+
+    if (handler === undefined) {
+        throw new Error('the view has no layout handler');
+    }
+
+    act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width, height: 400 } } }));
+}
+
+/** The grid view: the parent of the first cell. */
+function gridOf(photoLabel: string): Element {
+    const cell = screen.getByLabelText(photoLabel).parentElement;
+    const grid = cell?.parentElement;
+
+    if (grid === null || grid === undefined) {
+        throw new Error('no grid');
+    }
+
+    return grid;
+}
+
+/**
+ * A-010 (buildSpec §7.7): three columns, four from 600 of the grid's OWN width. The grid measures itself rather than
+ * asking the window, because the window is not the container (a tablet editor sits beside a rail) and jsdom's window
+ * is 1024 wide, which would hand every test four columns. Until the first measure it holds the narrow reading.
+ */
+describe('RecipePhotoManager (native) — the grid columns (A-010)', () => {
+    it('is three-up until the grid has been measured', () => {
+        renderManager({ photos: threePhotos });
+
+        expect(getComputedStyle(screen.getByLabelText('Recipe photo 1').parentElement as Element).width).toBe('31%');
+    });
+
+    it('stays three-up at 599 and goes four-up at 600', () => {
+        renderManager({ photos: threePhotos });
+        const grid = gridOf('Recipe photo 1');
+        const cell = screen.getByLabelText('Recipe photo 1').parentElement as Element;
+
+        layOut(grid, 599);
+        expect(getComputedStyle(cell).width).toBe('31%');
+
+        layOut(grid, 600);
+        expect(getComputedStyle(cell).width).toBe('23%');
+    });
+
+    it('lays a queue cell out at the same width as a confirmed one', () => {
+        renderManager({
+            photos: threePhotos,
+            queueItems: [
+                makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'uploading', previewUri: 'file:///a.png' }),
+            ],
+        });
+        layOut(gridOf('Recipe photo 1'), 700);
+
+        const queued = screen.getByLabelText('Photo a.png').parentElement?.parentElement as Element;
+        expect(getComputedStyle(queued).width).toBe('23%');
+    });
+});
+
+/**
+ * E6 (A-010): the message used to be a `position: absolute` text over the preview, so its contrast depended on the
+ * photo. It sits below the tile now, in `dangerText`, in flow.
+ */
+describe('RecipePhotoManager (native) — a failed upload’s message (E6)', () => {
+    it('draws the message BELOW the tile, in flow, not over the image', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'burnt.png',
+                    status: 'failed',
+                    previewUri: 'file:///burnt.png',
+                    errorMessage: 'That photo is larger than 5 MB.',
+                }),
+            ],
+        });
+
+        const image = screen.getByLabelText('Photo burnt.png');
+        const frame = image.parentElement as HTMLElement;
+        const message = screen.getByText('That photo is larger than 5 MB.');
+
+        expect(frame.contains(message)).toBe(false);
+        expect(getComputedStyle(message).position).not.toBe('absolute');
+        expect(frame.parentElement?.contains(message)).toBe(true);
+        expect(within(frame).getByText('Upload failed')).toBeTruthy();
     });
 });
 
@@ -220,6 +348,11 @@ describe('RecipePhotoManager (native) — per-photo cover selection (U6)', () =>
         renderManager({ photos: threePhotos, onSetCover: noop });
 
         expect(screen.getAllByText('Cover')).toHaveLength(1);
+        // On the first photo's cell — which is the cell holding photo 1's image — and on no other.
+        const first = screen.getByLabelText('Recipe photo 1').parentElement as HTMLElement;
+        expect(within(first).getByText('Cover')).toBeTruthy();
+        const second = screen.getByLabelText('Recipe photo 2').parentElement as HTMLElement;
+        expect(within(second).queryByText('Cover')).toBeNull();
     });
 
     it('renders one radio-semantic "Set as cover" control per photo, indexed, with only the first checked', () => {
@@ -420,12 +553,20 @@ describe.each(['light', 'dark'] as const)('RecipePhotoManager (native) — the %
     const colours = scheme === 'dark' ? roleDark : role;
     const style = (element: Element): CSSStyleDeclaration => getComputedStyle(element);
 
-    it('paints the heading in ink and the empty message in inkMuted', () => {
+    /**
+     * REWRITES the D15 case that pinned the heading in `ink` at a hand-sized 18: buildSpec §7.7 draws the section name
+     * as an H3 in the `label` role, muted — the Details group heading's style — and the empty copy is muted too.
+     */
+    it('paints the heading as a muted label-role H3, and the empty copy in inkMuted', () => {
         systemScheme.current = scheme;
         renderManager();
+        const heading = style(screen.getByRole('heading', { name: 'Photos' }));
 
-        expect(style(screen.getByRole('heading', { name: 'Photos' })).color).toBe(rgb(colours.ink));
-        expect(style(screen.getByText('No photos yet.')).color).toBe(rgb(colours.inkMuted));
+        expect(heading.color).toBe(rgb(colours.inkMuted));
+        expect(heading.fontSize).toBe(`${nativeTokens.type.label.fontSize}px`);
+        expect(style(screen.getByText('No photo? This cover is used instead. Add one any time.')).color).toBe(
+            rgb(colours.inkMuted),
+        );
     });
 
     it('draws Remove on a photo as a photoChip disc with an ink label', () => {

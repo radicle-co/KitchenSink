@@ -17,6 +17,13 @@ import type { RecipeCardView } from './recipeCardView.js';
 interface RecipeCardBaseProps {
     readonly recipe: RecipeCardModel;
     /**
+     * The heading level of the title on the WEB leaf (`buildSpec.md` §4.1 "Card title is H3 on a sectioned page"). The
+     * surface knows where the card sits in the page's outline and the card does not: a results list straight under the
+     * page's H1 passes `2`, a card under a section's H2 (Home's Recent recipes, a Discover rail) passes `3`. Required,
+     * so no card guesses; the native leaf has no heading outline and does not read it.
+     */
+    readonly headingLevel: 2 | 3;
+    /**
      * When provided, the card is actionable and reports the recipe id. On web with an `href`, a plain click is handed
      * here and a modified click (new tab) follows the link.
      */

@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import type { Route } from 'next';
 import { notFound, redirect } from 'next/navigation';
 
+import { signInPathFor } from '@/lib/signInReturn';
 import { HomeWidgetSurface } from '@/components/home/HomeWidgetSurface';
 import { isRoutableLocale } from '@/lib/i18n';
 
@@ -40,7 +41,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     const { userId } = await auth();
 
     if (!userId) {
-        redirect(`/${locale}/sign-in` as Route);
+        redirect(signInPathFor(locale, `/${locale}`) as Route);
     }
 
     return <HomeWidgetSurface />;

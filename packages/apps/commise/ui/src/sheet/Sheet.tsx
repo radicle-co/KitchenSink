@@ -2,7 +2,8 @@
  * @module @commise/ui/sheet — the web design-system `Sheet` (`docs/design/ingredientSpecialization.md` §S8.1).
  *
  * Full screen below `sm`, the house centred dialog from `sm` (`max-w-lg`, `max-h-[85vh]`); `size="full"` holds the
- * dialog at 85% of the viewport. Radix owns the focus trap, Escape, the overlay and hiding the rest of the page.
+ * dialog at 85% of the viewport, and `size="page"` is a page-sized sheet: the whole visible height, up to the detail
+ * column. Radix owns the focus trap, Escape, the overlay and hiding the rest of the page.
  * This leaf adds what Radix does not:
  *
  * - `aria-modal`, and `aria-labelledby`/`aria-describedby` built from the title's id, `labelledBy` and
@@ -35,13 +36,15 @@ import { useVisualViewportKeyboard } from './useVisualViewportKeyboard.js';
 const CONTENT =
     'fixed inset-x-0 z-50 flex w-full flex-col bg-paper-overlay sm:inset-x-auto sm:left-1/2 ' +
     'sm:top-[calc(var(--sheet-visible-top,0px)+var(--sheet-visible-height,100%)/2)] ' +
-    'sm:max-h-[min(85vh,var(--sheet-visible-height,85vh))] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 ' +
-    'sm:rounded-2xl sm:shadow-lg';
+    'sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:shadow-lg';
+
+/** The whole visible box: `full` and `page` below `sm`. */
+const PHONE_VISIBLE_BOX = 'top-[var(--sheet-visible-top,0px)] h-[var(--sheet-visible-height,100dvh)]';
 
 /**
  * The geometry below `sm`, per size (`buildSpec.md` §1.6, "content by default"; F11).
  *
- * - `full` takes the whole visible box: its top follows an iOS pan, its height a keyboard.
+ * - `full` and `page` take the whole visible box: its top follows an iOS pan, its height a keyboard.
  * - `content` is a bottom sheet, as tall as its content: anchored to the foot of the visible box (`100%` of a fixed
  *   box is the layout viewport, so the offset is what a keyboard covers), capped at the visible height less a 2 rem gap
  *   so the page behind stays in view, with rounded top corners. `sm:bottom-auto` hands it to the centred dialog.
@@ -50,18 +53,28 @@ const CONTENT =
  * emits them, not the order in the class string.
  */
 const PHONE: Readonly<Record<SheetProps['size'], string>> = {
-    full: 'top-[var(--sheet-visible-top,0px)] h-[var(--sheet-visible-height,100dvh)]',
+    full: PHONE_VISIBLE_BOX,
+    page: PHONE_VISIBLE_BOX,
     content:
         'bottom-[calc(100%-var(--sheet-visible-top,0px)-var(--sheet-visible-height,100%))] ' +
         'max-h-[calc(var(--sheet-visible-height,100dvh)-2rem)] rounded-t-xl shadow-lg sm:bottom-auto',
 };
 
 /**
- * The height from `sm`, ONE utility per size. ⛔ Never a shared `sm:h-*` in `CONTENT` plus another here: Tailwind
- * decides between two utilities of one variant by the order it emits them, not the order in the class string, so a
- * shared `sm:h-auto` silently beats `sm:h-[85vh]`.
+ * The box from `sm` (height, its cap and its width cap), ONE utility of each per size. ⛔ Never a shared `sm:h-*`,
+ * `sm:max-h-*` or `sm:max-w-*` in `CONTENT` plus another here: Tailwind decides between two utilities of one variant by
+ * the order it emits them, not the order in the class string, so a shared `sm:h-auto` silently beats `sm:h-[85vh]`.
+ *
+ * - `content` and `full` are the house dialog (`max-w-lg`, capped at 85% of the visible height).
+ * - `page` takes the whole visible height, centred on the visible box so it tracks a keyboard, and up to the recipe
+ *   detail column (`content-detail`, 72 rem = `max-w-6xl`, `buildSpec.md` §1.6).
  */
-const HEIGHT: Readonly<Record<SheetProps['size'], string>> = { content: 'sm:h-auto', full: 'sm:h-[85vh]' };
+const DIALOG_BOX = 'sm:max-h-[min(85vh,var(--sheet-visible-height,85vh))] sm:max-w-lg';
+const FROM_SM: Readonly<Record<SheetProps['size'], string>> = {
+    content: `sm:h-auto ${DIALOG_BOX}`,
+    full: `sm:h-[85vh] ${DIALOG_BOX}`,
+    page: 'sm:h-[var(--sheet-visible-height,100dvh)] sm:max-h-[var(--sheet-visible-height,100dvh)] sm:max-w-6xl',
+};
 
 export const Sheet: FC<SheetProps> = ({
     open,
@@ -104,7 +117,7 @@ export const Sheet: FC<SheetProps> = ({
                         onDismissed?.();
                     }}
                     style={style}
-                    className={`${CONTENT} ${PHONE[size]} ${HEIGHT[size]}`}
+                    className={`${CONTENT} ${PHONE[size]} ${FROM_SM[size]}`}
                 >
                     <SheetPanel
                         title={title}

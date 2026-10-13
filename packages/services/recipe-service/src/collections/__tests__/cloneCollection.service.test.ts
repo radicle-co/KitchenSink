@@ -56,6 +56,7 @@ function makeDal(): DalMock {
         removeRecipe: vi.fn(),
         listRecipes: vi.fn(),
         previewMembershipIds: vi.fn(),
+        memberSummaries: vi.fn().mockResolvedValue(new Map()),
         touchLastPulled: vi.fn(),
         // S-R1: runs `fn` against FAKE_TX, mirroring the real DAL's `db.transaction(fn)` — so
         // `cloneCollection`'s `create`/`addRecipes` calls inside the callback actually execute.
@@ -77,6 +78,7 @@ function makeService(dal: DalMock, authorHandles: AuthorHandlesMock = makeAuthor
         dal as unknown as CollectionsDal,
         authorHandles as unknown as AuthorHandlesDal,
         { capture: vi.fn() } as unknown as AnalyticsService,
+        'https://cdn.test',
     );
 }
 

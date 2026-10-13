@@ -46,7 +46,11 @@ import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredie
 import { useSpokenRefusal, type SpeakRefusal } from './useSpokenRefusal.js';
 
 /** The one add field, with its reading, its notices and its sentences (§7.5.3). */
-const AddField: FC<{ readonly model: IngredientsFieldsModel; readonly speak: SpeakRefusal }> = ({ model, speak }) => {
+const AddField: FC<{
+    readonly model: IngredientsFieldsModel;
+    readonly speak: SpeakRefusal;
+    readonly trailingAction?: ReactNode;
+}> = ({ model, speak, trailingAction }) => {
     const m = useMessages(recipeFormMessages);
     const { colors } = useTheme();
     const { trailing } = model;
@@ -75,6 +79,7 @@ const AddField: FC<{ readonly model: IngredientsFieldsModel; readonly speak: Spe
                     </>
                 }
                 clear={{ label: m.ingredientEntryClear, icon: <Icon name="x" size={20} tone="inkMuted" /> }}
+                {...(trailingAction === undefined ? {} : { trailingAction })}
             />
             <LiveRegion politeness="polite" visuallyHidden>
                 {trailing.readingSpoken}
@@ -131,6 +136,17 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     const speak = useSpokenRefusal(rowEditor.pendingRefusals);
     // §7.12: a sheet on a phone, inline on a tablet (from a 600 pt content width).
     const inline = useMainContainerClass() !== 'narrow';
+    // The add field when no run holds it: the empty section, or a list whose rows are all being read.
+    const addFieldHere =
+        model.sections.length === 0 && !model.emptyGroups.some((group) => group.addHere.kind === 'field');
+    // §7.5.4: Paste a list is offered in the empty section only.
+    const pasteButton =
+        paste?.onOpen !== undefined && model.sections.length === 0 && reading.length === 0 ? (
+            <Button variant="secondary" icon="clipboardPaste" onPress={paste.onOpen}>
+                {editor.pasteList}
+            </Button>
+        ) : null;
+    const pasteBesideField = pasteButton !== null && addFieldHere && inline;
     const amountColumn = inline ? 96 : 72;
     const rows = model.sections.flatMap((section) => section.rows);
     const sheetKey = useLastDefined(model.openRow?.line.key);
@@ -225,17 +241,12 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     <GroupFoot add={group.addHere} model={model} speak={speak} />
                 </View>
             ))}
-            {paste?.onOpen !== undefined && model.sections.length === 0 && reading.length === 0 && (
-                // §7.5.4: in the empty section, Paste a list sits beside the add field as a secondary button.
-                <View style={styles.row}>
-                    <Button variant="secondary" icon="clipboardPaste" onPress={paste.onOpen}>
-                        {editor.pasteList}
-                    </Button>
-                </View>
+            {addFieldHere && (
+                <AddField model={model} speak={speak} {...(pasteBesideField ? { trailingAction: pasteButton } : {})} />
             )}
-            {model.sections.length === 0 && !model.emptyGroups.some((group) => group.addHere.kind === 'field') && (
-                <AddField model={model} speak={speak} />
-            )}
+            {/* §7.5.4: in the empty section, Paste a list is a secondary button beside the add field from a 600
+                content width, and under it below that, so the field keeps its width (§7.12). */}
+            {pasteButton !== null && !pasteBesideField && <View style={styles.row}>{pasteButton}</View>}
             {/* §7.5.5: "+ Add a group" at the section's foot. */}
             {model.addGroup.field === undefined ? (
                 <View style={styles.row}>

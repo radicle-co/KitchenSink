@@ -14,6 +14,9 @@
  *
  * @pattern Adapter — route params and navigator intents → each screen's callback props
  */
+import { profileMessages } from '@commise/features-account/profile';
+import { DataSourcesPushedScreen } from '@commise/features-recipes/data-sources/mobile';
+import { useMessages } from '@commise/i18n/react';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useBottomTabBarHeight, type BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
@@ -91,7 +94,20 @@ function CollectionDetailRoute({ navigation, route }: TabScreenProps<'Collection
 
 /** Profile, pushed from the avatar onto the current tab. */
 function ProfileRoute({ navigation }: TabScreenProps<'Profile'>): JSX.Element {
-    return <ProfileScreen onBack={() => navigation.goBack()} />;
+    return (
+        <ProfileScreen onBack={() => navigation.goBack()} onOpenDataSources={() => navigation.push('DataSources')} />
+    );
+}
+
+/** Food data sources, pushed from Profile: a page with Back to Profile (`buildSpec.md` §9.2). */
+function DataSourcesRoute({ navigation }: TabScreenProps<'DataSources'>): JSX.Element {
+    const t = useMessages(profileMessages);
+
+    return (
+        <DataSourcesPushedScreen
+            back={{ label: t.backToProfile, parent: t.title, onPress: () => navigation.goBack() }}
+        />
+    );
 }
 
 /** Home, the Home tab's root. */
@@ -251,6 +267,7 @@ export function TabStack({ tab }: TabStackProps): JSX.Element {
             <TabStackNavigator.Screen name="RecipeVersions" component={RecipeVersionsRoute} />
             <TabStackNavigator.Screen name="CollectionDetail" component={CollectionDetailRoute} />
             <TabStackNavigator.Screen name="Profile" component={ProfileRoute} />
+            <TabStackNavigator.Screen name="DataSources" component={DataSourcesRoute} />
         </TabStackNavigator.Navigator>
     );
 }

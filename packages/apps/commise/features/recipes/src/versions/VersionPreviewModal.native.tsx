@@ -33,7 +33,12 @@ import { recipeMessages } from '../messages.js';
 import { recipeVersionMessages } from './messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { previewRestoreErrorMessage, unrestorablePositionsFor } from './history.js';
-import { type VersionPreviewModalProps, formatChangedFromCurrent, toVersionPreviewIngredientLines } from './preview.js';
+import {
+    type VersionPreviewModalProps,
+    formatChangedFromCurrent,
+    toVersionPreviewIngredientLines,
+    toVersionPreviewSteps,
+} from './preview.js';
 
 export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     open,
@@ -187,6 +192,22 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                             ))}
                         </View>
 
+                        {version.snapshot.steps.length > 0 && (
+                            <>
+                                <Text accessibilityRole="header" style={[styles.sectionHeading, ink]}>
+                                    {fillTemplate(preview.stepsHeading, { version: version.versionNumber })}
+                                </Text>
+                                <View style={styles.ingredients}>
+                                    {toVersionPreviewSteps(version.snapshot.steps).map((step) => (
+                                        <View key={step.key} style={styles.stepRow}>
+                                            <Text style={[styles.body, muted]}>{step.marker}</Text>
+                                            <Text style={[styles.body, ink, styles.stepText]}>{step.text}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </>
+                        )}
+
                         {diffFromCurrent !== undefined && (
                             <Text style={[styles.changedNote, muted]}>
                                 {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
@@ -228,6 +249,8 @@ const styles = StyleSheet.create({
     // name) used to push the calorie chip past the sheet edge. `flexShrink` is applied HERE rather than on the
     // shared `body` style, which is also used outside this row. Mirrors `fieldValue` above.
     ingredientText: { flexShrink: 1 },
+    stepRow: { flexDirection: 'row', gap: 8 },
+    stepText: { flexShrink: 1 },
     // The line and its dotted line stack, 4 dp apart (§S4a), and yield width to the calorie chip together.
     ingredientLine: { flexShrink: 1, gap: 4 },
     calories: { flexShrink: 0, fontSize: 14 },

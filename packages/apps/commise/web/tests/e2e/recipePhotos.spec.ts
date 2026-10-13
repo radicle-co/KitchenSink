@@ -49,10 +49,10 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         // The photo manager block starts empty, with an accessible "Photos" region.
         const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
         await expect(photosRegion).toBeVisible();
-        await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
+        await expect(photosRegion.getByText('No photo? This cover is used instead. Add one any time.')).toBeVisible();
 
-        // Pick a file through the accessible "Add photo" control (a hidden <input type="file"> wrapped by
-        // its visible label — getByLabel resolves it the same way a screen reader would).
+        // Hand the file to the hidden <input type="file"> (named "Add photo"; the visible control is the
+        // "Add photos" button that opens it, covered by its own case below).
         await page.getByLabel('Add photo').setInputFiles({
             name: 'ratatouille.png',
             mimeType: 'image/png',
@@ -70,6 +70,101 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
     });
 
     /**
+     * A-010 (buildSpec §7.7, SC 2.1.1): the add control is a real secondary button. It used to be a label around a
+     * hidden input, which has no tab stop, so a keyboard user could not add a photo at all. This walks the page by
+     * Tab until the button holds focus, opens the native file dialog with Enter, and finishes the upload through it.
+     */
+    test('Add photos is a button the keyboard reaches, and Enter opens the file dialog', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+
+        await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
+
+        const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
+        const addPhotos = photosRegion.getByRole('button', { name: 'Add photos' });
+        await addPhotos.scrollIntoViewIfNeeded();
+        await expect(addPhotos).toBeVisible();
+
+        // Tab from the top of the page until the button takes focus: it is on the tab order, not only clickable.
+        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+        let reached = false;
+
+        for (let presses = 0; presses < 200 && !reached; presses += 1) {
+            await page.keyboard.press('Tab');
+            reached = await addPhotos.evaluate((element) => element === document.activeElement);
+        }
+
+        await expect(addPhotos).toBeFocused();
+
+        const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.keyboard.press('Enter')]);
+        expect(chooser.isMultiple()).toBe(true);
+        await chooser.setFiles({
+            name: 'ratatouille.png',
+            mimeType: 'image/png',
+            buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
+        });
+
+        await expect(photosRegion.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
+    });
+
+    /**
+     * A-010 / E6: the grid is two columns below 480 px of its own width, three from 480 and four from 600 (§7.7 asks for
+     * three below 600; the per-tile menu that would make that fit is not built), and a failed tile's message
+     * sits BELOW its image rather than over it. Five GIFs are rejected locally (no API is reached), so the grid has
+     * five failed tiles to measure at two widths.
+     */
+    test('the grid has two columns narrow, three from 480 and four from 600, and a failure’s message sits under its image', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+
+        for (const width of [390, 1280]) {
+            await page.setViewportSize({ width, height: 900 });
+            await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
+
+            const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
+            await photosRegion.getByRole('button', { name: 'Add photos' }).scrollIntoViewIfNeeded();
+            await page.getByLabel('Add photo').setInputFiles(
+                ['a', 'b', 'c', 'd', 'e'].map((name) => ({
+                    name: `${name}.gif`,
+                    mimeType: 'image/gif',
+                    buffer: Buffer.from('x'),
+                })),
+            );
+
+            const tiles = photosRegion.getByRole('listitem');
+            await expect(tiles).toHaveCount(5);
+
+            const boxes = await Promise.all([0, 1, 2, 3, 4].map((index) => tiles.nth(index).boundingBox()));
+            const first = boxes[0];
+            const regionBox = await photosRegion.boundingBox();
+
+            if (first === null || regionBox === null) {
+                throw new Error('the photo grid has no box');
+            }
+
+            const perRow = boxes.filter((box) => box !== null && Math.abs(box.y - first.y) < 2).length;
+            // Two-up below 480 px of the grid's own width (the per-tile menu that would make three-up fit is not built).
+            expect(perRow).toBe(regionBox.width >= 600 ? 4 : regionBox.width >= 480 ? 3 : 2);
+
+            // The message belongs to its tile and starts at or below the bottom of that tile's image.
+            const image = tiles.first().getByRole('img');
+            const message = tiles.first().getByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.');
+            const imageBox = await image.boundingBox();
+            const messageBox = await message.boundingBox();
+
+            if (imageBox === null || messageBox === null) {
+                throw new Error('the failed tile has no image or message box');
+            }
+
+            expect(messageBox.y).toBeGreaterThanOrEqual(imageBox.y + imageBox.height - 1);
+        }
+    });
+
+    /**
      * Client-side pre-validation (REQ-011 size, REQ-012 MIME allowlist) — the guard `useRecipePhotoUploadQueue`
      * runs BEFORE a picked file ever reaches presign. Both cases below never touch the mocked recipe-service
      * API at all (no presign, no S3 PUT, no confirm): the busy affordance never appears and the photo grid
@@ -83,7 +178,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
         const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
-        await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
+        await expect(photosRegion.getByText('No photo? This cover is used instead. Add one any time.')).toBeVisible();
 
         // Just over 5 MB — rejected locally without ever reaching the mocked presign endpoint.
         await page.getByLabel('Add photo').setInputFiles({
@@ -111,7 +206,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
         const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
-        await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
+        await expect(photosRegion.getByText('No photo? This cover is used instead. Add one any time.')).toBeVisible();
 
         await page.getByLabel('Add photo').setInputFiles({
             name: 'clip.gif',

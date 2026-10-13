@@ -6,7 +6,7 @@
  * the two renders can never drift. No React, no platform APIs.
  */
 import type { Locale } from '@commise/i18n';
-import type { RecipeIngredient, RecipeVersion } from '@kitchensink/recipe-core';
+import type { RecipeIngredient, RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 import { formatCalories } from '../card/model.js';
 import { variantPartTexts } from '../detail/lineName.js';
 import { formatIngredientLine } from '../detail/model.js';
@@ -127,6 +127,28 @@ export const toVersionPreviewIngredientLines = (
             ...(unrestorablePositions.includes(position) ? { cannotRestore: messages.lineCannotRestore } : {}),
         };
     });
+
+/** One step of the previewed version: its number as the cook reads it, and what it says. */
+export interface VersionPreviewStep {
+    /** Stable key — the snapshot step's own (frozen) id. */
+    readonly key: string;
+    /** The step's number with its full stop ("1."), for the list's visible marker. */
+    readonly marker: string;
+    /** The step's instruction, as the version froze it. */
+    readonly text: string;
+}
+
+/**
+ * Project a version snapshot's steps into the rows the preview renders: in STEP order (a snapshot's array order is not
+ * a promise), each with its number. Pure.
+ *
+ * @param steps - The snapshot's steps.
+ * @returns The ordered rows; empty for a version with no steps.
+ */
+export const toVersionPreviewSteps = (steps: RecipeSnapshot['steps']): readonly VersionPreviewStep[] =>
+    [...steps]
+        .sort((a, b) => a.stepNumber - b.stepNumber)
+        .map((step) => ({ key: step.id, marker: `${step.stepNumber}.`, text: step.instruction }));
 
 /**
  * Compute the "Changed from current: {n} ingredients, {m} steps" counts from a {@link SnapshotDiff}: each

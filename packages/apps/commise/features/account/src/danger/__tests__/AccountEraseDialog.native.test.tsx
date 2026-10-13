@@ -228,8 +228,9 @@ describe('AccountEraseDialog (native) — the keyboard', () => {
 });
 
 /**
- * D15: the dialog paints from colour roles at render, as the web twin does. The warning and a failure are `dangerText`,
- * body copy `inkMuted`, a heading and a recipe `ink`, the phrase field `ink` inside a `lineControl` edge, and Erase the
+ * D15: the dialog paints from colour roles at render, as the web twin does. A failure is `dangerText`, body copy AND the
+ * warning `inkMuted` as in the Close dialog (W-24: the warning is no longer all red; its `dangerText` glyph is the colour
+ * cue, beside words that already say "permanently" and "cannot be undone"), a heading and a recipe `ink`, the phrase field `ink` inside a `lineControl` edge, and Erase the
  * `danger` fill under its `onAction` label (4.66:1 in both themes).
  */
 describe.each(['light', 'dark'] as const)('AccountEraseDialog (native) — the %s scheme', (scheme) => {
@@ -237,13 +238,23 @@ describe.each(['light', 'dark'] as const)('AccountEraseDialog (native) — the %
     const e = accountDangerMessages.en.erase;
     const style = (element: Element): CSSStyleDeclaration => getComputedStyle(element);
 
-    it('paints the warning in dangerText, the body in inkMuted and the donate heading in ink', () => {
+    it('paints the warning and the body in inkMuted and the donate heading in ink — not all red (W-24)', () => {
         systemScheme.current = scheme;
         renderDialog();
 
-        expect(style(screen.getByText(e.warning)).color).toBe(rgb(colours.dangerText));
+        expect(style(screen.getByText(e.warning)).color).toBe(rgb(colours.inkMuted));
         expect(style(screen.getByText(e.distinction)).color).toBe(rgb(colours.inkMuted));
         expect(style(screen.getByRole('heading', { name: e.donateHeading })).color).toBe(rgb(colours.ink));
+    });
+
+    it('pairs the warning with a warning glyph in dangerText, so colour is not the only cue (W-24)', () => {
+        systemScheme.current = scheme;
+        renderDialog();
+
+        const glyph = document.querySelector('[data-icon-name="triangle-alert"]');
+
+        expect(glyph).not.toBeNull();
+        expect(glyph?.getAttribute('data-icon-color')?.toLowerCase()).toBe(colours.dangerText.toLowerCase());
     });
 
     it('draws the phrase field ink inside a lineControl edge, and Erase on the danger fill', () => {

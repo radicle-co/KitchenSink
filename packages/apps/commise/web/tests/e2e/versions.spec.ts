@@ -243,6 +243,34 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await expect(page.getByRole('heading', { name: 'Version history' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'More actions for version 1' })).toBeVisible();
     });
+
+    // D13: the failed state is the history's own header (the title and a way back) over an alert and a design-system Try
+    // again — not an unstyled paragraph and a raw button beside a floating link.
+    test('keeps the header and the way back while the history cannot load', async ({ page }) => {
+        await signInWithTicket(page);
+        await seedVersionHistory(page);
+        await simulateOutage(page, new RegExp(`/api/v1/recipes/${RECIPE_ID}/versions(?:\\?|$)`));
+
+        await page.goto(route(`/recipes/${RECIPE_ID}/versions`));
+        await expect(page.getByRole('alert').filter({ hasText: 'We couldn’t load the version history.' })).toBeVisible({
+            timeout: 15_000,
+        });
+
+        await expect(page.getByRole('heading', { level: 1, name: 'Version history' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Back to recipe' }).first()).toBeVisible();
+    });
+
+    // D12: Undo is itself a restore; its own confirmation offers no second Undo.
+    test('says what an Undo restored, and offers no second Undo', async ({ page }) => {
+        await signInWithTicket(page);
+        await openVersionHistory(page);
+
+        await chooseRowAction(page, 1, 'Restore this version');
+        await page.getByRole('button', { name: 'Undo' }).click();
+
+        await expect(page.getByText('Restored version 3.')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0);
+    });
 });
 
 /**

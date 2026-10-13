@@ -927,6 +927,9 @@ jobs:
                     # it — the coverage gate caught it being tested twice, on two runners.
                     - group: frontend
                       filter: --filter=@commise/* --filter=!@commise/test-utils
+                      # One package at a time: the UI suites assert real-time bounds, and every pool at once
+                      # made each test 8-14x slower and failed them (unitTestGroupCoverage.test.ts says why).
+                      concurrency: 1
                     # Directory globs, so a new package under any of these is covered the day it lands —
                     # `packages/utils/*` is here because the coverage gate caught `identity-utils` falling
                     # through every filter in this block's first draft.
@@ -1038,9 +1041,11 @@ jobs:
             - name: Run unit tests (${{ matrix.group }})
               env:
                   TEST_FILTER: ${{ matrix.filter }}
+                  # turbo's own default is 10; a group that names no cap keeps it.
+                  TEST_CONCURRENCY: ${{ matrix.concurrency || 10 }}
               run: |
                   set -f
-                  npx turbo run test $TEST_FILTER
+                  npx turbo run test $TEST_FILTER --concurrency="$TEST_CONCURRENCY"
 
     integration-identity:
         name: Integration (identity — mocked)

@@ -312,9 +312,9 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup on the browse
  */
 describe('RecipeDiscoveryContainer — a typed search never waits on the calorie batch', () => {
     /**
-     * Search debounce (250 ms) plus headroom for a loaded CI run, where 3 s timed out once with the code unchanged.
-     * It stays under the app client's 1 s + 2 s + 4 s retry backoff, so a list that waited on a retried batch still
-     * cannot pass, and the in-flight batch below never settles at all — and no timer outlives the test.
+     * Search debounce (250 ms) plus headroom for a loaded CI run, where 3 s timed out with the code unchanged. The
+     * in-flight batch below never settles, so a list that waited on calories cannot pass inside ANY bound — and no
+     * timer outlives the test.
      */
     const RESULTS_BOUND_MS = 6_000;
 
@@ -368,6 +368,12 @@ describe('RecipeDiscoveryContainer — a typed search never waits on the calorie
         await expectResultsReplaceRails();
 
         await expect(batch.mock.results[0]?.value).rejects.toSatisfy(isInvalidRequestError);
+        // ONCE. The refusal is not retryable, and a render React retries before it commits must not ask again: each
+        // new request handed the cards a new pending promise, and the results waited behind every one of them.
+        expect(
+            batch.mock.calls.filter(([ids]) => ids.length === 1 && ids[0] === 'rec_paella'),
+            'the results page asked for its batch once',
+        ).toHaveLength(1);
     });
 
     it('with UUID ids and a batch still in flight — results replace the rails, their figures still loading', async () => {

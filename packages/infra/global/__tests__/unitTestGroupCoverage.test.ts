@@ -25,10 +25,26 @@ const WORKFLOW = path.join(repoRoot, '.github/workflows/_ci.yml');
 /** The `--filter` expressions the matrix declares, one per group. */
 function groupFilters(): { readonly group: string; readonly filter: string }[] {
     const workflow = parse(readFileSync(WORKFLOW, 'utf8')) as {
-        jobs: { test: { strategy: { matrix: { include: { group: string; filter: string }[] } } } };
+        jobs: { test: { strategy: { matrix: { include: TestGroup[] } } } };
     };
 
     return workflow.jobs.test.strategy.matrix.include;
+}
+
+/** One leg of the unit-test matrix. */
+interface TestGroup {
+    readonly group: string;
+    readonly filter: string;
+    readonly concurrency?: number;
+}
+
+/** The unit-test job's steps, as written. */
+function testSteps(): { readonly name?: string; readonly env?: Record<string, string>; readonly run?: string }[] {
+    const workflow = parse(readFileSync(WORKFLOW, 'utf8')) as {
+        jobs: { test: { steps: { name?: string; env?: Record<string, string>; run?: string }[] } };
+    };
+
+    return workflow.jobs.test.steps;
 }
 
 /** Packages turbo resolves for a filter expression, restricted to those that actually define `test`. */
@@ -103,5 +119,23 @@ describe('the sharded unit tier covers every package with tests', () => {
         expect(action).toMatch(/npm run typecheck/);
         expect(action).toMatch(/npm test/);
         expect(action).toMatch(/npm run synth/);
+    });
+
+    /**
+     * ⛔ The frontend suites assert UI timing with real-time bounds (a typed search must replace the rails within a
+     * few seconds). Under turbo's default concurrency every `@commise/*` package's vitest pool ran at once on one
+     * runner, each test ran 8-14x slower than on a workstation, and those bounds failed on two commits in a row with
+     * no code change (runs 38312764398 and 38322183404). Running the frontend packages one at a time keeps a bound a
+     * statement about the app, not about how many pools shared the CPU.
+     */
+    it('runs the frontend packages one at a time, and the step passes the cap to turbo', () => {
+        const frontend = groupFilters().find((g) => g.group === 'frontend');
+
+        expect(frontend?.concurrency).toBe(1);
+
+        const step = testSteps().find((s) => s.name?.startsWith('Run unit tests') === true);
+
+        expect(step?.env?.['TEST_CONCURRENCY']).toBe('${{ matrix.concurrency || 10 }}');
+        expect(step?.run).toMatch(/npx turbo run test \$TEST_FILTER --concurrency="\$TEST_CONCURRENCY"/);
     });
 });

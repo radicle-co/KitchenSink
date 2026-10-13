@@ -35,7 +35,7 @@
  *
  * Platform-agnostic: no DOM and no React Native imports, so web and mobile drive the same seam.
  */
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient, type QueryState } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { recipeQueries } from '@kitchensink/recipe-service-client';
@@ -155,6 +155,83 @@ function settledBatch(data: RecipeNutritionResponse): Promise<RecipeNutritionRes
     return settled;
 }
 
+/** The rejected promise handed out for each failed query state — see {@link failedBatch}. */
+const failedBatches = new WeakMap<QueryState<RecipeNutritionResponse>, Promise<RecipeNutritionResponse>>();
+
+/**
+ * The ONE promise for a batch that has FAILED and is not being fetched again, marked `rejected` under React's thenable
+ * protocol so `use()` throws at once instead of suspending to find out — the twin of {@link settledBatch}.
+ *
+ * ⛔ WHY A FAILED QUERY IS NOT HANDED BACK TO `ensureQueryData`. For a query with no data, `ensureQueryData` FETCHES,
+ * and this hook's memo starts from scratch on every render React does not commit — including the root re-render React
+ * makes to recover after a card's `use()` throws. So each attempt started a new request and handed the cards a new
+ * pending promise, and a deferred render (`useDeferredDiscoveryCriteria`) waited behind every one of them: a refused
+ * batch kept the previous body on screen for as long as the attempts kept coming. TanStack's own suspense reads refuse
+ * the same loop (`ensurePreventErrorBoundaryRetry`: a failed query is not refetched by the render that reads it). A
+ * failure is held exactly as a success is — for as long as the cache holds the query — and a refetch from anywhere else
+ * brings a new state, and with it a new promise, which is what resets the card's error boundary.
+ *
+ * Keyed on the query's STATE object, which query-core replaces on every change, so the promise is the same for as long
+ * as the failure is the same.
+ *
+ * @param state - The failed state the query cache holds.
+ * @returns The rejected promise for that state, with a handler attached so it is never an unhandled rejection.
+ */
+function failedBatch(state: QueryState<RecipeNutritionResponse>): Promise<RecipeNutritionResponse> {
+    const known = failedBatches.get(state);
+
+    if (known !== undefined) {
+        return known;
+    }
+
+    const failed = Object.assign(Promise.reject(state.error), { status: 'rejected' as const, reason: state.error });
+    failed.catch(() => undefined);
+    failedBatches.set(state, failed);
+
+    return failed;
+}
+
+/**
+ * The promise for ONE page's batch, starting its request when the cache has no answer for it.
+ *
+ * ⛔ THE IDENTITY COMES FROM THE QUERY, NOT FROM THE CALLER'S MEMO. `ensureQueryData` answers a cached query with a fresh
+ * `Promise.resolve(data)` every call, and the memo recomputes whenever ANY page changes — and on every retry of a render
+ * React has not committed. A page whose data has landed is handed `settledBatch(data)`: one promise per response, already
+ * marked fulfilled, which `use()` reads at once and which survives every recompute. A page whose batch failed is handed
+ * `failedBatch(state)` and is NOT asked again (see there). A page still fetching is handed `Query.promise`, the
+ * retryer's own promise — but only while the fetch runs: query-core clears the retryer when the fetch settles, which is
+ * why it cannot serve a settled page. `ensured` covers the rest.
+ *
+ * The card's error boundary is what turns a failed lookup into a blank slot, but it can only do that once it has
+ * rendered. Until then nothing of ours is attached to the promise, and a rejection with no handler is an unhandled
+ * rejection — which crashes a React Native app rather than blanking a chip. So a handler is attached here; `.catch`
+ * returns a NEW promise, and the identity handed to the boundary is the original.
+ *
+ * @param queryClient - The app's query cache.
+ * @param options - The page's `nutritionBatch` read.
+ * @returns The page's batch promise, stable for as long as the cached answer is the same.
+ * @sideEffect Starts the page's request when the cache holds neither an answer nor a failure for it.
+ */
+function batchPromise(
+    queryClient: QueryClient,
+    options: ReturnType<ReturnType<typeof recipeQueries>['nutritionBatch']>,
+): Promise<RecipeNutritionResponse> {
+    const known = queryClient.getQueryCache().find<RecipeNutritionResponse>({ queryKey: options.queryKey });
+
+    if (known?.state.status === 'error' && known.state.fetchStatus === 'idle') {
+        return failedBatch(known.state);
+    }
+
+    const ensured = queryClient.ensureQueryData(options);
+    const query = queryClient.getQueryCache().find<RecipeNutritionResponse>({ queryKey: options.queryKey });
+    const promise = query?.state.data === undefined ? (query?.promise ?? ensured) : settledBatch(query.state.data);
+
+    promise.catch(() => undefined);
+    ensured.catch(() => undefined);
+
+    return promise;
+}
+
 /**
  * Start the deferred nutrition lookup for the recipes on screen and hand each recipe the promise that
  * covers it.
@@ -179,26 +256,7 @@ export function useRecipeNutritionBatches(recipeIdPages: readonly (readonly stri
                 continue;
             }
 
-            const options = recipeQueries(client).nutritionBatch(page);
-            const ensured = queryClient.ensureQueryData(options);
-            const query = queryClient.getQueryCache().find<RecipeNutritionResponse>({ queryKey: options.queryKey });
-            // ⛔ THE IDENTITY COMES FROM THE QUERY, NOT FROM THIS MEMO. `ensureQueryData` answers a cached query
-            // with a fresh `Promise.resolve(data)` every call, and this memo recomputes whenever ANY page changes —
-            // and on every retry of a render React has not committed. A page whose data has landed is handed
-            // `settledBatch(data)`: one promise per response, already marked fulfilled, which `use()` reads at once
-            // and which survives every recompute. A page still fetching is handed `Query.promise`, the retryer's own
-            // promise — but only while the fetch runs: query-core clears the retryer when the fetch settles, which is
-            // why it cannot serve a settled page. `ensured` covers the rest (a failed page, refetched by the call).
-            const promise =
-                query?.state.data === undefined ? (query?.promise ?? ensured) : settledBatch(query.state.data);
-
-            // The card's error boundary is what turns a failed lookup into a blank slot, but it can only do
-            // that once it has rendered. Until then nothing of ours is attached to this promise, and a
-            // rejection with no handler is an unhandled rejection — which crashes a React Native app rather
-            // than blanking a chip. `.catch` returns a NEW promise; the identity handed to the boundary is
-            // the original, which is what is stored below.
-            promise.catch(() => undefined);
-            ensured.catch(() => undefined);
+            const promise = batchPromise(queryClient, recipeQueries(client).nutritionBatch(page));
 
             for (const recipeId of page) {
                 // First page wins: a recipe that appeared on page one keeps page one's settled promise even

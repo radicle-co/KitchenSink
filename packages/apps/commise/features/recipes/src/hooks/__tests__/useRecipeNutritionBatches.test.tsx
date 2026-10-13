@@ -415,6 +415,89 @@ describe('useRecipeNutritionBatches — failure', () => {
     });
 });
 
+describe('useRecipeNutritionBatches — a batch that FAILED is not asked again by the next render', () => {
+    /**
+     * A surface mounts its cards inside a deferred render (`useDeferredValue`), and React may run that render several
+     * times before it commits — after a card's `use()` throws, React re-renders the whole root once more to recover.
+     * Every such attempt starts this hook's memo from scratch. A memo that re-enters `ensureQueryData` for a query that
+     * has FAILED starts a new fetch each time, hands `use()` a new pending promise each time, and so keeps the results
+     * from committing for as long as the attempts keep coming. TanStack's own suspense reads refuse the same loop
+     * (`ensurePreventErrorBoundaryRetry`): a failed query is not refetched by the render that reads it.
+     *
+     * A fresh MOUNT is used to stand for the retried attempt, because a mount is what a never-committed render is to
+     * hooks: no memo survives it.
+     */
+    it('⛔ hands a fresh mount the SAME failed promise and starts no second request', async () => {
+        const failure = new Error('the request body did not satisfy the contract');
+        const getRecipeNutrition = vi.fn(async () => {
+            throw failure;
+        });
+        const client = { getRecipeNutrition } as unknown as RecipeServiceClient;
+        const seen: (Promise<RecipeNutritionResponse> | null)[] = [];
+
+        const Host: FC = () => {
+            seen.push(useRecipeNutritionBatches([PAGE_ONE])(PAGE_ONE[0] ?? ''));
+
+            return <span>host</span>;
+        };
+
+        const first = render(wrap(client, <Host />));
+        // Through the read seam's one retry and its backoff, as in the failure tests above.
+        await vi.waitFor(
+            () => {
+                expect(queryClient.getQueryState(recipeServiceKeys.recipeNutrition(PAGE_ONE))?.status).toBe('error');
+            },
+            { timeout: 5_000 },
+        );
+        first.unmount();
+
+        render(wrap(client, <Host />));
+        render(wrap(client, <Host />));
+
+        // Twice by the first mount — the read seam's own single retry — and never by a later one.
+        expect(getRecipeNutrition, 'no later mount asked for the failed batch again').toHaveBeenCalledTimes(2);
+        expect(seen).toHaveLength(3);
+        expect(seen[2], 'two later mounts read one promise, so a card does not re-suspend').toBe(seen[1]);
+        await expect(seen[1]).rejects.toBe(failure);
+    });
+
+    it('still asks again once the failed query has left the cache — the failure is held only as long as the cache holds it', async () => {
+        let fail = true;
+        const getRecipeNutrition = vi.fn(async (ids: readonly string[]) => {
+            if (fail) {
+                throw new Error('food service unavailable');
+            }
+
+            return respond(ids);
+        });
+        const client = { getRecipeNutrition } as unknown as RecipeServiceClient;
+        let promise: Promise<RecipeNutritionResponse> | null = null;
+
+        const Host: FC = () => {
+            promise = useRecipeNutritionBatches([PAGE_ONE])(PAGE_ONE[0] ?? '');
+
+            return <span>host</span>;
+        };
+
+        const first = render(wrap(client, <Host />));
+        // Through the read seam's one retry and its backoff, as in the failure tests above.
+        await vi.waitFor(
+            () => {
+                expect(queryClient.getQueryState(recipeServiceKeys.recipeNutrition(PAGE_ONE))?.status).toBe('error');
+            },
+            { timeout: 5_000 },
+        );
+        first.unmount();
+        queryClient.removeQueries({ queryKey: recipeServiceKeys.recipeNutrition(PAGE_ONE) });
+        fail = false;
+
+        render(wrap(client, <Host />));
+
+        expect(getRecipeNutrition).toHaveBeenCalledTimes(3);
+        await expect(promise).resolves.toEqual(respond(PAGE_ONE));
+    });
+});
+
 /**
  * `toRecipeNutritionPages` — the entry point for a surface whose recipes did NOT arrive in pages (a
  * collection's member list). The published cap is the caller's problem: over it the request schema refuses

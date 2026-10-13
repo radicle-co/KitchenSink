@@ -36,6 +36,8 @@ const SAMPLE: Readonly<Record<string, (stage: string) => string>> = {
     'db-bootstrap': (stage) => `kitchensink-data-${stage}-DbBootstrapLogGroupO5-R`,
     'per-pr-reaper': (stage) => `kitchensink-data-${stage}-PerPrDatabaseReaperLogGroupP6-Q`,
     'sandbox-scheduler': (stage) => `kitchensink-sandbox-scheduler-${stage}-SandboxSchedulerLogGroupQ7-P`,
+    'sandbox-reclaim': (stage) => `kitchensink-sandbox-scheduler-${stage}-SandboxReclaimLogGroupR8-O`,
+    'sandbox-reclaim-states': (stage) => `kitchensink-sandbox-scheduler-${stage}-ReclaimStateMachineLogGroupT1-M`,
     'remote-search': (stage) => `/aws/lambda/kitchensink-remote-search-${stage}`,
     'remote-search-key-provisioner': (stage) =>
         `kitchensink-remote-search-shared-${stage}-SigningKeyProvisionerLogGroupS9-N`,

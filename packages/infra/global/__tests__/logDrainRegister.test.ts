@@ -607,7 +607,9 @@ describe('the log-drain register (ADR-0042)', () => {
             );
         };
 
-        expect(rowsAt('sandbox')).toEqual(['db-bootstrap', 'per-pr-reaper', 'sandbox-scheduler']);
+        // Rewritten for ADR-0061, which adds a drained group to the scheduler stack: the midnight reclaim's function
+        // (`sandbox-reclaim`). Its state machine's group is registered but not drained, so it is not a filter here.
+        expect(rowsAt('sandbox')).toEqual(['db-bootstrap', 'per-pr-reaper', 'sandbox-reclaim', 'sandbox-scheduler']);
         expect(rowsAt('prod')).toEqual(['db-bootstrap']);
     });
 

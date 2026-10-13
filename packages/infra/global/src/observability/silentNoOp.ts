@@ -35,7 +35,7 @@ export const SILENT_NOOP_DEADLINE_MS = 2_000;
  */
 export interface SilentNoOp {
     /** The function reporting, from a closed set. */
-    readonly service: 'db-bootstrap' | 'db-reaper';
+    readonly service: 'db-bootstrap' | 'db-reaper' | 'sandbox-scheduler' | 'sandbox-reclaim';
     /** The deploy stage. */
     readonly stage: string;
     /** The condition, from this module's own vocabulary — the fingerprint is built from it. */

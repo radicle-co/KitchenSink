@@ -202,9 +202,10 @@ Construct `SandboxSchedulerStack` — `packages/infra/global/lib/platform/Sandbo
 | kind | logical id | handler / name template | only when |
 | --- | --- | --- | --- |
 | alarm | `SandboxSchedulerRunFailedAlarm` | `—` | `props.alarmsEnabled` |
+| lambdaFunction | `SandboxReclaimFunction` | `—` | — | handler is not a literal: reclaimHandler
 | lambdaFunction | `SandboxSchedulerFunction` | `—` | — | handler is not a literal: schedulerHandler
 
-Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-logs-destinations.LambdaDestination`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-logs.SubscriptionFilter`, `aws-cdk-lib/aws-scheduler-targets.LambdaInvoke`, `aws-cdk-lib/aws-scheduler.Schedule`.
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-logs-destinations.LambdaDestination`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-logs.SubscriptionFilter`, `aws-cdk-lib/aws-scheduler-targets.LambdaInvoke`, `aws-cdk-lib/aws-scheduler.Schedule`, `aws-cdk-lib/aws-stepfunctions-tasks.LambdaInvoke`, `aws-cdk-lib/aws-stepfunctions.Choice`, `aws-cdk-lib/aws-stepfunctions.Fail`, `aws-cdk-lib/aws-stepfunctions.Pass`, `aws-cdk-lib/aws-stepfunctions.StateMachine`, `aws-cdk-lib/aws-stepfunctions.Succeed`, `aws-cdk-lib/aws-stepfunctions.Wait`.
 
 ### `kitchensink-service-logs-{stage}`
 

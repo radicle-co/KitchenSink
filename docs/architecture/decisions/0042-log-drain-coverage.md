@@ -89,13 +89,18 @@ loops.
 | `kitchensink-data-{stage}-DbBootstrapLogGroup*`                           | `DataStack`               | yes    | `db-bootstrap`                  |
 | `kitchensink-data-{stage}-PerPrDatabaseReaperLogGroup*`                   | `DataStack`               | yes    | `per-pr-reaper`                 |
 | `kitchensink-sandbox-scheduler-{stage}-SandboxSchedulerLogGroup*`         | `SandboxSchedulerStack`   | yes    | `sandbox-scheduler`             |
+| `kitchensink-sandbox-scheduler-{stage}-SandboxReclaimLogGroup*`           | `SandboxSchedulerStack`   | yes    | `sandbox-reclaim`               |
+| `kitchensink-sandbox-scheduler-{stage}-ReclaimStateMachineLogGroup*`      | `SandboxSchedulerStack`   | no     | `sandbox-reclaim-states`        |
 | `/aws/lambda/kitchensink-remote-search-{stage}`                           | `RemoteSearchStack`       | yes    | `remote-search`                 |
 | `kitchensink-remote-search-shared-{stage}-SigningKeyProvisionerLogGroup*` | `RemoteSearchSharedStack` | yes    | `remote-search-key-provisioner` |
 | `kitchensink-remote-search-shared-{stage}-SigningKeyProviderLogGroup*`    | `RemoteSearchSharedStack` | yes    | `remote-search-key-provider`    |
 
 <!-- log-drain:end -->
 
-The `Filter` column is `no` for exactly one row, the forwarder's own group, for the loop reason above.
+The `Filter` column is `no` for two rows. The forwarder's own group is one, for the loop reason above. The other is
+the midnight reclaim's state machine log group (ADR-0061): it records every state change of a once-a-minute loop, with
+execution data switched off, so it would add hundreds of lines a night that say nothing the reclaim function's own
+drained group does not. A reclaim that fails is announced by that function, not read from this group.
 `yes` means the group is DRAINED BY DESIGN — its owner declares a filter and attaches it whenever CI resolved
 an ARN. It is not a claim that a given deploy attached one; that is the conditional above, and the residual
 risk below.

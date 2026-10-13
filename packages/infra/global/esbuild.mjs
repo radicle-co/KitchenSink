@@ -19,10 +19,10 @@ if (edgeJwtKey && edgeAuthorizedParties === '') {
 }
 
 /**
- * Bundle the sandbox nightly-shutdown scheduler Lambda (ADR-0007) into a self-contained ESM file under
- * `dist-lambda/`, mirroring the `src/` layout so the CDK `handler:` string
- * (`sandbox-scheduler/handler.handler`) resolves. The pure decision logic in `lib/sandbox-scheduler/`
- * is bundled in; the AWS SDK v3 clients are left `external` because the Node 22 Lambda runtime provides
+ * Bundle the sandbox nightly-shutdown scheduler Lambda (ADR-0007) and its midnight reclaim (ADR-0061) into
+ * self-contained ESM files under `dist-lambda/`, mirroring the `src/` layout so the CDK `handler:` strings
+ * (`sandbox-scheduler/handler.handler`, `sandbox-scheduler/reclaimHandler.handler`) resolve. The pure decision
+ * logic in `lib/sandbox-scheduler/` is bundled in; the AWS SDK v3 clients are left `external` because the Node 22 Lambda runtime provides
  * them (so they are not — and need not be — package dependencies).
  *
  * A bare `cdk synth` that skips this bundle still works: `SandboxSchedulerStack` falls back to an inline
@@ -30,6 +30,8 @@ if (edgeJwtKey && edgeAuthorizedParties === '') {
  */
 const entryPoints = [
     'src/sandbox-scheduler/handler.ts',
+    // The midnight reclaim (ADR-0061): one step per call, driven by a Step Functions loop.
+    'src/sandbox-scheduler/reclaimHandler.ts',
     // ONE bootstrap for every database on the instance (the role split) — it replaced food's and recipe's.
     'src/db-bootstrap/handler.ts',
     'src/db-reaper/handler.ts',

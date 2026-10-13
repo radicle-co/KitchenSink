@@ -9,7 +9,7 @@
  *
  * Three actions (ADR-0060):
  *   - `stop`  — the ONLY scheduled one, at midnight: every scheduled rule off, then RDS, the NAT and every
- *               sandbox and per-PR ECS service.
+ *               sandbox and per-PR ECS service, then the midnight reclaim loop (ADR-0061, `reclaim.ts`).
  *   - `start` — one PR, by hand (`sandboxUp.yml`): RDS, the NAT, the shared tier and that PR's services.
  *   - `sync`  — the ONLY writer of a scheduled rule's state, from {@link desiredRuleStates}.
  *
@@ -28,9 +28,14 @@ export type SchedulerAction = 'stop' | 'start' | 'sync';
 /** A per-PR stage token: `pr-` and a PR number with no leading zero. Only {@link parseSchedulerRequest} makes one. */
 export type PreviewStage = `pr-${number}` & { readonly __brand: 'PreviewStage' };
 
-/** A parsed scheduler command. `start` names exactly one PR; there is no start-everything. */
+/**
+ * A parsed scheduler command. `start` names exactly one PR; there is no start-everything.
+ *
+ * A `stop` from the midnight schedule carries the schedule's own `scheduledTime`, which names the night for the
+ * reclaim's idempotency key. A hand-run stop may carry none.
+ */
 export type SchedulerRequest =
-    | { readonly action: 'stop' }
+    | { readonly action: 'stop'; readonly scheduledTime?: string }
     | { readonly action: 'sync' }
     | { readonly action: 'start'; readonly stage: PreviewStage };
 
@@ -141,6 +146,17 @@ export interface EventsApi {
     disableRule(name: string): Promise<void>;
 }
 
+/** The midnight reclaim's starter (ADR-0061): one call that starts the Step Functions loop. */
+export interface ReclaimApi {
+    /**
+     * Start the reclaim loop under an idempotency name.
+     *
+     * Rejects with an error named `ExecutionAlreadyExists` when the night's loop already exists. {@link runStop}
+     * treats that one as success, because a retried schedule is the same night.
+     */
+    startLoop(executionName: string): Promise<void>;
+}
+
 /** The full set of injected clients. */
 export interface SchedulerClients {
     /** RDS client. */
@@ -153,6 +169,8 @@ export interface SchedulerClients {
     readonly ssm: SsmApi;
     /** EventBridge client. */
     readonly events: EventsApi;
+    /** The reclaim loop's starter. */
+    readonly reclaim: ReclaimApi;
 }
 
 /** Per-resource-class action tally returned for logging + tests. */
@@ -175,6 +193,8 @@ export interface SchedulerSummary {
     readonly nat: ResourceTally;
     /** Scheduled-rule tally (rules whose state was written). */
     readonly rules: ResourceTally;
+    /** The reclaim loop (ADR-0061): the execution name started, or skipped. Empty outside `stop`. */
+    readonly reclaim: ResourceTally;
     /** Gaps that are reported on every run but do not fail it (a serving stage whose rules are not yet tagged). */
     readonly warnings: string[];
     /** Non-fatal errors (a resource that could not transition is logged + skipped, never aborts). */
@@ -188,13 +208,26 @@ export type PowerTransition = 'stop' | 'start';
 const SANDBOX_MARKER = 'sandbox';
 
 /**
+ * The prefix every cluster and RDS instance this repository deploys carries: CloudFormation names an unnamed cluster
+ * `<stack name>-<LogicalId>-<hash>`, and every stack is `kitchensink-…`.
+ *
+ * ⛔ A per-PR cluster is selected by tag AND by this prefix (ADR-0061 security review). The account also hosts another
+ * application, a tag alone does not say whose cluster it is, and what the selector leads to is scaling a service to
+ * zero here and, in the reclaim, an irreversible `DeleteService`. The IAM grants carry the same prefix.
+ */
+const REPOSITORY_PREFIX = 'kitchensink-';
+
+/**
  * Whether a DB instance identifier belongs to the sandbox stage.
  *
  * @param identifier - The DB instance identifier.
  * @returns `true` when it is a `-sandbox` instance.
  */
 export function isSandboxRdsInstance(identifier: string): boolean {
-    return identifier.includes(`-${SANDBOX_MARKER}`);
+    // ⛔ The repository prefix too (ADR-0061 review). Another application in this account can own a `-sandbox` instance,
+    // and the reclaim decides "the tier is down" from these instances: a running foreign one would hold it up for ever,
+    // and silently. The real identifier is `kitchensink-data-sandbox-databaseb269d8bb-…`.
+    return identifier.startsWith(REPOSITORY_PREFIX) && identifier.includes(`-${SANDBOX_MARKER}`);
 }
 
 /**
@@ -253,6 +286,16 @@ export function isProdClusterArn(clusterArn: string): boolean {
     return (clusterArn.split('/').pop() ?? '').toLowerCase().includes(PROD_MARKER);
 }
 
+/**
+ * Whether a cluster ARN names a cluster of THIS repository (its name starts with `kitchensink-`).
+ *
+ * @param clusterArn - The cluster ARN.
+ * @returns `true` for a cluster this repository deployed. Pure.
+ */
+function isRepositoryClusterArn(clusterArn: string): boolean {
+    return (clusterArn.split('/').pop() ?? '').startsWith(REPOSITORY_PREFIX);
+}
+
 /** A cluster as the selector sees it: its ARN, and its `Environment` tag when it carries one. */
 export interface EcsClusterSummary {
     /** The cluster ARN. */
@@ -295,7 +338,10 @@ export function isScheduledCluster(cluster: EcsClusterSummary): boolean {
         return false;
     }
 
-    return isSandboxClusterArn(cluster.arn) || PER_PR_ENVIRONMENT.test(cluster.environmentTag ?? '');
+    return (
+        isSandboxClusterArn(cluster.arn) ||
+        (isRepositoryClusterArn(cluster.arn) && PER_PR_ENVIRONMENT.test(cluster.environmentTag ?? ''))
+    );
 }
 
 /**
@@ -338,13 +384,16 @@ export function priorCountParamName(serviceArn: string): string {
 /**
  * The `pr-{N}` token a per-PR cluster's `Environment` tag names, or `undefined` for any other cluster.
  *
+ * Exported because the midnight reclaim (ADR-0061) groups a preview's ECS clusters by the same token, and a second
+ * copy of "which cluster belongs to which preview" is the drift ADR-0005 forbids.
+ *
  * @param cluster - The cluster and its tag.
  * @returns The token with the `-sandbox` tier suffix removed (`pr-91-sandbox` → `pr-91`). Pure.
  */
-function previewTokenOf(cluster: EcsClusterSummary): string | undefined {
+export function previewTokenOf(cluster: EcsClusterSummary): string | undefined {
     const tag = cluster.environmentTag ?? '';
 
-    if (isProdClusterArn(cluster.arn) || !PER_PR_ENVIRONMENT.test(tag)) {
+    if (isProdClusterArn(cluster.arn) || !isRepositoryClusterArn(cluster.arn) || !PER_PR_ENVIRONMENT.test(tag)) {
         return undefined;
     }
 
@@ -583,15 +632,89 @@ async function runSync(clients: SchedulerClients): Promise<SchedulerSummary> {
         ecs: emptyTally(),
         nat: emptyTally(),
         rules: report.tally,
+        reclaim: emptyTally(),
         warnings: report.warnings,
         errors: report.errors,
     };
 }
 
+/** The shape EventBridge Scheduler gives `<aws.scheduler.scheduled-time>`: an ISO-8601 UTC instant, no fraction. */
+const SCHEDULED_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
+
+/**
+ * The Step Functions execution name for one night's reclaim — the idempotency key (ADR-0061).
+ *
+ * The schedule retries a failed invocation with the SAME input, so the same `scheduledTime` yields the same name and
+ * a retried stop cannot start a second loop. The value is parsed strictly because it becomes a name: Step Functions
+ * names admit no `:`, whitespace or path characters.
+ *
+ * @param scheduledTime - The schedule's `<aws.scheduler.scheduled-time>`.
+ * @returns `nightly-<time with ':' replaced by '-'>`, or `undefined` for anything that is not that shape. Pure.
+ */
+export function reclaimExecutionName(scheduledTime: string): string | undefined {
+    return SCHEDULED_TIME.test(scheduledTime) ? `nightly-${scheduledTime.replaceAll(':', '-')}` : undefined;
+}
+
+/** Whether an error is Step Functions' "this execution name already exists", which is success for a stop. */
+function isExecutionAlreadyExists(error: unknown): boolean {
+    return error instanceof Error && error.name === 'ExecutionAlreadyExists';
+}
+
+/**
+ * Start the midnight reclaim, last, once everything else has stopped.
+ *
+ * ⛔ A failure here is RECORDED, never thrown: the stop has already done its work, and cost safety comes before the
+ * reclaim. The error fails the run afterwards (`assertRunSucceeded`), which is what makes the handler announce it.
+ *
+ * @param reclaim - The reclaim starter.
+ * @param scheduledTime - The schedule's time, when the invocation carried one.
+ * @param tally - Receives the execution name.
+ * @param errors - Receives a failure.
+ * @param warnings - Receives the note for a stop that carried no time.
+ * @sideEffect Starts a Step Functions execution.
+ */
+async function startReclaim(
+    reclaim: ReclaimApi,
+    scheduledTime: string | undefined,
+    tally: Tally,
+    errors: string[],
+    warnings: string[],
+): Promise<void> {
+    if (scheduledTime === undefined) {
+        warnings.push('reclaim: this stop carried no scheduledTime, so no reclaim was started (a hand-run stop)');
+
+        return;
+    }
+
+    const executionName = reclaimExecutionName(scheduledTime);
+
+    if (executionName === undefined) {
+        errors.push(
+            `reclaim: scheduledTime ${JSON.stringify(scheduledTime)} is not an ISO UTC instant, so no reclaim was started`,
+        );
+
+        return;
+    }
+
+    try {
+        await reclaim.startLoop(executionName);
+        tally.acted.push(executionName);
+    } catch (error) {
+        if (isExecutionAlreadyExists(error)) {
+            tally.skipped.push(executionName);
+
+            return;
+        }
+
+        errors.push(`reclaim start ${executionName}: ${errorMessage(error)}`);
+        tally.skipped.push(executionName);
+    }
+}
+
 /**
  * Apply the STOP transition: every owned rule OFF first, then stop RDS, persist-then-zero ECS desired counts, stop
- * the NAT instance. Each resource is handled independently; a failure is recorded and skipped so one stuck
- * resource never blocks the rest.
+ * the NAT instance, then start the midnight reclaim. Each resource is handled independently; a failure is recorded
+ * and skipped so one stuck resource never blocks the rest.
  *
  * ⛔ The rules are decided against {@link TIER_GOING_DOWN}, not the live tier: at midnight everything is still up,
  * so a live decision would answer ENABLED for exactly the jobs about to lose their database.
@@ -600,12 +723,14 @@ async function runSync(clients: SchedulerClients): Promise<SchedulerSummary> {
  * @returns The run summary.
  * @sideEffect Disables EventBridge rules, stops RDS/EC2 and scales ECS services to zero.
  */
-async function runStop(clients: SchedulerClients): Promise<SchedulerSummary> {
+async function runStop(clients: SchedulerClients, scheduledTime: string | undefined): Promise<SchedulerSummary> {
     const { rds, ecs, ec2, ssm } = clients;
     const rulesTally = emptyTally();
     const rdsTally = emptyTally();
     const ecsTally = emptyTally();
     const natTally = emptyTally();
+    const reclaimTally = emptyTally();
+    const warnings: string[] = [];
     const errors: string[] = [];
 
     // A going-down tier serves nothing, so this can only disable, refuse or fail — never warn.
@@ -649,7 +774,20 @@ async function runStop(clients: SchedulerClients): Promise<SchedulerSummary> {
         }
     }
 
-    return { action: 'stop', rds: rdsTally, ecs: ecsTally, nat: natTally, rules: rulesTally, warnings: [], errors };
+    // ⛔ LAST. The reclaim deletes only a tier that is already stopping or stopped, and nothing it does may undo the
+    // stop above (ADR-0061).
+    await startReclaim(clients.reclaim, scheduledTime, reclaimTally, errors, warnings);
+
+    return {
+        action: 'stop',
+        rds: rdsTally,
+        ecs: ecsTally,
+        nat: natTally,
+        rules: rulesTally,
+        reclaim: reclaimTally,
+        warnings,
+        errors,
+    };
 }
 
 /**
@@ -728,6 +866,7 @@ async function runStart(clients: SchedulerClients, stage: PreviewStage): Promise
         ecs: ecsTally,
         nat: natTally,
         rules: emptyTally(),
+        reclaim: emptyTally(),
         warnings: [],
         errors,
     };
@@ -759,9 +898,15 @@ export function parseSchedulerRequest(event: unknown): SchedulerRequest {
         throw new InvalidSchedulerRequestError(event);
     }
 
-    const { action, stage } = event as { action?: unknown; stage?: unknown };
+    const { action, stage, scheduledTime } = event as { action?: unknown; stage?: unknown; scheduledTime?: unknown };
 
-    if (action === 'stop' || action === 'sync') {
+    if (action === 'stop') {
+        // ⛔ A scheduledTime that is not a string is DROPPED, not refused: refusing would stop the stop, and cost
+        // safety comes first. A stop with no time starts no reclaim and says so (`startReclaim`).
+        return typeof scheduledTime === 'string' ? { action, scheduledTime } : { action };
+    }
+
+    if (action === 'sync') {
         return { action };
     }
 
@@ -786,7 +931,7 @@ export async function runSchedulerAction(
 ): Promise<SchedulerSummary> {
     switch (request.action) {
         case 'stop':
-            return runStop(clients);
+            return runStop(clients, request.scheduledTime);
         case 'sync':
             return runSync(clients);
         case 'start':

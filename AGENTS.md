@@ -110,6 +110,13 @@ ADR under `docs/architecture/decisions/` and confirm you are not reintroducing t
   does. Outside prod every scheduled EventBridge rule deploys DISABLED with a `SandboxStage` tag, and the scheduler's
   `sync` is the only writer of rule state. Don't restore a start schedule or a wake, and don't toggle a rule from
   anywhere but `sync`. See `docs/architecture/decisions/0060-sandbox-starts-only-by-hand.md`.
+- **ADR-0061 — the midnight stop also starts a reclaim that deletes the sandbox stacks nothing uses.** After the
+  stop, a Step Functions loop calls a reclaim Lambda once a minute. It deletes every `kitchensink-<app>-pr-N` stack,
+  then the shared tier, only while the RDS instance and the NAT are stopping or stopped and no `pr-N` stack is left. IAM, not the
+  planner, is its boundary: a `DeleteStack` names no role, and the grant names the stacks it can delete. Its
+  TypeScript copy of the `prScope.sh` and `sandboxSharedTier.sh` matchers is the one exception to ADR-0005's
+  "no second matcher", held equal by `reclaimShellParity.test.ts`. Don't give it a role, a VPC or a wider grant. See
+  `docs/architecture/decisions/0061-midnight-stop-reclaims-what-nothing-uses.md`.
 - **ADR-0008 — non-prod cost levers diverge from prod on purpose.** Non-prod RDS uses `gp3` while prod
   stays `gp2`; non-prod Fargate runs `FARGATE_SPOT` while prod runs on-demand. Don't "fix" sandbox to
   match prod, and don't flip prod without its own PR and a no-diff proof.

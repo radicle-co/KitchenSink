@@ -129,6 +129,27 @@ jobs:
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
 
+            # ⛔ REFUSE A PRESS WHILE THE MIDNIGHT RECLAIM IS RUNNING (ADR-0061). The reclaim deletes stacks for up to two
+            # hours after the stop, and it only deletes a tier that is down: a start now would bring the database and the
+            # NAT back up under it and make it stand down half-way. Only IDLE (0) lets the press through; RUNNING (3)
+            # refuses it, and so does a lookup that could not be made — a failed call is never read as "idle".
+            - name: Refuse a start while the midnight reclaim is running
+              run: |
+                  set -uo pipefail
+                  rc=0
+                  bash .github/scripts/sandboxScheduler.sh reclaim-status "$AWS_REGION" || rc=$?
+                  case "$rc" in
+                      0) echo 'no reclaim is running' ;;
+                      3)
+                          echo "::error::The midnight reclaim is still deleting last night's stacks. Press Sandbox Up again when it has finished (usually within two hours of midnight)." >&2
+                          exit 1
+                          ;;
+                      *)
+                          echo "::error::could not tell whether the midnight reclaim is running (sandboxScheduler.sh reclaim-status exited ${rc})." >&2
+                          exit 1
+                          ;;
+                  esac
+
             # ⛔ THE ONE START (ADR-0060), and the only workflow that may issue it (`sandboxWakeWiring.test.ts`).
             # The scheduler restores each service from the desired count it recorded at the last stop and refuses to
             # guess one it has no record of, so this never reimplements a start with raw `aws` calls. Every other

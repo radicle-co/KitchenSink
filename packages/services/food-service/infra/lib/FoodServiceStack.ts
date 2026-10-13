@@ -608,8 +608,11 @@ export class FoodServiceStack extends Stack {
         // @radicle-co/infra-shared/security.
         acceptNagFindings(apiTaskDefinition, AcceptedNagFindings.TASK_ENVIRONMENT_HOLDS_NO_SECRET);
 
+        // ⚠️ Deleted with its stack outside production (ADR-0061): the midnight reclaim deletes this stack and
+        // Sandbox Up rebuilds it, so a retained group would leak (or, when named, fail the rebuild with AlreadyExists).
         const apiLogGroup = new logs.LogGroup(this, 'FoodApiLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
+            removalPolicy: props.stage === 'prod' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
         });
 
         apiTaskDefinition.addContainer('FoodApiContainer', {
@@ -709,8 +712,11 @@ export class FoodServiceStack extends Stack {
             }),
         );
 
+        // ⚠️ Deleted with its stack outside production (ADR-0061): the midnight reclaim deletes this stack and
+        // Sandbox Up rebuilds it, so a retained group would leak (or, when named, fail the rebuild with AlreadyExists).
         const workerLogGroup = new logs.LogGroup(this, 'FoodWorkerLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
+            removalPolicy: props.stage === 'prod' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
         });
 
         workerTaskDefinition.addContainer('FoodWorkerContainer', {
@@ -772,8 +778,11 @@ export class FoodServiceStack extends Stack {
         // @radicle-co/infra-shared/security.
         acceptNagFindings(changeRefreshTaskDefinition, AcceptedNagFindings.TASK_ENVIRONMENT_HOLDS_NO_SECRET);
 
+        // ⚠️ Deleted with its stack outside production (ADR-0061): the midnight reclaim deletes this stack and
+        // Sandbox Up rebuilds it, so a retained group would leak (or, when named, fail the rebuild with AlreadyExists).
         const changeRefreshLogGroup = new logs.LogGroup(this, 'FoodChangeRefreshLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
+            removalPolicy: props.stage === 'prod' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
         });
 
         // ── Drain this group to Sentry (plan U15, ADR-0042) ──

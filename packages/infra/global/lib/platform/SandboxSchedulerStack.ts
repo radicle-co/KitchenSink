@@ -10,6 +10,9 @@ import {
     aws_scheduler as scheduler,
     aws_scheduler_targets as schedulerTargets,
     aws_sns as sns,
+    aws_ssm as ssm,
+    aws_stepfunctions as sfn,
+    aws_stepfunctions_tasks as sfnTasks,
     type StackProps,
     aws_logs as logs,
     aws_logs_destinations as logsDestinations,
@@ -23,7 +26,17 @@ import type { Construct } from 'constructs';
 import { NODE_LAMBDA_RUNTIME } from '@radicle-co/infra-shared/security';
 
 import { NIGHTLY_STOP_HOUR, NIGHTLY_TIMEZONE } from '../sandbox-scheduler/nightlyStop.js';
+import { SHARED_TIER_DELETE_ORDER } from '../sandbox-scheduler/reclaim.js';
 import { SCHEDULED_RULE_STAGE_TAG } from '../sandbox-scheduler/scheduler.js';
+
+/**
+ * How many one-minute iterations the reclaim may take (ADR-0061). Two hours: well past the slowest stack delete seen,
+ * and a bound so a wedged delete ends in an announced failure rather than looping for ever.
+ */
+const RECLAIM_MAX_ITERATIONS = 120;
+
+/** The pause between reclaim iterations. */
+const RECLAIM_POLL_SECONDS = 60;
 
 /** Props for {@link SandboxSchedulerStack}. */
 export interface SandboxSchedulerStackProps extends StackProps {
@@ -67,6 +80,9 @@ export class SandboxSchedulerStack extends Stack {
     /** The scheduler Lambda's name (exported for ops/manual invocation). */
     public readonly schedulerFunctionName: string;
 
+    /** The midnight reclaim loop (ADR-0061), exported for ops and for `sandboxScheduler.sh reclaim-status`. */
+    public readonly reclaimStateMachine: sfn.StateMachine;
+
     public constructor(scope: Construct, id: string, props: SandboxSchedulerStackProps) {
         super(scope, id, props);
 
@@ -97,6 +113,25 @@ export class SandboxSchedulerStack extends Stack {
                   'exports.handler = async () => { throw new Error("sandbox-scheduler asset not built — deploy shipped the placeholder"); };',
               );
         const schedulerHandler = hasLambdaAsset ? 'sandbox-scheduler/handler.handler' : 'index.handler';
+        const reclaimCode = hasLambdaAsset
+            ? lambda.Code.fromAsset(lambdaAssetDir)
+            : lambda.Code.fromInline(
+                  'exports.handler = async () => { throw new Error("sandbox-reclaim asset not built — deploy shipped the placeholder"); };',
+              );
+        const reclaimHandler = hasLambdaAsset ? 'sandbox-scheduler/reclaimHandler.handler' : 'index.handler';
+
+        // ⛔ THE PLATFORM DSN, resolved at DEPLOY time, exactly as `DataStack` resolves it for the bootstrap and the
+        // reaper. This stack exists only at the sandbox stage, so the base stage is `sandbox`. Both functions report
+        // through it (`announceSilentNoOp`): the sandbox alarm topic has no subscriber, so a failed stop or a reclaim
+        // that ended with stacks left behind is a Sentry issue or it is nothing (ADR-0061).
+        //
+        // ⚠️ A MISSING PARAMETER FAILS THE DEPLOY, the intended behaviour: a function that silently cannot report
+        // is the failure this exists to prevent.
+        const drainBaseStage = props.stage === 'prod' ? 'prod' : 'sandbox';
+        const platformSentryDsn = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/kitchensink/${drainBaseStage}/sentry/platform-dsn`,
+        );
 
         // ── An EXPLICIT log group, drained and registered (plan U18, ADR-0042) ──
         //
@@ -140,6 +175,39 @@ export class SandboxSchedulerStack extends Stack {
             });
         }
 
+        // ── The reclaim's own explicit log group and function (ADR-0061, ADR-0042) ──
+        //
+        // Drained like the scheduler's, and DELETED with the stack. No `logGroupName`, for the reason above.
+        const reclaimLogGroup = new logs.LogGroup(this, 'SandboxReclaimLogGroup', {
+            retention: logs.RetentionDays.ONE_MONTH,
+            removalPolicy: RemovalPolicy.DESTROY,
+        });
+
+        if (props.logForwarderArn !== undefined) {
+            new logs.SubscriptionFilter(this, 'SandboxReclaimLogDrain', {
+                logGroup: reclaimLogGroup,
+                destination: new logsDestinations.LambdaDestination(
+                    lambda.Function.fromFunctionArn(this, 'ImportedLogForwarderForReclaim', props.logForwarderArn),
+                    { addPermissions: false },
+                ),
+                filterPattern: logs.FilterPattern.literal('-START -END -REPORT -"_aws"'),
+                filterName: 'forward-app-logs',
+            });
+        }
+
+        const reclaimFn = new lambda.Function(this, 'SandboxReclaimFunction', {
+            logGroup: reclaimLogGroup,
+            runtime: NODE_LAMBDA_RUNTIME,
+            architecture: lambda.Architecture.ARM_64,
+            handler: reclaimHandler,
+            code: reclaimCode,
+            // ⛔ NOT in a VPC (ADR-0004): it reaches only public AWS endpoints, so attaching it would make it a NAT consumer.
+            timeout: Duration.seconds(300),
+            memorySize: 256,
+            environment: { SENTRY_DSN: platformSentryDsn },
+            description: `Sandbox midnight reclaim: deletes the stacks nothing uses, one step per call (${props.stage})`,
+        });
+
         const schedulerFn = new lambda.Function(this, 'SandboxSchedulerFunction', {
             logGroup: schedulerLogGroup,
             runtime: NODE_LAMBDA_RUNTIME,
@@ -148,6 +216,9 @@ export class SandboxSchedulerStack extends Stack {
             code: schedulerCode,
             timeout: Duration.seconds(300),
             memorySize: 256,
+            // `RECLAIM_STATE_MACHINE_ARN` is added below, once the state machine exists. The state machine does not
+            // reference this function, so there is no cycle.
+            environment: { SENTRY_DSN: platformSentryDsn },
             description: `Sandbox midnight stop, per-PR start and scheduled-rule sync (${props.stage})`,
         });
         this.schedulerFunctionName = schedulerFn.functionName;
@@ -207,7 +278,9 @@ export class SandboxSchedulerStack extends Stack {
                 // "scale production down".
                 resources: [
                     `arn:aws:ecs:${this.region}:${this.account}:service/*sandbox*/*`,
-                    `arn:aws:ecs:${this.region}:${this.account}:service/*-pr-*/*`,
+                    // ⛔ `kitchensink-` too (ADR-0061 review): the account also hosts another application, and a bare
+                    // `*-pr-*` matched its clusters as well.
+                    `arn:aws:ecs:${this.region}:${this.account}:service/kitchensink-*-pr-*/*`,
                 ],
             }),
         );
@@ -282,6 +355,202 @@ export class SandboxSchedulerStack extends Stack {
             }),
         );
 
+        // ── The reclaim role: THE BOUNDARY (ADR-0061) ──────────────────────────────────────────────────────────
+        //
+        // ⛔ A `DeleteStack` call with no `RoleARN` is performed by the stack's OWN saved role, which for every stack in
+        // scope is the CDK bootstrap's CloudFormation execution role. So this function never needs `iam:PassRole`, and
+        // WHICH STACKS IT MAY NAME is the only boundary there is. The planner (`reclaim.ts`) repeats the same rule so
+        // that it never sends a call IAM would refuse, but if the planner is wrong, THIS is what stops it. It is held
+        // by set equality in `SandboxSchedulerStack.test.ts`.
+        const stackArn = (name: string): string =>
+            `arn:aws:cloudformation:${this.region}:${this.account}:stack/${name}/*`;
+
+        reclaimFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxReclaimDiscovery',
+                actions: [
+                    'cloudformation:DescribeStacks',
+                    'rds:DescribeDBInstances',
+                    'ec2:DescribeInstances',
+                    'ecs:ListClusters',
+                    'ecs:DescribeClusters',
+                    'ecs:ListServices',
+                    'ecs:DescribeServices',
+                    'ecs:ListTasks',
+                    'ecs:DescribeTasks',
+                ],
+                resources: ['*'],
+            }),
+        );
+
+        // A per-PR stack: the NAME pattern and the TAG both have to match. `kitchensink-*-pr-*` also matches names the
+        // planner refuses (`…-pr-91-old`); the planner's anchored regex is the narrower rule, IAM the outer wall.
+        reclaimFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxReclaimDeletePerPrStacks',
+                actions: ['cloudformation:DeleteStack'],
+                resources: [stackArn('kitchensink-*-pr-*')],
+                conditions: { StringLike: { 'aws:ResourceTag/Environment': 'pr-*' } },
+            }),
+        );
+
+        // The shared tier: EXACT stack names, built from the same constant the planner reads, and tagged `sandbox`.
+        reclaimFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxReclaimDeleteSharedTier',
+                actions: ['cloudformation:DeleteStack'],
+                resources: SHARED_TIER_DELETE_ORDER.map(stackArn),
+                conditions: { StringEquals: { 'aws:ResourceTag/Environment': 'sandbox' } },
+            }),
+        );
+
+        // ECS: a service or task under a `kitchensink-…-pr-N-…` cluster. ⛔ The `kitchensink-` prefix is load-bearing:
+        // the account also hosts another application, `ecs:DeleteService` is irreversible, and a bare `*-pr-*` matched
+        // that application's clusters too. Production's `-prod-` clusters can never match `-pr-`.
+        //
+        // A service must ALSO carry `Environment=pr-*`: every service this repository builds gets the App-level tag
+        // (asserted in the food and recipe stack suites). ⚠️ NOT on StopTask: a task carries no tag of its own here, so
+        // the same condition would deny every call, and for tasks the cluster-name pattern is the only wall. The
+        // production Deny below therefore does nothing for StopTask (ADR-0061).
+        reclaimFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxReclaimDeleteService',
+                actions: ['ecs:DeleteService'],
+                resources: [`arn:aws:ecs:${this.region}:${this.account}:service/kitchensink-*-pr-*/*`],
+                conditions: { StringLike: { 'aws:ResourceTag/Environment': 'pr-*' } },
+            }),
+        );
+        reclaimFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxReclaimStopTask',
+                actions: ['ecs:StopTask'],
+                resources: [`arn:aws:ecs:${this.region}:${this.account}:task/kitchensink-*-pr-*/*`],
+            }),
+        );
+
+        // ⛔ Two explicit Denies, which win over any Allow: production is refused whatever tags or names it carries, and
+        // a DeleteStack that names a role is refused outright, so the call can only ever use the stack's own.
+        reclaimFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxReclaimNeverProduction',
+                effect: iam.Effect.DENY,
+                actions: ['cloudformation:DeleteStack', 'ecs:DeleteService', 'ecs:StopTask'],
+                resources: ['*'],
+                conditions: { StringEquals: { 'aws:ResourceTag/Environment': 'production' } },
+            }),
+        );
+        reclaimFn.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'SandboxReclaimNeverNamesARole',
+                effect: iam.Effect.DENY,
+                actions: ['cloudformation:DeleteStack'],
+                resources: ['*'],
+                conditions: { Null: { 'cloudformation:RoleArn': 'false' } },
+            }),
+        );
+
+        // ── The loop: wait, reclaim, decide (ADR-0061) ─────────────────────────────────────────────────────────
+        //
+        // The state machine owns the sequence, the timer, the bound and the failure route, and DECIDES NOTHING: every
+        // decision is in the Lambda's answer. A Standard machine, because it runs for up to two hours.
+        //
+        // ⛔ NO EXECUTION-LEVEL TIMEOUT. A timed-out execution cannot run its Catch, so the one timeout that would end
+        // a wedged night would also end it silently. The bound is the iteration count instead, and it ends in `Fail`
+        // after the Lambda has announced.
+        //
+        // Every state that ends in `Fail` is reached after an announcement: the Choice's failed branch only follows a
+        // step whose handler announced `stacks-left-behind`, and `Report` announces `reclaim-crashed`. The sandbox
+        // alarm topic has no subscriber, so a `Fail` with no announcement would be silent.
+        const waitAMinute = new sfn.Wait(this, 'WaitAMinute', {
+            time: sfn.WaitTime.duration(Duration.seconds(RECLAIM_POLL_SECONDS)),
+        });
+        const reclaimStep = new sfnTasks.LambdaInvoke(this, 'ReclaimStep', {
+            lambdaFunction: reclaimFn,
+            payload: sfn.TaskInput.fromObject({
+                kind: 'step',
+                'iteration.$': '$.iteration',
+                maxIterations: RECLAIM_MAX_ITERATIONS,
+            }),
+            payloadResponseOnly: true,
+            resultPath: '$.reclaim',
+        });
+        // A handler that threw (an AWS outage, an unobservable tier) gets two more tries before it is a crash. Every step
+        // is a reconciler pass, so repeating one is safe.
+        reclaimStep.addRetry({
+            errors: ['States.TaskFailed'],
+            maxAttempts: 2,
+            interval: Duration.seconds(20),
+            backoffRate: 2,
+        });
+        const reportCrash = new sfnTasks.LambdaInvoke(this, 'ReportCrash', {
+            lambdaFunction: reclaimFn,
+            payload: sfn.TaskInput.fromObject({ kind: 'report', 'error.$': '$.error' }),
+            payloadResponseOnly: true,
+            resultPath: sfn.JsonPath.DISCARD,
+        });
+        // ⚠️ The report runs in the SAME function as the step, so it shares the step's failure domain: a function that
+        // fails at INIT (a bad bundle, a missing module) fails both, and nothing is announced. Retrying narrows that
+        // window for a transient fault, and no more. ADR-0061 records the limit, and why the forced-failure proof at
+        // deploy time must include a failure at init.
+        reportCrash.addRetry({
+            errors: ['States.TaskFailed'],
+            maxAttempts: 3,
+            interval: Duration.seconds(20),
+            backoffRate: 2,
+        });
+        const crashed = new sfn.Fail(this, 'ReclaimCrashed', {
+            error: 'ReclaimCrashed',
+            cause: 'A reclaim step failed after its retries; the report step announced it.',
+        });
+        const leftBehind = new sfn.Fail(this, 'StacksLeftBehind', {
+            error: 'StacksLeftBehind',
+            cause: 'The reclaim reached its bound with work left; the final step announced it.',
+        });
+        const finished = new sfn.Succeed(this, 'ReclaimFinished');
+        const nextIteration = new sfn.Pass(this, 'NextIteration', {
+            parameters: { 'iteration.$': 'States.MathAdd($.iteration, 1)' },
+        });
+
+        reclaimStep.addCatch(reportCrash.next(crashed), { errors: ['States.ALL'], resultPath: '$.error' });
+        nextIteration.next(waitAMinute);
+
+        waitAMinute.next(reclaimStep).next(
+            new sfn.Choice(this, 'Decide')
+                .when(
+                    sfn.Condition.and(
+                        sfn.Condition.booleanEquals('$.reclaim.complete', true),
+                        sfn.Condition.booleanEquals('$.reclaim.failed', true),
+                    ),
+                    leftBehind,
+                )
+                .when(sfn.Condition.booleanEquals('$.reclaim.complete', true), finished)
+                .otherwise(nextIteration),
+        );
+
+        const reclaimLoopLogGroup = new logs.LogGroup(this, 'ReclaimStateMachineLogGroup', {
+            retention: logs.RetentionDays.ONE_MONTH,
+            removalPolicy: RemovalPolicy.DESTROY,
+        });
+
+        this.reclaimStateMachine = new sfn.StateMachine(this, 'ReclaimStateMachine', {
+            stateMachineType: sfn.StateMachineType.STANDARD,
+            definitionBody: sfn.DefinitionBody.fromChainable(waitAMinute),
+            logs: { destination: reclaimLoopLogGroup, level: sfn.LogLevel.ALL, includeExecutionData: false },
+            tracingEnabled: true,
+        });
+
+        // The scheduler's stop starts the loop, and may do nothing else with it. Not an input to the loop's own
+        // definition, so adding the ARN to the scheduler's environment closes no cycle.
+        this.reclaimStateMachine.grantStartExecution(schedulerFn);
+        schedulerFn.addEnvironment('RECLAIM_STATE_MACHINE_ARN', this.reclaimStateMachine.stateMachineArn);
+
+        // Exported for ops, and for `sandboxScheduler.sh reclaim-status`, which Sandbox Up asks before it starts the
+        // tier a running reclaim is about to delete from under it.
+        new CfnOutput(this, 'ReclaimStateMachineArn', {
+            value: this.reclaimStateMachine.stateMachineArn,
+            exportName: `${this.stackName}:ReclaimStateMachineArn`,
+        });
+
         // ── The midnight STOP, DST-correct — the ONLY scheduled job (ADR-0060) ────────────────────────────────
         //
         // ⛔ THERE IS NO START SCHEDULE, AND THE ABSENCE IS THE DECISION. The owner ruled on 2026-10-12: "no automatic
@@ -309,7 +578,12 @@ export class SandboxSchedulerStack extends Stack {
                 timeZone: TimeZone.of(NIGHTLY_TIMEZONE),
             }),
             target: new schedulerTargets.LambdaInvoke(schedulerFn, {
-                input: scheduler.ScheduleTargetInput.fromObject({ action: 'stop' }),
+                // The schedule's own time becomes the reclaim execution's name (ADR-0061): a retried invocation carries the
+                // same time, so it names the same night and cannot start a second loop.
+                input: scheduler.ScheduleTargetInput.fromObject({
+                    action: 'stop',
+                    scheduledTime: scheduler.ContextAttribute.scheduledTime,
+                }),
                 retryAttempts: 2,
                 maxEventAge: Duration.hours(1),
             }),

@@ -68,6 +68,24 @@ describe('the silent-no-op envelope', () => {
     });
 
     /**
+     * The two sandbox services that report through this module since ADR-0061: the scheduler (a failed nightly stop)
+     * and the reclaim (stacks left behind, or a crash). Each condition is its own issue, because the fingerprint is
+     * built from the service and the condition and nothing else.
+     */
+    it.each([
+        ['sandbox-scheduler', 'nightly-stop-failed'],
+        ['sandbox-reclaim', 'stacks-left-behind'],
+        ['sandbox-reclaim', 'reclaim-crashed'],
+        ['sandbox-reclaim', 'stacks-refused'],
+    ] as const)('⛔ %s / %s is its own issue, fingerprinted by service and condition', (service, condition) => {
+        const event = JSON.parse(
+            buildSilentNoOpEnvelope({ service, stage: 'sandbox', condition, detail: 'fixed' }).split('\n')[2] as string,
+        ) as { fingerprint?: readonly string[] };
+
+        expect(event.fingerprint).toEqual(['silent-no-op', service, condition]);
+    });
+
+    /**
      * ⛔ ERROR LEVEL, not warning. A per-PR reclamation that has silently stopped means every abandoned
      * preview keeps billing until somebody notices, and the whole reason this report exists is that nobody
      * was going to. A warning is a thing a reader scrolls past.
@@ -330,12 +348,12 @@ describe('the call-site API', () => {
             .join('\n');
 
     it('⛔ no handler imports the non-announcing reporter', () => {
-        const handlers = [...globSync(`${SRC}/**/handler.ts`)];
+        const handlers = [...globSync(`${SRC}/**/*[hH]andler.ts`)];
 
-        // ⚠️ FOUR, not two. A scan that found nothing would pass this vacuously — and a floor of 2, taken
-        // from the two handlers that REPORT a silent no-op, would still pass with the other two deleted.
-        // The four are db-bootstrap, db-reaper, edge-verifier and sandbox-scheduler.
-        expect(handlers.length).toBeGreaterThanOrEqual(4);
+        // ⚠️ FIVE, not two. A scan that found nothing would pass this vacuously — and a floor of 2, taken
+        // from the handlers that REPORT a silent no-op, would still pass with the others deleted.
+        // The five are db-bootstrap, db-reaper, edge-verifier, sandbox-scheduler and its reclaimHandler.
+        expect(handlers.length).toBeGreaterThanOrEqual(5);
 
         const bypassing = handlers.filter((file) => /\breportSilentNoOp\b/u.test(codeOf(file)));
 
@@ -343,10 +361,12 @@ describe('the call-site API', () => {
     });
 
     it('⛔ and the announcing form is what they do call — an empty scan would prove nothing', () => {
-        const calling = [...globSync(`${SRC}/**/handler.ts`)].filter((file) =>
+        const calling = [...globSync(`${SRC}/**/*[hH]andler.ts`)].filter((file) =>
             /\bannounceSilentNoOp\b/u.test(codeOf(file)),
         );
 
-        expect(calling).toHaveLength(2);
+        // db-bootstrap and db-reaper (silent no-ops), and since ADR-0061 the sandbox scheduler (a failed stop) and the
+        // reclaim handler (stacks left behind, or a crash).
+        expect(calling).toHaveLength(4);
     });
 });

@@ -1,6 +1,7 @@
 import {
     ArnFormat,
     CfnOutput,
+    RemovalPolicy,
     Duration,
     Stack,
     type StackProps,
@@ -535,9 +536,12 @@ export class RecipeWorkersStack extends Stack {
         const archiveBucket = s3.Bucket.fromBucketName(this, 'ImportedArchiveBucket', props.archiveBucketName);
         const mediaBucket = s3.Bucket.fromBucketName(this, 'ImportedMediaBucket', props.mediaBucketName);
 
+        // ⚠️ Deleted with its stack outside production (ADR-0061): the midnight reclaim deletes this stack and
+        // Sandbox Up rebuilds it, so a retained group would leak (or, when named, fail the rebuild with AlreadyExists).
         const logGroup = new logs.LogGroup(this, 'RecipeWorkersLogGroup', {
             logGroupName: `/aws/lambda/kitchensink-recipe-workers-${props.stage}`,
             retention: logs.RetentionDays.TWO_WEEKS,
+            removalPolicy: props.stage === 'prod' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
         });
 
         // ── Sentry, for all ten functions (plan U16/U22) ──

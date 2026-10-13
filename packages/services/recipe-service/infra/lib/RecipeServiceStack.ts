@@ -2,6 +2,7 @@ import {
     CfnOutput,
     Duration,
     Fn,
+    RemovalPolicy,
     Stack,
     Token,
     type StackProps,
@@ -444,8 +445,11 @@ export class RecipeServiceStack extends Stack {
         // @radicle-co/infra-shared/security.
         acceptNagFindings(apiTaskDefinition, AcceptedNagFindings.TASK_ENVIRONMENT_HOLDS_NO_SECRET);
 
+        // ⚠️ Deleted with its stack outside production (ADR-0061): the midnight reclaim deletes this stack and
+        // Sandbox Up rebuilds it, so a retained group would leak (or, when named, fail the rebuild with AlreadyExists).
         const apiLogGroup = new logs.LogGroup(this, 'RecipeApiLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
+            removalPolicy: props.stage === 'prod' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
         });
 
         // ── Drain this group to Sentry (plan U15, ADR-0042) ──

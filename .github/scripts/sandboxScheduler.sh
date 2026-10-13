@@ -6,8 +6,10 @@
 #
 #   sandboxScheduler.sh start <pr-N> [region]   # Sandbox Up only: RDS, the NAT, the shared tier, and that PR
 #   sandboxScheduler.sh sync [region]           # after anything that changes what is up: switch scheduled rules
+#   sandboxScheduler.sh reclaim-status [region] # Sandbox Up, before it starts: is the midnight reclaim still running?
 #
-# Exit 0 on success, 1 on any failure, 2 on misuse (and nothing is invoked).
+# Exit 0 on success, 1 on any failure, 2 on misuse (and nothing is invoked). `reclaim-status` has a third answer:
+# exit 3 means a reclaim execution is RUNNING.
 #
 # ## Why a script rather than an inline `aws lambda invoke` per workflow
 #
@@ -21,6 +23,18 @@
 # The midnight schedule is the ONLY thing that stops the sandbox (owner ruling 2026-10-12). A workflow that wants a
 # preview gone runs `teardownSandboxPr.sh`; it does not stop the tier every other preview stands on.
 #
+# ## Why `reclaim-status` exists, and why a failed lookup is exit 1 (ADR-0061)
+#
+# The midnight reclaim deletes stacks for up to two hours after the stop. A press of Sandbox Up inside that window
+# would start the database and the NAT the reclaim is about to delete from under, and the reclaim would stand down
+# half-way. So the start asks first. Three answers: 0 idle, 3 RUNNING, 1 could not tell.
+#
+# ⛔ ONLY A REAL ABSENCE MEANS IDLE. An absent export (the scheduler stack has not been deployed with the reclaim yet)
+# is idle, with a notice. A lookup that FAILS (credentials, permissions, throttling) is exit 1, because a call that
+# could not be made reading as "idle" lets a press run during an active reclaim. That is why this goes through
+# `cfnExport.sh --optional`, which keeps absence (0, empty) and failure (non-zero) apart, and not through
+# `sandbox_scheduler_invoke`, which treats any failure as "the scheduler is absent".
+#
 # ## Why an absent scheduler FAILS
 #
 # Every non-prod scheduled rule deploys DISABLED, and `sync` is the only thing that switches one on. A sync that
@@ -32,6 +46,9 @@ SANDBOX_SCHEDULER_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
 
 # The scheduler's function name, exported by `kitchensink-sandbox-scheduler-sandbox` (`SandboxSchedulerStack`).
 SANDBOX_SCHEDULER_EXPORT='kitchensink-sandbox-scheduler-sandbox:SchedulerFunctionName'
+
+# The midnight reclaim's state machine, exported by the same stack (`SandboxSchedulerStack`, ADR-0061).
+SANDBOX_RECLAIM_EXPORT='kitchensink-sandbox-scheduler-sandbox:ReclaimStateMachineArn'
 
 # sandbox_scheduler_is_preview_token <stage>
 #
@@ -82,6 +99,47 @@ sandbox_scheduler_invoke() {
     return 0
 }
 
+# sandbox_scheduler_reclaim_status <region>
+#
+# Exit 0 idle (including: no reclaim state machine exists), 3 RUNNING, 1 could not tell. See the header.
+#
+# @sideEffect Calls CloudFormation and Step Functions.
+sandbox_scheduler_reclaim_status() {
+    local region="$1" arn count
+
+    # `--optional`: absence is an answer (empty, exit 0); a failed lookup is not (non-zero, diagnostic intact).
+    if ! arn=$(bash "${SANDBOX_SCHEDULER_SCRIPT_DIR}/cfnExport.sh" --optional "$SANDBOX_RECLAIM_EXPORT" "$region"); then
+        echo "::error::could not look up the reclaim state machine (${SANDBOX_RECLAIM_EXPORT}) — not treating that as idle." >&2
+        return 1
+    fi
+
+    if [ -z "$arn" ]; then
+        echo "::notice::no reclaim state machine is deployed (no export ${SANDBOX_RECLAIM_EXPORT}); nothing can be reclaiming."
+        return 0
+    fi
+
+    if ! count=$(aws stepfunctions list-executions --region "$region" --state-machine-arn "$arn" \
+        --status-filter RUNNING --no-paginate --max-results 1 --no-cli-pager \
+        --query 'length(executions)' --output text); then
+        echo "::error::could not list the executions of ${arn} — not treating that as idle." >&2
+        return 1
+    fi
+
+    # Only a non-negative integer is an answer. `None`, an empty string or anything else is "could not tell".
+    if ! [[ "$count" =~ ^[0-9]+$ ]]; then
+        echo "::error::unreadable execution count '${count}' for ${arn} — not treating that as idle." >&2
+        return 1
+    fi
+
+    if [ "$count" -gt 0 ]; then
+        echo "the midnight reclaim is RUNNING (${count} execution(s) of ${arn})"
+        return 3
+    fi
+
+    echo 'the midnight reclaim is not running'
+    return 0
+}
+
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     case "${1-}" in
         start)
@@ -94,8 +152,11 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
         sync)
             sandbox_scheduler_invoke "${2:-${AWS_REGION:-us-east-1}}" '{"action":"sync"}'
             ;;
+        reclaim-status)
+            sandbox_scheduler_reclaim_status "${2:-${AWS_REGION:-us-east-1}}"
+            ;;
         *)
-            echo 'usage: sandboxScheduler.sh {start <pr-N> [region] | sync [region]}' >&2
+            echo 'usage: sandboxScheduler.sh {start <pr-N> [region] | sync [region] | reclaim-status [region]}' >&2
             exit 2
             ;;
     esac

@@ -35,7 +35,7 @@
  * missing directory but happily ships an EMPTY one, and an empty asset deploys green and dies on the first
  * cold start. The full per-file check runs inside the build script (`infra/lib/assetContents.ts`).
  */
-import { Duration, Stack, type StackProps } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
@@ -113,9 +113,12 @@ export class IngredientParserStack extends Stack {
 
         requireStagedAsset(props.assetDirectory);
 
+        // ⚠️ Deleted with its stack outside production (ADR-0061): the midnight reclaim deletes this stack and
+        // Sandbox Up rebuilds it, so a retained group would leak (or, when named, fail the rebuild with AlreadyExists).
         const logGroup = new logs.LogGroup(this, 'IngredientParserLogGroup', {
             logGroupName: `/aws/lambda/kitchensink-ingredient-parser-${props.stage}`,
             retention: logs.RetentionDays.TWO_WEEKS,
+            removalPolicy: props.stage === 'prod' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
         });
 
         const drainBaseStage = props.baseStage ?? (props.stage === 'prod' ? 'prod' : 'sandbox');

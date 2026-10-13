@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { App, type AppProps } from 'aws-cdk-lib';
+import { App, Tags, type AppProps } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -1198,5 +1198,102 @@ describe('the log drains are attached only when CI resolved a forwarder ARN', ()
         );
 
         template.resourceCountIs('AWS::Logs::SubscriptionFilter', expected);
+    });
+});
+
+/**
+ * ADR-0061: the midnight reclaim deletes this stack each night and Sandbox Up rebuilds it. The API group used to keep
+ * the CDK default `RETAIN`, so each night left one behind. A preview's group is deleted with its stack; production's
+ * is kept.
+ */
+describe('the log group is disposable outside production (ADR-0061)', () => {
+    const policiesFor = (stage: string, baseStage: string): readonly unknown[] => {
+        const groups = Object.values(synthTemplate(stage, baseStage).findResources('AWS::Logs::LogGroup'));
+
+        expect(groups).toHaveLength(1);
+
+        return groups.flatMap((group) => [group['DeletionPolicy'], group['UpdateReplacePolicy']]);
+    };
+
+    it('deletes the group with a pr-N stack', () => {
+        expect(new Set(policiesFor('pr-1', 'sandbox'))).toEqual(new Set(['Delete']));
+    });
+
+    it('⛔ keeps the group in production', () => {
+        expect(new Set(policiesFor('prod', 'prod'))).toEqual(new Set(['Retain']));
+    });
+});
+
+/**
+ * ADR-0061: the reclaim role may delete an ECS service only if it is tagged `Environment=pr-*`
+ * (`ecs:DeleteService` is irreversible), so every service this stack builds must carry the App-level tag that
+ * `bin/app.ts` adds. A service that lost it would stop being reclaimable, and the nightly delete would fail with
+ * AccessDenied; a cluster that lost it would stop being found by the planner at all.
+ */
+describe('every ECS service and cluster carries the per-PR Environment tag (ADR-0061)', () => {
+    function taggedResources(type: string): readonly (readonly { Key: string; Value: unknown }[] | undefined)[] {
+        const app = testApp({ context: { ...VPC_LOOKUP_CONTEXT } });
+        const stack = new RecipeServiceStack(app, 'Recipe-pr-1', {
+            env: { account: '123456789012', region: 'us-east-1' },
+            stage: 'pr-1',
+            baseStage: 'sandbox',
+            domainName: 'example.com',
+            imageTag: 'test',
+            desiredCount: 1,
+            vpcId: 'vpc-12345678',
+            cloudfrontUrl: 'https://cdn.example.com',
+            foodServiceUrl: 'https://food-pr-1.example.com',
+        });
+
+        // Exactly what `bin/app.ts` does for a `pr-` stage.
+        Tags.of(app).add('Environment', 'pr-1-sandbox');
+
+        const resources = Object.values(Template.fromStack(stack).findResources(type));
+
+        expect(resources.length, `the stack declares no ${type}`).toBeGreaterThan(0);
+
+        return resources.map((resource) => resource['Properties']?.['Tags']);
+    }
+
+    it.each(['AWS::ECS::Service', 'AWS::ECS::Cluster'])('%s', (type) => {
+        for (const tags of taggedResources(type)) {
+            expect(tags).toContainEqual({ Key: 'Environment', Value: 'pr-1-sandbox' });
+        }
+    });
+});
+
+/**
+ * ADR-0061: the midnight reclaim deletes every `pr-N` stack and Sandbox Up rebuilds it, so a preview must be fully
+ * disposable. Two things break that and neither shows in a unit test of the resource itself: a resource that survives
+ * the delete (`DeletionPolicy: Retain`, or a snapshot) fails the rebuild with `AlreadyExists` when it is named and leaks
+ * when it is not; and a custom resource runs Lambda code on delete that can wedge the stack, which the reclaim cannot
+ * unwedge. Neither is true of any per-PR stack today, and this holds it so.
+ *
+ * @param template - A synthesized stack.
+ * @returns One line per offending resource. Pure over the template.
+ */
+function undisposableResources(template: Template): readonly string[] {
+    const resources = template.toJSON()['Resources'] as Record<string, { Type: string; DeletionPolicy?: string }>;
+
+    return Object.entries(resources).flatMap(([id, resource]) => [
+        ...(['Retain', 'RetainExceptOnCreate', 'Snapshot'].includes(resource.DeletionPolicy ?? '')
+            ? [`${id}: DeletionPolicy ${resource.DeletionPolicy ?? ''}`]
+            : []),
+        ...(resource.Type.startsWith('Custom::') || resource.Type === 'AWS::CloudFormation::CustomResource'
+            ? [`${id}: ${resource.Type}`]
+            : []),
+    ]);
+}
+
+describe('every resource is deleted with its stack at pr-1 (ADR-0061)', () => {
+    it.each<[string, () => Template]>([
+        ['RecipeServiceStack', () => synthTemplate('pr-1', 'sandbox')],
+        ['RecipeSchemaStack', () => synthSchemaTemplate('pr-1', 'sandbox')],
+    ])('%s at pr-1: no retained resource and no custom resource', (_stack, synth) => {
+        const template = synth();
+
+        // Not vacuous: a stack with no resources would pass.
+        expect(Object.keys(template.toJSON()['Resources'] as object).length).toBeGreaterThan(3);
+        expect(undisposableResources(template)).toEqual([]);
     });
 });

@@ -362,6 +362,16 @@
                     "resources": [
                         {
                             "kind": "lambdaFunction",
+                            "logicalId": "SandboxReclaimFunction",
+                            "nameTemplate": null,
+                            "handler": null,
+                            "condition": null,
+                            "notes": [
+                                "handler is not a literal: reclaimHandler"
+                            ]
+                        },
+                        {
+                            "kind": "lambdaFunction",
                             "logicalId": "SandboxSchedulerFunction",
                             "nameTemplate": null,
                             "handler": null,
@@ -388,7 +398,14 @@
                         "aws-cdk-lib/aws-logs.LogGroup",
                         "aws-cdk-lib/aws-logs.SubscriptionFilter",
                         "aws-cdk-lib/aws-scheduler-targets.LambdaInvoke",
-                        "aws-cdk-lib/aws-scheduler.Schedule"
+                        "aws-cdk-lib/aws-scheduler.Schedule",
+                        "aws-cdk-lib/aws-stepfunctions-tasks.LambdaInvoke",
+                        "aws-cdk-lib/aws-stepfunctions.Choice",
+                        "aws-cdk-lib/aws-stepfunctions.Fail",
+                        "aws-cdk-lib/aws-stepfunctions.Pass",
+                        "aws-cdk-lib/aws-stepfunctions.StateMachine",
+                        "aws-cdk-lib/aws-stepfunctions.Succeed",
+                        "aws-cdk-lib/aws-stepfunctions.Wait"
                     ],
                     "unfollowedConstructs": []
                 },

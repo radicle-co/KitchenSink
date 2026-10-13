@@ -74,6 +74,12 @@ export const LOG_DRAIN_SOURCES: readonly LogDrainSource[] = [
         service: 'sandbox-scheduler',
         pattern: /^kitchensink-sandbox-scheduler-([a-z0-9-]+?)-SandboxSchedulerLogGroup/iu,
     },
+    // ADR-0061: the midnight reclaim's function (drained) and its state machine's history (registered, not drained).
+    { service: 'sandbox-reclaim', pattern: /^kitchensink-sandbox-scheduler-([a-z0-9-]+?)-SandboxReclaimLogGroup/iu },
+    {
+        service: 'sandbox-reclaim-states',
+        pattern: /^kitchensink-sandbox-scheduler-([a-z0-9-]+?)-ReclaimStateMachineLogGroup/iu,
+    },
     // The remote search service (ADR-0055) and its base stage's shared key stack.
     { service: 'remote-search', pattern: /^\/aws\/lambda\/kitchensink-remote-search-([a-z0-9-]+)$/iu },
     {

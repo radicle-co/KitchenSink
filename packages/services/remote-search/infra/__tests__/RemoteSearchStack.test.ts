@@ -650,3 +650,39 @@ function expectOwnedLogGroups(source: Template): void {
         );
     }
 }
+
+/**
+ * ADR-0061: the midnight reclaim deletes every `pr-N` stack and Sandbox Up rebuilds it, so a preview must be fully
+ * disposable. Two things break that and neither shows in a unit test of the resource itself: a resource that survives
+ * the delete (`DeletionPolicy: Retain`, or a snapshot) fails the rebuild with `AlreadyExists` when it is named and leaks
+ * when it is not; and a custom resource runs Lambda code on delete that can wedge the stack, which the reclaim cannot
+ * unwedge. Neither is true of any per-PR stack today, and this holds it so.
+ *
+ * @param template - A synthesized stack.
+ * @returns One line per offending resource. Pure over the template.
+ */
+function undisposableResources(template: Template): readonly string[] {
+    const resources = template.toJSON()['Resources'] as Record<string, { Type: string; DeletionPolicy?: string }>;
+
+    return Object.entries(resources).flatMap(([id, resource]) => [
+        ...(['Retain', 'RetainExceptOnCreate', 'Snapshot'].includes(resource.DeletionPolicy ?? '')
+            ? [`${id}: DeletionPolicy ${resource.DeletionPolicy ?? ''}`]
+            : []),
+        ...(resource.Type.startsWith('Custom::') || resource.Type === 'AWS::CloudFormation::CustomResource'
+            ? [`${id}: ${resource.Type}`]
+            : []),
+    ]);
+}
+
+describe('every resource is deleted with its stack at pr-1 (ADR-0061)', () => {
+    it.each<[string, () => Template]>([['RemoteSearchStack', () => synth('pr-1')]])(
+        '%s at pr-1: no retained resource and no custom resource',
+        (_stack, synth) => {
+            const template = synth();
+
+            // Not vacuous: a stack with no resources would pass.
+            expect(Object.keys(template.toJSON()['Resources'] as object).length).toBeGreaterThan(3);
+            expect(undisposableResources(template)).toEqual([]);
+        },
+    );
+});

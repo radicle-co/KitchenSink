@@ -6,6 +6,9 @@
  * - `start` is PER PR (ADR-0060): the shared tier plus exactly that PR's services, never every preview.
  * - `sync` is the only writer of a scheduled rule's state, driven by the pure `desiredRuleStates`.
  * - `stop` turns every scheduled rule off BEFORE it stops anything, so no job runs against a stopping tier.
+ * - `stop` then starts the midnight reclaim (ADR-0061) LAST, under an idempotency name taken from the schedule's
+ *   own `scheduledTime`. A reclaim that cannot start never undoes the stop: cost safety first, and the run fails
+ *   afterwards so the failure is announced.
  */
 import { describe, it, expect } from 'vitest';
 
@@ -17,7 +20,9 @@ import {
     isScheduledCluster,
     isSandboxRdsInstance,
     parseSchedulerRequest,
+    previewTokenOf,
     priorCountParamName,
+    reclaimExecutionName,
     runSchedulerAction,
     selectRdsTargets,
     selectSandboxNatInstances,
@@ -50,6 +55,10 @@ interface FakeState {
     readonly rules: FakeRule[];
     /** Every mutating call, in the order it was made. */
     readonly log: string[];
+    /** The execution names the reclaim loop was started under. */
+    readonly reclaimStarts: string[];
+    /** When set, starting the reclaim throws this error instead. */
+    reclaimError?: Error;
     readonly calls: {
         rdsStop: string[];
         rdsStart: string[];
@@ -70,6 +79,7 @@ function makeState(overrides: Partial<FakeState> = {}): FakeState {
         ssm: new Map(),
         rules: [],
         log: [],
+        reclaimStarts: [],
         calls: { rdsStop: [], rdsStart: [], ecsUpdate: [], ec2Stop: [], ec2Start: [] },
         ...overrides,
     };
@@ -111,6 +121,17 @@ function makeClients(state: FakeState): SchedulerClients {
             getParameter: async (name) => state.ssm.get(name),
             putParameter: async (name, value) => {
                 state.ssm.set(name, value);
+            },
+        },
+        reclaim: {
+            startLoop: async (executionName) => {
+                state.log.push(`reclaim:start:${executionName}`);
+
+                if (state.reclaimError !== undefined) {
+                    throw state.reclaimError;
+                }
+
+                state.reclaimStarts.push(executionName);
             },
         },
         events: {
@@ -190,6 +211,17 @@ describe('resource selectors (sandbox-only)', () => {
         expect(isSandboxRdsInstance('kitchensink-data-prod')).toBe(false);
     });
 
+    // ADR-0061 review (N7): `-sandbox` alone matched another application's instance. The real instance identifier is
+    // `kitchensink-data-sandbox-databaseb269d8bb-…`, so the repository prefix costs it nothing.
+    it.each([
+        ['kitchensink-data-sandbox-databaseb269d8bb-abcdef123456', true],
+        ['armoury-sandbox-db', false],
+        ['xkitchensink-data-sandbox', false],
+        ['data-sandbox', false],
+    ])('⛔ RDS instance %s is ours: %s', (identifier, ours) => {
+        expect(isSandboxRdsInstance(identifier)).toBe(ours);
+    });
+
     it('selects RDS by required state per action (skips instances mid-modifying)', () => {
         const instances: RdsInstanceSummary[] = [
             { identifier: 'kitchensink-data-sandbox', status: 'available' },
@@ -228,6 +260,24 @@ describe('resource selectors (sandbox-only)', () => {
                 expect(isScheduledCluster({ arn: PER_PR_CLUSTER, environmentTag })).toBe(true);
             },
         );
+
+        // ⛔ ADR-0061 security review (B1). The account also hosts another application, and a tag alone does not say whose
+        // cluster this is: `ecs:DeleteService` is irreversible, so a per-PR cluster must ALSO be named for this
+        // repository. Both doors are fired at a foreign cluster that carries a perfectly valid per-PR tag.
+        it.each([
+            'arn:aws:ecs:us-east-1:111:cluster/armoury-api-pr-91-Cluster',
+            'arn:aws:ecs:us-east-1:111:cluster/xkitchensink-food-service-pr-91-Cluster',
+            'arn:aws:ecs:us-east-1:111:cluster/not-kitchensink-pr-91',
+        ])('⛔ never selects the foreign cluster %s, whatever tag it carries', (arn) => {
+            for (const environmentTag of ['pr-91-sandbox', 'pr-91']) {
+                expect(isScheduledCluster({ arn, environmentTag })).toBe(false);
+                expect(previewTokenOf({ arn, environmentTag })).toBeUndefined();
+            }
+        });
+
+        it('still reads the token of a kitchensink- cluster', () => {
+            expect(previewTokenOf({ arn: PER_PR_CLUSTER, environmentTag: 'pr-91-sandbox' })).toBe('pr-91');
+        });
 
         it('⛔ NEVER selects production — by name or by tag', () => {
             expect(isScheduledCluster({ arn: PROD_CLUSTER, environmentTag: 'production' })).toBe(false);
@@ -270,6 +320,12 @@ describe('resource selectors (sandbox-only)', () => {
 describe('parseSchedulerRequest — the event is parsed, never defaulted', () => {
     it.each<[unknown, unknown]>([
         [{ action: 'stop' }, { action: 'stop' }],
+        [
+            { action: 'stop', scheduledTime: '2026-10-13T04:00:00Z' },
+            { action: 'stop', scheduledTime: '2026-10-13T04:00:00Z' },
+        ],
+        // A scheduledTime that is not a string is dropped, never trusted: the stop must still run.
+        [{ action: 'stop', scheduledTime: 5 }, { action: 'stop' }],
         [{ action: 'sync' }, { action: 'sync' }],
         [
             { action: 'start', stage: 'pr-7' },
@@ -566,6 +622,26 @@ describe('runSchedulerAction — stop', () => {
         expect(summary.errors).toEqual([]);
     });
 
+    it('⛔ never scales a FOREIGN cluster to zero, even one that carries a valid per-PR tag', async () => {
+        const foreign = 'arn:aws:ecs:us-east-1:111:cluster/armoury-api-pr-91-Cluster';
+        const state = makeState({
+            clusters: [foreign],
+            clusterTags: { [foreign]: 'pr-91-sandbox' },
+            services: [
+                {
+                    clusterArn: foreign,
+                    serviceArn: `${foreign.replace('cluster/', 'service/')}/api`,
+                    serviceName: 'api',
+                    desiredCount: 2,
+                },
+            ],
+        });
+
+        await runSchedulerAction({ action: 'stop' }, makeClients(state));
+
+        expect(state.calls.ecsUpdate).toEqual([]);
+    });
+
     it('skips an ECS service already scaled to zero', async () => {
         const state = makeState({
             clusters: [SANDBOX_CLUSTER],
@@ -622,6 +698,135 @@ describe('runSchedulerAction — stop', () => {
 
         expect(state.calls.rdsStop).toEqual(['kitchensink-data-sandbox']);
         expect(summary.errors[0]).toContain('ThrottlingException');
+    });
+});
+
+describe('reclaimExecutionName — the idempotency key of the midnight reclaim (ADR-0061)', () => {
+    it('is built from the schedule`s own time, with the colons a name cannot hold replaced', () => {
+        expect(reclaimExecutionName('2026-10-13T04:00:00Z')).toBe('nightly-2026-10-13T04-00-00Z');
+    });
+
+    it('is the same name for the same scheduled time and a different one for another night', () => {
+        expect(reclaimExecutionName('2026-10-13T04:00:00Z')).toBe(reclaimExecutionName('2026-10-13T04:00:00Z'));
+        expect(reclaimExecutionName('2026-10-14T04:00:00Z')).not.toBe(reclaimExecutionName('2026-10-13T04:00:00Z'));
+    });
+
+    it.each([
+        '',
+        'tomorrow',
+        '2026-10-13',
+        '2026-10-13T04:00:00',
+        '2026-10-13T00:00:00-04:00',
+        '2026-10-13T04:00:00.000Z',
+        ' 2026-10-13T04:00:00Z',
+        '2026-10-13T04:00:00Z; rm',
+        '2026-10-13T04:00:00Z/../x',
+        `${'2026-10-13T04:00:00Z'}\n`,
+    ])('refuses %j, because it becomes an execution name', (value) => {
+        expect(reclaimExecutionName(value)).toBeUndefined();
+    });
+});
+
+describe('runSchedulerAction — stop starts the midnight reclaim LAST (ADR-0061)', () => {
+    const SCHEDULED = '2026-10-13T04:00:00Z';
+    const NAME = 'nightly-2026-10-13T04-00-00Z';
+
+    /** A sandbox with something to stop in every class, so "after all of them" is a real ordering. */
+    function runningSandbox(): FakeState {
+        const preview = previewCluster(7, 1);
+
+        return makeState({
+            rdsInstances: [UP_RDS],
+            ec2: [UP_NAT],
+            clusters: [SANDBOX_CLUSTER, preview.arn],
+            clusterTags: { [preview.arn]: preview.tag },
+            services: [
+                { clusterArn: SANDBOX_CLUSTER, serviceArn: SANDBOX_SERVICE, serviceName: 'identity', desiredCount: 1 },
+                preview.service,
+            ],
+            rules: [rule('pr7-q', 'pr-7', 'ENABLED')],
+        });
+    }
+
+    it('starts the loop under the name taken from scheduledTime, after the rules, RDS, ECS and NAT', async () => {
+        const state = runningSandbox();
+        const summary = await runSchedulerAction({ action: 'stop', scheduledTime: SCHEDULED }, makeClients(state));
+
+        expect(state.reclaimStarts).toEqual([NAME]);
+        expect(state.log.at(-1)).toBe(`reclaim:start:${NAME}`);
+        expect(state.log.slice(0, -1).some((entry) => entry.startsWith('rds:stop:'))).toBe(true);
+        expect(state.log.slice(0, -1).some((entry) => entry.startsWith('ecs:0:'))).toBe(true);
+        expect(state.log.slice(0, -1).some((entry) => entry.startsWith('ec2:stop:'))).toBe(true);
+        expect(summary.reclaim.acted).toEqual([NAME]);
+        expect(summary.errors).toEqual([]);
+    });
+
+    it('⛔ treats ExecutionAlreadyExists as success: a retried schedule is the same night', async () => {
+        const state = runningSandbox();
+        const already = Object.assign(new Error('Execution Already Exists'), { name: 'ExecutionAlreadyExists' });
+
+        state.reclaimError = already;
+
+        const summary = await runSchedulerAction({ action: 'stop', scheduledTime: SCHEDULED }, makeClients(state));
+
+        expect(summary.errors).toEqual([]);
+        expect(() => assertRunSucceeded(summary)).not.toThrow();
+    });
+
+    it('⛔ a reclaim that cannot start never undoes the stop, and fails the run afterwards', async () => {
+        const state = runningSandbox();
+
+        state.reclaimError = new Error('AccessDeniedException: not authorized to perform states:StartExecution');
+
+        const summary = await runSchedulerAction({ action: 'stop', scheduledTime: SCHEDULED }, makeClients(state));
+
+        expect(state.calls.rdsStop).toEqual(['kitchensink-data-sandbox']);
+        expect(state.calls.ec2Stop).toEqual(['i-sbx-nat']);
+        expect(state.calls.ecsUpdate.map((call) => call.desiredCount)).toEqual([0, 0]);
+        expect(summary.errors).toHaveLength(1);
+        expect(summary.errors[0]).toContain('reclaim');
+        expect(summary.errors[0]).toContain('AccessDeniedException');
+        expect(() => assertRunSucceeded(summary)).toThrow();
+    });
+
+    it('another error that merely mentions the name is NOT mistaken for ExecutionAlreadyExists', async () => {
+        const state = runningSandbox();
+
+        state.reclaimError = new Error('ExecutionAlreadyExists-looking message from something else');
+
+        const summary = await runSchedulerAction({ action: 'stop', scheduledTime: SCHEDULED }, makeClients(state));
+
+        expect(summary.errors).toHaveLength(1);
+    });
+
+    it('with no scheduledTime (a hand-run stop) it stops everything, starts no reclaim, and says so', async () => {
+        const state = runningSandbox();
+        const summary = await runSchedulerAction({ action: 'stop' }, makeClients(state));
+
+        expect(state.reclaimStarts).toEqual([]);
+        expect(state.calls.rdsStop).toEqual(['kitchensink-data-sandbox']);
+        expect(summary.errors).toEqual([]);
+        expect(summary.warnings.join(' ')).toContain('reclaim');
+    });
+
+    it('a malformed scheduledTime still stops everything, starts no reclaim, and FAILS the run so it is announced', async () => {
+        const state = runningSandbox();
+        const summary = await runSchedulerAction({ action: 'stop', scheduledTime: 'not a time' }, makeClients(state));
+
+        expect(state.reclaimStarts).toEqual([]);
+        expect(state.calls.rdsStop).toEqual(['kitchensink-data-sandbox']);
+        expect(summary.errors).toHaveLength(1);
+        expect(summary.errors[0]).toContain('scheduledTime');
+    });
+
+    it('only a stop starts the reclaim: a start and a sync never do', async () => {
+        const state = runningSandbox();
+        const clients = makeClients(state);
+
+        await runSchedulerAction({ action: 'sync' }, clients);
+        await runSchedulerAction(startFor('pr-7'), clients);
+
+        expect(state.log.some((entry) => entry.startsWith('reclaim:'))).toBe(false);
     });
 });
 
@@ -733,6 +938,7 @@ describe('assertRunSucceeded — a run with a failed step fails the invocation',
         ecs: { acted: [], skipped: [] },
         nat: { acted: [], skipped: [] },
         rules: { acted: [], skipped: [] },
+        reclaim: { acted: [], skipped: [] },
         warnings: ['pr-7 owns no scheduled rule'],
         errors,
     });

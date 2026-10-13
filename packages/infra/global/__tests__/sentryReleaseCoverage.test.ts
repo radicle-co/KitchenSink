@@ -37,7 +37,7 @@ const ACTION = join(REPO_ROOT, '.github', 'actions', 'sentry-release', 'action.y
 /**
  * Runtimes whose infra wires a DSN but which are deliberately released by no step, each with the reason.
  *
- * ⛔ A NAME HERE IS A DECISION, not a backlog. Both entries are cases where a release would associate with
+ * ⛔ A NAME HERE IS A DECISION, not a backlog. Every entry is a case where a release would associate with
  * nothing, not cases somebody has not got to yet.
  */
 const NO_RELEASE_OWED: Readonly<Record<string, string>> = {
@@ -48,6 +48,11 @@ const NO_RELEASE_OWED: Readonly<Record<string, string>> = {
     // Python. `sentry-cli sourcemaps` is a JavaScript tool, and the engine's release is its pinned version
     // rather than the commit (ADR-0025) — `observability.py` sends that, and there are no maps to upload.
     IngredientParserStack: 'Python: the release is the pinned engine version, and there are no JS maps',
+    // The sandbox scheduler and its midnight reclaim (ADR-0061) wire the platform DSN so a failed stop or a reclaim
+    // with stacks left behind becomes an issue. The stack exists at the sandbox stage ONLY, so `prod-deploy.yml` —
+    // where every release in this guard is created — never builds it, and what it sends is a MESSAGE event
+    // (`announceSilentNoOp`) with no stack trace to symbolicate.
+    SandboxSchedulerStack: 'Sandbox only: prod-deploy.yml never builds it, and it sends message events with no trace',
 };
 
 /** Infra files that inject a `SENTRY_DSN` into something they deploy. */

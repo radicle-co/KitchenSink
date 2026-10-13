@@ -280,3 +280,58 @@ describe('the log drain is attached only when CI resolved a forwarder ARN', () =
         template.resourceCountIs('AWS::Logs::SubscriptionFilter', expected);
     });
 });
+
+/**
+ * ADR-0061: the midnight reclaim deletes this stack each night and Sandbox Up rebuilds it. The group has an explicit
+ * `logGroupName`, so a group that survived the delete (the CDK default `RETAIN`) would fail the rebuild with
+ * `AlreadyExists`. A preview's group is deleted with its stack; production's is kept. `perPrLogGroupsDisposable.test.ts`
+ * holds every other per-PR group to the same rule.
+ */
+describe('the log group is disposable outside production (ADR-0061)', () => {
+    const policiesFor = (stage: string): readonly unknown[] => {
+        const app = new App({ outdir: scratchDirectory('cdk-synth-') });
+        const stack = new IngredientParserStack(app, `IngredientParser-${stage}`, {
+            env,
+            stage,
+            assetDirectory: stagedAsset(),
+        });
+        const groups = Object.values(Template.fromStack(stack).findResources('AWS::Logs::LogGroup'));
+
+        expect(groups.length).toBeGreaterThan(0);
+
+        return groups.flatMap((group) => [group['DeletionPolicy'], group['UpdateReplacePolicy']]);
+    };
+
+    it('deletes the group with a pr-N stack', () => {
+        expect(new Set(policiesFor('pr-1'))).toEqual(new Set(['Delete']));
+    });
+
+    it('⛔ keeps the group in production', () => {
+        expect(new Set(policiesFor('prod'))).toEqual(new Set(['Retain']));
+    });
+});
+
+/**
+ * ADR-0061: a preview is deleted every night and rebuilt, so no resource may outlive its stack and none may be a custom
+ * resource, which runs code on delete that the reclaim cannot unwedge.
+ */
+describe('every resource is deleted with its stack at pr-1 (ADR-0061)', () => {
+    it('IngredientParserStack at pr-1: no retained resource and no custom resource', () => {
+        const resources = templateFor(stagedAsset()).toJSON()['Resources'] as Record<
+            string,
+            { Type: string; DeletionPolicy?: string }
+        >;
+        const offending = Object.entries(resources).flatMap(([id, resource]) => [
+            ...(['Retain', 'RetainExceptOnCreate', 'Snapshot'].includes(resource.DeletionPolicy ?? '')
+                ? [`${id}: DeletionPolicy ${resource.DeletionPolicy ?? ''}`]
+                : []),
+            ...(resource.Type.startsWith('Custom::') || resource.Type === 'AWS::CloudFormation::CustomResource'
+                ? [`${id}: ${resource.Type}`]
+                : []),
+        ]);
+
+        // Not vacuous: a stack with no resources would pass.
+        expect(Object.keys(resources).length).toBeGreaterThan(2);
+        expect(offending).toEqual([]);
+    });
+});

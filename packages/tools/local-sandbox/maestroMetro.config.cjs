@@ -26,12 +26,25 @@ const hidden = ['.env.local', '.env.development.local'].map(
     // ⚠️ No flags: Expo composes every blockList pattern into one RegExp and refuses patterns whose flags differ.
     (file) => new RegExp(`^${escape(path.join(mobileDir, file))}$`),
 );
+
+/**
+ * Sibling build output that the mobile bundle never imports. Metro watches the whole monorepo, and a service or web
+ * build that deletes and recreates one of these while Metro runs makes `fs.watch` throw ENOENT, which ENDS the Metro
+ * process: every later flow then reads "Unable to load script" and fails at sign-in. Scoped to services, infra and the
+ * web app on purpose: a shared package's `dist` can be an import target of the app, so it stays visible.
+ */
+const repoRoot = path.resolve(__dirname, '../../..');
+const buildOutput = [
+    `^${escape(repoRoot)}/packages/(services|infra)/[^/]+/(dist|dist-lambda|distSeed|cdk\\.out)(/.*)?$`,
+    `^${escape(repoRoot)}/packages/apps/commise/web/\\.next(/.*)?$`,
+    `^${escape(repoRoot)}/packages/(.*/)?cdk\\.out(/.*)?$`,
+].map((source) => new RegExp(source));
 const existing = config.resolver?.blockList;
 
 module.exports = {
     ...config,
     resolver: {
         ...config.resolver,
-        blockList: [...(existing === undefined ? [] : [existing].flat()), ...hidden],
+        blockList: [...(existing === undefined ? [] : [existing].flat()), ...hidden, ...buildOutput],
     },
 };

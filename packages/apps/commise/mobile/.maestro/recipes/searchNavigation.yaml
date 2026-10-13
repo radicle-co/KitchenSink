@@ -160,7 +160,14 @@ appId: io.commise.mobile
 - tapOn: 'Filters.*'
 - tapOn: 'Under 15 min'
 - tapOn: 'Show \d+ recipes?|Show recipes'
-- assertNotVisible: '${E2E_RECIPE_RISOTTO}'
+# ⛔ Decision (buildSpec.md §4.6, resolved decision 10): every no-result state ends in tag chips and the Trending rail,
+# so the page is never a dead end. Herb Risotto is a trending public recipe, so it is STILL on screen, in that rail,
+# when the 15-minute bound excludes it from the RESULTS. `assertNotVisible` on its title therefore proves nothing
+# about the filter any more. The no-result heading, which names the term and says "with these filters", is only
+# rendered when the search returned nothing, so it is the proof that the bound reached the service.
+- extendedWaitUntil:
+      visible: 'No recipes for .Risotto.* with these filters'
+      timeout: 40000
 - tapOn: 'Filters.*'
 - tapOn: 'Any'
 - tapOn: 'Show \d+ recipes?|Show recipes'

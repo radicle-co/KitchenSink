@@ -41,7 +41,7 @@ appId: io.commise.mobile
 # The line is added with the cook's amount and unit, read amount first (build spec §7.5.1), and the field empties for
 # the next one.
 - extendedWaitUntil:
-      visible: 'Edit 2 cup Flour'
+      visible: 'Edit 2 cups Flour'
       timeout: 40000
       label: 'the pick added the line with its amount and unit'
 - assertNotVisible: '2 cups · Flou'

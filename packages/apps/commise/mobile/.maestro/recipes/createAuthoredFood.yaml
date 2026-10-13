@@ -108,8 +108,13 @@ appId: io.commise.mobile
 # 8, build spec §7.5.1). `extendedWaitUntil`, never a fixed sleep: two services are in the path and their latency is
 # not a constant. The control is waited on, not the name, because the sheet's `Food name` field holds the same text
 # until the sheet closes.
-- extendedWaitUntil:
-      visible: 'Edit Maestro Nut Butter'
+# ⛔ `scrollUntilVisible` UP, not `extendedWaitUntil` (owner decision D1: the editor is ONE page). The new line lands
+# ABOVE the trailing "Add an ingredient" field the cook is at, and the sheet closing leaves the page where it was, so
+# the control is above the sticky header and `extendedWaitUntil` waits on a node that is off screen. Scrolling up
+# still waits up to the same 40 s for the line to EXIST, so it stays the falsifiable core; `edit.yaml` does the same.
+- scrollUntilVisible:
+      element: 'Edit Maestro Nut Butter'
+      direction: UP
       timeout: 40000
 - assertNotVisible: 'Nutrition per 100 g'
 - assertNotVisible: 'Could not create the food. Check your connection and try again.'

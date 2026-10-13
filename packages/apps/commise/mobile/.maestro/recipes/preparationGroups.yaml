@@ -6,7 +6,7 @@ appId: io.commise.mobile
 # compiler edge between them.
 #
 # Assumes an authenticated session (the auth flow runs first in CI ordering) and the app pointed at a seeded
-# recipe API. It CREATES its own recipe rather than editing a seeded one, so `Edit 2 cup Tomato` addresses the
+# recipe API. It CREATES its own recipe rather than editing a seeded one, so `Edit 2 cups Tomato` addresses the
 # line this flow itself made — the seeded recipes carry five lines of their own, and addressing by position
 # into a fixture is what made `recipes/edit.yaml`'s original checkpoint pass without proving anything.
 #
@@ -62,7 +62,7 @@ appId: io.commise.mobile
       timeout: 30000
 # The line reads amount first, its preparation after the name (§7.5.1).
 - scrollUntilVisible:
-      element: 'Edit 2 cup Tomato'
+      element: 'Edit 2 cups Tomato'
       direction: UP
       timeout: 20000
 - assertVisible:
@@ -105,7 +105,7 @@ appId: io.commise.mobile
 - assertVisible: 'Close editor'
 # The read row carries the preparation, and the group heading the fold re-derives from the line's label returns.
 - scrollUntilVisible:
-      element: 'Edit 2 cup Tomato'
+      element: 'Edit 2 cups Tomato'
       direction: DOWN
       timeout: 20000
 - assertVisible:
@@ -116,7 +116,7 @@ appId: io.commise.mobile
       direction: UP
       timeout: 20000
 # And its editor holds the preparation in its own field. A TextInput's own value is matchable text in this suite.
-- tapOn: 'Edit 2 cup Tomato'
+- tapOn: 'Edit 2 cups Tomato'
 - assertVisible: 'Preparation'
 - assertVisible:
       text: 'finely chopped'

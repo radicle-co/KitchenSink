@@ -160,10 +160,16 @@ onFlowComplete:
 # The trailing "Add an ingredient" field, typed into sideways: its list renders where the cook can reach it. Read,
 # never picked. 'Flou', a prefix of the run's probe food (`e2e-seed provision` authors `Flour`), so the cook's own
 # foods group renders, and a prefix so the field's own text never matches the option.
+# ⛔ A SLOW swipe (`speed: 10`), measured not guessed: the landscape page shows ~460 px of content between the pinned
+# header and the action bar, and the default swipe moves the field across that window between two visibility checks.
+# The run then stops on the section's end with the field on screen and the step red (seen on three of five runs, with
+# the field fully visible in the failure screenshot each time). The screen under test is unchanged: the editor is one
+# page with a section strip (owner decision D1/D2).
 - scrollUntilVisible:
       element: 'Add an ingredient'
       direction: DOWN
-      timeout: 20000
+      speed: 10
+      timeout: 40000
 - tapOn: 'Add an ingredient'
 - inputText: 'Flou'
 - runFlow:

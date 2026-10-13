@@ -73,7 +73,10 @@ appId: io.commise.mobile
 - scrollUntilVisible:
       element:
           text: '^Tomato'
-      direction: DOWN
+      # ⛔ UP, not DOWN (owner decision D1: the editor is ONE page). The declared line lands ABOVE the trailing "Add an
+      # ingredient" field the cook is at, so scrolling down overshoots to "Photos & publish" and never finds it.
+      # `edit.yaml` carries the same selector and direction.
+      direction: UP
       timeout: 30000
 - scrollUntilVisible:
       element: 'Add step'

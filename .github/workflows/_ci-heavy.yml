@@ -140,15 +140,14 @@ on:
                     `maestroShardCapacity(platform)` clamps to the DECLARED roster, but a declared lane is not a Clerk
                     user: shard 4's `resetBefore` leases `signer04`/`coauthor04` (iOS: `iossigner04`/`ioscoauthor04`)
                     FOR REAL, so a default the sandbox tenant cannot satisfy fails the job at its first pool lease,
-                    for a reason that has nothing to do with the flows. Each platform's roster now identifies four
-                    shards (`testPool.ts`; the owner's coordinator ran `poolAdmin --apply` for all twelve new users on
-                    2026-10-13), and `maestroShardPartition.test.ts` is what refuses anything above it. The default stays
-                    '2' until all three defaults move to '4', which is the last step of the three-part act (below).
+                    for a reason that has nothing to do with the flows. '4' is each platform's capacity
+                    (`testPool.ts`; the owner's coordinator ran `poolAdmin --apply` for all twelve new users on
+                    2026-10-13), and `maestroShardPartition.test.ts` is what refuses anything above it.
 
                     ⚠️ FOUR RUNNERS PER PLATFORM IS EIGHT DEVICES against one 0.5-vCPU Spot recipe task and one shared
                     micro database, and five concurrent macOS jobs is GitHub Free's ceiling (four iOS shards plus the iOS
                     build). The first labelled run is the measurement: per-shard wall clock, Clerk 429s, recipe-service
-                    5xx and timeouts.
+                    5xx and timeouts. Rolling back is setting this and the other two defaults to '2'.
 
                     ⛔ THE SHARD JOBS' TIMEOUTS (60 minutes Android, 75 iOS) ASSUME FOUR SHARDS. They were sized from the
                     measured flow time divided four ways plus about six to eight minutes of setup. A run with fewer shards —
@@ -170,7 +169,7 @@ on:
                     move this default — and the other two — LAST.
                 required: false
                 type: string
-                default: '2'
+                default: '4'
             android_test_app:
                 description: >-
                     The name of the artifact holding the Android test app, built ONCE for the whole run by

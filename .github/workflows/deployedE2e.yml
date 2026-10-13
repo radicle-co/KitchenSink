@@ -90,7 +90,7 @@ on:
             maestro_shards:
                 description: How many runners the Maestro tier shards its flows across (clamped to the Clerk pool).
                 type: string
-                default: '2'
+                default: '4'
 
 permissions:
     contents: read

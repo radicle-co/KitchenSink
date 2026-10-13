@@ -728,6 +728,34 @@ describe('_ci-heavy.yml declares and relays the shard count', () => {
     });
 
     /**
+     * ADDED 2026-10-13 (phase 5 of the speed-up): the default is the platform's full capacity — FOUR — on all three files that
+     * carry it, and the manual door's form says so too. The three-part act is complete (roster lanes appended, `poolAdmin
+     * --apply` run by the coordinator on 2026-10-13, `MAESTRO_MAX_SHARDS` raised), and this is the "move the defaults LAST"
+     * step. Rolling back is setting all three back to the lower number; this assertion is part of that commit by design,
+     * so a half-rollback (one file) is red here and in the agreement test below.
+     */
+    it('⛔ defaults to four shards per platform in all three files, because the pool can now identify four', () => {
+        const defaults = ['_ci-heavy.yml', 'deployedE2eTiers.yml', 'deployedE2e.yml'].map((file) => {
+            const doc = parse(readFileSync(join(REPO_ROOT, '.github/workflows', file), 'utf8')) as {
+                on?: Record<string, { inputs?: Record<string, { default?: unknown }> }>;
+            };
+            const input = (doc.on?.['workflow_call'] ?? doc.on?.['workflow_dispatch'])?.inputs?.['maestro_shards'];
+
+            return [file, scalarText(input?.default)] as const;
+        });
+
+        expect(defaults).toEqual([
+            ['_ci-heavy.yml', '4'],
+            ['deployedE2eTiers.yml', '4'],
+            ['deployedE2e.yml', '4'],
+        ]);
+
+        for (const platform of MAESTRO_PLATFORMS) {
+            expect(maestroShardCapacity(platform)).toBe(4);
+        }
+    });
+
+    /**
      * ⛔ THE ROLLBACK PATH IS REACHABLE FROM THE FORM, not only from a commit. Two shards need two Clerk
      * signer/co-author pairs to exist; until `poolAdmin --apply` has created them the tier fails at its first
      * pool lease. `maestro_shards: 1` restores the pre-sharding tier exactly, so the manual door must be able

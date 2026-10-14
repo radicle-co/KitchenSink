@@ -174,19 +174,21 @@ onFlowComplete:
           TARGET: 'Your foods'
 
 # The draft survives a rotation: the Title field, above on the same page, still holds what was typed.
+# ⛔ The Title TAKES FOCUS before the rotation back. Android keeps a focused field's caret on screen when its layout
+# changes, and a rotation changes every field's width: with the ingredient field still focused, the page went back
+# down to it, and the scroll up from there ran out of time below the Title (run 38447859313). Focused, the Title is the
+# field the page keeps in view.
 - setOrientation: PORTRAIT
 - scrollUntilVisible:
       element: 'Maestro Landscape Draft'
       direction: UP
       timeout: 20000
+- tapOn: 'Maestro Landscape Draft'
 - setOrientation: LANDSCAPE_LEFT
-# Sideways, slowly, for the reason the scroll down to the field above gives: run 38447859313's default swipe carried the
-# Title across the window between two checks and ran out of time below it.
 - scrollUntilVisible:
       element: 'Maestro Landscape Draft'
       direction: UP
-      speed: 10
-      timeout: 40000
+      timeout: 20000
 
 # Throw the draft away through the editor's own header menu: × or Back would keep it, because the editor saves on
 # exit (build spec §3.5). The menu is in the pinned header, so it is reachable wherever the page is scrolled.

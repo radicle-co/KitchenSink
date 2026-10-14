@@ -11,6 +11,18 @@ appId: io.commise.mobile
 # ⚠️ iOS SWIPES HIGHER. Its keyboard stays up over the lower ~38% of the screen, so a swipe from 75% starts on a key and
 # moves nothing (run 38433716728). The band there is 55% to 35%, between the field the reveal lifts to the top and the
 # keyboard's edge.
+#
+# ⛔ FIRST, THE DATABASE'S ANSWER. Until it lands the list is ONE line, the `Searching ingredients` loader
+# (`entryCombobox.ts`, pinned by `entryCombobox.test.ts`), so a swipe from 75% starts on the page below it and closes the
+# list by design; every later swipe then scrolls the page to its end. The loader is matched INSIDE the list
+# (`childOf` its label): the polite live region outside it keeps saying the same words, 1 dp tall and therefore visible
+# to Maestro, until the remote sources finish.
+- extendedWaitUntil:
+      notVisible:
+          text: 'Searching ingredients'
+          childOf:
+              text: 'Food suggestions for ingredient \d+'
+      timeout: 20000
 - repeat:
       while:
           notVisible:

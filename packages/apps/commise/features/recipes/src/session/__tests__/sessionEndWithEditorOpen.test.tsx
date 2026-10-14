@@ -60,7 +60,7 @@ function offlinePort(store: OutboxStore, subject: string): EditorWritePort {
             return { kind: 'queued', seq: queuedSeq };
         },
         withdraw: async () => undefined,
-        discard: async () => undefined,
+        discard: async () => ({ kind: 'settled' }),
         subscribe: () => () => undefined,
     };
 }
@@ -78,6 +78,7 @@ function Editor(props: {
         port: offlinePort(store, subject),
         drafts: draftStoreFor(store, subject),
         navigation: { finished: () => undefined, leftForRecipe: () => undefined, discarded: () => undefined },
+        reportError: () => undefined,
         openPaste: false,
     });
 

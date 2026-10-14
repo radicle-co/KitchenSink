@@ -58,6 +58,7 @@ import { LoadingState } from '../components/LoadingState.js';
 import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 import { mobileMessages } from '../i18n/messages.js';
+import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
 import { editorDraftsFor } from '../storage/editorDrafts.js';
 
 /** Where the editor hands off: the navigator decides what each means. */
@@ -208,6 +209,7 @@ function RecipeEditorSession({
         port: queue,
         drafts,
         navigation,
+        reportError: reportErrorToSentry,
         openPaste,
     });
     const { editor, paste } = session;

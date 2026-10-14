@@ -48,12 +48,15 @@ export interface EditorPage {
     /** The section the reader is in (the scroll spy's), `details` before it reports. */
     readonly current: EditorSectionId;
     readonly announcement: { readonly text: string; readonly n: number };
-    /** Whether the discard confirm is open: asked for, or held open while a confirmed Discard waits to finish. */
+    /**
+     * Whether the discard confirm is open: asked for, held open while a confirmed Discard waits to finish, or held open
+     * saying a Discard storage refused (`editor.discardFailed`).
+     */
     readonly confirming: boolean;
     /** A confirmed Discard waits for the recipe's create to answer: the confirm is busy (`editor.discarding`). */
     readonly discarding: boolean;
     readonly askToDiscard: () => void;
-    /** Keep editing: closes the confirm, and takes back a Discard that waits (`editor.cancelDiscard`). */
+    /** Keep editing: closes the confirm, and takes back a Discard that waits or dismisses one refused (`editor.cancelDiscard`). */
     readonly keepEditing: () => void;
     readonly confirmDiscard: () => void;
     /** × : checkpoint the exit, then leave. Never asks. */
@@ -205,7 +208,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         entries,
         current,
         announcement: { text: announced.text, n: announced.n },
-        confirming: confirming || editor.discarding,
+        confirming: confirming || editor.discarding || editor.discardFailed,
         discarding: editor.discarding,
         askToDiscard: () => setConfirming(true),
         keepEditing: () => {

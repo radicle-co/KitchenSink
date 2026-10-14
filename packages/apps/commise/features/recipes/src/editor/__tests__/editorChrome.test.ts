@@ -100,6 +100,22 @@ describe('the ⋯ discard item', () => {
     });
 
     /**
+     * ⛔ A Discard storage refused (GATE round 3, Minor 2): nothing was removed and the draft is still there, so the
+     * confirm says that and offers the Discard again, for a draft and for a published recipe's changes alike.
+     */
+    it('⛔ says a Discard storage refused removed nothing, so the cook can try again', () => {
+        const body = "We couldn't discard. Nothing was removed, so you can try again.";
+
+        expect(
+            chrome({ lifecycle: 'published', recipeId: 'rec_1', hasUnsavedChanges: true, discardFailed: true }).discard
+                ?.body,
+        ).toBe(body);
+        expect(chrome({ lifecycle: 'neverPublished', recipeId: 'rec_1', discardFailed: true }).discard?.body).toBe(
+            body,
+        );
+    });
+
+    /**
      * A1's `discardMayLeaveServerCopy`: the create's outcome is unknown, so the recipe may exist on the server, and the
      * editor never guesses a delete for it. Saying "everything in it will be deleted" would then be false: the confirm
      * says what Discard really does, in the words of where the draft is kept.

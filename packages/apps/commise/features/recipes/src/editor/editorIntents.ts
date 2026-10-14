@@ -70,6 +70,8 @@ export interface DiscardInput {
     readonly outstanding: OutstandingWrite | undefined;
     /** The class of the parked write's failure, when it is parked. */
     readonly parkedFailure: FailureClass | undefined;
+    /** Whether a drain re-sends the parked write by itself (`resendsWhenParked`): it may then land at any moment. */
+    readonly parkedResends: boolean;
 }
 
 /** How a Discard hands off. */
@@ -98,13 +100,15 @@ export interface DiscardPlan {
     /** The delete to queue once the withdrawal is done, if the server holds (or may come to hold) the recipe. */
     readonly remove: DiscardRemove | undefined;
     /**
-     * The only server state was a create whose outcome is unknown: it may exist on the server, and nothing can name it
-     * to delete it. The container tells the cook before they confirm (code-reviewer High 1).
+     * The only server state is a parked create that may exist on the server — its outcome is unknown, or a drain re-sends
+     * it by itself and may claim it before the Discard acts — and nothing can name it to delete it. The container tells
+     * the cook before they confirm (code-reviewer High 1).
      */
     readonly mayLeaveServerCopy: boolean;
     /**
-     * A published recipe's parked Save changes has an unknown outcome: it may already have landed, so Discard stops
-     * retrying it but cannot promise those changes are gone. The confirm says so (`discard.changesMayStandBody`).
+     * A published recipe's parked Save changes may land whatever the Discard does: its outcome is unknown (it may already
+     * have), or a drain re-sends it by itself and may claim it before the Discard acts. The confirm then cannot promise
+     * those changes are gone, and says so (`discard.changesMayStandBody`).
      */
     readonly savedChangesMayStand: boolean;
     readonly exit: DiscardExit;
@@ -163,13 +167,15 @@ export function discardPlanOf(input: DiscardInput): DiscardPlan {
     if (input.lifecycle === 'published' && serverId !== undefined) {
         // ⛔ AN EARLIER SAVE CHANGES THAT PARKED GOES WITH THE DISCARD: it is work the cook was told about, and their
         // confirmed Discard is the consent to withdraw it. Left, it outlived the editor as "Syncing 1" for ever. One on
-        // its way (pending or on the wire) is left alone: it is not parked, and only the drain may settle it.
+        // its way (pending or on the wire) is left alone: it is not parked, and only the drain may settle it. ⛔ The
+        // outbox decides the withdrawal when it acts (`applyDiscard`), so the confirm promises only what holds then: a
+        // write a drain re-sends by itself may be claimed first, and is told as one that may stand.
         return {
             draftRef: serverId,
             withdraw: parked?.seq,
             remove: undefined,
             mayLeaveServerCopy: false,
-            savedChangesMayStand: parked !== undefined && input.parkedFailure === 'unknown',
+            savedChangesMayStand: parked !== undefined && (input.parkedFailure === 'unknown' || input.parkedResends),
             exit: { kind: 'leftForRecipe', recipeId: serverId },
         };
     }
@@ -180,7 +186,8 @@ export function discardPlanOf(input: DiscardInput): DiscardPlan {
         draftRef: ref,
         withdraw: parked?.seq,
         remove: removeOf(serverId, parkedCreate ? undefined : ref),
-        mayLeaveServerCopy: parkedCreate && input.parkedFailure === 'unknown',
+        // ⛔ As for a published save: a parked create a drain re-sends by itself may be claimed before the Discard acts.
+        mayLeaveServerCopy: parkedCreate && (input.parkedFailure === 'unknown' || input.parkedResends),
         savedChangesMayStand: false,
         exit: { kind: 'discarded' },
     };

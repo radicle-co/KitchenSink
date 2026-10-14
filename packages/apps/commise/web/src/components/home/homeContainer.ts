@@ -14,23 +14,13 @@
  * web Sentry (`@sentry/nextjs`) — so `HomeWidgetSurface`'s widget-boundary `onError` resolves the SAME
  * injected seam in production that tests bind a fake onto.
  */
-import { errorReporterToken, registerHomeWidget, type AddFeature, type ErrorReporter } from '@commise/features-core';
+import { errorReporterToken, registerHomeWidget, type AddFeature } from '@commise/features-core';
 import { recipeHomeWidgetDescriptor } from '@commise/features-recipes';
-import * as Sentry from '@sentry/nextjs';
 import { createContainer, type Container } from 'ditox';
 
-import { addRoadmapPlaceholders } from './roadmapFeature';
+import { reportErrorToSentry } from '@/lib/sentryErrorReporter';
 
-/**
- * The web {@link ErrorReporter} bound onto {@link homeContainer}: forwards to Sentry, attaching the caller's
- * context (e.g. `{ widget: descriptor.id }`) as `extra` so a Home-widget crash is traceable back to the
- * widget that threw.
- *
- * @sideEffect Reports the error to the global Sentry client.
- */
-export const reportWidgetErrorToSentry: ErrorReporter = (error, context) => {
-    Sentry.captureException(error, context ? { extra: context } : undefined);
-};
+import { addRoadmapPlaceholders } from './roadmapFeature';
 
 /**
  * The recipe feature's Home registration: contributes {@link recipeHomeWidgetDescriptor} to the appShell
@@ -63,7 +53,7 @@ export function createHomeContainer(features: readonly AddFeature[] = HOME_FEATU
 
     // Ambient appShell dependency the Home surface resolves for widget-boundary observability (DA9) — bound
     // here so prod and test containers built through this factory share ONE binding path for the reporter.
-    container.bindValue(errorReporterToken, reportWidgetErrorToSentry);
+    container.bindValue(errorReporterToken, reportErrorToSentry);
 
     for (const addFeature of features) {
         addFeature(container);

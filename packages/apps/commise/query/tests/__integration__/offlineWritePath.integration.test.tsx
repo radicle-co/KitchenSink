@@ -123,7 +123,7 @@ function Harness({
                     key={`discard-${String(index)}`}
                     type="button"
                     onClick={() => {
-                        void queue.discard(intent);
+                        void queue.discard({ kind: 'entity', intent });
                     }}
                 >
                     {`discard ${String(index)}`}

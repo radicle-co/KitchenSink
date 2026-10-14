@@ -1,6 +1,6 @@
 /**
  * A REAL outbox for this package's integration tier, behind the editor's write port: the `@kitchensink/sync` mutator,
- * `appendExclusive`, `withdraw` and `drain`, over a memory store, sending through the real `RecipeServiceClient`.
+ * `appendExclusive`, `withdraw`, `applyDiscard` and `drain`, over a memory store, sending through the real `RecipeServiceClient`.
  *
  * The app composes the same pieces in `@commise/query/sync` (`SyncProvider` + `recipeSender`); this package cannot
  * depend on the app layer, so the suite builds the composition it needs from the domain package. Only `fetch` behind
@@ -10,9 +10,9 @@
  */
 import {
     appendExclusive,
+    applyDiscard,
     claimForSending,
     createMemoryOutboxStore,
-    discardEntity,
     drain,
     outboxMutatorFor,
     settle,
@@ -193,9 +193,26 @@ export function makeOutboxPort(client: RecipeServiceClient): {
         withdraw: async (seq) => {
             project(await mutator.mutate((current) => withdrawRecord(current, seq)));
         },
-        discard: async (intent) => {
-            project(await mutator.mutate((current) => discardEntity(current, intent)));
+        discard: async (request) => {
+            let outcome: Awaited<ReturnType<EditorWritePort['discard']>> | undefined;
+
+            project(
+                await mutator.mutate((current) => {
+                    const applied = applyDiscard(current, request);
+
+                    outcome = applied.outcome;
+
+                    return applied.log;
+                }),
+            );
+
+            if (outcome === undefined) {
+                throw new Error('the outbox mutation did not run');
+            }
+
             flush();
+
+            return outcome;
         },
         subscribe: (listener) => {
             listeners.add(listener);

@@ -26,6 +26,7 @@
  * @pattern Mediator — the editor, the row editor, the paste and the navigation port coordinated in one place
  * @pattern Port — {@link EditorNavigation}, the platform's router behind the editor's hand-offs
  */
+import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
@@ -86,6 +87,8 @@ export interface UseRecipeEditorSessionOptions {
     readonly port: EditorWritePort;
     readonly drafts: DraftStore;
     readonly navigation: EditorNavigation;
+    /** The app's error reporter (Sentry on both platforms), for failures the cook cannot see the cause of. */
+    readonly reportError: ErrorReporter;
     /** Called with a new recipe's local ref once minted, and its server id once created (the web's URL keeps it). */
     readonly onRecipeRef?: (ref: string) => void;
     /** Open Paste a list at once: Home's first-run Paste ingredients (§7.5.4). */
@@ -125,7 +128,7 @@ export interface RecipeEditorSession {
  * @sideEffect Through the editor and its hooks: device draft writes, outbox submits, lookups and the visibility write.
  */
 export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): RecipeEditorSession {
-    const { seed, locale, keep, port, drafts, navigation, onRecipeRef, openPaste } = options;
+    const { seed, locale, keep, port, drafts, navigation, reportError, onRecipeRef, openPaste } = options;
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
     const setVisibility = useSetRecipeVisibility();
@@ -180,6 +183,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         drafts,
         keep,
         onExit,
+        reportError,
         ...(onRecipeRef === undefined ? {} : { onRecipeRef }),
         rebindLine: (address, target) => rebind.mutateAsync(rebindRequestOf(address, target)),
         // The outbox's cache observer writes each synced recipe write's answer here, so this is usually a cache read.

@@ -203,3 +203,27 @@ describe('laneReducer — a record another editor queued, and a Discard that wai
         expect(state).toStrictEqual({ leaving: true, closed: true });
     });
 });
+
+/**
+ * A Discard the outbox's storage refused (GATE round 3, Minor 2): nothing was queued or dropped, so the lane stops
+ * discarding and holds the failure until the cook tries again or keeps editing.
+ */
+describe('laneReducer — a Discard storage refused', () => {
+    const asking = laneReducer(EMPTY_LANE, { type: 'discarding', phase: 'asking' });
+    const failed = laneReducer(asking, { type: 'discardFailed' });
+
+    it('stops discarding and holds the failure', () => {
+        expect(failed).toStrictEqual({ discardFailed: true });
+    });
+
+    it('trying again clears it, and Keep editing clears it', () => {
+        expect(laneReducer(failed, { type: 'discarding', phase: 'asking' })).toStrictEqual({ discarding: 'asking' });
+        expect(laneReducer(failed, { type: 'discardCancelled' })).toStrictEqual({});
+    });
+
+    it('a lane already closed (the bound finished the Discard) records no failure', () => {
+        const closed = laneReducer(asking, { type: 'closed' });
+
+        expect(laneReducer(closed, { type: 'discardFailed' })).toBe(closed);
+    });
+});

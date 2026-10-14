@@ -105,6 +105,7 @@ function twoEditors(held: boolean) {
                 drafts: NO_DRAFTS,
                 keep: 'tabSession',
                 onExit: vi.fn(),
+                reportError: vi.fn(),
                 rebindLine: vi.fn(),
                 readRecipe: (id) => service.client.getRecipeById(id),
             }),

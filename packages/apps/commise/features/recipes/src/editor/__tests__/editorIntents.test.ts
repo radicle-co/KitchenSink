@@ -64,8 +64,9 @@ describe('discardPlanOf', () => {
         server: ServerFacts,
         outstanding?: OutstandingWrite,
         parkedFailure?: FailureClass,
+        parkedResends = false,
     ) {
-        return discardPlanOf({ lifecycle, server, ref: server.ref, outstanding, parkedFailure });
+        return discardPlanOf({ lifecycle, server, ref: server.ref, outstanding, parkedFailure, parkedResends });
     }
 
     it('a published recipe: only its device changes go, and the cook returns to it', () => {
@@ -84,22 +85,43 @@ describe('discardPlanOf', () => {
      * undefined` for every published recipe, so an earlier Save changes that parked stayed in the outbox for ever, and
      * "Syncing 1" with it. The cook's confirmed Discard is the consent to withdraw it. Whether its changes may already
      * stand is the confirm's business: an unknown outcome might have landed (`savedChangesMayStand`).
+     *
+     * REWRITTEN (GATE round 3): ⛔ A PARKED WRITE A DRAIN RE-SENDS BY ITSELF MAY STAND TOO. A `401` resumes when the cook
+     * signs in and a transient refusal is retried (`resendsWhenParked`), so either can be claimed and land between the
+     * confirm and the act. The confirm said "stays as it was" for them; it may promise that only for a write that waits
+     * for the cook (a conflict, a terminal refusal).
      */
-    it.each<[string, OutstandingWrite | undefined, FailureClass | undefined, number | undefined, boolean]>([
-        ['nothing outstanding', undefined, undefined, undefined, false],
+    it.each<[string, OutstandingWrite | undefined, FailureClass | undefined, boolean, number | undefined, boolean]>([
+        ['nothing outstanding', undefined, undefined, false, undefined, false],
         [
             'an update on its way (pending or on the wire): left alone',
             write({ kind: 'update' }),
             undefined,
+            false,
             undefined,
             false,
         ],
-        ['a parked update, outcome unknown', write({ kind: 'update', parked: true }), 'unknown', 7, true],
-        ['a parked update, refused', write({ kind: 'update', parked: true }), 'terminal', 7, false],
-        ['a parked update, signed out (transient)', write({ kind: 'update', parked: true }), 'transient', 7, false],
-        ['a parked update, conflict', write({ kind: 'update', parked: true }), 'conflict', 7, false],
-    ])('a published recipe with %s', (_case, outstanding, failure, withdraw, mayStand) => {
-        expect(plan('published', stored(RecipeStatus.PUBLISHED), outstanding, failure)).toMatchObject({
+        ['a parked update, outcome unknown', write({ kind: 'update', parked: true }), 'unknown', false, 7, true],
+        ['a parked update, refused', write({ kind: 'update', parked: true }), 'terminal', false, 7, false],
+        [
+            'a parked update its signed-out cook never sent (401, resent at sign-in)',
+            write({ kind: 'update', parked: true }),
+            'terminal',
+            true,
+            7,
+            true,
+        ],
+        [
+            'a parked update refused transiently (resent by a drain)',
+            write({ kind: 'update', parked: true }),
+            'transient',
+            true,
+            7,
+            true,
+        ],
+        ['a parked update, conflict', write({ kind: 'update', parked: true }), 'conflict', false, 7, false],
+    ])('a published recipe with %s', (_case, outstanding, failure, resends, withdraw, mayStand) => {
+        expect(plan('published', stored(RecipeStatus.PUBLISHED), outstanding, failure, resends)).toMatchObject({
             withdraw,
             remove: undefined,
             savedChangesMayStand: mayStand,
@@ -142,6 +164,21 @@ describe('discardPlanOf', () => {
                 withdraw: 7,
                 remove: undefined,
                 mayLeaveServerCopy: false,
+            });
+        },
+    );
+
+    /**
+     * ⛔ GATE round 3: a parked create a drain re-sends by itself (`401` at sign-in, a transient refusal) may be claimed
+     * between the confirm and the Discard's act, and then make the recipe on the server. The confirm says it may exist.
+     */
+    it.each<FailureClass>(['transient', 'terminal'])(
+        'a %s parked create a drain re-sends by itself: withdrawn, no delete, and the cook is told it may exist',
+        (failure) => {
+            expect(plan('unsaved', unsaved, write({ parked: true }), failure, true)).toMatchObject({
+                withdraw: 7,
+                remove: undefined,
+                mayLeaveServerCopy: true,
             });
         },
     );

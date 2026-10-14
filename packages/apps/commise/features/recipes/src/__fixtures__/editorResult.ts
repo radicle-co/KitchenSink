@@ -30,6 +30,7 @@ export function makeEditorResult(over: Partial<UseRecipeEditorResult> = {}): Use
         discardMayLeaveServerCopy: false,
         discardSavedChangesMayStand: false,
         discarding: false,
+        discardFailed: false,
         setValues: noop,
         setField: noop,
         dispatch: noop,

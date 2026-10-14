@@ -53,6 +53,7 @@ function mountEditor(client: RecipeServiceClient, seed: EditorSeed = {}) {
             drafts: NO_DRAFTS,
             keep: 'disk',
             onExit,
+            reportError: vi.fn(),
             rebindLine: vi.fn(),
             readRecipe: (id) => client.getRecipeById(id),
         }),

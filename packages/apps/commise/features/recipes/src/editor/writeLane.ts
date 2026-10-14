@@ -56,6 +56,11 @@ export interface LaneState {
      * has been queued, whereas the outbox may already have removed a queued create while `asking`.
      */
     readonly discarding?: 'asking' | 'waiting';
+    /**
+     * The outbox's storage refused a confirmed Discard: nothing was queued or dropped, and the draft stays. The confirm
+     * shows the failure until the cook tries again (a new `discarding`) or keeps editing (`discardCancelled`).
+     */
+    readonly discardFailed?: true;
     /** The editor was left (unmounted) while a Discard waited: it finishes with no hand-off, for nobody is there. */
     readonly left?: true;
     /**
@@ -89,6 +94,7 @@ export type LaneEvent =
     | { readonly type: 'closed' }
     | { readonly type: 'discarding'; readonly phase: 'asking' | 'waiting' }
     | { readonly type: 'discardCancelled' }
+    | { readonly type: 'discardFailed' }
     | { readonly type: 'left' }
     | { readonly type: 'leaving' }
     | { readonly type: 'stayed' };
@@ -186,20 +192,29 @@ export function laneReducer(state: LaneState, event: LaneEvent): LaneState {
         }
 
         case 'closed': {
-            const { discarding: _done, ...rest } = state;
+            const { discarding: _done, discardFailed: _failed, ...rest } = state;
 
             return state.closed === true ? state : { ...rest, closed: true };
         }
 
-        case 'discarding':
+        case 'discarding': {
+            const { discardFailed: _retried, ...rest } = state;
+
             return state.closed === true || state.discarding === event.phase
                 ? state
-                : { ...state, discarding: event.phase };
+                : { ...rest, discarding: event.phase };
+        }
 
         case 'discardCancelled': {
-            const { discarding: _taken, ...rest } = state;
+            const { discarding: _taken, discardFailed: _dismissed, ...rest } = state;
 
-            return state.discarding === 'waiting' ? rest : state;
+            return state.discarding === 'waiting' || state.discardFailed === true ? rest : state;
+        }
+
+        case 'discardFailed': {
+            const { discarding: _refused, ...rest } = state;
+
+            return state.closed === true ? state : { ...rest, discardFailed: true };
         }
 
         case 'left':

@@ -4,7 +4,7 @@
  * The settlement bus is the only way the editor learns anything, which is the contract this fake keeps.
  *
  * ⛔ THE LOG IS THE REAL ONE. Every port call and every test handle applies `@kitchensink/sync`'s own pure functions
- * (`appendExclusive`, `supersede`, `withdraw`, `discardEntity`, `claimForSending`, `settle`) to a real `OutboxLog`, so
+ * (`appendExclusive`, `supersede`, `withdraw`, `applyDiscard`, `claimForSending`, `settle`) to a real `OutboxLog`, so
  * what the editor is told is what the outbox would do. A hand-copied model of those rules had already drifted (its
  * Discard ignored `concerns`).
  *
@@ -20,11 +20,12 @@ import {
     EMPTY_OUTBOX,
     appendExclusive,
     appendIntent,
+    applyDiscard,
     claimForSending,
-    discardEntity,
     settle,
     supersede,
     withdraw as withdrawRecord,
+    type DiscardRequest,
     type Intent,
     type OutboxLog,
     type SettlementEvent,
@@ -49,8 +50,8 @@ export function makeFakeEditorWritePort() {
 
     const submitted: Intent[] = [];
     const withdrawn: number[] = [];
-    /** Every intent handed to `discard`, in order. */
-    const discarded: Intent[] = [];
+    /** Every request handed to `discard`, in order. */
+    const discarded: DiscardRequest[] = [];
 
     const project = (): void => {
         failures.splice(
@@ -103,9 +104,14 @@ export function makeFakeEditorWritePort() {
             withdrawn.push(seq);
             apply(withdrawRecord(log, seq));
         }),
-        discard: vi.fn(async (intent: Intent) => {
-            discarded.push(intent);
-            apply(discardEntity(log, intent));
+        discard: vi.fn(async (request: DiscardRequest) => {
+            discarded.push(request);
+
+            const applied = applyDiscard(log, request);
+
+            apply(applied.log);
+
+            return applied.outcome;
         }),
         subscribe: (listener: (event: Settlement) => void) => {
             listeners.add(listener);

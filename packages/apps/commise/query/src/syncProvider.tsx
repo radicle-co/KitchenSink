@@ -17,14 +17,16 @@ import {
     EMPTY_OUTBOX,
     appendExclusive,
     appendIntent,
+    applyDiscard,
     claimForSending,
     createMemoryOutboxStore,
-    discardEntity,
     drain,
     outboxMutatorFor,
     settle,
     supersede,
     withdraw as withdrawRecord,
+    type DiscardOutcome,
+    type DiscardRequest,
     type DrainJournal,
     type Intent,
     type LocalRef,
@@ -80,11 +82,13 @@ export interface SyncQueue {
     /** Remove a parked write: the cook decided what happens to it. Rejects for a record that is not parked. */
     readonly withdraw: (seq: number) => Promise<void>;
     /**
-     * The cook's confirmed Discard, as ONE change: every parked record of the entity the delete makes moot is withdrawn
-     * and the delete is queued (`discardEntity`). It never rejects for a parked record — the Discard is the consent
-     * `submit`'s delete refuses to assume — and it cannot lose a race with a create that parks meanwhile.
+     * The cook's confirmed Discard, as ONE change decided from the log as stored when it runs (`applyDiscard`): an
+     * entity's delete withdraws every parked record it makes moot and queues the delete; a published recipe's parked
+     * write is withdrawn only if it is still parked. It never rejects for a record's state — the Discard is the consent
+     * `submit`'s delete refuses to assume — and cannot lose a race with a drain. It answers whether what was discarded
+     * may still stand on the server. It rejects only when storage refuses the write.
      */
-    readonly discard: (intent: Intent) => Promise<void>;
+    readonly discard: (request: DiscardRequest) => Promise<DiscardOutcome>;
     /**
      * Hear each record's settlement as the drain writes it. Returns the unsubscribe. ⛔ Events are not replayed: a
      * listener learns only what settles while it is subscribed, and the durable facts live in the stores.
@@ -429,14 +433,30 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
     );
 
     const discard = useCallback(
-        async (intent: Intent): Promise<void> => {
+        async (request: DiscardRequest): Promise<DiscardOutcome> => {
             if (subject === undefined) {
                 throw new Error('sync: discard called with no signed-in subject');
             }
 
-            // ⛔ ONE MUTATION: the withdrawals and the delete cannot be separated by a drain's settlement.
-            await outboxMutatorFor(storeRef.current, subject).mutate((current) => discardEntity(current, intent));
+            let outcome: DiscardOutcome | undefined;
+
+            // ⛔ ONE MUTATION: what the Discard does is decided from the log it changes, so neither a drain's claim nor
+            // its settlement can come between the decision and the act.
+            await outboxMutatorFor(storeRef.current, subject).mutate((current) => {
+                const applied = applyDiscard(current, request);
+
+                outcome = applied.outcome;
+
+                return applied.log;
+            });
+
+            if (outcome === undefined) {
+                throw new Error('sync: the outbox mutation did not run');
+            }
+
             void flush();
+
+            return outcome;
         },
         [flush, subject],
     );

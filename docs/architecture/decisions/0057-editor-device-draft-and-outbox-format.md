@@ -202,10 +202,16 @@ The rules on top of the format:
   visibility change and the membership add that named it. A synced update or create withdraws nothing. The editor that
   could have withdrawn these may be gone by then, and without this a parked record outlived its Discard as "Syncing 1"
   for the rest of the session.
-- **Discard is one consented change.** `SyncQueue.discard` runs `discardEntity` in one mutation: every parked record of
-  the entity the delete makes moot is withdrawn, then the delete supersedes the rest. It never rejects for a parked
-  record, and a record that parks between the editor's decision and the call cannot orphan itself, which the earlier
-  withdraw-then-submit chain allowed (`supersede` threw on it and the editor swallowed the rejection).
+- **Discard is one consented change, decided from the log as it is when it runs.** `SyncQueue.discard` applies
+  `applyDiscard` in one mutation. An entity's Discard runs `discardEntity`: every parked record of the entity the delete
+  makes moot is withdrawn, then the delete supersedes the rest. A Discard of one parked write (a published recipe's
+  earlier Save changes, or a parked create) withdraws it only if it is still parked then; one a drain claimed or put
+  back to pending meanwhile is left to the drain, and one already gone may have synced, so both answer `mayStand`. It
+  never rejects for a record's state, so neither a record that parks nor one a drain claims between the editor's
+  decision and the act can orphan itself or throw, which the earlier withdraw-then-submit and withdraw-by-number chains
+  allowed (the editor swallowed the throw). It rejects only when storage refuses the write; the editor then keeps the
+  draft, reports the refusal through the app's error reporter (Sentry on both platforms) and shows it in the confirm,
+  which offers the Discard again. The device draft goes only after the outbox has taken the change.
 - **Discard waits for a create on the wire.** The editor is `withdraw`'s only caller, so a create that parked after its
   editor had closed had no surface to be withdrawn from. A Discard of a recipe only a create can have made therefore
   submits its delete exclusively: the outbox removes a create still queued, reports a parked one for the editor to
@@ -234,9 +240,13 @@ The rules on top of the format:
   `onSettled` listener after the journal wrote it; the provider publishes it to `SyncQueue.subscribe`. Nothing of an
   answer is stored: the durable facts already have homes (the resolutions here, the version in the device draft).
 - **A published recipe's Discard withdraws an earlier Save changes that parked.** The cook's confirmed Discard is the
-  consent. When that save's outcome is unknown it may already stand on the server, so the confirm says so (the same
-  words on both platforms), and the editor marks the recipe's read stale before handing off, so the recipe page shows
-  what the server holds. A Save changes still on its way is left alone: only the drain settles it.
+  consent. When that save's outcome is unknown it may already stand on the server, and when a drain re-sends it by
+  itself (`resendsWhenParked`: a `401` at sign-in, a transient refusal) it may be claimed and land before the Discard
+  acts, so in both cases the confirm says the changes may stand (the same words on both platforms); it promises the
+  recipe stays as it was only for a save that waits for the cook. A parked create is told the same way
+  (`mayLeaveServerCopy`). If the outbox still finds the save on its way after promising otherwise, the editor reports
+  the broken promise. It marks the recipe's read stale before handing off, so the recipe page shows what the server
+  holds. A Save changes still on its way is left alone: only the drain settles it.
 - **An unknown update may be sent again; an unknown create needs the cook.** An update names its version, so a second
   copy of one that did land meets a 409 and the conflict view rather than a second write. A create has no such token,
   so the editor tells the cook to look in My recipes first.
@@ -369,7 +379,8 @@ subject)` (`@commise/features-recipes`, both apps bind it to their store) clears
   `editor/__tests__/useRecipeEditorSession.test.tsx` (the unmount is a leave; a second exit does nothing) and
   `useEditorPage.test.tsx` (the background as an event).
 - Discard leaves nothing syncing: `outboxLog.test.ts` (`withdrawMoot` by status and delete state, a synced delete's
-  withdrawals, `discardEntity`, `withdraw` of a blocked delete), `drainer.test.ts` (an unknown delete is re-sent, an
+  withdrawals, `discardEntity`, `applyDiscard` by the state a parked write is in when the Discard acts, `withdraw` of a
+  blocked delete), `drainer.test.ts` (an unknown delete is re-sent, an
   unknown create or update is not), `recipeSender.test.ts` (a delete's `RECIPE_NOT_FOUND` is done and a code-less `404` is not, a failed mint is `401`),
   `syncProvider.test.tsx` (`discard` is one mutation and cannot lose the race), `offlineWritePath.integration.test.tsx`
   and `editorDiscard.integration.test.tsx` over the real outbox, `editorIntents.test.ts` and `editorChrome.test.ts`

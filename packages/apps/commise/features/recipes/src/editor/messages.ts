@@ -115,6 +115,8 @@ export interface EditorMessages {
         readonly keep: string;
         /** Said while a confirmed Discard waits for the recipe's create to answer (the confirm is busy). */
         readonly discarding: string;
+        /** The confirm's body after storage refused a confirmed Discard: nothing was removed, and it can be tried again. */
+        readonly failedBody: string;
     };
 
     /** The inline alert above the action bar for a parked write. */
@@ -298,6 +300,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             confirm: 'Discard',
             keep: 'Keep editing',
             discarding: 'Discarding…',
+            failedBody: "We couldn't discard. Nothing was removed, so you can try again.",
         },
 
         failure: {

@@ -74,6 +74,7 @@ import { RecipeLoadError } from '@/components/recipes/RecipeLoadError';
 import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { isRecipeRouteId } from '@/lib/recipeRouteId';
+import { reportErrorToSentry } from '@/lib/sentryErrorReporter';
 import { webMessages } from '@/i18n/messages';
 
 /** Props for {@link RecipeEditorContainer}. */
@@ -353,6 +354,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
         port: queue,
         drafts,
         navigation,
+        reportError: reportErrorToSentry,
         ...(mode === 'create' ? { onRecipeRef: (ref: string) => replaceUrlFor(locale, ref) } : {}),
         openPaste,
     });

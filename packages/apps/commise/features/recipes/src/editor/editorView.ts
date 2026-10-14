@@ -9,7 +9,7 @@
  */
 import type { Locale } from '@commise/i18n';
 import type { RecipeDetail, VersionConflictSide } from '@kitchensink/recipe-core';
-import { classifyFailure, type FailureClass, type SyncFailure } from '@kitchensink/sync';
+import { classifyFailure, resendsWhenParked, type FailureClass, type SyncFailure } from '@kitchensink/sync';
 
 import { recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import type { IngredientLineNameMessages } from '../messages.js';
@@ -125,6 +125,23 @@ export function parkedOf(
     }
 
     return drainFailed ? { failure: 'transient', kind: 'update' } : undefined;
+}
+
+/**
+ * Whether the drain re-sends the outstanding parked write by itself (`resendsWhenParked`). Pure.
+ *
+ * @param outstanding - The outstanding write.
+ * @param failures - The outbox's parked records.
+ * @returns `false` when nothing is parked or the outbox no longer lists it.
+ */
+function parkedResendsOf(outstanding: OutstandingWrite | undefined, failures: readonly ParkedRecord[]): boolean {
+    if (outstanding?.parked !== true) {
+        return false;
+    }
+
+    const record = failures.find((failure) => failure.seq === outstanding.seq);
+
+    return record !== undefined && resendsWhenParked(record);
 }
 
 /**
@@ -286,6 +303,7 @@ export function editorViewOf(input: EditorViewInput): EditorView {
             ref: server.ref,
             outstanding,
             parkedFailure: outstanding?.parked === true ? parkedOf(outstanding, failures, false)?.failure : undefined,
+            parkedResends: parkedResendsOf(outstanding, failures),
         }),
     };
 }

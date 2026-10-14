@@ -14,8 +14,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     EMPTY_OUTBOX,
     appendIntent,
+    claimForSending,
     createMemoryOutboxStore,
     loadOutbox,
+    outboxMutatorFor,
     saveOutbox,
     settle,
     type Intent,
@@ -868,7 +870,9 @@ describe('SyncProvider — discard', () => {
         const setItem = vi.spyOn(store, 'setItem');
 
         await act(async () => {
-            await current().discard(deleteOf('rec_1'));
+            await expect(current().discard({ kind: 'entity', intent: deleteOf('rec_1') })).resolves.toStrictEqual({
+                kind: 'settled',
+            });
         });
 
         expect(setItem).toHaveBeenCalledTimes(1);
@@ -902,7 +906,9 @@ describe('SyncProvider — discard', () => {
         await waitFor(() => expect(screen.getByText('failed:1')).toBeTruthy());
 
         await act(async () => {
-            await expect(current().discard(deleteOf(REF, [REF]))).resolves.toBeUndefined();
+            await expect(current().discard({ kind: 'entity', intent: deleteOf(REF, [REF]) })).resolves.toStrictEqual({
+                kind: 'settled',
+            });
         });
 
         await waitFor(() => expect(screen.getByText('pending:0')).toBeTruthy());
@@ -919,6 +925,68 @@ describe('SyncProvider — discard', () => {
             </SyncProvider>,
         );
 
-        await expect(current().discard(deleteOf('rec_1'))).rejects.toThrow(/no signed-in subject/);
+        await expect(current().discard({ kind: 'entity', intent: deleteOf('rec_1') })).rejects.toThrow(
+            /no signed-in subject/,
+        );
+    });
+
+    /**
+     * ⛔ A PUBLISHED RECIPE'S DISCARD IS DECIDED FROM THE LOG AS STORED WHEN ITS MUTATION RUNS (GATE round 3). The
+     * editor plans from the failures it last rendered; a drain can claim the parked Save changes before the act (a `401`
+     * resumes when the cook signs in). A withdrawal by number then threw and was swallowed, and the save landed while the
+     * confirm said the recipe stays as it was.
+     */
+    async function mountWithParked(status: number) {
+        const store = createMemoryOutboxStore();
+
+        await saveOutbox(
+            store,
+            'user_a',
+            settle(appendIntent(EMPTY_OUTBOX, updateOf('rec_1')), { seq: 1, outcome: 'parked', status }),
+        );
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+
+        const { current, Capture } = captureQueue();
+
+        render(
+            <SyncProvider subject="user_a" send={vi.fn() as never} store={store}>
+                <Capture />
+            </SyncProvider>,
+        );
+        await waitFor(() => expect(screen.getByText('failed:1')).toBeTruthy());
+
+        return { store, current };
+    }
+
+    it('withdraws a parked write that is still parked, in one write to storage', async () => {
+        const { store, current } = await mountWithParked(401);
+        const setItem = vi.spyOn(store, 'setItem');
+
+        await act(async () => {
+            await expect(current().discard({ kind: 'parkedWrite', seq: 1 })).resolves.toStrictEqual({
+                kind: 'settled',
+            });
+        });
+
+        expect(setItem).toHaveBeenCalledTimes(1);
+        expect((await loadOutbox(store, 'user_a')).records).toStrictEqual([]);
+    });
+
+    it('⛔ leaves a write a drain claimed before the mutation, says it may stand, and does not reject', async () => {
+        const { store, current } = await mountWithParked(401);
+
+        // The drain's claim lands in storage first, through the same serialized writer; the projection still says parked.
+        await outboxMutatorFor(store, 'user_a').mutate((log) => claimForSending(log, 1) ?? log);
+        expect(screen.getByText('failed:1')).toBeTruthy();
+
+        await act(async () => {
+            await expect(current().discard({ kind: 'parkedWrite', seq: 1 })).resolves.toStrictEqual({
+                kind: 'mayStand',
+            });
+        });
+
+        expect((await loadOutbox(store, 'user_a')).records.map((record) => record.state)).toStrictEqual(['sending']);
     });
 });

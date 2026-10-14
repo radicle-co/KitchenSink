@@ -862,3 +862,30 @@ describe('a Discard that waits for its create', () => {
         expect(cancelDiscard).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * A Discard storage refused (GATE round 3, Minor 2): nothing was removed and the draft is still there. The confirm
+ * stays open saying so, Discard tries again, and Keep editing dismisses it.
+ */
+describe('a Discard storage refused', () => {
+    it('keeps the confirm open saying nothing was removed; Discard tries again, Keep editing dismisses it', () => {
+        const cancelDiscard = vi.fn();
+        const discard = vi.fn();
+        render(
+            view(
+                makeEditorResult({ values: makeFilledRecipeFormValues(), discardFailed: true, cancelDiscard, discard }),
+            ),
+        );
+
+        const dialog = screen.getByRole('alertdialog', { name: 'Discard this draft?' });
+        expect(
+            within(dialog).getByText("We couldn't discard. Nothing was removed, so you can try again."),
+        ).toBeTruthy();
+
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
+        expect(discard).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+        expect(cancelDiscard).toHaveBeenCalledTimes(1);
+    });
+});

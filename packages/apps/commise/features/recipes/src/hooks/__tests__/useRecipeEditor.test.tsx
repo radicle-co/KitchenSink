@@ -8,6 +8,7 @@
  * through the outbox port, so the port is a fake that records what was submitted and lets the test answer it — the
  * settlement bus is the only way the editor learns anything, which is the contract.
  */
+import type { ErrorReporter } from '@commise/features-core';
 import { act, renderHook } from '@testing-library/react';
 import {
     RecipeStatus,
@@ -29,6 +30,7 @@ import { toDraftValues } from '../../editor/draftStore.js';
 import { toRecipeFormValues } from '../../form/wire.js';
 import { draftToSnapshot } from '../../versions/merge.js';
 import type { RebindLineSend } from '../lineCommit.js';
+import { isDiscardPromiseBrokenError } from '../../editor/discardPromiseBrokenError.js';
 import { useRecipeEditor, type EditorExit, type EditorSeed, type UseRecipeEditorResult } from '../useRecipeEditor.js';
 
 /** A device draft store that records what it was asked. */
@@ -80,6 +82,7 @@ function mount(seed: EditorSeed = {}, pasteHold?: PasteHold, port = fakePort()) 
     const readRecipe = vi.fn<(id: string) => Promise<RecipeDetail>>(async () => {
         throw new Error('readRecipe: not expected in this test');
     });
+    const reportError = vi.fn<ErrorReporter>();
     const view = renderHook(
         (props: { readonly seed: EditorSeed; readonly pastePending?: boolean }) =>
             useRecipeEditor(props.seed, {
@@ -91,6 +94,7 @@ function mount(seed: EditorSeed = {}, pasteHold?: PasteHold, port = fakePort()) 
                 onRecipeRef,
                 rebindLine,
                 readRecipe,
+                reportError,
                 pastePending: props.pastePending ?? false,
                 ...(pasteHold === undefined ? {} : { pasteHold }),
                 now: () => new Date('2026-10-09T12:00:00.000Z'),
@@ -98,7 +102,7 @@ function mount(seed: EditorSeed = {}, pasteHold?: PasteHold, port = fakePort()) 
         { initialProps: { seed } as { readonly seed: EditorSeed; readonly pastePending?: boolean } },
     );
 
-    return { ...view, port, drafts, onExit, onRecipeRef, rebindLine, readRecipe };
+    return { ...view, port, drafts, onExit, onRecipeRef, rebindLine, readRecipe, reportError };
 }
 
 /** Type a title (the draft floor's one requirement). */
@@ -902,11 +906,61 @@ describe('discard', () => {
         await settle();
 
         expect(port.discarded).toEqual([
-            { entity: 'recipe', intentKind: 'delete', localId: 'rec_1', dependsOn: [], payload: { id: 'rec_1' } },
+            {
+                kind: 'entity',
+                intent: {
+                    entity: 'recipe',
+                    intentKind: 'delete',
+                    localId: 'rec_1',
+                    dependsOn: [],
+                    payload: { id: 'rec_1' },
+                },
+            },
         ]);
         expect(port.submit).not.toHaveBeenCalled();
         expect(drafts.discard).toHaveBeenCalledWith('rec_1');
         expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+    });
+
+    it('⛔ a stored draft whose delete storage refuses: the draft stays, the refusal is reported and shown', async () => {
+        const { result, port, drafts, onExit, reportError } = mount({ recipe: NEVER_PUBLISHED });
+        const refusal = new Error('quota exceeded');
+
+        port.discard.mockRejectedValueOnce(refusal);
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(drafts.discard).not.toHaveBeenCalled();
+        expect(onExit).not.toHaveBeenCalled();
+        expect(reportError).toHaveBeenCalledWith(refusal, { operation: 'recipeDiscard' });
+        expect(result.current.discardFailed).toBe(true);
+    });
+
+    it('⛔ a new recipe whose delete storage refuses: the draft stays, the refusal is reported and shown', async () => {
+        const { result, port, drafts, onExit, reportError } = mount();
+        const refusal = new Error('quota exceeded');
+
+        act(() => {
+            result.current.setField('description', 'x');
+        });
+        act(() => {
+            vi.advanceTimersByTime(DEVICE_SAVE_IDLE_MS);
+        });
+        await settle();
+        port.submitExclusive.mockRejectedValueOnce(refusal);
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(drafts.discard).not.toHaveBeenCalled();
+        expect(onExit).not.toHaveBeenCalled();
+        expect(reportError).toHaveBeenCalledWith(refusal, { operation: 'recipeDiscard' });
+        expect(result.current.discardFailed).toBe(true);
     });
 
     it('a published recipe: drops only the device changes and returns to the recipe', async () => {
@@ -1117,11 +1171,14 @@ describe('discard while the create is on the wire', () => {
         expect(port.submit).not.toHaveBeenCalled();
         expect(port.discard).toHaveBeenCalledTimes(1);
         expect(port.discard).toHaveBeenCalledWith({
-            entity: 'recipe',
-            intentKind: 'delete',
-            localId: 'rec_x',
-            dependsOn: [],
-            payload: { id: 'rec_x' },
+            kind: 'entity',
+            intent: {
+                entity: 'recipe',
+                intentKind: 'delete',
+                localId: 'rec_x',
+                dependsOn: [],
+                payload: { id: 'rec_x' },
+            },
         });
         expect(drafts.discarded).toEqual(expect.arrayContaining([ref, 'rec_x']));
         expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
@@ -1141,13 +1198,31 @@ describe('discard while the create is on the wire', () => {
             await settle();
             await settle();
 
-            expect(port.withdrawn).toEqual([seq]);
+            // REWRITTEN (GATE round 3): the withdrawal is the outbox's, decided when it acts (`parkedWrite`).
+            expect(port.discarded).toEqual([{ kind: 'parkedWrite', seq }]);
             expect(port.submit).not.toHaveBeenCalled();
             expect(port.queued()).toEqual([]);
             expect(drafts.discarded).toEqual([ref]);
             expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
         },
     );
+
+    it('⛔ the create parks and storage refuses its withdrawal: the draft stays, the refusal is reported and shown', async () => {
+        const { result, port, onExit, drafts, seq, reportError } = await discardingOnTheWire();
+        const refusal = new Error('quota exceeded');
+
+        port.discard.mockRejectedValueOnce(refusal);
+        act(() => {
+            port.park(seq, 400);
+        });
+        await settle();
+        await settle();
+
+        expect(drafts.discarded).toEqual([]);
+        expect(onExit).not.toHaveBeenCalled();
+        expect(reportError).toHaveBeenCalledWith(refusal, { operation: 'recipeDiscard' });
+        expect(result.current.discardFailed).toBe(true);
+    });
 
     it('the wait is bounded by the request timeout: then a delete waits on the create, and the editor closes', async () => {
         const { port, onExit, ref } = await discardingOnTheWire();
@@ -1166,11 +1241,14 @@ describe('discard while the create is on the wire', () => {
 
         expect(port.submit).not.toHaveBeenCalled();
         expect(port.discard).toHaveBeenCalledWith({
-            entity: 'recipe',
-            intentKind: 'delete',
-            localId: ref,
-            dependsOn: [ref],
-            payload: { id: ref },
+            kind: 'entity',
+            intent: {
+                entity: 'recipe',
+                intentKind: 'delete',
+                localId: ref,
+                dependsOn: [ref],
+                payload: { id: ref },
+            },
         });
         expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
     });
@@ -1178,13 +1256,17 @@ describe('discard while the create is on the wire', () => {
     /**
      * ⛔ THE RACE THAT ORPHANED A PARKED CREATE. The bound passes, the editor asks the outbox to delete behind the create,
      * and the create parks in the same breath. The old chain was `submit` (which throws on a parked record) with the
-     * rejection swallowed, so the parked create stayed with no delete. `discard` cannot lose the race, and a storage
-     * refusal must not leave the editor open or the rejection unhandled.
+     * rejection swallowed, so the parked create stayed with no delete. `discard` cannot lose the race.
+     *
+     * REWRITTEN (GATE round 3, Minor 2): a storage refusal used to finish the discard anyway — the draft went, the delete
+     * was never queued, and nothing reported it. The draft now stays, the refusal is reported, and the confirm shows the
+     * failure so the cook can try again; still with no unhandled rejection.
      */
-    it('⛔ finishes the discard even when the outbox refuses the change (storage), with no unhandled rejection', async () => {
-        const { port, onExit, drafts, ref } = await discardingOnTheWire();
+    it('⛔ a storage refusal of the delete behind the create keeps the draft, reports it, and shows the failure', async () => {
+        const { result, port, onExit, drafts, reportError } = await discardingOnTheWire();
+        const refusal = new Error('storage full');
 
-        port.discard.mockRejectedValueOnce(new Error('storage full'));
+        port.discard.mockRejectedValueOnce(refusal);
         act(() => {
             vi.advanceTimersByTime(DEFAULT_REQUEST_TIMEOUT_MS);
         });
@@ -1192,8 +1274,11 @@ describe('discard while the create is on the wire', () => {
         await settle();
 
         expect(port.discard).toHaveBeenCalledTimes(1);
-        expect(drafts.discarded).toEqual([ref]);
-        expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+        expect(drafts.discarded).toEqual([]);
+        expect(onExit).not.toHaveBeenCalled();
+        expect(reportError).toHaveBeenCalledWith(refusal, { operation: 'recipeDiscard' });
+        expect(result.current.discarding).toBe(false);
+        expect(result.current.discardFailed).toBe(true);
     });
 
     it('Keep, while it waits, takes the discard back: the editor carries on and adopts the create`s answer', async () => {
@@ -1238,7 +1323,10 @@ describe('discard while the create is on the wire', () => {
         unmount();
         await settle();
 
-        expect(port.discard).toHaveBeenCalledWith(expect.objectContaining({ intentKind: 'delete', dependsOn: [ref] }));
+        expect(port.discard).toHaveBeenCalledWith({
+            kind: 'entity',
+            intent: expect.objectContaining({ intentKind: 'delete', dependsOn: [ref] }),
+        });
         expect(drafts.discarded).toEqual([ref]);
         expect(onExit).not.toHaveBeenCalled();
     });
@@ -2251,11 +2339,12 @@ describe('discard while the create is parked', () => {
         return { ...view, seq };
     }
 
-    it.each([
-        ['refused', 400],
-        ['transient', 503],
-    ])('a %s create: withdrawn, no delete queued, and nothing is said about a server copy', async (_, status) => {
-        const { result, port, onExit, seq } = await parkedCreate(status);
+    /**
+     * REWRITTEN (GATE round 3): the withdrawal is the outbox's, decided when the Discard acts (`parkedWrite`), and a
+     * transient create — which a drain re-sends by itself — is now told as one that may exist.
+     */
+    it('a refused create: withdrawn, no delete queued, and nothing is said about a server copy', async () => {
+        const { result, port, onExit, seq, reportError } = await parkedCreate(400);
 
         expect(result.current.discardMayLeaveServerCopy).toBe(false);
 
@@ -2265,13 +2354,18 @@ describe('discard while the create is parked', () => {
         await settle();
         await settle();
 
-        expect(port.withdrawn).toEqual([seq]);
+        expect(port.discarded).toEqual([{ kind: 'parkedWrite', seq }]);
+        expect(port.queued()).toEqual([]);
         expect(port.submit).not.toHaveBeenCalled();
         expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+        expect(reportError).not.toHaveBeenCalled();
     });
 
-    it('a create whose outcome is unknown: the cook is told it may exist, and no delete is guessed', async () => {
-        const { result, port, onExit, seq } = await parkedCreate();
+    it.each([
+        ['outcome is unknown', undefined],
+        ['refusal is transient (a drain re-sends it)', 503],
+    ])('a create whose %s: the cook is told it may exist, and no delete is guessed', async (_, status) => {
+        const { result, port, onExit, seq } = await parkedCreate(status);
 
         expect(result.current.discardMayLeaveServerCopy).toBe(true);
 
@@ -2281,9 +2375,25 @@ describe('discard while the create is parked', () => {
         await settle();
         await settle();
 
-        expect(port.withdrawn).toEqual([seq]);
+        expect(port.discarded).toEqual([{ kind: 'parkedWrite', seq }]);
+        expect(port.queued()).toEqual([]);
         expect(port.submit).not.toHaveBeenCalled();
         expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+    });
+
+    it('⛔ a transient create a drain claims before the Discard acts is left to the drain, as the confirm said', async () => {
+        const { result, port, onExit, seq, reportError } = await parkedCreate(503);
+
+        port.claim(seq);
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(port.stateOf(seq)).toBe('sending');
+        expect(onExit).toHaveBeenCalledWith({ kind: 'discarded' });
+        expect(reportError).not.toHaveBeenCalled();
     });
 
     it('a create parked in an earlier session (read from the outbox): withdrawn, no delete queued', async () => {
@@ -2310,7 +2420,8 @@ describe('discard while the create is parked', () => {
         await settle();
         await settle();
 
-        expect(view.port.withdrawn).toEqual([seq]);
+        expect(view.port.discarded).toEqual([{ kind: 'parkedWrite', seq }]);
+        expect(view.port.queued()).toEqual([]);
         expect(view.port.submit).not.toHaveBeenCalled();
     });
 
@@ -2347,7 +2458,7 @@ describe('discard while the create is parked', () => {
             payload: { id: 'rec_1' },
         };
 
-        expect(port.discarded).toEqual([remove]);
+        expect(port.discarded).toEqual([{ kind: 'entity', intent: remove }]);
         expect(port.withdrawn).toEqual([]);
         expect(port.queued()).toEqual([remove]);
     });
@@ -2380,8 +2491,13 @@ describe('discard of a published recipe whose earlier save is parked', () => {
         return { ...view, seq };
     }
 
+    /**
+     * REWRITTEN (GATE round 3): the withdrawal is decided by the outbox, inside the Discard's one mutation
+     * (`SyncQueue.discard` with `parkedWrite`), from the log as it is then — never by a withdraw of the number the
+     * editor last rendered. The draft goes only once the outbox has taken the change.
+     */
     it('is offered, withdraws the parked update, drops the device draft and returns to the recipe', async () => {
-        const { result, port, drafts, onExit, seq } = await parkedSave();
+        const { result, port, drafts, onExit, seq, reportError } = await parkedSave();
 
         expect(result.current.hasUnsavedChanges).toBe(true);
         expect(result.current.discardSavedChangesMayStand).toBe(true);
@@ -2392,12 +2508,13 @@ describe('discard of a published recipe whose earlier save is parked', () => {
         await settle();
         await settle();
 
-        expect(port.withdrawn).toEqual([seq]);
-        expect(port.discard).not.toHaveBeenCalled();
+        expect(port.discarded).toEqual([{ kind: 'parkedWrite', seq }]);
+        expect(port.withdraw).not.toHaveBeenCalled();
         expect(port.queued()).toEqual([]);
         expect(port.failures).toEqual([]);
         expect(drafts.discard).toHaveBeenCalledWith('rec_1');
         expect(onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_1' });
+        expect(reportError).not.toHaveBeenCalled();
     });
 
     it('a refused save is withdrawn too, and the confirm does not claim it may stand', async () => {
@@ -2411,15 +2528,80 @@ describe('discard of a published recipe whose earlier save is parked', () => {
         await settle();
         await settle();
 
-        expect(port.withdrawn).toEqual([seq]);
+        expect(port.discarded).toEqual([{ kind: 'parkedWrite', seq }]);
+        expect(port.stateOf(seq)).toBeUndefined();
     });
 
-    it('⛔ still hands off when the parked write is no longer parked (a drain re-sent it meanwhile)', async () => {
-        const { result, port, onExit } = await parkedSave();
+    /**
+     * ⛔ THE RACE (GATE round 3 escalation). A save parked as `401` resumes when the cook signs in again, so a drain can
+     * claim it after the editor last rendered it as parked. The editor then withdrew by number, the withdrawal threw on a
+     * record on the wire, the throw was swallowed, and the save landed while the confirm said the recipe stays as it was.
+     * Now the confirm says the changes may stand, and the outbox leaves the claimed record to the drain without throwing.
+     */
+    it('⛔ a 401-parked save a drain claims before the Discard acts: the confirm said it may stand, and it is left alone', async () => {
+        const { result, port, onExit, drafts, seq, reportError } = await parkedSave(401);
 
-        port.withdraw.mockRejectedValueOnce(
-            new Error('outbox: refusing to withdraw record, which is sending, not parked'),
-        );
+        expect(result.current.discardSavedChangesMayStand).toBe(true);
+
+        // The drain claims it; the editor's projection still lists it as parked.
+        port.claim(seq);
+        expect(port.failures.map((failure) => failure.seq)).toEqual([seq]);
+
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(port.discarded).toEqual([{ kind: 'parkedWrite', seq }]);
+        expect(port.withdraw).not.toHaveBeenCalled();
+        expect(port.stateOf(seq)).toBe('sending');
+        expect(drafts.discard).toHaveBeenCalledWith('rec_1');
+        expect(onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_1' });
+        expect(reportError).not.toHaveBeenCalled();
+    });
+
+    it('⛔ the claimed save lands while the Discard asks the outbox: it is not read as a create, and nothing is deleted', async () => {
+        const { result, port, onExit, seq } = await parkedSave(401);
+
+        port.claim(seq);
+        act(() => {
+            result.current.discard();
+            port.sync(seq, { ...PUBLISHED, currentVersion: 4 });
+        });
+        await settle();
+        await settle();
+
+        expect(port.discarded).toEqual([{ kind: 'parkedWrite', seq }]);
+        expect(port.queued()).toEqual([]);
+        // The save landed, as the confirm said it might: the editor hands off as for any landed Save changes, once.
+        expect(onExit).toHaveBeenCalledTimes(1);
+        expect(onExit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'changesSaved' }));
+    });
+
+    it.each([
+        ['a transient refusal', 503],
+        ['a signed-out cook (nothing was sent)', 401],
+    ])(
+        '⛔ a save parked on %s may be resent at any moment, so the confirm says it may stand',
+        async (_label, status) => {
+            const { result } = await parkedSave(status);
+
+            expect(result.current.discardSavedChangesMayStand).toBe(true);
+        },
+    );
+
+    /**
+     * ⛔ A PROMISE THE OUTBOX COULD NOT KEEP IS REPORTED. A conflict waits for the cook, so the confirm promised the
+     * recipe stays as it was; if the outbox nonetheless finds the write on its way when the Discard acts, the cook has
+     * already been told otherwise, and the gap reaches the error reporter instead of vanishing.
+     */
+    it('⛔ the outbox finds a write the confirm promised would not stand: the discard finishes and the gap is reported', async () => {
+        const { result, port, onExit, seq, reportError } = await parkedSave(409);
+
+        expect(result.current.discardSavedChangesMayStand).toBe(false);
+        port.claim(seq);
+
         act(() => {
             result.current.discard();
         });
@@ -2427,6 +2609,65 @@ describe('discard of a published recipe whose earlier save is parked', () => {
         await settle();
 
         expect(onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_1' });
+        expect(reportError).toHaveBeenCalledTimes(1);
+        expect(isDiscardPromiseBrokenError(reportError.mock.calls[0]?.[0])).toBe(true);
+    });
+
+    /**
+     * ⛔ MINOR 2 (GATE round 3): a Discard the outbox's storage refuses used to drop the draft and hand off anyway, with
+     * the refusal swallowed: the parked save stayed, the device changes were gone, and nothing reported it.
+     */
+    it('⛔ storage refuses the change: the draft stays, the editor stays, the refusal is reported and shown', async () => {
+        const { result, port, drafts, onExit, reportError } = await parkedSave(409);
+        const refusal = new Error('quota exceeded');
+
+        port.discard.mockRejectedValueOnce(refusal);
+        act(() => {
+            result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(drafts.discard).not.toHaveBeenCalled();
+        expect(onExit).not.toHaveBeenCalled();
+        expect(reportError).toHaveBeenCalledWith(refusal, { operation: 'recipeDiscard' });
+        expect(result.current.discarding).toBe(false);
+        expect(result.current.discardFailed).toBe(true);
+        expect(port.failures).toHaveLength(1);
+    });
+
+    it('after a refused Discard, trying again finishes it, and Keep editing clears the failure instead', async () => {
+        const first = await parkedSave(409);
+
+        first.port.discard.mockRejectedValueOnce(new Error('quota exceeded'));
+        act(() => {
+            first.result.current.discard();
+        });
+        await settle();
+        await settle();
+        act(() => {
+            first.result.current.discard();
+        });
+        await settle();
+        await settle();
+
+        expect(first.result.current.discardFailed).toBe(false);
+        expect(first.onExit).toHaveBeenCalledWith({ kind: 'leftForRecipe', recipeId: 'rec_1' });
+
+        const second = await parkedSave(409);
+
+        second.port.discard.mockRejectedValueOnce(new Error('quota exceeded'));
+        act(() => {
+            second.result.current.discard();
+        });
+        await settle();
+        await settle();
+        act(() => {
+            second.result.current.cancelDiscard();
+        });
+
+        expect(second.result.current.discardFailed).toBe(false);
+        expect(second.onExit).not.toHaveBeenCalled();
     });
 });
 

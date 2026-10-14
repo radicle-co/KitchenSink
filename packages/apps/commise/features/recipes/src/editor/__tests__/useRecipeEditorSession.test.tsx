@@ -77,6 +77,7 @@ function mount(
                 port,
                 drafts: options.drafts ?? NO_DRAFTS,
                 navigation: nav,
+                reportError: vi.fn(),
                 openPaste: false,
                 ...(options.onRecipeRef === undefined ? {} : { onRecipeRef: options.onRecipeRef }),
             }),

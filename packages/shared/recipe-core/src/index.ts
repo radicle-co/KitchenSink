@@ -1,3 +1,5 @@
+export { CUISINE_ALIASES, CUISINES, canonicalCuisine, cuisineEntryOf, foldCuisine } from './cuisine.js';
+export type { Cuisine } from './cuisine.js';
 export {
     FoodResolutionStatus,
     NAMELESS_LINE_STATUSES,
@@ -7,7 +9,6 @@ export {
 export type { CatalogFoodResolutionStatus, LineResolutionStatus, NamelessLineStatus } from './foodResolutionStatus.js';
 export {
     ALLOWED_RECIPE_PHOTO_MIME_TYPES,
-    CUISINES,
     IDENTITY_SYNC_PENDING_CODE,
     MAX_RECIPE_PHOTOS,
     MAX_RECIPE_PHOTO_UPLOAD_BYTES,
@@ -64,7 +65,6 @@ export {
 export type {
     AllowedRecipePhotoMimeType,
     Collection,
-    Cuisine,
     Ingredient,
     IngredientPortion,
     IngredientVariant,

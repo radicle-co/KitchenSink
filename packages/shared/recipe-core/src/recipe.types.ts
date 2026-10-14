@@ -142,7 +142,7 @@ export const recipeDifficultySchema = z.enum([RecipeDifficulty.EASY, RecipeDiffi
  *
  * ⛔ **This is the one recipe-classification axis that is a CLOSED vocabulary, and the reason is the axis,
  * not a preference for enums.** "When do you eat this" has a finite, stable answer; the neighbouring axes do
- * not, which is why {@link CUISINES} is a display list behind a `z.string()` wire type and why `tags` and
+ * not, which is why `CUISINES` (`./cuisine.ts`) is a display list behind a `z.string()` wire type and why `tags` and
  * `dietaryFlags` are `z.array(z.string().min(1))` — a cuisine nobody curated, a tag a cook invents and a diet
  * that emerges next year all have to be expressible. Closing meal type buys a filter facet that cannot rot
  * into seventeen spellings of "dinner"; closing any of the others would reject data that is simply new.
@@ -185,38 +185,6 @@ export const RECIPE_MEAL_TYPES = [
 
 /** Runtime validator for {@link RecipeMealType}. */
 export const recipeMealTypeSchema = z.enum(RECIPE_MEAL_TYPES);
-
-/**
- * Curated cuisine choices offered by the recipe editor's cuisine dropdown (w3/e5). UNLIKE
- * {@link RecipeDifficulty}/{@link RecipeStatus}, this is deliberately NOT a closed enum on the wire: `cuisine`
- * stays `string | undefined` on every recipe/create/update type and schema (`z.string().min(1).optional()`,
- * unchanged) so an existing recipe whose cuisine predates this list — or a future cuisine nobody curated yet
- * — is never rejected or silently coerced. `CUISINES` exists purely to drive the editor's suggested-choices
- * dropdown; the array is ordered for display, not for lookup.
- */
-export const CUISINES = [
-    'Italian',
-    'Mexican',
-    'Chinese',
-    'Indian',
-    'Japanese',
-    'Thai',
-    'French',
-    'Mediterranean',
-    'American',
-    'Middle Eastern',
-    'Korean',
-    'Vietnamese',
-    'Spanish',
-    'Greek',
-    'Other',
-] as const;
-
-/**
- * One curated cuisine choice from {@link CUISINES}. NOT the type of the `cuisine` wire field (which stays
- * `string`) — this only types a value drawn from the curated list itself.
- */
-export type Cuisine = (typeof CUISINES)[number];
 
 /**
  * Sort options supported by recipe search.

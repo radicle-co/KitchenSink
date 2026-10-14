@@ -1198,4 +1198,79 @@ describe('SyncProvider — a change of cook while a drain is on the wire', () =>
         await waitFor(async () => expect(await storedOf(store, 'cook_a')).toStrictEqual([]));
         expect(sent.filter((entry) => entry.endsWith(':U1'))).toHaveLength(1);
     });
+
+    /**
+     * ⛔ A STATED WAIT FROM A DRAIN THAT OUTLIVED ITS COOK IS NOT THE NEXT COOK'S. The provider keeps ONE retry timer, and
+     * it serves whoever is signed in. Cook A's request answers 429 "wait ten minutes" after cook B signed in and B's own
+     * 429 armed a one-minute timer. A's wait belongs in A's log, which already holds it (the journal writes it there); if
+     * it also reached the timer, it would replace B's, and B's write would sit for ten minutes behind A's pause.
+     *
+     * Pure fake timers, no `waitFor`: every wait here is the server's stated one, and the jitter's 500 ms ceiling is under
+     * both, so the times are exact.
+     */
+    describe('a stated wait', () => {
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        /** Run every promise and due timer of the moment, inside `act`. */
+        const flush = async (ms = 0): Promise<void> => {
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(ms);
+            });
+        };
+
+        it('⛔ A→B: A`s late 429 does not replace B`s retry timer, and A`s next session waits out A`s own pause', async () => {
+            vi.useFakeTimers();
+            const store = createMemoryOutboxStore();
+            await seed(store, 'cook_a', ['A1']);
+            await seed(store, 'cook_b', ['B1']);
+            let answerA: (result: SendResult) => void = () => undefined;
+            const sendA = vi.fn<TestSender>(
+                async () =>
+                    new Promise<SendResult>((resolve) => {
+                        answerA = resolve;
+                    }),
+            );
+            const sendB = vi
+                .fn<TestSender>()
+                .mockResolvedValueOnce({ outcome: 'failed', status: 429, retryAfterSeconds: 60 })
+                .mockResolvedValue({ outcome: 'ok', serverId: 'srv-B1' });
+            const { Capture } = captureQueue();
+
+            const view = render(providerFor('cook_a', sendA, store, Capture));
+            await flush();
+            expect(sendA).toHaveBeenCalledTimes(1);
+
+            view.rerender(providerFor('cook_b', sendB, store, Capture));
+            await flush();
+            // B's own wait: one minute, past what a drain sleeps through, so the provider's timer keeps it.
+            expect(sendB).toHaveBeenCalledTimes(1);
+            expect((await loadOutbox(store, 'cook_b')).pausedUntil).toBe(Date.now() + 60_000);
+
+            answerA({ outcome: 'failed', status: 429, retryAfterSeconds: 600 });
+            await flush();
+            // A's wait is written into A's log, where A's next session finds it.
+            expect((await loadOutbox(store, 'cook_a')).pausedUntil).toBe(Date.now() + 600_000);
+
+            await flush(60_000);
+
+            // ⛔ B's minute is over, and B's write goes: A's ten minutes did not take B's timer.
+            expect(sendB).toHaveBeenCalledTimes(2);
+            expect(await storedOf(store, 'cook_b')).toStrictEqual([]);
+
+            const sendAgain = vi.fn<TestSender>().mockResolvedValue({ outcome: 'ok', serverId: 'srv-A1' });
+
+            view.rerender(providerFor('cook_a', sendAgain, store, Capture));
+            await flush();
+            await flush(539_000);
+            // A's pause is A's to wait out, nine minutes of it still to go: nothing is sent before it ends.
+            expect(sendAgain).not.toHaveBeenCalled();
+
+            await flush(1_000);
+
+            expect(sendAgain).toHaveBeenCalledTimes(1);
+            expect(await storedOf(store, 'cook_a')).toStrictEqual([]);
+        });
+    });
 });

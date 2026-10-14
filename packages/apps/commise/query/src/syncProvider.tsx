@@ -13,7 +13,7 @@
  * @pattern Command Processor composed with an Observer subscription — the drainer is the processor, and
  *     `onlineManager` is the trigger; both are injected, so this file owns wiring and nothing else.
  * @pattern Coalescing single-flight per cook — each pass runs in that cook's `drainLaneFor` lane, gated by the
- *     provider's session gate so a drain that outlives its cook claims and announces nothing more.
+ *     provider's session gate so a drain that outlives its cook claims, announces and schedules nothing more.
  */
 import {
     EMPTY_OUTBOX,
@@ -332,8 +332,10 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
                 const report = await drain(current, send, { journal, onSettled });
 
                 // ⛔ A STATED WAIT ENDS THIS PASS. The pause is stored with the log, so a drain started before it is over
-                // sends nothing; the timer below drains again when it is.
-                if (report.retryAfterMs !== undefined) {
+                // sends nothing; the timer below drains again when it is. ⛔ Only for the cook signed in NOW: the timer
+                // is the provider's one and serves them, while a drain that outlived its cook already wrote its pause into
+                // that cook's log, and their next session's first drain re-arms it.
+                if (report.retryAfterMs !== undefined && live()) {
                     setRetryInMs(report.retryAfterMs);
                 }
             } catch {

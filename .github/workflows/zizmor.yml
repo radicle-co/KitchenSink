@@ -22,8 +22,7 @@
 #     workflow can only DOWNGRADE what its caller grants, and `e2e-web` needs it for Argos).
 #     ⚠️ It is LIVE privilege now: CI signs in to AWS through `./.github/actions/awsAuth` on OIDC roles (ADR-0063),
 #     so every job that runs it, and every job that calls its workflow, grants `id-token: write` — at JOB level only.
-#     `awsCredentialsFederated.test.ts` refuses a workflow-level grant. The production deploys still use the static
-#     key until commit C of `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`.
+#     `awsCredentialsFederated.test.ts` refuses a workflow-level grant, and a static key anywhere.
 #   • template-injection 67 → 0. Every interpolation moved out of `run:` bodies into `env:`. The
 #     invariant is now uniform outside `_ci-heavy.yml`: NO `${{ … }}` appears in any `run:` body.
 #   • dependabot-cooldown 1 → 0, via `cooldown.default-days: 7` — plus a `github-actions` ecosystem
@@ -139,13 +138,11 @@
 #   check nobody reads" failure that `deployGateStepGuards.test.ts` was written for on the same day. A red
 #   gate is only a gate while someone acts on it.
 #
-# CURRENT MEASUREMENT (2026-10-13, offline, after the non-prod jobs moved to `awsAuth`, ADR-0063): 0 shown at
-#   EVERY severity at `pedantic`. At `auditor` the only class is `secrets-outside-env`, on: the three reclamation
-#   jobs (`sandboxCleanup`, `sandboxDown`, `sandboxReapClosed` — unbound by design, and what they read now is the
-#   Vercel and GitHub tokens, not AWS); `deployedE2e`'s `resolve` and `food-loadtest`, which read the AWS key only
-#   for a production target until commit C of `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`; and
-#   `claude` / `claude-code-review`. Every job that moved to `awsAuth` left this audit, because a role assumed
-#   through OIDC is not a secret.
+# CURRENT MEASUREMENT (2026-10-14, offline, after every job moved to `awsAuth`, ADR-0063): 0 shown at EVERY
+#   severity at `pedantic`. At `auditor` the only class is `secrets-outside-env`, 8 findings: the three reclamation
+#   jobs (`sandboxCleanup`, `sandboxDown`, `sandboxReapClosed`, 2 each — unbound by design, and what they read is the
+#   Vercel and GitHub tokens, not AWS) and `claude` / `claude-code-review`. No workflow reads an AWS secret: a role
+#   assumed through OIDC is not a secret, so every job that moved to `awsAuth` left this audit.
 #
 # PRIOR MEASUREMENT (2026-09-02, offline, after the repair above AND after `docs.yml` grew its deploy
 #   job): **38 findings — 22 declared per-site ignores, 16 suppressed, 0 shown at EVERY severity.**
@@ -206,8 +203,8 @@
 #   regardless of its binding, and one key pair still serves both prod and sandbox. The bindings make the
 #   deploy target explicit, give each stage its own deployment history, and pre-wire the seam; the trust
 #   boundary MOVES when the sandbox and prod credentials become separate stage-scoped identities held as
-#   `Sandbox` / `Production` environment secrets (or OIDC roles). That is still the undone hardening path
-#   `_ci.yml`'s header and docs/CI_ARCHITECTURE.md record.
+#   `Sandbox` / `Production` environment secrets (or OIDC roles). It moved with ADR-0063's OIDC roles: the prod
+#   roles trust only `main`, and `prod` only the `Production` environment.
 #
 # ⛔ THE REMAINING 4 — deliberately NOT bound, and that is the correct outcome:
 #     food-loadtest 2 · claude 1 · claude-code-review 1

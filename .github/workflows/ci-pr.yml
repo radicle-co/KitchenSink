@@ -32,8 +32,7 @@ jobs:
         with:
             stage: sandbox
         # Explicit, not `inherit`: pass ONLY what a pull request's run uses, instead of exposing every repository
-        # secret to the called workflow. ⛔ NO AWS KEY: a pull request signs in through `awsAuth`, and the access key
-        # `_ci.yml` still declares is for `main`'s prod-stage checks alone (`ci-main.yml`).
+        # secret to the called workflow. ⛔ NO AWS KEY: every job signs in through `awsAuth`.
         secrets:
             # Forwarded because `_ci.yml`'s queue-guarantee tier reads the cron monitor. Declaring it there
             # without passing it here would leave the reference resolving to an empty string — the tier

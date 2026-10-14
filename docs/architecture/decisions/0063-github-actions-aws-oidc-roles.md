@@ -45,6 +45,20 @@ thumbprint to keep correct.
 
 The non-prod tier cannot require the `Sandbox` environment, because the jobs that tear a sandbox down bind none.
 
+Every workflow signs in through one composite action, `.github/actions/awsAuth`, and no workflow reads an access key.
+A job's tier follows what it does:
+
+- `prod`: the production deploys (`prod-deploy.yml`, `accountDeploy.yml`, `deployInfra.yml` deploying at `prod`) and the
+  manual runs that read production (`deployedE2e.yml`'s `resolve`, the remote-search and queue-guarantee tiers of
+  `deployedE2eTiers.yml`, `food-loadtest.yml`). Each binds `Production` exactly when it targets production, so each
+  waits for the reviewer, once per job.
+- `prod-read`: `deployInfra.yml` at `prod` with `deploy: false`, which is `main`'s checks (`ci-main.yml`) and a
+  `ci-full.yml` run at `prod`. These bind no environment, so `main`'s checks cost no reviewer wait.
+- `nonprod`: everything else.
+
+`awsCredentialsFederated.test.ts` evaluates each job's tier and environment over every combination of the inputs they
+read, and refuses an access-key reference anywhere in `.github/`.
+
 **3. Trust is built and judged by one pure module.** `githubOidcTrust.ts` names the tier union once, builds each tier's
 conditions and judges them. Every tier pins `aud`, `repository_id` and `repository_owner_id` by exact equality. The
 `sub` is trusted in both of GitHub's spellings (the classic `repo:owner/repo:…` and the id-bearing form GitHub may move
@@ -70,11 +84,18 @@ pattern. It writes parameters only under `/kitchensink/sandbox/owed-per-pr-datab
 `perPrDatabaseDrop.sh` keeps, and it may change DNS only for `pr-*.sandbox.commise.app` as a `CNAME`, by IAM condition on
 the record name and type. Those conditions are the boundary, so the grant names `hostedzone/*` rather than a zone id.
 
-The `prod` role has no teardown action. The `prod-read` role may assume only the lookup role, and it carries one Deny with
+The `prod` role has no teardown action. Besides publishing and invoking, it holds the reads its jobs verify with, each
+named for production: `head-bucket` on `kitchensink-*-prod-*` buckets and `DescribeSecret` on the database master
+secret of `kitchensink-data-prod` (`verifyDeployment.sh`; the secret's value stays unreadable, as ADR-0039 requires),
+the remote-search signing key of `kitchensink-remote-search-shared-prod` and the function URL of
+`kitchensink-remote-search-prod` (the remote-search smoke and its deployed tier), the policies of a
+`kitchensink-*QueueCheckRole*` role and of an AWS managed policy (the queue-guarantee tier), and
+`cloudwatch:GetMetricStatistics` (the load test's collector). The `prod-read` role may assume only the lookup role, and it carries one Deny with
 `NotAction` over exactly the reads it is granted. Everything else is denied, `kms:Decrypt` included, so a policy added to
 it later cannot turn it into a writer. No role holds `iam:*` or `organizations:*`.
 
-**5. Sessions last at most three hours**, and each role's ARN is a stack output.
+**5. Sessions last at most three hours**, and each role's ARN is a stack output. A job that signs in states a
+`timeout-minutes` no longer than the session it asks for.
 
 ## Consequences
 
@@ -107,8 +128,21 @@ it later cannot turn it into a writer. No role holds `iam:*` or `organizations:*
   `environmentTagScheme.test.ts`.
 - **Both subject spellings are trusted.** A repository that opts into the id-bearing form keeps working, and the numeric
   ids stay required either way.
-- **The root key stays in use until the workflows are moved and the secrets are deleted.** Creating these roles changes
-  nothing for a job that does not assume them.
+- **No workflow uses the root key, and it stays valid until the repository secrets are deleted.** The secrets are
+  deleted after the first green production deploy, the first green `main` checks and a green pull-request run. Until
+  then, reverting the move on `main` restores the old path.
+- **Residual risk: the production tiers cannot be proven before merge.** Both trust only `refs/heads/main`, so the first
+  run of each is on `main`. The policies were checked before merge with `iam simulate-custom-policy` over every call the
+  moved jobs make, except the two secret grants conditioned on the `aws:cloudformation:stack-name` tag: the simulator
+  does not apply a context value to that key, so those two are proven only by a live run.
+- **Residual risk: a production deploy may run for at most three hours.** The session ceiling bounds `prod-deploy.yml`'s
+  job; one that runs longer is cancelled while CloudFormation may still be working. Its runs have taken well under an
+  hour.
+- **A production run dispatched from a branch is red, not refused politely.** `Production` admits only `main`, and both
+  production roles trust only `main`, so a prod-target dispatch, a `ci-full.yml` run at `prod` or a `deployInfra.yml`
+  run at `prod` from any other ref fails at sign-in.
+- **A manual production run waits for the reviewer once per job that reads production.** A `deployedE2e.yml` run at
+  `prod` binds `Production` in `resolve` and again in the two tiers that read AWS.
 
 ## Alternatives considered
 

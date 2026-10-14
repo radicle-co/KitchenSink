@@ -114,18 +114,19 @@ ECS Container Insights log groups, out-of-band ECR repos). See
 > Until a feature service actually deploys per-PR, the `cleanup` job has nothing to match. Pre-existing
 > orphans created before this convention carry no `Environment` tag and need a one-off manual sweep.
 
-## Recommended hardening (step 2 DONE for deploys; step 1 IN PROGRESS)
+## Recommended hardening (steps 1 and 2 DONE)
 
-1. **OIDC roles instead of the access key — IN PROGRESS (ADR-0063).** One GitHub OIDC provider and three roles
-   (`kitchensink-gha-nonprod`, `-prod-read`, `-prod`) are deployed by the account app. Every non-production job
-   signs in through `.github/actions/awsAuth` on the `nonprod` tier, with a job-level `id-token: write`; a fork or
-   Dependabot run reports `authenticated=false` and any other run that cannot sign in is red. The production jobs
-   (`prod-deploy.yml`, `accountDeploy.yml`, `deployInfra.yml` at `prod`, `main`'s prod-stage checks and the manual
-   prod-target runs) still use the static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` until the production roles
-   are proven on `main` (plan `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`, commit C), and then the
-   secrets are deleted. `packages/infra/global/__tests__/awsCredentialsFederated.test.ts` lists exactly those jobs
-   and refuses a key anywhere else. ADR-0063 records the residual risk that matters most: any role that may assume
-   the CDK deploy role is account administrator through the shared bootstrap.
+1. **OIDC roles instead of the access key — DONE (ADR-0063).** One GitHub OIDC provider and three roles
+   (`kitchensink-gha-nonprod`, `-prod-read`, `-prod`) are deployed by the account app, and every job signs in through
+   `.github/actions/awsAuth` with a job-level `id-token: write`; no workflow reads an access key. The production
+   deploys and the manual runs that read production bind `Production` and use `prod`; `main`'s prod-stage checks
+   (`deployInfra.yml` with `deploy: false`) bind nothing and use `prod-read`; everything else uses `nonprod`. A fork or
+   Dependabot run reports `authenticated=false`, and any other run that cannot sign in is red.
+   `packages/infra/global/__tests__/awsCredentialsFederated.test.ts` judges every job's tier against its binding and
+   refuses a key anywhere. The repository secrets `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are deleted once the
+   production roles have run green on `main` (plan `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`).
+   ADR-0063 records the residual risk that matters most: any role that may assume the CDK deploy role is account
+   administrator through the shared bootstrap.
 
 2. **GitHub Environments — DONE for the deploy surface (2026-08-11, PR #91).** `Production` exists with a
    required reviewer (`gooftroop`) and a `main`-only branch policy, bound to `prod-deploy.yml`'s `deploy`

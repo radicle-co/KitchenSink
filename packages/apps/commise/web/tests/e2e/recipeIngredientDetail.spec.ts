@@ -5,7 +5,7 @@ import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
-import { addStep, openIngredientEditor, setServings } from './utils/recipeEditor';
+import { addStep, chooseCuisine, openIngredientEditor, setServings } from './utils/recipeEditor';
 
 /**
  * A line's PREPARATION and its SECTION, end to end (plan U26 / U27).
@@ -66,6 +66,8 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         ).toHaveText('2 cupsSalt · finely chopped');
 
         await addStep(page, 'Marinate and grill.');
+        // Cuisine is required to publish (2026-10-13).
+        await chooseCuisine(page);
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         // VIEW — the preparation is on the surface a cook actually cooks from, as its own text and NOT
@@ -113,6 +115,8 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         await expect(section.getByRole('heading', { level: 3 })).toHaveCount(0);
 
         await addStep(page, 'Bake.');
+        // Cuisine is required to publish (2026-10-13).
+        await chooseCuisine(page);
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Flat Loaf' })).toBeVisible();

@@ -48,10 +48,12 @@ appId: io.commise.mobile
       direction: UP
       timeout: 20000
 - tapOn: 'Cuisine'
+# The list is bounded to five and a half rows (`cuisineField.md` §3.4), so "Italian" is on screen only once the text
+# narrows it. A cuisine is required to publish (2026-10-13).
+- inputText: 'Ital'
 - tapOn: 'Italian'
-# A pick keeps the field focused and the keyboard up (the combobox's submit chooses nothing, so the return key cannot
-# close it). A tap on the group's plain heading does: the editor's scroller only keeps the keyboard for a tap a control
-# handles. On iOS the keyboard otherwise stays up, and the taps below landed on its keys (run 38433716728: `ItalianqT`).
+# A pick ends the entry (`typedText="isValue"`) and dismisses the keyboard. The tap on the group's plain heading stays as
+# a belt: on iOS a keyboard left up took the taps below on its keys (run 38433716728: `ItalianqT`).
 - tapOn: 'Kind of dish'
 - scrollUntilVisible:
       element: 'Add a tag'

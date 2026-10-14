@@ -50,6 +50,8 @@ test.describe('removing an ingredient (plan 002 US6)', () => {
                     id: 'ec000000-0000-4000-8000-000000000024',
                     ownerId: viewerId,
                     title: 'Paella',
+                    // Cuisine is required to publish (2026-10-13), and Save changes on a published recipe is a publish.
+                    cuisine: 'Spanish',
                     currentVersion: 1,
                     ingredients: [
                         line(LINE_IDS.rice, 'Rice', 'RESOLVED'),

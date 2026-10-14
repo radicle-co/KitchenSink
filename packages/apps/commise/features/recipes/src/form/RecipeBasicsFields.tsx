@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes/form — `RecipeBasicsFields` (web): the one-page editor's Details section
  * (`docs/design/uiOverhaul/buildSpec.md` §7.4), in four H3 groups. The editor frame renders the section's H2.

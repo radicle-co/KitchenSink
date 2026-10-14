@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
-import { addStep, fillTimes, openNewRecipe, openRecipeEditor, setServings } from './utils/recipeEditor';
+import { addStep, chooseCuisine, fillTimes, openNewRecipe, openRecipeEditor, setServings } from './utils/recipeEditor';
 
 /**
  * A minimal, valid 1×1 transparent PNG — inlined so the spec needs no binary fixture file on disk.
@@ -348,6 +348,8 @@ test.describe('recipe photo upload on a NEW recipe (slice 7)', () => {
             .getByRole('option', { name: 'Salt', exact: true })
             .click();
         await addStep(page, 'Roast the vegetables.');
+        // Cuisine is required to publish (2026-10-13).
+        await chooseCuisine(page);
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page).toHaveURL(new RegExp(`/recipes/${createdId}(?:\\?|$)`, 'u'));

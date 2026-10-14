@@ -30,6 +30,9 @@ appId: io.commise.mobile
       env:
           TITLE: 'Maestro Marinade Bowl'
 
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+
 # Ingredients, below Details. REWRITTEN for UI overhaul slice 8 (build spec §7.5.3, §7.5.5): name a group first, then
 # type the amount, the food and, after a comma, the preparation into that group's add field, and declare the line "as
 # written" (no food-service dependency in this job — same rationale as `create.yaml`).

@@ -27,6 +27,8 @@ import { openRecipeEditor } from './utils/recipeEditor';
 const SEEDED = makeRecipeDetail({
     id: 'ec000000-0000-4000-8000-000000000014',
     title: 'Weeknight Pasta',
+    // Cuisine is required to publish (2026-10-13), and Save changes on a published recipe is a publish.
+    cuisine: 'Italian',
     currentVersion: 3,
 });
 

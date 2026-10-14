@@ -227,6 +227,13 @@ function applyUpdate(
         }
     }
 
+    // The cuisine is three-state too (2026-10-13): the editor sends `null` when the cook empties the field, and the read
+    // projection then omits it, as the service's does. A plain-scalar copy would put `null` on the read, which the
+    // client's response schema refuses.
+    if (input['cuisine'] === null) {
+        delete (next as { cuisine?: string }).cuisine;
+    }
+
     if (Array.isArray(input['tags'])) {
         next.tags = input['tags'] as string[];
     }

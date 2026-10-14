@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { E2E_CATALOG_FOOD, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
-import { addStep, ingredientOpen, openNewRecipe } from './utils/recipeEditor';
+import { addStep, chooseCuisine, ingredientOpen, openNewRecipe } from './utils/recipeEditor';
 
 /**
  * The ingredient search's user story since plan 002 S5, driven through the real one-page editor (Next dev server + Clerk
@@ -68,6 +68,8 @@ test.describe('the ingredient search — the cook’s foods and the catalog’s 
         // …and it is a real catalog id, so the recipe publishes (Publish validation rejects a line whose
         // `ingredientId` does not resolve). This is the falsifiable end of the story.
         await addStep(page, 'Simmer, then season generously.');
+        // Cuisine is required to publish (2026-10-13).
+        await chooseCuisine(page);
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Peppered Broth' })).toBeVisible();

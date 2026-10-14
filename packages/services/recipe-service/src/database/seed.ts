@@ -159,6 +159,8 @@ export interface SeedRecipe {
     readonly totalTimeMinutes: number;
     readonly servings: number;
     readonly visibility: 'public' | 'private';
+    /** Publish needs a cuisine (2026-10-13); the seed writes rows directly, so it states one as the API would require. */
+    readonly cuisine: string;
 }
 
 // Recipe ids are fixed v4-shaped uuids in a `…recipe000N` series, named so the lines and steps below
@@ -181,6 +183,7 @@ export const SEED_RECIPES: readonly SeedRecipe[] = [
         totalTimeMinutes: 45,
         servings: 4,
         visibility: 'private',
+        cuisine: 'Greek',
     },
     {
         id: ASPARAGUS_ID,
@@ -192,6 +195,7 @@ export const SEED_RECIPES: readonly SeedRecipe[] = [
         totalTimeMinutes: 20,
         servings: 2,
         visibility: 'private',
+        cuisine: 'Italian',
     },
     {
         id: SALAD_ID,
@@ -203,6 +207,7 @@ export const SEED_RECIPES: readonly SeedRecipe[] = [
         totalTimeMinutes: 15,
         servings: 2,
         visibility: 'public',
+        cuisine: 'Mediterranean',
     },
     {
         id: RISOTTO_ID,
@@ -214,6 +219,7 @@ export const SEED_RECIPES: readonly SeedRecipe[] = [
         totalTimeMinutes: 35,
         servings: 4,
         visibility: 'public',
+        cuisine: 'Italian',
     },
     {
         id: DUCK_ID,
@@ -225,6 +231,7 @@ export const SEED_RECIPES: readonly SeedRecipe[] = [
         totalTimeMinutes: 60,
         servings: 2,
         visibility: 'private',
+        cuisine: 'French',
     },
 ];
 
@@ -615,8 +622,8 @@ export async function seed(pool: pg.Pool): Promise<SeedCounts> {
 
         const res = await pool.query(
             `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
-                 total_time_minutes, servings, visibility, ingredient_names_text)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                 total_time_minutes, servings, visibility, ingredient_names_text, cuisine)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
              ON CONFLICT (id) DO NOTHING`,
             [
                 r.id,
@@ -631,6 +638,7 @@ export async function seed(pool: pg.Pool): Promise<SeedCounts> {
                 // Written in the SAME statement as the row: `trg_recipes_search_vector` fires BEFORE INSERT,
                 // so the vector is built with the weight-C names from the very first write.
                 ingredientNamesText,
+                r.cuisine,
             ],
         );
         counts.recipes += res.rowCount ?? 0;

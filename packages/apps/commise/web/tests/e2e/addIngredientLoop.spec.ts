@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { addStep, fillTimes, ingredientOpen, openNewRecipe } from './utils/recipeEditor';
+import { addStep, chooseCuisine, fillTimes, ingredientOpen, openNewRecipe } from './utils/recipeEditor';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
 
@@ -30,6 +30,9 @@ test.describe('add-ingredient loop (plan U28, B8)', () => {
 
         await openNewRecipe(page);
         await page.getByLabel('Title').fill('E2E Add Ingredient Loop');
+        // Cuisine is required to publish (2026-10-13). It comes first so the refused Publish below still lands on the
+        // ingredient field, the only thing this test means it to refuse.
+        await chooseCuisine(page);
         await page.getByRole('button', { name: 'More servings' }).click();
         await fillTimes(page, { prepMinutes: 5 });
 

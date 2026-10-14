@@ -55,6 +55,8 @@ const savedRecipe = (viewerId: string, second: RecipeDetail['ingredients'][numbe
         id: RECIPE_ID,
         ownerId: viewerId,
         title: 'Garlic supper',
+        // Cuisine is required to publish (2026-10-13). Without it the R7 refusal would land on Cuisine first.
+        cuisine: 'Italian',
         status: 'draft',
         currentVersion: 1,
         ingredients: [saltLine, second],

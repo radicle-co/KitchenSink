@@ -1,0 +1,19 @@
+appId: io.commise.mobile
+---
+# Reusable sub-flow: choose "Italian" in the editor's Cuisine field. Called with
+# `runFlow: { file: common/chooseCuisine.yaml }`, straight after `common/typeTitle.yaml`. A cuisine is required to
+# publish (2026-10-13), and so is it for Save changes on a published recipe, so every flow that creates a recipe and
+# publishes it runs this first.
+#
+# Cuisine sits in Details, just under the Title, so it is on screen or a short scroll down. The list is bounded to five
+# and a half rows (`cuisineField.md` §3.4), so "Italian" is not on screen until the text narrows it: type, then pick.
+# A pick ends the entry (`typedText="isValue"`) and dismisses the keyboard; the tap on the group's plain heading stays
+# as a belt for iOS, for `typeTitle.yaml`'s reason.
+- scrollUntilVisible:
+      element: 'Cuisine'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Cuisine'
+- inputText: 'Ital'
+- tapOn: 'Italian'
+- tapOn: 'Kind of dish'

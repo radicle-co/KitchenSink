@@ -42,6 +42,8 @@ test.describe('ingredient groups (build spec §7.5.5)', () => {
                     id: RECIPE_ID,
                     ownerId: viewerId,
                     title: 'Grouped curry',
+                    // Cuisine is required to publish (2026-10-13), and Save changes on a published recipe is a publish.
+                    cuisine: 'Indian',
                     currentVersion: 1,
                     ingredients: [
                         line('66666666-6666-4666-8666-666666666661', 'Cumin'),

@@ -67,6 +67,18 @@ export async function fillTimes(
 }
 
 /**
+ * Choose a cuisine from the Cuisine combobox's list: type its start, then pick the option. A cuisine is required to
+ * publish (2026-10-13), so a spec that builds a recipe in the UI and presses Publish calls this first.
+ *
+ * @param page - The page.
+ * @param cuisine - A list entry, such as `Italian`.
+ */
+export async function chooseCuisine(page: Page, cuisine = 'Italian'): Promise<void> {
+    await page.getByRole('combobox', { name: 'Cuisine' }).fill(cuisine.slice(0, 4));
+    await page.getByRole('option', { name: cuisine, exact: true }).click();
+}
+
+/**
  * A step's text field. Its label is exactly "Step {n}"; the timer boxes beside it are "Step {n} timer, …".
  *
  * @param page - The page.

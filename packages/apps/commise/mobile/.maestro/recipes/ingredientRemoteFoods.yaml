@@ -34,6 +34,9 @@ appId: io.commise.mobile
       env:
           TITLE: 'Maestro Remote Foods'
 
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+
 # The Ingredients section, on the same page: with no lines yet, the trailing field is its first control.
 - scrollUntilVisible:
       element: 'Add an ingredient'

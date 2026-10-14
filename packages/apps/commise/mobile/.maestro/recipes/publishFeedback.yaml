@@ -15,6 +15,9 @@ appId: io.commise.mobile
       env:
           TITLE: 'Maestro Feedback Soup'
 
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+
 # One ingredient declared as written (no food service needed) and one step: the least a recipe needs to publish.
 - scrollUntilVisible:
       element: 'Add an ingredient'

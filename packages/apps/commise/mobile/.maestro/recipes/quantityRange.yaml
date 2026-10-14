@@ -31,6 +31,9 @@ appId: io.commise.mobile
       env:
           TITLE: 'Maestro Range Loaf'
 
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+
 # Ingredients, below Details. Declare a line "as written" from the trailing field (no food-service dependency in this
 # job — same rationale as `create.yaml`), then state a RANGE across its two bounds.
 - scrollUntilVisible:

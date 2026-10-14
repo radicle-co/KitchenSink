@@ -23,6 +23,9 @@ appId: io.commise.mobile
       env:
           TITLE: 'Maestro Row Editor'
 
+# Cuisine is required to publish (2026-10-13).
+- runFlow: common/chooseCuisine.yaml
+
 # The probe food, then an amount the cook chose, set in the row editor (UI overhaul slice 8, build spec §7.5.2: a sheet
 # on a phone).
 - scrollUntilVisible:

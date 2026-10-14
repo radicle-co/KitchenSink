@@ -225,6 +225,8 @@ for (const colorScheme of SCHEMES) {
                 id: 'ec000000-0000-4000-8000-00000000001c',
                 ownerId: viewerId,
                 title: 'Published Pie',
+                // Cuisine is required to publish (2026-10-13), and Save changes on a published recipe is a publish.
+                cuisine: 'Italian',
                 status: 'published',
                 currentVersion: 3,
             });
@@ -255,6 +257,9 @@ for (const colorScheme of SCHEMES) {
                 id: 'ec000000-0000-4000-8000-000000000011',
                 ownerId: viewerId,
                 title: 'Incomplete Recipe',
+                // Cuisine is required to publish (2026-10-13). It is set so the ONE thing to fix stays the missing
+                // ingredient, which is what this test counts.
+                cuisine: 'Italian',
                 status: 'draft',
                 ingredients: [],
                 currentVersion: 1,
@@ -281,6 +286,8 @@ for (const colorScheme of SCHEMES) {
                 id,
                 ownerId: viewerId,
                 title: 'Saffron Rice',
+                // Cuisine is required to publish (2026-10-13).
+                cuisine: 'Spanish',
                 status: 'draft',
                 currentVersion: 1,
                 ingredients: [
@@ -701,6 +708,8 @@ test.describe('Discard leaves nothing syncing', () => {
             id,
             ownerId: viewerId,
             title: 'Discard Pie',
+            // Cuisine is required to publish (2026-10-13), and Save changes on a published recipe is a publish.
+            cuisine: 'Italian',
             status: 'published',
             currentVersion: 3,
         });

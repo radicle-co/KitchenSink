@@ -4,7 +4,7 @@ import { route } from './utils/basePath';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
-import { addStep, openIngredientEditor, openRecipeEditor, setServings } from './utils/recipeEditor';
+import { addStep, chooseCuisine, openIngredientEditor, openRecipeEditor, setServings } from './utils/recipeEditor';
 
 /**
  * Ranged and absent ingredient quantities, end to end (U9 / R40, R42; acceptance AE20 + AE21).
@@ -58,6 +58,8 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await fields.getByRole('button', { name: 'Done' }).click();
 
         await addStep(page, 'Mix and bake.');
+        // Cuisine is required to publish (2026-10-13).
+        await chooseCuisine(page);
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         // VIEW — the detail renders the SPAN, not its lower bound. The checkbox's accessible name is composed
@@ -110,6 +112,8 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await fields.getByRole('button', { name: 'Done' }).click();
 
         await addStep(page, 'Rub it in.');
+        // Cuisine is required to publish (2026-10-13).
+        await chooseCuisine(page);
         // ⛔ THE ASSERTION THIS SPEC EXISTS FOR: Publish must SUCCEED. Before U9 the draft held `NaN`, the
         // validator refused it, and this click left the author in the editor with no way forward.
         await page.getByRole('button', { name: 'Publish', exact: true }).click();

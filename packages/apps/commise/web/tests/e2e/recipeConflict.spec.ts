@@ -47,6 +47,8 @@ async function enterConflict(
         id: 'ec000000-0000-4000-8000-000000000009',
         ownerId: viewerId,
         title: 'Original Title',
+        // Cuisine is required to publish (2026-10-13), and Save changes on a published recipe is a publish.
+        cuisine: 'Italian',
         servings: 4,
         currentVersion: 1,
         ...seedOver,
@@ -81,6 +83,8 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
             id: 'ec000000-0000-4000-8000-000000000009',
             ownerId: viewerId,
             title: 'Original Title',
+            // Cuisine is required to publish (2026-10-13), and Save changes on a published recipe is a publish.
+            cuisine: 'Italian',
             servings: 4,
             currentVersion: 1,
         });

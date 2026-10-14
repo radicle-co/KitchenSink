@@ -121,6 +121,8 @@ const savedRecipe = (viewerId: string, status: RecipeDetail['status'] = 'draft')
         id: RECIPE_ID,
         ownerId: viewerId,
         title: 'Chicken supper',
+        // Cuisine is required to publish (2026-10-13); the published case ends in Save changes.
+        cuisine: 'Italian',
         status,
         currentVersion: 1,
         ingredients: [

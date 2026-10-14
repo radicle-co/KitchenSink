@@ -240,6 +240,7 @@ recipes:recipes/editorSections
 recipes:recipes/editorDescriptionLimit
 recipes:recipes/create
 recipes:recipes/publishFeedback
+recipes:recipes/cuisineField
 recipes:recipes/pasteList
 recipes:recipes/pasteListSettle
 recipes:recipes/quantityRange

@@ -28,6 +28,8 @@ async function openPublished(page: Page) {
                 id: RECIPE_ID,
                 ownerId: viewerId,
                 title: 'Resume Stew',
+                // Cuisine is required to publish (2026-10-13), and Save changes on a published recipe is a publish.
+                cuisine: 'Italian',
                 status: 'published',
                 currentVersion: 2,
             }),

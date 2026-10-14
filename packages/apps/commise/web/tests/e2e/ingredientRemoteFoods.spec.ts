@@ -6,7 +6,7 @@ import { route } from './utils/basePath';
 import { mockFoodApi, type RemoteFoodDouble } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { E2E_CATALOG_FOOD, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { addStep, ingredientOpen, openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
+import { addStep, chooseCuisine, ingredientOpen, openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
 
 /**
  * Remote foods, in every place a cook picks a food (owner ruling 2026-10-02: "The users should see the remote foods and
@@ -117,6 +117,8 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
 
         // The line names a real root, so the recipe publishes with it: the falsifiable end of the story.
         await addStep(page, 'Simmer, then season generously.');
+        // Cuisine is required to publish (2026-10-13).
+        await chooseCuisine(page);
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Remote Pepper Broth' })).toBeVisible();

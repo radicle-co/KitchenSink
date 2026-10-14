@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
-import { addStep, ingredientOpen, openNewRecipe } from './utils/recipeEditor';
+import { addStep, chooseCuisine, ingredientOpen, openNewRecipe } from './utils/recipeEditor';
 
 /**
  * U16 — the create-your-own-food story, driven through the real one-page editor (Next dev server + Clerk
@@ -71,6 +71,8 @@ test.describe('create your own food from the trailing add row (U16, B8)', () => 
 
         // …and the id is real enough to publish with (the falsifiable end of the story).
         await addStep(page, 'Blend, then chill.');
+        // Cuisine is required to publish (2026-10-13).
+        await chooseCuisine(page);
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
         await expect(page.getByRole('heading', { name: 'E2E Grandma Blend Bowl' })).toBeVisible();
     });

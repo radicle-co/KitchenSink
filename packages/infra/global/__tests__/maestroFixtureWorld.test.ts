@@ -78,6 +78,7 @@ function seedProjection(recipe: SeedRecipe, seed: SeedWorld): RecipeProjection {
         owner: ownerName(recipe.ownerId),
         description: recipe.description,
         visibility: recipe.visibility,
+        cuisine: recipe.cuisine,
         servings: recipe.servings,
         prepTimeMinutes: recipe.prepTimeMinutes,
         cookTimeMinutes: recipe.cookTimeMinutes,

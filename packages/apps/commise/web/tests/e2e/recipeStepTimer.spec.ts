@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { openRecipeEditor, stepField } from './utils/recipeEditor';
 import { signInWithTicket } from './utils/auth';
 
@@ -24,7 +24,20 @@ import { signInWithTicket } from './utils/auth';
 async function openSteps(page: Page): Promise<void> {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
-    await mockRecipeApi(page, { viewerId, tier: 'premium' });
+    // Cuisine is required to publish (2026-10-13), and Save changes on a published recipe is a publish, so the seed
+    // carries one (the double's default seed does not).
+    await mockRecipeApi(page, {
+        viewerId,
+        tier: 'premium',
+        recipes: [
+            makeRecipeDetail({
+                id: 'ec000000-0000-4000-8000-00000000002c',
+                ownerId: viewerId,
+                title: 'Seed Recipe',
+                cuisine: 'Italian',
+            }),
+        ],
+    });
 
     await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
     await expect(stepField(page, 1)).toBeVisible();

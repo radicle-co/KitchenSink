@@ -26,6 +26,7 @@ export const RecipeBrowseRailLoading: FC = () => {
         <View collapsable={false} role="status" style={styles.region}>
             <Text style={[styles.caption, { color: colors.inkMuted }]}>{discovery.loadingLabel}</Text>
             <ScrollView
+                keyboardShouldPersistTaps="handled"
                 horizontal
                 scrollEnabled={false}
                 scrollsToTop={false}

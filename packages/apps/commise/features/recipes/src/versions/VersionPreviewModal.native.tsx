@@ -112,7 +112,11 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                 )}
 
                 {showContent && version !== undefined && (
-                    <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                    <ScrollView
+                        keyboardShouldPersistTaps="handled"
+                        style={styles.scroll}
+                        contentContainerStyle={styles.scrollContent}
+                    >
                         <View style={styles.fields}>
                             <View style={styles.field}>
                                 <Text style={[styles.fieldLabel, muted]}>{conflict.titleLabel}</Text>

@@ -49,7 +49,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({ open, version,
                         <Icon name="x" size={24} tone="inkMuted" />
                     </Pressable>
                 </View>
-                <ScrollView contentContainerStyle={styles.content}>
+                <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
                     {rows.length === 0 ? (
                         <Text style={[styles.body, muted]}>{compare.noChanges}</Text>
                     ) : (

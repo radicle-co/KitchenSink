@@ -203,8 +203,10 @@ appId: io.commise.mobile
 # region. Same idiom `create.yaml` uses for the picker's "Create …" affordance under the same conditions — it
 # still waits for the row to EXIST, it just also brings it into view.
 - tapOn: 'Filters.*'
-- tapOn: 'Has ingredient'
-- inputText: '${E2E_PROBE_INGREDIENT}'
+- runFlow:
+      file: common/typeIngredientFilter.yaml
+      env:
+          QUERY: '${E2E_PROBE_INGREDIENT}'
 - scrollUntilVisible:
       element: 'Filter by ${E2E_PROBE_INGREDIENT}'
       direction: DOWN

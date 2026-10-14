@@ -77,6 +77,11 @@ appId: io.commise.mobile
 # broken mid-word beside the actions. The step after the wait proves it is not.
 - inputText: 'Maestro renamed collection for the whole family on weeknights'
 - tapOn: 'Save name'
+# The sheet closes on a save. Waited for first: until then its own field shows the new name, so the read below would
+# pass on the field (run 38433716728 did, in 222 ms, over a save that never happened).
+- extendedWaitUntil:
+      notVisible: 'Rename collection'
+      timeout: 40000
 
 # Back on the detail, showing the NEW name — proves the update persisted and `useUpdateCollection` invalidated the
 # detail query. Matched as a `…weeknights.*` regex: Maestro's `inputText` intermittently duplicates the final typed

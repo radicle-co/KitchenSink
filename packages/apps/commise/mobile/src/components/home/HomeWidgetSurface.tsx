@@ -205,6 +205,7 @@ export function HomeWidgetSurface({
         <View style={styles.screen}>
             <HomeNudgeContext.Provider value={{ trigger: nudge.trigger }}>
                 <ScrollView
+                    keyboardShouldPersistTaps="handled"
                     {...scrollBind}
                     accessibilityLabel={home.regionLabel}
                     style={styles.region}

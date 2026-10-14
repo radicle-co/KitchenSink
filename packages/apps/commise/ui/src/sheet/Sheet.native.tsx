@@ -9,7 +9,10 @@
  * - The title takes screen-reader focus when the Modal SHOWS, every time. A mount effect runs before the Modal is on
  *   screen, and a parent's effect after its children's, so `onShow` is the moment that works.
  * - Focus back to the opener belongs to the host: React Native cannot read where the reading cursor was.
- * - The keyboard: `KeyboardAvoider`, shared with the centred dialog frame, lifts the sheet above it.
+ * - The keyboard: `KeyboardAvoider`, shared with the centred dialog frame, lifts the sheet above it. A tap in the sheet
+ *   with the keyboard up also needs every scroller AROUND it, the host screen's included, to persist taps: React
+ *   Native gives a touch to the outermost scroller that captures it, across the Modal's window
+ *   (`packages/infra/global/__tests__/nativeScrollerTapPersistence.test.ts`).
  * - It slides in only when reduce motion is known to be off. The answer is read even while closed, so it is ready
  *   before the first open.
  * - The `Modal` stays mounted with `visible={open}`, because React Native plays the iOS slide-out only for a Modal

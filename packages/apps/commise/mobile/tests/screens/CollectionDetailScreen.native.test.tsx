@@ -16,8 +16,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
-import type { ReactElement } from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { createElement, type ComponentProps, type ReactElement } from 'react';
+import { AccessibilityInfo, type ScrollView as ScrollViewType } from 'react-native';
 
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { SnackbarHost } from '@commise/ui/snackbar';
@@ -33,6 +33,21 @@ import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { CollectionDetailScreen } from '../../src/screens/CollectionDetailScreen.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 import { makeCollectionWithRecipes, makeRecipe } from '../__fixtures__/recipes.js';
+
+// The real ScrollView, wrapped to mark its element with its tap persistence: jsdom has no keyboard to tap through.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        ScrollView: (props: ComponentProps<typeof ScrollViewType>) =>
+            createElement(
+                'div',
+                { 'data-scroll-region': props.keyboardShouldPersistTaps ?? 'never' },
+                createElement(actual.ScrollView, props),
+            ),
+    };
+});
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: vi.fn(),
@@ -375,6 +390,24 @@ describe('CollectionDetailScreen — rename, delete and Save a copy', () => {
 
         await waitFor(() => expect(update).toHaveBeenCalledWith('col_1', { name: 'Weeknights', description: 'Quick' }));
         await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Name' })).toBeNull());
+    });
+
+    // The sheet is a React child of the screen's scroller, and React Native hands a touch to the OUTERMOST scroller that
+    // captures it: one left at `never` takes the tap on Save name, closes the keyboard and saves nothing (iOS,
+    // `collections.yaml`). So every scroller around the open sheet, the screen's own included, must persist the tap.
+    it('⛔ lets the open rename sheet take a tap with the keyboard up: no scroller around it is left at never', async () => {
+        renderOver(<CollectionDetailScreen {...props} />);
+        await screen.findByRole('heading', { name: 'Dinners' });
+        pressMenuItem('Dinners', 'Rename');
+        await screen.findByRole('button', { name: 'Save name' });
+
+        const regions = [...document.querySelectorAll('[data-scroll-region]')].map((region) =>
+            region.getAttribute('data-scroll-region'),
+        );
+
+        // The screen's scroller and the sheet's: proof the reading saw both, not a vacuous pass.
+        expect(regions.length).toBeGreaterThanOrEqual(2);
+        expect(regions.filter((persistence) => persistence !== 'handled')).toEqual([]);
     });
 
     it('says a failed rename and keeps the sheet open', async () => {

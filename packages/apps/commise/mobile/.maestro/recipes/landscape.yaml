@@ -96,8 +96,10 @@ onFlowComplete:
       element: 'Has ingredient'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Has ingredient'
-- inputText: '${E2E_PROBE_INGREDIENT}'
+- runFlow:
+      file: common/typeIngredientFilter.yaml
+      env:
+          QUERY: '${E2E_PROBE_INGREDIENT}'
 - scrollUntilVisible:
       element: 'Filter by ${E2E_PROBE_INGREDIENT}'
       direction: DOWN

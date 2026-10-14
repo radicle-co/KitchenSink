@@ -106,6 +106,7 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
                 </Text>
             ) : (
                 <FlashList
+                    keyboardShouldPersistTaps="handled"
                     key={columns}
                     {...scrollBind}
                     data={collections}

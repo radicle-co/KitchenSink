@@ -172,7 +172,11 @@ export const SectionIndex: FC<SectionIndexProps> = ({
     if (containerClass === 'wide') {
         return (
             <View collapsable={false} role="navigation" aria-label={label} style={styles.rail}>
-                <ScrollView scrollsToTop={false} contentContainerStyle={styles.railList}>
+                <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    scrollsToTop={false}
+                    contentContainerStyle={styles.railList}
+                >
                     {items.map((item) => (
                         <ListRow
                             key={item.id}

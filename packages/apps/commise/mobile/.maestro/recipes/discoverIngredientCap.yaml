@@ -20,11 +20,14 @@ appId: io.commise.mobile
       timeout: 40000
 
 - tapOn: 'Filters.*'
-- tapOn: 'Has ingredient'
-- inputText: '${E2E_CAP_FOOD_PREFIX}'
+- runFlow:
+      file: common/typeIngredientFilter.yaml
+      env:
+          QUERY: '${E2E_CAP_FOOD_PREFIX}'
 
 # Six picks. Anchored, because Maestro matches substrings and the field itself holds the typed prefix. The Ingredients
-# group is the last in the sheet and the keyboard is up, so each result is scrolled into view before the tap.
+# group is the last in the sheet and, on Android, the keyboard is still up, so each result is scrolled into view before
+# the tap.
 - repeat:
       times: 6
       commands:

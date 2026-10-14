@@ -296,7 +296,7 @@ function CollectionDetailView({
     };
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <ScrollView keyboardShouldPersistTaps="handled" style={styles.container} contentContainerStyle={styles.content}>
             <CollectionHeader
                 name={collection.name}
                 {...(collection.description === undefined ? {} : { description: collection.description })}

@@ -45,7 +45,7 @@ export const RecipePreviewSheet: FC<RecipePreviewSheetProps> = ({ open, recipe, 
             </View>
             <ScrollHost sections={PREVIEW_SECTIONS}>
                 {(bind) => (
-                    <ScrollView {...bind} style={styles.scroll}>
+                    <ScrollView keyboardShouldPersistTaps="handled" {...bind} style={styles.scroll}>
                         <RecipeDetailView recipe={recipe} unreachableRetry={NO_RETRY} />
                     </ScrollView>
                 )}

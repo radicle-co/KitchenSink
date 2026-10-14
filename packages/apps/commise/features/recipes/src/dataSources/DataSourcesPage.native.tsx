@@ -59,7 +59,7 @@ export const DataSourcesPage: FC<DataSourcesPageNativeProps> = ({ onRequestClose
                     <Icon name="x" size={24} tone="ink" />
                 </Pressable>
             </View>
-            <ScrollView contentContainerStyle={styles.body}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
                 <Text style={[styles.intro, { color: colors.ink }]}>{messages.intro}</Text>
                 <Text style={[styles.note, { color: colors.inkMuted }]}>{messages.closeMatchNote}</Text>
                 {children}

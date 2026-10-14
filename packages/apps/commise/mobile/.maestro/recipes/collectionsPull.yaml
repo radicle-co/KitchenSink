@@ -65,6 +65,10 @@ appId: io.commise.mobile
 - eraseText
 - inputText: 'Maestro pull clone'
 - tapOn: 'Save name'
+# The sheet closes on a save; until then its own field shows the new name (`collections.yaml`, the same step).
+- extendedWaitUntil:
+      notVisible: 'Rename collection'
+      timeout: 40000
 # Maestro's `inputText` intermittently duplicates the final typed character on this emulator (same artifact
 # `collections.yaml` notes for its own rename step) — the trailing `.*` absorbs it while still proving the
 # rename applied.

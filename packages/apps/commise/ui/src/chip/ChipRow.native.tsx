@@ -61,6 +61,7 @@ const ScrollingLine: FC<{ readonly surface: ChipRowSurface; readonly children: R
         <View style={styles.scrollBox}>
             {/* One `scrollsToTop` per screen: a chip row never takes the iOS status-bar tap from the screen's scroller. */}
             <ScrollView
+                keyboardShouldPersistTaps="handled"
                 horizontal
                 scrollsToTop={false}
                 showsHorizontalScrollIndicator={false}

@@ -35,11 +35,7 @@
  * - `secrets-before-sign-in` — `load-secrets` reads Secrets Manager with the credentials `awsAuth` set, so a job that
  *   uses it signs in first.
  *
- * ## The one exception, and how it ends
- *
- * Production still signs in with the key until the production roles are proven on `main` (ADR-0063, plan
- * 2026-10-13-005 commit C). `LEGACY_KEY_JOBS` lists the jobs that still may, and the real tree's set of key-using jobs
- * must EQUAL it: a new key user fails, and so does an entry that no longer uses the key. Commit C empties it.
+ * There is no exception list. Production signs in on the `prod` and `prod-read` roles like everything else.
  *
  * @pattern Specification — one pure verdict over the workflow graph, judged on the tree and on a fixture table
  */
@@ -55,41 +51,6 @@ import { RECLAMATION_JOBS } from './reclamationJobs.js';
 import { repoRoot } from './serviceSources.js';
 import { evaluateCondition, selectedLiteral, tokenize, unwrap, type Truth } from './workflowExpression.js';
 import { scalarText } from './workflowScalar.js';
-
-/**
- * The jobs that still sign in with the access key: every one of them on a PRODUCTION path (a prod stage, a prod
- * target, or a workflow that forwards the key to one). Emptied by commit C.
- */
-const LEGACY_KEY_JOBS: readonly string[] = [
-    // Production deploys and the account-scoped app: bound to `Production`, moved to tier `prod` in commit C.
-    'prod-deploy.yml::deploy',
-    'accountDeploy.yml::deploy',
-    // `main`'s checks synthesize at `prod`: `ci-main` forwards the key, `_ci.yml::infra` hands it to `deployInfra`,
-    // and every `deployInfra` job signs in with it ONLY when its stage is `prod` (a `pr-{N}` run uses `awsAuth`).
-    'ci-main.yml::ci',
-    'ci-full.yml::base',
-    '_ci.yml::infra',
-    'deployInfra.yml::global',
-    'deployInfra.yml::identity-schema',
-    'deployInfra.yml::food-schema',
-    'deployInfra.yml::recipe-schema',
-    'deployInfra.yml::identity',
-    'deployInfra.yml::identity-webhooks',
-    'deployInfra.yml::food-service',
-    'deployInfra.yml::recipe-service',
-    'deployInfra.yml::recipe-workers',
-    'deployInfra.yml::ingredient-parser',
-    'deployInfra.yml::remote-search',
-    'deployInfra.yml::web',
-    'deployInfra.yml::shared',
-    'deployInfra.yml::ecosystem-smoke',
-    // Manual runs that may target production: the key only on the prod branch of each.
-    'deployedE2e.yml::resolve',
-    'deployedE2e.yml::deployed-tiers',
-    'deployedE2eTiers.yml::e2e-remote-search',
-    'deployedE2eTiers.yml::e2e-queue-guarantees',
-    'food-loadtest.yml::loadtest',
-];
 
 const AWS_AUTH = './.github/actions/awsAuth';
 const AWS_AUTH_ACTION = '.github/actions/awsAuth/action.yml';
@@ -289,44 +250,20 @@ const isTeardown = (file: string, jobId: string): boolean =>
 
 const jobKey = (file: string, jobId: string): string => `${path.posix.basename(file)}::${jobId}`;
 
-/** The jobs that sign in with the key, whether or not they are allowed to. */
-function keyUsingJobs(sources: readonly Source[]): ReadonlySet<string> {
-    const found = new Set<string>();
-
-    for (const { file, text } of sources) {
-        if (!file.startsWith('.github/workflows/')) {
-            continue;
-        }
-
-        const doc = (parse(text) ?? {}) as Doc;
-
-        for (const [jobId, job] of Object.entries(doc.jobs ?? {})) {
-            const steps = job.steps ?? [];
-
-            if (STATIC_KEY.test(JSON.stringify(job)) || steps.some(isSignIn)) {
-                found.add(jobKey(file, jobId));
-            }
-        }
-    }
-
-    return found;
-}
-
-function jobViolations(file: string, jobId: string, job: Job, legacy: ReadonlySet<string>): Violation[] {
+function jobViolations(file: string, jobId: string, job: Job): Violation[] {
     const where = `${file}::${jobId}`;
     const violations: Violation[] = [];
     const steps = job.steps ?? [];
-    const allowedKey = legacy.has(jobKey(file, jobId));
 
     const add = (rule: RuleId, detail: string): void => {
         violations.push({ rule, where, detail });
     };
 
-    if (!allowedKey && STATIC_KEY.test(JSON.stringify(job))) {
+    if (STATIC_KEY.test(JSON.stringify(job))) {
         add('static-key', 'references an AWS access-key secret; sign in through awsAuth instead');
     }
 
-    if (!allowedKey && steps.some(isSignIn)) {
+    if (steps.some(isSignIn)) {
         add('unfederated-sign-in', 'calls configure-aws-credentials directly; only awsAuth may');
     }
 
@@ -398,7 +335,7 @@ function jobViolations(file: string, jobId: string, job: Job, legacy: ReadonlySe
 }
 
 /** Every violation over the given sources, keyed and deduplicated. Pure. */
-function violationsOf(sources: readonly Source[], legacy: ReadonlySet<string>): readonly Violation[] {
+function violationsOf(sources: readonly Source[]): readonly Violation[] {
     const violations: Violation[] = [];
 
     for (const { file, text } of sources) {
@@ -463,7 +400,7 @@ function violationsOf(sources: readonly Source[], legacy: ReadonlySet<string>): 
         }
 
         for (const [jobId, job] of Object.entries(doc.jobs ?? {})) {
-            violations.push(...jobViolations(file, jobId, job, legacy));
+            violations.push(...jobViolations(file, jobId, job));
         }
     }
 
@@ -490,8 +427,6 @@ function treeSources(): readonly Source[] {
         .map((file) => ({ file, text: readFileSync(path.join(repoRoot, file), 'utf8') }));
 }
 
-const NONE: ReadonlySet<string> = new Set();
-
 /** A workflow fixture, one job, signing in correctly. Each row below changes one thing. */
 const workflow = (job: string, header = 'permissions:\n    contents: read\n'): Source => ({
     file: '.github/workflows/fixture.yml',
@@ -515,6 +450,13 @@ const SIGNED_IN_JOB = `    check:
 
 const DEPLOY_INFRA_ENVIRONMENT =
     "${{ inputs.deploy && inputs.stage == 'prod' && 'Production' || inputs.deploy && 'Sandbox' || '' }}";
+
+/** `deployInfra.yml`'s tier: non-prod off the prod stage, `prod` for a prod deploy, `prod-read` for main's checks. */
+const DEPLOY_INFRA_TIER = "${{ inputs.stage != 'prod' && 'nonprod' || inputs.deploy && 'prod' || 'prod-read' }}";
+
+/** `food-loadtest.yml`'s shape: either of two inputs selects prod. Flat, because a grouped expression is not judged. */
+const eitherProd = (literal: string, otherwise: string): string =>
+    `\${{ inputs.base_stage == 'prod' && '${literal}' || inputs.target_stage == 'prod' && '${literal}' || '${otherwise}' }}`;
 
 const signedIn = (tier: string, extra = '', stepExtra = ''): string =>
     SIGNED_IN_JOB.replace('tier: nonprod', `tier: ${tier}`)
@@ -667,6 +609,54 @@ runs:
         rule: null,
     },
     {
+        shape: "deployInfra's three-way tier under its per-stage binding",
+        sources: [workflow(signedIn(DEPLOY_INFRA_TIER, `        environment: ${DEPLOY_INFRA_ENVIRONMENT}\n`))],
+        rule: null,
+    },
+    {
+        shape: "deployInfra's binding with prod and prod-read swapped",
+        sources: [
+            workflow(
+                signedIn(
+                    "${{ inputs.stage != 'prod' && 'nonprod' || inputs.deploy && 'prod-read' || 'prod' }}",
+                    `        environment: ${DEPLOY_INFRA_ENVIRONMENT}\n`,
+                ),
+            ),
+        ],
+        rule: 'tier-environment',
+    },
+    {
+        shape: "deployInfra's binding with a prod-read tier that can run on a non-prod stage",
+        sources: [
+            workflow(
+                signedIn(
+                    "${{ inputs.deploy && 'prod' || 'prod-read' }}",
+                    `        environment: ${DEPLOY_INFRA_ENVIRONMENT}\n`,
+                ),
+            ),
+        ],
+        rule: 'tier-environment',
+    },
+    {
+        shape: 'a manual run where either of two inputs selects prod and Production',
+        sources: [
+            workflow(signedIn(eitherProd('prod', 'nonprod'), `        environment: ${eitherProd('Production', '')}\n`)),
+        ],
+        rule: null,
+    },
+    {
+        shape: 'a manual run whose Production binding reads only one of the two inputs that select prod',
+        sources: [
+            workflow(
+                signedIn(
+                    eitherProd('prod', 'nonprod'),
+                    "        environment: ${{ inputs.target_stage == 'prod' && 'Production' || '' }}\n",
+                ),
+            ),
+        ],
+        rule: 'tier-environment',
+    },
+    {
         shape: 'a tier chosen by stage whose environment is chosen by a different input',
         sources: [
             workflow(
@@ -777,15 +767,17 @@ runs:
 describe('the guard refuses each shape it names, and only that rule', () => {
     for (const fixture of FIXTURES) {
         it(`${fixture.shape} → ${fixture.rule ?? 'clean'}`, () => {
-            const rules = [...new Set(violationsOf(fixture.sources, NONE).map((violation) => violation.rule))];
+            const rules = [...new Set(violationsOf(fixture.sources).map((violation) => violation.rule))];
 
             expect(rules).toEqual(fixture.rule === null ? [] : [fixture.rule]);
         });
     }
 
-    it('lets an allowlisted job keep the key, and nothing else', () => {
-        const legacy = workflow(`    deploy:
+    // The shape every production job had before the move, kept as the case both key rules exist for.
+    it('refuses the old production sign-in on both key rules', () => {
+        const keyed = workflow(`    deploy:
         runs-on: ubuntu-latest
+        environment: Production
         steps:
             - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
@@ -794,13 +786,11 @@ describe('the guard refuses each shape it names, and only that rule', () => {
                   aws-region: us-east-1
 `);
 
-        expect(violationsOf([legacy], new Set(['fixture.yml::deploy']))).toEqual([]);
         expect(
-            violationsOf([legacy], NONE)
+            violationsOf([keyed])
                 .map((violation) => violation.rule)
                 .sort(),
         ).toEqual(['static-key', 'unfederated-sign-in']);
-        expect([...keyUsingJobs([legacy])]).toEqual(['fixture.yml::deploy']);
     });
 });
 
@@ -826,10 +816,20 @@ describe('the tree signs in to AWS only through awsAuth', () => {
     });
 
     it('breaks none of the rules', () => {
-        expect(violationsOf(sources, new Set(LEGACY_KEY_JOBS))).toEqual([]);
+        expect(violationsOf(sources)).toEqual([]);
     });
 
-    it('signs in with the key in EXACTLY the allowlisted jobs — a new user fails, and so does a stale entry', () => {
-        expect([...keyUsingJobs(sources)].sort()).toEqual([...LEGACY_KEY_JOBS].sort());
+    it('signs in on every production tier somewhere: prod deploys, and prod-read checks on main', () => {
+        const tiers = sources
+            .filter((source) => source.file.startsWith('.github/workflows/'))
+            .flatMap((source) =>
+                Object.values(((parse(source.text) ?? {}) as Doc).jobs ?? {}).flatMap((job) =>
+                    (job.steps ?? [])
+                        .filter((step) => step.uses === AWS_AUTH)
+                        .flatMap((step) => possibleRuns(job, step).map((run) => run.tier)),
+                ),
+            );
+
+        expect(new Set(tiers)).toEqual(new Set(GITHUB_OIDC_TIERS));
     });
 });

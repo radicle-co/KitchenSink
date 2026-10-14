@@ -59,11 +59,9 @@ jobs:
             packages: write # zizmor: ignore[use-trusted-publishing]
         with:
             stage: ${{ inputs.stage }}
-        # Explicit, not `inherit` — see ci-pr.yml. ⚠️ TRANSITIONAL: the AWS key is passed because `stage: prod` still
-        # signs `_ci.yml`'s infra checks in with it (ADR-0063); at `sandbox` it is unused.
+        # Explicit, not `inherit` — see ci-pr.yml. AWS is no secret: at `stage: prod`, `_ci.yml`'s infra checks sign in
+        # on the `prod-read` role (ADR-0063), which trusts only `main`, so a prod run dispatched from a branch is red.
         secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
             # Forwarded because `_ci.yml`'s queue-guarantee tier reads the cron monitor. Declaring it there
             # without passing it here would leave the reference resolving to an empty string — the tier
             # would skip, and the job would stay green while proving nothing.

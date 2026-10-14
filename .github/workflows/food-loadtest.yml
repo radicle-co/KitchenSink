@@ -3,7 +3,9 @@
 # server-side metrics, produces a capacity/degradation report, and tears down every test user.
 #
 # Trigger: Actions → "Food API load test" → Run workflow (or `gh workflow run food-loadtest.yml`).
-# Signs in to AWS through `awsAuth` (to read the Clerk secret + CloudWatch); a production read still uses the access key.
+# Signs in to AWS through `awsAuth` (to read the Clerk secret + CloudWatch). A run that reads production (a `prod` target
+# or `prod` Clerk secrets) signs in on the `prod` role, so it binds `Production` and waits for its reviewer; that role
+# trusts only `main`. A mixed pair (one input `prod`, the other not) is red on the read the `prod` role does not hold.
 name: Food API load test (deployed origin — manual only)
 
 on:
@@ -86,7 +88,8 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: read
-            id-token: write # awsAuth: the non-prod role (sandbox Clerk keys and CloudWatch)
+            id-token: write # awsAuth: the stage's Clerk keys and CloudWatch
+        environment: ${{ inputs.base_stage == 'prod' && 'Production' || inputs.target_stage == 'prod' && 'Production' || '' }}
         timeout-minutes: 30
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -103,24 +106,12 @@ jobs:
             - name: Install k6 (into the loadtest package)
               run: npm run k6:install --workspace=@kitchensink/loadtest
 
-            # ⚠️ TRANSITIONAL: a run that reads production (a `prod` target or `prod` Clerk secrets) still signs in with
-            # the access key, because the production roles can be proven only on `main` (ADR-0063; plan
-            # `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`, commit C). Every other run uses the non-prod
-            # role.
             - name: Sign in to AWS
-              if: inputs.base_stage != 'prod' && inputs.target_stage != 'prod'
               uses: ./.github/actions/awsAuth
               with:
-                  tier: nonprod
+                  tier: ${{ inputs.base_stage == 'prod' && 'prod' || inputs.target_stage == 'prod' && 'prod' || 'nonprod' }}
                   account-id: ${{ vars.AWS_ACCOUNT_ID }}
                   region: ${{ env.DEFAULT_AWS_REGION }}
-            - name: Sign in to AWS with the access key (production reads only, see above)
-              if: inputs.base_stage == 'prod' || inputs.target_stage == 'prod'
-              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
-              with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
 
             # ⛔ THE HOST SHAPE IS RESOLVED, NEVER TYPED — see the `target_stage` note above.
             - name: Resolve the food origin for this stage

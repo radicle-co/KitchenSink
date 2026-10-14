@@ -23,6 +23,7 @@ interface DeployStep {
     readonly name?: string;
     readonly if?: string;
     readonly run?: string;
+    readonly uses?: string;
     /** Where the step runs — how a package outside the npm workspace is addressed. */
     readonly 'working-directory'?: string;
 }
@@ -180,9 +181,7 @@ describe('prod-deploy.yml supplies the build-time key, in the right order', () =
     });
 
     it('exports it after AWS credentials exist, or the SSM read cannot authenticate', () => {
-        const credentialsIndex = prodDeploySteps().findIndex((step) =>
-            /Configure AWS credentials/iu.test(step.name ?? ''),
-        );
+        const credentialsIndex = prodDeploySteps().findIndex((step) => step.uses === './.github/actions/awsAuth');
 
         expect(credentialsIndex).toBeGreaterThanOrEqual(0);
         expect(indexOf((run) => run.includes('CLERK_JWT_KEY'))).toBeGreaterThan(credentialsIndex);
@@ -198,9 +197,7 @@ describe('prod-deploy.yml supplies the build-time key, in the right order', () =
     });
 
     it('exports the parties after AWS credentials exist and BEFORE the bundle step that inlines them', () => {
-        const credentialsIndex = prodDeploySteps().findIndex((step) =>
-            /Configure AWS credentials/iu.test(step.name ?? ''),
-        );
+        const credentialsIndex = prodDeploySteps().findIndex((step) => step.uses === './.github/actions/awsAuth');
         const exportIndex = indexOf((run) => run.includes('clerk/authorized-parties'));
 
         expect(credentialsIndex).toBeGreaterThanOrEqual(0);

@@ -56,23 +56,13 @@ on:
         #
         # `required: false` is deliberate, not laziness: GitHub WITHHOLDS secrets from fork PRs and
         # Dependabot runs, and a required secret would turn the designed skip into an unfixable red check on
-        # exactly the PRs that cannot supply them.
-        #
-        # ⚠️ TRANSITIONAL: the two AWS secrets are forwarded ONLY to `infra`, for `main`'s checks at the `prod`
-        # stage, which still sign in with the access key until the production roles are proven (ADR-0063). Every
-        # other job signs in through `awsAuth`, and `ci-pr.yml` passes neither.
+        # exactly the PRs that cannot supply them. AWS is no secret here: every job signs in through `awsAuth`.
         secrets:
-            AWS_ACCESS_KEY_ID:
-                description: AWS access key id, forwarded only to `deployInfra.yml` for the `prod` stage
-                required: false
-            AWS_SECRET_ACCESS_KEY:
-                description: AWS secret access key paired with AWS_ACCESS_KEY_ID
-                required: false
             SENTRY_AUTH_TOKEN:
                 description: >-
                     Sentry API token, read by the queue-guarantee tier to check the backstop's CRON MONITOR —
                     the only evidence that the check RAN, since a check that never executes produces the same
-                    silence as a healthy one. `required: false` for the same reason as the two above: a fork
+                    silence as a healthy one. `required: false` for the reason above: a fork
                     PR cannot supply it, and the tier degrades rather than turning that into a red check.
                 required: false
 
@@ -265,11 +255,6 @@ jobs:
             contents: read
             packages: read # each infra job installs `@radicle-co/infra-shared` from GitHub Packages
             id-token: write # awsAuth in deployInfra.yml (a callee can only downgrade)
-        # ⚠️ TRANSITIONAL: forwarded only for `main`'s checks at the `prod` stage, which still sign in with the key
-        # (see `deployInfra.yml`). A pull request's caller passes no key, so on a PR these are empty and unused.
-        secrets:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     install:
         name: Install dependencies

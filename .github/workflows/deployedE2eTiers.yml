@@ -116,20 +116,11 @@ on:
                     The web Playwright matrix's result (`success`, `failure`, `cancelled`, `skipped`). `_ci.yml`'s
                     merged report re-asserts it, because a job in the caller cannot `needs` a job in here.
                 value: ${{ jobs.web-verdict.outputs.result }}
-        # Declared EXPLICITLY rather than `secrets: inherit` (zizmor `secrets-inherit`), and all optional.
-        #
-        # ⚠️ TRANSITIONAL — THE AWS KEY IS FOR A PRODUCTION TARGET ONLY. Every tier signs in through `awsAuth` on the
-        # non-prod OIDC role (ADR-0063), so a caller grants `id-token: write`. The production roles can be proven only
-        # on `main`, so until that move (plan `docs/plans/2026-10-13-005-feat-ci-oidc-workflows-plan.md`, commit C)
-        # the two tiers that read AWS at a `prod` target sign in with this key instead, and only `deployedE2e.yml`'s
-        # manual door passes it. `awsCredentialsFederated.test.ts` lists exactly those jobs.
+        # Declared EXPLICITLY rather than `secrets: inherit` (zizmor `secrets-inherit`), and optional. AWS is no
+        # secret: every tier signs in through `awsAuth` (ADR-0063), so a caller grants `id-token: write`. The two
+        # tiers that read AWS at a `prod` target sign in on the `prod` role, so they bind `Production` there and wait
+        # for its reviewer; that role trusts only `main`.
         secrets:
-            AWS_ACCESS_KEY_ID:
-                description: AWS access key id, used only when the target is prod
-                required: false
-            AWS_SECRET_ACCESS_KEY:
-                description: AWS secret access key paired with AWS_ACCESS_KEY_ID
-                required: false
             SENTRY_AUTH_TOKEN:
                 description: >-
                     Reads the queue backstop's cron monitor. Optional: without it that half of the queue-guarantee
@@ -465,7 +456,8 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: read
-            id-token: write # awsAuth: the non-prod role (the stage's published parameters)
+            id-token: write # awsAuth: the stage's published parameters and, at prod, its signing key
+        environment: ${{ inputs.target_stage == 'prod' && 'Production' || '' }}
         env:
             E2E_TARGET: deployed
             REMOTE_SEARCH_STAGE: ${{ inputs.target_stage }}
@@ -498,19 +490,11 @@ jobs:
                   npm ci
             - name: Sign in to AWS (to read what the stage published)
               id: aws
-              if: inputs.target_stage != 'prod'
               uses: ./.github/actions/awsAuth
               with:
-                  tier: nonprod
+                  tier: ${{ inputs.target_stage == 'prod' && 'prod' || 'nonprod' }}
                   account-id: ${{ vars.AWS_ACCOUNT_ID }}
                   region: ${{ env.DEFAULT_AWS_REGION }}
-            - name: Sign in to AWS with the access key (prod target only, see the secrets note at the top)
-              if: inputs.target_stage == 'prod'
-              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
-              with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
             # Before any request: the origin comes from SSM, and this suite is about to send signed requests to it.
             - name: Read the published search origin, and confirm it is under this repository's own domain
               id: origin
@@ -1342,7 +1326,8 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: read
-            id-token: write # awsAuth: the non-prod role (read-only IAM and stack reads)
+            id-token: write # awsAuth: read-only IAM and stack reads
+        environment: ${{ inputs.target_stage == 'prod' && 'Production' || '' }}
         env:
             E2E_TARGET: deployed
             TARGET_STAGE: ${{ inputs.target_stage }}
@@ -1380,20 +1365,11 @@ jobs:
                   target_scope_assert "${DOMAIN_NAME}" "${IDENTITY_ORIGIN}"
             - name: Sign in to AWS
               id: aws
-              if: inputs.target_stage != 'prod'
               uses: ./.github/actions/awsAuth
               with:
-                  tier: nonprod
+                  tier: ${{ inputs.target_stage == 'prod' && 'prod' || 'nonprod' }}
                   account-id: ${{ vars.AWS_ACCOUNT_ID }}
                   region: ${{ vars.DEFAULT_AWS_REGION }}
-            - name: Sign in to AWS with the access key (prod target only, see the secrets note at the top)
-              id: legacyKey
-              if: inputs.target_stage == 'prod'
-              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
-              with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
             # ⛔ THE DEPLOYED ROLE, not the synthesized one. `queueProducerRegister.test.ts` reads source and
             # each stack's suite reads its template; both describe what was ASKED for. This reads back what
             # IAM will evaluate, which is the only reading that survives a hand-edit or a drifted stack.
@@ -1408,7 +1384,7 @@ jobs:
             # is unsigned (`awsAuth`); any other run that cannot sign in is already red.
             - name: The deployed backstop role may read queue attributes and nothing else
               env:
-                  SIGNED_IN: ${{ steps.aws.outputs.authenticated == 'true' || steps.legacyKey.outcome == 'success' }}
+                  SIGNED_IN: ${{ steps.aws.outputs.authenticated }}
               run: |
                   set -euo pipefail
 

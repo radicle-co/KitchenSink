@@ -45,7 +45,7 @@ import type { SectionAddView } from './useIngredientGroups.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
 import { useSpokenRefusal, type SpeakRefusal } from './useSpokenRefusal.js';
 
-/** The dp between a group's list and the add field under it: the section stack's gap. */
+/** The dp between a group's list and the add field under it: the stack lays it out, and an arrival adds it. */
 const LIST_TO_FIELD_DP = nativeTokens.spacing[1];
 
 /** The one add field, with its reading, its notices and its sentences (§7.5.3). */
@@ -344,7 +344,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
 
 const styles = StyleSheet.create({
     section: { gap: nativeTokens.spacing[4] },
-    stack: { gap: nativeTokens.spacing[1] },
+    stack: { gap: LIST_TO_FIELD_DP },
     row: { flexDirection: 'row' },
     end: { flexDirection: 'row', justifyContent: 'flex-end' },
     body: { ...nativeTokens.type.body },

@@ -39,7 +39,8 @@
  *
  * - An ARRIVAL (`ComboboxProps.arrival`, `docs/design/uiOverhaul/ingredientArrival.md`): a row that arrived straight above
  *   the field is shown with it. The leaf asks the same host once per arrival key, with the dp from the row's top to the
- *   field's top (the row's, plus the label block it measures), and releases the ask when the key goes.
+ *   field's top (the row's, plus where the field's row sits in the combobox, as laid out), and releases the ask when
+ *   the key goes.
  *
  * One ref, for what has no declarative form: the field, for `.focus()` and the caret on a host's focus request, and as
  * the node a reveal request hands the host to measure.
@@ -195,9 +196,10 @@ export const Combobox: FC<ComboboxProps> = ({
 
     useEffect(() => (popupShown ? requestReveal() : undefined), [popupShown]);
 
-    // The label block above the field (the label, its hint and the gap under them), as laid out: the host measures the
-    // FIELD, and an arrival's row sits above the whole combobox, so the span from the row to the field adds it.
-    const [labelBlock, setLabelBlock] = useState(0);
+    // Where the field's row sits in the combobox, as laid out (under the label, its hint and the root's gap; 0 with no
+    // label): the host measures the FIELD, and an arrival's row sits above the whole combobox, so the span from the row
+    // to the field adds it. Read from the row's own layout, so the root's gap has one authority (`styles.root`).
+    const [fieldRowTop, setFieldRowTop] = useState(0);
     // One ask per arrival key. Reads the row's height as it is when the key arrives: a row that grows later asks nothing.
     const requestArrival = useEffectEvent((): (() => void) =>
         field.current === null || arrival === undefined
@@ -206,7 +208,7 @@ export const Combobox: FC<ComboboxProps> = ({
                   field: field.current,
                   below: 0,
                   kind: 'arrival',
-                  above: arrival.aboveDp + (labelShown ? labelBlock : 0),
+                  above: arrival.aboveDp + fieldRowTop,
               }),
     );
     const arrivalKey = arrival?.key;
@@ -317,15 +319,12 @@ export const Combobox: FC<ComboboxProps> = ({
 
     return (
         <View style={styles.root}>
-            {labelShown && (
-                <View
-                    collapsable={false}
-                    onLayout={(event) => setLabelBlock(event.nativeEvent.layout.height + nativeTokens.spacing[1])}
-                >
-                    <FieldLabel forId={id} label={label} {...(hint === undefined ? {} : { hint })} />
-                </View>
-            )}
-            <View style={styles.fieldRow}>
+            {labelShown && <FieldLabel forId={id} label={label} {...(hint === undefined ? {} : { hint })} />}
+            <View
+                collapsable={false}
+                style={styles.fieldRow}
+                onLayout={(event) => setFieldRowTop(event.nativeEvent.layout.y)}
+            >
                 <View style={styles.fieldBox}>
                     {leadingIcon !== undefined && (
                         // Decorative: hidden from VoiceOver and TalkBack, as the field's name says what it does.

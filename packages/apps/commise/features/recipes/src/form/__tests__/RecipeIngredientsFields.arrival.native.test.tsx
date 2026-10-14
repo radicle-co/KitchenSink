@@ -152,16 +152,17 @@ const tintOf = (name: string): string => getComputedStyle(rowOf(name)).backgroun
 /** The nodes the platform's layout pass watches that are rows. */
 const watchedRows = (): Element[] => [...observer.observed].filter((node) => node.getAttribute('role') === 'listitem');
 
-/** The node watching the add field's label block: the one that holds its label and is no row. */
-const watchedLabel = (): Element[] =>
+/** The node watching the add field's row: the one that holds the add field and is no row of the list. */
+const watchedFieldRow = (): Element[] =>
     [...observer.observed].filter(
-        (node) => node.getAttribute('role') !== 'listitem' && node.textContent?.includes('Add an ingredient') === true,
+        (node) => node.getAttribute('role') !== 'listitem' && node.contains(screen.getByLabelText('Add an ingredient')),
     );
 
-/** Report `height` for `nodes`, as the platform's layout pass does. */
-async function layOut(nodes: Element[], height: number): Promise<void> {
+/** Report `height`, and a `top` inside the parent, for `nodes`, as the platform's layout pass does. */
+async function layOut(nodes: Element[], height: number, top = 0): Promise<void> {
     for (const node of nodes) {
         Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
+        Object.defineProperty(node, 'offsetTop', { value: top, configurable: true });
     }
 
     await act(async () => {
@@ -199,15 +200,45 @@ describe('RecipeIngredientsFields (native) — an arrival', () => {
         );
     });
 
-    it('adds the add field’s label block, measured, to the distance from the row', async () => {
+    /**
+     * REWRITTEN 2026-10-14: this used to lay out the add field's LABEL and expect its height plus a 4 dp gap the combobox
+     * added by hand. The combobox now reads its field row's own `y` (the label block and the gap under it, as laid out),
+     * so the case lays out the field row and proves that `y` is what reaches the host.
+     */
+    it('adds where the add field’s row sits under its label, as laid out, to the distance from the row', async () => {
         const { revealer, rerender } = hosted();
-        await layOut(watchedLabel(), 20);
+        await layOut(watchedFieldRow(), 0, 24);
 
         rerender({ settled: settledOf(NEW_LINE, committed(1)), lines: 2 });
         await layOutRow(60);
 
-        // 60 dp of row, 4 dp to the field's box, and the 20 dp label with the 4 dp under it.
+        // 60 dp of row, 4 dp to the combobox, and its field row 24 dp down under the label.
         expect(revealer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: 'arrival', above: 88 }));
+    });
+
+    /**
+     * ⛔ ONE AUTHORITY FOR THE GAP BETWEEN THE LIST AND THE ADD FIELD. The distance the leaf asks for adds that gap, and the
+     * section's stack lays it out; if they were two numbers, a change to one would ask for a span the screen does not
+     * have, and every assertion pinned to a literal would still pass. So this reads the gap the stack RENDERS.
+     */
+    it('adds the gap the section actually lays out between its list and the add field', async () => {
+        const { revealer, rerender } = hosted();
+        rerender({ settled: settledOf(NEW_LINE, committed(1)), lines: 2 });
+        const stack = screen.getByRole('list').parentElement;
+
+        if (stack === null) {
+            throw new Error('the list has no stack around it');
+        }
+
+        const rendered = Number.parseFloat(getComputedStyle(stack).gap);
+
+        expect(rendered).toBeGreaterThan(0);
+
+        await layOutRow(60);
+
+        expect(revealer).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ kind: 'arrival', above: 60 + rendered }),
+        );
     });
 
     it('asks nothing more when the new row grows', async () => {

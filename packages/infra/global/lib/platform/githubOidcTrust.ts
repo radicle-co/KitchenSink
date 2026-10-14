@@ -39,18 +39,18 @@ export const GITHUB_OIDC_ISSUER = 'token.actions.githubusercontent.com';
 export const GITHUB_OIDC_AUDIENCE = 'sts.amazonaws.com';
 
 /** The repository this account's CI belongs to. */
-export const GITHUB_REPOSITORY_OWNER = 'radicle-co';
+const GITHUB_REPOSITORY_OWNER = 'radicle-co';
 /** The repository this account's CI belongs to. */
-export const GITHUB_REPOSITORY_NAME = 'KitchenSink';
+const GITHUB_REPOSITORY_NAME = 'KitchenSink';
 /** `repository_id` of radicle-co/KitchenSink: survives a rename and is not inherited by a re-created repo. */
 export const GITHUB_REPOSITORY_ID = '1203438406';
 /** `repository_owner_id` of radicle-co. */
 export const GITHUB_REPOSITORY_OWNER_ID = '69129769';
 
 /** The only branch a production role trusts. */
-export const PRODUCTION_REF = 'refs/heads/main';
+const PRODUCTION_REF = 'refs/heads/main';
 /** The only environment the production deploy role trusts. */
-export const PRODUCTION_ENVIRONMENT = 'Production';
+const PRODUCTION_ENVIRONMENT = 'Production';
 
 /** The classic and the id-bearing `sub` prefixes, each ending at the colon that precedes the job context. */
 const SUB_PREFIXES: readonly string[] = [
@@ -74,7 +74,7 @@ export type TrustConditions = {
 };
 
 /** The issuer-prefixed condition key of a token claim. */
-export const claimKey = (claim: string): string => `${GITHUB_OIDC_ISSUER}:${claim}`;
+const claimKey = (claim: string): string => `${GITHUB_OIDC_ISSUER}:${claim}`;
 
 const values = (value: ConditionValue | undefined): readonly string[] =>
     value === undefined ? [] : typeof value === 'string' ? [value] : value;

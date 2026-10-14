@@ -741,6 +741,11 @@ const admittedCatalogIngredient: Ingredient = {
  * user. `external_id` is emitted by the Clerk session-token customization on both instances (feature-001
  * task T000-prereq), so it MUST be present here.
  *
+ * It first waits for the page's session to be READY — `window.Clerk` loaded (the condition `@clerk/testing`'s
+ * `clerk.loaded` waits on), a session, a token — and only then reads the claim, all under ONE deadline, so a page
+ * whose session never became ready fails as THAT and is never blamed on the claim. `clerk.loaded` itself is not
+ * called: it waits without a bound and fails as a bare test timeout, which names nothing.
+ *
  * This deliberately **throws** rather than falling back to a sentinel when the claim (or session) is missing:
  * a silent fallback would surface later as a confusing "owner control not found" assertion, whereas a real
  * regression in the session-token customization is exactly what this owner-gated suite exists to catch — so
@@ -748,7 +753,7 @@ const admittedCatalogIngredient: Ingredient = {
  *
  * @param page - A page with a live Clerk session (call after `signInWithTicket`).
  * @returns The viewer's app-user ULID from the token's `external_id` claim.
- * @throws {Error} when no Clerk session/token is present, the token is malformed, or `external_id` is absent.
+ * @throws {Error} naming what it saw last: Clerk never loaded, no session, no token, or a token without `external_id`.
  * @sideEffect Reads the Clerk session token in the page context.
  */
 export async function readViewerAppId(page: Page): Promise<string> {
@@ -756,19 +761,39 @@ export async function readViewerAppId(page: Page): Promise<string> {
     // serves a cached token for ~60s). Polling mirrors the app's own tolerance of the first-token sync race
     // (`RecipeServiceClient` retries `IDENTITY_SYNC_PENDING` with a force-refreshed token) — the harness must
     // tolerate the SAME async `external_id` backfill instead of reading once and racing it.
-    const getToken = (): Promise<string | null> =>
-        page.evaluate(async () => {
+    const read = (): Promise<ViewerSessionRead> =>
+        page.evaluate(async (): Promise<ViewerSessionRead> => {
             const clerk = (
                 window as unknown as {
-                    Clerk?: { session?: { getToken(opts?: { skipCache?: boolean }): Promise<string | null> } };
+                    Clerk?: {
+                        loaded?: boolean;
+                        session?: { getToken(opts?: { skipCache?: boolean }): Promise<string | null> } | null;
+                    };
                 }
             ).Clerk;
 
-            return clerk?.session ? await clerk.session.getToken({ skipCache: true }) : null;
+            if (clerk?.loaded !== true) {
+                return { kind: 'clerkLoading' };
+            }
+
+            if (!clerk.session) {
+                return { kind: 'signedOut' };
+            }
+
+            const token = await clerk.session.getToken({ skipCache: true });
+
+            return token === null ? { kind: 'noToken' } : { kind: 'token', token };
         });
 
-    return pollForExternalId(getToken);
+    return pollForExternalId(read);
 }
+
+/** What one read of the page's Clerk session found: a token, or why there is none yet. */
+export type ViewerSessionRead =
+    | { readonly kind: 'clerkLoading' }
+    | { readonly kind: 'signedOut' }
+    | { readonly kind: 'noToken' }
+    | { readonly kind: 'token'; readonly token: string };
 
 /**
  * Decode a JWT's payload and return its `external_id` claim, or `undefined` when the token is malformed or the
@@ -793,26 +818,60 @@ export function extractExternalIdFromJwt(token: string): string | undefined {
 }
 
 /**
- * Poll `getToken` until a returned token carries a non-empty `external_id` claim, then resolve it. Tolerates a
- * `null` token (session still initializing) and a claim that has not yet been backfilled onto the Clerk user
- * by the async `user.created` webhook. Throws a loud, diagnostic error ONLY after `timeoutMs` — never a silent
- * fallback: a persistent absence here is a real regression (webhook down, or the session-token customization
- * removed), exactly what this owner-gated suite exists to catch.
+ * Why the poll gave up, from the last read: the session that never became ready, or the claim it never carried.
+ * Pure.
+ */
+function viewerAppIdFailure(last: ViewerSessionRead, timeoutMs: number): string {
+    const waited = `waited ${timeoutMs}ms`;
+
+    switch (last.kind) {
+        case 'clerkLoading':
+            return (
+                `readViewerAppId: Clerk never finished loading in the page (window.Clerk.loaded stayed false; ${waited}). ` +
+                'The session was not ready, which says nothing about the token: check the page reached an app route ' +
+                'and that clerk-js loaded (the Frontend API may be throttled on the shared dev instance).'
+            );
+        case 'signedOut':
+            return (
+                `readViewerAppId: Clerk loaded but the page has no Clerk session (${waited}). Call signInWithTicket ` +
+                'first; on a restored session the shared storageState is probably no longer valid (see ' +
+                'tests/e2e/utils/authState.ts).'
+            );
+        case 'noToken':
+            return `readViewerAppId: the Clerk session returned no session token (${waited}).`;
+        case 'token':
+            return (
+                "readViewerAppId: the Clerk session token carries no 'external_id' claim. The session-token " +
+                'customization (feature-001 T000-prereq) must emit the app-user ULID on both Clerk instances, ' +
+                `and the user.created webhook must backfill it; ${waited}. Without it, recipe ` +
+                'ownership is broken app-wide (owner controls never render, service 401s).'
+            );
+    }
+}
+
+/**
+ * Poll `read` until it returns a token carrying a non-empty `external_id` claim, then resolve it. Tolerates a
+ * session that is not ready yet (Clerk still loading, no session, no token) and a claim that has not yet been
+ * backfilled onto the Clerk user by the async `user.created` webhook. Throws a loud, diagnostic error ONLY after
+ * `timeoutMs`, naming what the LAST read saw — never a silent fallback: a persistent absence here is a real
+ * regression (webhook down, or the session-token customization removed), exactly what this owner-gated suite
+ * exists to catch, and a session that never became ready is a different one.
  *
- * @sideEffect Calls `getToken` repeatedly (a live network/token read) and sleeps between attempts.
+ * @sideEffect Calls `read` repeatedly (a live network/token read) and sleeps between attempts.
  */
 export async function pollForExternalId(
-    getToken: () => Promise<string | null>,
-    { timeoutMs = 10_000, intervalMs = 500 }: { timeoutMs?: number; intervalMs?: number } = {},
+    read: () => Promise<ViewerSessionRead>,
+    // 30 s: the bound `signInWithTicket` gives the session to land on Home.
+    { timeoutMs = 30_000, intervalMs = 500 }: { timeoutMs?: number; intervalMs?: number } = {},
 ): Promise<string> {
     // Date.now()/setTimeout are fine here — this is Playwright harness code, not the deterministic workflow sandbox.
     const deadline = Date.now() + timeoutMs;
 
     for (;;) {
-        const token = await getToken();
+        const last = await read();
 
-        if (token !== null) {
-            const externalId = extractExternalIdFromJwt(token);
+        if (last.kind === 'token') {
+            const externalId = extractExternalIdFromJwt(last.token);
 
             if (externalId !== undefined) {
                 return externalId;
@@ -820,12 +879,7 @@ export async function pollForExternalId(
         }
 
         if (Date.now() >= deadline) {
-            throw new Error(
-                "readViewerAppId: the Clerk session token carries no 'external_id' claim. The session-token " +
-                    'customization (feature-001 T000-prereq) must emit the app-user ULID on both Clerk instances, ' +
-                    `and the user.created webhook must backfill it; waited ${timeoutMs}ms. Without it, recipe ` +
-                    'ownership is broken app-wide (owner controls never render, service 401s).',
-            );
+            throw new Error(viewerAppIdFailure(last, timeoutMs));
         }
 
         await new Promise((resolve) => setTimeout(resolve, intervalMs));

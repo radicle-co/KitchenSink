@@ -4,6 +4,7 @@
  */
 export { Combobox } from './Combobox.js';
 export type {
+    ComboboxArrival,
     ComboboxCancel,
     ComboboxClear,
     ComboboxGroup,

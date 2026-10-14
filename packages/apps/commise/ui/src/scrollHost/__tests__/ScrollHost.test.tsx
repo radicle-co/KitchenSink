@@ -229,6 +229,126 @@ describe('ScrollHost (web)', () => {
 });
 
 /**
+ * The arrival reveal (`docs/design/uiOverhaul/ingredientArrival.md`): `revealSpan` shows a new row and the field under it
+ * together, with the smallest scroll, inside what the document's `scroll-padding` leaves of the window. It never moves
+ * focus: the cook is typing in the field.
+ */
+describe('ScrollHost (web) — revealSpan', () => {
+    const WINDOW_PX = 600;
+    let style: HTMLStyleElement | undefined;
+
+    /** The row's and the field's tops in the window, set before the call. */
+    function place(row: { top: number; bottom: number }, field: { top: number; bottom: number }): void {
+        for (const [id, rect] of [
+            ['row', row],
+            ['field', field],
+        ] as const) {
+            const node = document.getElementById(id);
+
+            if (node === null) {
+                throw new Error(`no ${id}`);
+            }
+
+            node.getBoundingClientRect = () => ({ top: rect.top, bottom: rect.bottom }) as DOMRect;
+        }
+    }
+
+    function renderSpanHost(): () => ScrollHostApi {
+        const api = renderHost();
+        const row = document.createElement('li');
+        const field = document.createElement('input');
+        row.id = 'row';
+        field.id = 'field';
+        document.body.append(row, field);
+        Object.defineProperty(window, 'innerHeight', { configurable: true, value: WINDOW_PX });
+        Object.defineProperty(window, 'scrollY', { configurable: true, value: 1000 });
+
+        return api;
+    }
+
+    afterEach(() => {
+        document.getElementById('row')?.remove();
+        document.getElementById('field')?.remove();
+        style?.remove();
+        style = undefined;
+    });
+
+    it('scrolls nothing when the row and the field already show', () => {
+        const api = renderSpanHost();
+        place({ top: 200, bottom: 260 }, { top: 270, bottom: 320 });
+
+        expect(api().revealSpan('row', 'field')).toBe(true);
+
+        expect(window.scrollTo).not.toHaveBeenCalled();
+    });
+
+    it('scrolls the row one gap under the top when it is above the window', () => {
+        const api = renderSpanHost();
+        place({ top: -40, bottom: 20 }, { top: 30, bottom: 80 });
+
+        api().revealSpan('row', 'field');
+
+        // The 8 px gap above the row: 1000 - 40 - 8.
+        expect(window.scrollTo).toHaveBeenCalledWith({ top: 952, behavior: 'smooth' });
+    });
+
+    it('scrolls the field one gap above the bottom when it is below the window', () => {
+        const api = renderSpanHost();
+        place({ top: 500, bottom: 560 }, { top: 570, bottom: 640 });
+
+        api().revealSpan('row', 'field');
+
+        expect(window.scrollTo).toHaveBeenCalledWith({ top: 1048, behavior: 'smooth' });
+    });
+
+    it('keeps the span clear of the document’s scroll-padding (the sticky header and the action bar)', () => {
+        style = document.createElement('style');
+        style.textContent = 'html { scroll-padding-top: 72px; scroll-padding-bottom: 100px; }';
+        document.head.append(style);
+        const api = renderSpanHost();
+        // Inside the window, but under the 100 px bar: the free area is 72..500.
+        place({ top: 300, bottom: 360 }, { top: 370, bottom: 520 });
+
+        api().revealSpan('row', 'field');
+
+        // The field's bottom (520) plus the gap must end at 500: 28 px down.
+        expect(window.scrollTo).toHaveBeenCalledWith({ top: 1028, behavior: 'smooth' });
+    });
+
+    it('scrolls instantly under reduced motion', () => {
+        reducedMotion = true;
+        const api = renderSpanHost();
+        place({ top: -40, bottom: 20 }, { top: 30, bottom: 80 });
+
+        api().revealSpan('row', 'field');
+
+        expect(window.scrollTo).toHaveBeenCalledWith({ top: 952, behavior: 'auto' });
+    });
+
+    it('never moves focus', () => {
+        const api = renderSpanHost();
+        const field = document.getElementById('field');
+        field?.focus();
+        const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+        place({ top: -40, bottom: 20 }, { top: 30, bottom: 80 });
+
+        api().revealSpan('row', 'field');
+
+        expect(focus).not.toHaveBeenCalled();
+        expect(document.activeElement).toBe(field);
+    });
+
+    it('answers false and scrolls nothing when either element is missing', () => {
+        const api = renderSpanHost();
+        place({ top: -40, bottom: 20 }, { top: 30, bottom: 80 });
+
+        expect(api().revealSpan('row', 'no-such-field')).toBe(false);
+        expect(api().revealSpan('no-such-row', 'field')).toBe(false);
+        expect(window.scrollTo).not.toHaveBeenCalled();
+    });
+});
+
+/**
  * After an explicit jump the index shows the section jumped to until the cook scrolls again, even when the page is too
  * short for that section to reach the top (the scroll spy alone would still name the section above it). The jump's own
  * scroll, smooth or instant, never releases it; the cook's own input does (a wheel, a touch, a scroll key), and so does

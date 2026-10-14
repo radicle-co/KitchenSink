@@ -37,6 +37,10 @@
  * focuses the field when pressed, with the hint under the label, and the shared rectangle geometry (`fieldStyle.ts`),
  * not an underline. The leading glyph sits inside the rectangle.
  *
+ * - An ARRIVAL (`ComboboxProps.arrival`, `docs/design/uiOverhaul/ingredientArrival.md`): a row that arrived straight above
+ *   the field is shown with it. The leaf asks the same host once per arrival key, with the dp from the row's top to the
+ *   field's top (the row's, plus the label block it measures), and releases the ask when the key goes.
+ *
  * One ref, for what has no declarative form: the field, for `.focus()` and the caret on a host's focus request, and as
  * the node a reveal request hands the host to measure.
  *
@@ -136,6 +140,7 @@ export const Combobox: FC<ComboboxProps> = ({
     typedText = 'needsChoice',
     onBlur,
     listMaxRows,
+    arrival,
 }) => {
     const [open, setOpen] = useState(false);
     // Whether the field has focus: under `isValue` the keyboard hiding while it does closes the list (P1).
@@ -183,10 +188,30 @@ export const Combobox: FC<ComboboxProps> = ({
     const reveal = useContext(FieldRevealContext);
     // Reads the host's revealer as it is when the list opens; only the opening sends a request.
     const requestReveal = useEffectEvent((): (() => void) =>
-        field.current === null ? RELEASE_NOTHING : reveal({ field: field.current, below: REVEAL_BELOW_DP }),
+        field.current === null
+            ? RELEASE_NOTHING
+            : reveal({ field: field.current, below: REVEAL_BELOW_DP, kind: 'list', above: 0 }),
     );
 
     useEffect(() => (popupShown ? requestReveal() : undefined), [popupShown]);
+
+    // The label block above the field (the label, its hint and the gap under them), as laid out: the host measures the
+    // FIELD, and an arrival's row sits above the whole combobox, so the span from the row to the field adds it.
+    const [labelBlock, setLabelBlock] = useState(0);
+    // One ask per arrival key. Reads the row's height as it is when the key arrives: a row that grows later asks nothing.
+    const requestArrival = useEffectEvent((): (() => void) =>
+        field.current === null || arrival === undefined
+            ? RELEASE_NOTHING
+            : reveal({
+                  field: field.current,
+                  below: 0,
+                  kind: 'arrival',
+                  above: arrival.aboveDp + (labelShown ? labelBlock : 0),
+              }),
+    );
+    const arrivalKey = arrival?.key;
+
+    useEffect(() => (arrivalKey === undefined ? undefined : requestArrival()), [arrivalKey]);
 
     // A drag on the page closes the open list unless it began inside it. Whether the touch began inside is tracked
     // from the list's own touch events, in state: set on its start, and spent by the one drag it began. Who ends the
@@ -292,7 +317,14 @@ export const Combobox: FC<ComboboxProps> = ({
 
     return (
         <View style={styles.root}>
-            {labelShown && <FieldLabel forId={id} label={label} {...(hint === undefined ? {} : { hint })} />}
+            {labelShown && (
+                <View
+                    collapsable={false}
+                    onLayout={(event) => setLabelBlock(event.nativeEvent.layout.height + nativeTokens.spacing[1])}
+                >
+                    <FieldLabel forId={id} label={label} {...(hint === undefined ? {} : { hint })} />
+                </View>
+            )}
             <View style={styles.fieldRow}>
                 <View style={styles.fieldBox}>
                     {leadingIcon !== undefined && (

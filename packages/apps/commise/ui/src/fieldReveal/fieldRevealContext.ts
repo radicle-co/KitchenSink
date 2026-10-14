@@ -25,6 +25,15 @@ export interface RevealRequest {
     readonly field: RevealTarget;
     /** The dp the field needs below it, from its own layout constants (the list's margin, padding and rows). */
     readonly below: number;
+    /**
+     * What the field asks to be shown. A `list` is the field and the list that opened below it, shown by laying out
+     * blank space and scrolling the field to the top. An `arrival` is a row that just arrived straight above the field,
+     * shown with the field by the smallest scroll, and never with blank space
+     * (`docs/design/uiOverhaul/ingredientArrival.md`).
+     */
+    readonly kind: 'list' | 'arrival';
+    /** The dp from the top of the row that arrived to the top of the field; `0` for a `list`. */
+    readonly above: number;
 }
 
 /** Ask the host to show the field and the room below it. Called from an effect, never in render; returns the release. */

@@ -5,6 +5,7 @@
  * precedent); no web app imports it.
  */
 export { FieldRevealContext, type FieldRevealer, type RevealRequest, type RevealTarget } from './fieldRevealContext.js';
+export { spanTarget, type SpanPlace } from './spanReveal.js';
 export { RevealSpacer, type RevealSpacerProps } from './RevealSpacer.native.js';
 export { useFieldRevealHost, type FieldRevealHost } from './useFieldRevealHost.native.js';
 export { isRevealScroller, type RevealScroller } from './measureField.native.js';

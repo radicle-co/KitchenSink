@@ -57,7 +57,7 @@ function host(viewport = VIEWPORT) {
 /** Send a request and let its measurement answer. */
 async function request(rendered: ReturnType<typeof host>): Promise<() => void> {
     let release: () => void = () => undefined;
-    const ask: RevealRequest = { field, below: BELOW };
+    const ask: RevealRequest = { field, below: BELOW, kind: 'list', above: 0 };
 
     await act(async () => {
         release = rendered.result.current.revealer(ask);
@@ -180,7 +180,7 @@ describe('useFieldRevealHost', () => {
         const rendered = renderHook(() => useFieldRevealHost({ current: scroller }));
 
         await act(async () => {
-            rendered.result.current.revealer({ field, below: BELOW });
+            rendered.result.current.revealer({ field, below: BELOW, kind: 'list', above: 0 });
             await Promise.resolve();
         });
 
@@ -221,5 +221,130 @@ describe('useFieldRevealHost', () => {
         rendered.rerender();
 
         expect(rendered.result.current.revealer).toBe(first);
+    });
+});
+
+describe('useFieldRevealHost — an arrival (docs/design/uiOverhaul/ingredientArrival.md)', () => {
+    /** The new row's top is this far over the field's top: a 60 dp row and a 28 dp label. */
+    const ARRIVAL_ABOVE = 88;
+
+    /** Send an arrival request and let its measurement answer. */
+    async function arrive(rendered: ReturnType<typeof host>): Promise<() => void> {
+        let release: () => void = () => undefined;
+
+        await act(async () => {
+            release = rendered.result.current.revealer({ field, below: 0, kind: 'arrival', above: ARRIVAL_ABOVE });
+            await Promise.resolve();
+        });
+
+        return release;
+    }
+
+    it('scrolls ONCE so the row and the field show together, and never lays out the blank space', async () => {
+        const rendered = host();
+        // The field's top is 250 dp down the visible area: the row's top is at 162 and the field's bottom at 298.
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+
+        await arrive(rendered);
+
+        // 298 dp and its 8 dp gap end 11 dp past the 295 dp bottom edge.
+        expect(seam.scrolls).toEqual([{ y: 511, animated: true }]);
+        expect(rendered.result.current.spacer).toBeNull();
+    });
+
+    it('scrolls nothing when the row and the field already show', async () => {
+        const rendered = host(600);
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+
+        await arrive(rendered);
+
+        expect(seam.measured).toBe(1);
+        expect(seam.scrolls).toEqual([]);
+        expect(rendered.result.current.spacer).toBeNull();
+    });
+
+    it('checks again when the keyboard shrinks the visible area, and scrolls once', async () => {
+        const rendered = host(600);
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+        await arrive(rendered);
+        expect(seam.scrolls).toEqual([]);
+
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+        await act(async () => {
+            rendered.result.current.onViewportLayout(layout(0, VIEWPORT));
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(2);
+        expect(seam.scrolls).toEqual([{ y: 511, animated: true }]);
+    });
+
+    it('never checks again once it has scrolled, whatever the visible area does', async () => {
+        const rendered = host();
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+        await arrive(rendered);
+
+        await act(async () => {
+            rendered.result.current.onViewportLayout(layout(0, 200));
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(1);
+        expect(seam.scrolls).toHaveLength(1);
+    });
+
+    it('does not check before the visible area is laid out', async () => {
+        const rendered = renderHook(() => useFieldRevealHost({ current: scroller }));
+
+        await act(async () => {
+            rendered.result.current.revealer({ field, below: 0, kind: 'arrival', above: ARRIVAL_ABOVE });
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(0);
+    });
+
+    it('scrolls nothing for an arrival released before its measurement answers', async () => {
+        const rendered = host();
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+
+        await act(async () => {
+            const release = rendered.result.current.revealer({
+                field,
+                below: 0,
+                kind: 'arrival',
+                above: ARRIVAL_ABOVE,
+            });
+
+            release();
+            await Promise.resolve();
+        });
+
+        expect(seam.scrolls).toEqual([]);
+    });
+
+    it.each([
+        [false, true],
+        [true, false],
+        [undefined, false],
+    ] as const)('with reduce motion %s, animates: %s', async (reduceMotion, animated) => {
+        seam.reduceMotion = reduceMotion;
+        const rendered = host();
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+
+        await arrive(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 511, animated }]);
+    });
+
+    it('does not disturb a list opening on the same host', async () => {
+        const rendered = host();
+        seam.measures = [{ top: 250, height: 48, offset: 500 }];
+        await arrive(rendered);
+        seam.measures = [{ top: 240, height: 48, offset: 511 }];
+
+        await request(rendered);
+
+        expect(rendered.result.current.spacer).not.toBeNull();
     });
 });

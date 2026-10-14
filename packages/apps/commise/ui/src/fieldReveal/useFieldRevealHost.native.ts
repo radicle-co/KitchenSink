@@ -12,6 +12,12 @@
  * The visible area is the scroller's own `onLayout` height. With the keyboard avoider's `padding`, the scroller ends at
  * the pinned bar or the keyboard's top, so no keyboard metric is read and the keyboard is never counted twice.
  *
+ * An ARRIVAL (`kind: 'arrival'`, `docs/design/uiOverhaul/ingredientArrival.md`) is the other request: a row has just
+ * arrived straight above the field, and the host shows the row and the field together by the smallest scroll
+ * (`spanTarget`). It needs no blank space, so it never lays any out and never touches the list's opening. It is checked
+ * when it arrives and on each change of the visible area's size, and it scrolls at most once: the check that scrolls
+ * disarms it, and a release (the key went, the cook typed, the field unmounted) cancels a check still measuring.
+ *
  * It holds no ref of its own: it reads the host's scroller ref inside effects and event handlers, never in render.
  *
  * @pattern Facade — one headless hook over the `fitsBelow` Specification, the `revealReducer` State and the
@@ -21,10 +27,19 @@ import { useEffect, useEffectEvent, useReducer, useState, type RefObject } from 
 import type { LayoutChangeEvent } from 'react-native';
 
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
-import { REVEAL_CLOSED, fitsBelow, revealReducer, revealTarget, spacerHasRoom, spacerHeight } from './fieldReveal.js';
+import {
+    REVEAL_CLOSED,
+    REVEAL_GAP_DP,
+    fitsBelow,
+    revealReducer,
+    revealTarget,
+    spacerHasRoom,
+    spacerHeight,
+} from './fieldReveal.js';
 import type { FieldRevealer, RevealRequest } from './fieldRevealContext.js';
 import { measureField, scrollContentTo, type RevealScroller } from './measureField.native.js';
 import type { RevealSpacerProps } from './RevealSpacer.native.js';
+import { spanTarget } from './spanReveal.js';
 
 /** What the host renders with. */
 export interface FieldRevealHost {
@@ -47,8 +62,18 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
     const [state, dispatch] = useReducer(revealReducer, REVEAL_CLOSED);
     const [viewport, setViewport] = useState(0);
     const reduceMotion = useReduceMotion();
+    // The arrival now waiting for a check that scrolls; apart from the list's opening, which it never shares a state with.
+    const [arrival, setArrival] = useState<RevealRequest | null>(null);
     const [revealer] = useState(() => {
         const reveal: FieldRevealer = (request) => {
+            if (request.kind === 'arrival') {
+                setArrival(request);
+
+                return () => {
+                    setArrival((current) => (current === request ? null : current));
+                };
+            }
+
             dispatch({ kind: 'requested', request });
 
             return () => {
@@ -79,6 +104,44 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
             check(armed);
         }
     }, [armed, viewport]);
+
+    // Reads the reduce-motion answer as it is when the scroll runs; a change of it re-checks nothing.
+    const scrollArrival = useEffectEvent((view: RevealScroller, y: number): void => {
+        scrollContentTo(view, y, reduceMotion === false);
+    });
+
+    useEffect(() => {
+        const view = scroller.current;
+
+        if (arrival === null || view === null || viewport <= 0) {
+            return undefined;
+        }
+
+        let released = false;
+
+        void measureField(arrival.field, view).then((measure) => {
+            if (released || measure === null) {
+                return;
+            }
+
+            const target = spanTarget({
+                top: measure.top - arrival.above,
+                bottom: measure.top + measure.height,
+                offset: measure.offset,
+                viewport,
+                keep: REVEAL_GAP_DP,
+            });
+
+            if (target !== null) {
+                scrollArrival(view, target);
+                setArrival(null);
+            }
+        });
+
+        return () => {
+            released = true;
+        };
+    }, [arrival, viewport, scroller]);
 
     const onSpacerLayout = (event: LayoutChangeEvent): void => {
         const { y, height } = event.nativeEvent.layout;

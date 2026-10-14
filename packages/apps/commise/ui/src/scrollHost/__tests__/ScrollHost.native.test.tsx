@@ -302,6 +302,13 @@ describe('ScrollHost (native)', () => {
         expect(api().scrollToField('recipe-title')).toBe(false);
     });
 
+    // An arrival on native goes through the field reveal host (`FieldRevealContext`), so this host finds no span by id.
+    it('finds no span by id: a native arrival is the field reveal host’s', () => {
+        const { api } = renderHost(['details']);
+
+        expect(api().revealSpan('row', 'field')).toBe(false);
+    });
+
     it('throws when read outside a host: a floating button with no scroller is a wiring defect', () => {
         const Orphan = (): null => {
             useScrollHost();

@@ -152,6 +152,8 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = [], activationOffse
             },
             // Native fields hold no registry entry, so none can be found by id; the section heading takes the cook.
             scrollToField: () => false,
+            // Nor by id here: a native field asks the field reveal host (`FieldRevealContext`) to show an arrival.
+            revealSpan: () => false,
             headingLayout: (event: LayoutReport) => {
                 const { y, height } = event.nativeEvent.layout;
                 setHeadingBottom(y + height);

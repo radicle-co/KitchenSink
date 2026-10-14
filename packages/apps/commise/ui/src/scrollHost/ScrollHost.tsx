@@ -9,6 +9,8 @@
  * - The direction and the top come from ONE passive `scroll` listener on `window`, throttled to a frame. It is the one
  *   permitted web scroll listener, and it exists because an `IntersectionObserver` cannot tell direction; the floating
  *   button and "Back to top" both read it from here.
+ * - `revealSpan` shows a new row and the field under it together (`ingredientArrival.md`): it reads both positions, keeps
+ *   clear of the document's `scroll-padding`, and takes the pure `spanTarget`'s offset. It never calls `focus()`.
  * - Jumps call `scrollIntoView` and `history.replaceState`, instant under `prefers-reduced-motion`.
  * - A jump HOLDS `current` on the section it named until the cook scrolls again, even when the page is too short for
  *   that section to reach the activation line. The jump's own scroll never releases it; the cook's own input does (a
@@ -29,6 +31,8 @@ import { createCurrentChangeSubject } from './currentChange.js';
 import { currentSectionOf } from './currentSection.js';
 import { ScrollHostContext } from './scrollHostContext.js';
 import { INITIAL_SCROLL_STATE, nextScrollState } from './scrollState.js';
+import { REVEAL_GAP_DP } from '../fieldReveal/fieldReveal.js';
+import { spanTarget } from '../fieldReveal/spanReveal.js';
 
 /** How close to the end counts as the end, px. */
 const END_SLOP_PX = 1;
@@ -67,6 +71,13 @@ function jumpBehavior(): ScrollBehavior {
 
     return reduce ? 'auto' : 'smooth';
 }
+
+/** A computed length in px, or 0 for `auto`, an empty value or a length jsdom does not compute. */
+const pxOf = (length: string): number => {
+    const px = Number.parseFloat(length);
+
+    return Number.isFinite(px) ? px : 0;
+};
 
 /** The web design-system scroll host. */
 export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activationOffset = 0, children }) => {
@@ -234,6 +245,33 @@ export const ScrollHost: FC<ScrollHostProps> = ({ headingId, sections, activatio
                 // second scroll (SC 2.4.3), and no hash is recorded: a field is not an address.
                 target.scrollIntoView({ behavior: jumpBehavior(), block: 'center' });
                 target.focus({ preventScroll: true });
+
+                return true;
+            },
+            revealSpan: (topId, bottomId) => {
+                const top = document.getElementById(topId);
+                const bottom = document.getElementById(bottomId);
+
+                if (top === null || bottom === null) {
+                    return false;
+                }
+
+                // The window less what the document keeps clear at its edges (the sticky header, the action bar): the
+                // same `scroll-padding` a focused control's own scroll honours, so the two cannot disagree.
+                const padding = window.getComputedStyle(document.documentElement);
+                const clearTop = pxOf(padding.scrollPaddingTop);
+                const clearBottom = pxOf(padding.scrollPaddingBottom);
+                const target = spanTarget({
+                    top: top.getBoundingClientRect().top - clearTop,
+                    bottom: bottom.getBoundingClientRect().bottom - clearTop,
+                    offset: window.scrollY,
+                    viewport: window.innerHeight - clearTop - clearBottom,
+                    keep: REVEAL_GAP_DP,
+                });
+
+                if (target !== null) {
+                    window.scrollTo({ top: target, behavior: jumpBehavior() });
+                }
 
                 return true;
             },

@@ -226,4 +226,19 @@ export interface ComboboxProps {
      * tall as its options. The web list needs nothing: its popup already scrolls inside a 20rem cap.
      */
     readonly listMaxRows?: number;
+    /**
+     * Native only (the web page scrolls itself through `ScrollHost.revealSpan`; web ignores it): a row just arrived
+     * straight above this field, and the scroller around it should show the row and the field together
+     * (`docs/design/uiOverhaul/ingredientArrival.md`). Asked once per `key`; a new key asks again, and removing it
+     * (the cook typed on, or moved to another row) releases the ask. The host sets it only once the row has laid out.
+     */
+    readonly arrival?: ComboboxArrival;
+}
+
+/** The row that arrived above a combobox. */
+export interface ComboboxArrival {
+    /** The row's key: one ask per key. */
+    readonly key: string;
+    /** The dp from the row's top to the top of this combobox: the row's height and whatever sits between them. */
+    readonly aboveDp: number;
 }

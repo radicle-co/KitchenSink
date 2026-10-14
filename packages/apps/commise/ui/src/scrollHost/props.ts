@@ -88,6 +88,17 @@ export interface ScrollHostApi {
      *     and the caller falls back to the section's heading.
      */
     readonly scrollToField: (id: string) => boolean;
+    /**
+     * Scroll so two elements show together, with the smallest scroll: a new row and the field under it
+     * (`docs/design/uiOverhaul/ingredientArrival.md`). The span runs from the top of `topId` to the bottom of `bottomId`,
+     * inside what the document's `scroll-padding` leaves of the window, with a gap at each edge; when it is taller than
+     * that, the bottom element wins (SC 2.4.11). Instant under reduced motion. It never moves focus: the cook is typing
+     * in the bottom element.
+     *
+     * @returns Whether both elements were found. Native finds no element by id (its fields ask the field reveal host
+     *     through `FieldRevealContext` instead), so it always answers `false`.
+     */
+    readonly revealSpan: (topId: string, bottomId: string) => boolean;
     /** The heading's layout report (native). Inert on web, which finds the heading by `headingId`. */
     readonly headingLayout: (event: LayoutReport) => void;
     /** A section's layout report (native). Inert on web, which finds sections by id. */

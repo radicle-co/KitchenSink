@@ -30,6 +30,7 @@ function recordingHost(): { readonly api: ScrollHostApi; readonly jumps: string[
             jumps.push(id);
         },
         scrollToField: () => false,
+        revealSpan: () => false,
         headingLayout: () => undefined,
         sectionLayout: () => () => undefined,
         handle: { current: null },

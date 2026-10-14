@@ -77,7 +77,12 @@ describe('spacerHeight and spacerHasRoom', () => {
 describe('revealReducer', () => {
     const a = field();
     const b = field();
-    const request = (target: RevealTarget): RevealRequest => ({ field: target, below: THREE_ROWS });
+    const request = (target: RevealTarget): RevealRequest => ({
+        field: target,
+        below: THREE_ROWS,
+        kind: 'list',
+        above: 0,
+    });
     const armed: RevealState = { kind: 'armed', request: request(a) };
     const revealing: RevealState = { kind: 'revealing', request: request(a), target: 400, spacerTop: null };
     const laidOut: RevealState = { kind: 'revealing', request: request(a), target: 400, spacerTop: 900 };

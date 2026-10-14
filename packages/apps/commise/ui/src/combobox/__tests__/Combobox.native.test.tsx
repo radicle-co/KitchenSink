@@ -733,7 +733,7 @@ describe('Combobox (native) — the field reveal (E1)', () => {
 
         type('Fl');
 
-        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: BELOW });
+        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: BELOW, kind: 'list', above: 0 });
     });
 
     it('asks nothing more on a new frame of the list or a re-render', () => {
@@ -776,7 +776,7 @@ describe('Combobox (native) — the field reveal (E1)', () => {
 
         rerender({ focusRequested: true, listRequested: true, status: { kind: 'loading', label: 'Searching…' } });
 
-        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: BELOW });
+        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: BELOW, kind: 'list', above: 0 });
     });
 
     it('asks nothing, and still opens its list, where no host provides a revealer', () => {
@@ -785,6 +785,86 @@ describe('Combobox (native) — the field reveal (E1)', () => {
         type('Fl');
 
         expect(screen.getByLabelText('Food suggestions')).toBeTruthy();
+    });
+});
+
+/**
+ * An arrival (`docs/design/uiOverhaul/ingredientArrival.md`): a row that arrived straight above the field is shown with
+ * the field. The leaf asks its host once per arrival key, with the dp from the row's top to the field's top, and releases
+ * the ask when the key goes or the field unmounts.
+ */
+describe('Combobox (native) — an arrival', () => {
+    function hosted(arrival?: { readonly key: string; readonly aboveDp: number }) {
+        const release = vi.fn();
+        const revealer = vi.fn<FieldRevealer>(() => release);
+        const tree = (next?: { readonly key: string; readonly aboveDp: number }) => (
+            <FieldRevealContext.Provider value={revealer}>
+                <Host {...(next === undefined ? {} : { arrival: next })} />
+            </FieldRevealContext.Provider>
+        );
+        const rendered = render(tree(arrival));
+
+        return {
+            revealer,
+            release,
+            rendered,
+            rerender: (next?: Parameters<typeof tree>[0]) => rendered.rerender(tree(next)),
+        };
+    }
+
+    it('asks the host once for the field, with nothing below it and the row above it', () => {
+        const { revealer } = hosted({ key: 'line-1', aboveDp: 60 });
+
+        expect(revealer).toHaveBeenCalledExactlyOnceWith({ field: field(), below: 0, kind: 'arrival', above: 60 });
+    });
+
+    it('asks nothing without an arrival', () => {
+        const { revealer } = hosted();
+
+        expect(revealer).not.toHaveBeenCalled();
+    });
+
+    it('asks nothing more when the row grows or the component renders again', () => {
+        const { revealer, rerender } = hosted({ key: 'line-1', aboveDp: 60 });
+
+        rerender({ key: 'line-1', aboveDp: 96 });
+
+        expect(revealer).toHaveBeenCalledTimes(1);
+    });
+
+    it('releases when the arrival goes, and asks again for the next one', () => {
+        const { revealer, release, rerender } = hosted({ key: 'line-1', aboveDp: 60 });
+
+        rerender(undefined);
+        expect(release).toHaveBeenCalledTimes(1);
+
+        rerender({ key: 'line-2', aboveDp: 60 });
+        expect(revealer).toHaveBeenCalledTimes(2);
+    });
+
+    it('releases the old ask and makes a new one when the key changes', () => {
+        const { revealer, release, rerender } = hosted({ key: 'line-1', aboveDp: 60 });
+
+        rerender({ key: 'line-2', aboveDp: 70 });
+
+        expect(release).toHaveBeenCalledTimes(1);
+        expect(revealer).toHaveBeenLastCalledWith({ field: field(), below: 0, kind: 'arrival', above: 70 });
+    });
+
+    it('releases when the field unmounts', () => {
+        const { release, rendered } = hosted({ key: 'line-1', aboveDp: 60 });
+
+        rendered.unmount();
+
+        expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not change what an opening list asks', () => {
+        const { revealer } = hosted({ key: 'line-1', aboveDp: 60 });
+
+        type('Fl');
+
+        expect(revealer).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'list', above: 0 }));
     });
 });
 

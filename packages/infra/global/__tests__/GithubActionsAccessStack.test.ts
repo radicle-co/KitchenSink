@@ -281,7 +281,7 @@ describe('GithubActionsAccessStack: the auto-named sandbox secrets', () => {
 
         expect(reads).toHaveLength(1);
         expect(reads[0]?.Effect).toBe('Allow');
-        expect(asList(reads[0]?.Action).sort()).toEqual([
+        expect([...asList(reads[0]?.Action)].sort()).toEqual([
             'secretsmanager:DescribeSecret',
             'secretsmanager:GetSecretValue',
         ]);

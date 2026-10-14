@@ -50,7 +50,7 @@ export const GITHUB_REPOSITORY_OWNER_ID = '69129769';
 /** The only branch a production role trusts. */
 const PRODUCTION_REF = 'refs/heads/main';
 /** The only environment the production deploy role trusts. */
-const PRODUCTION_ENVIRONMENT = 'Production';
+export const PRODUCTION_ENVIRONMENT = 'Production';
 
 /** The classic and the id-bearing `sub` prefixes, each ending at the colon that precedes the job context. */
 const SUB_PREFIXES: readonly string[] = [

@@ -568,10 +568,11 @@ describe('sandbox status check wiring — a job that runs the check outlives the
 
 /**
  * A step that cannot work while the sandbox is down: a deploy, a schema migration (its runner opens a connection to
- * the stopped database), or a direct function invoke.
+ * the stopped database), a direct function invoke, or a smoke test of a deployed service (`curl` or the shared
+ * `deployedSmoke.ts`), which has no running task while the sandbox is down.
  */
 const NEEDS_THE_SANDBOX = new RegExp(
-    `${DEPLOY_STEP.source}|\\brunMigrations\\.sh\\s+run\\b|\\baws lambda invoke\\b`,
+    `${DEPLOY_STEP.source}|\\brunMigrations\\.sh\\s+run\\b|\\baws lambda invoke\\b|\\bcurl\\b|\\bdeployedSmoke\\.ts\\b`,
     'u',
 );
 
@@ -748,6 +749,11 @@ describe('sandbox status check wiring — a step that needs the sandbox is gated
             'an ungated migration after a check that FAILS when down',
             [{ run: `bash .github/scripts/${CHECK_INVOCATION} us-east-1` }, migrate()],
             [],
+        ],
+        [
+            'an ungated smoke test of a deployed service',
+            [check, { name: 'Smoke', run: 'curl -s "$HEALTH_URL"' }],
+            ['w.yml::j::Smoke'],
         ],
         ['an ungated step that needs nothing', [check, { name: 'Install', run: 'npm ci' }], []],
     ])('%s', (_label, steps, expected) => {

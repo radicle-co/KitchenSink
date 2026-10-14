@@ -491,7 +491,7 @@ jobs:
             # application. The runner now owns `kitchensink-identity-schema-${STAGE}`, which holds nothing
             # that reads the schema, so this step plus the invoke below ARE the barrier.
             #
-            # ⛔ UNGATED, for the same reason the invoke is. A gate on a path diff skips precisely the case
+            # ⛔ NOT GATED ON A PATH DIFF, for the same reason the invoke is not. Such a gate skips precisely the case
             # the step exists for — a stage whose schema is behind for a reason no code change explains —
             # and `runMigrations.sh` records that this exact mistake made PRODUCTION the weaker stage. A
             # `cdk deploy` of an unchanged stack is a no-op; the minute it costs is what makes the invoke

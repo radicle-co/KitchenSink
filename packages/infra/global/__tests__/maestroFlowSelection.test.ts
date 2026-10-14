@@ -260,6 +260,8 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // FLOW_PLAN in the same change that registers the first recipe write.
     'offline/offlineSave',
     'offline/offlineSurvivesRestart',
+    // Discard while offline (plan 2026-10-13-004): Android-bound like its siblings (`setAirplaneMode`), manual-only.
+    'offline/discardWhileOffline',
     // ADR-0054's handoff on one device: cook A signs out, the co-author signs in, and must not see A's recipe. The
     // co-author's pool lane has no password sign-in (`POOL_ROSTER` in `@kitchensink/e2e-fixtures`), so the flow cannot
     // sign in as them until the owner gives that lane one (`poolAdmin --apply`). Promote it to FLOW_PLAN then.

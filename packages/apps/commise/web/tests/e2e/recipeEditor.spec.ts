@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import type { Locator, Page, Route } from '@playwright/test';
 
 import { route } from './utils/basePath';
 import { E2E_INGREDIENT_IDS, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
@@ -612,5 +612,128 @@ test.describe('the editor form fields (A-007, A-008, A-009, E15, P3, P4)', () =>
         await page.getByRole('option', { name: 'French' }).click();
 
         await expect(cuisine).toHaveValue('French');
+    });
+});
+
+/**
+ * Discard never leaves a record behind (plan 2026-10-13-004: the stuck "Syncing 1" after Discard). The recipe-service
+ * contract is intercepted (`utils/recipeApi`), so these hold only where no live recipe-service is reachable: a live one
+ * at `NEXT_PUBLIC_RECIPE_API_URL` makes the server render prefetch past the browser mocks (the SSR prefetch problem).
+ *
+ * Not run by the author's session: the coordinator runs Playwright.
+ */
+test.describe('Discard leaves nothing syncing', () => {
+    test.beforeEach(async ({ page }) => {
+        await signInWithTicket(page);
+    });
+
+    /** Open the ⋯ menu, choose the discard item, and confirm. */
+    async function confirmDiscard(page: Page, item: string, dialogName: string): Promise<void> {
+        await page.getByRole('button', { name: 'More editor actions' }).click();
+        await page.getByRole('menuitem', { name: item }).click();
+        await page
+            .getByRole('alertdialog', { name: dialogName })
+            .getByRole('button', { name: 'Discard', exact: true })
+            .click();
+    }
+
+    test('⛔ a create held past the Discard wait, then dropped: no sync notice, no second POST, no DELETE', async ({
+        page,
+    }) => {
+        test.setTimeout(90_000);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+        const writes = recipeWrites(page);
+        const deletes: string[] = [];
+        page.on('request', (request) => {
+            if (request.method() === 'DELETE' && /\/api\/v1\/recipes\//u.test(request.url())) {
+                deletes.push(request.url());
+            }
+        });
+        // The create never answers until the test drops it: it is on the wire through the whole Discard wait.
+        let held: Route | undefined;
+        await page.route('**/api/v1/recipes', async (interception) => {
+            if (interception.request().method() === 'POST') {
+                held = interception;
+
+                return;
+            }
+
+            await interception.fallback();
+        });
+
+        await page.goto(route('/recipes/new'));
+        await page.getByLabel('Title').fill('E2E Discard Soup');
+        await jumpTo(page, 'Ingredients');
+        await expect.poll(() => writes.map((write) => write.method)).toEqual(['POST']);
+
+        await confirmDiscard(page, 'Discard draft', 'Discard this draft?');
+
+        // The editor waits for the create's answer, then (past the bound) leaves with its delete queued behind the create.
+        await expect(page).not.toHaveURL(/\/recipes\/new/u, { timeout: 30_000 });
+        // The page's own request timeout may have dropped it first; either way the create parks with no answer.
+        await held?.abort('failed').catch(() => undefined);
+
+        // The create parks with an unknown outcome and the outbox settles the pair itself: nothing is left syncing.
+        await expect(page.getByText(/Syncing \d+ change/u)).toHaveCount(0);
+        await page.waitForFunction(() =>
+            Object.keys(window.sessionStorage)
+                .filter((key) => key.startsWith('sync.outbox.v1.'))
+                .every(
+                    (key) =>
+                        (
+                            JSON.parse(window.sessionStorage.getItem(key) ?? '{"records":[]}') as {
+                                records: unknown[];
+                            }
+                        ).records.length === 0,
+                ),
+        );
+        expect(writes.map((write) => write.method)).toEqual(['POST']);
+        expect(deletes).toEqual([]);
+    });
+
+    test('⛔ a published recipe whose Save changes was refused: Discard takes the failure with it', async ({
+        page,
+    }) => {
+        const viewerId = await readViewerAppId(page);
+        const id = 'ec000000-0000-4000-8000-0000000000d1';
+        const seed = makeRecipeDetail({
+            id,
+            ownerId: viewerId,
+            title: 'Discard Pie',
+            status: 'published',
+            currentVersion: 3,
+        });
+        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [seed] });
+        // Save changes is refused: the write parks, and the device keeps the changes.
+        await page.route(`**/api/v1/recipes/${id}`, async (interception) => {
+            if (interception.request().method() === 'PATCH') {
+                await interception.fulfill({
+                    status: 500,
+                    contentType: 'application/json',
+                    body: JSON.stringify({ code: 'INTERNAL', message: 'down' }),
+                });
+
+                return;
+            }
+
+            await interception.fallback();
+        });
+
+        await page.goto(route(`/recipes/${id}/edit`));
+        await page.getByLabel('Description').fill('Flakier.');
+        await page.getByRole('button', { name: 'Save changes' }).click();
+        await expect(page.getByText(/couldn.t save your latest changes/iu)).toBeVisible();
+
+        // Reopen: the editor finds the parked write and says so; Discard withdraws it.
+        await page.goto(route(`/recipes/${id}/edit`));
+        await expect(page.getByText(/couldn.t save your latest changes/iu)).toBeVisible();
+        await confirmDiscard(page, 'Discard changes', 'Discard your changes?');
+        await expect(page).not.toHaveURL(/\/edit/u);
+
+        // Reopen again: nothing parked, so no failure alert.
+        await page.goto(route(`/recipes/${id}/edit`));
+        await expect(page.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeVisible();
+        await expect(page.getByText(/couldn.t save your latest changes/iu)).toHaveCount(0);
     });
 });

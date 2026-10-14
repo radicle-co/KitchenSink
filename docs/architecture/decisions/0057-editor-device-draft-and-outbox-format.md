@@ -177,17 +177,32 @@ The rules on top of the format:
   `sending`, with no status. No drain sends a record that is already `sending`. When the store says its journal may be
   a copy, the first read also parks every queued record whose second copy would make a second row (`create`,
   `createFreeform`, `upload`); updates stay queued, because a second copy of one meets a 409.
-- **A re-send that cannot write twice is the only re-send of a parked record.** Two cases qualify: a transient
-  refusal, and `401`, where the sender refused because its cook was signed out. An unknown outcome, a conflict and a
-  terminal refusal wait for the cook.
+- **A re-send that cannot write twice is the only re-send of a parked record.** Three cases qualify: a transient
+  refusal; `401`, where the sender refused because its cook had no credential (signed out, or a token that could not be
+  minted, `TokenMintFailedError`); and a delete of any outcome that stated no refusal. A delete cannot write twice: if
+  its first copy landed, the second meets a `404`, which the sender reads as done. That reading depends on there being
+  no route that undeletes a recipe. An unknown outcome of a create or an update, a conflict and a terminal refusal
+  wait for the cook.
 - **A record on the wire is never replaced, and neither is a parked one.** A parked record is work the cook was told
   about and has not decided on — a create parked with an unknown outcome may exist on the server, and replacing its
   body would send a second create. It leaves the log only through `withdraw(seq)`, which refuses any record that is not
-  parked. A delete of an entity whose create is on the wire waits behind that create and depends on its ref. Withdrawing
+  parked; through the cook's confirmed Discard, which is one change (`discardEntity`, below); or because the log can
+  prove it pointless (the next rule). A delete of an entity whose create is on the wire waits behind that create and depends on its ref. Withdrawing
   that create also removes that delete: no id will ever exist for the entity, so the delete would wait forever. Only
   that delete: anything else waiting on the ref is the cook's work, and the editor's Retry resubmits a withdrawn create
   under the same ref. A delete whose ref no record still produces and no drain resolved is never queued at all
   (`supersede`): it names an entity the server never held.
+- **The outbox settles a record it can prove pointless, in the same mutation that proves it.** The delete a Discard
+  queued behind a create is the cook's consent (a Tombstone). When that create parks, whatever its status, no id will
+  ever exist for the entity, so the pair leaves together (`withdrawMoot`, applied by `settle` and by
+  `recoverInterrupted`). When a delete settles, every parked record of its entity leaves with it: the update, the
+  visibility change and the membership add that named it. A synced update or create withdraws nothing. The editor that
+  could have withdrawn these may be gone by then, and without this a parked record outlived its Discard as "Syncing 1"
+  for the rest of the session.
+- **Discard is one consented change.** `SyncQueue.discard` runs `discardEntity` in one mutation: every parked record of
+  the entity the delete makes moot is withdrawn, then the delete supersedes the rest. It never rejects for a parked
+  record, and a record that parks between the editor's decision and the call cannot orphan itself, which the earlier
+  withdraw-then-submit chain allowed (`supersede` threw on it and the editor swallowed the rejection).
 - **Discard waits for a create on the wire.** The editor is `withdraw`'s only caller, so a create that parked after its
   editor had closed had no surface to be withdrawn from. A Discard of a recipe only a create can have made therefore
   submits its delete exclusively: the outbox removes a create still queued, reports a parked one for the editor to
@@ -197,8 +212,8 @@ The rules on top of the format:
   finishes the same way. A single attempt that never answers parks at that same per-attempt timeout, which started
   before the press, so it is withdrawn before the bound; only transient retries or a `401` replay can stretch a send
   past it. Past the bound the delete is queued behind the create, as before, so a create that still syncs is deleted;
-  one that parks after the bound keeps its delete beside it until the session ends. Keep, while the confirm is busy,
-  takes the Discard back: nothing has been queued or dropped by then.
+  one that parks after the bound leaves with its delete (the rule above). Keep, while the confirm is busy, takes the
+  Discard back: nothing has been queued or dropped by then.
 - **The session-end clear is one more change in the same queue.** `clear()` runs behind every change asked for before
   it, and a change that leaves no records is never written over an absent key, so a drain's answer that lands after the
   clear cannot bring the old cook's journal back.
@@ -215,6 +230,10 @@ The rules on top of the format:
   409's two sides). The drain hands each synced or parked record's settlement, with its answer and its `seq`, to an
   `onSettled` listener after the journal wrote it; the provider publishes it to `SyncQueue.subscribe`. Nothing of an
   answer is stored: the durable facts already have homes (the resolutions here, the version in the device draft).
+- **A published recipe's Discard withdraws an earlier Save changes that parked.** The cook's confirmed Discard is the
+  consent. When that save's outcome is unknown it may already stand on the server, so the confirm says so (the same
+  words on both platforms), and the editor marks the recipe's read stale before handing off, so the recipe page shows
+  what the server holds. A Save changes still on its way is left alone: only the drain settles it.
 - **An unknown update may be sent again; an unknown create needs the cook.** An update names its version, so a second
   copy of one that did land meets a 409 and the conflict view rather than a second write. A create has no such token,
   so the editor tells the cook to look in My recipes first.
@@ -253,8 +272,12 @@ subject)` (`@commise/features-recipes`, both apps bind it to their store) clears
   UserButton. Clerk's loading `undefined` is ignored. The cook those stores were kept for is recorded in the same store
   (an IdP subject, nothing else), so a reload is no gap: a first value of `null` or of another cook after it still
   ends the first cook's session. The editor is keyed by the cook, so a switch remounts it and the first cook's exit
-  checkpoint runs against their own stores before the clear. Mobile clears on its own sign-out only; whether an expired
-  session on a phone should discard unsent saves is an open owner question.
+  checkpoint runs against their own stores before the clear. Mobile clears on its own sign-out only, and that is the rule: a
+  session that expires without a sign-out (a long stretch offline, a revoked session) keeps the cook's drafts and outbox.
+  They are the cook's work, kept under their own `*.v1.{subject}` keys, which another cook on the phone cannot read, and
+  they drain after that cook signs in again. A write the expiry caught parks as `401`, never as an unknown outcome,
+  because a failed token mint sent nothing. A cook who never returns leaves their keys on the phone until its data is
+  cleared (ADR-0054 §4).
 - **The editor owns the CAS token across consecutive updates.** Each `update` carries an `expectedVersion`, and an
   update sent while an earlier one is on the wire would name the version the earlier one started from and meet a 409
   against the cook's own write. So the editor keeps ONE server write per recipe in flight (`editor/writeLane.ts`): a
@@ -340,6 +363,13 @@ subject)` (`@commise/features-recipes`, both apps bind it to their store) clears
   and `sessionEndWithEditorOpen.test.tsx` (the editor's exit checkpoint and the clear in one commit: nothing left);
   `editor/__tests__/useRecipeEditorSession.test.tsx` (the unmount is a leave; a second exit does nothing) and
   `useEditorPage.test.tsx` (the background as an event).
+- Discard leaves nothing syncing: `outboxLog.test.ts` (`withdrawMoot` by status and delete state, a synced delete's
+  withdrawals, `discardEntity`, `withdraw` of a blocked delete), `drainer.test.ts` (an unknown delete is re-sent, an
+  unknown create or update is not), `recipeSender.test.ts` (a delete's `404` is done, a failed mint is `401`),
+  `syncProvider.test.tsx` (`discard` is one mutation and cannot lose the race), `offlineWritePath.integration.test.tsx`
+  and `editorDiscard.integration.test.tsx` over the real outbox, `editorIntents.test.ts` and `editorChrome.test.ts`
+  (the published Discard), `RecipeServiceGate.native.test.tsx` (an expired session keeps and resumes the cook's saves),
+  both editor container tests, and the Playwright and Maestro additions.
 - `web/tests/e2e/recipeEditor.spec.ts` "leaving the one-page editor and coming back": browser Back creates a titled
   recipe; a reload and Back after the first save open that recipe, never a second.
 - `features-account`'s `signOutAndVerify.test.ts` and both apps' sign-out adapters: the session-end clear runs after

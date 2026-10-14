@@ -117,12 +117,14 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             'that `NUTRIENT_DEFINITIONS` maps to a different nutrient, a new refusal of the same DAO boundary. GREW ' +
             '2026-10-01 (plan 002 S4): the food client added `RateLimitedError`, the live-search per-user 429, ' +
             'distinct from `FetchUnavailableError` (the whole service out of capacity) because the caller tells a ' +
-            'cook two different things.',
+            'cook two different things. GREW 2026-10-14 (cuisine field): the recipe client added ' +
+            "`PublishRequirementsUnmetError`, the publish policy's 400 naming what a recipe still needs, a new refusal of " +
+            'the same boundary.',
         files: [
             { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/clients/food-service/src/errors.ts', classes: 15, components: 0 },
-            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 14, components: 0 },
+            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 15, components: 0 },
             { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 3, components: 0 },

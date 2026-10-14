@@ -402,6 +402,16 @@ accountDangerZone=35
 recipes/delete=38
 accountErasure=66"
 
+# The seconds an iOS flow costs ON TOP of its Android timing in `MAESTRO_FLOW_WEIGHTS` (plan 2026-10-13-006, cut 3). Measured
+# from the shard logs of runs 38433716728 and 38447859313: a median 86 s of fixed cost per flow on iOS against 23 s on Android
+# (the XCUITest runner start, a slower sign-in, a slower teardown), none of which depends on what the flow does. It is
+# ADDED to the Android time rather than replacing it with a flow COUNT: counting flows throws away the one fact the weights
+# hold (`recipes/collectionsPagination` is 432 s) and modelled worse than the Android weights at three shards. 65 is the
+# plan's rounded figure for the 63 s gap. WARNING: cut 2 (keeping the runner across flows) should shrink the real gap, so
+# re-measure after a run: a stale constant costs BALANCE, never correctness, because every flow still runs on exactly one
+# shard whatever it says.
+MAESTRO_IOS_FLOW_OVERHEAD=65
+
 # The cost assumed for a flow nobody has timed — the MEDIAN of the measured set, not its mean (the mean is
 # dragged up by the 432s outlier) and not zero (a flow assumed free is a flow the packer ignores).
 MAESTRO_DEFAULT_FLOW_WEIGHT=61
@@ -731,7 +741,7 @@ maestro_shard_selection() {
     fi
 
     # shellcheck disable=SC2086 # `kept` is a space-separated list of flow names
-    sharded=$(maestro_shard_flows "$FLOW_PLAN" "$index" "$count" $kept) || return 2
+    sharded=$(maestro_pack_flows "$platform" "$FLOW_PLAN" "$index" "$count" $kept) || return 2
 
     printf 'selection-reason=%s\n' "$(printf '%s\n' "$verdict" | sed -n 's/^reason=//p')"
     printf 'shard-reason=%s\n' "$(printf '%s\n' "$sharded" | sed -n 's/^reason=//p')"
@@ -771,6 +781,27 @@ maestro_flow_weight() {
     printf '%s\n' "$MAESTRO_DEFAULT_FLOW_WEIGHT"
 }
 
+# maestro_flow_cost <platform> <plan-free flow name>
+#
+# What the PACKER charges a shard for running the flow on that platform: its measured Android time, plus
+# `MAESTRO_IOS_FLOW_OVERHEAD` on iOS. Pure. The platform is a PARAMETER, never read from the environment, so the packer's
+# answer is a function of its arguments, and an unknown platform is refused (exit 2) instead of costed as Android.
+maestro_flow_cost() {
+    if [ "$#" -ne 2 ] || ! maestro_known_platform "$1"; then
+        echo "runMaestroFlows.sh: unknown platform '${1-}' (expected one of: ${MAESTRO_PLATFORMS}) - refusing to cost a flow for a device it does not know" >&2
+
+        return 2
+    fi
+
+    local seconds
+    seconds="$(maestro_flow_weight "$2")"
+
+    case "$1" in
+        ios) printf '%s\n' "$((seconds + MAESTRO_IOS_FLOW_OVERHEAD))" ;;
+        *) printf '%s\n' "$seconds" ;;
+    esac
+}
+
 # maestro_shard_flows <plan> <index> <count> [<flow> …]
 #
 # THE PARTITION, as a PURE function: plan + shard coordinates + the selected flows in, this shard's flows out.
@@ -795,14 +826,23 @@ maestro_flow_weight() {
 # flow list — both are a broken caller rather than a selection, and answering "run nothing" to either is the
 # green-over-no-work outcome this script exists to refuse.
 maestro_shard_flows() {
-    if [ "$#" -lt 3 ]; then
+    maestro_pack_flows android "$@"
+}
+
+# maestro_pack_flows <platform> <plan> <index> <count> [<flow> …]
+#
+# `maestro_shard_flows` for a stated platform: the same pure partition, each flow charged `maestro_flow_cost` for that
+# platform. `maestro_shard_flows` is the Android answer and stays byte-identical; `maestro_shard_selection` passes its own
+# platform here, so the iOS shards are packed on what an iOS flow costs.
+maestro_pack_flows() {
+    if [ "$#" -lt 4 ]; then
         echo 'usage: runMaestroFlows.sh shard-plan <plan> <index> <count> [<flow> …]' >&2
 
         return 2
     fi
 
-    local plan="$1" index="$2" count="$3"
-    shift 3
+    local platform="$1" plan="$2" index="$3" count="$4"
+    shift 4
 
     if ! maestro_positive_integer "$index" || ! maestro_positive_integer "$count" || [ "$index" -gt "$count" ]; then
         echo "runMaestroFlows.sh: '${index}/${count}' is not a shard of a matrix — refusing to run an unknown subset of the suite" >&2
@@ -842,7 +882,7 @@ maestro_shard_flows() {
     for flow in "$@"; do
         case "$MAESTRO_ERASING_FLOWS" in
             *" ${flow} "*)
-                weight="$(maestro_flow_weight "$flow")"
+                weight="$(maestro_flow_cost "$platform" "$flow")" || return 2
                 loads[MAESTRO_ERASURE_SHARD - 1]=$((loads[MAESTRO_ERASURE_SHARD - 1] + weight))
                 ;;
         esac
@@ -868,7 +908,7 @@ maestro_shard_flows() {
                 ;;
         esac
 
-        weight="$(maestro_flow_weight "$flow")"
+        weight="$(maestro_flow_cost "$platform" "$flow")" || return 2
         lightest=0
         for ((position = 1; position < count; position += 1)); do
             if [ "${loads[position]}" -lt "${loads[lightest]}" ]; then
@@ -1437,6 +1477,13 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
         default-weight)
             printf '%s\n' "$MAESTRO_DEFAULT_FLOW_WEIGHT"
             ;;
+        flow-cost)
+            shift
+            maestro_flow_cost "$@"
+            ;;
+        ios-flow-overhead)
+            printf '%s\n' "$MAESTRO_IOS_FLOW_OVERHEAD"
+            ;;
         driver-port)
             printf '%s\n' "$MAESTRO_DRIVER_PORT"
             ;;
@@ -1456,7 +1503,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $MAESTRO_VERTICALS
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|ios-flow-overhead|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

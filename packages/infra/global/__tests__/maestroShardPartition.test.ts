@@ -816,6 +816,142 @@ function defaultWeight(): number {
     return Number((outcome.stdout ?? '').trim());
 }
 
+/**
+ * ADDED 2026-10-13 (plan 2026-10-13-006, cut 3). The weights above are ANDROID wall-clock times, and an iOS flow costs about
+ * 63 s more than the same flow on Android on top of them (median fixed cost 86 s per flow on iOS against 23 s: the XCUITest
+ * runner start, a slower sign-in and a slower teardown, none of which depend on what the flow does). Packing the iOS shards
+ * on the Android numbers therefore balanced the wrong quantity: the shards ranged from 2103 s to 2935 s on the measured run,
+ * and the slowest one is the wall clock.
+ *
+ * ⛔ THE MODEL IS "ANDROID TIME + A FIXED PER-FLOW OVERHEAD", NOT FLOW COUNT. Modelled over the iOS selection (the full plan
+ * minus the four flows iOS cannot run), with the true iOS cost taken as Android time + 63 s, four shards end up:
+ *
+ *     packing model             | slowest shard | spread
+ *     Android weights (before)  | 2099 s        | 406 s
+ *     flow count only           | 2142 s        | 361 s   (and 641 s at three shards - worse than before)
+ *     Android weight + 65 s     | 1994 s        |  91 s
+ *
+ * so counting flows alone throws away the one fact the weights hold (`recipes/collectionsPagination` is 432 s) and does worse
+ * than the code it was meant to improve. The overhead is a constant added to every iOS flow, nothing else about the packer
+ * changes, and Android's packing stays byte-identical.
+ */
+describe('maestro_shard_flows - the iOS shards are packed on what an iOS flow really costs', () => {
+    /** The measured iOS-minus-Android fixed cost per flow (86 s - 23 s): the TEST's own statement of the truth. */
+    const MEASURED_IOS_EXTRA_SECONDS = 63;
+
+    /** One of the script's subcommands, with `MAESTRO_PLATFORM` set. */
+    function runAs(platform: string, ...args: readonly string[]): Sharded {
+        const result = spawnSync('bash', [SCRIPT, ...args], {
+            encoding: 'utf8',
+            env: { ...process.env, MAESTRO_PLATFORM: platform },
+        });
+
+        if (result.error) {
+            throw result.error;
+        }
+
+        const lines = (result.stdout ?? '').split('\n');
+        const valuesOf = (key: string): readonly string[] =>
+            lines.flatMap((line) => (line.startsWith(`${key}=`) ? [line.slice(key.length + 1)] : []));
+
+        return {
+            flows: valuesOf('flow'),
+            deferred: valuesOf('deferred'),
+            reason: valuesOf('shard-reason')[0] ?? '',
+            status: result.status ?? -1,
+            stderr: result.stderr ?? '',
+        };
+    }
+
+    function costOf(platform: string, flow: string): number {
+        const outcome = spawnSync('bash', [SCRIPT, 'flow-cost', platform, flow], { encoding: 'utf8' });
+
+        expect(outcome.status, `flow-cost ${platform} ${flow}: ${outcome.stderr}`).toBe(0);
+
+        return Number((outcome.stdout ?? '').trim());
+    }
+
+    it('costs an Android flow at its measured time, exactly as the weight table says', () => {
+        const weights = weightTable();
+
+        for (const [flow, seconds] of weights) {
+            expect(costOf('android', flow)).toBe(seconds);
+        }
+
+        expect(costOf('android', 'a/flow/nobody/timed')).toBe(defaultWeight());
+    });
+
+    it('costs an iOS flow at its Android time PLUS one fixed overhead - for a timed flow and an untimed one alike', () => {
+        const overhead = Number(
+            (spawnSync('bash', [SCRIPT, 'ios-flow-overhead'], { encoding: 'utf8' }).stdout ?? '').trim(),
+        );
+
+        expect(Number.isInteger(overhead) && overhead > 0, `ios-flow-overhead printed ${overhead}`).toBe(true);
+        expect(costOf('ios', 'home')).toBe(costOf('android', 'home') + overhead);
+        expect(costOf('ios', 'a/flow/nobody/timed')).toBe(defaultWeight() + overhead);
+    });
+
+    it('refuses a platform it does not know rather than costing the flow as Android', () => {
+        const outcome = spawnSync('bash', [SCRIPT, 'flow-cost', 'windows', 'home'], { encoding: 'utf8' });
+
+        expect(outcome.status).toBe(2);
+        expect(outcome.stdout).toBe('');
+        expect(outcome.stderr).toMatch(/unknown platform 'windows'/u);
+    });
+
+    /**
+     * The assertion that fails when the packing ignores the overhead. The cost used to JUDGE the shards is the test's own
+     * (Android time + the measured 63 s), not the script's, so tuning the script's constant cannot satisfy it by echoing
+     * itself.
+     */
+    it.each([3, 4])('⛔ balances %i iOS shards on the real iOS cost: slowest and fastest within 10%%', (count) => {
+        const weights = weightTable();
+        const shards = Array.from({ length: count }, (_, index) => {
+            const outcome = runAs('ios', 'shard-selection', String(index + 1), String(count), 'full=true');
+
+            expect(outcome.status, outcome.stderr).toBe(0);
+
+            return outcome.flows
+                .filter((flow) => flow !== SPINE)
+                .reduce(
+                    (total, flow) => total + (weights.get(flow) ?? defaultWeight()) + MEASURED_IOS_EXTRA_SECONDS,
+                    0,
+                );
+        });
+        const [slowest, fastest] = [Math.max(...shards), Math.min(...shards)];
+
+        expect((slowest - fastest) / slowest, `iOS shard costs: ${shards.join('/')}`).toBeLessThan(0.1);
+    });
+
+    it('⛔ still runs every iOS-runnable flow exactly once across the shards, and the spine on each', () => {
+        const everyShard = Array.from({ length: 4 }, (_, index) => {
+            const outcome = runAs('ios', 'shard-selection', String(index + 1), '4', 'full=true');
+
+            expect(outcome.status, outcome.stderr).toBe(0);
+
+            return outcome.flows;
+        });
+        const union = everyShard.flat();
+
+        expect(everyShard.every((flows) => flows[0] === SPINE)).toBe(true);
+        expect(union.filter((flow) => flow === SPINE)).toHaveLength(4);
+        // Four flows are excluded on iOS; everything else is a true partition.
+        expect(new Set(union.filter((flow) => flow !== SPINE)).size).toBe(union.length - 4);
+        expect(union.length - 4).toBeGreaterThan(PLANNED.length - 10);
+    });
+
+    it('leaves the Android partition byte-identical when the platform is Android or unset', () => {
+        const selection = fullSelection();
+        const viaDefault = shardAll(4, selection);
+
+        for (let index = 0; index < 4; index += 1) {
+            const viaAndroid = runAs('android', 'shard', String(index + 1), '4', ...selection);
+
+            expect(viaAndroid.flows).toStrictEqual(viaDefault[index]);
+        }
+    });
+});
+
 describe('the cost hints stay honest', () => {
     it('⛔ times only flows the plan actually runs — a stale entry mis-packs every shard, silently', () => {
         const planned = new Set(PLANNED);

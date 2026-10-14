@@ -26,7 +26,7 @@ import ts from 'typescript';
  * not always the client's name (`eventbridge` → `events`, `sfn` → `states`), so it is written down; a client missing
  * here throws rather than being guessed.
  */
-export const IAM_SERVICE_OF_CLIENT: Readonly<Record<string, string>> = {
+const IAM_SERVICE_OF_CLIENT: Readonly<Record<string, string>> = {
     'client-cloudformation': 'cloudformation',
     'client-ec2': 'ec2',
     'client-ecs': 'ecs',
@@ -50,7 +50,7 @@ interface ImpliedPermission {
     readonly source: string;
 }
 
-export const IMPLIED_PERMISSIONS: readonly ImpliedPermission[] = [
+const IMPLIED_PERMISSIONS: readonly ImpliedPermission[] = [
     {
         action: 'cloudformation:DescribeStacks',
         whenOmitted: 'StackName',

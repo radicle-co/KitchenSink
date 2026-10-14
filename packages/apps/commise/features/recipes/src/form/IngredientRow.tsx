@@ -31,6 +31,7 @@ import {
     ingredientPendingTextId,
     ingredientStandInId,
 } from './fieldErrorIds.js';
+import { ingredientRowId } from './fieldIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
 import type { IngredientRowView } from './ingredientRowView.js';
 import { errorText } from './formSectionStyles.js';
@@ -46,6 +47,12 @@ export interface IngredientRowProps {
     readonly inlineEditor: ReactNode;
     /** From 600 the open control discloses the inline editor (`aria-expanded`); below, it opens a sheet. */
     readonly expanded: boolean | undefined;
+    /**
+     * The row a pick just added, until the cook moves on: it wears the `selectedFill` tint, for the eye only
+     * (`docs/design/uiOverhaul/ingredientArrival.md`). Nothing is announced; the tint fades over 150 ms unless the cook
+     * prefers reduced motion, when it goes at once.
+     */
+    readonly arrived?: boolean;
 }
 
 /** The open control: amount and name, one button named "Edit {amount} {food}". */
@@ -106,12 +113,21 @@ const EntryName: FC<{ readonly row: IngredientRowView; readonly entryCopy: RowEn
 );
 
 /** One ingredient row. */
-export const IngredientRow: FC<IngredientRowProps> = ({ row, entryCopy, panel, inlineEditor, expanded }) => {
+export const IngredientRow: FC<IngredientRowProps> = ({
+    row,
+    entryCopy,
+    panel,
+    inlineEditor,
+    expanded,
+    arrived = false,
+}) => {
     const { secondLine, line } = row;
 
     return (
         <li
-            className="flex flex-col border-b border-line-divider last:border-b-0"
+            // The page scrolls to this node when a pick adds the row (`ScrollHost.revealSpan`).
+            id={ingredientRowId(line.key)}
+            className={`flex flex-col border-b border-line-divider last:border-b-0 motion-safe:transition-colors motion-safe:duration-150${arrived ? ' bg-selected-fill' : ''}`}
             // Item 4: focus leaving the row for somewhere outside it (`IngredientRowView.onFocusLeft`).
             onBlur={(event) => {
                 const next = event.relatedTarget;

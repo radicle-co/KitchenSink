@@ -12,14 +12,14 @@
  * @pattern Mediator — between the host's row-editor controllers and the row controls, through `useIngredientsFields`
  */
 import { Button } from '@commise/ui/button';
-import { Combobox } from '@commise/ui/combobox';
+import { Combobox, type ComboboxArrival } from '@commise/ui/combobox';
 import { Icon } from '@commise/ui/icon';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import type { FC, ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useState, type FC, type ReactNode } from 'react';
+import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.native.js';
 import { editorMessages, pluralOf } from '../editor/messages.js';
@@ -45,12 +45,16 @@ import type { SectionAddView } from './useIngredientGroups.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
 import { useSpokenRefusal, type SpeakRefusal } from './useSpokenRefusal.js';
 
+/** The dp between a group's list and the add field under it: the section stack's gap. */
+const LIST_TO_FIELD_DP = nativeTokens.spacing[1];
+
 /** The one add field, with its reading, its notices and its sentences (§7.5.3). */
 const AddField: FC<{
     readonly model: IngredientsFieldsModel;
     readonly speak: SpeakRefusal;
+    readonly arrival: ComboboxArrival | undefined;
     readonly trailingAction?: ReactNode;
-}> = ({ model, speak, trailingAction }) => {
+}> = ({ model, speak, arrival, trailingAction }) => {
     const m = useMessages(recipeFormMessages);
     const { colors } = useTheme();
     const { trailing } = model;
@@ -67,6 +71,9 @@ const AddField: FC<{
                 )}
                 leadingIcon={<Icon name="plus" size={16} tone="inkMuted" />}
                 loadingIcon={<Icon name="search" size={16} tone="inkMuted" />}
+                // PLATFORM-FORK: the row a pick just added is shown with this field by asking the scroller's field
+                // reveal host; web scrolls the page itself (`ingredientArrival.md`).
+                {...(arrival === undefined ? {} : { arrival })}
                 // How the text was read, and "Pick a food from the list." (§7.5.3): under the field, above its list.
                 belowField={
                     <>
@@ -105,12 +112,13 @@ const GroupFoot: FC<{
     readonly add: SectionAddView;
     readonly model: IngredientsFieldsModel;
     readonly speak: SpeakRefusal;
-}> = ({ add, model, speak }) => {
+    readonly arrival: ComboboxArrival | undefined;
+}> = ({ add, model, speak, arrival }) => {
     switch (add.kind) {
         case 'none':
             return null;
         case 'field':
-            return <AddField model={model} speak={speak} />;
+            return <AddField model={model} speak={speak} arrival={arrival} />;
         case 'button':
             return (
                 <View style={styles.row}>
@@ -149,6 +157,15 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     const pasteBesideField = pasteButton !== null && addFieldHere && inline;
     const amountColumn = inline ? 96 : 72;
     const rows = model.sections.flatMap((section) => section.rows);
+    // The new row's height, once it has laid out: the add field asks for the row only then, so the ask is made once, with
+    // the real distance (`ingredientArrival.md`). A later change of the row's height does not ask again.
+    const [arrivedRow, setArrivedRow] = useState<{ readonly key: string; readonly height: number } | undefined>(
+        undefined,
+    );
+    const arrival: ComboboxArrival | undefined =
+        model.arrival !== undefined && arrivedRow?.key === model.arrival.key
+            ? { key: arrivedRow.key, aboveDp: arrivedRow.height + LIST_TO_FIELD_DP }
+            : undefined;
     const sheetKey = useLastDefined(model.openRow?.line.key);
     const sheetRow = rows.find((row) => row.line.key === sheetKey);
     // PLATFORM-FORK: React Native cannot read where the reading cursor was, so this leaf returns it to the row's `⋯` once
@@ -173,6 +190,14 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             panel={panelOf(row)}
             expanded={inline ? row.editorOpen : undefined}
             amountColumn={amountColumn}
+            arrived={model.arrival?.key === row.line.key}
+            {...(model.arrival?.key === row.line.key
+                ? {
+                      onLayout: (event: LayoutChangeEvent) => {
+                          setArrivedRow({ key: row.line.key, height: event.nativeEvent.layout.height });
+                      },
+                  }
+                : {})}
             inlineEditor={
                 inline && row.editorOpen ? (
                     <View style={[styles.inlineEditor, { backgroundColor: colors.surfaceMuted }]}>
@@ -225,7 +250,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                         <View role="list" collapsable={false}>
                             {section.rows.map(rowOf)}
                         </View>
-                        <GroupFoot add={section.addHere} model={model} speak={speak} />
+                        <GroupFoot add={section.addHere} model={model} speak={speak} arrival={arrival} />
                     </View>
                 ))
             )}
@@ -238,11 +263,16 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     {group.group !== undefined && (
                         <IngredientGroupHeading id={`${group.key}-heading`} group={group.group} />
                     )}
-                    <GroupFoot add={group.addHere} model={model} speak={speak} />
+                    <GroupFoot add={group.addHere} model={model} speak={speak} arrival={arrival} />
                 </View>
             ))}
             {addFieldHere && (
-                <AddField model={model} speak={speak} {...(pasteBesideField ? { trailingAction: pasteButton } : {})} />
+                <AddField
+                    model={model}
+                    speak={speak}
+                    arrival={arrival}
+                    {...(pasteBesideField ? { trailingAction: pasteButton } : {})}
+                />
             )}
             {/* §7.5.4: in the empty section, Paste a list is a secondary button beside the add field from a 600
                 content width, and under it below that, so the field keeps its width (§7.12). */}

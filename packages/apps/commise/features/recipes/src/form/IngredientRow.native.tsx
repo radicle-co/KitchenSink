@@ -30,7 +30,7 @@ import { StatusBadge } from '@commise/ui/status-badge';
 import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useRef, useState, type FC, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import {
     ingredientCommitFailureId,
@@ -55,6 +55,13 @@ export interface IngredientRowProps {
     readonly expanded: boolean | undefined;
     /** The amount column's width: 72 pt below a 600 container, 96 from 600 (§7.5.1). It grows to 96 for a wider amount. */
     readonly amountColumn: number;
+    /**
+     * The row a pick just added, until the cook moves on: it wears the `selectedFill` tint, for the eye only
+     * (`docs/design/uiOverhaul/ingredientArrival.md`). Nothing is announced and nothing animates; native snaps it off.
+     */
+    readonly arrived?: boolean;
+    /** The row's layout, so the screen can say how far the field under it is from the row's top. */
+    readonly onLayout?: (event: LayoutChangeEvent) => void;
 }
 
 /** The widest the amount column grows to: the spec's column from 600 (§7.5.1), where "12–14 tbsp" fits. */
@@ -140,6 +147,8 @@ export const IngredientRow: FC<IngredientRowProps> = ({
     inlineEditor,
     expanded,
     amountColumn,
+    arrived = false,
+    onLayout,
 }) => {
     const { colors } = useTheme();
     const { secondLine, line } = row;
@@ -150,7 +159,16 @@ export const IngredientRow: FC<IngredientRowProps> = ({
     const error = [styles.caption, { color: colors.dangerText }];
 
     return (
-        <View role="listitem" collapsable={false} style={[styles.item, { borderBottomColor: colors.lineDivider }]}>
+        <View
+            role="listitem"
+            collapsable={false}
+            {...(onLayout === undefined ? {} : { onLayout })}
+            style={[
+                styles.item,
+                { borderBottomColor: colors.lineDivider },
+                arrived && { backgroundColor: colors.selectedFill },
+            ]}
+        >
             {row.inEntry && <EntryExits onBack={row.onLeaveEntry} onKeyboardHidden={row.onFocusLeft} />}
             <View style={styles.top}>
                 {row.inEntry ? (

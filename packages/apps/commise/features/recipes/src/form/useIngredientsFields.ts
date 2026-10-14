@@ -39,6 +39,7 @@ import { recipeFormMessages } from './messages.js';
 import { recipeNutritionTotal } from './nutrition.js';
 import { nutritionTotalViewOf, type NutritionTotalView } from './nutritionTotal.js';
 import { ingredientSections, type RecipeIngredientsFieldsProps } from './props.js';
+import { rowArrivalOf, type RowArrival } from './rowArrival.js';
 import { failureAt, rowBusyText, rowPendingSentence, rowSettledView, type RowCommitCopy } from './rowCommitMessage.js';
 import type { RowEntryFieldCopy } from './rowEntryField.js';
 import type { TrailingEntryFieldCopy, TrailingEntryFieldInput } from './trailingEntryField.js';
@@ -110,6 +111,11 @@ export interface IngredientsFieldsModel {
     readonly lookupSettledMessage: string;
     /** What a row's settled pick did, said politely with the list closed (R3). */
     readonly settledMessage: string;
+    /**
+     * The row a pick on the add field just added, until the cook moves on; `undefined` otherwise. The leaves show it
+     * with the field and tint it (`docs/design/uiOverhaul/ingredientArrival.md`).
+     */
+    readonly arrival: RowArrival | undefined;
     /** The list's own error, from the last submit. */
     readonly listError: string | undefined;
     /** The total and every row's panel read the SAME background read (plan 002 V1 B5, blueprint decision 3). */
@@ -150,6 +156,11 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
     const present = useContext(SectionPresenceContext);
     const [unheard, setUnheard] = useState(rowEditor.settled);
     const lineEditor = useLineEditorState(values.ingredients.map((line) => line.key));
+    // A pick the cook typed over while it was in flight: the add field holds a new word, so its row is not scrolled to
+    // (`ingredientArrival.md`). Decided once, when that pick settles.
+    const [typedInFlight, setTypedInFlight] = useState(false);
+    const [interrupted, setInterrupted] = useState(false);
+    const [lastSettled, setLastSettled] = useState(rowEditor.settled);
     const [foodDetailsKey, setFoodDetailsKey] = useState<IngredientLineKey | undefined>(undefined);
     const groups = useIngredientGroups({
         values,
@@ -160,6 +171,12 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
         m,
         add: addCopy,
     });
+
+    if (rowEditor.settled !== lastSettled) {
+        setLastSettled(rowEditor.settled);
+        setInterrupted(typedInFlight);
+        setTypedInFlight(false);
+    }
 
     if (!present && rowEditor.settled !== unheard) {
         setUnheard(rowEditor.settled);
@@ -273,7 +290,13 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
                 listRequested: focus.trailing.listRequested,
                 refusalOccurrence: 0,
                 onFocusRequestHandled: focus.trailing.onHandled,
-                onTextChange: moveOn,
+                onTextChange: () => {
+                    moveOn();
+
+                    if (rowEditor.pickInFlight(TRAILING) !== undefined) {
+                        setTypedInFlight(true);
+                    }
+                },
                 // Item 1 (O3 ruling): the form opens on the food the cook typed, and they can edit it (§5a); the line it
                 // adds carries the measure typed in front of the food (A1).
                 onCreateOwnFood: (text) =>
@@ -297,6 +320,11 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
         },
         lookupSettledMessage: lookupSettledMessage(m, values, lookupRetry.settled, shared.ingredientLineName),
         settledMessage: settledView.polite,
+        arrival: rowArrivalOf(rowEditor.settled, {
+            movedPast: rowEditor.movedPast,
+            heard: rowEditor.settled !== unheard,
+            interrupted,
+        }),
         listError: errors?.ingredients === undefined ? undefined : m.errors[errors.ingredients],
         total,
         totalView: nutritionTotalViewOf(values, nutrition, locale, m),

@@ -69,3 +69,12 @@ export const ingredientAddFieldId = 'recipe-ingredient-add';
  * @returns The id.
  */
 export const ingredientNameFieldId = (key: string): string => `recipe-ingredient-${key}-name`;
+
+/**
+ * A row's list item, by its line's key: the top of the span web scrolls into view when a pick adds the row
+ * (`ScrollHost.revealSpan`, `docs/design/uiOverhaul/ingredientArrival.md`). Pure.
+ *
+ * @param key - The line's key.
+ * @returns The id.
+ */
+export const ingredientRowId = (key: string): string => `recipe-ingredient-${key}-row`;

@@ -16,8 +16,9 @@
 import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
 import { Icon } from '@commise/ui/icon';
+import { useOptionalScrollHost } from '@commise/ui/scroll-host';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { type FC, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, type FC, type ReactNode } from 'react';
 
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.js';
 import { editorMessages, pluralOf } from '../editor/messages.js';
@@ -25,6 +26,7 @@ import { useLastDefined } from '../hooks/useLastDefined.js';
 import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.js';
 import { FoodDetailsSheet } from './FoodDetailsSheet.js';
+import { ingredientAddFieldId, ingredientRowId } from './fieldIds.js';
 import { ingredientsErrorId, trailingCommitFailureId, trailingPendingTextId } from './fieldErrorIds.js';
 import { errorText } from './formSectionStyles.js';
 import { GroupNameField } from './GroupNameField.js';
@@ -132,6 +134,19 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
         ) : null;
     const pasteBesideField = pasteButton !== null && addFieldHere && inline;
     const rows = model.sections.flatMap((section) => section.rows);
+    // PLATFORM-FORK: the row a pick just added is shown with the add field by the page's scroll host; native asks its
+    // field reveal host through the combobox (`ingredientArrival.md`). It never calls `focus()`: the cook keeps typing.
+    const scrollHost = useOptionalScrollHost();
+    const arrivedKey = model.arrival?.key;
+    const revealArrival = useEffectEvent((key: string): void => {
+        scrollHost?.revealSpan(ingredientRowId(key), ingredientAddFieldId);
+    });
+
+    useEffect(() => {
+        if (arrivedKey !== undefined) {
+            revealArrival(arrivedKey);
+        }
+    }, [arrivedKey]);
     // The sheet keeps its row while it closes; the key is kept, never the row object.
     const sheetKey = useLastDefined(model.openRow?.line.key);
     const sheetRow = rows.find((row) => row.line.key === sheetKey);
@@ -152,6 +167,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             entryCopy={model.entryCopy}
             panel={panelOf(row)}
             expanded={inline ? row.editorOpen : undefined}
+            arrived={model.arrival?.key === row.line.key}
             inlineEditor={
                 inline && row.editorOpen ? (
                     <div

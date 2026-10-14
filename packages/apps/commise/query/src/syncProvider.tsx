@@ -21,6 +21,7 @@ import {
     claimForSending,
     createMemoryOutboxStore,
     drain,
+    drainLaneFor,
     outboxMutatorFor,
     settle,
     supersede,
@@ -147,6 +148,34 @@ function createSettlementBus(): SettlementBus {
     };
 }
 
+/** Which cook the provider is serving now. */
+interface SessionGate {
+    /** Open `subject`'s session. Returns the function that closes it. */
+    readonly begin: (subject: string) => () => void;
+    /** Whether `subject` is the cook signed in now. */
+    readonly isCurrent: (subject: string) => boolean;
+}
+
+/**
+ * The provider's one session gate. Pure construction; the returned functions read and replace the open session.
+ *
+ * @returns A gate with no session open.
+ */
+function createSessionGate(): SessionGate {
+    let open: string | undefined;
+
+    return {
+        begin: (subject) => {
+            open = subject;
+
+            return () => {
+                open = undefined;
+            };
+        },
+        isCurrent: (subject) => open === subject,
+    };
+}
+
 const SyncQueueContext = createContext<SyncQueue>(NOT_MOUNTED);
 
 /** Props for {@link SyncProvider}. */
@@ -199,20 +228,19 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
     // Set when the server asked for a wait too long to sleep through inside a drain; the effect below re-drains.
     const [retryInMs, setRetryInMs] = useState<number | undefined>(undefined);
     const storeRef = useRef<OutboxStore>(store ?? createMemoryOutboxStore());
-    // ⚠️ A drain in flight must not be re-entered by a second trigger (a reconnect while already draining),
-    // or the same record is sent twice — the one duplicate this design cannot blame on the network.
-    const draining = useRef(false);
-    // Set when a drain is requested while one is already running; consumed by that drain as it finishes.
-    const needsDrain = useRef(false);
     const flushRef = useRef<() => Promise<void>>(async () => undefined);
-    // One bus for the provider's life: created once by the initializer, never re-created by a render.
+    // One bus and one session gate for the provider's life: created once by the initializer, never by a render.
     const [bus] = useState(createSettlementBus);
+    const [sessions] = useState(createSessionGate);
 
+    // ⛔ DECLARED FIRST, so the cook's session is open before the mount drain below asks for a drain under it, and
+    // closed — by React running every cleanup of a change before any setup — before the next cook's opens.
     useEffect(() => {
         if (subject === undefined) {
             return undefined;
         }
 
+        const endSession = sessions.begin(subject);
         let cancelled = false;
         const mutator = outboxMutatorFor(storeRef.current, subject);
         const unsubscribe = mutator.subscribe((next) => {
@@ -237,33 +265,33 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
 
         return () => {
             cancelled = true;
+            endSession();
             unsubscribe();
         };
-    }, [subject]);
+    }, [sessions, subject]);
 
     const flush = useCallback(async (): Promise<void> => {
-        // No signed-in subject means no queue to drain — and no key to read it under.
-        if (subject === undefined || !onlineManager.isOnline()) {
+        // No signed-in subject means no queue to drain — and no key to read it under. A closure of a cook who has since
+        // signed out asks for nothing: its pass would only take the place of a live one waiting in the lane.
+        if (subject === undefined || !onlineManager.isOnline() || !sessions.isCurrent(subject)) {
             return;
         }
-
-        // ⛔ A REFUSED DRAIN RE-ARMS; IT IS NOT DROPPED. The first version returned early while a drain was in
-        // flight, so a reconnect — or a `submit` — landing inside that window was SILENTLY DISCARDED, and the
-        // queue then sat until some unrelated connectivity transition. The failure was not a double-send; it
-        // was a write that never left, which is the exact silence this layer exists to remove.
-        if (draining.current) {
-            needsDrain.current = true;
-
-            return;
-        }
-
-        draining.current = true;
 
         const mutator = outboxMutatorFor(storeRef.current, subject);
+        // ⛔ THE CLAIM AND THE ANNOUNCEMENT ASK WHETHER THIS COOK IS STILL SIGNED IN, because a drain outlives the
+        // session it began in: its request on the wire answers after the cook changed. That answer still settles into
+        // ITS cook's log (the journal is that cook's mutator), but the drain claims nothing more and announces nothing —
+        // the listeners write into the query cache and drafts of whoever is signed in NOW. The records it did not claim
+        // stay pending in that cook's outbox for their next session (ADR-0054 §4).
+        const live = (): boolean => sessions.isCurrent(subject);
         // ⛔ EVERY STEP OF THE DRAIN IS ONE SMALL CHANGE THROUGH THE MUTATOR, addressed by sequence number, never a
         // write-back of the snapshot the drain loaded — so a record a `submit` appended meanwhile is never touched.
         const journal: DrainJournal = {
             claim: async (seq) => {
+                if (!live()) {
+                    return false;
+                }
+
                 let claimed = false;
 
                 await mutator.mutate((current) => {
@@ -281,48 +309,47 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, chil
             },
         };
 
-        // ⛔ A `do/while`, NOT A RE-ENTRANT CALL AFTER THE `try`. The first version consumed `needsDrain`
-        // AFTER the try/finally, so the empty-log `break` below — and any throw from `drain` or the store —
-        // skipped it entirely, leaving the flag latched `true` forever and the re-arm unconsumed on every
-        // path except the happy one. Looping here covers every exit.
-        try {
-            do {
-                needsDrain.current = false;
+        const onSettled = (event: SyncSettlement): void => {
+            if (live()) {
+                bus.publish(event);
+            }
+        };
 
+        // ⛔ ONE PASS, AND THE COOK'S LANE DECIDES WHEN IT RUNS (`drainLaneFor`). A trigger that lands while a pass is
+        // running — a reconnect, a `submit`, this cook signing in again — is not dropped: the lane runs ITS pass once
+        // the running one ends, with the sender and session current when it was asked for. Another cook's request on
+        // the wire holds nothing here, because each cook's outbox has its own lane.
+        await drainLaneFor(storeRef.current, subject).request(async () => {
+            try {
                 const current = await mutator.read();
 
                 if (current.records.length === 0) {
-                    break;
+                    return;
                 }
 
-                const report = await drain(current, send, { journal, onSettled: bus.publish });
+                const report = await drain(current, send, { journal, onSettled });
 
-                // ⛔ A STATED WAIT ENDS THIS FLUSH. The pause is stored with the log, so a drain started before it is
-                // over sends nothing; the timer below drains again when it is.
+                // ⛔ A STATED WAIT ENDS THIS PASS. The pause is stored with the log, so a drain started before it is over
+                // sends nothing; the timer below drains again when it is.
                 if (report.retryAfterMs !== undefined) {
                     setRetryInMs(report.retryAfterMs);
-
-                    break;
                 }
-            } while (needsDrain.current);
-        } catch {
-            // ⛔ `flush` MUST NOT REJECT, and this is a rejection handler rather than three. Every caller
-            // invokes it as `void flush()` — the mount drain, the `onlineManager` reconnect subscription,
-            // `submit` and the retry timer — so a throw would be an UNHANDLED REJECTION at each.
-            //
-            // Swallowing is safe now in a way it was not before the mutator: the journal writes each step as it
-            // happens, so a failed read leaves the outbox intact, a failed claim happens BEFORE the
-            // request leaves, and a failed `settle` leaves the record `sending`, which no drain re-sends and the
-            // next process start parks as an unknown outcome. Nothing the server accepted is re-sent behind the
-            // cook's back.
-            //
-            // ⚠️ OWED: a drain that fails REPEATEDLY is invisible to the user, and a `drainOrder` cycle — a
-            // programming error, not a network one — is swallowed with everything else. Both want an error
-            // channel on the context.
-        } finally {
-            draining.current = false;
-        }
-    }, [bus, send, subject]);
+            } catch {
+                // ⛔ A PASS MUST NOT REJECT, and this is a rejection handler rather than three. Every caller of `flush`
+                // invokes it as `void flush()` — the mount drain, the `onlineManager` reconnect subscription, `submit`
+                // and the retry timer.
+                //
+                // Swallowing is safe because the journal writes each step as it happens: a failed read leaves the outbox
+                // intact, a failed claim happens BEFORE the request leaves, and a failed `settle` leaves the record
+                // `sending`, which no drain re-sends and the next process start parks as an unknown outcome. Nothing the
+                // server accepted is re-sent behind the cook's back.
+                //
+                // ⚠️ OWED: a drain that fails REPEATEDLY is invisible to the user, and a `drainOrder` cycle — a
+                // programming error, not a network one — is swallowed with everything else. Both want an error
+                // channel on the context.
+            }
+        });
+    }, [bus, send, sessions, subject]);
 
     // ⛔ ASSIGNED IN AN EFFECT, NEVER IN THE RENDER BODY. A ref written during render is advanced by a
     // DISCARDED pass too, so the committed tree can end up holding a handle from a render that never

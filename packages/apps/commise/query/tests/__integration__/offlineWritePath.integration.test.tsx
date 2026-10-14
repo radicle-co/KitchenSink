@@ -9,15 +9,17 @@
  *   the server minted — including when the update was queued AFTER the create had already synced;
  * - a write submitted while another is on the wire is not lost from storage;
  * - a request a previous process left mid-send is never re-sent, and is reported for the cook;
- * - a transient refusal is re-sent, through the real client, after a wait.
+ * - a transient refusal is re-sent, through the real client, after a wait;
+ * - at a change of cook mid-drain, the next cook's outbox drains with their token, and the previous cook's answer
+ *   reaches neither the wire again nor the next cook's query cache.
  */
-import { onlineManager } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeRecipeDetail } from '@kitchensink/recipe-core/testing';
-import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { RecipeServiceClient, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     EMPTY_OUTBOX,
     appendIntent,
@@ -31,6 +33,7 @@ import {
 } from '@kitchensink/sync';
 
 import { recipeSender } from '../../src/recipeSender.js';
+import { RecipeWriteCacheObserver } from '../../src/recipeWriteCacheObserver.js';
 import { SyncProvider, useSyncQueue } from '../../src/syncProvider.js';
 
 const BASE = 'https://recipes.test';
@@ -511,5 +514,93 @@ describe('a Discard settles the outbox through the real client (integration)', (
             ['delete', 'parked', 404],
         ]);
         expect(wire(network.calls)).toStrictEqual(['DELETE /api/v1/recipes/srv-soup']);
+    });
+});
+
+/**
+ * ⛔ A CHANGE OF COOK WHILE A REQUEST IS ON THE WIRE (ADR-0054 §4), through the real client, sender and cache observer.
+ * Each cook has their own client and token, as both app roots build them per cook.
+ */
+describe('a change of cook mid-drain (integration)', () => {
+    const updateOf = (id: string): Intent => ({
+        entity: 'recipe',
+        intentKind: 'update',
+        localId: id,
+        dependsOn: [],
+        payload: { id, input: { expectedVersion: 1, title: id } },
+    });
+
+    it('⛔ drains the next cook`s outbox with their token, and keeps the previous cook`s answer out of their cache', async () => {
+        const store = createMemoryOutboxStore();
+        await saveOutbox(
+            store,
+            'cook_a',
+            appendIntent(appendIntent(EMPTY_OUTBOX, updateOf('srv-a1')), updateOf('srv-a2')),
+        );
+        await saveOutbox(store, 'cook_b', appendIntent(EMPTY_OUTBOX, updateOf('srv-b1')));
+        const wire: string[] = [];
+        let release: (() => void) | undefined;
+        const fetchDouble = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+            const request = input instanceof Request ? input : new Request(input, init);
+            const path = new URL(request.url).pathname;
+
+            if (path === '/health') {
+                return Response.json({ status: 'ok' });
+            }
+
+            const id = path.split('/').at(-1) ?? '';
+
+            wire.push(`${request.headers.get('authorization') ?? 'none'} ${request.method} ${path}`);
+
+            if (id === 'srv-a1') {
+                await new Promise<void>((resolve) => {
+                    release = resolve;
+                });
+            }
+
+            return detail(id, 2);
+        }) as unknown as typeof fetch;
+
+        const senderFor = (token: string): ReturnType<typeof recipeSender> => {
+            const client = new RecipeServiceClient({ baseUrl: BASE, fetch: fetchDouble, token });
+
+            return recipeSender(() => client);
+        };
+
+        const queryClient = new QueryClient();
+        const tree = (subject: string, send: ReturnType<typeof recipeSender>): ReactElement => (
+            <QueryClientProvider client={queryClient}>
+                <SyncProvider subject={subject} send={send} store={store}>
+                    <RecipeWriteCacheObserver />
+                </SyncProvider>
+            </QueryClientProvider>
+        );
+
+        const view = render(tree('cook_a', senderFor('token-a')));
+        await waitFor(() => expect(wire).toStrictEqual(['Bearer token-a PATCH /api/v1/recipes/srv-a1']));
+
+        view.rerender(tree('cook_b', senderFor('token-b')));
+
+        await waitFor(() =>
+            expect(wire).toStrictEqual([
+                'Bearer token-a PATCH /api/v1/recipes/srv-a1',
+                'Bearer token-b PATCH /api/v1/recipes/srv-b1',
+            ]),
+        );
+        await waitFor(() => expect(queryClient.getQueryData(recipeServiceKeys.recipe('srv-b1'))).toBeDefined());
+
+        await act(async () => {
+            release?.();
+        });
+
+        await waitFor(async () =>
+            expect((await loadOutbox(store, 'cook_a')).records.map((record) => record.localId)).toStrictEqual([
+                'srv-a2',
+            ]),
+        );
+        expect(wire).toHaveLength(2);
+        // ⛔ Cook A's private recipe never enters the cache cook B reads.
+        expect(queryClient.getQueryData(recipeServiceKeys.recipe('srv-a1'))).toBeUndefined();
+        expect((await loadOutbox(store, 'cook_b')).records).toStrictEqual([]);
     });
 });

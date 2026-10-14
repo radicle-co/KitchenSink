@@ -990,3 +990,212 @@ describe('SyncProvider — discard', () => {
         expect((await loadOutbox(store, 'user_a')).records.map((record) => record.state)).toStrictEqual(['sending']);
     });
 });
+
+/**
+ * ⛔ A CHANGE OF COOK WHILE A REQUEST IS ON THE WIRE (ADR-0054 §4). Each cook's outbox is namespaced by their subject and
+ * drains after that cook signs in. The provider used to keep ONE `draining` flag and ONE re-arm flag for every cook:
+ * cook B's mount drain found A's drain running, set the re-arm and returned, and A's loop answered the re-arm by looping
+ * again over A's outbox with A's sender. B's drain never ran, and A's loop went on sending A's records — and announcing
+ * them to B's listeners, which write the answer into B's query cache and drafts — after A had signed out.
+ *
+ * Each cook gets their own sender, as both app roots build one per cook, so the assertions can tell which closure sent.
+ */
+describe('SyncProvider — a change of cook while a drain is on the wire', () => {
+    type TestSender = (record: { readonly localId: string }) => Promise<SendResult>;
+
+    /** Store `localIds` as pending updates in `subject`'s outbox. */
+    const seed = async (store: OutboxStore, subject: string, localIds: readonly string[]): Promise<void> => {
+        let log = EMPTY_OUTBOX;
+
+        for (const localId of localIds) {
+            log = appendIntent(log, updateOf(localId));
+        }
+
+        await saveOutbox(store, subject, log);
+    };
+
+    /** A sender that writes `{label}:{localId}` into `sent` and holds the records in `hold` on the wire until released. */
+    const heldSender = (
+        label: string,
+        sent: string[],
+        hold: readonly string[] = [],
+    ): { readonly send: TestSender; readonly release: (localId: string) => void } => {
+        const releases = new Map<string, () => void>();
+
+        return {
+            send: async (record) => {
+                sent.push(`${label}:${record.localId}`);
+
+                if (hold.includes(record.localId)) {
+                    await new Promise<void>((resolve) => {
+                        releases.set(record.localId, resolve);
+                    });
+                }
+
+                return { outcome: 'ok', serverId: `srv-${record.localId}` };
+            },
+            release: (localId) => {
+                releases.get(localId)?.();
+            },
+        };
+    };
+
+    /**
+     * Let every queued promise and timer of the moment run: a second drain would have reached `send` by then. A negative
+     * assertion after this is about what DID run, never a `waitFor` that a vacuous pass would satisfy.
+     */
+    const idle = async (): Promise<void> =>
+        new Promise((resolve) => {
+            setTimeout(resolve, 20);
+        });
+
+    /** The stored log, as `localId:state` per record. */
+    const storedOf = async (store: OutboxStore, subject: string): Promise<readonly string[]> =>
+        (await loadOutbox(store, subject)).records.map((record) => `${record.localId}:${record.state}`);
+
+    /** The provider for `subject`, with a capture of its queue. */
+    const providerFor = (
+        subject: string | undefined,
+        send: TestSender,
+        store: OutboxStore,
+        Capture: () => ReactElement,
+    ): ReactElement => (
+        <SyncProvider subject={subject} send={send as never} store={store}>
+            <Capture />
+        </SyncProvider>
+    );
+
+    it('⛔ A→B mid-drain: B drains at once, A`s request settles into A`s log, and nothing more of A`s is sent or heard', async () => {
+        const store = createMemoryOutboxStore();
+        await seed(store, 'cook_a', ['A1', 'A2']);
+        await seed(store, 'cook_b', ['B1']);
+        const sent: string[] = [];
+        const a = heldSender('a', sent, ['A1']);
+        const b = heldSender('b', sent);
+        const { current, Capture } = captureQueue();
+        const heard: string[] = [];
+
+        const view = render(providerFor('cook_a', a.send, store, Capture));
+        // The bus outlives the cook, as `RecipeWriteCacheObserver` and `useDraftAnswers` do: they stay mounted across it.
+        current().subscribe((event) => heard.push(event.localId));
+        await waitFor(() => expect(sent).toStrictEqual(['a:A1']));
+
+        view.rerender(providerFor('cook_b', b.send, store, Capture));
+
+        // ⛔ B's drain is not held behind A's request on the wire, and not swallowed by A's loop.
+        await waitFor(() => expect(sent).toStrictEqual(['a:A1', 'b:B1']));
+        await waitFor(async () => expect(await storedOf(store, 'cook_b')).toStrictEqual([]));
+
+        await act(async () => {
+            a.release('A1');
+        });
+
+        // A1 settled into A's own log — it is gone from it — and A2 waits there, pending, for A's next session.
+        await waitFor(async () => expect(await storedOf(store, 'cook_a')).toStrictEqual(['A2:pending']));
+        expect(sent).toStrictEqual(['a:A1', 'b:B1']);
+        // ⛔ B's listeners heard B's settlement only: A's answer would be written into B's cache and drafts.
+        expect(heard).toStrictEqual(['B1']);
+    });
+
+    it('⛔ A→B→A mid-drain: A`s drain resumes, one request at a time, and sends each record exactly once', async () => {
+        const store = createMemoryOutboxStore();
+        await seed(store, 'cook_a', ['A1', 'A2']);
+        const sent: string[] = [];
+        const first = heldSender('a', sent, ['A1']);
+        const { Capture } = captureQueue();
+
+        const view = render(providerFor('cook_a', first.send, store, Capture));
+        await waitFor(() => expect(sent).toStrictEqual(['a:A1']));
+
+        view.rerender(providerFor('cook_b', heldSender('b', sent).send, store, Capture));
+        view.rerender(providerFor('cook_a', heldSender('a', sent).send, store, Capture));
+        await act(async () => {
+            await idle();
+        });
+
+        // ⛔ No second drain of A's outbox while A1 is on the wire: the order stays serial.
+        expect(sent).toStrictEqual(['a:A1']);
+
+        await act(async () => {
+            first.release('A1');
+        });
+
+        await waitFor(async () => expect(await storedOf(store, 'cook_a')).toStrictEqual([]));
+        expect(sent).toStrictEqual(['a:A1', 'a:A2']);
+    });
+
+    it('⛔ sign-out mid-drain: the request settles into A`s log unheard, nothing more is sent, and A`s next session drains the rest', async () => {
+        const store = createMemoryOutboxStore();
+        await seed(store, 'cook_a', ['A1', 'A2']);
+        const sent: string[] = [];
+        const a = heldSender('a', sent, ['A1']);
+        const { current, Capture } = captureQueue();
+        const heard: string[] = [];
+
+        const view = render(providerFor('cook_a', a.send, store, Capture));
+        current().subscribe((event) => heard.push(event.localId));
+        await waitFor(() => expect(sent).toStrictEqual(['a:A1']));
+
+        view.rerender(providerFor(undefined, heldSender('nobody', sent).send, store, Capture));
+        await act(async () => {
+            a.release('A1');
+        });
+
+        await waitFor(async () => expect(await storedOf(store, 'cook_a')).toStrictEqual(['A2:pending']));
+        expect(sent).toStrictEqual(['a:A1']);
+        // ⛔ Nobody is signed in: A's answer must not reach a cache the next cook will read.
+        expect(heard).toStrictEqual([]);
+
+        view.rerender(providerFor('cook_a', heldSender('a', sent).send, store, Capture));
+
+        await waitFor(async () => expect(await storedOf(store, 'cook_a')).toStrictEqual([]));
+        expect(sent).toStrictEqual(['a:A1', 'a:A2']);
+        expect(heard).toStrictEqual(['A2']);
+    });
+
+    /**
+     * ⛔ THE LANE BELONGS TO THE OUTBOX, NOT TO ONE MOUNT OF THE PROVIDER — the reason `outboxMutatorFor` is shared, one
+     * level up. A provider remounted while its create is on the wire must not start a second drain of the same outbox:
+     * that one would skip the update waiting on the create's id, end, and leave it stranded once the first drain — whose
+     * mount has ended — stops claiming.
+     */
+    it('⛔ a remount mid-drain: the update waiting on the create on the wire is sent, once, after it', async () => {
+        const store = createMemoryOutboxStore();
+        const REF = 'local:recipe:new';
+        await saveOutbox(
+            store,
+            'cook_a',
+            appendIntent(
+                appendIntent(EMPTY_OUTBOX, {
+                    entity: 'recipe',
+                    intentKind: 'create',
+                    localId: REF,
+                    produces: REF,
+                    dependsOn: [],
+                    payload: {},
+                }),
+                { entity: 'recipe', intentKind: 'update', localId: 'U1', dependsOn: [REF], payload: { id: REF } },
+            ),
+        );
+        const sent: string[] = [];
+        const a = heldSender('a', sent, [REF]);
+        const { Capture } = captureQueue();
+
+        const first = render(providerFor('cook_a', a.send, store, Capture));
+        await waitFor(() => expect(sent).toStrictEqual([`a:${REF}`]));
+
+        first.unmount();
+        render(providerFor('cook_a', heldSender('again', sent).send, store, Capture));
+        await act(async () => {
+            await idle();
+        });
+        expect(sent).toStrictEqual([`a:${REF}`]);
+
+        await act(async () => {
+            a.release(REF);
+        });
+
+        await waitFor(async () => expect(await storedOf(store, 'cook_a')).toStrictEqual([]));
+        expect(sent.filter((entry) => entry.endsWith(':U1'))).toHaveLength(1);
+    });
+});
